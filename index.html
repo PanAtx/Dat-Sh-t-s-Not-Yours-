@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>DSNY: The Clean Sweep</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; user-select:none; -webkit-user-select:none; }
+#game { position:fixed; inset:0; }
+#game canvas { display:block; }
+#haze { position:fixed; inset:0; z-index:5; pointer-events:none;
+  background:linear-gradient(315deg, rgba(255,255,255,.22) 0%, rgba(255,255,255,.07) 22%, transparent 45%); }
+#scanlines { position:fixed; inset:0; z-index:6; pointer-events:none;
+  background:repeating-linear-gradient(0deg, rgba(6,10,14,.20) 0px, rgba(6,10,14,.20) 1px, transparent 1px, transparent 3px);
+  animation:crt 4s steps(60) infinite; }
+@keyframes crt { 0%,100% { opacity:.9 } 50% { opacity:.72 } }
+#vignette { position:fixed; inset:0; z-index:7; pointer-events:none;
+  background:radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(0,0,0,.42) 100%); }
+#hud { position:fixed; inset:0; z-index:10; pointer-events:none; font-family:"Courier New", Courier, monospace; color:#eaf6ff; }
+.hudbox { text-shadow:0 0 8px rgba(46,224,144,.55), 2px 2px 0 rgba(0,0,0,.85); }
+#tl { position:absolute; top:16px; left:20px; font-size:20px; letter-spacing:2px; }
+#tl .sub { font-size:14px; color:#9fe8b8; margin-top:4px; }
+#route { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  border:2px solid rgba(46,224,144,.7); background:rgba(4,18,10,.66); padding:6px 22px;
+  font-size:16px; letter-spacing:3px; color:#bfe9ff; white-space:nowrap; }
+#tr { position:absolute; top:16px; right:20px; text-align:right; font-size:13px; letter-spacing:1px; }
+#pips { margin-top:6px; }
+.pip { display:inline-block; width:14px; height:14px; margin-left:6px; border:2px solid #ffb84d; transform:rotate(45deg); }
+.pip.on { background:#ff3b3b; box-shadow:0 0 10px #ff3b3b; }
+#carry { position:absolute; bottom:66px; left:50%; transform:translateX(-50%); font-size:18px; letter-spacing:2px; color:#7dff9e; white-space:nowrap; }
+#hint { position:absolute; bottom:34px; left:50%; transform:translateX(-50%); font-size:15px; letter-spacing:1px; color:#ffd66b; white-space:nowrap; }
+#flash { position:fixed; inset:0; z-index:9; pointer-events:none; background:rgba(255,40,40,.3); opacity:0; transition:opacity .5s; }
+.modal { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(3,7,10,.78); }
+.panel { border:3px solid #2ee090; background:linear-gradient(180deg, #07130d, #040a07); padding:34px 48px; text-align:center;
+  box-shadow:0 0 34px rgba(46,224,144,.4), inset 0 0 60px rgba(0,0,0,.65); max-width:680px; }
+.panel h1 { font-family:"Courier New", monospace; font-size:34px; letter-spacing:6px; color:#2ee090; text-shadow:0 0 14px rgba(46,224,144,.8); }
+.panel h2 { font-family:"Courier New", monospace; font-size:26px; letter-spacing:4px; color:#ff5252; text-shadow:0 0 14px rgba(255,82,82,.8); }
+.panel .tag { font-family:"Courier New", monospace; color:#9fe8b8; letter-spacing:3px; font-size:13px; margin-top:8px; }
+.panel .ctl { font-family:"Courier New", monospace; color:#cfe6ff; font-size:14px; line-height:1.9; margin:20px 0; text-align:left; display:inline-block; }
+.panel .score { font-family:"Courier New", monospace; font-size:20px; color:#ffd66b; margin:14px 0 4px; letter-spacing:2px; }
+.panel button { font-family:"Courier New", monospace; font-size:20px; letter-spacing:4px; padding:12px 42px; margin-top:18px; cursor:pointer;
+  color:#04140c; background:#2ee090; border:none; box-shadow:0 0 18px rgba(46,224,144,.7); pointer-events:auto; }
+.panel button:hover { background:#5cf0ad; }
+.hidden { display:none !important; }
+.kbd { color:#7dff9e; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="haze"></div>
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="hud">
+  <div id="tl" class="hudbox"><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
+  <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
+  <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
+  <div id="carry" class="hudbox">HANDS FREE</div>
+  <div id="hint" class="hudbox">-</div>
+</div>
+<div id="menu" class="modal"><div class="panel">
+  <h1>DSNY : THE CLEAN SWEEP</h1>
+  <div class="tag">NEW YORK CITY SANITATION - ARCADE SERVICE ROUTE - BUILD v12 (WORKER FACES DIRECTION)</div>
+  <div class="ctl">
+    <span class="kbd">W / UP</span> &nbsp;- run up the route<br>
+    <span class="kbd">S / DOWN</span> &nbsp;- back up the route<br>
+    <span class="kbd">A / D</span> &nbsp;- sidestep across lanes<br>
+    <span class="kbd">SPACE / E</span> - pick up / toss / dump / shoo<br>
+    <span class="kbd">GAMEPAD</span> - stick/dpad = move &middot; A / X = action &middot; START = begin<br><br>
+    Catch the DSNY truck crawling down the street and toss the black bags /<br>
+    full cans into its hopper. Empty cans auto-toss to the sidewalk!<br>
+    Serve houses before you run past them. Grab copper, cash &amp; Mongo.<br>
+    3 supervisor write-ups and you are <b style="color:#ff5252">SUSPENDED</b>.
+  </div>
+  <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
+  <button id="btnStart">START SHIFT</button>
+</div></div>
+<div id="over" class="modal hidden"><div class="panel">
+  <h2>SUSPENDED BY DSNY</h2>
+  <div class="tag">3 WRITE-UPS - SHIFT TERMINATED</div>
+  <div class="score">FINAL SCORE $<span id="finalscore">000000</span></div>
+  <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
+  <button id="btnRestart">RESTART SHIFT</button>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+// ==================== HELPERS & CORE STATE ====================
+const $ = id => document.getElementById(id);
+const R = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);
+const pad = n => String(Math.max(0, Math.floor(n))).padStart(6, '0');
+const TILE = 144, NB = 18, BW = 8;
+const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
+const TRUCK_SPEED = 0.8;  // the DSNY truck crawls very slowly (half walking pace, pedestrians are 1.0-2.2)
+const TEST_KEEP_PLAYING = true; // TEMP (testing): missed garbage stops still give write-ups, but NEVER suspend you. Set false to restore 3-strike game over.
+const GZ = 0.3;
+const ISO_A = 26; // isometric camera arm length
+const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
+
+let state = 'menu', score = 0, bonusTally = 0, complaints = 0;
+let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, shake: 0, facing: 0 };
+let carry = 'none', carried = null, hopperAnim = 0;
+let routeIdx = 0, routeDist = 0;
+const ROUTES = ['ROUTE 1 - MANHATTAN UPTOWN', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
+let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10) || 0; } catch (e) {}
+let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
+let flyingCans = [], dustParticles = [], landedCans = [];
+let worker = null, wparts = null, truck = null;
+let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
+const keys = {};
+const gp = { left:false, right:false, fwd:false, back:false, act:false, pAct:false, pStart:false };
+let lastT = performance.now();
+$('hiscore').textContent = pad(hi);
+$('hiscore2').textContent = pad(hi);
+
+// ==================== THREE SETUP (diagonal top-right matrix) ====================
+function makeFrustum(){
+  const a = innerWidth / innerHeight;
+  const s = 4.5;
+  if (a >= 1) return { l: -s * a, r: s * a, t: s, b: -s };
+  return { l: -s, r: s, t: s / a, b: -s / a };
+}
+function initThree(){
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  $('game').appendChild(renderer.domElement);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9fb6c9);
+  scene.fog = new THREE.Fog(0x9fb6c9, 60, 160); // NYC haze with real depth falloff
+
+  const f = makeFrustum();
+  camera = new THREE.OrthographicCamera(f.l, f.r, f.t, f.b, 1, 400);
+  camera.up.set(0, 0, 1); // world vertical is the screen-up axis
+  scene.add(camera); // root-level camera: its position is computed explicitly every frame
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.78));
+  dirLight = new THREE.DirectionalLight(0xfff2dd, 0.75);
+  dirLight.position.set(-25, 28, 58);
+  dirLight.castShadow = true;
+  dirLight.shadow.bias = -0.0006;
+  dirLight.shadow.mapSize.set(2048, 2048);
+  const sc = dirLight.shadow.camera;
+  sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 220;
+  scene.add(dirLight); scene.add(dirLight.target);
+
+  // Rotate the whole world +45deg so local +X (route forward) points to the
+  // TOP-RIGHT of the screen: the classic Paperboy diagonal axis.
+  worldGroup = new THREE.Group();
+  worldGroup.rotation.z = Math.PI / 4;
+  scene.add(worldGroup);
+  dynamicGroup = new THREE.Group();
+  worldGroup.add(dynamicGroup);
+  groundGroup = new THREE.Group();
+  worldGroup.add(groundGroup);
+  buildGround();
+}
+function groundStrip(w, h, d, y, col){
+  const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: col }));
+  q.position.set(0, y, 0.15);
+  q.receiveShadow = true;
+  groundGroup.add(q);
+  return q;
+}
+function buildGround(){
+  groundStrip(240, 10, 0.3, -4.5, 0x3a4046);   // asphalt
+  groundStrip(240, 4.5, 0.3, 2.75, 0x8d949c);  // sidewalk
+  groundStrip(240, 3.5, 0.3, 6.75, 0x4d7a3a);  // front lawns
+  groundStrip(240, 16, 0.3, 16, 0x35522c);     // park beyond the blocks
+  const curb = new THREE.Mesh(new THREE.BoxGeometry(240, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0xaab2ba }));
+  curb.position.set(0, 0.5, 0.1);
+  curb.receiveShadow = true;
+  groundGroup.add(curb);
+  const edgeL = new THREE.Mesh(new THREE.BoxGeometry(240, 0.22, 0.05), new THREE.MeshLambertMaterial({ color: 0xd8dde2 }));
+  edgeL.position.set(0, -9.2, 0.31);
+  groundGroup.add(edgeL);
+  const edgeR = edgeL.clone();
+  edgeR.position.y = 0.2;
+  groundGroup.add(edgeR);
+}
+window.addEventListener('resize', () => {
+  const f = makeFrustum();
+  camera.left = f.l; camera.right = f.r; camera.top = f.t; camera.bottom = f.b;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+// ==================== PROCEDURAL AUDIO (Web Audio API) ====================
+const SFX = {
+  ctx: null, master: null,
+  ensure(){
+    if (this.ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.5;
+    this.master.connect(this.ctx.destination);
+  },
+  tone(type, f0, f1, dur, gain, when){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + (when || 0);
+    const o = this.ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(Math.max(1, f0), t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + dur + 0.05);
+  },
+  noise(dur, type, freq, gain, when){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + (when || 0);
+    const n = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = type; f.frequency.value = freq; f.Q.value = 1;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + dur);
+  },
+  playTossSound(){      this.ensure(); this.noise(0.32, 'lowpass', 260, 0.9); this.tone('sine', 110, 52, 0.26, 0.7); },
+  playCanDropSound(){   this.ensure(); this.tone('square', 520, 170, 0.12, 0.5); this.tone('square', 940, 300, 0.1, 0.3, 0.03); this.noise(0.16, 'highpass', 2400, 0.4); },
+  playBonusTone(){      this.ensure(); const seq = [660, 880, 1320, 1760]; for (let i = 0; i < seq.length; i++) this.tone('sine', seq[i], seq[i], 0.13, 0.35, i * 0.07); },
+  playTripSound(){      this.ensure(); this.tone('sine', 82, 40, 0.3, 0.8); this.noise(0.26, 'lowpass', 200, 0.5); },
+  playStun(){           this.ensure(); this.tone('square', 150, 55, 0.22, 0.5); this.noise(0.2, 'bandpass', 700, 0.4); },
+  playPickupSound(){    this.ensure(); this.tone('triangle', 300, 520, 0.09, 0.4); },
+  playDropSound(){      this.ensure(); this.tone('sine', 150, 55, 0.18, 0.5); this.noise(0.16, 'lowpass', 420, 0.4); },
+  playComplaintSound(){ this.ensure(); this.tone('sawtooth', 210, 185, 0.22, 0.35); this.tone('sawtooth', 210, 185, 0.22, 0.35, 0.3); },
+  playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
+  playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); }
+};
+// ==================== VOICE SYNTHESIS (queue-managed) ====================
+const Voice = {
+  enabled: typeof window !== 'undefined' && 'speechSynthesis' in window,
+  busy: false, queue: [], last: {},
+  say(text, gap, pitch, rate){
+    if (!this.enabled) return;
+    const now = performance.now();
+    gap = gap || 1.4;
+    if (this.last[text] && now - this.last[text] < gap * 1000) return;
+    this.last[text] = now;
+    this.queue.push({ text: text, pitch: pitch || 0.8, rate: rate || 1.08 });
+    this.pump();
+  },
+  pump(){
+    if (this.busy || !this.queue.length || !this.enabled) return;
+    const item = this.queue.shift();
+    const u = new SpeechSynthesisUtterance(item.text);
+    u.pitch = item.pitch; u.rate = item.rate; u.volume = 0.9;
+    let vs = [];
+    try { vs = window.speechSynthesis.getVoices(); } catch (e) {}
+    const en = vs.find(v => v.lang && v.lang.indexOf('en') === 0);
+    if (en) u.voice = en;
+    u.onend = () => { this.busy = false; setTimeout(() => this.pump(), 140); };
+    u.onerror = () => { this.busy = false; setTimeout(() => this.pump(), 140); };
+    this.busy = true;
+    try { window.speechSynthesis.speak(u); } catch (e) { this.busy = false; }
+  },
+  cancel(){
+    this.queue.length = 0;
+    this.busy = false;
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+  }
+};
+// ==================== PRIMITIVE HELPERS ====================
+function M(c, opt){ return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {})); }
+function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.95, roughness: 0.28 }, opt || {})); }
+function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); q.castShadow = true; return q; }
+function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
+function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); q.castShadow = true; return q; }
+function disposeObj(o){
+  o.traverse(ch => {
+    if (ch.geometry) ch.geometry.dispose();
+    if (ch.material){ (Array.isArray(ch.material) ? ch.material : [ch.material]).forEach(m => m.dispose()); }
+  });
+}
+// ==================== DSNY SANITATION WORKER (rigged hierarchy) ====================
+function buildWorker(){
+  const g = new THREE.Group();
+  const greenPants = M(0x1e6b30);   // signature DSNY green work pants
+  const hiVis = M(0xff7a1a);        // high-vis fluorescent safety vest
+  const silver = M(0xd9dde2);       // reflective silver stripes
+  const skin = M(0xe0ac7e);
+  const mkLeg = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.13, 0.78);
+    const leg = BX(0.16, 0.14, 0.7, greenPants); leg.position.z = -0.36; pv.add(leg);
+    const boot = BX(0.3, 0.18, 0.16, M(0x23262b)); boot.position.set(0.06, 0, -0.56); pv.add(boot); // dark work boots
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1), legR = mkLeg(-1);
+  const shirt = BX(0.26, 0.52, 0.62, M(0x2e7d32)); shirt.position.z = 1.1; g.add(shirt);
+  const vest = BX(0.3, 0.56, 0.68, hiVis); vest.position.z = 1.1; g.add(vest);
+  const st1 = BX(0.02, 0.09, 0.6, silver); st1.position.set(0.14, 0, 1.1); g.add(st1);
+  const st2 = BX(0.02, 0.09, 0.6, silver); st2.position.set(-0.14, 0, 1.1); g.add(st2);
+  const belt = BX(0.3, 0.5, 0.1, M(0x3a3f45)); belt.position.z = 0.82; g.add(belt);
+  const mkArm = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
+    const arm = BX(0.11, 0.13, 0.45, hiVis); arm.position.z = -0.22; pv.add(arm);
+    const glove = BX(0.13, 0.15, 0.15, M(0x6d4c2a)); glove.position.z = -0.52; pv.add(glove); // heavy work gloves
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = BX(0.3, 0.3, 0.3, skin); head.position.z = 1.62; g.add(head);
+  const cap = BX(0.34, 0.34, 0.14, M(0x155327)); cap.position.z = 1.87; g.add(cap); // DSNY work cap
+  const brim = BX(0.22, 0.18, 0.05, M(0x155327)); brim.position.set(0.19, 0, 1.84); g.add(brim);
+  const patch = BX(0.04, 0.13, 0.06, M(0xf5f5f5)); patch.position.set(0.18, 0, 1.2); g.add(patch);
+  g.position.set(0, 2.5, GZ);
+  return { group: g, legL: legL, legR: legR, armL: armL, armR: armR };
+}
+// ==================== DSNY COLLECTION TRUCK ====================
+function buildTruck(){
+  const g = new THREE.Group();
+  const white = M(0xf2f5f7), green = M(0x1e6b30);
+  const cab = BX(2.2, 1.4, 1.5, white); cab.position.set(2.0, 0, 1.0); g.add(cab);
+  const cstripe = BX(2.24, 1.54, 0.3, green); cstripe.position.set(2.0, 0, 0.6); g.add(cstripe);
+  const glass = new THREE.MeshLambertMaterial({ color: 0x16283a, emissive: 0x1c3a52, emissiveIntensity: 0.5 });
+  const wind = BX(0.1, 0.85, 1.25, glass); wind.position.set(3.05, 0, 1.35); g.add(wind);
+  const grille = BX(0.12, 1.1, 0.55, M(0x2b3036)); grille.position.set(3.13, 0, 0.65); g.add(grille);
+  const mir1 = BX(0.06, 0.22, 0.3, M(0x33383e)); mir1.position.set(2.85, 0, 1.72); g.add(mir1);
+  const mir2 = BX(0.06, 0.22, 0.3, M(0x33383e)); mir2.position.set(2.85, 0, -1.72); g.add(mir2);
+  const body = BX(5.4, 2.0, 1.9, M(0xdfe5ea)); body.position.set(-1.3, 0, 1.25); g.add(body);
+  const bstripe = BX(5.44, 1.94, 0.3, green); bstripe.position.set(-1.3, 0, 0.62); g.add(bstripe);
+  // rear hopper (collection trigger zone at the back bumper)
+  const hopper = BX(1.5, 1.3, 1.65, M(0x23262b)); hopper.position.set(-4.3, 0, 1.35); g.add(hopper);
+  const rim = BX(1.55, 1.7, 0.2, M(0x99a3ac)); rim.position.set(-4.3, 0, 2.02); g.add(rim);
+  const blade = BX(0.35, 1.0, 1.35, M(0x59616a)); blade.position.set(-4.7, 0, 1.05); g.add(blade); // hydraulic packer blade
+  const beaconMat = new THREE.MeshLambertMaterial({ color: 0xffa51e, emissive: 0xffa51e, emissiveIntensity: 0.9 });
+  const b1 = BX(0.26, 0.2, 0.26, beaconMat); b1.position.set(-1.0, 0, 2.4); g.add(b1);
+  const b2 = BX(0.26, 0.2, 0.26, beaconMat); b2.position.set(-2.3, 0, 2.4); g.add(b2);
+  const wheelM = M(0x14171a);
+  const wp = [[2.6, 0.85], [2.6, -0.85], [-3.4, 0.85], [-3.4, -0.85], [-0.6, 0.85], [-0.6, -0.85]];
+  for (let i = 0; i < wp.length; i++){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.32, 14), wheelM);
+    w.position.set(wp[i][0], wp[i][1], 0.45);
+    w.castShadow = true;
+    g.add(w);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.34, 10), M(0xb9c2cb));
+    hub.position.set(wp[i][0], wp[i][1], 0.45);
+    g.add(hub);
+  }
+  worldGroup.add(g);
+  return { g: g, blade: blade, beaconMat: beaconMat, wx: -28, hidden: 0 };
+}
+// ==================== TRASH & BONUS ITEMS ====================
+function makeBag(){
+  const g = new THREE.Group();
+  const m = M(0x23272e), m2 = M(0x1b1f24);
+  const body = SP(0.4, m); body.scale.set(1.05, 0.9, 1.15); body.position.z = 0.4; g.add(body);
+  const lump = SP(0.26, m2); lump.position.set(0.15, -0.12, 0.58); g.add(lump);
+  const neck = CY(0.14, 0.2, 0.22, m); neck.position.z = 0.98; g.add(neck);
+  const knot = SP(0.13, m2, 6); knot.position.z = 1.12; g.add(knot);
+  return g;
+}
+function makeCan(openLid){
+  const g = new THREE.Group();
+  const body = CY(0.34, 0.34, 0.85, M(0x8d98a1)); body.rotation.x = Math.PI / 2; body.position.z = 0.43; g.add(body);
+  for (let i = 0; i < 2; i++){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.025, 6, 14), M(0x77828b));
+    ring.position.z = 0.28 + i * 0.3;
+    g.add(ring);
+  }
+  const lid = new THREE.Group();
+  const lidDisc = CY(0.36, 0.36, 0.06, M(0x9aa5ae)); lidDisc.rotation.x = Math.PI / 2; lid.add(lidDisc);
+  const handle = CY(0.03, 0.03, 0.26, M(0x6f7a83));
+  handle.rotation.y = Math.PI / 2;
+  handle.position.z = 0.12;
+  lid.add(handle);
+  if (openLid){ lid.position.set(0.42, 0.12, 0.92); lid.rotation.x = 0.75; }
+  else { lid.position.z = 0.89; }
+  g.add(lid);
+  g.userData.lid = lid;
+  return g;
+}
+function makeCopper(){
+  const g = new THREE.Group();
+  const m = MS(0xc47a3a);
+  const pipe = CY(0.09, 0.09, 0.85, m, 10); pipe.rotation.x = Math.PI / 2; pipe.position.z = 0.425; g.add(pipe);
+  const f1 = CY(0.16, 0.16, 0.08, m, 10); f1.position.z = 0.1; f1.rotation.x = Math.PI / 2; g.add(f1);
+  const f2 = CY(0.16, 0.16, 0.08, m, 10); f2.position.z = 0.75; f2.rotation.x = Math.PI / 2; g.add(f2);
+  const elbow = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.07, 8, 10, Math.PI / 2), m);
+  elbow.rotation.x = Math.PI / 2;
+  elbow.position.set(0.14, 0, 0.43);
+  g.add(elbow);
+  return g;
+}
+function makeCash(){
+  const g = new THREE.Group();
+  const green = M(0x3f8a3f), band = M(0xe8e2d2);
+  for (let i = 0; i < 3; i++){
+    const s = BX(0.55, 0.34, 0.1, green);
+    s.position.z = 0.36 + i * 0.1;
+    s.rotation.z = R(-0.08, 0.08);
+    g.add(s);
+  }
+  const b = BX(0.57, 0.36, 0.32, band); b.position.z = 0.46; g.add(b);
+  return g;
+}
+function makeMongo(kind){
+  const g = new THREE.Group();
+  if (kind === 0){ // vintage TV
+    const cab2 = BX(0.7, 0.5, 0.5, M(0x4a3a2a)); cab2.position.z = 0.45; g.add(cab2);
+    const scr = BX(0.05, 0.45, 0.35, new THREE.MeshLambertMaterial({ color: 0x9fb6c9, emissive: 0x33475a, emissiveIntensity: 0.6 }));
+    scr.position.set(0.36, 0, 0.48); g.add(scr);
+    const ant1 = CY(0.015, 0.015, 0.5, M(0x8a8f96), 6); ant1.rotation.x = Math.PI / 2 + 0.55; ant1.position.set(0.1, 0, 0.95); g.add(ant1);
+    const ant2 = CY(0.015, 0.015, 0.5, M(0x8a8f96), 6); ant2.rotation.x = Math.PI / 2 - 0.55; ant2.position.set(0.05, 0, 0.95); g.add(ant2);
+  } else if (kind === 1){ // brass lamp
+    const base = CY(0.22, 0.28, 0.08, MS(0xb8963a), 12); base.rotation.x = Math.PI / 2; base.position.z = 0.04; g.add(base);
+    const stem = CY(0.04, 0.04, 0.5, MS(0xb8963a), 8); stem.rotation.x = Math.PI / 2; stem.position.z = 0.32; g.add(stem);
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.35, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xe8c46a, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
+    shade.rotation.x = Math.PI / 2; shade.position.z = 0.75; shade.castShadow = true; g.add(shade);
+  } else { // vintage radio
+    const body2 = BX(0.6, 0.35, 0.25, M(0x5a4632)); body2.position.z = 0.48; g.add(body2);
+    const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 12), M(0xc9b896));
+    spk.rotation.y = Math.PI / 2; spk.position.set(0.32, 0.05, 0.55); g.add(spk);
+    const knob = CY(0.04, 0.04, 0.06, M(0x8a6a3a), 8); knob.rotation.y = Math.PI / 2; knob.position.set(0.33, -0.06, 0.55); g.add(knob);
+  }
+  return g;
+}
+// ==================== HOUSES, MAILBOXES, TREES ====================
+function makeHouse(){
+  const g = new THREE.Group();
+  const cols = [0x8a5a3b, 0xb08954, 0x7a3b34, 0x5d6b75, 0x9c7a4d, 0x6b5a7e, 0x98683f, 0x4a6a5a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = R(3.6, 4.6), d = R(3.4, 4.2), h = R(3.0, 4.4);
+  const body = BX(w, d, h, M(col)); body.position.z = h / 2; body.receiveShadow = true; g.add(body);
+  const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26)); roof.position.z = h + 0.2; g.add(roof);
+  const door = BX(0.9, 0.12, 1.7, M(0x3a2c20)); door.position.set(0, -d / 2 - 0.06, 0.85); g.add(door);
+  const wm = new THREE.MeshLambertMaterial({ color: 0x9fd0e8, emissive: 0x24434f, emissiveIntensity: 0.7 });
+  for (let i = 0; i < 2; i++){
+    const win = BX(0.8, 0.1, 0.8, wm);
+    win.position.set((i === 0 ? -1 : 1) * w * 0.3, -d / 2 - 0.05, h * 0.6);
+    g.add(win);
+  }
+  const winS = BX(0.1, 0.8, 0.8, wm); winS.position.set(w / 2 + 0.05, 0, h * 0.6); g.add(winS);
+  const sm = M(0x9a948a);
+  const s1 = BX(1.5, 0.7, 0.3, sm); s1.position.set(0, -d / 2 - 0.45, 0.15); s1.receiveShadow = true; g.add(s1);
+  const s2 = BX(2.1, 0.7, 0.22, sm); s2.position.set(0, -d / 2 - 1.05, 0.1); s2.receiveShadow = true; g.add(s2);
+  // service status lamp (red = waiting, green = serviced)
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.3), new THREE.MeshLambertMaterial({ color: 0xff5544, emissive: 0xff3322, emissiveIntensity: 0.9 }));
+  lamp.position.set(0, -d / 2 - 0.1, 2.0);
+  g.add(lamp);
+  g.userData.lamp = lamp;
+  return g;
+}
+function makeMailbox(){
+  const g = new THREE.Group();
+  const post = CY(0.04, 0.04, 0.5, M(0x5a5f66), 6); post.rotation.x = Math.PI / 2; g.add(post);
+  const box = BX(0.4, 0.32, 0.28, M(0x8a2f2f)); box.position.z = 0.39; g.add(box);
+  g.position.z = 0.25;
+  return g;
+}
+function makeTree(){
+  const g = new THREE.Group();
+  const trunk = CY(0.11, 0.2, 1.3, M(0x5a4632), 10); trunk.rotation.x = Math.PI / 2; trunk.position.z = 0.65; g.add(trunk);
+  const c1 = SP(1.0, M(0x3f7a33), 8); c1.position.z = 2.05; g.add(c1);
+  const c2 = SP(0.6, M(0x4c8a3c), 8); c2.position.set(0.4, 0.3, 2.5); g.add(c2);
+  return g;
+}
+// ==================== STATIC HAZARDS ====================
+function addCrack(b, wx, wy){
+  const g = new THREE.Group();
+  const m = M(0x6f767e);
+  for (let i = 0; i < 5; i++){
+    const s = BX(R(0.3, 0.7), R(0.12, 0.22), R(0.1, 0.16), m);
+    s.position.set(R(-0.8, 0.8), R(-0.5, 0.5), R(0.02, 0.09));
+    s.rotation.z = R(-0.5, 0.5);
+    g.add(s);
+  }
+  g.position.set(wx - b.worldX, wy, GZ);
+  b.group.add(g);
+  b.hazards.push({ wx: wx, wy: wy, r: 1.0, type: 'trip', drop: 0, cd: 0 });
+}
+function addPothole(b, wx, wy){
+  const g = new THREE.Group();
+  const hole = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.06, 14), M(0x0d0f11));
+  hole.rotation.x = Math.PI / 2; hole.position.z = 0.03;
+  g.add(hole);
+  for (let i = 0; i < 6; i++){
+    const a = i / 6 * Math.PI * 2;
+    const chip = BX(0.25, 0.15, 0.1, M(0x565d64));
+    chip.position.set(Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0.05);
+    chip.rotation.z = a;
+    g.add(chip);
+  }
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.45, 8), M(0xe8762a));
+  cone.rotation.x = Math.PI / 2; cone.position.set(1.1, 0.4, 0.225); cone.castShadow = true;
+  g.add(cone);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.03, 6, 10), M(0xf5f0e8));
+  band.position.set(1.1, 0.4, 0.1);
+  g.add(band);
+  g.position.set(wx - b.worldX, wy, GZ);
+  b.group.add(g);
+  b.hazards.push({ wx: wx, wy: wy, r: 1.1, type: 'trip', drop: 0.5, cd: 0 });
+}
+function addHydrant(b, wx, wy){
+  const g = new THREE.Group();
+  const red = M(0xb5322a);
+  const body = CY(0.16, 0.2, 0.55, red); body.rotation.x = Math.PI / 2; body.position.z = 0.27; g.add(body);
+  const cap = SP(0.14, red, 8); cap.position.z = 0.6; g.add(cap);
+  const s1 = CY(0.05, 0.05, 0.14, red, 6); s1.rotation.y = Math.PI / 2; s1.position.set(0.24, 0, 0.35); g.add(s1);
+  const s2 = CY(0.05, 0.05, 0.14, red, 6); s2.rotation.y = Math.PI / 2; s2.position.set(-0.24, 0, 0.35); g.add(s2);
+  g.position.set(wx - b.worldX, wy, GZ);
+  b.group.add(g);
+  b.hazards.push({ wx: wx, wy: wy, r: 0.75, type: 'hit', drop: 0, cd: 0 });
+}
+function addManhole(b, wx, wy){
+  const g = new THREE.Group();
+  const hole = CY(0.55, 0.55, 0.05, M(0x0a0c0e), 14); hole.rotation.x = Math.PI / 2; hole.position.z = 0.02; g.add(hole);
+  const lid = CY(0.5, 0.5, 0.07, M(0x2e343b), 14);
+  lid.position.set(0.28, 0.12, 0.07); lid.rotation.x = Math.PI / 2 - 0.35; // pried open, still resting on the road
+  g.add(lid);
+  g.position.set(wx - b.worldX, wy, GZ);
+  b.group.add(g);
+  b.hazards.push({ wx: wx, wy: wy, r: 0.9, type: 'trip', drop: 0.5, cd: 0 });
+}
+// ==================== CREATURE / VEHICLE BUILDERS ====================
+const SHIRTS = [0x3d6ea5, 0xb5474f, 0x4f8a5a, 0xc98a3a, 0x7a5aa0, 0x3a8a9a];
+const PANTS = [0x2f3640, 0x4a3b2a, 0x37424d, 0x5a4632];
+const DRESSES = [0x9a3a5a, 0x3a6a9a, 0xb58a2a, 0x5a7a4a];
+const HAIRS = [0x2a2118, 0x4a3220, 0x111111, 0x8a6a3a];
+const pick = a => a[(Math.random() * a.length) | 0];
+function makePerson(o){
+  o = o || {};
+  const g = new THREE.Group();
+  const shirt = M(o.shirt || 0x3d6ea5), pants = M(o.pants || 0x2f3640), skin = M(0xd8a878);
+  const mkLeg = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.12, 0.62);
+    const leg = BX(0.13, 0.14, 0.58, pants); leg.position.z = -0.3; pv.add(leg);
+    const shoe = BX(0.22, 0.14, 0.12, M(0x23262b)); shoe.position.set(0.05, 0, -0.55); pv.add(shoe);
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1), legR = mkLeg(-1);
+  if (o.skirt){
+    const sk = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.72, 8, 1, true), new THREE.MeshLambertMaterial({ color: o.shirt || 0x3d6ea5, side: THREE.DoubleSide }));
+    sk.rotation.x = Math.PI / 2; sk.position.z = 0.86; sk.castShadow = true; g.add(sk);
+  }
+  const torso = BX(0.2, 0.58, 0.6, shirt); torso.position.z = 1.15; g.add(torso);
+  const mkArm = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
+    const arm = BX(0.11, 0.13, 0.44, shirt); arm.position.z = -0.22; pv.add(arm);
+    const hand = BX(0.1, 0.1, 0.12, skin); hand.position.z = -0.5; pv.add(hand);
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = BX(0.26, 0.3, 0.26, skin); head.position.z = 1.66; g.add(head);
+  const hair = o.cap ? M(0x1e6b30) : M(o.hair || 0x2a2118);
+  const hairC = BX(0.28, 0.32, 0.2, hair); hairC.position.z = o.cap ? 1.86 : 1.76; g.add(hairC);
+  if (o.cap){ const brim = BX(0.16, 0.22, 0.05, M(0x1e6b30)); brim.position.set(0.16, 0, 1.84); g.add(brim); }
+  if (o.hood){ const hood = BX(0.14, 0.36, 0.2, shirt); hood.position.set(-0.12, 0, 1.45); g.add(hood); }
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
+}
+function makeRat(){
+  const g = new THREE.Group();
+  const m = M(0x55504a);
+  const body = BX(0.34, 0.13, 0.15, m); body.position.z = 0.14; g.add(body);
+  const head = BX(0.14, 0.12, 0.14, m); head.position.set(0.24, 0, 0.15); g.add(head);
+  const tail = BX(0.3, 0.03, 0.03, M(0x9a8f86)); tail.position.set(-0.3, 0, 0.1); tail.rotation.z = 0.3; g.add(tail);
+  const e1 = SP(0.035, M(0x9a8f86), 5); e1.position.set(0.26, 0.05, 0.24); g.add(e1);
+  const e2 = SP(0.035, M(0x9a8f86), 5); e2.position.set(0.26, -0.05, 0.24); g.add(e2);
+  return g;
+}
+function makeRaccoon(){
+  const g = new THREE.Group();
+  const m = M(0x7a7f86);
+  const body = BX(0.5, 0.22, 0.2, m); body.position.z = 0.2; g.add(body);
+  const head = BX(0.2, 0.18, 0.18, m); head.position.set(0.34, 0, 0.22); g.add(head);
+  const mask = BX(0.16, 0.1, 0.04, M(0x2a2e33)); mask.position.set(0.42, 0, 0.28); g.add(mask);
+  const nose = SP(0.035, M(0x2a2e33), 5); nose.position.set(0.46, 0, 0.24); g.add(nose);
+  const cols = [0x8a8f96, 0x3a3f45, 0x8a8f96];
+  for (let i = 0; i < 3; i++){
+    const seg = BX(0.12, 0.14, 0.14, M(cols[i]));
+    seg.position.set(-0.32 - i * 0.1, 0, 0.22 + i * 0.03);
+    seg.rotation.z = 0.4 + i * 0.15;
+    g.add(seg);
+  }
+  return g;
+}
+function makeSquirrel(){
+  const g = new THREE.Group();
+  const m = M(0xb5651d);
+  const body = BX(0.3, 0.18, 0.16, m); body.position.z = 0.16; g.add(body);
+  const head = BX(0.15, 0.13, 0.14, m); head.position.set(0.2, 0, 0.2); g.add(head);
+  const tail = SP(0.2, M(0xc97a2a), 7); tail.position.set(-0.2, 0, 0.35); tail.scale.set(1.4, 0.8, 1); g.add(tail);
+  return g;
+}
+function makeTricycle(){
+  const g = new THREE.Group();
+  const kid = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), h: 0.85 });
+  kid.g.scale.set(0.75, 0.75, 0.75);
+  g.add(kid.g);
+  const frame = M(0xc94a4a);
+  const f1 = BX(0.5, 0.06, 0.06, frame); f1.position.set(-0.1, 0, 0.5); g.add(f1);
+  const wheelM = M(0x23262b);
+  const wpos = [[0.42, 0, 0.2], [-0.35, 0.24, 0.2], [-0.35, -0.24, 0.2]];
+  for (let i = 0; i < 3; i++){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), wheelM);
+    w.position.set(wpos[i][0], wpos[i][1], 0.2);
+    w.castShadow = true;
+    g.add(w);
+  }
+  const handle = BX(0.05, 0.3, 0.32, frame); handle.position.set(0.42, 0, 0.35); g.add(handle);
+  g.userData.parts = { legL: kid.legL, legR: kid.legR, armL: kid.armL, armR: kid.armR };
+  return g;
+}
+function makeRC(){
+  const g = new THREE.Group();
+  const body = BX(0.4, 0.2, 0.18, M(0xc93a2a)); body.position.z = 0.14; g.add(body);
+  const wheelM = M(0x1a1d20);
+  const wpos = [[0.16, 0.12], [0.16, -0.12], [-0.16, 0.12], [-0.16, -0.12]];
+  for (let i = 0; i < 4; i++){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 8), wheelM);
+    w.position.set(wpos[i][0], wpos[i][1], 0.07);
+    g.add(w);
+  }
+  const ant = CY(0.01, 0.01, 0.14, M(0x23262b), 4); ant.rotation.x = Math.PI / 2; ant.rotation.z = 0.5; ant.position.set(-0.12, 0, 0.3); g.add(ant);
+  return g;
+}
+function makeBicycle(eBike){
+  const g = new THREE.Group();
+  const rider = makePerson({ shirt: eBike ? 0x2fa05a : 0xcc3333, pants: pick(PANTS), hair: pick(HAIRS) });
+  g.add(rider.g);
+  const frame = M(eBike ? 0x2fa05a : 0x33557a);
+  const wheelM = M(0x23262b);
+  const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
+  w1.position.set(0.45, 0, 0.35); w1.castShadow = true; g.add(w1);
+  const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
+  w2.position.set(-0.45, 0, 0.35); w2.castShadow = true; g.add(w2);
+  const f1 = BX(0.9, 0.05, 0.05, frame); f1.position.set(0, 0, 0.5); g.add(f1);
+  const f2 = BX(0.05, 0.05, 0.35, frame); f2.position.set(0.45, 0, 0.55); g.add(f2);
+  const bar = BX(0.05, 0.3, 0.3, frame); bar.position.set(0.45, 0, 0.6); g.add(bar);
+  if (eBike){ const batt = BX(0.22, 0.16, 0.1, M(0x23262b)); batt.position.set(0, 0, 0.42); g.add(batt); }
+  g.userData.parts = { legL: rider.legL, legR: rider.legR, armL: rider.armL, armR: rider.armR };
+  return g;
+}
+function makeMoto(){
+  const g = new THREE.Group();
+  const rider = makePerson({ shirt: 0x2a2e33, pants: 0x23262b, cap: true, hair: 0x111111 });
+  rider.g.position.set(-0.1, 0, 0);
+  g.add(rider.g);
+  const wheelM = M(0x1a1d20);
+  const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.14, 12), wheelM);
+  w1.position.set(0.6, 0, 0.4); w1.castShadow = true; g.add(w1);
+  const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.14, 12), wheelM);
+  w2.position.set(-0.6, 0, 0.4); w2.castShadow = true; g.add(w2);
+  const tank = BX(0.55, 0.35, 0.32, M(0xc9302a)); tank.position.set(0.1, 0, 0.75); g.add(tank);
+  const seat = BX(0.45, 0.14, 0.28, M(0x23262b)); seat.position.set(-0.35, 0, 0.85); g.add(seat);
+  const pipe = CY(0.05, 0.05, 0.55, MS(0x9aa3ab), 8);
+  pipe.rotation.y = Math.PI / 2; pipe.position.set(-0.1, 0.45, 0.45); g.add(pipe);
+  const handle = BX(0.05, 0.42, 0.3, M(0x33383e)); handle.position.set(0.62, 0, 0.85); g.add(handle);
+  g.userData.parts = { legL: rider.legL, legR: rider.legR, armL: rider.armL, armR: rider.armR };
+  return g;
+}
+function makeCar(){
+  const g = new THREE.Group();
+  const cols = [0xa03030, 0x3050a0, 0x8a8f96, 0x2a2d31, 0xc7b23a, 0x4a7a4a];
+  const col = M(pick(cols));
+  const body = BX(2.6, 1.15, 0.55, col); body.position.z = 0.78; g.add(body);
+  const glass = new THREE.MeshLambertMaterial({ color: 0x88aabb, emissive: 0x22333f, emissiveIntensity: 0.5 });
+  const cab = BX(1.5, 1.0, 0.55, glass); cab.position.set(-0.1, 0, 1.4); g.add(cab);
+  const wheelM = M(0x14171a);
+  const wpos = [[0.85, 0.6], [0.85, -0.6], [-0.85, 0.6], [-0.85, -0.6]];
+  for (let i = 0; i < 4; i++){
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.26, 12), wheelM);
+    w.position.set(wpos[i][0], wpos[i][1], 0.3);
+    w.castShadow = true;
+    g.add(w);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.28, 8), M(0xb9c2cb));
+    hub.position.set(wpos[i][0], wpos[i][1], 0.3);
+    g.add(hub);
+  }
+  const head = BX(0.06, 0.12, 0.14, new THREE.MeshLambertMaterial({ color: 0xfff2c0, emissive: 0xffe9a0, emissiveIntensity: 0.8 }));
+  head.position.set(1.3, 0.4, 0.8); g.add(head);
+  return g;
+}
+function addCreature(type){
+  const c = { type: type, wx: R(-58, 58), wy: 6, vx: 1, phase: R(0, 6.28), cd: R(1, 4), flee: 0, data: null };
+  switch (type){
+    case 'ped':   c.wy = R(1, 4); c.sp = R(1.0, 2.2); c.data = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) }); break;
+    case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
+    case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
+    case 'raccoon': c.wy = R(1, 7); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, 7.5); c.data = makeRaccoon(); break;
+    case 'squirrel': c.wy = 6.5; c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
+    case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.data = makeTricycle(); break;
+    case 'rc':    c.wy = R(1, 4); c.sp = R(6, 9); c.dir = 1; c.flip = R(0.4, 1); c.data = makeRC(); break;
+    case 'bike':  c.wy = R(-1.5, -0.3); c.sp = R(8, 9.5); c.data = makeBicycle(false); break;
+    case 'ebike': c.wy = R(-1.2, -0.4); c.sp = R(10, 12); c.data = makeBicycle(true); break;
+    case 'moto':  c.wy = R(-6.5, -3.5); c.sp = R(12, 14); c.data = makeMoto(); break;
+    case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.data = makeCar(); break;
+    case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
+    case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
+  }
+  const isPerson = c.data && c.data.g && c.data.legL;
+  c.g = isPerson ? c.data.g : c.data;
+  c.parts = c.g.userData && c.g.userData.parts ? c.g.userData.parts : null;
+  if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; }
+  c.g.position.set(c.wx, c.wy, GZ);
+  dynamicGroup.add(c.g);
+  creatures.push(c);
+}
+// ==================== WORLD SPAWNING & BLOCK RECYCLING ====================
+function makeCurbBag(wx, wy, house){
+  const g = makeBag();
+  const bag = { kind: 'bag', state: 'curb', wx: wx, wy: wy, h: house, g: g };
+  g.position.set(wx, wy, GZ);
+  dynamicGroup.add(g);
+  house.bags.push(bag);
+  return bag;
+}
+function makeCurbCan(wx, wy, house){
+  const g = makeCan(true);
+  const can = { kind: 'can', state: 'curb', wx: wx, wy: wy, h: house, g: g, home: { wx: wx, wy: wy } };
+  g.position.set(wx, wy, GZ);
+  dynamicGroup.add(g);
+  return can;
+}
+function makeBlockContents(b, baseX){
+  while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
+  b.hazards = [];
+  const hg = makeHouse();
+  hg.position.y = 10.5;
+  b.group.add(hg);
+  const house = { serviced: false, lamp: hg.userData.lamp, bags: [], can: null };
+  b.house = house;
+  const mx = baseX + R(0.8, 6.5);
+  const mb = makeMailbox();
+  mb.position.set(mx - baseX, 1.0, 0);
+  b.group.add(mb);
+  // curb trash layout (every house has something to collect)
+  const r = Math.random();
+  let nBags = 0, hasCan = false;
+  if (r < 0.40) nBags = 1;
+  else if (r < 0.70) nBags = 2;
+  else if (r < 0.86){ nBags = 1; hasCan = true; }
+  else hasCan = true;
+  if (nBags === 2){
+    makeCurbBag(baseX + R(1.5, 3), R(1.0, 2.4), house);
+    makeCurbBag(baseX + R(4.8, 6.6), R(1.0, 2.4), house);
+  } else if (nBags === 1){
+    makeCurbBag(baseX + R(2, 6), R(1.0, 2.4), house);
+  }
+  if (hasCan) house.can = makeCurbCan(baseX + R(2, 6), R(1.0, 2.2), house);
+  // lane markings & sidewalk joints (scroll with the block)
+  const dashM = M(0xcfd5da);
+  for (let i = 0; i < 2; i++){
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.16, 0.04), dashM);
+    dash.position.set(2 + i * 4, -4.5, 0.31);
+    b.group.add(dash);
+  }
+  const joint = new THREE.Mesh(new THREE.BoxGeometry(0.1, 7.6, 0.03), M(0x79818a));
+  joint.position.set(0.2, 2.75, 0.31);
+  b.group.add(joint);
+  // static hazards
+  const hr = Math.random();
+  if (hr < 0.28) addCrack(b, baseX + R(1, 6), R(1.5, 4.5));
+  else if (hr < 0.46) addPothole(b, baseX + R(1.5, 6), R(-8, -3));
+  else if (hr < 0.58) addHydrant(b, baseX + R(1.5, 6), 0.8);
+  else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
+  // sidewalk trees
+  if (Math.random() < 0.5){
+    const t = makeTree();
+    t.position.set(R(1, 6), R(6, 7.5), 0);
+    b.group.add(t);
+  }
+}
+function spawnWorld(){
+  for (let i = 0; i < NB; i++){
+    const g = new THREE.Group();
+    const worldX = p.wx - TILE / 2 + i * BW;
+    const b = { group: g, worldX: worldX, house: null, hazards: [] };
+    g.position.x = worldX;
+    dynamicGroup.add(g);
+    makeBlockContents(b, worldX);
+    blocks.push(b);
+  }
+  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 3, bike: 2, ebike: 1, moto: 2, car: 3, breaker: 2, yeller: 2 };
+  for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
+}
+function recycleBlock(b){
+  const h = b.house;
+  if (h && !h.serviced){
+    const inFlight = h.bags.some(x => x.state === 'carried') || (h.can && (h.can.state === 'carried' || h.can.state === 'carriedEmpty'));
+    if (inFlight){ h.pending = 1; pendingHouses.push(h); }
+    else addWriteUp();
+  }
+  if (h){
+    for (let i = 0; i < h.bags.length; i++){
+      const bag = h.bags[i];
+      if (bag.state === 'curb' && bag.g.parent){ bag.g.parent.remove(bag.g); disposeObj(bag.g); }
+    }
+    if (h.can && (h.can.state === 'curb' || h.can.state === 'droppedEmpty') && h.can.g && h.can.g.parent){
+      h.can.g.parent.remove(h.can.g);
+      disposeObj(h.can.g);
+    }
+  }
+}
+function updateBlocks(dt){
+  for (let i = 0; i < blocks.length; i++){
+    const b = blocks[i];
+    if (b.worldX - p.wx < -TILE / 2){
+      recycleBlock(b);
+      b.worldX += TILE;
+      b.group.position.x = b.worldX;
+      makeBlockContents(b, b.worldX);
+    }
+  }
+  for (let i = pendingHouses.length - 1; i >= 0; i--){
+    const h = pendingHouses[i];
+    if (h.serviced){ pendingHouses.splice(i, 1); continue; }
+    h.pending--;
+    if (h.pending <= 0){ pendingHouses.splice(i, 1); addWriteUp(); }
+  }
+}
+// ==================== CLEAN UP LANDED CANS (OFF-SCREEN RECYCLING) ====================
+function cleanupLandedCans(){
+  for (let i = landedCans.length - 1; i >= 0; i--){
+    const lc = landedCans[i];
+    if (!lc.g || !lc.g.parent) { continue; } // already disposed
+    // Off-screen behind player
+    if (lc.wx < p.wx - 70){
+      lc.g.parent.remove(lc.g); disposeObj(lc.g);
+      landedCans.splice(i, 1);
+    }
+    // Off-screen far ahead (shouldn't happen normally, but safety net)
+    else if (lc.wx > p.wx + 80){
+      lc.g.parent.remove(lc.g); disposeObj(lc.g);
+      landedCans.splice(i, 1);
+    }
+  }
+}
+function resetWorldState(){
+  Voice.cancel();
+  if (carried && carried.g.parent) carried.g.parent.remove(carried.g);
+  if (carried) disposeObj(carried.g);
+  carried = null; carry = 'none';
+  score = 0; bonusTally = 0; complaints = 0;
+   p.wx = 0; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.phase = 0; p.shake = 0; p.facing = 0;
+  routeIdx = 0; routeDist = 0; hopperAnim = 0;
+  pendingHouses.length = 0; bonuses.length = 0;
+  flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0;
+  while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
+  blocks = []; creatures = [];
+  spawnWorld();
+  truck.wx = p.wx - 8; truck.hidden = 0; truck.g.visible = true;  // start close behind the worker at the route beginning
+  $('route').textContent = ROUTES[0];
+  worker.group.rotation.set(0, 0, 0);
+  worker.group.position.set(p.wx, p.wy, GZ);
+}
+// ==================== GAMEPLAY ACTIONS ====================
+function addScore(n, isBonus){
+  score += n;
+  if (isBonus) bonusTally += n;
+}
+// ==================== FLYING CAN SYSTEM ====================
+function spawnDustEffect(wx, wy){
+  const count = 14;
+  for (let i = 0; i < count; i++){
+    const angle = (i / count) * Math.PI * 2 + R(-0.3, 0.3);
+    const speed = 0.6 + R(0, 1.8);
+    const g = new THREE.Group();
+    // Create small flat dust particles
+    const pGeo = new THREE.PlaneGeometry(0.15, 0.15);
+    const pMat = new THREE.MeshLambertMaterial({ color: 0x9a9a8a, transparent: true, opacity: 0.7, side: THREE.DoubleSide });
+    const pMesh = new THREE.Mesh(pGeo, pMat);
+    g.add(pMesh);
+    dynamicGroup.add(g);
+    dustParticles.push({
+      g: g,
+      wx: wx,
+      wy: wy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      vz: 0.3 + R(0, 1.2), // initial upward velocity
+      life: 1.0,
+      decay: 0.8 + R(0, 0.6),
+      rotSpeed: R(-6, 6)
+    });
+  }
+}
+function updateFlyingCans(dt){
+  for (let i = flyingCans.length - 1; i >= 0; i--){
+    const fc = flyingCans[i];
+    fc.progress += dt / fc.duration;
+    if (fc.progress >= 1){
+      // Landed - check NPC collision and spawn dust at target position
+      const hitNPC = checkFlyingCanNpcHit(fc.tx, fc.ty);
+      if (hitNPC){
+        // Can hits an NPC - they react with a random complaint
+        const npcVoices = [
+          'Hey! Watch it!',
+          'Ow! That hurt!',
+          "I'm calling 3-1-1!"
+        ];
+        Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1);
+        hitNPC.vcd = 3; // longer cooldown so they don't repeat immediately
+      } else {
+        // Spawn dust effect at landing spot
+        spawnDustEffect(fc.tx, fc.ty);
+      }
+      
+      // Mark house as serviced (in case not already done)
+      checkHouse(fc.h);
+      
+      // Lay the can sideways on the sidewalk and make it a persistent solid obstacle
+      if (fc.g){
+        // GZ + 0.43 raises the group center so the cylinder bottom (at center - 0.425) 
+        // rests exactly on the sidewalk surface at GZ, preventing ground clipping
+        fc.g.position.set(fc.tx, fc.ty, GZ + 0.43);
+        fc.g.rotation.z = R(-0.1, 0.1); // slight random tilt for natural look
+        fc.g.rotation.x = Math.PI / 2; // lay flat sideways
+        fc.g.visible = true;
+      }
+      
+      // Add to landed cans array for collision
+      landedCans.push({ wx: fc.tx, wy: fc.ty, g: fc.g });
+      
+      // Remove from flyingCans immediately — can persists on sidewalk as solid obstacle
+      flyingCans.splice(i, 1);
+    } else {
+      // Interpolate along parabolic arc from start to target
+      const t = fc.progress;
+      const easeT = -Math.cos(t * Math.PI) * 0.5 + 0.5; // ease in-out
+      const curX = fc.sx + (fc.tx - fc.sx) * easeT;
+      const curY = fc.sy + (fc.ty - fc.sy) * easeT;
+      // Arc height: peaks at midpoint
+      const arcHeight = Math.sin(t * Math.PI) * 3.5;
+      if (fc.g){
+        fc.g.position.set(curX, curY, GZ + arcHeight);
+        // Spin the can during flight
+        fc.g.rotation.z += dt * 8;
+        fc.g.rotation.x += dt * 3;
+        
+        // Mid-air NPC collision check
+        if (!fc.landed && Math.sin(t * Math.PI) > 0.1){
+          const hitNPC = checkFlyingCanNpcHit(curX, curY);
+          if (hitNPC){
+            const npcVoices = ['Hey! Watch it!', 'Ow! That hurt!', "I'm calling 3-1-1!"];
+            Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1);
+            hitNPC.vcd = 3;
+          }
+        }
+      }
+    }
+  }
+}
+function checkFlyingCanNpcHit(fcx, fcy){
+  for (let i = creatures.length - 1; i >= 0; i--){
+    const c = creatures[i];
+    if (c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller'){
+      const dx = fcx - c.wx, dy = fcy - c.wy;
+      if (dx * dx + dy * dy < 0.8){
+        return c;
+      }
+    }
+  }
+  return null;
+}
+// ==================== DUST PARTICLE SYSTEM ====================
+function updateDustParticles(dt){
+  for (let i = dustParticles.length - 1; i >= 0; i--){
+    const p = dustParticles[i];
+    p.life -= dt * p.decay;
+    if (p.life <= 0){
+      if (p.g.parent) { p.g.parent.remove(p.g); disposeObj(p.g); }
+      dustParticles.splice(i, 1);
+      continue;
+    }
+    p.wx += p.vx * dt;
+    p.wy += p.vy * dt;
+    p.vz -= dt * 2.5; // gravity pulls dust down
+    if (p.g){
+      p.g.position.set(p.wx, p.wy, GZ + Math.max(0, p.vz));
+      p.g.scale.setScalar(Math.max(0.1, 1 - p.life * 0.5) * (2 - p.life));
+      // Fade opacity
+      const mesh = p.g.children[0];
+      if (mesh && mesh.material){
+        mesh.material.opacity = p.life * 0.7;
+        mesh.rotation.z += p.rotSpeed * dt;
+      }
+    }
+  }
+}
+function checkHouse(h){
+  if (!h || h.serviced) return;
+  const bagsOK = h.bags.every(b => b.state === 'dumped');
+  const canOK = !h.can || h.can.state === 'returned' || h.can.state === 'dumped';
+  if (bagsOK && canOK){
+    h.serviced = true;
+    addScore(50);
+    if (h.lamp && h.lamp.material){
+      h.lamp.material.color.set(0x4dff88);
+      h.lamp.material.emissive.set(0x1f7a44);
+    }
+  }
+}
+function addWriteUp(){
+  if (state !== 'play') return;
+  complaints++;
+  SFX.playComplaintSound();
+  Voice.say('I\'m calling your supervisor!', 3, 1.0);
+  const f = $('flash');
+  f.style.opacity = 1;
+  setTimeout(() => { f.style.opacity = 0; }, 500);
+  if (complaints >= 3 && !TEST_KEEP_PLAYING) gameOver();
+}
+function nearHopper(){
+  if (!truck || truck.hidden > 0) return false;
+  const hx = truck.wx - 4.3, hy = -4.5;
+  const dx = hx - p.wx, dy = hy - p.wy;
+  return dx > -1.5 && dx < 4.2 && Math.abs(dy) < 6.0;
+}
+function attachCarried(item){
+  worker.group.add(item.g);
+  item.g.position.set(0.72, 0.15, 0.5);
+  item.g.rotation.set(0, 0, 0);
+}
+function pickUp(item){
+  if (item.kind === 'can' && item.state === 'droppedEmpty'){
+    carry = 'canEmpty';
+    item.state = 'carriedEmpty';
+  } else {
+    carry = item.kind === 'bag' ? 'bag' : 'canFull';
+    item.state = 'carried';
+    Voice.say('This bag is heavy!', 3.5, 0.8);
+  }
+  carried = item;
+  attachCarried(item);
+  SFX.playPickupSound();
+  if (Math.random() < 0.4) spawnBonus(p.wx + R(-2, 2), R(5.5, 7.5));
+}
+function tossBag(bag){
+  bag.state = 'dumped';
+  if (bag.g.parent) bag.g.parent.remove(bag.g);
+  disposeObj(bag.g);
+  addScore(25);
+  hopperAnim = 1;
+  SFX.playTossSound();
+  checkHouse(bag.h);
+  carried = null; carry = 'none';
+}
+function dumpCan(){
+  const c = carried;
+  c.state = 'dumped'; // mark can as dumped for checkHouse recognition
+  // Immediately toss can to sidewalk from where worker is standing - worker is free to service another item right away
+  addScore(30);
+  hopperAnim = 1;
+  SFX.playCanDropSound();
+  SFX.playTossSound();
+  carry = 'none';
+  
+  const targetWy = 1.8 + R(-0.4, 1.2); // toss to sidewalk area
+  const targetWx = c.home.wx + R(0.5, 3.5);
+  
+  flyingCans.push({
+    g: c.g,
+    sx: p.wx, sy: p.wy, // START from worker's current position
+    tx: targetWx,
+    ty: clamp(targetWy, 1.5, 4.0),
+    progress: 0,
+    duration: 0.7,
+    landed: false,
+    home: c.home,
+    h: c.h
+  });
+  
+  // Detach from worker and add to world for animation
+  if (c.g.parent) { c.g.parent.remove(c.g); }
+  dynamicGroup.add(c.g);
+  
+  // Reset can reference - worker free to pick up again immediately
+  carried = null;
+  checkHouse(c.h);
+}
+function returnCan(){
+  const c = carried;
+  c.state = 'returned';
+  c.wx = c.home.wx; c.wy = c.home.wy;
+  worker.group.remove(c.g);
+  dynamicGroup.add(c.g);
+  c.g.position.set(c.wx, c.wy, GZ);
+  addScore(15);
+  SFX.playCanDropSound();
+  checkHouse(c.h);
+  carried = null; carry = 'none';
+}
+function dropCarried(){
+  if (carry === 'none' || !carried) return;
+  const item = carried;
+  item.wx = p.wx - 0.4 + R(-0.3, 0.3);
+  item.wy = clamp(p.wy + R(0.6, 1.0), -2, 4.5);
+  if (item.kind === 'can' && item.state === 'carriedEmpty'){
+    item.state = 'droppedEmpty';
+    item.home.wx = item.wx; item.home.wy = item.wy;
+  } else {
+    item.state = 'curb';
+  }
+  worker.group.remove(item.g);
+  dynamicGroup.add(item.g);
+  item.g.position.set(item.wx, item.wy, GZ);
+  carried = null; carry = 'none';
+  SFX.playDropSound();
+}
+function spawnBonus(wx, wy){
+  const r = Math.random();
+  let g, val, voice;
+  if (r < 0.4){ g = makeCopper(); val = 50; voice = 'Mongo!'; }
+  else if (r < 0.75){ g = makeCash(); val = 100; voice = 'Street cash!'; }
+  else { g = makeMongo((Math.random() * 3) | 0); val = 250; voice = 'Mongo!'; }
+  g.position.set(wx, wy, GZ);
+  dynamicGroup.add(g);
+  bonuses.push({ g: g, wx: wx, wy: wy, val: val, voice: voice, t: R(0, 6) });
+}
+function updateBonuses(dt){
+  for (let i = bonuses.length - 1; i >= 0; i--){
+    const b = bonuses[i];
+    b.t += dt;
+    b.g.position.set(b.wx, b.wy, GZ + Math.abs(Math.sin(b.t * 2)) * 0.25);
+    b.g.rotation.z += dt * 1.5;
+    if (state === 'play' && dist(b.wx, b.wy) < 1.8){
+      addScore(b.val, true);
+      SFX.playBonusTone();
+      Voice.say(b.voice, 1.0, b.voice === 'Mongo!' ? 1.3 : 1.1);
+      if (b.g.parent) b.g.parent.remove(b.g);
+      disposeObj(b.g);
+      bonuses.splice(i, 1);
+    }
+  }
+}
+function nearestPickup(){
+  for (let i = 0; i < blocks.length; i++){
+    for (const bag of blocks[i].house.bags) if (bag.state === 'curb' && dist(bag.wx, bag.wy) < 2.4) return true;
+    const c = blocks[i].house.can;
+    if (c && (c.state === 'curb' || c.state === 'droppedEmpty') && dist(c.wx, c.wy) < 2.4) return true;
+  }
+  return false;
+}
+function tryInteract(){
+  if (state !== 'play' || p.stunT > 0) return;
+  if (nearHopper()){
+    if (carry === 'bag') return tossBag(carried);
+    if (carry === 'canFull') return dumpCan();
+  }
+  if (carry === 'none'){
+    let best = null, bd = 2.4;
+    for (let i = 0; i < blocks.length; i++){
+      for (const bag of blocks[i].house.bags){
+        if (bag.state !== 'curb') continue;
+        const d = dist(bag.wx, bag.wy);
+        if (d < bd){ bd = d; best = bag; }
+      }
+      const c = blocks[i].house.can;
+      if (c && (c.state === 'curb' || c.state === 'droppedEmpty')){
+        const d = dist(c.wx, c.wy);
+        if (d < bd){ bd = d; best = c; }
+      }
+    }
+    if (best) return pickUp(best);
+  }
+  // shoo nearby critters
+  let shooed = false;
+  for (let i = 0; i < creatures.length; i++){
+    const c = creatures[i];
+    if ((c.type === 'rat' || c.type === 'raccoon' || c.type === 'squirrel') && dist(c.wx, c.wy) < 2.8){
+      c.flee = 1.6;
+      if (c.dir !== undefined) c.dir = c.wx >= p.wx ? 1 : -1;
+      shooed = true;
+    }
+  }
+  if (shooed){
+    Voice.say('Shoo! Get out of here!', 2.5, 0.85);
+    SFX.playShooSound();
+  }
+}
+// ==================== STUN & COLLISION ====================
+function doStun(dur, type){
+  if (p.stunT > 0) return;
+  p.stunT = dur;
+  p.stunDur = dur;
+  if (type === 'hit'){ SFX.playStun(); p.shake = 0.5; }
+  else SFX.playTripSound();
+}
+function collideStatic(dt){
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  for (let i = 0; i < blocks.length; i++){
+    for (const hz of blocks[i].hazards){
+      hz.cd -= dt;
+      if (hz.cd > 0) continue;
+      const dx = hz.wx - p.wx, dy = hz.wy - p.wy;
+      if (dx * dx + dy * dy > hz.r * hz.r) continue;
+      hz.cd = 1.4;
+      if (hz.type === 'hit'){
+        p.wx -= 0.7;
+        doStun(0.8, 'hit');
+      } else {
+        doStun(0.8, 'trip');
+        if (hz.drop > 0 && carry !== 'none' && Math.random() < hz.drop) dropCarried();
+      }
+      return;
+    }
+  }
+}
+// ==================== LANDED CAN COLLISION (SOLID OBSTACLE) ====================
+function collideLandedCans(){
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  for (let i = landedCans.length - 1; i >= 0; i--){
+    const lc = landedCans[i];
+    const dx = lc.wx - p.wx, dy = lc.wy - p.wy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 0.85) continue; // collision radius ~0.92
+    const d = Math.sqrt(d2) || 0.001;
+    const nx = -dx / d, ny = -dy / d; // push outward
+    const pen = Math.sqrt(0.85) - d;
+    p.wx += nx * (pen + 0.05);
+    p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
+  }
+}
+function collideCreatures(){
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  for (let i = 0; i < creatures.length; i++){
+    const c = creatures[i];
+    const dx = c.wx - p.wx, dy = c.wy - p.wy;
+    const d2 = dx * dx + dy * dy;
+    let rad = 1.0;
+    if (c.type === 'rat' || c.type === 'squirrel') rad = 0.9;
+    else if (c.type === 'raccoon') rad = 1.0;
+    else if (c.type === 'rc') rad = 0.7;
+    else if (c.type === 'tric' || c.type === 'bike') rad = 1.1;
+    else if (c.type === 'ebike' || c.type === 'moto') rad = 1.3;
+    else if (c.type === 'car') rad = 1.8;
+    else if (c.type === 'ped' || c.type === 'lady') rad = 0.85;
+    else if (c.type === 'breaker') rad = 1.2;
+    else if (c.type === 'yeller') rad = 0.95;
+    if (d2 > rad * rad) continue;
+    if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller')){
+      // People are SOLID: push the worker out so they can't walk through, but NEVER stun
+      // (a stun here caused an infinite stun-lock loop when the worker was stuck against them)
+      const d = Math.sqrt(d2) || 0.001;
+      const nx = -dx / d, ny = -dy / d; // from person toward worker
+      const pen = rad - d;             // push out to just touching (small gap)
+      p.wx += nx * (pen + 0.05);
+      p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
+      if (c.vcd <= 0){
+        c.vcd = 2.5;
+        if (c.type === 'yeller') Voice.say('Whoa there, worker!', 4, 0.9);
+        else Voice.say('Hey! Watch it!', 4, 1.1);
+      }
+      return;
+    }
+    if (c.type === 'rat'){
+      c.flee = 1.6; c.dir = dx >= 0 ? -1 : 1;
+      Voice.say('Eeek!', 1.2, 1.5);
+      if (carry !== 'none' && Math.random() < 0.45) dropCarried();
+      doStun(0.5, 'trip');
+    } else if (c.type === 'squirrel' || c.type === 'raccoon'){
+      c.flee = 1.8; c.dir = dx >= 0 ? -1 : 1;
+      if (carry !== 'none' && Math.random() < 0.4) dropCarried();
+      doStun(0.5, 'trip');
+    } else {
+      // vehicles: knockback + drop + stun + i-frames
+      const nl = Math.sqrt(d2) || 1;
+      p.wx -= (dx / nl) * 1.6;
+      p.wy = clamp(p.wy - (dy / nl) * 1.6, -2, 4.5);
+      dropCarried();
+      p.invuln = 1.6;
+      doStun(1.2, 'hit');
+      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7);
+      else Voice.say('Hey! Hurry up!', 5, 0.85);
+    }
+    return;
+  }
+}
+// ==================== PLAYER UPDATE ====================
+function updatePlayer(dt){
+  // 4-way, 100% player-driven movement (keyboard OR gamepad):
+  // W/Up = forward, S/Down = back along the route, A/D = strafe; no input = stands still
+  let fwd  = !!(keys['KeyW'] || keys['ArrowUp']   || gp.fwd);
+  let back = !!(keys['KeyS'] || keys['ArrowDown'] || gp.back);
+  let lat = 0;
+  if (keys['KeyA'] || keys['ArrowLeft']  || gp.left) lat = 1;
+  if (keys['KeyD'] || keys['ArrowRight'] || gp.right) lat = -1;
+  if (p.stunT > 0){
+    p.stunT -= dt;
+    fwd = false; back = false; lat = 0;
+  }
+   // ===== dynamic facing: worker turns to match walk direction =====
+   let moveX = 0, moveY = 0;
+   if (fwd) moveX += 1;
+   if (back) moveX -= 1;
+   moveY += lat;
+   if (moveX !== 0 || moveY !== 0){
+     const target = Math.atan2(moveY, moveX);
+     let diff = target - p.facing;
+     while (diff >  Math.PI) diff -= 2 * Math.PI;
+     while (diff < -Math.PI) diff += 2 * Math.PI;
+     p.facing += diff * Math.min(1, dt * 22);
+   }
+  const dir = fwd ? 1 : (back ? -1 : 0);
+  const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
+  if (dir !== 0) p.wx += dir * speed * dt;
+  p.wy = clamp(p.wy + lat * 5.5 * dt, -2, 4.5);
+  p.invuln = Math.max(0, p.invuln - dt);
+  p.shake = Math.max(0, p.shake - dt * 1.3);
+  routeDist += speed * dt;
+  if (routeDist > 150){
+    routeDist = 0;
+    routeIdx = (routeIdx + 1) % ROUTES.length;
+    setTxt($('route'), ROUTES[routeIdx]);
+  }
+  // animation (legs pump only while the player is actually moving)
+  const amp = (dir !== 0 ? 0.7 : (lat !== 0 ? 0.35 : 0));
+  const s = Math.sin(p.phase) * amp;
+  p.phase += Math.max(speed, Math.abs(lat) * 4.5) * dt * 1.5;
+  if (p.stunT > 0){
+    const k = p.stunT / p.stunDur;
+    wparts.legL.rotation.y *= 0.9; wparts.legR.rotation.y *= 0.9;
+    wparts.armL.rotation.y = 0.6 * k * Math.sin(p.phase * 3);
+    wparts.armR.rotation.y = -0.6 * k * Math.sin(p.phase * 3);
+    worker.group.rotation.x = Math.sin(performance.now() * 0.03) * 0.3 * k;
+  } else {
+    worker.group.rotation.x = 0;
+    wparts.legL.rotation.y = s;
+    wparts.legR.rotation.y = -s;
+    wparts.armL.rotation.y = -s * 0.8;
+    wparts.armR.rotation.y = s * 0.8;
+  }
+   // face the direction walked (z-axis = screen-plane rotation in isometric space)
+   worker.group.rotation.z = p.facing;
+  const sx = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
+  const sy = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
+  worker.group.position.set(p.wx + sx, p.wy + sy, GZ);
+  // invulnerability flashing
+  const vis = p.invuln > 0 ? (Math.floor(p.invuln * 12) % 2 === 0) : true;
+  worker.group.traverse(o => { if (o.isMesh) o.visible = vis; });
+}
+// ==================== TRUCK UPDATE ====================
+function updateTruck(dt){
+  // the DSNY truck NEVER disappears: it slowly crawls down the street and keeps
+  // circulating around the worker, so there is always a hopper nearby to deposit in
+  const sp = (state === 'play') ? TRUCK_SPEED : 1.6;
+  truck.wx += sp * dt;
+  const rel = truck.wx - p.wx;
+  if (rel > 30) truck.wx = p.wx - 28;      // came up from behind -> loop to ahead
+  else if (rel < -30) truck.wx = p.wx + 28; // fell behind -> loop to ahead
+  truck.g.visible = true;
+  truck.g.position.set(truck.wx, -4.5, GZ);
+  if (hopperAnim > 0){
+    hopperAnim = Math.max(0, hopperAnim - dt / 0.9);
+    const t = 1 - hopperAnim;
+    truck.blade.position.x = -4.7 + Math.sin(t * Math.PI) * 1.4;
+  } else {
+    truck.blade.position.x = -4.7;
+  }
+  truck.beaconMat.emissiveIntensity = Math.sin(performance.now() * 0.012) > 0 ? 1.0 : 0.15;
+  // hopper glow when the worker is in the trigger zone
+  if (nearHopper() && (carry === 'bag' || carry === 'canFull')){
+    truck.beaconMat.emissiveIntensity = 1.0;
+  }
+}
+// ==================== CREATURE AI ====================
+function animParts(c, dphase, amp){
+  c.phase += dphase;
+  const s = Math.sin(c.phase) * (amp === undefined ? 0.5 : amp);
+  if (c.parts){
+    c.parts.legL.rotation.y = s;
+    c.parts.legR.rotation.y = -s;
+    c.parts.armL.rotation.y = -s * 0.8;
+    c.parts.armR.rotation.y = s * 0.8;
+  }
+}
+function updateCreatures(dt){
+  for (let i = 0; i < creatures.length; i++){
+    const c = creatures[i];
+    if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
+    const tx = c.wx - p.wx;
+    switch (c.type){
+      case 'ped': case 'lady':{
+        c.wx += c.sp * dt;
+        animParts(c, c.sp * dt * 2.2);
+        if (tx > 55){ c.wx = p.wx - 55 - R(0, 12); c.wy = R(1, 4); }
+        c.cd -= dt;
+        if (state === 'play' && c.cd <= 0 && Math.abs(tx) < 5){
+          Voice.say('Hey! Hurry up!', 6, 1.1);
+          c.cd = 6;
+        }
+        break;
+      }
+      case 'rat':{
+        if (c.flee > 0){ c.flee -= dt; c.wx += c.dir * 10 * dt; animParts(c, dt * 30); }
+        else {
+          c.wx += c.dir * c.sp * dt;
+          if (Math.random() < dt * 0.8) c.dir *= -1;
+          c.wy = clamp(c.wy + R(-1, 1) * dt * 3, 0.8, 2.2);
+        }
+        c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+        if (tx > 58){ c.wx = p.wx - 58; c.dir = 1; }
+        if (tx < -58) c.wx = p.wx - 58;
+        break;
+      }
+      case 'raccoon':{
+        if (c.flee > 0){
+          c.flee -= dt;
+          const away = c.wx >= p.wx ? 1 : -1;
+          c.wx += away * 7 * dt;
+          c.wy = clamp(c.wy + (Math.random() - 0.5) * 8 * dt, 0.8, 7.5);
+          animParts(c, dt * 25);
+        } else if (c.t > 0){
+          c.t -= dt;
+        } else {
+          const dx = c.tx - c.wx, dy = c.ty - c.wy;
+          const dl = Math.hypot(dx, dy) || 1;
+          c.wx += (dx / dl) * c.sp * dt;
+          c.wy = clamp(c.wy + (dy / dl) * c.sp * dt, 0.8, 7.5);
+          if (dl < 0.6){ c.t = R(1, 3); c.tx = R(p.wx - 30, p.wx + 40); c.ty = R(1, 7.5); }
+          animParts(c, dt * 12);
+        }
+        c.g.position.z = c.g.position.z; // keep
+        break;
+      }
+      case 'squirrel':{
+        c.wx += c.sp * dt;
+        c.wy = 6.5 + Math.sin(c.wx * 0.5) * 1.6;
+        c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
+        if (tx > 55) c.wx = p.wx - 55 - R(0, 8);
+        break;
+      }
+      case 'tric':{
+        c.stop -= dt;
+        if (c.stop <= 0){
+          c.wx += c.sp * dt;
+          c.g.rotation.x = Math.sin(c.wx * 3) * 0.08;
+          animParts(c, c.sp * dt * 3);
+          if (Math.random() < dt * 0.3) c.stop = R(0.5, 2.5);
+        }
+        if (tx > 55){ c.wx = p.wx - 55 - R(0, 10); c.wy = R(1.2, 4.2); c.stop = 0; }
+        break;
+      }
+      case 'rc':{
+        c.flip -= dt;
+        if (c.flip <= 0){ c.dir *= -1; c.flip = R(0.5, 1.2); }
+        c.wx += c.dir * c.sp * dt;
+        c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+        if (tx > 58) c.wx = p.wx - 58;
+        if (tx < -58){ c.wx = p.wx + 58; c.dir = -1; }
+        break;
+      }
+      case 'bike': case 'ebike':{
+        c.wx += c.sp * dt;
+        animParts(c, c.sp * dt * 1.2);
+        if (tx > 55){ c.wx = p.wx - 55 - R(0, 15); c.wy = c.type === 'bike' ? R(-1.5, -0.3) : R(-1.2, -0.4); }
+        break;
+      }
+      case 'moto':{
+        c.wx += c.sp * dt;
+        c.wy = -5 + Math.sin(c.wx * 0.3) * 0.9;
+        animParts(c, c.sp * dt * 0.8, 0.2);
+        if (tx > 55){ c.wx = p.wx - 55 - R(0, 20); }
+        break;
+      }
+      case 'car':{
+        c.wx += c.sp * dt;
+        c.wy += Math.sin((c.wx * 0.15) + c.sway) * 0.02;
+        if (tx > 58) c.wx = p.wx - 58 - R(0, 25);
+        break;
+      }
+      case 'breaker':{
+        if (c.rest > 0){
+          c.rest -= dt;
+          c.g.rotation.z += dt * 1.2;
+          animParts(c, dt * 4);
+        } else {
+          c.spin -= dt;
+          c.g.rotation.z += dt * 9;
+          animParts(c, dt * 10, 0.9);
+          if (c.spin <= 0){ c.spin = 1.6; c.rest = 1.4; }
+        }
+        if (tx < -55){ c.wx = p.wx + R(55, 70); c.wy = R(1.2, 4.2); }
+        break;
+      }
+      case 'yeller':{
+        c.g.position.z = GZ + Math.abs(Math.sin(c.wx * 2)) * 0.08;
+        if (state === 'play' && Math.abs(tx) < 12){
+          c.shout -= dt;
+          if (c.shout <= 0){
+            const lines = ['Hey! Watch it out here!', 'Hey! Hurry up!', 'Whoa - watch the road!'];
+            Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3));
+            c.shout = R(5, 9);
+          }
+        }
+        if (tx < -55){ c.wx = p.wx + R(55, 70); c.wy = R(1.2, 4.2); }
+        break;
+      }
+    }
+    c.g.position.x = c.wx;
+    c.g.position.y = c.wy;
+    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon') c.g.position.z = GZ;
+    if (c.type === 'raccoon') c.g.position.z = (c.t > 0 && c.flee <= 0) ? GZ + Math.abs(Math.sin(performance.now() * 0.01)) * 0.04 : GZ;
+  }
+}
+// ==================== HUD ====================
+const hudCache = {};
+function setTxt(el, v){
+  if (!el) return;
+  if (hudCache[el.id] !== v){ hudCache[el.id] = v; el.textContent = v; }
+}
+function updateHUD(){
+  setTxt($('score'), pad(score));
+  setTxt($('bonus'), pad(bonusTally));
+  const carryTxt = carry === 'none' ? 'HANDS FREE' :
+    carry === 'bag' ? 'CARRYING HEAVY BAG' :
+    carry === 'canFull' ? 'CARRYING METAL CAN' : 'HANDS FREE';
+  setTxt($('carry'), carryTxt);
+  const pips = $('pips').children;
+  for (let i = 0; i < 3; i++) pips[i].classList.toggle('on', i < complaints);
+}
+let lastHint = '';
+function updateHint(){
+  let h;
+  if (p.stunT > 0) h = 'OUCH! Recovering...';
+  else if (nearHopper() && carry === 'bag') h = '[SPACE] Toss the bag into the hopper!';
+  else if (nearHopper() && carry === 'canFull') h = '[SPACE] Dump the can into the hopper!';
+  else if (carry === 'none') h = nearestPickup() ? '[SPACE] Pick it up!' : 'W = RUN to the next house or the DSNY truck!';
+  else h = 'Get to the truck hopper!';
+  if (h !== lastHint){ lastHint = h; setTxt($('hint'), h); }
+}
+// ==================== GAME FLOW ====================
+function gameOver(){
+  state = 'over';
+  SFX.playGameOver();
+  Voice.say('Suspended! Report to the borough office!', 1, 0.7);
+  if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
+  setTxt($('finalscore'), pad(score));
+  setTxt($('hiscore2'), pad(hi));
+  $('over').classList.remove('hidden');
+}
+function startGame(){
+  SFX.ensure();
+  if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
+  resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
+  $('menu').classList.add('hidden');
+  $('over').classList.add('hidden');
+  state = 'play';
+}
+// ==================== INPUT ====================
+// ---- gamepad (polled every frame; works in parallel with the keyboard) ----
+function pollGamepad(){
+  gp.left = gp.right = gp.fwd = gp.back = gp.act = false;
+  let pad = null;
+  try {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) if (pads[i] && pads[i].buttons) { pad = pads[i]; break; }
+  } catch (err) { pad = null; }
+  if (pad){
+    const b  = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
+    const ax = i => (pad.axes[i] || 0);
+    gp.left   = b(14) || ax(0) < -0.4;   // d-pad left  / stick left
+    gp.right  = b(15) || ax(0) >  0.4;   // d-pad right / stick right
+    gp.fwd    = b(12) || ax(1) < -0.4;   // d-pad up    / stick up   = run forward
+    gp.back   = b(13) || ax(1) >  0.4;   // d-pad down  / stick down = back up the route
+    gp.act    = b(0) || b(2) || b(1) || b(3); // A / X / B / Y = action
+    gp.start  = b(9);
+  } else { gp.start = false; }
+  if (gp.act && !gp.pAct){
+    if (state === 'play') tryInteract();
+    else startGame();
+  }
+  if (gp.start && !gp.pStart && state !== 'play') startGame();
+  gp.pAct = gp.act;
+  gp.pStart = !!gp.start;
+}
+window.addEventListener('keydown', e => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0) e.preventDefault();
+  keys[e.code] = true;
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'KeyE'){
+    if (state === 'play') tryInteract();
+    else startGame();
+  }
+  if (e.code === 'Enter' && state !== 'play') startGame();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+$('btnStart').addEventListener('click', startGame);
+$('btnRestart').addEventListener('click', startGame); // startGame() already resets the world
+// ==================== MAIN LOOP ====================
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt = (now - lastT) / 1000;
+  lastT = now;
+  if (dt > 0.05) dt = 0.05;
+  if (dt < 0) dt = 0;
+  pollGamepad();
+  if (state === 'play'){
+    updatePlayer(dt);
+    updateTruck(dt);
+    updateCreatures(dt);
+    updateBonuses(dt);
+    updateFlyingCans(dt);
+    updateDustParticles(dt);
+    updateBlocks(dt);
+    cleanupLandedCans();
+    collideStatic(dt);
+    collideLandedCans();
+    collideCreatures();
+    updateHUD();
+    updateHint();
+  } else if (state === 'menu'){
+    // live world drift behind the start menu
+    p.wx += 3 * dt;
+    updateTruck(dt);
+    updateCreatures(dt);
+    updateFlyingCans(dt);
+    updateDustParticles(dt);
+    updateBlocks(dt);
+    p.phase += dt * 5;
+    const s = Math.sin(p.phase) * 0.3;
+    if (wparts){
+      wparts.legL.rotation.y = s;
+      wparts.legR.rotation.y = -s;
+      wparts.armL.rotation.y = -s * 0.7;
+      wparts.armR.rotation.y = s * 0.7;
+    }
+    worker.group.position.set(p.wx, p.wy, GZ);
+  }
+  dirLight.position.set(p.wx - 25, p.wy + 28, 58);
+  dirLight.target.position.set(p.wx, p.wy, 0);
+  groundGroup.position.x = p.wx;
+  // ===== camera follow: bulletproof explicit world-space math (no parent matrices) =====
+  // worldGroup is rotated +45deg: local (x, y) -> world (c45*(x - y), c45*(x + y)).
+  // The camera sits ISO_A behind the target and ISO_A above it, exactly on the
+  // isometric axis, so the worker is ALWAYS at screen center as it moves.
+  const c45 = Math.SQRT1_2;
+  const camTX = c45 * (p.wx - CAM_Y);
+  const camTY = c45 * (p.wx + CAM_Y);
+  camera.position.set(camTX, camTY - 1.4142 * ISO_A, ISO_A);
+  camera.up.set(0, 0, 1);
+  camera.lookAt(camTX, camTY, 0);
+  renderer.render(scene, camera);
+}
+// ==================== BOOT ====================
+initThree();
+worker = buildWorker();
+worldGroup.add(worker.group);
+wparts = worker;
+truck = buildTruck();
+spawnWorld();
+updateHUD();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
