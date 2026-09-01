@@ -48,7 +48,19 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .panel button:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
 .kbd { color:#7dff9e; }
+/* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
+#camfeed { position:fixed; right:18px; bottom:16px; z-index:11; pointer-events:none;
+  font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
+  text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.7); }
+#camfeed .rec { color:#ff3b3b; font-size:14px; text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 10px rgba(255,59,59,.85);
+  animation:recblink 1.15s infinite; }
+#camfeed .dot { display:inline-block; width:11px; height:11px; background:#ff3b3b;
+  box-shadow:0 0 10px #ff3b3b; margin-right:10px; vertical-align:-1px; }
+#camfeed .cam { color:#eafff2; font-size:12px; }
+#camfeed .ts { color:#bfeed4; font-size:11px; }
+@keyframes recblink { 0%,50% { opacity:1; } 50.1%,100% { opacity:.12; } }
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="game"></div>
@@ -62,6 +74,12 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div id="carry" class="hudbox">HANDS FREE</div>
   <div id="hint" class="hudbox">-</div>
+</div>
+<div id="camfeed">
+  <div class="rec"><span class="dot"></span>REC</div>
+  <div class="cam">FIAT CAM 01</div>
+  <div class="ts" id="camdate">--/--/----</div>
+  <div class="ts" id="camtime">--:--:--</div>
 </div>
 <div id="menu" class="modal"><div class="panel">
   <h1 class="title-text">Dat Sh!t's Not Yours!</h1>
@@ -114,6 +132,18 @@ let hopperTrash = null, hopperLumps = [];
 let routeIdx = 0, routeDist = 0;
 const ROUTES = ['ROUTE 1 - MANHATTAN UPTOWN', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
 let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10) || 0; } catch (e) {}
+
+// Security-camera DVR clock (bottom-right #camfeed): live 24-hour time + date, updated every second.
+const camDateEl = document.getElementById('camdate');
+const camTimeEl = document.getElementById('camtime');
+const cam2 = n => String(n).padStart(2, '0');
+function camTick(){
+  const d = new Date();
+  if (camDateEl) camDateEl.textContent = cam2(d.getDate()) + '/' + cam2(d.getMonth() + 1) + '/' + d.getFullYear();
+  if (camTimeEl) camTimeEl.textContent = cam2(d.getHours()) + ':' + cam2(d.getMinutes()) + ':' + cam2(d.getSeconds());
+}
+camTick();
+setInterval(camTick, 1000);
 let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
 let flyingCans = [], dustParticles = [], landedCans = [];
 let worker = null, wparts = null, truck = null;
