@@ -88,6 +88,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <button id="btnRestart">RESTART SHIFT</button>
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="fflate.min.js"></script>
+<script src="FBXLoader.js"></script>
 <script>
 'use strict';
 // ==================== HELPERS & CORE STATE ====================
@@ -326,8 +328,163 @@ function buildWorker(){
   g.position.set(0, 2.5, GZ);
   return { group: g, legL: legL, legR: legR, armL: armL, armR: armR };
 }
+// ==================== FBX 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
+// truck.fbx is a POSED asset: it is NOT axis-aligned in native space, so instead of a fixed axis
+// permutation we SOLVE each asset's orientation from its own geometry (wheels / lid / base) at load
+// time and store a per-asset rotation matrix on the template (tpl.orient). The game uses X = route
+// (front +X, rear -X), Y = lateral, Z = up. Verified in node against the real truck.fbx: the truck
+// stands upright (L 7.33 > H 2.99), grounded, hopper at -X (rear), front at +X.
+const TRUCK_SCALE = 0.26, CAN_SCALE = 0.25, BAG_SCALE = 0.24;
+let FBX_TPL = { truck: null, can: null, bag: null };
+
+function fbxFind(root, re){ let r = null; root.traverse(o => { if (o.name && re.test(o.name) && (!r || r.name.length < o.name.length)) r = o; }); return r; }
+
+function partBox(obj, re){
+  const o = fbxFind(obj, re);
+  if (!o) return null;
+  o.updateWorldMatrix(true, true);
+  return new THREE.Box3().setFromObject(o);
+}
+function partCenter(obj, re){ const b = partBox(obj, re); return b ? b.getCenter(new THREE.Vector3()) : null; }
+
+// Rotation matrix (native->game) mapping native 'front'->+X, 'right'->+Y, 'up'->+Z (as rows, det +1).
+function rotFromUpFront(up, front){
+  up = up.clone().normalize();
+  front = front ? front.clone() : new THREE.Vector3();
+  if (front.lengthSq() > 1e-10) front.addScaledVector(up, -up.dot(front)); // drop the up component
+  if (front.lengthSq() < 1e-10){
+    const a = Math.abs(up.y) < 0.99 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    front.crossVectors(up, a);
+  }
+  front.normalize();
+  const right = new THREE.Vector3().crossVectors(up, front).normalize();
+  return new THREE.Matrix4().set(
+    front.x, front.y, front.z, 0,
+    right.x, right.y, right.z, 0,
+    up.x, up.y, up.z, 0,
+    0, 0, 0, 1
+  );
+}
+// Generic fallback: UP = the asset's longest axis (used for the bag and any part-less asset).
+function defaultOrient(tpl){
+  tpl.updateWorldMatrix(true, true);
+  const s = new THREE.Box3().setFromObject(tpl).getSize(new THREE.Vector3());
+  const up = new THREE.Vector3(); up.setComponent([s.x, s.y, s.z].indexOf(Math.max(s.x, s.y, s.z)), 1);
+  return rotFromUpFront(up, null);
+}
+// TRUCK: UP = thinnest axis of the wheel cloud; FRONT = centroid(front wheels) - centroid(rear wheels).
+function orientTruck(tpl){
+  const wheels = [];
+  tpl.updateWorldMatrix(true, true);
+  tpl.traverse(o => { if (o.isMesh && o.name && /wheel/i.test(o.name)) wheels.push(o); });
+  if (wheels.length){
+    const box = new THREE.Box3();
+    wheels.forEach(w => { w.updateWorldMatrix(true, true); box.union(new THREE.Box3().setFromObject(w)); });
+    const sp = [box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z];
+    const up = new THREE.Vector3(); up.setComponent(sp.indexOf(Math.min(...sp)), 1);
+    let F = new THREE.Vector3(), R = new THREE.Vector3(), nf = 0, nr = 0;
+    wheels.forEach(w => {
+      const c = new THREE.Box3().setFromObject(w).getCenter(new THREE.Vector3());
+      if (/front/i.test(w.name)){ F.add(c); nf++; }
+      else if (/rear/i.test(w.name)){ R.add(c); nr++; }
+    });
+    if (nf) F.multiplyScalar(1/nf);
+    if (nr) R.multiplyScalar(1/nr);
+    return rotFromUpFront(up, (nf && nr) ? F.sub(R) : null);
+  }
+  return defaultOrient(tpl);
+}
+// CAN: UP = lid center - base center (a bin standing on its base).
+function orientCan(tpl){
+  const lid = partCenter(tpl, /lid/i);
+  const base = partCenter(tpl, /bin_base/i);
+  if (lid && base) return rotFromUpFront(lid.clone().sub(base), null);
+  return defaultOrient(tpl);
+}
+
+// Deep-clone a group into a fully independent, self-contained copy (own geo + materials),
+// baking its FULL world transform so it has no dependency on the source scene graph.
+function fbxExtract(src){
+  src.updateWorldMatrix(true, true);
+  const world = new THREE.Matrix4().copy(src.matrixWorld);
+  const c = src.clone();
+  c.position.setFromMatrixPosition(world);
+  c.quaternion.setFromRotationMatrix(world);
+  c.scale.setFromMatrixScale(world);
+  c.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.geometry) o.geometry = o.geometry.clone();
+    if (o.material){ const ms = Array.isArray(o.material) ? o.material : [o.material]; o.material = (ms.length === 1 ? ms[0].clone() : ms.map(m => m.clone())); }
+  });
+  return c;
+}
+
+// Turn a template into an independent, oriented, grounded, game-sized instance (origin at
+// center-bottom, local z=0 at the ground). Every mesh gets its own geometry+material so
+// disposeObj() on this instance never touches the shared template.
+function fbxInstance(tpl, scale){
+  const c = tpl.clone();
+  const rotGrp = new THREE.Group();
+  rotGrp.quaternion.setFromRotationMatrix(tpl.orient || new THREE.Matrix4());
+  rotGrp.scale.setScalar(scale);
+  rotGrp.add(c);
+  const holder = new THREE.Group();
+  holder.add(rotGrp);
+  holder.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(rotGrp);
+  const ctr = box.getCenter(new THREE.Vector3());
+  rotGrp.position.set(-ctr.x, -ctr.y, -box.min.z); // center XY, bottom -> local z=0
+  holder.updateWorldMatrix(true, true);
+  holder.traverse(o => {
+    if (!o.isMesh) return;
+    if (o.geometry) o.geometry = o.geometry.clone();
+    if (o.material){ const ms = Array.isArray(o.material) ? o.material : [o.material]; o.material = (ms.length === 1 ? ms[0].clone() : ms.map(m => m.clone())); }
+    o.castShadow = true; o.receiveShadow = true;
+  });
+  return holder;
+}
+
+// Load truck.fbx once and extract the three named asset groups into FBX_TPL.
+function loadFbxTemplates(){
+  if (FBX_TPL.truck) return Promise.resolve(true);
+  if (typeof THREE.FBXLoader === 'undefined') return Promise.reject(new Error('FBXLoader not available'));
+  return new Promise((resolve, reject) => {
+    new THREE.FBXLoader().load('truck.fbx', (root) => {
+      try {
+        const truck = fbxFind(root, /garbageTruck_geo_grp/i);
+        const can   = fbxFind(root, /garbageBin_geo_grp/i);
+        const bag   = fbxFind(root, /truck_trash_grp/i) || fbxFind(root, /trash_bag_side_ply$/i);
+        if (!truck || !can || !bag) throw new Error('FBX asset groups not found');
+        FBX_TPL.truck = fbxExtract(truck); FBX_TPL.truck.orient = orientTruck(FBX_TPL.truck);
+        FBX_TPL.can   = fbxExtract(can);   FBX_TPL.can.orient   = orientCan(FBX_TPL.can);
+        FBX_TPL.bag   = fbxExtract(bag);   FBX_TPL.bag.orient   = defaultOrient(FBX_TPL.bag);
+        root.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+        resolve(true);
+      } catch (e){ console.error('[FBX] template build failed:', e); reject(e); }
+    }, undefined, (err) => { console.error('[FBX] load failed:', err); reject(err); });
+  });
+}
 // ==================== DSNY COLLECTION TRUCK ====================
 function buildTruck(){
+  // ===== FBX 3D model (preferred) =====
+  if (FBX_TPL.truck){
+    const g = fbxInstance(FBX_TPL.truck, TRUCK_SCALE);
+    const bb = new THREE.Box3().setFromObject(g);
+    const boxL = (bb.max.x - bb.min.x) / 2;
+    const boxW = (bb.max.y - bb.min.y) / 2;
+    // Deposit zone = the rear compactor/hopper (the most-negative-X part of the body).
+    let hopperOff = -boxL * 0.5;
+    const comp = fbxFind(g, /compactor|piston/i);
+    if (comp) hopperOff = new THREE.Box3().setFromObject(comp).getCenter(new THREE.Vector3()).x;
+    // Beacon: an independent emissive light on top (drives the "hopper ready" glow).
+    const beaconMat = new THREE.MeshLambertMaterial({ color: 0xffa51e, emissive: 0xffa51e, emissiveIntensity: 0.9 });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), beaconMat);
+    beacon.position.set(-boxL * 0.5, 0, bb.max.z);
+    g.add(beacon);
+    worldGroup.add(g);
+    return { g: g, bladePush: () => {}, beaconMat: beaconMat, boxL: boxL, boxW: boxW, hopperOff: hopperOff, cabOff: boxL + 1.6, wx: -28, hidden: 0 };
+  }
+  // ===== Procedural fallback (identical to the original, so the game always runs) =====
   const g = new THREE.Group();
   const white = M(0xf2f5f7), green = M(0x1e6b30);
   const cab = BX(2.2, 1.4, 1.5, white); cab.position.set(2.0, 0, 1.0); g.add(cab);
@@ -358,10 +515,16 @@ function buildTruck(){
     g.add(hub);
   }
   worldGroup.add(g);
-  return { g: g, blade: blade, beaconMat: beaconMat, wx: -28, hidden: 0 };
+  return { g: g, bladePush: (p) => { blade.position.x = -4.7 + p * 1.4; }, beaconMat: beaconMat, boxL: 4.0, boxW: 1.9, hopperOff: -4.3, cabOff: 6.0, wx: -28, hidden: 0 };
 }
 // ==================== TRASH & BONUS ITEMS ====================
 function makeBag(){
+  if (FBX_TPL.bag){
+    const g = fbxInstance(FBX_TPL.bag, BAG_SCALE);
+    g.rotation.z = R(-0.35, 0.35); // vary the facing so bags don't all line up
+    g.userData.lid = null;
+    return g;
+  }
   const g = new THREE.Group();
   const m = M(0x23272e), m2 = M(0x1b1f24);
   const body = SP(0.4, m); body.scale.set(1.05, 0.9, 1.15); body.position.z = 0.4; g.add(body);
@@ -371,6 +534,12 @@ function makeBag(){
   return g;
 }
 function makeCan(openLid){
+  if (FBX_TPL.can){
+    const g = fbxInstance(FBX_TPL.can, CAN_SCALE);
+    g.rotation.z = R(-0.3, 0.3);
+    g.userData.lid = null; // FBX can keeps its natural lid; no separate lid animation is used
+    return g;
+  }
   const g = new THREE.Group();
   const body = CY(0.34, 0.34, 0.85, M(0x8d98a1)); body.rotation.x = Math.PI / 2; body.position.z = 0.43; g.add(body);
   for (let i = 0; i < 2; i++){
@@ -1036,7 +1205,7 @@ function addWriteUp(){
 }
 function nearHopper(){
   if (!truck || truck.hidden > 0) return false;
-  const hx = truck.wx - 4.3, hy = -4.5;
+  const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5;
   const dx = hx - p.wx, dy = hy - p.wy;
   return dx > -1.5 && dx < 4.2 && Math.abs(dy) < 6.0;
 }
@@ -1372,17 +1541,18 @@ function updateTruck(dt){
   const rel = truck.wx - p.wx;
   if (rel > 30) truck.wx = p.wx - 28;      // came up from behind -> loop to ahead
   else if (rel < -30) truck.wx = p.wx + 28; // fell behind -> loop to ahead
-  // Truck physical bounding box: used for vehicle collision avoidance
-  truck.boxL = 4.0;       // half-length along X axis (rear hopper to front cab)
-  truck.boxW = 1.9;       // half-width along Y axis (-6.4 to -2.6)
+  // Truck physical bounding box: used for vehicle collision avoidance (set per-model in buildTruck)
+  if (truck.boxL == null) truck.boxL = 4.0;
+  if (truck.boxW == null) truck.boxW = 1.9;
   truck.g.visible = true;
-  truck.g.position.set(truck.wx, -4.5, GZ);
   if (hopperAnim > 0){
     hopperAnim = Math.max(0, hopperAnim - dt / 0.9);
-    const t = 1 - hopperAnim;
-    truck.blade.position.x = -4.7 + Math.sin(t * Math.PI) * 1.4;
+    const pulse = Math.sin((1 - hopperAnim) * Math.PI);
+    truck.g.position.set(truck.wx, -4.5, GZ + pulse * 0.22); // subtle compaction "thunk"
+    truck.bladePush(pulse);
   } else {
-    truck.blade.position.x = -4.7;
+    truck.g.position.set(truck.wx, -4.5, GZ);
+    truck.bladePush(0);
   }
   truck.beaconMat.emissiveIntensity = Math.sin(performance.now() * 0.012) > 0 ? 1.0 : 0.15;
   // hopper glow when the worker is in the trigger zone
@@ -1780,7 +1950,7 @@ function updateCreatures(dt){
             const passedHopperX = c.wx >= truck.wx - truck.boxL;  // past hopper in X
             const inSafeLane = (passLane > -2.0) ? c.wy > -1.9 : c.wy < -6.4;
             const passedHopper  = passedHopperX && inSafeLane;      // AND clear of truck's Y-path
-            const pastCab      = c.wx > truck.wx + 6.0;           // clear of front cab
+            const pastCab      = c.wx > truck.wx + (truck.cabOff || 6.0);           // clear of front cab
 
             if (distToTruckRear > 12.0){
               // Haven't reached truck yet — approach at full speed, lane is clear
@@ -1999,7 +2169,7 @@ function updateCreatures(dt){
             // === PASSING THE TRUCK: We're NOT in truck's Y-zone — can pass safely ===
             // Detect if we're approaching the truck — steer into outer passing lane
             const distToTruckRear = obstacle.dist;
-            const pastCab = c.wx > truck.wx + 6.0;
+            const pastCab = c.wx > truck.wx + (truck.cabOff || 6.0);
 
             if (!inOuterLane && !passedCab){
               // Approach phase: steer toward outer left of the truck
@@ -2155,7 +2325,7 @@ function updateCreatures(dt){
             }
           } else if (isTruckObstacle && distToObstacleM > 3.0){
             // === PASSING THE TRUCK: Take outer lane to speed past it ===
-            const passedCab = c.wx > truck.wx + 6.0;
+            const passedCab = c.wx > truck.wx + (truck.cabOff || 6.0);
 
             if (!inOuterLane && !passedCab){
               // Approach phase: steer toward outer left of the truck
@@ -2412,6 +2582,34 @@ function loop(now){
   camera.lookAt(camTX, camTY, 0);
   renderer.render(scene, camera);
 }
+// ==================== FBX ASSET SWAP-IN ====================
+// When the 3D model finishes loading in the background, swap the live truck (and any
+// currently-visible curb bags/cans) from the procedural fallback to the FBX model.
+function rebuildTruckFromFbx(){
+  if (!FBX_TPL.truck) return;
+  const wx = truck.wx, hidden = truck.hidden;
+  const oldG = truck.g;
+  if (oldG && oldG.parent) oldG.parent.remove(oldG);
+  if (oldG) disposeObj(oldG);
+  const nt = buildTruck(); // buildTruck() now takes the FBX path
+  nt.wx = wx; nt.hidden = hidden; nt.g.visible = (hidden <= 0);
+  truck = nt;
+  for (let i = 0; i < blocks.length; i++){
+    const h = blocks[i].house;
+    (h.bags || []).forEach(bag => {
+      if (bag.state === 'curb' && bag.g && bag.g.parent){
+        const pg = bag.g.parent;
+        pg.remove(bag.g); disposeObj(bag.g);
+        bag.g = makeBag(); bag.g.position.set(bag.wx, bag.wy, GZ); pg.add(bag.g);
+      }
+    });
+    if (h.can && (h.can.state === 'curb' || h.can.state === 'droppedEmpty') && h.can.g && h.can.g.parent){
+      const pg = h.can.g.parent;
+      pg.remove(h.can.g); disposeObj(h.can.g);
+      h.can.g = makeCan(true); h.can.g.position.set(h.can.wx, h.can.wy, GZ); pg.add(h.can.g);
+    }
+  }
+}
 // ==================== BOOT ====================
 initThree();
 worker = buildWorker();
@@ -2421,6 +2619,12 @@ truck = buildTruck();
 spawnWorld();
 updateHUD();
 requestAnimationFrame(loop);
+// Load the 3D truck / can / bag model in the background and swap it in when ready.
+if (typeof THREE.FBXLoader !== 'undefined'){
+  loadFbxTemplates()
+    .then(() => rebuildTruckFromFbx())
+    .catch(err => console.warn('[FBX] using procedural assets:', err && err.message));
+}
 </script>
 </body>
 </html>
