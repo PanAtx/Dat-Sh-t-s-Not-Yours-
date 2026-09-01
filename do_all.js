@@ -799,7 +799,7 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 2, bike: 3, ebike: 2, moto: 2, car: 4, breaker: 2, yeller: 2 };
+  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 3, bike: 3, ebike: 2, moto: 2, car: 4, breaker: 2, yeller: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
 }
 function recycleBlock(b){
@@ -841,11 +841,11 @@ function updateBlocks(dt){
 function cleanupLandedCans(){
   for (let i = landedCans.length - 1; i >= 0; i--){
     const lc = landedCans[i];
-    if (!lc.g || !lc.g.parent) { 
+    if (!lc.g || !lc.g.parent) {
       // already disposed - remove from array to prevent memory leak
-      landedCans.splice(i, 1); 
-      continue; 
-    }
+      landedCans.splice(i, 1);
+      continue;
+    } // already disposed
     // Off-screen behind player
     if (lc.wx < p.wx - 70){
       lc.g.parent.remove(lc.g); disposeObj(lc.g);
@@ -1426,7 +1426,7 @@ function findVehicleAhead(vehicle, allCreatures){
       best = { wx: other.wx, wy: other.wy, sp: other.curSp || other.sp, dist: dxAhead };
     }
   }
-  // Check the garbage truck as an obstacle — ALWAYS check regardless of best
+  // Check the garbage truck as an obstacle - ALWAYS check regardless of best
   const tBoxYMin = -4.5 - truck.boxW;
   const tBoxYMax = -4.5 + truck.boxW;
   const vBoxYMin = vehicle.wy - vehicle.boxW;
@@ -1442,14 +1442,6 @@ function findVehicleAhead(vehicle, allCreatures){
       }
     }
   }
-    // Also keep truck as obstacle while vehicle overlaps the body laterally
-    if (best === null && vBoxYMax > tBoxYMin && vBoxYMin < tBoxYMax){
-      const tRear2 = truck.wx - truck.boxL;
-      const tFront2 = truck.wx + truck.boxL;
-      if ((vehicle.wx - vehicle.boxL) < tFront2 + 1.0 && (vehicle.wx + vehicle.boxL) > tRear2){
-        best = { wx: truck.wx, wy: -4.5, sp: TRUCK_SPEED, dist: 0.1, isTruck: true };
-      }
-    }
   return best || null;
 }
 // ==================== CHECK IF A LANE IS CLEAR FOR DETOUR ====================
@@ -1470,10 +1462,13 @@ function isLaneClear(checkWy, checkWx, checkBoxW, allCreatures){
   // ALSO check against the garbage truck — never detour into the truck's lane
   const tBoxYMin = -4.5 - truck.boxW;   // -6.4
   const tBoxYMax = -4.5 + truck.boxW;   // -2.6
-  if (checkWy >= tBoxYMin && checkWy <= tBoxYMax){ return false; } // inside truck Y — blocked
-  
-  // No X proximity block here: lanes outside the truck's Y zone are valid passing routes.
-  // Other vehicles in those lanes are already handled by the vehicle loop above (lines 1462-1471).
+  if (checkWy >= tBoxYMin && checkWy <= tBoxYMax){ return false; } // inside truck Y
+  // Check X proximity to the rear of the truck (hopper end, NOT front cab)
+  const truckRearX = truck.wx - truck.boxL;
+  if (checkWx < truckRearX && checkWx > truckRearX - 15.0){
+    // We're in the extended detection zone behind the truck — this lane is occupied by the truck's body
+    return false;
+  }
   return true;
 }
 // ==================== VEHICLE COLLISION SEPARATION ====================
@@ -1620,7 +1615,6 @@ function updateCreatures(dt){
         c.wx += c.sp * dt;
         animParts(c, c.sp * dt * 2.2);
         if (tx > 55){ c.wx = p.wx - 38; c.wy = R(1, 4); }
-        else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1, 4); }
         c.cd -= dt;
         if (state === 'play' && c.cd <= 0 && Math.abs(tx) < 5){
           Voice.say('Hey! Hurry up!', 6, 1.1);
@@ -1701,7 +1695,6 @@ function updateCreatures(dt){
           c.wx += c.sp * dt * 0.1; // crawling stop
         }
         if (tx > 55){ c.wx = p.wx - 38; c.wy = R(1.2, 4.2); c.stop = 0; c.curSp = 0; }
-        else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.stop = 0; c.curSp = 0; }
         break;
       }
       case 'rc':{
@@ -1929,18 +1922,11 @@ function updateCreatures(dt){
         }
         animParts(c, c.curSp * dt * 1.2);
         if (tx > 55){ c.wx = p.wx - 40; c._baseWy = clamp(R(-1.5, -0.3) + R(-0.3, 0.3), -2, 0); c.targetWy = c._baseWy; c.curSp = 0; }
-        else if (tx < -58){ // Recycle vehicles that fall far behind the player
-          c.wx = p.wx + 42;
-          c.wy = clamp(R(-3.5, -6.5), -8.5, -1.5);
-          c._baseWy = c.targetWy = c.wy;
-          c.curSp = c.sp;
-          c.detourTimer = undefined;
-        }
         break;
       }
       case 'car':{
         // Check for obstacles ahead (truck + other vehicles)
-        let obstacle = findVehicleAhead(c, creatures);
+        const obstacle = findVehicleAhead(c, creatures);
         let desiredSp = c.sp;
 
         // === CRITICAL: Direct hopper proximity check — prevents driving into the truck ===
@@ -1952,13 +1938,7 @@ function updateCreatures(dt){
         const overlapsTruckY = carBoxYMax > tYMin && carBoxYMin < tYMax;
         const distToHopper = (truck.wx - truck.boxL) - c.wx; // distance to rear hopper face
         const nearHopperSide = distToHopper > -10 && distToHopper < 20.0; // approaching from behind
-        const directlyNearHopper = overlapsTruckY && nearHopperSide;
-        const truckRear = truck.wx - truck.boxL; // distance to rear hopper face
 
-        // Always enforce truck as obstacle when approaching from behind in its Y-zone
-        if (directlyNearHopper && (!obstacle || !obstacle.isTruck)){
-          obstacle = { isTruck: true, dist: Math.max(0.1, distToHopper) };
-        }
         if (obstacle){
           const isTruckObstacle = obstacle.isTruck;
           const distToObstacle = obstacle.dist;
@@ -1971,11 +1951,9 @@ function updateCreatures(dt){
           const inTruckYZone = overlapsTruckY && nearHopperSide;
           
           if (inTruckYZone){
-            // === IN THE TRUCK'S Y-ZONE: MUST stop or detour — never creep forward ===
-            const distAhead = truckRear - (c.wx + c.boxL);
-            if (distAhead <= 0.3) desiredSp = 0;
-            else desiredSp = Math.min(desiredSp, distAhead * 2.5);
-
+            // === IN THE TRUCK'S Y-ZONE: Hard brake until clear of rear or change lane ===
+            desiredSp = Math.min(desiredSp, 2.0); // hard cap at low speed
+            
             // Force lane change: must leave truck's Y-zone BEFORE reaching hopper
             const toCurb = -1.5; // move up (sidewalk side) if in right half of truck Y
             const toRoad = -9.0; // move down (outer road) if in left half
@@ -2095,17 +2073,11 @@ function updateCreatures(dt){
           c.detourTimer = undefined;
           c.targetWy = clamp(R(-3.5, -6.5), -8.5, -1.5);
           if (!c._homeLane) c._homeLane = c.targetWy;
-        } else if (tx < -58) { // Recycle vehicles that fall far behind the player
-          c.wx = p.wx + 42;
-          c.curSp = 0;
-          c.detourTimer = undefined;
-          c.targetWy = clamp(R(-3.5, -6.5), -8.5, -1.5);
-          if (!c._homeLane) c._homeLane = c.targetWy;
         }
         break;
       }
       case 'moto':{
-        let obstacleM = findVehicleAhead(c, creatures);
+        const obstacleM = findVehicleAhead(c, creatures);
         let desiredSpM = c.sp;
 
         // === CRITICAL: Direct hopper proximity check ===
@@ -2116,13 +2088,7 @@ function updateCreatures(dt){
         const overlapsMotoTruckY = motoBoxYMax > tYMin2 && motoBoxYMin < tYMax2;
         const distToHopperM = (truck.wx - truck.boxL) - c.wx;
         const nearHopperSideM = distToHopperM > -10 && distToHopperM < 20.0;
-        const directlyNearHopperM = overlapsMotoTruckY && nearHopperSideM;
-        const truckRear = truck.wx - truck.boxL;
 
-        // Always enforce truck as obstacle when moto approaches from behind in its Y-zone
-        if (directlyNearHopperM && (!obstacleM || !obstacleM.isTruck)){
-          obstacleM = { isTruck: true, dist: Math.max(0.1, distToHopperM) };
-        }
         if (obstacleM){
           const isTruckObstacle = obstacleM.isTruck;
           const distToObstacleM = obstacleM.dist;
@@ -2132,12 +2098,8 @@ function updateCreatures(dt){
           const inTruckYZoneM = overlapsMotoTruckY && nearHopperSideM;
 
           if (inTruckYZoneM){
-            // === IN THE TRUCK'S Y-ZONE: MUST stop or detour ===
-            const distAheadM = truckRear - (c.wx + c.boxL);
-            if (distAheadM <= 0.3) desiredSpM = 0;
-            else desiredSpM = Math.min(desiredSpM, distAheadM * 2.5);
-
-            // Force lane change
+            // === IN THE TRUCK'S Y-ZONE: Hard brake until clear or change lane ===
+            desiredSpM = Math.min(desiredSpM, 2.0);
             const toCurb = -1.5;
             const toRoad = -9.0;
             const targetLateralYM = c.wy > (tYMin2 + tYMax2) / 2 ? toCurb : toRoad;
@@ -2226,11 +2188,6 @@ function updateCreatures(dt){
         }
         animParts(c, c.curSp * dt * 0.8, 0.2);
         if (tx > 55){ c.wx = p.wx - 38; c.curSp = 0; c.detourTimer = undefined; }
-        else if (tx < -58) { // Recycle vehicles that fall far behind the player
-          c.wx = p.wx + 42;
-          c.curSp = 0;
-          c.detourTimer = undefined;
-        }
         break;
       }
       case 'breaker':{
@@ -2269,8 +2226,6 @@ function updateCreatures(dt){
   // Separate overlapping vehicles after all movement is done this frame
   const vehicleList = creatures.filter(v => v.boxW !== undefined && v.type !== 'ped' && v.type !== 'lady');
   separateVehicles(vehicleList, dt);
-  // Enforce truck's physical body as immovable solid wall — NO clipping
-  resolveTruckCollisions(vehicleList, dt);
 }
 // ==================== HUD ====================
 const hudCache = {};
