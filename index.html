@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, orientation=landscape">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -59,6 +59,45 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #camfeed .cam { color:#eafff2; font-size:12px; }
 #camfeed .ts { color:#bfeed4; font-size:11px; }
 @keyframes recblink { 0%,50% { opacity:1; } 50.1%,100% { opacity:.12; } }
+/* ===== Landscape-only / fullscreen gate (no portrait mode) ===== */
+.rotate-overlay { position:fixed; inset:0; z-index:60; display:none; flex-direction:column;
+  align-items:center; justify-content:center; gap:22px; background:rgba(3,7,10,.97);
+  font-family:"Courier New",Courier,monospace; text-align:center; padding:24px; }
+.rotate-overlay .icon { font-size:56px; line-height:1; animation:rotspin 2.2s ease-in-out infinite; }
+.rotate-overlay .msg { font-size:22px; letter-spacing:3px; color:#2ee090; text-shadow:0 0 12px rgba(46,224,144,.7); }
+.rotate-overlay .sub { font-size:14px; letter-spacing:2px; color:#9fe8b8; }
+@keyframes rotspin { 0%,18% { transform:rotate(0deg); } 58%,100% { transform:rotate(90deg); } }
+@media (orientation: portrait) { .rotate-overlay { display:flex !important; } }
+/* ===== Animated reward popups (MONGO! / STREET CASH! / TREASURE!) ===== */
+.popup { position:fixed; left:50%; top:26vh; z-index:55; pointer-events:none; white-space:nowrap; text-align:center;
+  font-family:'Press Start 2P','Courier New',monospace; font-size:min(8.5vw,64px); font-weight:bold; letter-spacing:4px; }
+.popup .pop-sub { display:inline-block; margin-top:16px; font-size:min(3vw,22px); letter-spacing:3px; color:#fff;
+  background:rgba(0,0,0,.55); padding:6px 14px; border:2px solid rgba(255,255,255,.35); border-radius:4px; }
+.pop-mongo    { color:#ffab45; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 22px rgba(255,160,60,.8); animation:popPunch 1.1s cubic-bezier(.2,1.5,.4,1) forwards; }
+.pop-cash     { color:#54ff88; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 22px rgba(60,255,120,.8); animation:cashWobble 1.1s ease-out forwards; }
+.pop-treasure { color:#ffd23a; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 28px rgba(255,210,60,.9); animation:treasureZoom 1.2s ease-out forwards; }
+@keyframes popPunch {
+  0% { transform:translateX(-50%) scale(.2); opacity:0; }
+  30% { transform:translateX(-50%) scale(1.3); opacity:1; }
+  50% { transform:translateX(-50%) scale(.94); }
+  68% { transform:translateX(-50%) scale(1.1); }
+  85% { transform:translateX(-50%) scale(1); opacity:1; }
+  100% { transform:translateX(-50%) scale(1.02); opacity:0; }
+}
+@keyframes cashWobble {
+  0% { transform:translateX(calc(-50% - 55vw)) rotate(-10deg); opacity:0; }
+  38% { transform:translateX(-50%) rotate(6deg); opacity:1; }
+  58% { transform:translateX(calc(-50% - 18px)) rotate(-4deg); }
+  76% { transform:translateX(calc(-50% + 10px)) rotate(2deg); }
+  100% { transform:translateX(-50%) rotate(0); opacity:0; }
+}
+@keyframes treasureZoom {
+  0% { transform:translateX(-50%) scale(.1) rotate(-28deg); opacity:0; }
+  42% { transform:translateX(-50%) scale(1.35) rotate(9deg); opacity:1; }
+  64% { transform:translateX(-50%) scale(.97) rotate(-4deg); }
+  84% { transform:translateX(-50%) scale(1.06) rotate(0); opacity:1; }
+  100% { transform:translateX(-50%) scale(1) rotate(0); opacity:0; }
+}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
@@ -80,6 +119,11 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="cam">FIAT CAM 01</div>
   <div class="ts" id="camdate">--/--/----</div>
   <div class="ts" id="camtime">--:--:--</div>
+</div>
+<div class="rotate-overlay">
+  <div class="icon">&#128241;</div>
+  <div class="msg">ROTATE YOUR DEVICE</div>
+  <div class="sub">PLAY IN LANDSCAPE &middot; FULLSCREEN</div>
 </div>
 <div id="menu" class="modal"><div class="panel">
   <h1 class="title-text">Dat Sh!t's Not Yours!</h1>
@@ -144,6 +188,47 @@ function camTick(){
 }
 camTick();
 setInterval(camTick, 1000);
+
+// ===== Landscape-only / fullscreen gate: enter on START (a user gesture). =====
+// Fullscreen is requested first; the orientation lock is attempted after it is granted
+// (and falls back to the older API). All calls are best-effort: iOS/Safari can't lock
+// orientation from the web, so we also rely on the viewport hint + the portrait overlay.
+function enterLandscapeFullscreen(){
+  function tryLock(){
+    const o = (typeof screen !== 'undefined' && screen.orientation) ? screen.orientation : null;
+    if (o) {
+      if (typeof o.lock === 'function') { try { o.lock('landscape').catch(function(){}); } catch (e) {} }
+      else if (typeof o.requestLock === 'function') { try { o.requestLock('landscape').catch(function(){}); } catch (e) {} }
+    }
+    try { window.focus(); } catch (e) {}
+  }
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (req) {
+    try {
+      const r = req.call(el);
+      if (r && typeof r.then === 'function') r.then(tryLock).catch(tryLock); else tryLock();
+    } catch (e) { tryLock(); }
+  } else {
+    tryLock();
+  }
+}
+window.addEventListener('orientationchange', function(){ try { window.focus(); } catch (e) {} });
+
+// ===== Big animated "reward" popups (MONGO! / STREET CASH! / TREASURE!) =====
+function showPopup(kind){
+  document.querySelectorAll('.popup').forEach(function(n){ n.remove(); }); // never let two stack
+  const cfg = ({
+    mongo:    { text: 'MONGO!',       cls: 'pop-mongo',    sub: '+$50'  },
+    cash:     { text: 'STREET CASH!', cls: 'pop-cash',     sub: '+$100' },
+    treasure: { text: 'TREASURE!',    cls: 'pop-treasure', sub: '+$250' }
+  }[kind]) || { text: 'BONUS!', cls: 'pop-mongo', sub: '' };
+  const el = document.createElement('div');
+  el.className = 'popup ' + cfg.cls;
+  el.innerHTML = cfg.text + (cfg.sub ? '<span class="pop-sub">' + cfg.sub + '</span>' : '');
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1350);
+}
 let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
 let flyingCans = [], dustParticles = [], landedCans = [];
 let worker = null, wparts = null, truck = null;
@@ -274,6 +359,10 @@ const SFX = {
   playTossSound(){      this.ensure(); this.noise(0.32, 'lowpass', 260, 0.9); this.tone('sine', 110, 52, 0.26, 0.7); },
   playCanDropSound(){   this.ensure(); this.tone('square', 520, 170, 0.12, 0.5); this.tone('square', 940, 300, 0.1, 0.3, 0.03); this.noise(0.16, 'highpass', 2400, 0.4); },
   playBonusTone(){      this.ensure(); const seq = [660, 880, 1320, 1760]; for (let i = 0; i < seq.length; i++) this.tone('sine', seq[i], seq[i], 0.13, 0.35, i * 0.07); },
+  // --- Bonus pickup sounds (one distinct sound per item type) ---
+  playKaChing(){        this.ensure(); this.tone('sine', 1975, 1975, 0.16, 0.5, 0.0); this.tone('triangle', 2637, 2637, 0.2, 0.32, 0.02); this.noise(0.09, 'highpass', 6000, 0.22, 0.0); },
+  playMoneySound(){     this.ensure(); this.tone('square', 1568, 1245, 0.09, 0.38, 0.0); this.tone('square', 2093, 1760, 0.12, 0.34, 0.08); this.tone('sine', 3136, 3136, 0.15, 0.22, 0.08); this.noise(0.1, 'highpass', 5200, 0.28, 0.0); this.noise(0.09, 'highpass', 6800, 0.24, 0.08); },
+  playTreasureJingle(){ this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5, 1318.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.16, 0.4, i * 0.08); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.12, 0.15, i * 0.08); } this.tone('square', 1568, 1568, 0.22, 0.18, seq.length * 0.08); },
   playTripSound(){      this.ensure(); this.tone('sine', 82, 40, 0.3, 0.8); this.noise(0.26, 'lowpass', 200, 0.5); },
   playStun(){           this.ensure(); this.tone('square', 150, 55, 0.22, 0.5); this.noise(0.2, 'bandpass', 700, 0.4); },
   playPickupSound(){    this.ensure(); this.tone('triangle', 300, 520, 0.09, 0.4); },
@@ -1316,7 +1405,7 @@ function pickUp(item){
   carried = item;
   attachCarried(item);
   SFX.playPickupSound();
-  if (Math.random() < 0.4) spawnBonus(p.wx + R(-2, 2), R(5.5, 7.5));
+  if (Math.random() < 0.4) spawnBonus(p.wx + R(-2, 2), R(1.0, 4.2));
 }
 function tossBag(bag){
   bag.state = 'dumped';
@@ -1392,13 +1481,13 @@ function dropCarried(){
 }
 function spawnBonus(wx, wy){
   const r = Math.random();
-  let g, val, voice;
-  if (r < 0.4){ g = makeCopper(); val = 50; voice = 'Mongo!'; }
-  else if (r < 0.75){ g = makeCash(); val = 100; voice = 'Street cash!'; }
-  else { g = makeMongo((Math.random() * 3) | 0); val = 250; voice = 'Mongo!'; }
+  let g, val, type, voice;
+  if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
+  else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
+  else { g = makeMongo((Math.random() * 3) | 0); val = 250; type = 'treasure'; voice = 'Treasure!'; }
   g.position.set(wx, wy, GZ);
   dynamicGroup.add(g);
-  bonuses.push({ g: g, wx: wx, wy: wy, val: val, voice: voice, t: R(0, 6) });
+  bonuses.push({ g: g, wx: wx, wy: wy, val: val, type: type, voice: voice, t: R(0, 6) });
 }
 function updateBonuses(dt){
   for (let i = bonuses.length - 1; i >= 0; i--){
@@ -1408,8 +1497,11 @@ function updateBonuses(dt){
     b.g.rotation.z += dt * 1.5;
     if (state === 'play' && dist(b.wx, b.wy) < 1.8){
       addScore(b.val, true);
-      SFX.playBonusTone();
-      Voice.say(b.voice, 1.0, b.voice === 'Mongo!' ? 1.3 : 1.1);
+      if (b.type === 'treasure') SFX.playTreasureJingle();
+      else if (b.type === 'cash') SFX.playMoneySound();
+      else SFX.playKaChing();
+      showPopup(b.type || 'mongo');
+      Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3);
       if (b.g.parent) b.g.parent.remove(b.g);
       disposeObj(b.g);
       bonuses.splice(i, 1);
@@ -2561,6 +2653,7 @@ function gameOver(){
   $('over').classList.remove('hidden');
 }
 function startGame(){
+  enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
   resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
@@ -2611,6 +2704,7 @@ $('btnRestart').addEventListener('click', startGame); // startGame() already res
 // ==================== MAIN LOOP ====================
 function loop(now){
   requestAnimationFrame(loop);
+  if (window.innerHeight > window.innerWidth) return; // portrait mode: freeze the sim; the CSS overlay prompts the player to rotate to landscape
   let dt = (now - lastT) / 1000;
   lastT = now;
   if (dt > 0.05) dt = 0.05;
