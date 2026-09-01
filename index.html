@@ -109,6 +109,8 @@ const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street s
 let state = 'menu', score = 0, bonusTally = 0, complaints = 0;
 let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, shake: 0, facing: 0 };
 let carry = 'none', carried = null, hopperAnim = 0;
+let hopperLoad = 0, hopperCycling = false, hopperCycleT = 0;
+let hopperTrash = null, hopperLumps = [];
 let routeIdx = 0, routeDist = 0;
 const ROUTES = ['ROUTE 1 - MANHATTAN UPTOWN', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
 let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10) || 0; } catch (e) {}
@@ -248,6 +250,7 @@ const SFX = {
   playDropSound(){      this.ensure(); this.tone('sine', 150, 55, 0.18, 0.5); this.noise(0.16, 'lowpass', 420, 0.4); },
   playComplaintSound(){ this.ensure(); this.tone('sawtooth', 210, 185, 0.22, 0.35); this.tone('sawtooth', 210, 185, 0.22, 0.35, 0.3); },
   playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
+  playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
   playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); }
 };
 // ==================== VOICE SYNTHESIS (queue-managed) ====================
@@ -334,7 +337,7 @@ function buildWorker(){
 // time and store a per-asset rotation matrix on the template (tpl.orient). The game uses X = route
 // (front +X, rear -X), Y = lateral, Z = up. Verified in node against the real truck.fbx: the truck
 // stands upright (L 7.33 > H 2.99), grounded, hopper at -X (rear), front at +X.
-const TRUCK_SCALE = 0.26, CAN_SCALE = 0.25, BAG_SCALE = 0.24;
+const TRUCK_SCALE = 0.4394, CAN_SCALE = 0.325, BAG_SCALE = 0.24;
 let FBX_TPL = { truck: null, can: null, bag: null };
 
 function fbxFind(root, re){ let r = null; root.traverse(o => { if (o.name && re.test(o.name) && (!r || r.name.length < o.name.length)) r = o; }); return r; }
@@ -472,17 +475,13 @@ function buildTruck(){
     const bb = new THREE.Box3().setFromObject(g);
     const boxL = (bb.max.x - bb.min.x) / 2;
     const boxW = (bb.max.y - bb.min.y) / 2;
-    // Deposit zone = the rear compactor/hopper (the most-negative-X part of the body).
-    let hopperOff = -boxL * 0.5;
-    const comp = fbxFind(g, /compactor|piston/i);
-    if (comp) hopperOff = new THREE.Box3().setFromObject(comp).getCenter(new THREE.Vector3()).x;
-    // Beacon: an independent emissive light on top (drives the "hopper ready" glow).
-    const beaconMat = new THREE.MeshLambertMaterial({ color: 0xffa51e, emissive: 0xffa51e, emissiveIntensity: 0.9 });
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), beaconMat);
-    beacon.position.set(-boxL * 0.5, 0, bb.max.z);
-    g.add(beacon);
+    // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
+    // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
+    const hopperOff = -boxL + 1.0;   // just inside the rear opening (bumper is at -boxL)
+    const hopperY = 0;              // centered across the truck width
+    const hopperZ = 1.0;            // the open bucket's interior floor (well below the compactor)
     worldGroup.add(g);
-    return { g: g, bladePush: () => {}, beaconMat: beaconMat, boxL: boxL, boxW: boxW, hopperOff: hopperOff, cabOff: boxL + 1.6, wx: -28, hidden: 0 };
+    return { g: g, bladePush: () => {}, boxL: boxL, boxW: boxW, hopperOff: hopperOff, hopperY: hopperY, hopperZ: hopperZ, cabOff: boxL + 1.6, wx: -28, hidden: 0 };
   }
   // ===== Procedural fallback (identical to the original, so the game always runs) =====
   const g = new THREE.Group();
@@ -500,9 +499,6 @@ function buildTruck(){
   const hopper = BX(1.5, 1.3, 1.65, M(0x23262b)); hopper.position.set(-4.3, 0, 1.35); g.add(hopper);
   const rim = BX(1.55, 1.7, 0.2, M(0x99a3ac)); rim.position.set(-4.3, 0, 2.02); g.add(rim);
   const blade = BX(0.35, 1.0, 1.35, M(0x59616a)); blade.position.set(-4.7, 0, 1.05); g.add(blade); // hydraulic packer blade
-  const beaconMat = new THREE.MeshLambertMaterial({ color: 0xffa51e, emissive: 0xffa51e, emissiveIntensity: 0.9 });
-  const b1 = BX(0.26, 0.2, 0.26, beaconMat); b1.position.set(-1.0, 0, 2.4); g.add(b1);
-  const b2 = BX(0.26, 0.2, 0.26, beaconMat); b2.position.set(-2.3, 0, 2.4); g.add(b2);
   const wheelM = M(0x14171a);
   const wp = [[2.6, 0.85], [2.6, -0.85], [-3.4, 0.85], [-3.4, -0.85], [-0.6, 0.85], [-0.6, -0.85]];
   for (let i = 0; i < wp.length; i++){
@@ -514,17 +510,79 @@ function buildTruck(){
     hub.position.set(wp[i][0], wp[i][1], 0.45);
     g.add(hub);
   }
+  g.scale.set(1.69, 1.69, 1.69); // 30% larger, matching the FBX truck size increase
   worldGroup.add(g);
-  return { g: g, bladePush: (p) => { blade.position.x = -4.7 + p * 1.4; }, beaconMat: beaconMat, boxL: 4.0, boxW: 1.9, hopperOff: -4.3, cabOff: 6.0, wx: -28, hidden: 0 };
+  return { g: g, bladePush: (p) => { blade.position.x = -4.7 + p * 1.4; }, boxL: 6.76, boxW: 3.211, hopperOff: -7.267, hopperY: 0, hopperZ: 2.6, cabOff: 10.14, wx: -28, hidden: 0 };
+}
+// ==================== HOPPER TRASH PILE & CYCLE ====================
+// The truck is heavy: it never bounces when loaded. Instead, each deposited bag/can
+// visibly piles up in the rear hopper. After HOPPER_CYCLE_AT items the hopper "cycles" —
+// the pile shrinks + fades away (compacted/loaded), the worker scores a bonus, jingle plays.
+const HOPPER_CYCLE_AT = 5, HOPPER_CYCLE_DUR = 0.75, HOPPER_CYCLE_BONUS = 200;
+function hopperWorldX(){ return truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3); }
+function hopperWorldY(){ return -4.5 + (truck.hopperY != null ? truck.hopperY : 0); }
+function hopperTopZ(){ return (truck.hopperZ != null ? truck.hopperZ : 2.4); }
+function addHopperLump(){
+  if (!hopperTrash){ hopperTrash = new THREE.Group(); worldGroup.add(hopperTrash); }
+  const idx = hopperLoad; // 1..HOPPER_CYCLE_AT
+  const palette = [0x23272e, 0x1b1f24, 0x2c3138, 0x30363d, 0x3a4048, 0x454b52];
+  const mat = M(palette[(Math.random() * palette.length) | 0], { transparent: true, opacity: 1 });
+  const g = new THREE.Group();
+  const body = SP(0.4, mat); body.scale.set(1.1, 0.9, 1.2); g.add(body);
+  const neck = CY(0.14, 0.19, 0.22, mat); neck.position.z = 0.44; g.add(neck);
+  const knot = SP(0.13, mat, 6); knot.position.z = 0.58; g.add(knot);
+  // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
+  // spreading out and stacking a little higher with each deposit.
+  const localX = R(-0.6, 0.4);
+  const localY = R(-0.6, 0.6);
+  const localZ = hopperTopZ() + Math.min(idx, HOPPER_CYCLE_AT) * 0.22 + R(-0.05, 0.05);
+  g.position.set(localX, localY, localZ);
+  g.rotation.z = R(-0.5, 0.5);
+  const baseScale = R(0.9, 1.2);
+  g.scale.setScalar(baseScale);
+  hopperTrash.add(g);
+  hopperLumps.push({ g: g, mat: mat, baseScale: baseScale, baseX: localX, baseZ: localZ });
+}
+function hopperDeposit(){
+  if (hopperCycling) return; // mid-cycle (emptying) — skip buildup this time
+  hopperLoad++;
+  addHopperLump();
+  if (hopperLoad >= HOPPER_CYCLE_AT){ hopperCycling = true; hopperCycleT = HOPPER_CYCLE_DUR; }
+}
+function clearHopperTrash(){
+  if (!hopperTrash){ hopperLumps.length = 0; return; } // nothing has been deposited yet
+  if (hopperTrash.parent) hopperTrash.parent.remove(hopperTrash);
+  disposeObj(hopperTrash);
+  hopperTrash = null;
+  hopperLumps.length = 0;
+}
+function finishHopperCycle(){
+  clearHopperTrash();
+  hopperLoad = 0;
+  hopperCycling = false;
+  addScore(HOPPER_CYCLE_BONUS, true);
+  SFX.playHopperJingle();
+  Voice.say('Hopper full, compacting!', 2.5, 0.9);
+}
+function updateHopperTrash(dt){
+  if (!hopperTrash || hopperLumps.length === 0) return;
+  hopperTrash.position.set(hopperWorldX(), hopperWorldY(), GZ); // keep the pile planted in the rear hopper
+  if (hopperCycling){
+    hopperCycleT -= dt;
+    const k = Math.max(0, hopperCycleT / HOPPER_CYCLE_DUR); // 1 -> 0
+    for (let i = 0; i < hopperLumps.length; i++){
+      const L = hopperLumps[i];
+      L.g.scale.setScalar(Math.max(0.0001, L.baseScale * k));   // get smaller
+      L.g.position.z = L.baseZ * (0.5 + 0.5 * k);               // sink toward the floor
+      L.g.position.x = L.baseX + (1 - k) * 0.5;                 // slide forward into the compactor
+      L.mat.opacity = k;                                        // fade out
+    }
+    if (hopperCycleT <= 0) finishHopperCycle();
+  }
 }
 // ==================== TRASH & BONUS ITEMS ====================
 function makeBag(){
-  if (FBX_TPL.bag){
-    const g = fbxInstance(FBX_TPL.bag, BAG_SCALE);
-    g.rotation.z = R(-0.35, 0.35); // vary the facing so bags don't all line up
-    g.userData.lid = null;
-    return g;
-  }
+  // Procedural garbage bag (reverted from the FBX bag back to the original soft-bag look).
   const g = new THREE.Group();
   const m = M(0x23272e), m2 = M(0x1b1f24);
   const body = SP(0.4, m); body.scale.set(1.05, 0.9, 1.15); body.position.z = 0.4; g.add(body);
@@ -969,7 +1027,7 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 2, bike: 3, ebike: 2, moto: 2, car: 4, breaker: 2, yeller: 2 };
+  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 2, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
 }
 function recycleBlock(b){
@@ -1036,6 +1094,8 @@ function resetWorldState(){
   score = 0; bonusTally = 0; complaints = 0;
    p.wx = 0; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.phase = 0; p.shake = 0; p.facing = 0;
   routeIdx = 0; routeDist = 0; hopperAnim = 0;
+  hopperLoad = 0; hopperCycling = false; hopperCycleT = 0;
+  clearHopperTrash();
   pendingHouses.length = 0; bonuses.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
@@ -1233,7 +1293,7 @@ function tossBag(bag){
   if (bag.g.parent) bag.g.parent.remove(bag.g);
   disposeObj(bag.g);
   addScore(25);
-  hopperAnim = 1;
+  hopperDeposit();
   SFX.playTossSound();
   checkHouse(bag.h);
   carried = null; carry = 'none';
@@ -1243,7 +1303,7 @@ function dumpCan(){
   c.state = 'dumped'; // mark can as dumped for checkHouse recognition
   // Immediately toss can to sidewalk from where worker is standing - worker is free to service another item right away
   addScore(30);
-  hopperAnim = 1;
+  hopperDeposit();
   SFX.playCanDropSound();
   SFX.playTossSound();
   carry = 'none';
@@ -1545,20 +1605,11 @@ function updateTruck(dt){
   if (truck.boxL == null) truck.boxL = 4.0;
   if (truck.boxW == null) truck.boxW = 1.9;
   truck.g.visible = true;
-  if (hopperAnim > 0){
-    hopperAnim = Math.max(0, hopperAnim - dt / 0.9);
-    const pulse = Math.sin((1 - hopperAnim) * Math.PI);
-    truck.g.position.set(truck.wx, -4.5, GZ + pulse * 0.22); // subtle compaction "thunk"
-    truck.bladePush(pulse);
-  } else {
-    truck.g.position.set(truck.wx, -4.5, GZ);
-    truck.bladePush(0);
-  }
-  truck.beaconMat.emissiveIntensity = Math.sin(performance.now() * 0.012) > 0 ? 1.0 : 0.15;
-  // hopper glow when the worker is in the trigger zone
-  if (nearHopper() && (carry === 'bag' || carry === 'canFull')){
-    truck.beaconMat.emissiveIntensity = 1.0;
-  }
+  // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
+  truck.g.position.set(truck.wx, -4.5, GZ);
+  if (truck.bladePush) truck.bladePush(0);
+  // Hopper trash pile follows the truck and runs its shrink/fade cycle.
+  updateHopperTrash(dt);
 }
 // ==================== CREATURE AI ====================
 function animParts(c, dphase, amp){
