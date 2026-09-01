@@ -477,8 +477,8 @@ function buildTruck(){
     const boxW = (bb.max.y - bb.min.y) / 2;
     // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
     // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
-    const hopperOff = -boxL + 1.0;   // just inside the rear opening (bumper is at -boxL)
-    const hopperY = 0;              // centered across the truck width
+    const hopperOff = -boxL + 1.6;   // a bit further in from the rear opening (avoids clipping the back)
+    const hopperY = -0.5;           // nudged to the right side of the scoop
     const hopperZ = 1.0;            // the open bucket's interior floor (well below the compactor)
     worldGroup.add(g);
     return { g: g, bladePush: () => {}, boxL: boxL, boxW: boxW, hopperOff: hopperOff, hopperY: hopperY, hopperZ: hopperZ, cabOff: boxL + 1.6, wx: -28, hidden: 0 };
@@ -533,8 +533,8 @@ function addHopperLump(){
   const knot = SP(0.13, mat, 6); knot.position.z = 0.58; g.add(knot);
   // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
   // spreading out and stacking a little higher with each deposit.
-  const localX = R(-0.6, 0.4);
-  const localY = R(-0.6, 0.6);
+  const localX = R(-0.3, 0.5);
+  const localY = R(-0.5, 0.5);
   const localZ = hopperTopZ() + Math.min(idx, HOPPER_CYCLE_AT) * 0.22 + R(-0.05, 0.05);
   g.position.set(localX, localY, localZ);
   g.rotation.z = R(-0.5, 0.5);
