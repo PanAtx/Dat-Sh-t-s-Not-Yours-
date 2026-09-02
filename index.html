@@ -439,6 +439,7 @@ function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color
 function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); q.castShadow = true; return q; }
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); q.castShadow = true; return q; }
+function SPH(r, m, ws, hs){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); q.castShadow = true; return q; }
 function disposeObj(o){
   o.traverse(ch => {
     if (ch.geometry) ch.geometry.dispose();
@@ -1008,37 +1009,122 @@ function makePerson(o){
 }
 function makeRat(){
   const g = new THREE.Group();
-  const m = M(0x55504a);
-  const body = BX(0.34, 0.13, 0.15, m); body.position.z = 0.14; g.add(body);
-  const head = BX(0.14, 0.12, 0.14, m); head.position.set(0.24, 0, 0.15); g.add(head);
-  const tail = BX(0.3, 0.03, 0.03, M(0x9a8f86)); tail.position.set(-0.3, 0, 0.1); tail.rotation.z = 0.3; g.add(tail);
-  const e1 = SP(0.035, M(0x9a8f86), 5); e1.position.set(0.26, 0.05, 0.24); g.add(e1);
-  const e2 = SP(0.035, M(0x9a8f86), 5); e2.position.set(0.26, -0.05, 0.24); g.add(e2);
+  const fur = M(0x55504a), dark = M(0x3a3632), pink = M(0xc98a7a), eyeM = M(0x14100e);
+  // sleek smooth body (ellipsoid) instead of boxes
+  const body = SPH(0.1, fur); body.scale.set(2.3, 0.95, 1.05); body.position.set(-0.03, 0, 0.115); g.add(body);
+  const head = SPH(0.085, fur); head.scale.set(1.5, 0.95, 0.9); head.position.set(0.22, 0, 0.13); g.add(head);
+  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.13, 12), fur); snout.rotation.z = -Math.PI / 2; snout.position.set(0.36, 0, 0.118); snout.castShadow = true; g.add(snout);
+  const nose = SPH(0.014, M(0x2a2320)); nose.position.set(0.42, 0, 0.118); g.add(nose);
+  [-1, 1].forEach(s => {
+    const eye = SPH(0.013, eyeM); eye.position.set(0.245, s * 0.052, 0.165); g.add(eye);
+    const ear = SPH(0.03, fur); ear.scale.set(0.55, 1, 0.4); ear.position.set(0.18, s * 0.07, 0.19); g.add(ear);
+    const earIn = SPH(0.02, pink); earIn.scale.set(0.55, 0.85, 0.35); earIn.position.set(0.18, s * 0.075, 0.198); g.add(earIn);
+  });
+  [[0.14, 0.075], [0.14, -0.075], [-0.17, 0.08], [-0.17, -0.08]].forEach(p => {
+    const leg = CY(0.02, 0.016, 0.09, dark, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0], p[1], 0.055); g.add(leg);
+  });
+  // long thin tail: smooth tube curving out behind
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.19, 0, 0.09),
+    new THREE.Vector3(-0.32, 0.02, 0.06),
+    new THREE.Vector3(-0.43, 0.05, 0.05),
+    new THREE.Vector3(-0.5, 0.11, 0.07)
+  ]);
+  const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.015, 8), dark); tail.castShadow = true; g.add(tail);
   return g;
 }
 function makeRaccoon(){
   const g = new THREE.Group();
-  const m = M(0x7a7f86);
-  const body = BX(0.5, 0.22, 0.2, m); body.position.z = 0.2; g.add(body);
-  const head = BX(0.2, 0.18, 0.18, m); head.position.set(0.34, 0, 0.22); g.add(head);
-  const mask = BX(0.16, 0.1, 0.04, M(0x2a2e33)); mask.position.set(0.42, 0, 0.28); g.add(mask);
-  const nose = SP(0.035, M(0x2a2e33), 5); nose.position.set(0.46, 0, 0.24); g.add(nose);
-  const cols = [0x8a8f96, 0x3a3f45, 0x8a8f96];
-  for (let i = 0; i < 3; i++){
-    const seg = BX(0.12, 0.14, 0.14, M(cols[i]));
-    seg.position.set(-0.32 - i * 0.1, 0, 0.22 + i * 0.03);
-    seg.rotation.z = 0.4 + i * 0.15;
-    g.add(seg);
-  }
+  const fur = M(0x7a7f86), dark = M(0x2a2e33), light = M(0xb9bfc7), eyeM = M(0x14100e);
+  // plump smooth body with a lighter belly
+  const body = SPH(0.1, fur); body.scale.set(2.6, 1.45, 1.65); body.position.set(-0.06, 0, 0.22); g.add(body);
+  const belly = SPH(0.085, light); belly.scale.set(2.1, 0.95, 1.15); belly.position.set(-0.02, 0, 0.15); g.add(belly);
+  const head = SPH(0.09, fur); head.scale.set(1.25, 1.15, 1.05); head.position.set(0.35, 0, 0.28); g.add(head);
+  const muz = SPH(0.05, light); muz.scale.set(1.25, 0.85, 0.8); muz.position.set(0.44, 0, 0.22); g.add(muz);
+  const nose = SPH(0.02, dark); nose.position.set(0.495, 0, 0.23); g.add(nose);
+  [-1, 1].forEach(s => {
+    // classic dark band across the eyes
+    const patch = SPH(0.038, dark); patch.scale.set(1.15, 0.7, 0.55); patch.position.set(0.365, s * 0.032, 0.315); g.add(patch);
+    const eye = SPH(0.014, eyeM); eye.position.set(0.38, s * 0.032, 0.325); g.add(eye);
+    const ear = SPH(0.034, fur); ear.scale.set(0.8, 1, 0.5); ear.position.set(0.31, s * 0.085, 0.39); g.add(ear);
+    const earIn = SPH(0.02, dark); earIn.scale.set(0.8, 0.8, 0.4); earIn.position.set(0.31, s * 0.088, 0.395); g.add(earIn);
+  });
+  // four short dark legs
+  [[0.14, 0.13], [0.14, -0.13], [-0.16, 0.14], [-0.16, -0.14]].forEach(p => {
+    const leg = CY(0.032, 0.04, 0.12, dark, 10); leg.rotation.x = Math.PI / 2; leg.position.set(p[0], p[1], 0.07); g.add(leg);
+  });
+  // bushy banded tail: tapered alternating segments arcing up behind
+  const cols = [fur, dark, fur, dark, light];
+  let tx = -0.26, tz = 0.26;
+  cols.forEach((col, i) => {
+    const seg = SPH(0.055 - i * 0.006, col); seg.position.set(tx, 0, tz); g.add(seg);
+    tx -= 0.095; tz += 0.035;
+  });
   return g;
 }
 function makeSquirrel(){
   const g = new THREE.Group();
-  const m = M(0xb5651d);
-  const body = BX(0.3, 0.18, 0.16, m); body.position.z = 0.16; g.add(body);
-  const head = BX(0.15, 0.13, 0.14, m); head.position.set(0.2, 0, 0.2); g.add(head);
-  const tail = SP(0.2, M(0xc97a2a), 7); tail.position.set(-0.2, 0, 0.35); tail.scale.set(1.4, 0.8, 1); g.add(tail);
+  const fur = M(0xb5651d), furL = M(0xd98a3a), dark = M(0x241811), eyeM = M(0x14100e);
+  // upright sitting pose: egg body, head on top, big plume tail behind
+  const body = SPH(0.09, fur); body.scale.set(1.25, 1.05, 1.65); body.position.set(-0.03, 0, 0.25); g.add(body);
+  const chest = SPH(0.065, furL); chest.scale.set(0.95, 0.85, 1.25); chest.position.set(0.045, 0, 0.25); g.add(chest);
+  const head = SPH(0.075, fur); head.scale.set(1.15, 1.05, 1.0); head.position.set(0.1, 0, 0.48); g.add(head);
+  const muz = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.09, 10), fur); muz.rotation.z = -Math.PI / 2; muz.position.set(0.2, 0, 0.45); muz.castShadow = true; g.add(muz);
+  const nose = SPH(0.012, dark); nose.position.set(0.245, 0, 0.45); g.add(nose);
+  [-1, 1].forEach(s => {
+    const eye = SPH(0.014, eyeM); eye.position.set(0.155, s * 0.04, 0.51); g.add(eye);
+    // pointy ears
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.09, 8), fur); ear.position.set(0.07, s * 0.055, 0.58); ear.castShadow = true; g.add(ear);
+  });
+  // fluffy tail plume curling up behind
+  const t1 = SPH(0.08, furL); t1.scale.set(1.1, 0.75, 0.9); t1.position.set(-0.17, 0, 0.18); g.add(t1);
+  const t2 = SPH(0.1, fur); t2.scale.set(0.95, 0.7, 1.05); t2.position.set(-0.25, 0, 0.34); g.add(t2);
+  const t3 = SPH(0.07, furL); t3.scale.set(0.85, 0.6, 0.9); t3.position.set(-0.24, 0, 0.52); g.add(t3);
+  // little feet
+  [[0.05, 0.07], [0.05, -0.07]].forEach(p => {
+    const foot = SPH(0.028, fur); foot.scale.set(1.1, 0.6, 0.8); foot.position.set(p[0], p[1], 0.03); g.add(foot);
+  });
   return g;
+}
+function makeDog(){
+  const g = new THREE.Group();
+  const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468]);
+  const fur = M(furC), furD = M(0x241c14), furL = M(0xc7ab87), eyeM = M(0x14100e);
+  // high-poly dog: smooth ellipsoid body, head on a pivot, wagging tail on a pivot
+  const body = SPH(0.09, fur); body.scale.set(2.1, 1.0, 1.15); body.position.set(-0.05, 0, 0.16); g.add(body);
+  const chest = SPH(0.07, furL); chest.scale.set(0.9, 0.8, 0.9); chest.position.set(0.12, 0, 0.15); g.add(chest);
+  const headPivot = new THREE.Group(); headPivot.position.set(0.2, 0, 0.2); g.add(headPivot);
+  const head = SPH(0.07, fur); head.scale.set(1.15, 1.0, 0.95); head.position.set(0.05, 0, 0.06); headPivot.add(head);
+  const muzzle = SPH(0.04, fur); muzzle.scale.set(1.3, 0.8, 0.75); muzzle.position.set(0.13, 0, 0.03); headPivot.add(muzzle);
+  const nose = SPH(0.016, furD); nose.position.set(0.185, 0, 0.035); headPivot.add(nose);
+  [-1, 1].forEach(s => {
+    const eye = SPH(0.012, eyeM); eye.position.set(0.07, s * 0.04, 0.11); headPivot.add(eye);
+    // floppy ears
+    const ear = SPH(0.032, furD); ear.scale.set(0.7, 0.9, 0.5); ear.position.set(0.0, s * 0.065, 0.09); headPivot.add(ear);
+  });
+  [[0.16, 0.08], [0.16, -0.08], [-0.18, 0.09], [-0.18, -0.09]].forEach(p => {
+    const leg = CY(0.024, 0.03, 0.14, fur, 10); leg.rotation.x = Math.PI / 2; leg.position.set(p[0], p[1], 0.08); g.add(leg);
+    const paw = SPH(0.028, furD); paw.scale.set(1.2, 0.7, 0.8); paw.position.set(p[0] + 0.01, p[1], 0.03); g.add(paw);
+  });
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.24, 0, 0.2); g.add(tailPivot);
+  const t1 = SPH(0.05, furL); t1.scale.set(1, 0.8, 0.9); t1.position.set(-0.06, 0, 0.05); tailPivot.add(t1);
+  const t2 = SPH(0.04, fur); t2.position.set(-0.12, 0, 0.12); tailPivot.add(t2);
+  g.userData.dog = { tailPivot: tailPivot, headPivot: headPivot };
+  return g;
+}
+function makeDogWalker(){
+  // same low-poly person as the other pedestrians, with a high-poly dog on a short leash
+  const person = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) });
+  const dog = makeDog();
+  dog.position.set(0.45, -0.55, 0);
+  person.g.add(dog);
+  person.g.userData.dog = dog.userData.dog; // expose pivots on the root group for the bark animation
+  // leash: from the walker's outstretched hand (right side) to the dog's neck
+  const leash = BX(0.02, 0.02, 0.81, M(0x2a2320));
+  leash.rotation.y = 2.52;
+  leash.position.set(0.225, -0.42, 0.57);
+  person.g.add(leash);
+  return person;
 }
 function makeTricycle(){
   const g = new THREE.Group();
@@ -1139,6 +1225,7 @@ function addCreature(type){
     case 'squirrel': c.wy = 6.5; c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.35; c.boxL = 0.35; c.data = makeTricycle(); break;
+    case 'dogwalker': c.wy = R(1.0, 4.0); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
     case 'rc':    c.wy = R(1, 4); c.sp = R(6, 9); c.dir = 1; c.flip = R(0.4, 1); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.25; c.boxL = 0.3; c.data = makeRC(); break;
     case 'bike':  c.wy = R(-2.4, -0.3); c.sp = R(8, 9.5); c.curSp = 0; c.targetWy = c.wy; c._naturalLane = (c.wy > -1.2) ? 0.5 : -8.5;
@@ -1152,12 +1239,13 @@ function addCreature(type){
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.55; c.boxL = 1.4; c.data = makeCar(); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
-    case 'yeller': c.wy = R(-5.0, -1.5); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
+    case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
   }
   const isPerson = c.data && c.data.g && c.data.legL;
   c.vcd = 0; // voice cooldown — MUST start at 0 (undefined would make "c.vcd <= 0" always false and mute all bump lines)
   c.g = isPerson ? c.data.g : c.data;
   c.parts = c.g.userData && c.g.userData.parts ? c.g.userData.parts : null;
+  c.dogParts = c.g.userData && c.g.userData.dog ? c.g.userData.dog : null;
   // fentanyl addict: slightly hunched over with his head looking down; the forward
   // lean also swings his outstretched arms to point straight ahead, blocking the way
   if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; c.g.rotation.y = 0.45; }
@@ -1240,7 +1328,7 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2 };
+  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
 }
 function recycleBlock(b){
@@ -1419,7 +1507,7 @@ function updateFlyingCans(dt){
 function checkFlyingCanNpcHit(fcx, fcy){
   for (let i = creatures.length - 1; i >= 0; i--){
     const c = creatures[i];
-    if (c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller'){
+    if (c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker'){
       const dx = fcx - c.wx, dy = fcy - c.wy;
       if (dx * dx + dy * dy < 0.8){
         return c;
@@ -1712,10 +1800,11 @@ function collideCreatures(){
     else if (c.type === 'ebike' || c.type === 'moto') rad = 1.3;
     else if (c.type === 'car') rad = 1.8;
     else if (c.type === 'ped' || c.type === 'lady') rad = 0.85;
+    else if (c.type === 'dogwalker') rad = 0.95;
     else if (c.type === 'breaker') rad = 1.2;
     else if (c.type === 'yeller') rad = 0.95;
     if (d2 > rad * rad) continue;
-    if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller')){
+    if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker')){
       // People are SOLID: push the worker out so they can't walk through, but NEVER stun
       // (a stun here caused an infinite stun-lock loop when the worker was stuck against them)
       const d = Math.sqrt(d2) || 0.001;
@@ -1725,7 +1814,8 @@ function collideCreatures(){
       p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
       if (c.vcd <= 0){
         c.vcd = 2.5;
-        if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9);
+        if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0); }
+        else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9);
         else Voice.say('Hey! Watch it!', 4, 1.1);
       }
       return;
@@ -2080,7 +2170,7 @@ function updateCreatures(dt){
     if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
     const tx = c.wx - p.wx;
     switch (c.type){
-      case 'ped': case 'lady':{
+      case 'ped': case 'lady': case 'dogwalker':{
         c.wx += c.sp * dt;
         animParts(c, c.sp * dt * 2.2);
         if (tx > 55){ c.wx = p.wx - 38; c.wy = R(1, 4); }
@@ -2728,6 +2818,17 @@ function updateCreatures(dt){
     c.g.position.x = c.wx;
     c.g.position.y = c.wy;
     if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon') c.g.position.z = GZ;
+    // dog bark animation: tail wags and the head lifts/shakes while the bark timer runs
+    if (c.bark > 0){
+      c.bark -= dt;
+      const dgp = c.dogParts;
+      if (dgp){
+        const t = performance.now();
+        dgp.tailPivot.rotation.z = Math.sin(t * 0.025) * 0.7;
+        dgp.headPivot.rotation.y = -0.5 + Math.sin(t * 0.03) * 0.08; // head up, barking
+        dgp.headPivot.rotation.z = Math.sin(t * 0.02) * 0.15;        // head shake
+      }
+    }
     if (c.type === 'raccoon') c.g.position.z = (c.t > 0 && c.flee <= 0) ? GZ + Math.abs(Math.sin(performance.now() * 0.01)) * 0.04 : GZ;
   }
   // Separate overlapping vehicles after all movement is done this frame
