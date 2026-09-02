@@ -66,10 +66,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 }
 .menu-bottom button { font-family:"Courier New",monospace; font-size:clamp(16px,2.8vw,22px); letter-spacing:5px;
   padding:clamp(12px,2.2vh,16px) clamp(32px,7vw,52px); cursor:pointer;
-  color:#04140c; background:#2ee090; border:none; border-radius:4px;
-  box-shadow:0 0 22px rgba(46,224,144,.75), 0 4px 16px rgba(0,0,0,.55);
+  color:#04140c; background:rgba(46,224,144,.6); border:2px solid rgba(46,224,144,.85); border-radius:4px;
+  box-shadow:0 0 22px rgba(46,224,144,.55), 0 4px 16px rgba(0,0,0,.4);
   pointer-events:auto; }
-.menu-bottom button:hover { background:#5cf0ad; box-shadow:0 0 32px rgba(46,224,144,.9), 0 4px 20px rgba(0,0,0,.5); }
+.menu-bottom button:hover { background:rgba(92,240,173,.75); border-color:rgba(92,240,173,.95); box-shadow:0 0 32px rgba(46,224,144,.7), 0 4px 20px rgba(0,0,0,.4); }
 /* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
 #camfeed { position:fixed; right:18px; bottom:16px; z-index:11; pointer-events:none;
   font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
