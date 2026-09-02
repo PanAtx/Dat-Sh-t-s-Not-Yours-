@@ -52,8 +52,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .kbd { color:#7dff9e; }
 /* ===== Menu logo screen ===== */
 #menu .panel { background:none; border:none; box-shadow:none; padding:0; max-width:none; width:auto; }
-.menu-logo-wrap { position:relative; display:inline-block; line-height:0; }
-.menu-logo-wrap img { max-width:82vw; max-height:70vh; width:auto; height:auto; display:block; border-radius:6px; box-shadow:0 0 50px rgba(0,0,0,.8), 0 0 18px rgba(46,224,144,.25); }
+.menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
+  border:3px solid #2ee090; border-radius:14px;
+  box-shadow:0 0 28px rgba(46,224,144,.55), 0 0 60px rgba(46,224,144,.2), 0 0 50px rgba(0,0,0,.8); }
+.menu-logo-wrap img { max-width:82vw; max-height:84vh; width:auto; height:auto; display:block; }
 .menu-bottom { position:absolute; bottom:5%; left:0; right:0; text-align:center; padding:0 0 4%;
   display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.4vh,14px); }
 .menu-bottom .score { font-family:"Courier New",monospace; font-size:clamp(14px,3vw,24px); color:#ffd66b; letter-spacing:3px;
