@@ -628,7 +628,7 @@ function loadFbxTemplates(){
 const CAR_COLORS = [0xc0392b, 0x2e86c1, 0x27ae60, 0xf1c40f, 0x8e44ad, 0xe67e22,
                     0xd5d8dc, 0x7f8c8d, 0x1c2833, 0xecf0f1, 0x117864, 0xa04000,
                     0x92278f, 0x1f618d];
-const CAR_SCALE = 1.183; // another +30% on top of 0.91 — reads larger next to the truck & pedestrians
+const CAR_SCALE = 1.124; // 5% smaller than 1.183 — clears the truck's side gaps with margin
 let CAR_TPL = null; // { template: THREE.Object3D } — deep-cloned per car instance
 if (typeof THREE.GLTFLoader !== 'undefined' && THREE.LoaderUtils && !THREE.LoaderUtils.decodeText){
   // r128 CDN build safety net for binary GLB magic check
@@ -1335,7 +1335,7 @@ function addCreature(type){
     case 'moto':  c.wy = R(-6.5, -3.5); c.sp = R(12, 14); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.35; c.boxL = 0.9; c.data = makeMoto(); break;
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
-                  c.boxW = 1.25; c.boxL = 2.8; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
+                  c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
     case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
   }
@@ -1881,7 +1881,7 @@ function collideLandedCans(){
     const nx = -dx / d, ny = -dy / d; // push outward
     const pen = Math.sqrt(0.85) - d;
     p.wx += nx * (pen + 0.05);
-    p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
+    p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, 4.5);
   }
 }
 function collideCreatures(){
@@ -1896,7 +1896,7 @@ function collideCreatures(){
     else if (c.type === 'rc') rad = 0.7;
     else if (c.type === 'tric' || c.type === 'bike') rad = 1.1;
     else if (c.type === 'ebike' || c.type === 'moto') rad = 1.3;
-    else if (c.type === 'car') rad = 3.0; // scaled with the 1.183 car.glb model
+    else if (c.type === 'car') rad = 2.85; // scaled with the 1.124 car.glb model (5% smaller)
     else if (c.type === 'ped' || c.type === 'lady') rad = 0.85;
     else if (c.type === 'dogwalker') rad = 0.95;
     else if (c.type === 'breaker') rad = 1.2;
@@ -1909,7 +1909,7 @@ function collideCreatures(){
       const nx = -dx / d, ny = -dy / d; // from person toward worker
       const pen = rad - d;             // push out to just touching (small gap)
       p.wx += nx * (pen + 0.05);
-      p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
+      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, 4.5);
       if (c.vcd <= 0){
         c.vcd = 2.5;
         if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0); }
@@ -1931,7 +1931,7 @@ function collideCreatures(){
       // vehicles: knockback + drop + stun + i-frames
       const nl = Math.sqrt(d2) || 1;
       p.wx -= (dx / nl) * 1.6;
-      p.wy = clamp(p.wy - (dy / nl) * 1.6, -2, 4.5);
+      p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, 4.5);
       dropCarried();
       p.invuln = 1.6;
       doStun(1.2, 'hit');
@@ -1969,23 +1969,31 @@ function updatePlayer(dt){
   const dir = fwd ? 1 : (back ? -1 : 0);
   const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
   if (dir !== 0) p.wx += dir * speed * dt;
-  p.wy = clamp(p.wy + lat * 5.5 * dt, -7.5, 4.5);
-  // === Truck body collision: worker can't clip through the truck but can walk freely past the front ===
+  p.wy = clamp(p.wy + lat * 5.5 * dt, -9.4, 4.5);
+  // === Truck body collision: worker can't clip through the truck, but can walk freely
+  // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
+  // box (rounded corners), so rounding the cab or the hopper never teleports the worker
+  // "forward" — the old min-edge push did exactly that and pinned him at the truck. ===
   if (truck && truck.hidden <= 0){
-    const tMinX = truck.wx - truck.boxL - 0.3;
-    const tMaxX = truck.wx + truck.boxL + 0.3;
-    const tMinY = -4.5 - truck.boxW - 0.2;
-    const tMaxY = -4.5 + truck.boxW + 0.2;
-    if (p.wx > tMinX && p.wx < tMaxX && p.wy > tMinY && p.wy < tMaxY){
-      const dRear  = p.wx - tMinX;
-      const dFront = tMaxX - p.wx;
-      const dOuter = p.wy - tMinY;
-      const dInner = tMaxY - p.wy;
-      const mn = Math.min(dRear, dFront, dOuter, dInner);
-      if (mn === dRear)        p.wx = tMinX;
-      else if (mn === dFront)  p.wx = tMaxX;
-      else if (mn === dOuter)  p.wy = tMinY;
-      else                     p.wy = tMaxY;
+    const tCx = truck.wx, tCy = -4.5;
+    const tHalfL = truck.boxL, tHalfW = truck.boxW;
+    const WR = 0.5; // worker collision radius
+    const cx = Math.min(Math.max(p.wx, tCx - tHalfL), tCx + tHalfL);
+    const cy = Math.min(Math.max(p.wy, tCy - tHalfW), tCy + tHalfW);
+    const dx = p.wx - cx, dy = p.wy - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < WR * WR){
+      if (d2 > 1e-8){
+        const d = Math.sqrt(d2);
+        const push = WR - d;
+        p.wx += (dx / d) * push;
+        p.wy = clamp(p.wy + (dy / d) * push, -9.4, 4.5);
+      } else {
+        // Degenerate (worker inside the box): eject toward the nearer side
+        const dBot = Math.abs(p.wy - (tCy - tHalfW));
+        const dTop = Math.abs(p.wy - (tCy + tHalfW));
+        p.wy = (dBot < dTop) ? tCy - tHalfW - WR : tCy + tHalfW + WR;
+      }
     }
   }
   p.invuln = Math.max(0, p.invuln - dt);
@@ -2095,12 +2103,16 @@ function findVehicleAhead(vehicle, allCreatures){
       }
     }
   }
-    // Also keep truck as obstacle while vehicle overlaps the body laterally
+    // Keep the truck as an obstacle only while the vehicle is still APPROACHING from
+    // behind (nose behind the rear face) and laterally overlapping — extends the block
+    // above a little further back. Once the nose is past the rear face, the truck is
+    // alongside/BEHIND — not an obstacle ahead. (The old version fired here with dist 0.1
+    // while a vehicle was finishing its pass, forcing a dead stop right at the truck's front.)
     if (best === null && vBoxYMax > tBoxYMin && vBoxYMin < tBoxYMax){
       const tRear2 = truck.wx - truck.boxL;
-      const tFront2 = truck.wx + truck.boxL;
-      if ((vehicle.wx - vehicle.boxL) < tFront2 + 1.0 && (vehicle.wx + vehicle.boxL) > tRear2){
-        best = { wx: truck.wx, wy: -4.5, sp: TRUCK_SPEED, dist: 0.1, isTruck: true };
+      const noseGap = tRear2 - (vehicle.wx + vehicle.boxL);
+      if (noseGap > 0 && noseGap <= 16.0){
+        best = { wx: truck.wx, wy: -4.5, sp: TRUCK_SPEED, dist: noseGap, isTruck: true };
       }
     }
   return best || null;
@@ -2310,32 +2322,36 @@ function resolveTruckCollisions(vehicles, dt){
     const yOverlap = vyMax > tYMin && vyMin < tYMax;
     const xOverlap = vRear < tMaxX && vFront > tMinX;
     if (yOverlap && xOverlap){
+      // Lateral overlap with the truck body: eject to the pass lane on the vehicle's
+      // OWN side. NO X teleport — flinging the car backwards pinned it at the truck's
+      // front/rear and it could never finish the pass. The lateral ejection alone
+      // guarantees no penetration (it re-runs every frame while overlapping).
       const sideTop = Math.abs(v.wy - tYMax);
       const sideBot = Math.abs(v.wy - tYMin);
       if (sideTop < sideBot){ v.wy = tYMax + v.boxW + 0.05; }
       else { v.wy = tYMin - v.boxW - 0.05; }
-      if (vFront > tMaxX){ v.wx = tMaxX - v.boxL - 0.05; v.curSp = Math.max(0, v.curSp * 0.3); }
       continue;
     }
     if (yOverlap){
       const distToHopperFace = tMinX - vFront;
       if (distToHopperFace < 1.5 && distToHopperFace > -2.0){
         if (distToHopperFace <= 0.05){
-          v.wx = tMinX - v.boxL - 0.05;
+          // Nose at the hopper face while still in the truck's lane: hard brake and
+          // escape laterally to the pass lane on our side. No X teleport (that flung
+          // cars backwards and kept re-triggering).
           v.curSp = Math.max(0, v.curSp * 0.1);
-          // === AUTO-LATERAL PUSH + LANE UPDATE: vehicles touching hopper face must escape and stay in new lane ===
           let targetLane;
           let pushSpeed;
           if (v.type === 'bike' || v.type === 'ebike') {
             targetLane = (v.wy > -4.5) ? 0.5 : -8.5;   // curb-side lane or outer road
             pushSpeed = 5.0;
           } else if (v.type === 'car' || v.type === 'moto') {
-            targetLane = (v.wy > -4.5) ? -1.5 : -9.0;   // curb car lane or outer road
+            targetLane = (v.wy > -4.5) ? -0.6 : -9.0;   // curb car lane or outer road
             pushSpeed = 4.0;
           } else {
             continue;                                       // skip unknown types
           }
-          v.wy += Math.sign(targetLane - v.wy) * dt * pushSpeed;
+          v.wy += Math.sign(targetLane - v.wy) * Math.min(dt * pushSpeed, Math.abs(targetLane - v.wy));
           v.targetWy = targetLane;
           if (v._baseWy !== undefined) v._baseWy = targetLane;
         } else {
@@ -2715,40 +2731,44 @@ function updateCreatures(dt){
           const isTruckObstacle = obstacle.isTruck;
           const distToObstacle = obstacle.dist;
 
-          // === TRAFFIC FLOW: ONE passing lane on the OUTER (left) side of the truck ===
-          // Measured truck extent: wy ≈ -7.02 .. -1.98. The curb-side gap (-1.98 .. +0.5)
-          // is NARROWER than a car (2.5 wide), so the outer road is the only real room.
-          // Lane -9.0: 0.73u clearance to the truck body, and OUTSIDE the vehicle
-          // separator's push radius (|wy - (-4.5)| < 4.17), so the systems agree.
+          // === TRAFFIC FLOW: pass the truck on the side you're already on ===
+          // Measured truck extent: wy ≈ -7.02 .. -1.98. Both sides have a pass lane:
+          //  - road side (wy < -4.5): OUTER lane -9.0 — plenty of room
+          //  - curb side (wy > -4.5): CURB lane -0.6 — car hugs the curb (0.19u clear
+          //    of the truck body at the 5%-smaller 1.19 half-width)
+          // Passing on YOUR side means no car ever crosses the truck's lane, and both
+          // sides flow instead of queueing behind a single pass lane.
           const OUTER_PASS_LANE = -9.0;
-          const inOuterLane = c.wy <= -8.3; // car's inner edge (-7.05) clears truck edge (-7.02)
+          const CURB_PASS_LANE = -0.6;
+          const inPassLane = c.wy <= -8.3 || c.wy >= -1.0; // fully clear of the truck's Y
+          const sideLane = c.wy > -4.5 ? CURB_PASS_LANE : OUTER_PASS_LANE; // pass on my side
 
           // Check if car is in the truck's Y-zone — MUST NOT enter hopper area
           const inTruckYZone = overlapsTruckY && nearHopperSide;
           
           if (inTruckYZone){
-            // === IN THE TRUCK'S Y-ZONE: steer out to the outer lane — don't sit, don't crawl ===
+            // === IN THE TRUCK'S Y-ZONE: steer to the pass lane on MY side — don't sit, don't crawl ===
             const distAhead = truckRear - (c.wx + c.boxL);
-            if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
-              c.targetWy = OUTER_PASS_LANE; // decisive: always the wide outer lane
+            if (isLaneClear(sideLane, c.wx, c.boxW, creatures)){
+              c.targetWy = sideLane; // decisive: pass on my side, never cross the truck's lane
               if (distAhead <= 0.3){
                 desiredSp = 0; // nose at the hopper — hold until the lane change gets going
               } else {
                 desiredSp = Math.max(CAR_MIN_SP, Math.min(desiredSp, distAhead * 3.0)); // keep moving
               }
             } else {
-              // Outer lane occupied — wait BEHIND the truck, not in front of it
+              // My pass lane is occupied — wait BEHIND the truck, not in front of it
               desiredSp = Math.min(desiredSp, Math.max(0, distAhead * 2.0));
             }
           } else if (isTruckObstacle && distToObstacle > 3.0){
-            // === PASSING THE TRUCK: outer lane at full speed — there's plenty of room there ===
+            // === PASSING THE TRUCK: my-side lane at full speed ===
             const pastCab = c.wx > truck.wx + (truck.cabOff || 6.0);
 
-            if (inOuterLane){
+            if (inPassLane){
               desiredSp = c.sp; // already clear of the truck's Y — full speed
             } else if (!pastCab){
-              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
-                c.targetWy = OUTER_PASS_LANE; // single consistent target — no zig-zag
+              if (isLaneClear(sideLane, c.wx, c.boxW, creatures)){
+                c.targetWy = sideLane; // single consistent target — no zig-zag
                 desiredSp = Math.max(desiredSp, CAR_MIN_SP); // pass at pace, no crawl
               } else {
                 desiredSp = Math.min(desiredSp, Math.max(CAR_MIN_SP, distToObstacle * 2.0));
@@ -2761,15 +2781,12 @@ function updateCreatures(dt){
             }
 
           } else if (isTruckObstacle){
-            // Very close to the truck's rear: merge into the outer lane and keep moving
-            if (distToObstacle < 1.5){
-              desiredSp = Math.max(0, distToObstacle * 1.5); // point-blank — brake hard
-            } else {
-              desiredSp = Math.min(desiredSp, distToObstacle * 2.0);
-              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
-                c.targetWy = OUTER_PASS_LANE;
-                desiredSp = Math.max(desiredSp, CAR_MIN_SP);
-              }
+            // Very close to the truck's rear: brake to control the approach, and start
+            // the merge into my-side pass lane NOW — never sit point-blank in its lane.
+            desiredSp = Math.min(desiredSp, Math.max(0, distToObstacle * 1.5));
+            if (isLaneClear(sideLane, c.wx, c.boxW, creatures)){
+              c.targetWy = sideLane; // escape lane is open — begin the lane change
+              desiredSp = Math.max(CAR_MIN_SP, desiredSp); // keep moving while we do
             }
           } else {
             // Obstacle is another vehicle — slow down normally
@@ -2784,9 +2801,9 @@ function updateCreatures(dt){
             // Try to change lane around slower vehicles
             let canDetour = false;
             if (c.curSp > obstacle.sp + 0.5 && c.detourTimer === undefined){
-              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
+              if (isLaneClear(sideLane, c.wx, c.boxW, creatures)){
                 canDetour = true;
-                c.detourY = OUTER_PASS_LANE;
+                c.detourY = sideLane;
                 c.detourTimer = R(0.4, 0.7);
               }
             }
@@ -2819,10 +2836,11 @@ function updateCreatures(dt){
 
         // Re-assert the no-crawling floor after all follow/slow-down logic,
         // then re-apply the emergency stop right at the truck hopper (safety first).
-        // Only when actually in the truck's Y zone — a car passing clear on the outer
-        // road must NOT be braked just for being alongside the truck (that was the crawl).
+        // Only while the nose is still BEHIND the rear face (approaching) and in the
+        // truck's Y zone — a car alongside/past it must not be braked just for being
+        // next to the truck (that pinned it in the middle lane with no escape).
         if (desiredSp < CAR_MIN_SP) desiredSp = CAR_MIN_SP;
-        if (truck.active && overlapsTruckY){
+        if (truck.active && overlapsTruckY && nearHopperSide){
           const dtTruck = (truck.wx - truck.boxL) - c.wx;
           if (dtTruck > 0 && dtTruck < 14){
             desiredSp = Math.min(desiredSp, Math.max(0, dtTruck * 0.5));
@@ -2869,7 +2887,7 @@ function updateCreatures(dt){
         const motoBoxYMax = c.wy + c.boxW;
         const overlapsMotoTruckY = motoBoxYMax > tYMin2 && motoBoxYMin < tYMax2;
         const distToHopperM = (truck.wx - truck.boxL) - c.wx;
-        const nearHopperSideM = distToHopperM > -10 && distToHopperM < 20.0;
+        const nearHopperSideM = distToHopperM > c.boxL * 0.5 && distToHopperM < 20.0; // only while the nose is still behind the rear face
         const directlyNearHopperM = overlapsMotoTruckY && nearHopperSideM;
         const truckRear = truck.wx - truck.boxL;
 
@@ -2880,73 +2898,49 @@ function updateCreatures(dt){
         if (obstacleM){
           const isTruckObstacle = obstacleM.isTruck;
           const distToObstacleM = obstacleM.dist;
-          const OUTER_PASSING_LANES = [-8.5];
-          let inOuterLane = c.wy <= -7.2;
+          // Pass on MY side: curb lane if I'm on the curb half, outer road otherwise.
+          const sideLaneM = c.wy > -4.5 ? -0.6 : -9.0;
+          const inPassLaneM = c.wy <= -7.2 || c.wy >= -1.8; // clear of the truck's Y on either side
 
           const inTruckYZoneM = overlapsMotoTruckY && nearHopperSideM;
 
           if (inTruckYZoneM){
-            // === IN THE TRUCK'S Y-ZONE: MUST stop or detour ===
+            // === IN THE TRUCK'S Y-ZONE: steer to the pass lane on MY side — don't sit, don't crawl ===
             const distAheadM = truckRear - (c.wx + c.boxL);
-            if (distAheadM <= 0.3) desiredSpM = 0;
-            else desiredSpM = Math.min(desiredSpM, distAheadM * 2.5);
-
-            // Force lane change
-            const toCurb = -1.5;
-            const toRoad = -9.0;
-            const targetLateralYM = c.wy > (tYMin2 + tYMax2) / 2 ? toCurb : toRoad;
-
-            if (isLaneClear(targetLateralYM, c.wx + distToHopperM * 0.3, c.boxW, creatures)){
-              c.targetWy = targetLateralYM;
-              if (targetLateralYM < tYMin2){
-                desiredSpM = Math.min(desiredSpM, distToObstacleM * 1.5);
-              } else {
-                desiredSpM = Math.min(desiredSpM, 1.5);
-              }
-            } else if (!isTruckObstacle){
-              desiredSpM = Math.min(desiredSpM, obstacleM.sp * 0.7);
+            if (isLaneClear(sideLaneM, c.wx, c.boxW, creatures)){
+              c.targetWy = sideLaneM;
+              if (distAheadM <= 0.3) desiredSpM = 0;
+              else desiredSpM = Math.max(c.sp * 0.5, Math.min(desiredSpM, distAheadM * 3.0));
+            } else {
+              // My pass lane is occupied — wait BEHIND the truck, not in front of it
+              desiredSpM = Math.min(desiredSpM, Math.max(0, distAheadM * 2.0));
             }
           } else if (isTruckObstacle && distToObstacleM > 3.0){
-            // === PASSING THE TRUCK: Take outer lane to speed past it ===
+            // === PASSING THE TRUCK: my-side lane at full speed ===
             const passedCab = c.wx > truck.wx + (truck.cabOff || 6.0);
 
-            if (!inOuterLane && !passedCab){
-              // Approach phase: steer toward outer left of the truck
-              for (let i = 0; i < OUTER_PASSING_LANES.length; i++){
-                const candidate = OUTER_PASSING_LANES[i];
-                if (isLaneClear(candidate, c.wx, c.boxW, creatures)){
-                  c.targetWy = candidate;
-                  break;
-                }
+            if (inPassLaneM){
+              desiredSpM = c.sp; // clear of the truck's Y — full speed
+            } else if (!passedCab){
+              if (isLaneClear(sideLaneM, c.wx, c.boxW, creatures)){
+                c.targetWy = sideLaneM; // single consistent target — no zig-zag
+                desiredSpM = c.sp;
               }
-            } else if (passedCab && inOuterLane){
-              // Past the truck: return home lane smoothly
+            } else {
+              // Past the cab: return home lane smoothly (the truck is behind us now)
               if (!c._homeLane) c._homeLane = -5.0;
               c.targetWy += (c._homeLane - c.targetWy) * 1.5 * dt;
               desiredSpM = c.sp;
-            } else {
-              // In the outer lane — FULL SPEED past the truck!
-              inOuterLane = true;
-              desiredSpM = c.sp; // motos drive at full speed past the truck!
             }
 
           } else if (isTruckObstacle){
-            // Very close to the truck — apply heavy braking but stay in our lane
+            // Very close to the truck's rear: brake and merge into my-side lane
             if (distToObstacleM < 1.5){
               desiredSpM = Math.max(0, distToObstacleM * 2.0);
-            } else if (distToObstacleM < 3.0){
-              desiredSpM = Math.min(desiredSpM, distToObstacleM * 2.5);
             } else {
-              // Approaching from distance: steer toward outer passing lane
-              for (let i = 0; i < OUTER_PASSING_LANES.length; i++){
-                const candidate = OUTER_PASSING_LANES[i];
-                if (isLaneClear(candidate, c.wx, c.boxW, creatures)){
-                  c.targetWy = candidate;
-                  desiredSpM = c.sp; // clear to proceed in new lane
-                  break;
-                } else {
-                  desiredSpM = Math.min(desiredSpM, distToObstacleM * 1.5);
-                }
+              desiredSpM = Math.min(desiredSpM, distToObstacleM * 2.5);
+              if (isLaneClear(sideLaneM, c.wx, c.boxW, creatures)){
+                c.targetWy = sideLaneM;
               }
             }
           } else {
