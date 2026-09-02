@@ -34,16 +34,18 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #carry { position:absolute; bottom:66px; left:50%; transform:translateX(-50%); font-size:18px; letter-spacing:2px; color:#7dff9e; white-space:nowrap; }
 #hint { position:absolute; bottom:34px; left:50%; transform:translateX(-50%); font-size:15px; letter-spacing:1px; color:#ffd66b; white-space:nowrap; }
 #flash { position:fixed; inset:0; z-index:9; pointer-events:none; background:rgba(255,40,40,.3); opacity:0; transition:opacity .5s; }
-.modal { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(3,7,10,.78); }
-.panel { border:3px solid #2ee090; background:linear-gradient(180deg, #07130d, #040a07); padding:34px 48px; text-align:center;
-  box-shadow:0 0 34px rgba(46,224,144,.4), inset 0 0 60px rgba(0,0,0,.65); max-width:680px; }
-.panel h1 { font-family:"Courier New", monospace; font-size:34px; letter-spacing:6px; color:#2ee090; text-shadow:0 0 14px rgba(46,224,144,.8); }
-.title-text { font-family:"Arial Black", Impact, sans-serif; font-size:36px; font-weight:bold; color:#ffffff; text-align:center; display:block; margin:0 auto 12px; line-height:1.1; letter-spacing:2px; }
-.panel h2 { font-family:"Courier New", monospace; font-size:26px; letter-spacing:4px; color:#ff5252; text-shadow:0 0 14px rgba(255,82,82,.8); }
-.panel .tag { font-family:"Courier New", monospace; color:#9fe8b8; letter-spacing:3px; font-size:13px; margin-top:8px; }
-.panel .ctl { font-family:"Courier New", monospace; color:#cfe6ff; font-size:14px; line-height:1.9; margin:20px 0; text-align:left; display:inline-block; }
-.panel .score { font-family:"Courier New", monospace; font-size:20px; color:#ffd66b; margin:14px 0 4px; letter-spacing:2px; }
-.panel button { font-family:"Courier New", monospace; font-size:20px; letter-spacing:4px; padding:12px 42px; margin-top:18px; cursor:pointer;
+.modal { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; padding:10px; background:rgba(3,7,10,.82); }
+.panel { border:3px solid #2ee090; background:linear-gradient(180deg, #07130d, #040a07);
+  padding:clamp(14px,2.8vh,34px) clamp(16px,4vw,48px); text-align:center;
+  box-shadow:0 0 34px rgba(46,224,144,.4), inset 0 0 60px rgba(0,0,0,.65);
+  width:min(94vw,680px); max-width:94vw; max-height:calc(100vh - 24px); max-height:100%; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.panel h1 { font-family:"Courier New", monospace; font-size:clamp(18px,4.4vw,34px); letter-spacing:5px; color:#2ee090; text-shadow:0 0 14px rgba(46,224,144,.8); }
+.title-text { font-family:"Arial Black", Impact, sans-serif; font-size:clamp(18px,4.4vw,36px); font-weight:bold; color:#ffffff; text-align:center; display:block; margin:0 auto clamp(6px,1.4vh,12px); line-height:1.1; letter-spacing:2px; }
+.panel h2 { font-family:"Courier New", monospace; font-size:clamp(16px,4vw,26px); letter-spacing:4px; color:#ff5252; text-shadow:0 0 14px rgba(255,82,82,.8); }
+.panel .tag { font-family:"Courier New", monospace; color:#9fe8b8; letter-spacing:2px; font-size:clamp(10px,1.7vw,13px); margin-top:8px; }
+.panel .ctl { font-family:"Courier New", monospace; color:#cfe6ff; font-size:clamp(11px,1.8vw,14px); line-height:clamp(1.45,2.3vh,1.9); margin:clamp(10px,2vh,20px) 0; text-align:left; display:inline-block; }
+.panel .score { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); color:#ffd66b; margin:clamp(8px,1.6vh,14px) 0 4px; letter-spacing:2px; }
+.panel button { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(28px,6vw,44px); margin-top:clamp(10px,2vh,18px); cursor:pointer;
   color:#04140c; background:#2ee090; border:none; box-shadow:0 0 18px rgba(46,224,144,.7); pointer-events:auto; }
 .panel button:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
@@ -738,29 +740,36 @@ function makeCan(openLid){
 }
 function makeCopper(){
   const g = new THREE.Group();
-  const m = MS(0xc47a3a);
-  const pipe = CY(0.09, 0.09, 0.85, m, 10); pipe.rotation.x = Math.PI / 2; pipe.position.z = 0.425; g.add(pipe);
-  const f1 = CY(0.16, 0.16, 0.08, m, 10); f1.position.z = 0.1; f1.rotation.x = Math.PI / 2; g.add(f1);
-  const f2 = CY(0.16, 0.16, 0.08, m, 10); f2.position.z = 0.75; f2.rotation.x = Math.PI / 2; g.add(f2);
-  const elbow = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.07, 8, 10, Math.PI / 2), m);
-  elbow.rotation.x = Math.PI / 2;
-  elbow.position.set(0.14, 0, 0.43);
-  g.add(elbow);
+  const brass = Math.random() < 0.5;
+  const m  = MS(brass ? 0xd8b13c : 0xc47a3a);   // brass (yellow) or copper (orange)
+  const m2 = MS(brass ? 0xecc95a : 0xd18a48);   // brighter collar tone
+  // two metal pipes lying on the street (running across the lane), side by side
+  const p1 = CY(0.11, 0.11, 1.1, m, 12); p1.position.set(0.08, 0, 0.11); g.add(p1);
+  const p2 = CY(0.09, 0.09, 0.95, m, 12); p2.position.set(-0.12, 0, 0.09); g.add(p2);
+  // end collars / fittings on the upper pipe
+  [-0.5, 0.5].forEach((y) => { const c = CY(0.15, 0.15, 0.08, m2, 12); c.position.set(0.08, y, 0.11); g.add(c); });
   return g;
 }
 function makeCash(){
   const g = new THREE.Group();
-  const green = M(0x3f8a3f), band = M(0xe8e2d2);
-  for (let i = 0; i < 3; i++){
-    const s = BX(0.55, 0.34, 0.1, green);
-    s.position.z = 0.36 + i * 0.1;
-    s.rotation.z = R(-0.08, 0.08);
-    g.add(s);
+  const green = M(0x5e8f3f), green2 = M(0x6f9f4a), cream = M(0xd8d4b6);
+  // two USA $20 bills lying flat on the street, slightly fanned
+  for (let i = 0; i < 2; i++){
+    const b = BX(1.05, 0.52, 0.03, i ? green2 : green);
+    b.position.set(0, i * 0.09, 0.05 + i * 0.03);
+    b.rotation.x = R(-0.06, 0.06);
+    g.add(b);
   }
-  const b = BX(0.57, 0.36, 0.32, band); b.position.z = 0.46; g.add(b);
+  const top = 0.125;
+  const panel = BX(0.85, 0.4, 0.015, cream); panel.position.set(0, 0, top); g.add(panel);
+  const oval = new THREE.Mesh(new THREE.CircleGeometry(0.17, 20), new THREE.MeshLambertMaterial({ color: 0xbdb995, side: THREE.DoubleSide }));
+  oval.scale.set(1, 0.62, 1); oval.position.set(0, 0, top + 0.006); g.add(oval);
+  [[-0.44, -0.18], [0.44, -0.18], [-0.44, 0.18], [0.44, 0.18]].forEach((c) => {
+    const q = BX(0.13, 0.13, 0.012, M(0xdcd8ba)); q.position.set(c[0], c[1], top + 0.006); g.add(q);
+  });
   return g;
 }
-function makeMongo(kind){
+function makeTreasure(kind){
   const g = new THREE.Group();
   if (kind === 0){ // vintage TV
     const cab2 = BX(0.7, 0.5, 0.5, M(0x4a3a2a)); cab2.position.z = 0.45; g.add(cab2);
@@ -773,11 +782,39 @@ function makeMongo(kind){
     const stem = CY(0.04, 0.04, 0.5, MS(0xb8963a), 8); stem.rotation.x = Math.PI / 2; stem.position.z = 0.32; g.add(stem);
     const shade = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.35, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xe8c46a, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
     shade.rotation.x = Math.PI / 2; shade.position.z = 0.75; shade.castShadow = true; g.add(shade);
-  } else { // vintage radio
-    const body2 = BX(0.6, 0.35, 0.25, M(0x5a4632)); body2.position.z = 0.48; g.add(body2);
-    const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 12), M(0xc9b896));
-    spk.rotation.y = Math.PI / 2; spk.position.set(0.32, 0.05, 0.55); g.add(spk);
-    const knob = CY(0.04, 0.04, 0.06, M(0x8a6a3a), 8); knob.rotation.y = Math.PI / 2; knob.position.set(0.33, -0.06, 0.55); g.add(knob);
+  } else if (kind === 2){ // oil painting on a little easel
+    const wood = M(0x6a4a26);
+    const frame = BX(0.82, 0.06, 0.96, wood); frame.position.set(0, 0, 0.48); g.add(frame);
+    const canvas = BX(0.66, 0.03, 0.8, M(0x2f4a6a)); canvas.position.set(0, 0.02, 0.48); g.add(canvas);
+    const cols = [0xd9534f, 0xf0ad4e, 0x5bc0de, 0x9acd32, 0xfff2a8, 0x8e44ad];
+    for (let i = 0; i < 7; i++){
+      const s = BX(0.1 + Math.random() * 0.22, 0.02, 0.05, M(cols[i]));
+      s.position.set((Math.random() - 0.5) * 0.55, 0.04, 0.24 + (Math.random() - 0.5) * 0.6);
+      g.add(s);
+    }
+    const legL = CY(0.03, 0.03, 1.05, wood, 6); legL.position.set(-0.18, 0, 0.3); legL.rotation.x = 0.42; g.add(legL);
+    const legR = CY(0.03, 0.03, 1.05, wood, 6); legR.position.set(0.18, 0, 0.3); legR.rotation.x = 0.42; g.add(legR);
+  } else if (kind === 3){ // video game system + controller
+    const dark = M(0x2b2b30);
+    const console = BX(0.62, 0.32, 0.18, dark); console.position.set(-0.12, 0, 0.09); g.add(console);
+    const cart = BX(0.36, 0.24, 0.12, M(0x3a6ea5)); cart.position.set(-0.12, 0.05, 0.24); g.add(cart);
+    const led = BX(0.05, 0.05, 0.05, new THREE.MeshLambertMaterial({ color: 0xff3b3b, emissive: 0xaa0000, emissiveIntensity: 0.8 })); led.position.set(0.1, 0.06, 0.16); g.add(led);
+    const ctrl = BX(0.36, 0.22, 0.09, M(0xd0d0d0)); ctrl.position.set(0.32, 0, 0.07); ctrl.rotation.z = 0.35; g.add(ctrl);
+    const dpad = BX(0.1, 0.03, 0.1, dark); dpad.position.set(0.24, 0, 0.13); g.add(dpad);
+    const btn = BX(0.07, 0.03, 0.07, M(0xd9534f)); btn.position.set(0.42, 0.03, 0.13); g.add(btn);
+  } else { // stuffed plush doll
+    const fur = M(0x9c6b43), furL = M(0xc1946a), dark = M(0x241811);
+    const body = SP(0.24, fur); body.scale.set(1, 0.9, 1.1); body.position.z = 0.26; g.add(body);
+    const head = SP(0.2, fur); head.position.z = 0.6; g.add(head);
+    const earL = SP(0.08, fur); earL.position.set(-0.15, 0.08, 0.72); g.add(earL);
+    const earR = SP(0.08, fur); earR.position.set(0.15, 0.08, 0.72); g.add(earR);
+    const snout = SP(0.1, furL); snout.position.set(0, -0.05, 0.72); g.add(snout);
+    const eyeL = SP(0.035, dark); eyeL.position.set(-0.09, 0.05, 0.72); g.add(eyeL);
+    const eyeR = SP(0.035, dark); eyeR.position.set(0.09, 0.05, 0.72); g.add(eyeR);
+    const armL = SP(0.11, fur); armL.position.set(-0.26, 0, 0.34); g.add(armL);
+    const armR = SP(0.11, fur); armR.position.set(0.26, 0, 0.34); g.add(armR);
+    const legL = SP(0.12, fur); legL.position.set(-0.15, 0, 0.1); g.add(legL);
+    const legR = SP(0.12, fur); legR.position.set(0.15, 0, 0.1); g.add(legR);
   }
   return g;
 }
@@ -1405,7 +1442,7 @@ function pickUp(item){
   carried = item;
   attachCarried(item);
   SFX.playPickupSound();
-  if (Math.random() < 0.4) spawnBonus(p.wx + R(-2, 2), R(1.0, 4.2));
+  if (Math.random() < 0.45) spawnBonus(p.wx + R(2.2, 6.0), R(1.0, 4.0)); // place it out on the street ahead, so you drive up to it
 }
 function tossBag(bag){
   bag.state = 'dumped';
@@ -1484,8 +1521,9 @@ function spawnBonus(wx, wy){
   let g, val, type, voice;
   if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
   else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
-  else { g = makeMongo((Math.random() * 3) | 0); val = 250; type = 'treasure'; voice = 'Treasure!'; }
+  else { g = makeTreasure((Math.random() * 5) | 0); val = 250; type = 'treasure'; voice = 'Treasure!'; }
   g.position.set(wx, wy, GZ);
+  g.rotation.z = R(-0.5, 0.5);   // a natural resting angle — looks placed, never spinning
   dynamicGroup.add(g);
   bonuses.push({ g: g, wx: wx, wy: wy, val: val, type: type, voice: voice, t: R(0, 6) });
 }
@@ -1493,8 +1531,7 @@ function updateBonuses(dt){
   for (let i = bonuses.length - 1; i >= 0; i--){
     const b = bonuses[i];
     b.t += dt;
-    b.g.position.set(b.wx, b.wy, GZ + Math.abs(Math.sin(b.t * 2)) * 0.25);
-    b.g.rotation.z += dt * 1.5;
+    b.g.position.set(b.wx, b.wy, GZ);   // sit on the street (grounded — no hop, no spin)
     if (state === 'play' && dist(b.wx, b.wy) < 1.8){
       addScore(b.val, true);
       if (b.type === 'treasure') SFX.playTreasureJingle();
@@ -1502,6 +1539,13 @@ function updateBonuses(dt){
       else SFX.playKaChing();
       showPopup(b.type || 'mongo');
       Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3);
+      if (b.g.parent) b.g.parent.remove(b.g);
+      disposeObj(b.g);
+      bonuses.splice(i, 1);
+      continue;
+    }
+    // clean up bonuses the player has driven well past so they don't linger on the street
+    if (b.wx < p.wx - 14){
       if (b.g.parent) b.g.parent.remove(b.g);
       disposeObj(b.g);
       bonuses.splice(i, 1);
