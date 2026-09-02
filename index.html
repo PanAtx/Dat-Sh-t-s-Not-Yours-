@@ -67,10 +67,14 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .menu-bottom button { font-family:"Arial Black",Impact,sans-serif; font-weight:bold; font-size:clamp(16px,2.8vw,24px); letter-spacing:5px;
   padding:clamp(12px,2.2vh,16px) clamp(32px,7vw,52px); cursor:pointer;
   color:#fff; text-shadow:1.5px 1.5px 0 #000,-1.5px -1.5px 0 #000,1.5px -1.5px 0 #000,-1.5px 1.5px 0 #000;
-  background:rgba(46,224,144,.6); border:2px solid rgba(46,224,144,.85); border-radius:4px;
-  box-shadow:0 0 22px rgba(46,224,144,.55), 0 4px 16px rgba(0,0,0,.4);
+  border:2px solid rgba(46,224,144,.85); border-radius:4px;
+  animation:btnPulse 2.4s ease-in-out infinite;
   pointer-events:auto; }
-.menu-bottom button:hover { color:#fff; background:rgba(92,240,173,.75); border-color:rgba(92,240,173,.95); box-shadow:0 0 32px rgba(46,224,144,.7), 0 4px 20px rgba(0,0,0,.4); }
+@keyframes btnPulse {
+  0%,100% { background:rgba(46,224,144,.25); box-shadow:0 0 12px rgba(46,224,144,.25), 0 4px 14px rgba(0,0,0,.4); }
+  50%      { background:rgba(46,224,144,.7);  box-shadow:0 0 30px rgba(46,224,144,.75), 0 4px 18px rgba(0,0,0,.4); }
+}
+.menu-bottom button:hover { animation:none; color:#fff; background:rgba(92,240,173,.8); border-color:rgba(92,240,173,.95); box-shadow:0 0 32px rgba(46,224,144,.8), 0 4px 20px rgba(0,0,0,.4); }
 /* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
 #camfeed { position:fixed; right:18px; bottom:16px; z-index:11; pointer-events:none;
   font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
