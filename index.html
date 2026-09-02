@@ -182,6 +182,7 @@ const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);
 const pad = n => String(Math.max(0, Math.floor(n))).padStart(6, '0');
 const TILE = 144, NB = 18, BW = 8;
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
+const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
 const TRUCK_SPEED = 0.8;  // the DSNY truck crawls very slowly (half walking pace, pedestrians are 1.0-2.2)
 const TEST_KEEP_PLAYING = true; // TEMP (testing): missed garbage stops still give write-ups, but NEVER suspend you. Set false to restore 3-strike game over.
 const GZ = 0.3;
@@ -2067,8 +2068,9 @@ function findVehicleAhead(vehicle, allCreatures){
     let otherBoxW = other.boxW || 0.35;
     const yOverlap = Math.abs(other.wy - vehicle.wy) < (otherBoxW + vehicle.boxW + 0.5); // wider Y overlap for bikes
     if (!yOverlap) continue;
-    // Must also be a moving/vehicle type
-    if (other.type === 'ped' || other.type === 'lady') continue;
+    // NO SLOW TRAFFIC: vehicles NEVER brake for NPCs (pedestrians, animals, dog walkers...).
+    // Those creatures clear the way themselves via npcRoadRules(). Only real vehicles block.
+    if (!VEHICLE_TYPES[other.type]) continue;
     // Same-type bike detection removed - bikes should all detect the truck ahead independently
     // Previous check caused them to ignore each other and pile up at the hopper
     
@@ -2126,6 +2128,89 @@ function isLaneClear(checkWy, checkWx, checkBoxW, allCreatures){
   // No X proximity block here: lanes outside the truck's Y zone are valid passing routes.
   // Other vehicles in those lanes are already handled by the vehicle loop above (lines 1462-1471).
   return true;
+}
+// ==================== NPC ROAD RULES: YIELD TO TRAFFIC — NO SLOW TRAFFIC ====================
+// Any NPC that is in front of a closing vehicle (car / moto / bike / ebike / RC / tric)
+// must clear the way for it: steer LEFT or RIGHT into a clear lane, or SPRINT straight
+// ahead when the path is clear. Vehicles NEVER slow down for NPCs — the NPC always
+// moves out of the way, so traffic never crawls.
+const VEHICLE_TYPES = { car: 1, moto: 1, bike: 1, ebike: 1, rc: 1, tric: 1 };
+function findClosingVehicle(c, all){
+  // Closest moving vehicle behind us in our lane (we are ahead of it, it is catching up)
+  let best = null;
+  for (let i = 0; i < all.length; i++){
+    const v = all[i];
+    if (v === c || !VEHICLE_TYPES[v.type] || !v.boxW) continue;
+    const vSp = (v.curSp !== undefined ? v.curSp : (v.sp || 0));
+    if (vSp < 2) continue; // only live, moving traffic is a threat
+    const dx = c.wx - v.wx; // positive = NPC is ahead
+    if (dx < -1.5 || dx > 30) continue;
+    if (Math.abs(v.wy - c.wy) > v.boxW + 0.45) continue; // different lane — not a threat
+    if (!best || dx < best.dx) best = { v: v, dx: dx };
+  }
+  return best;
+}
+function findFastRiderBehind(c, all){
+  // Fast two-wheelers (bike / ebike / moto) closing from behind in our lane.
+  // Cars must let these riders past — steer aside or speed up.
+  let best = null;
+  for (let i = 0; i < all.length; i++){
+    const v = all[i];
+    if (v === c) continue;
+    if (v.type !== 'bike' && v.type !== 'ebike' && v.type !== 'moto') continue;
+    const vSp = (v.curSp !== undefined ? v.curSp : (v.sp || 0));
+    if (vSp < 6) continue; // only actually-moving riders count
+    const ourSp = (c.curSp !== undefined ? c.curSp : (c.sp || 0));
+    if (vSp <= ourSp + 0.5) continue; // only a threat if the rider can actually overtake us
+    const dx = c.wx - v.wx; // positive = we (the car) are ahead
+    if (dx < -2 || dx > 25) continue;
+    if (Math.abs(v.wy - c.wy) > (v.boxW || 0.3) + 0.5) continue; // different lane
+    if (!best || dx < best.dx) best = { v: v, dx: dx };
+  }
+  return best;
+}
+function npcLaneFree(wy, wx, all, self){
+  // True if no vehicle occupies the candidate lateral lane near the NPC, and it's not the truck
+  for (let i = 0; i < all.length; i++){
+    const v = all[i];
+    if (v === self || !VEHICLE_TYPES[v.type] || !v.boxW) continue;
+    if (Math.abs(v.wy - wy) > v.boxW + 0.6) continue;
+    const dx = v.wx - wx;
+    if (dx > -8 && dx < 15) return false; // a vehicle occupies that lane nearby
+  }
+  const tYMin = -4.5 - truck.boxW, tYMax = -4.5 + truck.boxW;
+  if (wy > tYMin && wy < tYMax) return false; // never steer into the DSNY truck's lane
+  return true;
+}
+function npcRoadRules(c, dt){
+  // Run for every NPC each frame. Steers the NPC out of a closing vehicle's lane
+  // (c.yieldLane) and/or flags a sprint boost (c.sprintT) to outrun it.
+  // Returns the minimum forward speed the NPC should use this frame (or null).
+  if (c.sprintT > 0) c.sprintT -= dt;
+  if (c.yieldLane !== undefined){
+    c.wy += (c.yieldLane - c.wy) * Math.min(1, 5.5 * dt); // move left/right to the escape lane
+    if (Math.abs(c.yieldLane - c.wy) < 0.08) c.yieldLane = undefined;
+  }
+  const threat = findClosingVehicle(c, creatures);
+  if (!threat) return null;
+  const vSp = (threat.v.curSp !== undefined ? threat.v.curSp : (threat.v.sp || 0));
+  if (c.yieldLane === undefined){
+    // Pick a clear lateral escape: steer AWAY from the vehicle's lane first, then the other way
+    const away = (c.wy - threat.v.wy) >= 0 ? 1 : -1;
+    const steps = [away * 1.5, -away * 1.5, away * 3.0, -away * 3.0];
+    for (let i = 0; i < steps.length; i++){
+      const cand = c.wy + steps[i];
+      if (cand < -8.6 || cand > 7.8) continue; // stay on street + sidewalk
+      if (npcLaneFree(cand, c.wx, creatures, c)){ c.yieldLane = cand; break; }
+    }
+  }
+  if (c.yieldLane !== undefined){
+    return Math.max(c.sp || 0, vSp * 0.7); // keep running while steering out of the way
+  }
+  // No clear lane beside us — sprint straight ahead (path is clear: that's the escape)
+  c.sprintT = Math.max(c.sprintT || 0, 0.9);
+  c._sprintBoost = vSp * 1.15 + 1.0;
+  return c._sprintBoost;
 }
 // ==================== VEHICLE COLLISION SEPARATION ====================
 function separateVehicles(vehicles, dt){
@@ -2268,8 +2353,10 @@ function updateCreatures(dt){
     const tx = c.wx - p.wx;
     switch (c.type){
       case 'ped': case 'lady': case 'dogwalker':{
-        c.wx += c.sp * dt;
-        animParts(c, c.sp * dt * 2.2);
+        const sprintPed = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
+        const pedSp = Math.max(c.sp, sprintPed || 0);
+        c.wx += pedSp * dt;
+        animParts(c, pedSp * dt * 2.2);
         if (tx > 55){ c.wx = p.wx - 38; c.wy = R(1, 4); }
         else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1, 4); }
         c.cd -= dt;
@@ -2280,9 +2367,10 @@ function updateCreatures(dt){
         break;
       }
       case 'rat':{
+        const sprintRat = npcRoadRules(c, dt); // scurry out of the way of closing traffic
         if (c.flee > 0){ c.flee -= dt; c.wx += c.dir * 10 * dt; animParts(c, dt * 30); }
         else {
-          c.wx += c.dir * c.sp * dt;
+          c.wx += c.dir * Math.max(c.sp, sprintRat || 0) * dt;
           if (Math.random() < dt * 0.8) c.dir *= -1;
           c.wy = clamp(c.wy + R(-1, 1) * dt * 3, 0.8, 2.2);
         }
@@ -2292,6 +2380,7 @@ function updateCreatures(dt){
         break;
       }
       case 'raccoon':{
+        const sprintRac = npcRoadRules(c, dt); // scurry out of the way of closing traffic
         if (c.flee > 0){
           c.flee -= dt;
           const away = c.wx >= p.wx ? 1 : -1;
@@ -2301,10 +2390,11 @@ function updateCreatures(dt){
         } else if (c.t > 0){
           c.t -= dt;
         } else {
+          const racSp = Math.max(c.sp, sprintRac || 0);
           const dx = c.tx - c.wx, dy = c.ty - c.wy;
           const dl = Math.hypot(dx, dy) || 1;
-          c.wx += (dx / dl) * c.sp * dt;
-          c.wy = clamp(c.wy + (dy / dl) * c.sp * dt, 0.8, 7.5);
+          c.wx += (dx / dl) * racSp * dt;
+          c.wy = clamp(c.wy + (dy / dl) * racSp * dt, 0.8, 7.5);
           if (dl < 0.6){ c.t = R(1, 3); c.tx = R(p.wx - 30, p.wx + 40); c.ty = R(1, 7.5); }
           animParts(c, dt * 12);
         }
@@ -2319,6 +2409,7 @@ function updateCreatures(dt){
         break;
       }
       case 'tric':{
+        const sprintTric = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
         c.stop -= dt;
         if (c.stop <= 0){
           const obstT = findVehicleAhead(c, creatures);
@@ -2336,6 +2427,7 @@ function updateCreatures(dt){
             c.detourTimer -= dt;
             if (c.detourTimer <= 0) c.detourTimer = undefined;
           }
+          tSp = Math.max(tSp, sprintTric || 0); // never crawl in front of closing traffic
           const aT = 7 * dt;
           c.curSp += (tSp - c.curSp) * aT;
           // Safety clamp
@@ -2349,13 +2441,14 @@ function updateCreatures(dt){
           animParts(c, c.curSp * dt * 3);
           if (Math.random() < dt * 0.3) c.stop = R(0.5, 2.5);
         } else {
-          c.wx += c.sp * dt * 0.1; // crawling stop
+          c.wx += (c.sprintT > 0 ? (c._sprintBoost || c.sp * 2) : c.sp * 0.1) * dt; // sprint out of traffic, else crawl
         }
         if (tx > 55){ c.wx = p.wx - 38; c.wy = R(1.2, 4.2); c.stop = 0; c.curSp = 0; }
         else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.stop = 0; c.curSp = 0; }
         break;
       }
       case 'rc':{
+        const sprintRc = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
         c.flip -= dt;
         if (c.flip <= 0){
           // Smoothly decelerate to near-zero before turning around
@@ -2383,6 +2476,7 @@ function updateCreatures(dt){
           c.detourTimer -= dt;
           if (c.detourTimer <= 0) c.detourTimer = undefined;
         }
+        spRc = Math.max(spRc, sprintRc || 0); // never crawl in front of closing traffic
         const aRc = 12 * dt;
         c.curSp += (spRc - c.curSp) * aRc;
         // Safety clamp
@@ -2400,6 +2494,7 @@ function updateCreatures(dt){
         break;
       }
       case 'bike': case 'ebike':{
+        const sprintBe = npcRoadRules(c, dt); // yield to closing cars/motos: swerve or sprint
         const obstBe = findVehicleAhead(c, creatures);
         let spBe = c.sp;
         if (obstBe){
@@ -2563,6 +2658,7 @@ function updateCreatures(dt){
           c.detourTimer -= dt;
           if (c.detourTimer <= 0) c.detourTimer = undefined;
         }
+        spBe = Math.max(spBe, sprintBe || 0); // never crawl in front of closing traffic
         const aBe = 9 * dt;
         c.curSp += (spBe - c.curSp) * aBe;
         // Safety clamp
@@ -2592,17 +2688,22 @@ function updateCreatures(dt){
       case 'car':{
         // Check for obstacles ahead (truck + other vehicles)
         let obstacle = findVehicleAhead(c, creatures);
-        let desiredSp = c.sp;
+        // NO CRAWLING: a car always moves at least at the worker's walk pace (8.5).
+        // Hard brakes for the truck hopper / point-blank vehicles are re-applied below.
+        let desiredSp = Math.max(c.sp, CAR_MIN_SP);
 
         // === CRITICAL: Direct hopper proximity check — prevents driving into the truck ===
         // If car's Y overlaps truck's body AND car is approaching from behind, must brake/steer
-        const tYMin = -4.5 - truck.boxW; // -6.4 (truck outer edge)
-        const tYMax = -4.5 + truck.boxW; // -2.6 (truck inner edge)
+        const tYMin = -4.5 - truck.boxW; // ≈ -7.0 (truck outer edge, measured)
+        const tYMax = -4.5 + truck.boxW; // ≈ -2.0 (truck inner edge, measured)
         const carBoxYMin = c.wy - c.boxW;
         const carBoxYMax = c.wy + c.boxW;
         const overlapsTruckY = carBoxYMax > tYMin && carBoxYMin < tYMax;
         const distToHopper = (truck.wx - truck.boxL) - c.wx; // distance to rear hopper face
-        const nearHopperSide = distToHopper > -10 && distToHopper < 20.0; // approaching from behind
+        // "Approaching the hopper" only while the car's NOSE is still behind the rear face.
+        // A car passing ALONGSIDE the truck (nose already past) must not be slammed
+        // to a stop mid-pass — that was the wiggle/crawl right next to the truck's side.
+        const nearHopperSide = distToHopper > c.boxL * 0.5 && distToHopper < 20.0;
         const directlyNearHopper = overlapsTruckY && nearHopperSide;
         const truckRear = truck.wx - truck.boxL; // distance to rear hopper face
 
@@ -2614,87 +2715,60 @@ function updateCreatures(dt){
           const isTruckObstacle = obstacle.isTruck;
           const distToObstacle = obstacle.dist;
 
-          // === TRAFFIC FLOW: Outer passing lane for cars/motos (wy = -8.5) ===
-          const OUTER_PASSING_LANES = [-8.5, -9.0]; // outer left of truck
-          let inOuterLane = c.wy <= -7.2; // safely left of truck's outer edge (-6.4)
+          // === TRAFFIC FLOW: ONE passing lane on the OUTER (left) side of the truck ===
+          // Measured truck extent: wy ≈ -7.02 .. -1.98. The curb-side gap (-1.98 .. +0.5)
+          // is NARROWER than a car (2.5 wide), so the outer road is the only real room.
+          // Lane -9.0: 0.73u clearance to the truck body, and OUTSIDE the vehicle
+          // separator's push radius (|wy - (-4.5)| < 4.17), so the systems agree.
+          const OUTER_PASS_LANE = -9.0;
+          const inOuterLane = c.wy <= -8.3; // car's inner edge (-7.05) clears truck edge (-7.02)
 
           // Check if car is in the truck's Y-zone — MUST NOT enter hopper area
           const inTruckYZone = overlapsTruckY && nearHopperSide;
           
           if (inTruckYZone){
-            // === IN THE TRUCK'S Y-ZONE: MUST stop or detour — never creep forward ===
+            // === IN THE TRUCK'S Y-ZONE: steer out to the outer lane — don't sit, don't crawl ===
             const distAhead = truckRear - (c.wx + c.boxL);
-            if (distAhead <= 0.3) desiredSp = 0;
-            else desiredSp = Math.min(desiredSp, distAhead * 2.5);
-
-            // Force lane change: must leave truck's Y-zone BEFORE reaching hopper
-            const toCurb = -1.5; // move up (sidewalk side) if in right half of truck Y
-            const toRoad = -9.0; // move down (outer road) if in left half
-            const targetLateralY = c.wy > (tYMin + tYMax) / 2 ? toCurb : toRoad;
-            
-            if (isLaneClear(targetLateralY, c.wx + distToHopper * 0.3, c.boxW, creatures)){
-              // Lane ahead is clear — steer toward it while braking
-              c.targetWy = targetLateralY;
-              if (targetLateralY < tYMin){ // going to outer road
-                desiredSp = Math.min(desiredSp, distToObstacle * 1.5);
-              } else { // going to curb side
-                desiredSp = Math.min(desiredSp, 1.5);
+            if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
+              c.targetWy = OUTER_PASS_LANE; // decisive: always the wide outer lane
+              if (distAhead <= 0.3){
+                desiredSp = 0; // nose at the hopper — hold until the lane change gets going
+              } else {
+                desiredSp = Math.max(CAR_MIN_SP, Math.min(desiredSp, distAhead * 3.0)); // keep moving
               }
-            } else if (!isTruckObstacle){
-              // Obstacle is another vehicle — slow for it too
-              desiredSp = Math.min(desiredSp, obstacle.sp * 0.7);
+            } else {
+              // Outer lane occupied — wait BEHIND the truck, not in front of it
+              desiredSp = Math.min(desiredSp, Math.max(0, distAhead * 2.0));
             }
-            // If nothing clear: just brake at low speed and wait
           } else if (isTruckObstacle && distToObstacle > 3.0){
-            // === PASSING THE TRUCK: We're NOT in truck's Y-zone — can pass safely ===
-            // Detect if we're approaching the truck — steer into outer passing lane
-            const distToTruckRear = obstacle.dist;
+            // === PASSING THE TRUCK: outer lane at full speed — there's plenty of room there ===
             const pastCab = c.wx > truck.wx + (truck.cabOff || 6.0);
 
-            if (!inOuterLane && !passedCab){
-              // Approach phase: steer toward outer left of the truck
-              inOuterLane = false; // not yet there
-              for (let i = 0; i < OUTER_PASSING_LANES.length; i++){
-                const candidate = OUTER_PASSING_LANES[i];
-                if (isLaneClear(candidate, c.wx, c.boxW, creatures)){
-                  c.targetWy = candidate;
-                  break;
-                }
+            if (inOuterLane){
+              desiredSp = c.sp; // already clear of the truck's Y — full speed
+            } else if (!pastCab){
+              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
+                c.targetWy = OUTER_PASS_LANE; // single consistent target — no zig-zag
+                desiredSp = Math.max(desiredSp, CAR_MIN_SP); // pass at pace, no crawl
+              } else {
+                desiredSp = Math.min(desiredSp, Math.max(CAR_MIN_SP, distToObstacle * 2.0));
               }
-              // If no clear lane found, fall back to safe stopping distance
-              if (c.detourY === undefined){
-                desiredSp = Math.min(c.sp, distToObstacle * 2.0);
-              }
-            } else if (passedCab && inOuterLane){
-              // Past the truck: return home lane smoothly
-              const homeLanes = [-3.5, -6.5]; // normal car lanes
-              if (!c._homeLane) c._homeLane = homeLanes[0];
+            } else {
+              // Past the cab: ease back into a normal lane (the truck is now behind us)
+              if (!c._homeLane) c._homeLane = -6.5; // normal car lane
               c.targetWy += (c._homeLane - c.targetWy) * 1.5 * dt;
               desiredSp = c.sp; // full speed after passing
-            } else {
-              // In the outer lane, fully past or approaching from there: FULL SPEED — clear of truck!
-              inOuterLane = true;
-              desiredSp = c.sp; // cars drive at normal speed past the truck!
             }
 
           } else if (isTruckObstacle){
-            // Very close to the truck — apply heavy braking but stay in our lane
-            // Don't try to detour when already right next to it
+            // Very close to the truck's rear: merge into the outer lane and keep moving
             if (distToObstacle < 1.5){
-              desiredSp = Math.max(0, distToObstacle * 1.5);
-            } else if (distToObstacle < 3.0){
-              desiredSp = Math.min(desiredSp, distToObstacle * 2.0);
+              desiredSp = Math.max(0, distToObstacle * 1.5); // point-blank — brake hard
             } else {
-              // Approaching from distance: steer toward outer passing lane
-              for (let i = 0; i < OUTER_PASSING_LANES.length; i++){
-                const candidate = OUTER_PASSING_LANES[i];
-                if (isLaneClear(candidate, c.wx, c.boxW, creatures)){
-                  c.targetWy = candidate;
-                  desiredSp = c.sp; // clear to proceed in new lane
-                  break;
-                } else {
-                  desiredSp = Math.min(desiredSp, distToObstacle * 1.5);
-                }
+              desiredSp = Math.min(desiredSp, distToObstacle * 2.0);
+              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
+                c.targetWy = OUTER_PASS_LANE;
+                desiredSp = Math.max(desiredSp, CAR_MIN_SP);
               }
             }
           } else {
@@ -2710,13 +2784,10 @@ function updateCreatures(dt){
             // Try to change lane around slower vehicles
             let canDetour = false;
             if (c.curSp > obstacle.sp + 0.5 && c.detourTimer === undefined){
-              for (let i = 0; i < OUTER_PASSING_LANES.length; i++){
-                if (isLaneClear(OUTER_PASSING_LANES[i], c.wx, c.boxW, creatures)){
-                  canDetour = true;
-                  c.detourY = OUTER_PASSING_LANES[i];
-                  c.detourTimer = R(0.4, 0.7);
-                  break;
-                }
+              if (isLaneClear(OUTER_PASS_LANE, c.wx, c.boxW, creatures)){
+                canDetour = true;
+                c.detourY = OUTER_PASS_LANE;
+                c.detourTimer = R(0.4, 0.7);
               }
             }
           }
@@ -2724,6 +2795,38 @@ function updateCreatures(dt){
         } else if (c.detourTimer !== undefined){
           c.detourTimer -= dt;
           if (c.detourTimer <= 0) c.detourTimer = undefined;
+        }
+
+        // === YIELD TO FAST TWO-WHEELERS: cars let bikes / e-bikes / motos pass ===
+        const riderThreat = findFastRiderBehind(c, creatures);
+        if (riderThreat){
+          // Steer aside into a clear road lane (away from the rider's lane first)
+          if (c.riderLane === undefined){
+            const away = (c.wy - riderThreat.v.wy) >= 0 ? 1 : -1;
+            const steps = [away * 1.8, -away * 1.8, away * 3.2, -away * 3.2];
+            for (let i = 0; i < steps.length; i++){
+              const cand = c.wy + steps[i];
+              if (cand < -8.8 || cand > -0.6) continue; // stay on the roadway
+              if (isLaneClear(cand, c.wx, c.boxW, creatures)){ c.riderLane = cand; break; }
+            }
+          }
+          desiredSp = Math.max(desiredSp, 15); // full throttle to clear the rider quickly
+        }
+        if (c.riderLane !== undefined){
+          c.wy += (c.riderLane - c.wy) * Math.min(1, 4.5 * dt);
+          if (Math.abs(c.riderLane - c.wy) < 0.12) c.riderLane = undefined;
+        }
+
+        // Re-assert the no-crawling floor after all follow/slow-down logic,
+        // then re-apply the emergency stop right at the truck hopper (safety first).
+        // Only when actually in the truck's Y zone — a car passing clear on the outer
+        // road must NOT be braked just for being alongside the truck (that was the crawl).
+        if (desiredSp < CAR_MIN_SP) desiredSp = CAR_MIN_SP;
+        if (truck.active && overlapsTruckY){
+          const dtTruck = (truck.wx - truck.boxL) - c.wx;
+          if (dtTruck > 0 && dtTruck < 14){
+            desiredSp = Math.min(desiredSp, Math.max(0, dtTruck * 0.5));
+          }
         }
 
         // Smooth speed change — never overshoot desired speed
