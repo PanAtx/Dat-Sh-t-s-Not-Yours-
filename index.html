@@ -50,6 +50,20 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .panel button:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
 .kbd { color:#7dff9e; }
+/* ===== Menu logo screen ===== */
+#menu .panel { background:none; border:none; box-shadow:none; padding:0; max-width:none; width:auto; }
+.menu-logo-wrap { position:relative; display:inline-block; line-height:0; }
+.menu-logo-wrap img { max-width:82vw; max-height:70vh; width:auto; height:auto; display:block; border-radius:6px; box-shadow:0 0 50px rgba(0,0,0,.8), 0 0 18px rgba(46,224,144,.25); }
+.menu-bottom { position:absolute; bottom:5%; left:0; right:0; text-align:center; padding:0 0 4%;
+  display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.4vh,14px); }
+.menu-bottom .score { font-family:"Courier New",monospace; font-size:clamp(14px,3vw,24px); color:#ffd66b; letter-spacing:3px;
+  text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,0 0 10px rgba(0,0,0,.95), 0 0 20px rgba(0,0,0,.7); }
+.menu-bottom button { font-family:"Courier New",monospace; font-size:clamp(16px,2.8vw,22px); letter-spacing:5px;
+  padding:clamp(12px,2.2vh,16px) clamp(32px,7vw,52px); cursor:pointer;
+  color:#04140c; background:#2ee090; border:none; border-radius:4px;
+  box-shadow:0 0 22px rgba(46,224,144,.75), 0 4px 16px rgba(0,0,0,.55);
+  pointer-events:auto; }
+.menu-bottom button:hover { background:#5cf0ad; box-shadow:0 0 32px rgba(46,224,144,.9), 0 4px 20px rgba(0,0,0,.5); }
 /* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
 #camfeed { position:fixed; right:18px; bottom:16px; z-index:11; pointer-events:none;
   font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
@@ -128,21 +142,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="sub">PLAY IN LANDSCAPE &middot; FULLSCREEN</div>
 </div>
 <div id="menu" class="modal"><div class="panel">
-  <h1 class="title-text">Dat Sh!t's Not Yours!</h1>
-  <div class="tag">NEW YORK CITY SANITATION - ARCADE SERVICE ROUTE - BUILD v12 (WORKER FACES DIRECTION)</div>
-  <div class="ctl">
-    <span class="kbd">W / UP</span> &nbsp;- run up the route<br>
-    <span class="kbd">S / DOWN</span> &nbsp;- back up the route<br>
-    <span class="kbd">A / D</span> &nbsp;- sidestep across lanes<br>
-    <span class="kbd">SPACE / E</span> - pick up / toss / dump / shoo<br>
-    <span class="kbd">GAMEPAD</span> - stick/dpad = move &middot; A / X = action &middot; START = begin<br><br>
-    Catch the DSNY truck crawling down the street and toss the black bags /<br>
-    full cans into its hopper. Empty cans auto-toss to the sidewalk!<br>
-    Serve houses before you run past them. Grab copper, cash &amp; Mongo.<br>
-    3 supervisor write-ups and you are <b style="color:#ff5252">SUSPENDED</b>.
+  <div class="menu-logo-wrap">
+    <img src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
+    <div class="menu-bottom">
+      <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
+      <button id="btnStart">START SHIFT</button>
+    </div>
   </div>
-  <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
-  <button id="btnStart">START SHIFT</button>
 </div></div>
 <div id="over" class="modal hidden"><div class="panel">
   <h2>SUSPENDED BY DSNY</h2>
