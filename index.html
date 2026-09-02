@@ -2770,6 +2770,10 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 $('btnStart').addEventListener('click', startGame);
 $('btnRestart').addEventListener('click', startGame); // startGame() already resets the world
+// Click outside the logo on the start screen → enter fullscreen (landscape)
+$('menu').addEventListener('click', function(e){
+  if (!e.target.closest('.menu-logo-wrap')) enterLandscapeFullscreen();
+});
 // ==================== MAIN LOOP ====================
 function loop(now){
   requestAnimationFrame(loop);
