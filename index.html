@@ -56,10 +56,14 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   border:3px solid #2ee090; border-radius:14px;
   box-shadow:0 0 28px rgba(46,224,144,.55), 0 0 60px rgba(46,224,144,.2), 0 0 50px rgba(0,0,0,.8); }
 .menu-logo-wrap img { max-width:82vw; max-height:84vh; width:auto; height:auto; display:block; }
-.menu-bottom { position:absolute; bottom:5%; left:0; right:0; text-align:center; padding:0 0 4%;
+.menu-bottom { position:absolute; bottom:3%; left:0; right:0; text-align:center; padding:0 0 2%;
   display:flex; flex-direction:column; align-items:center; gap:clamp(8px,1.4vh,14px); }
-.menu-bottom .score { font-family:"Courier New",monospace; font-size:clamp(14px,3vw,24px); color:#ffd66b; letter-spacing:3px;
-  text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000,0 0 10px rgba(0,0,0,.95), 0 0 20px rgba(0,0,0,.7); }
+.menu-bottom .score { font-family:"Courier New",monospace; font-size:clamp(14px,3vw,24px); color:#fff; letter-spacing:3px;
+  animation:hiGlow 2.2s ease-in-out infinite; }
+@keyframes hiGlow {
+  0%,100% { text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000, 0 0 8px rgba(255,255,255,.3); }
+  50%      { text-shadow:2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000, 0 0 22px rgba(255,255,255,.95), 0 0 40px rgba(255,255,255,.4); }
+}
 .menu-bottom button { font-family:"Courier New",monospace; font-size:clamp(16px,2.8vw,22px); letter-spacing:5px;
   padding:clamp(12px,2.2vh,16px) clamp(32px,7vw,52px); cursor:pointer;
   color:#04140c; background:#2ee090; border:none; border-radius:4px;
@@ -147,8 +151,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="menu-logo-wrap">
     <img src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
     <div class="menu-bottom">
-      <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
       <button id="btnStart">START SHIFT</button>
+      <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
     </div>
   </div>
 </div></div>
