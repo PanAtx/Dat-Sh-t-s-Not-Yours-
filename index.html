@@ -1725,15 +1725,12 @@ function updatePlayer(dt){
   const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
   if (dir !== 0) p.wx += dir * speed * dt;
   p.wy = clamp(p.wy + lat * 5.5 * dt, -7.5, 4.5);
-  // === Truck collision: worker can go behind the hopper but NOT through the body or past the cab ===
+  // === Truck body collision: worker can't clip through the truck but can walk freely past the front ===
   if (truck && truck.hidden <= 0){
     const tMinX = truck.wx - truck.boxL - 0.3;
     const tMaxX = truck.wx + truck.boxL + 0.3;
     const tMinY = -4.5 - truck.boxW - 0.2;
     const tMaxY = -4.5 + truck.boxW + 0.2;
-    // Cap forward position: worker cannot walk past the front cab
-    if (p.wx > tMaxX) p.wx = tMaxX;
-    // Push the worker out of the truck body if they overlap
     if (p.wx > tMinX && p.wx < tMaxX && p.wy > tMinY && p.wy < tMaxY){
       const dRear  = p.wx - tMinX;
       const dFront = tMaxX - p.wx;
