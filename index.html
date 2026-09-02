@@ -401,8 +401,17 @@ const Voice = {
     gap = gap || 1.4;
     if (this.last[text] && now - this.last[text] < gap * 1000) return;
     this.last[text] = now;
+    // Most-recent action wins: if something is speaking, cut it off and drop the
+    // queued backlog so the new line starts immediately instead of playing last.
+    const interrupt = this.busy;
+    if (interrupt){
+      this.busy = false;
+      this.queue.length = 0;
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
     this.queue.push({ text: text, pitch: pitch || 0.8, rate: rate || 1.08 });
-    this.pump();
+    if (interrupt) setTimeout(() => this.pump(), 30); // small delay to dodge the Chrome cancel/speak race
+    else this.pump();
   },
   pump(){
     if (this.busy || !this.queue.length || !this.enabled) return;
@@ -861,13 +870,6 @@ function makeHouse(){
   g.userData.lamp = lamp;
   return g;
 }
-function makeMailbox(){
-  const g = new THREE.Group();
-  const post = CY(0.04, 0.04, 0.5, M(0x5a5f66), 6); post.rotation.x = Math.PI / 2; g.add(post);
-  const box = BX(0.4, 0.32, 0.28, M(0x8a2f2f)); box.position.z = 0.39; g.add(box);
-  g.position.z = 0.25;
-  return g;
-}
 function makeTree(){
   const g = new THREE.Group();
   const trunk = CY(0.11, 0.2, 1.3, M(0x5a4632), 10); trunk.rotation.x = Math.PI / 2; trunk.position.z = 0.65; g.add(trunk);
@@ -876,18 +878,53 @@ function makeTree(){
   return g;
 }
 // ==================== STATIC HAZARDS ====================
-function addCrack(b, wx, wy){
+function addBottles(b, wx, wy){
+  // litter: empty glass bottles lying on the sidewalk, and sometimes a standing
+  // glass piss bottle (50-75% full of gold liquid) on the street near the curb
   const g = new THREE.Group();
-  const m = M(0x6f767e);
-  for (let i = 0; i < 5; i++){
-    const s = BX(R(0.3, 0.7), R(0.12, 0.22), R(0.1, 0.16), m);
-    s.position.set(R(-0.8, 0.8), R(-0.5, 0.5), R(0.02, 0.09));
-    s.rotation.z = R(-0.5, 0.5);
-    g.add(s);
+  const glassM = new THREE.MeshLambertMaterial({ color: 0xa9c9dd, transparent: true, opacity: 0.38 });
+  const n = 3 + (Math.random() < 0.5 ? 2 : 1);
+  for (let i = 0; i < n; i++){
+    const bt = new THREE.Group();
+    const body = CY(0.085, 0.09, 0.40, glassM, 10); bt.add(body);
+    const neck = CY(0.045, 0.055, 0.14, glassM, 8); neck.position.y = 0.27; bt.add(neck);
+    const cap = CY(0.052, 0.052, 0.045, M(0xf5f0e8), 8); cap.position.y = 0.35; bt.add(cap);
+    bt.position.set(R(-0.9, 0.9), R(-0.6, 0.6), 0.09);
+    bt.rotation.z = R(0, Math.PI * 2);
+    g.add(bt);
   }
   g.position.set(wx - b.worldX, wy, GZ);
   b.group.add(g);
   b.hazards.push({ wx: wx, wy: wy, r: 1.0, type: 'trip', drop: 0, cd: 0 });
+  // piss bottle: rare, on the street right next to the sidewalk, with its own hazard
+  if (Math.random() < 0.35){
+    const yx = wx + R(-0.8, 0.8), yy = R(-1.4, -0.6);
+    const liquidM = new THREE.MeshLambertMaterial({ color: 0xd4a017, transparent: true, opacity: 0.85 });
+    const yb = new THREE.Group();
+    const fill = R(0.5, 0.75); // gold liquid fills 50-75% of the body
+    const ybody = CY(0.09, 0.09, 0.40, glassM, 12); ybody.rotation.x = Math.PI / 2; ybody.position.z = 0.20; yb.add(ybody);
+    const yliquid = CY(0.076, 0.076, 0.40 * fill, liquidM, 12); yliquid.rotation.x = Math.PI / 2; yliquid.position.z = 0.40 * fill / 2; yb.add(yliquid);
+    const yneck = CY(0.05, 0.062, 0.15, glassM, 10); yneck.rotation.x = Math.PI / 2; yneck.position.z = 0.47; yb.add(yneck);
+    const ycap = CY(0.055, 0.055, 0.05, M(0x8a9096), 8); ycap.rotation.x = Math.PI / 2; ycap.position.z = 0.57; yb.add(ycap);
+    yb.position.set(yx - b.worldX, yy, GZ);
+    b.group.add(yb);
+    b.hazards.push({ wx: yx, wy: yy, r: 0.9, type: 'trip', drop: 0, cd: 0, yellow: true });
+  }
+}
+function addWrapper(b, wx, wy){
+  // loose crumpled food wrapper on the street next to the sidewalk (pure litter, no hazard)
+  const g = new THREE.Group();
+  const cols = [0xf2f4f5, 0xefb9c6, 0xbfd8ef, 0xf2c9a1, 0xcfe3cf];
+  const w1 = BX(0.30, 0.22, 0.02, M(pick(cols)));
+  w1.position.set(0, 0, 0.015);
+  w1.rotation.z = R(0, Math.PI * 2);
+  g.add(w1);
+  const w2 = BX(0.16, 0.14, 0.02, M(pick(cols)));
+  w2.position.set(R(-0.5, 0.5), R(-0.35, 0.35), 0.015);
+  w2.rotation.z = R(0, Math.PI * 2);
+  g.add(w2);
+  g.position.set(wx - b.worldX, wy, GZ);
+  b.group.add(g);
 }
 function addPothole(b, wx, wy){
   const g = new THREE.Group();
@@ -1115,12 +1152,15 @@ function addCreature(type){
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.55; c.boxL = 1.4; c.data = makeCar(); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
-    case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
+    case 'yeller': c.wy = R(-5.0, -1.5); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
   }
   const isPerson = c.data && c.data.g && c.data.legL;
+  c.vcd = 0; // voice cooldown — MUST start at 0 (undefined would make "c.vcd <= 0" always false and mute all bump lines)
   c.g = isPerson ? c.data.g : c.data;
   c.parts = c.g.userData && c.g.userData.parts ? c.g.userData.parts : null;
-  if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; }
+  // fentanyl addict: slightly hunched over with his head looking down; the forward
+  // lean also swings his outstretched arms to point straight ahead, blocking the way
+  if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; c.g.rotation.y = 0.45; }
   c.g.position.set(c.wx, c.wy, GZ);
   dynamicGroup.add(c.g);
   creatures.push(c);
@@ -1149,10 +1189,6 @@ function makeBlockContents(b, baseX){
   b.group.add(hg);
   const house = { serviced: false, lamp: hg.userData.lamp, bags: [], can: null };
   b.house = house;
-  const mx = baseX + R(0.8, 6.5);
-  const mb = makeMailbox();
-  mb.position.set(mx - baseX, 1.0, 0);
-  b.group.add(mb);
   // curb trash layout (every house has something to collect)
   const r = Math.random();
   let nBags = 0, hasCan = false;
@@ -1181,10 +1217,12 @@ function makeBlockContents(b, baseX){
   b.group.add(joint);
   // static hazards
   const hr = Math.random();
-  if (hr < 0.28) addCrack(b, baseX + R(1, 6), R(1.5, 4.5));
+  if (hr < 0.28) addBottles(b, baseX + R(1, 6), R(1.5, 4.5));
   else if (hr < 0.46) addPothole(b, baseX + R(1.5, 6), R(-8, -3));
   else if (hr < 0.58) addHydrant(b, baseX + R(1.5, 6), 0.8);
   else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
+  // loose food wrappers on the street next to the sidewalk (litter dressing)
+  if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
   // sidewalk trees
   if (Math.random() < 0.5){
     const t = makeTree();
@@ -1635,8 +1673,10 @@ function collideStatic(dt){
       if (hz.type === 'hit'){
         p.wx -= 0.7;
         doStun(0.8, 'hit');
+        Voice.say('OW! My shin!', 3, 0.9);
       } else {
         doStun(0.8, 'trip');
+        if (hz.yellow) Voice.say('Yuck! Piss bottle!', 3, 0.9);
         if (hz.drop > 0 && carry !== 'none' && Math.random() < hz.drop) dropCarried();
       }
       return;
@@ -1685,7 +1725,7 @@ function collideCreatures(){
       p.wy = clamp(p.wy + ny * (pen + 0.05), -2, 4.5);
       if (c.vcd <= 0){
         c.vcd = 2.5;
-        if (c.type === 'yeller') Voice.say('Whoa there, worker!', 4, 0.9);
+        if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9);
         else Voice.say('Hey! Watch it!', 4, 1.1);
       }
       return;
@@ -2826,14 +2866,21 @@ function loop(now){
     }
     worker.group.position.set(p.wx, p.wy, GZ);
   }
-  dirLight.position.set(p.wx - 25, p.wy + 28, 58);
-  dirLight.target.position.set(p.wx, p.wy, 0);
-  groundGroup.position.x = p.wx;
   // ===== camera follow: bulletproof explicit world-space math (no parent matrices) =====
   // worldGroup is rotated +45deg: local (x, y) -> world (c45*(x - y), c45*(x + y)).
   // The camera sits ISO_A behind the target and ISO_A above it, exactly on the
   // isometric axis, so the worker is ALWAYS at screen center as it moves.
   const c45 = Math.SQRT1_2;
+  // The light + shadow frustum must be centered on the player's TRUE world position.
+  // p.wx/p.wy are LOCAL route coordinates inside the rotated worldGroup, while dirLight
+  // lives in unrotated scene space. Without the +45deg transform the shadow box drifts
+  // off the player as the route scrolls and shadows clip once the drift exceeds the
+  // +/-45 frustum half-size.
+  const plWx = c45 * (p.wx - p.wy);
+  const plWy = c45 * (p.wx + p.wy);
+  dirLight.position.set(plWx - 25, plWy + 28, 58);
+  dirLight.target.position.set(plWx, plWy, 0);
+  groundGroup.position.x = p.wx;
   const camTX = c45 * (p.wx - CAM_Y);
   const camTY = c45 * (p.wx + CAM_Y);
   camera.position.set(camTX, camTY - 1.4142 * ISO_A, ISO_A);
