@@ -1150,6 +1150,8 @@ function makeBlockContents(b, baseX){
     makeCurbBag(baseX + R(2, 6), R(1.0, 2.4), house);
   }
   if (hasCan) house.can = makeCurbCan(baseX + R(2, 6), R(1.0, 2.2), house);
+  // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start
+  if (Math.random() < 0.40) spawnBonus(baseX + R(1.5, 6.0), R(-1.0, 1.5));
   // lane markings & sidewalk joints (scroll with the block)
   const dashM = M(0xcfd5da);
   for (let i = 0; i < 2; i++){
@@ -1183,7 +1185,7 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 4, lady: 2, rat: 5, raccoon: 2, squirrel: 2, tric: 2, rc: 2, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2 };
+  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
 }
 function recycleBlock(b){
@@ -1423,7 +1425,7 @@ function nearHopper(){
   if (!truck || truck.hidden > 0) return false;
   const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5;
   const dx = hx - p.wx, dy = hy - p.wy;
-  return dx > -1.5 && dx < 4.2 && Math.abs(dy) < 6.0;
+  return dx > -1.5 && dx < 5.0 && Math.abs(dy) < 8.0;
 }
 function attachCarried(item){
   worker.group.add(item.g);
@@ -1442,7 +1444,6 @@ function pickUp(item){
   carried = item;
   attachCarried(item);
   SFX.playPickupSound();
-  if (Math.random() < 0.45) spawnBonus(p.wx + R(2.2, 6.0), R(1.0, 4.0)); // place it out on the street ahead, so you drive up to it
 }
 function tossBag(bag){
   bag.state = 'dumped';
@@ -1723,7 +1724,28 @@ function updatePlayer(dt){
   const dir = fwd ? 1 : (back ? -1 : 0);
   const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
   if (dir !== 0) p.wx += dir * speed * dt;
-  p.wy = clamp(p.wy + lat * 5.5 * dt, -2, 4.5);
+  p.wy = clamp(p.wy + lat * 5.5 * dt, -7.5, 4.5);
+  // === Truck collision: worker can go behind the hopper but NOT through the body or past the cab ===
+  if (truck && truck.hidden <= 0){
+    const tMinX = truck.wx - truck.boxL - 0.3;
+    const tMaxX = truck.wx + truck.boxL + 0.3;
+    const tMinY = -4.5 - truck.boxW - 0.2;
+    const tMaxY = -4.5 + truck.boxW + 0.2;
+    // Cap forward position: worker cannot walk past the front cab
+    if (p.wx > tMaxX) p.wx = tMaxX;
+    // Push the worker out of the truck body if they overlap
+    if (p.wx > tMinX && p.wx < tMaxX && p.wy > tMinY && p.wy < tMaxY){
+      const dRear  = p.wx - tMinX;
+      const dFront = tMaxX - p.wx;
+      const dOuter = p.wy - tMinY;
+      const dInner = tMaxY - p.wy;
+      const mn = Math.min(dRear, dFront, dOuter, dInner);
+      if (mn === dRear)        p.wx = tMinX;
+      else if (mn === dFront)  p.wx = tMaxX;
+      else if (mn === dOuter)  p.wy = tMinY;
+      else                     p.wy = tMaxY;
+    }
+  }
   p.invuln = Math.max(0, p.invuln - dt);
   p.shake = Math.max(0, p.shake - dt * 1.3);
   routeDist += speed * dt;
