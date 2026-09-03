@@ -99,6 +99,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   font-family:'Press Start 2P','Courier New',monospace; font-size:min(8.5vw,64px); font-weight:bold; letter-spacing:4px; }
 .popup .pop-sub { display:inline-block; margin-top:16px; font-size:min(3vw,22px); letter-spacing:3px; color:#fff;
   background:rgba(0,0,0,.55); padding:6px 14px; border:2px solid rgba(255,255,255,.35); border-radius:4px; }
+/* ===== Comic-strip speech bubbles (worker + NPC lines, ~2s each) ===== */
+.bubble { position:fixed; z-index:50; pointer-events:none; transform:translate(-50%,-110%);
+  background:#fffdf2; border:3px solid #14141a; border-radius:10px; padding:5px 8px 6px;
+  font-family:'Press Start 2P','Courier New',monospace; font-size:9px; line-height:1.6; letter-spacing:0;
+  color:#14141a; white-space:nowrap; box-shadow:4px 5px 0 rgba(0,0,0,.30); }
+.bubble::after { content:''; position:absolute; left:50%; bottom:-10px; transform:translateX(-50%);
+  width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #14141a; }
 .pop-mongo    { color:#ffab45; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 22px rgba(255,160,60,.8); animation:popPunch 1.1s cubic-bezier(.2,1.5,.4,1) forwards; }
 .pop-cash     { color:#54ff88; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 22px rgba(60,255,120,.8); animation:cashWobble 1.1s ease-out forwards; }
 .pop-treasure { color:#ffd23a; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 28px rgba(255,210,60,.9); animation:treasureZoom 1.2s ease-out forwards; }
@@ -554,7 +561,7 @@ $('btnSkip').addEventListener('click', () => SFX.radioSkip());
 const Voice = {
   enabled: typeof window !== 'undefined' && 'speechSynthesis' in window,
   busy: false, queue: [], last: {},
-  say(text, gap, pitch, rate){
+  say(text, gap, pitch, rate, bx, by){
     if (!this.enabled) return;
     const now = performance.now();
     gap = gap || 1.4;
@@ -568,7 +575,7 @@ const Voice = {
       this.queue.length = 0;
       try { window.speechSynthesis.cancel(); } catch (e) {}
     }
-    this.queue.push({ text: text, pitch: pitch || 0.8, rate: rate || 1.08 });
+    this.queue.push({ text: text, pitch: pitch || 0.8, rate: rate || 1.08, bx: bx, by: by });
     if (interrupt) setTimeout(() => this.pump(), 30); // small delay to dodge the Chrome cancel/speak race
     else this.pump();
   },
@@ -576,7 +583,10 @@ const Voice = {
     if (this.busy || !this.queue.length || !this.enabled) return;
     const item = this.queue.shift();
     const u = new SpeechSynthesisUtterance(item.text);
-    u.pitch = item.pitch; u.rate = item.rate; u.volume = 0.9;
+    u.pitch = item.pitch; u.rate = item.rate;
+    // Duck the synthesized voice under the radio when the station is on air and NOT muted;
+    // with the radio muted (or off) the voice plays at full volume.
+    u.volume = (SFX.radioEl && !SFX.radioEl.paused && !SFX.radioMuted) ? 0.42 : 0.95;
     let vs = [];
     try { vs = window.speechSynthesis.getVoices(); } catch (e) {}
     const en = vs.find(v => v.lang && v.lang.indexOf('en') === 0);
@@ -584,7 +594,10 @@ const Voice = {
     u.onend = () => { this.busy = false; setTimeout(() => this.pump(), 140); };
     u.onerror = () => { this.busy = false; setTimeout(() => this.pump(), 140); };
     this.busy = true;
-    try { window.speechSynthesis.speak(u); } catch (e) { this.busy = false; }
+    try {
+      window.speechSynthesis.speak(u);
+      if (item.bx !== undefined) spawnBubble(item.text, item.bx, item.by); // comic bubble over the speaker
+    } catch (e) { this.busy = false; }
   },
   cancel(){
     this.queue.length = 0;
@@ -599,6 +612,8 @@ function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d)
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); q.castShadow = true; return q; }
 function SPH(r, m, ws, hs){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); q.castShadow = true; return q; }
+// NYC is diverse: a spread of skin tones, randomized for the worker (per shift) and every pedestrian
+const SKIN_TONES = [0xf3c6a5, 0xe8b48c, 0xd9a06b, 0xc68642, 0x9c6b3c, 0x8d5524, 0x6f4522, 0x5a3a1e];
 function disposeObj(o){
   o.traverse(ch => {
     if (ch.geometry) ch.geometry.dispose();
@@ -611,7 +626,7 @@ function buildWorker(){
   const greenPants = M(0x1e6b30);   // signature DSNY green work pants
   const hiVis = M(0xff7a1a);        // high-vis fluorescent safety vest
   const silver = M(0xd9dde2);       // reflective silver stripes
-  const skin = M(0xe0ac7e);
+  const skin = M(pick(SKIN_TONES)); // NYC is diverse: random skin tone for the worker
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.13, 0.78);
     const leg = BX(0.16, 0.14, 0.7, greenPants); leg.position.z = -0.36; pv.add(leg);
@@ -636,7 +651,7 @@ function buildWorker(){
   const brim = BX(0.22, 0.18, 0.05, M(0x155327)); brim.position.set(0.19, 0, 1.84); g.add(brim);
   const patch = BX(0.04, 0.13, 0.06, M(0xf5f5f5)); patch.position.set(0.18, 0, 1.2); g.add(patch);
   g.position.set(0, 2.5, GZ);
-  return { group: g, legL: legL, legR: legR, armL: armL, armR: armR };
+  return { group: g, legL: legL, legR: legR, armL: armL, armR: armR, skinMat: skin };
 }
 // ==================== FBX 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
 // truck.fbx is a POSED asset: it is NOT axis-aligned in native space, so instead of a fixed axis
@@ -962,7 +977,7 @@ function finishHopperCycle(){
   hopperCycling = false;
   addScore(HOPPER_CYCLE_BONUS, true);
   SFX.playHopperJingle();
-  Voice.say('Hopper full, compacting!', 2.5, 0.9);
+  Voice.say('Hopper full, compacting!', 2.5, 0.9, p.wx, p.wy);
 }
 function updateHopperTrash(dt){
   if (!hopperTrash || hopperLumps.length === 0) return;
@@ -1223,6 +1238,23 @@ function addManhole(b, wx, wy){
   b.hazards.push({ wx: wx, wy: wy, r: 0.9, type: 'trip', drop: 0.5, cd: 0 });
 }
 // ==================== CREATURE / VEHICLE BUILDERS ====================
+// Random piles of dog shit on the sidewalk: step in one and the worker yells, then
+// leaves a brown trail of footprints for a while (see dropFootprint / updateFootprints)
+function makeDogShit(){
+  const g = new THREE.Group();
+  const brown = M(0x4a2f14), dark = M(0x38220e);
+  const b1 = SP(0.1, brown); b1.scale.set(1.15, 0.6, 1); b1.position.z = 0.055; g.add(b1);
+  const b2 = SP(0.08, brown); b2.scale.set(1, 0.7, 1); b2.position.set(0.06, 0.03, 0.05); g.add(b2);
+  const b3 = SP(0.055, dark); b3.scale.set(1, 0.85, 1); b3.position.set(0.01, -0.04, 0.09); g.add(b3);
+  return g;
+}
+function addDogShit(b, wx, wy){
+  const g = makeDogShit();
+  g.position.set(wx - b.worldX, wy, GZ);
+  g.rotation.z = Math.random() * Math.PI * 2;
+  b.group.add(g);
+  b.hazards.push({ wx: wx, wy: wy, r: 0.65, type: 'poop', cd: 0 });
+}
 const SHIRTS = [0x3d6ea5, 0xb5474f, 0x4f8a5a, 0xc98a3a, 0x7a5aa0, 0x3a8a9a];
 const PANTS = [0x2f3640, 0x4a3b2a, 0x37424d, 0x5a4632];
 const DRESSES = [0x9a3a5a, 0x3a6a9a, 0xb58a2a, 0x5a7a4a];
@@ -1231,7 +1263,7 @@ const pick = a => a[(Math.random() * a.length) | 0];
 function makePerson(o){
   o = o || {};
   const g = new THREE.Group();
-  const shirt = M(o.shirt || 0x3d6ea5), pants = M(o.pants || 0x2f3640), skin = M(0xd8a878);
+  const shirt = M(o.shirt || 0x3d6ea5), pants = M(o.pants || 0x2f3640), skin = M(o.skin || pick(SKIN_TONES));
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.12, 0.62);
     const leg = BX(0.13, 0.14, 0.58, pants); leg.position.z = -0.3; pv.add(leg);
@@ -1258,6 +1290,29 @@ function makePerson(o){
   if (o.hood){ const hood = BX(0.14, 0.36, 0.2, shirt); hood.position.set(-0.12, 0, 1.45); g.add(hood); }
   g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
   return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
+}
+function makePigeon(){
+  const g = new THREE.Group();
+  const grey = M(0x6b7280), dark = M(0x454b56), neck = M(0x2e6e5a), beakM = M(0xc97a28), eyeM = M(0x14100e);
+  // plump oval body
+  const body = SPH(0.09, grey); body.scale.set(1.5, 1.1, 1.05); body.position.z = 0.16; g.add(body);
+  // iridescent green neck patch
+  const nck = SPH(0.045, neck); nck.scale.set(1, 1, 0.9); nck.position.set(0.12, 0.05, 0.2); g.add(nck);
+  const head = SPH(0.05, grey); head.position.set(0.16, 0.05, 0.23); g.add(head);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.05, 6), beakM);
+  beak.rotation.y = Math.PI / 2; // point the cone forward (+X)
+  beak.position.set(0.21, 0.045, 0.22); g.add(beak);
+  const eye = SPH(0.012, eyeM); eye.position.set(0.175, 0.08, 0.255); g.add(eye);
+  const tail = BX(0.1, 0.05, 0.12, dark); tail.position.set(-0.16, 0.02, 0.19); g.add(tail);
+  const mkWing = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.055, 0.24);
+    const w = BX(0.09, 0.02, 0.16, dark); w.position.set(-0.03, 0, -0.08); pv.add(w);
+    g.add(pv); return pv;
+  };
+  const wingL = mkWing(1), wingR = mkWing(-1);
+  [-0.05, 0.05].forEach(x => { const lg = CY(0.008, 0.008, 0.08, beakM, 5); lg.position.set(x, 0, 0.1); g.add(lg); });
+  g.userData.wingL = wingL; g.userData.wingR = wingR; // wings live on the group so makePigeon can return it like every other builder
+  return g;
 }
 function makeRat(){
   const g = new THREE.Group();
@@ -1499,6 +1554,17 @@ function addCreature(type){
     case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
     case 'raccoon': c.wy = R(1, 7); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, 7.5); c.data = makeRaccoon(); break;
     case 'squirrel': c.wy = 6.5; c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
+    case 'pigeon':{
+      c.wy = R(1.5, 5); c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0;
+      c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR;
+      const sg = new THREE.Group(); // seed scatter the pigeon pecks at
+      for (let sI = 0; sI < 10; sI++){
+        const sd = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.02), M(0xcfa84a));
+        sd.position.set(R(-0.5, 0.5), R(-0.4, 0.4), 0.012); sg.add(sd);
+      }
+      sg.position.set(c.wx + R(-0.6, 0.6), c.wy + R(-0.4, 0.4), GZ);
+      c.seed = sg; break;
+    }
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.35; c.boxL = 0.35; c.data = makeTricycle(); break;
     case 'dogwalker': c.wy = R(1.0, 4.0); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
@@ -1527,6 +1593,7 @@ function addCreature(type){
   if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; c.g.rotation.y = 0.45; }
   c.g.position.set(c.wx, c.wy, GZ);
   dynamicGroup.add(c.g);
+  if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
   creatures.push(c);
 }
 // ==================== WORLD SPAWNING & BLOCK RECYCLING ====================
@@ -1587,6 +1654,8 @@ function makeBlockContents(b, baseX){
   else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
   // loose food wrappers on the street next to the sidewalk (litter dressing)
   if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
+  // random dog shit piles on the sidewalk
+  if (Math.random() < 0.42) addDogShit(b, baseX + R(1, 6), R(1.5, 5.5));
   // sidewalk trees
   if (Math.random() < 0.5){
     const t = makeTree();
@@ -1604,7 +1673,7 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
+  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, pigeon: 3, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
 }
 function recycleBlock(b){
@@ -1675,6 +1744,7 @@ function resetWorldState(){
   clearHopperTrash();
   pendingHouses.length = 0; bonuses.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0;
+  footprints.length = 0; footDist = 0; p.poopSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
   spawnWorld();
@@ -1682,6 +1752,7 @@ function resetWorldState(){
   $('route').textContent = ROUTES[0];
   worker.group.rotation.set(0, 0, 0);
   worker.group.position.set(p.wx, p.wy, GZ);
+  if (worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]); // new shift = new random worker
 }
 // ==================== GAMEPLAY ACTIONS ====================
 function addScore(n, isBonus){
@@ -1728,7 +1799,7 @@ function updateFlyingCans(dt){
           'Ow! That hurt!',
           "I'm calling 3-1-1!"
         ];
-        Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1);
+        Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy);
         hitNPC.vcd = 3; // longer cooldown so they don't repeat immediately
       } else {
         // Spawn dust effect at landing spot
@@ -1772,7 +1843,7 @@ function updateFlyingCans(dt){
           const hitNPC = checkFlyingCanNpcHit(curX, curY);
           if (hitNPC){
             const npcVoices = ['Hey! Watch it!', 'Ow! That hurt!', "I'm calling 3-1-1!"];
-            Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1);
+            Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy);
             hitNPC.vcd = 3;
           }
         }
@@ -1834,7 +1905,7 @@ function addWriteUp(){
   if (state !== 'play') return;
   complaints++;
   SFX.playComplaintSound();
-  Voice.say('I\'m calling your supervisor!', 3, 1.0);
+  Voice.say('I\'m calling your supervisor!', 3, 1.0, p.wx, p.wy);
   const f = $('flash');
   f.style.opacity = 1;
   setTimeout(() => { f.style.opacity = 0; }, 500);
@@ -1858,7 +1929,7 @@ function pickUp(item){
   } else {
     carry = item.kind === 'bag' ? 'bag' : 'canFull';
     item.state = 'carried';
-    Voice.say('This bag is heavy!', 3.5, 0.8);
+    Voice.say('This bag is heavy!', 3.5, 0.8, p.wx, p.wy);
   }
   carried = item;
   attachCarried(item);
@@ -1958,7 +2029,7 @@ function updateBonuses(dt){
       else if (b.type === 'cash') SFX.playMoneySound();
       else SFX.playKaChing();
       showPopup(b.type || 'mongo');
-      Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3);
+      Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3, b.wx, b.wy);
       if (b.g.parent) b.g.parent.remove(b.g);
       disposeObj(b.g);
       bonuses.splice(i, 1);
@@ -2005,7 +2076,7 @@ function tryInteract(){
     }
   }
   if (shooed){
-    Voice.say('Shoo! Get out of here!', 2.5, 0.85);
+    Voice.say('Shoo! Get out of here!', 2.5, 0.85, p.wx, p.wy);
     SFX.playShooSound();
   }
 }
@@ -2026,13 +2097,16 @@ function collideStatic(dt){
       const dx = hz.wx - p.wx, dy = hz.wy - p.wy;
       if (dx * dx + dy * dy > hz.r * hz.r) continue;
       hz.cd = 1.4;
-      if (hz.type === 'hit'){
+      if (hz.type === 'poop'){
+        Voice.say('dog shit!', 2.5, 0.9, p.wx, p.wy);
+        p.poopSteps = 16; footDist = 0; // the worker leaves a brown footprint trail for a while
+      } else if (hz.type === 'hit'){
         p.wx -= 0.7;
         doStun(0.8, 'hit');
-        Voice.say('OW! My shin!', 3, 0.9);
+        Voice.say('OW! My shin!', 3, 0.9, p.wx, p.wy);
       } else {
         doStun(0.8, 'trip');
-        if (hz.yellow) Voice.say('Yuck! Piss bottle!', 3, 0.9);
+        if (hz.yellow) Voice.say('Yuck! Piss bottle!', 3, 0.9, p.wx, p.wy);
         if (hz.drop > 0 && carry !== 'none' && Math.random() < hz.drop) dropCarried();
       }
       return;
@@ -2058,6 +2132,7 @@ function collideCreatures(){
   if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
   for (let i = 0; i < creatures.length; i++){
     const c = creatures[i];
+    if (c.type === 'pigeon') continue; // pigeons scatter and fly away before any contact — no bump collision
     const dx = c.wx - p.wx, dy = c.wy - p.wy;
     const d2 = dx * dx + dy * dy;
     let rad = 1.0;
@@ -2082,15 +2157,15 @@ function collideCreatures(){
       p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, 4.5);
       if (c.vcd <= 0){
         c.vcd = 2.5;
-        if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0); }
-        else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9);
-        else Voice.say('Hey! Watch it!', 4, 1.1);
+        if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy); }
+        else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9, c.wx, c.wy);
+        else Voice.say('Hey! Watch it!', 4, 1.1, c.wx, c.wy);
       }
       return;
     }
     if (c.type === 'rat'){
       c.flee = 1.6; c.dir = dx >= 0 ? -1 : 1;
-      Voice.say('Eeek!', 1.2, 1.5);
+      Voice.say('Eeek!', 1.2, 1.5, c.wx, c.wy);
       if (carry !== 'none' && Math.random() < 0.45) dropCarried();
       doStun(0.5, 'trip');
     } else if (c.type === 'squirrel' || c.type === 'raccoon'){
@@ -2105,10 +2180,29 @@ function collideCreatures(){
       dropCarried();
       p.invuln = 1.6;
       doStun(1.2, 'hit');
-      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7);
-      else Voice.say('Hey! Hurry up!', 5, 0.85);
+      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7, c.wx, c.wy);
+      else Voice.say('Hey! Hurry up!', 5, 0.85, c.wx, c.wy);
     }
     return;
+  }
+}
+// ==================== BROWN FOOTPRINT TRAIL (after stepping in dog shit) ====================
+let footprints = [], footAlt = 1, footDist = 0;
+function dropFootprint(){
+  // alternate left / right of the walked axis, just behind the worker's feet
+  const fx = Math.cos(p.facing || 0), fy = Math.sin(p.facing || 0);
+  const off = 0.16 * footAlt; footAlt *= -1;
+  const g = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.22, 0.02), new THREE.MeshLambertMaterial({ color: 0x3a2410, transparent: true, opacity: 0.85 }));
+  g.position.set(p.wx - fx * 0.35 - fy * off, p.wy - fy * 0.35 + fx * off, GZ + 0.02);
+  dynamicGroup.add(g);
+  footprints.push({ g: g, mat: g.material, life: 7 });
+}
+function updateFootprints(dt){
+  for (let i = footprints.length - 1; i >= 0; i--){
+    const f = footprints[i];
+    f.life -= dt;
+    if (f.life <= 0){ if (f.g.parent) f.g.parent.remove(f.g); disposeObj(f.g); footprints.splice(i, 1); }
+    else if (f.life < 3) f.mat.opacity = Math.max(0, f.life / 3) * 0.85; // oldest prints fade out
   }
 }
 // ==================== PLAYER UPDATE ====================
@@ -2141,6 +2235,11 @@ function updatePlayer(dt){
   const diagF = (dir !== 0 && lat !== 0) ? 0.82 : 1; // 8-way diagonals don't outpace straight-line runs
   if (dir !== 0) p.wx += dir * speed * diagF * dt;
   p.wy = clamp(p.wy + lat * 5.5 * diagF * dt, -9.4, 4.5);
+  // brown footprint trail: one print per ~0.45 units walked while the trail is active
+  if (p.poopSteps > 0){
+    footDist += (Math.abs(dir) * speed + Math.abs(lat) * 5.5) * diagF * dt;
+    if (footDist >= 0.45){ footDist = 0; dropFootprint(); p.poopSteps--; }
+  }
   // === Truck body collision: worker can't clip through the truck, but can walk freely
   // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
   // box (rounded corners), so rounding the cab or the hopper never teleports the worker
@@ -2548,7 +2647,7 @@ function updateCreatures(dt){
         else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1, 4); }
         c.cd -= dt;
         if (state === 'play' && c.cd <= 0 && Math.abs(tx) < 5){
-          Voice.say('Hey! Hurry up!', 6, 1.1);
+          Voice.say('Hey! Hurry up!', 6, 1.1, c.wx, c.wy);
           c.cd = 6;
         }
         break;
@@ -2573,6 +2672,7 @@ function updateCreatures(dt){
           const away = c.wx >= p.wx ? 1 : -1;
           c.wx += away * 7 * dt;
           c.wy = clamp(c.wy + (Math.random() - 0.5) * 8 * dt, 0.8, 7.5);
+          c.g.rotation.z = away >= 0 ? R(-0.25, 0.25) : Math.PI + R(-0.25, 0.25); // face the direction it scurries
           animParts(c, dt * 25);
         } else if (c.t > 0){
           c.t -= dt;
@@ -2582,6 +2682,7 @@ function updateCreatures(dt){
           const dl = Math.hypot(dx, dy) || 1;
           c.wx += (dx / dl) * racSp * dt;
           c.wy = clamp(c.wy + (dy / dl) * racSp * dt, 0.8, 7.5);
+          c.g.rotation.z = Math.atan2(dy, dx); // always face the direction it walks — never backwards
           if (dl < 0.6){ c.t = R(1, 3); c.tx = R(p.wx - 30, p.wx + 40); c.ty = R(1, 7.5); }
           animParts(c, dt * 12);
         }
@@ -2593,6 +2694,32 @@ function updateCreatures(dt){
         c.wy = 6.5 + Math.sin(c.wx * 0.5) * 1.6;
         c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
         if (tx > 55) c.wx = p.wx - 38;
+        break;
+      }
+      case 'pigeon':{
+        if (c.flyT > 0){
+          // Scared off: flapping wings, climbing away from the worker into the sky
+          c.flyT -= dt;
+          c.wx += (c.wx >= p.wx ? 1 : -1) * 7 * dt;
+          c.gz = Math.min(9, c.gz + 9 * dt);
+          c.g.rotation.y = 0.5; // nose-down glide
+          const fl = Math.sin(performance.now() * 0.045) * 0.9;
+          c.wingL.rotation.x = -fl; c.wingR.rotation.x = fl;
+          if (c.flyT <= 0){ c.g.visible = false; } // gone — the seed scatter stays behind
+        } else if (c.g.visible === false){
+          // already gone, nothing to do
+        } else if (state === 'play' && Math.abs(tx) < 3.2 && Math.abs(c.wy - p.wy) < 2.5){
+          // Worker gets close → take flight, flapping, with a yell
+          c.flyT = 1.1; c.gz = 0.5;
+          Voice.say('scram birds!', 2.2, 0.95, p.wx, p.wy);
+        } else {
+          // Pecking at seed on the sidewalk: hop-bob + slight body sway
+          c.peck += dt * 7;
+          c.gz = Math.abs(Math.sin(c.peck)) * 0.07;
+          c.g.rotation.z = Math.sin(c.peck * 0.5) * 0.2;
+          c.wingL.rotation.x = 0.05; c.wingR.rotation.x = -0.05;
+        }
+        c.g.position.z = GZ + (c.gz || 0);
         break;
       }
       case 'tric':{
@@ -3173,7 +3300,7 @@ function updateCreatures(dt){
           c.shout -= dt;
           if (c.shout <= 0){
             const lines = ['Hey! Watch it out here!', 'Hey! Hurry up!', 'Whoa - watch the road!'];
-            Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3));
+            Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3), c.wx, c.wy);
             c.shout = R(5, 9);
           }
         }
@@ -3183,7 +3310,7 @@ function updateCreatures(dt){
     }
     c.g.position.x = c.wx;
     c.g.position.y = c.wy;
-    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon') c.g.position.z = GZ;
+    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon' && c.type !== 'pigeon') c.g.position.z = GZ;
     // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
     if (c.dogParts){
       const ds = Math.sin(c.phase) * 0.55;
@@ -3228,11 +3355,39 @@ function updateHUD(){
   const pips = $('pips').children;
   for (let i = 0; i < 3; i++) pips[i].classList.toggle('on', i < complaints);
 }
+// ==================== COMIC SPEECH BUBLES ====================
+// Small comic-strip text bubbles that float over whoever is talking (worker or NPC),
+// projected from world space to screen space, and fade out after ~2 seconds.
+let speechBubbles = [];
+const _bubVec = new THREE.Vector3();
+function worldToScreen(wx, wy, wz){
+  if (!camera || !worldGroup) return null;
+  _bubVec.set(wx, wy, wz).applyMatrix4(worldGroup.matrixWorld).project(camera);
+  if (_bubVec.z > 1 || _bubVec.z < -1) return null;
+  return { x: (_bubVec.x * 0.5 + 0.5) * innerWidth, y: (-_bubVec.y * 0.5 + 0.5) * innerHeight };
+}
+function spawnBubble(text, wx, wy){
+  const el = document.createElement('div');
+  el.className = 'bubble';
+  el.textContent = text;
+  document.body.appendChild(el);
+  speechBubbles.push({ el: el, wx: wx, wy: wy, life: 1.9, max: 1.9 });
+}
+function updateBubbles(dt){
+  for (let i = speechBubbles.length - 1; i >= 0; i--){
+    const b = speechBubbles[i];
+    b.life -= dt;
+    if (b.life <= 0){ b.el.remove(); speechBubbles.splice(i, 1); continue; }
+    b.el.style.opacity = b.life > (b.max - 0.3) ? (b.max - b.life) / 0.3 : Math.min(1, b.life / 0.45);
+    const s = worldToScreen(b.wx, b.wy, GZ + 2.35); // just above the speaker's head
+    if (s){ b.el.style.left = s.x + 'px'; b.el.style.top = s.y + 'px'; }
+  }
+}
 // ==================== GAME FLOW ====================
 function gameOver(){
   state = 'over';
   SFX.playGameOver();
-  Voice.say('Suspended! Report to the borough office!', 1, 0.7);
+  Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy);
   if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('finalscore'), pad(score));
   setTxt($('hiscore2'), pad(hi));
@@ -3375,6 +3530,7 @@ function loop(now){
   if (dt < 0) dt = 0;
   pollGamepad();
   updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch
+  updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
   if (state === 'play'){
     updatePlayer(dt);
     updateTruck(dt);
@@ -3384,6 +3540,7 @@ function loop(now){
     updateDustParticles(dt);
     updateBlocks(dt);
     cleanupLandedCans();
+    updateFootprints(dt);
     collideStatic(dt);
     collideLandedCans();
     collideCreatures();
