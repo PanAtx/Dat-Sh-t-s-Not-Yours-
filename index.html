@@ -156,6 +156,33 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #actbtn.pressed { border-color:rgba(140,255,190,.95);
   background:radial-gradient(circle at 45% 40%, rgba(140,255,190,.42), rgba(46,224,144,.2) 78%);
   box-shadow:0 0 30px rgba(46,224,144,.65), inset 0 0 20px rgba(140,255,190,.45); }
+/* ===== Car-stereo NOW PLAYING widget: LED-pixel title + fake spectrum bars + MUTE / SKIP ===== */
+#radio { position:fixed; top:94px; left:20px; z-index:10; pointer-events:none;
+  display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px;
+  border:2px solid rgba(46,224,144,.42);
+  background:radial-gradient(rgba(60,255,138,.12) 1px, transparent 1.5px) 0 0/4px 4px, linear-gradient(180deg, rgba(3,12,8,.88), rgba(3,12,8,.78));
+  box-shadow:inset 0 0 20px rgba(0,0,0,.75), 0 0 14px rgba(46,224,144,.18); }
+#radio-bars { display:flex; align-items:flex-end; gap:2px; height:16px; width:27px; flex:none; }
+#radio-bars i { flex:1; height:18%; border-radius:1px; background:#39f78e; box-shadow:0 0 6px rgba(60,255,138,.85); opacity:.9; }
+#radio.on #radio-bars i { animation:eq 1s ease-in-out infinite; }
+#radio.on #radio-bars i:nth-child(1){ animation-duration:1.1s; }
+#radio.on #radio-bars i:nth-child(2){ animation-duration:.72s; animation-delay:-.35s; }
+#radio.on #radio-bars i:nth-child(3){ animation-duration:.95s; animation-delay:-.15s; }
+#radio.on #radio-bars i:nth-child(4){ animation-duration:.66s; animation-delay:-.5s; }
+#radio.on #radio-bars i:nth-child(5){ animation-duration:1.05s; animation-delay:-.28s; }
+#radio.on #radio-bars i:nth-child(6){ animation-duration:.8s; animation-delay:-.62s; }
+#radio.on #radio-bars i:nth-child(7){ animation-duration:.9s; animation-delay:-.1s; }
+@keyframes eq { 0%,100% { height:16%; } 50% { height:100%; } }
+#radio-title { font-family:'Press Start 2P','Courier New',monospace; font-size:9px; letter-spacing:1px;
+  color:#54ff9c; text-shadow:0 0 8px rgba(60,255,138,.85), 1px 1px 0 rgba(0,0,0,.9);
+  max-width:min(34vw, 230px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-transform:uppercase; }
+#radio.muted #radio-title { color:rgba(110,130,120,.6); text-shadow:none; }
+#radio.muted #radio-bars i { background:rgba(90,120,105,.5); box-shadow:none; }
+.radio-btn { pointer-events:auto; font-family:'Press Start 2P','Courier New',monospace; font-size:8px; letter-spacing:1px;
+  color:#04140c; background:#39f78e; border:1px solid rgba(190,255,220,.8); border-radius:3px;
+  padding:5px 7px; cursor:pointer; box-shadow:0 0 9px rgba(60,255,138,.5); -webkit-tap-highlight-color:transparent; }
+.radio-btn:active { transform:scale(.93); }
+#btnMute.off { background:rgba(30,46,38,.9); color:#54ff9c; box-shadow:none; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
@@ -167,6 +194,12 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="flash"></div>
 <div id="hud">
   <div id="tl" class="hudbox"><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
+  <div id="radio">
+    <div id="radio-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="radio-title">NO SIGNAL</div>
+    <button id="btnMute" class="radio-btn">MUTE</button>
+    <button id="btnSkip" class="radio-btn">SKIP »</button>
+  </div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div id="carry" class="hudbox">HANDS FREE</div>
@@ -377,7 +410,7 @@ const SFX = {
   //  1) HTTP directory listing (autoindex — works on VS Code Live Server, python http.server,
   //     Apache/nginx autoindex, Caddy: adding/removing .mp3 files "just works")
   //  2) fallback: music/manifest.json (for hosts with no directory listing, e.g. GitHub Pages)
-  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false,
+  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false, radioMuted: false,
   ensure(){
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -470,6 +503,7 @@ const SFX = {
       for (let i = this.radioBag.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = this.radioBag[i]; this.radioBag[i] = this.radioBag[j]; this.radioBag[j] = t; }
     }
     const name = this.radioBag.pop();
+    try { radioSetTitle(name); } catch (e) {} // update the NOW PLAYING LED title
     this.radioEl.src = 'music/' + encodeURIComponent(name);
     const p = this.radioEl.play();
     if (p && p.catch) p.catch(() => {}); // blocked/failed track: the 'error' handler skips ahead
@@ -483,7 +517,7 @@ const SFX = {
       if (!list.length) return; // no songs found: stay silent, never break the game
       this.radioList = list;
       const el = this.radioEl = new Audio();
-      el.volume = 0.9;
+      el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
       el.addEventListener('ended', () => {           // song finished → 2s of air → next song
         if (this.radioTimer) clearTimeout(this.radioTimer);
         this.radioTimer = setTimeout(() => this.radioNext(), 2000);
@@ -494,8 +528,30 @@ const SFX = {
       });
       this.radioNext();
     }).catch(() => { this.radioStarting = false; });
+  },
+  radioSkip(){ // SKIP button: jump to the next song right now (no 2-second gap)
+    if (!this.radioEl || !this.radioList.length) return;
+    if (this.radioTimer){ clearTimeout(this.radioTimer); this.radioTimer = null; }
+    this.radioNext();
   }
 };
+// ==================== RADIO HUD (NOW PLAYING / MUTE / SKIP) ====================
+const radioBox = $('radio'), radioTitle = $('radio-title');
+function radioSetTitle(name){
+  const t = (name || '').replace(/\.mp3$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() || 'ON AIR';
+  if (radioTitle.textContent !== t) radioTitle.textContent = t;
+  radioBox.classList.add('on'); // music is on air: light up the title + animate the spectrum bars
+}
+function radioToggleMute(){
+  SFX.radioMuted = !SFX.radioMuted;
+  if (SFX.radioEl) SFX.radioEl.volume = SFX.radioMuted ? 0 : 0.9;
+  radioBox.classList.toggle('muted', SFX.radioMuted);
+  $('btnMute').classList.toggle('off', SFX.radioMuted);
+  return SFX.radioMuted;
+}
+$('btnMute').addEventListener('click', () => radioToggleMute());
+$('btnSkip').addEventListener('click', () => SFX.radioSkip());
+// ==================== END RADIO HUD ====================
 // ==================== VOICE SYNTHESIS (queue-managed) ====================
 const Voice = {
   enabled: typeof window !== 'undefined' && 'speechSynthesis' in window,
