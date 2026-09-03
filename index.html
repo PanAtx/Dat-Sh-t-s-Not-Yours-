@@ -336,7 +336,13 @@ window.addEventListener('resize', () => {
 });
 // ==================== PROCEDURAL AUDIO (Web Audio API) ====================
 const SFX = {
-  ctx: null, master: null, introBuf: null, introSrc: null,
+  ctx: null, master: null,
+  // ---- RADIO: endless random rotation of music/*.mp3, 2s pause between tracks ----
+  // The browser can't enumerate folders, so at game start we scan the folder two ways:
+  //  1) HTTP directory listing (autoindex — works on VS Code Live Server, python http.server,
+  //     Apache/nginx autoindex, Caddy: adding/removing .mp3 files "just works")
+  //  2) fallback: music/manifest.json (for hosts with no directory listing, e.g. GitHub Pages)
+  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false,
   ensure(){
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -392,28 +398,67 @@ const SFX = {
   playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
   playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
   playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); },
-  // --- Intro song: plays ONCE when the player starts the game (no loop) ---
-  playIntroSong(){
-    this.ensure();
-    if (!this.ctx) return;
-    const startBuf = (buf) => {
-      if (this.introSrc){ try { this.introSrc.stop(); } catch (e) {} } // never stack two copies
-      const src = this.ctx.createBufferSource();
-      src.buffer = buf;
-      src.connect(this.master);
-      this.introSrc = src;
-      src.onended = () => { if (this.introSrc === src) this.introSrc = null; };
-      src.start(0);
-    };
-    if (this.introBuf){ startBuf(this.introBuf); return; } // already decoded — instant
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', 'best_damn_hustle.mp3', true);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      try { this.ctx.decodeAudioData(xhr.response, (buf) => { this.introBuf = buf; startBuf(buf); }, () => {}); } catch (e) {}
-    };
-    xhr.onerror = () => {}; // missing/blocked file: stay silent, never break the game
-    xhr.send();
+  // --- RADIO STATION: scan music/ for .mp3 files, then play them one after another
+  //     in random order (shuffled bag — no back-to-back repeats until all have aired),
+  //     with a ~2 second pause between tracks. Runs forever, like a radio station. ---
+  async radioScan(){
+    const isMp3 = n => /\.mp3$/i.test(n);
+    // 1) Try the HTTP directory listing of music/ and pull out the .mp3 links
+    try {
+      const r = await fetch('music/', { cache: 'no-cache' });
+      if (r.ok){
+        const txt = await r.text();
+        const re = /href=["']([^"'\?#<>]+\.mp3)["']/gi;
+        const names = new Set(); let m;
+        while ((m = re.exec(txt))){
+          try { const n = decodeURIComponent(m[1].split('/').pop()); if (isMp3(n)) names.add(n); } catch (e) {}
+        }
+        if (names.size) return [...names];
+      }
+    } catch (e) {}
+    // 2) Fallback manifest (keep in sync when hosting without directory listings)
+    try {
+      const r = await fetch('music/manifest.json', { cache: 'no-cache' });
+      if (r.ok){
+        const j = await r.json();
+        const arr = Array.isArray(j) ? j : (j && Array.isArray(j.files) ? j.files : []);
+        const clean = arr.filter(isMp3);
+        if (clean.length) return clean;
+      }
+    } catch (e) {}
+    return [];
+  },
+  radioNext(){
+    if (!this.radioEl || !this.radioList.length) return;
+    if (!this.radioBag.length){
+      this.radioBag = this.radioList.slice();
+      for (let i = this.radioBag.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = this.radioBag[i]; this.radioBag[i] = this.radioBag[j]; this.radioBag[j] = t; }
+    }
+    const name = this.radioBag.pop();
+    this.radioEl.src = 'music/' + encodeURIComponent(name);
+    const p = this.radioEl.play();
+    if (p && p.catch) p.catch(() => {}); // blocked/failed track: the 'error' handler skips ahead
+  },
+  radioStart(){
+    if (this.radioEl) return; // already on air — restarting the game must not double-start
+    if (this.radioStarting) return;
+    this.radioStarting = true;
+    this.radioScan().then(list => {
+      this.radioStarting = false;
+      if (!list.length) return; // no songs found: stay silent, never break the game
+      this.radioList = list;
+      const el = this.radioEl = new Audio();
+      el.volume = 0.9;
+      el.addEventListener('ended', () => {           // song finished → 2s of air → next song
+        if (this.radioTimer) clearTimeout(this.radioTimer);
+        this.radioTimer = setTimeout(() => this.radioNext(), 2000);
+      });
+      el.addEventListener('error', () => {           // bad/missing file → skip it right away
+        if (this.radioTimer) clearTimeout(this.radioTimer);
+        this.radioTimer = setTimeout(() => this.radioNext(), 300);
+      });
+      this.radioNext();
+    }).catch(() => { this.radioStarting = false; });
   }
 };
 // ==================== VOICE SYNTHESIS (queue-managed) ====================
@@ -3125,7 +3170,7 @@ function startGame(){
   enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
-  SFX.playIntroSong(); // "Best Damn Hustle" — plays once at the start of the game
+  SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
   resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
   $('menu').classList.add('hidden');
   $('over').classList.add('hidden');
