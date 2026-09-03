@@ -24,7 +24,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .hudbox { text-shadow:0 0 8px rgba(46,224,144,.55), 2px 2px 0 rgba(0,0,0,.85); }
 #tl { position:absolute; top:16px; left:20px; font-size:20px; letter-spacing:2px; }
 #tl .sub { font-size:14px; color:#9fe8b8; margin-top:4px; }
-#route { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+#route { position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
   border:2px solid rgba(46,224,144,.7); background:rgba(4,18,10,.66); padding:6px 22px;
   font-size:16px; letter-spacing:3px; color:#bfe9ff; white-space:nowrap; }
 #tr { position:absolute; top:16px; right:20px; text-align:right; font-size:13px; letter-spacing:1px; }
@@ -32,7 +32,6 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .pip { display:inline-block; width:14px; height:14px; margin-left:6px; border:2px solid #ffb84d; transform:rotate(45deg); }
 .pip.on { background:#ff3b3b; box-shadow:0 0 10px #ff3b3b; }
 #carry { position:absolute; bottom:66px; left:50%; transform:translateX(-50%); font-size:18px; letter-spacing:2px; color:#7dff9e; white-space:nowrap; }
-#hint { position:absolute; bottom:34px; left:50%; transform:translateX(-50%); font-size:15px; letter-spacing:1px; color:#ffd66b; white-space:nowrap; }
 #flash { position:fixed; inset:0; z-index:9; pointer-events:none; background:rgba(255,40,40,.3); opacity:0; transition:opacity .5s; }
 .modal { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; padding:10px; background:rgba(3,7,10,.82); }
 .panel { border:3px solid #2ee090; background:linear-gradient(180deg, #07130d, #040a07);
@@ -157,7 +156,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   background:radial-gradient(circle at 45% 40%, rgba(140,255,190,.42), rgba(46,224,144,.2) 78%);
   box-shadow:0 0 30px rgba(46,224,144,.65), inset 0 0 20px rgba(140,255,190,.45); }
 /* ===== Car-stereo NOW PLAYING widget: LED-pixel title + fake spectrum bars + MUTE / SKIP ===== */
-#radio { position:fixed; top:94px; left:20px; z-index:10; pointer-events:none;
+#radio { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none;
   display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px;
   border:2px solid rgba(46,224,144,.42);
   background:radial-gradient(rgba(60,255,138,.12) 1px, transparent 1.5px) 0 0/4px 4px, linear-gradient(180deg, rgba(3,12,8,.88), rgba(3,12,8,.78));
@@ -203,7 +202,6 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div id="carry" class="hudbox">HANDS FREE</div>
-  <div id="hint" class="hudbox">-</div>
 </div>
 <div id="camfeed">
   <div class="rec"><span class="dot"></span>REC</div>
@@ -1974,14 +1972,6 @@ function updateBonuses(dt){
     }
   }
 }
-function nearestPickup(){
-  for (let i = 0; i < blocks.length; i++){
-    for (const bag of blocks[i].house.bags) if (bag.state === 'curb' && dist(bag.wx, bag.wy) < 2.4) return true;
-    const c = blocks[i].house.can;
-    if (c && (c.state === 'curb' || c.state === 'droppedEmpty') && dist(c.wx, c.wy) < 2.4) return true;
-  }
-  return false;
-}
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
   if (nearHopper()){
@@ -3238,16 +3228,6 @@ function updateHUD(){
   const pips = $('pips').children;
   for (let i = 0; i < 3; i++) pips[i].classList.toggle('on', i < complaints);
 }
-let lastHint = '';
-function updateHint(){
-  let h;
-  if (p.stunT > 0) h = 'OUCH! Recovering...';
-  else if (nearHopper() && carry === 'bag') h = '[SPACE] Toss the bag into the hopper!';
-  else if (nearHopper() && carry === 'canFull') h = '[SPACE] Dump the can into the hopper!';
-  else if (carry === 'none') h = nearestPickup() ? '[SPACE] Pick it up!' : 'W = RUN to the next house or the DSNY truck!';
-  else h = 'Get to the truck hopper!';
-  if (h !== lastHint){ lastHint = h; setTxt($('hint'), h); }
-}
 // ==================== GAME FLOW ====================
 function gameOver(){
   state = 'over';
@@ -3316,19 +3296,22 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 // The pad is rotated 45° CCW from the worker: DOWN = S+D, DOWN-RIGHT = D, RIGHT = W+D,
 // UP = W+A, and so on (center = stand still; keyboard / gamepad mapping is unchanged).
 // Bottom-right: translucent action button = SPACE (pick up trash / dump it into the truck).
-// Keyboard + gamepad input is mirrored onto this pad too, so the stick and the button
-// always show what is currently pressed from ANY input source.
+// The stick visually follows the finger (snapped to the 8 directions); when the input
+// comes from the keyboard or gamepad, the stick is mirrored onto that direction.
+// The action button shows its pressed state from ANY input source.
 const vt = { left:false, right:false, fwd:false, back:false, act:false }; // touch-pad state
 const joy = $('joy'), joyStick = $('joy-stick'), actBtn = $('actbtn');
-let joyPid = null, lastStickT = '';
+let joyPid = null, lastStickT = '', joyVisX = 0, joyVisY = 0; // joyVis = the stick's visual (finger) direction
 function joyDirFromPoint(e){
   const r = joy.getBoundingClientRect();
   const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-  if (Math.hypot(dx, dy) < r.width * 0.15){ vt.fwd = vt.back = vt.left = vt.right = false; return; } // dead zone: stand still
-  // The pad is rotated 45° COUNTER-CLOCKWISE from the worker's directions, so each push
-  // behaves exactly like the keyboard combo one step CCW: DOWN = S+D, DOWN-RIGHT = D,
-  // RIGHT = W+D, UP = W+A, and so on around all 8 directions (keyboard / gamepad unchanged).
-  const snapped = Math.round((Math.atan2(dy, dx) - Math.PI / 4) / (Math.PI / 4)) * (Math.PI / 4);
+  if (Math.hypot(dx, dy) < r.width * 0.15){ vt.fwd = vt.back = vt.left = vt.right = false; joyVisX = 0; joyVisY = 0; return; } // dead zone: stand still
+  // Stick shows WHERE the finger is (nearest of the 8 directions)...
+  const raw = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  joyVisX = Math.round(Math.cos(raw)); joyVisY = Math.round(Math.sin(raw));
+  // ...while the worker moves the direction one step COUNTER-CLOCKWISE from that push
+  // (DOWN = S+D, DOWN-RIGHT = D, RIGHT = W+D, UP = W+A, and so on; keyboard / gamepad unchanged).
+  const snapped = raw - Math.PI / 4;
   const vx = Math.round(Math.cos(snapped)), vy = Math.round(Math.sin(snapped)); // each in {-1, 0, 1}
   vt.fwd = vy < 0; vt.back = vy > 0; vt.left = vx < 0; vt.right = vx > 0;
 }
@@ -3343,6 +3326,7 @@ joy.addEventListener('pointermove', e => { if (e.pointerId === joyPid) joyDirFro
 function joyRelease(e){
   if (e.pointerId !== joyPid) return;
   joyPid = null;
+  joyVisX = 0; joyVisY = 0;
   vt.fwd = vt.back = vt.left = vt.right = false;
 }
 joy.addEventListener('pointerup', joyRelease);
@@ -3355,12 +3339,17 @@ actBtn.addEventListener('pointerdown', e => {
 });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => actBtn.addEventListener(ev, () => { vt.act = false; }));
 [joy, actBtn].forEach(el => el.addEventListener('contextmenu', e => e.preventDefault()));
-// Mirrors keyboard / gamepad / touch state onto the on-screen pad (called every frame).
+// Stick: while a finger is on the pad it shows the finger's own 8-way position;
+// otherwise it mirrors the keyboard / gamepad direction (touch acts as one of those sources).
 function updateVirtualPad(){
-  let ax = ((keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) ? 1 : 0)
-         - ((keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left)  ? 1 : 0);
-  let ay = ((keys['KeyS'] || keys['ArrowDown']  || gp.back  || vt.back)  ? 1 : 0)
-         - ((keys['KeyW'] || keys['ArrowUp']    || gp.fwd   || vt.fwd)   ? 1 : 0);
+  let ax, ay;
+  if (joyPid !== null){ ax = joyVisX; ay = joyVisY; }
+  else {
+    ax = ((keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) ? 1 : 0)
+       - ((keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left)  ? 1 : 0);
+    ay = ((keys['KeyS'] || keys['ArrowDown']  || gp.back  || vt.back)  ? 1 : 0)
+       - ((keys['KeyW'] || keys['ArrowUp']    || gp.fwd   || vt.fwd)   ? 1 : 0);
+  }
   const m = Math.hypot(ax, ay);
   const travel = (joy.clientWidth - joyStick.clientWidth) / 2;
   const t = m > 0
@@ -3399,7 +3388,6 @@ function loop(now){
     collideLandedCans();
     collideCreatures();
     updateHUD();
-    updateHint();
   } else if (state === 'menu'){
     // live world drift behind the start menu
     p.wx += 3 * dt;
