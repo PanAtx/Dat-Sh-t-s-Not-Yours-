@@ -407,7 +407,7 @@ const SFX = {
     };
     if (this.introBuf){ startBuf(this.introBuf); return; } // already decoded — instant
     const xhr = new XMLHttpRequest();
-    xhr.open('GET', 'Gold_in_the_Hopper.mp3', true);
+    xhr.open('GET', 'best_damn_hustle.mp3', true);
     xhr.responseType = 'arraybuffer';
     xhr.onload = () => {
       try { this.ctx.decodeAudioData(xhr.response, (buf) => { this.introBuf = buf; startBuf(buf); }, () => {}); } catch (e) {}
@@ -3125,7 +3125,7 @@ function startGame(){
   enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
-  SFX.playIntroSong(); // "Gold in the Hopper" — plays once at the start of the game
+  SFX.playIntroSong(); // "Best Damn Hustle" — plays once at the start of the game
   resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
   $('menu').classList.add('hidden');
   $('over').classList.add('hidden');
