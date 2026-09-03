@@ -694,9 +694,28 @@ function buildTruck(){
   // ===== FBX 3D model (preferred) =====
   if (FBX_TPL.truck){
     const g = fbxInstance(FBX_TPL.truck, TRUCK_SCALE);
-    const bb = new THREE.Box3().setFromObject(g);
-    const boxL = (bb.max.x - bb.min.x) / 2;
-    const boxW = (bb.max.y - bb.min.y) / 2;
+    // 3D-AWARE collision box, measured from the truck's ACTUAL rendered geometry
+    // (world-space vertices), not from the loose outer bounding box:
+    //  - boxL: full x-extent (front bumper -> rear scoop)
+    //  - boxW: the solid BODY's lateral reach at street height (z < 1.6). The cab
+    //    mirrors overhang to ~2.7 but float at z 1.5-2.5; using the outer box put an
+    //    invisible collision wall ~0.7u out in the road, stopping the worker and the
+    //    curb-side cars long before they reached the truck's real 3D side.
+    //    Measured from truck.fbx: street-height body reach ≈ 2.25 (outer box ≈ 2.93).
+    let tMaxX = 0, tMinX = 0, tStreet = 0;
+    const _v = new THREE.Vector3();
+    g.traverse(o => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+      const pos = o.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++){
+        _v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        if (_v.x > tMaxX) tMaxX = _v.x;
+        if (_v.x < tMinX) tMinX = _v.x;
+        if (_v.z < 1.6){ const ay = Math.abs(_v.y); if (ay > tStreet) tStreet = ay; }
+      }
+    });
+    const boxL = Math.max(tMaxX, Math.abs(tMinX), 4.0);
+    const boxW = tStreet > 0.5 ? tStreet : 2.9;
     // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
     // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
     const hopperOff = -boxL + 1.6;   // a bit further in from the rear opening (avoids clipping the back)
@@ -734,7 +753,9 @@ function buildTruck(){
   }
   g.scale.set(1.69, 1.69, 1.69); // 30% larger, matching the FBX truck size increase
   worldGroup.add(g);
-  return { g: g, bladePush: (p) => { blade.position.x = -4.7 + p * 1.4; }, boxL: 6.76, boxW: 3.211, hopperOff: -7.267, hopperY: 0, hopperZ: 2.6, cabOff: 10.14, wx: -28, hidden: 0 };
+  // body's street-height half-width ≈ 1.9 (BX(9.8, 3.8, 2.2)); mirror the FBX-model
+  // collision width (2.25) so the fallback behaves identically
+  return { g: g, bladePush: (p) => { blade.position.x = -4.7 + p * 1.4; }, boxL: 6.76, boxW: 2.25, hopperOff: -7.267, hopperY: 0, hopperZ: 2.6, cabOff: 10.14, wx: -28, hidden: 0 };
 }
 // ==================== HOPPER TRASH PILE & CYCLE ====================
 // The truck is heavy: it never bounces when loaded. Instead, each deposited bag/can
@@ -1977,7 +1998,7 @@ function updatePlayer(dt){
   if (truck && truck.hidden <= 0){
     const tCx = truck.wx, tCy = -4.5;
     const tHalfL = truck.boxL, tHalfW = truck.boxW;
-    const WR = 0.5; // worker collision radius
+    const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
     const cx = Math.min(Math.max(p.wx, tCx - tHalfL), tCx + tHalfL);
     const cy = Math.min(Math.max(p.wy, tCy - tHalfW), tCy + tHalfW);
     const dx = p.wx - cx, dy = p.wy - cy;
@@ -2527,7 +2548,7 @@ function updateCreatures(dt){
             // Steer toward our assigned passing lane if not yet there
             if (c.wy < -1.0 && c._naturalLane === 0.5){
               // Curb-side bike — steer up to sidewalk
-              const toCurb = Math.min(passLane, -1.9); // stop at truck's inner edge
+              const toCurb = Math.min(passLane, -2.0); // stop at truck's 3D inner edge
               c.wy += Math.sign(toCurb - c.wy) * Math.min(Math.abs(toCurb - c.wy), 3 * dt);
             } else if (c.wy > -4.0 && passLane === -8.5){
               // Outer-road bike — steer left to outer lane
@@ -2539,7 +2560,7 @@ function updateCreatures(dt){
             // Truck rear (hopper end) is at truck.wx - boxL; cab is at truck.wx + boxL
             // Require BOTH X and Y clearance to consider ourselves alongside the truck
             const passedHopperX = c.wx >= truck.wx - truck.boxL;  // past hopper in X
-            const inSafeLane = (passLane > -2.0) ? c.wy > -1.9 : c.wy < -6.4;
+            const inSafeLane = (passLane > -2.0) ? c.wy > -1.8 : c.wy < -6.4;
             const passedHopper  = passedHopperX && inSafeLane;      // AND clear of truck's Y-path
             const pastCab      = c.wx > truck.wx + (truck.cabOff || 6.0);           // clear of front cab
 
@@ -2710,8 +2731,8 @@ function updateCreatures(dt){
 
         // === CRITICAL: Direct hopper proximity check — prevents driving into the truck ===
         // If car's Y overlaps truck's body AND car is approaching from behind, must brake/steer
-        const tYMin = -4.5 - truck.boxW; // ≈ -7.0 (truck outer edge, measured)
-        const tYMax = -4.5 + truck.boxW; // ≈ -2.0 (truck inner edge, measured)
+        const tYMin = -4.5 - truck.boxW; // ≈ -6.75 (truck 3D body outer edge)
+        const tYMax = -4.5 + truck.boxW; // ≈ -2.25 (truck 3D body inner edge)
         const carBoxYMin = c.wy - c.boxW;
         const carBoxYMax = c.wy + c.boxW;
         const overlapsTruckY = carBoxYMax > tYMin && carBoxYMin < tYMax;
@@ -2732,14 +2753,15 @@ function updateCreatures(dt){
           const distToObstacle = obstacle.dist;
 
           // === TRAFFIC FLOW: pass the truck on the side you're already on ===
-          // Measured truck extent: wy ≈ -7.02 .. -1.98. Both sides have a pass lane:
+          // 3D body extent (street height): wy ≈ -6.75 .. -2.25 (truck center -4.5 ± bodyW 2.25).
+          // Both sides have a pass lane:
           //  - road side (wy < -4.5): OUTER lane -9.0 — plenty of room
-          //  - curb side (wy > -4.5): CURB lane -0.6 — car hugs the curb (0.19u clear
-          //    of the truck body at the 5%-smaller 1.19 half-width)
+          //  - curb side (wy > -4.5): CURB lane -0.9 — car hugs the curb (0.16u clear
+          //    of the truck's real 3D side at the 5%-smaller 1.19 half-width)
           // Passing on YOUR side means no car ever crosses the truck's lane, and both
           // sides flow instead of queueing behind a single pass lane.
           const OUTER_PASS_LANE = -9.0;
-          const CURB_PASS_LANE = -0.6;
+          const CURB_PASS_LANE = -0.9;
           const inPassLane = c.wy <= -8.3 || c.wy >= -1.0; // fully clear of the truck's Y
           const sideLane = c.wy > -4.5 ? CURB_PASS_LANE : OUTER_PASS_LANE; // pass on my side
 
@@ -2899,7 +2921,7 @@ function updateCreatures(dt){
           const isTruckObstacle = obstacleM.isTruck;
           const distToObstacleM = obstacleM.dist;
           // Pass on MY side: curb lane if I'm on the curb half, outer road otherwise.
-          const sideLaneM = c.wy > -4.5 ? -0.6 : -9.0;
+          const sideLaneM = c.wy > -4.5 ? -0.9 : -9.0;
           const inPassLaneM = c.wy <= -7.2 || c.wy >= -1.8; // clear of the truck's Y on either side
 
           const inTruckYZoneM = overlapsMotoTruckY && nearHopperSideM;
