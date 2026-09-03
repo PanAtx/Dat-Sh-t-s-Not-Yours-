@@ -3256,8 +3256,9 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 // ==================== VIRTUAL PAD (MOBILE) ====================
 // Bottom-left: 8-way joystick — the large translucent circle is the travel radius,
-// the small translucent circle is the stick; the finger snaps to one of 8 directions
-// (N, NE, E, SE, S, SW, W, NW) and center = stand still.
+// the small translucent circle is the stick; the finger snaps to one of 8 directions.
+// The pad is rotated 45° CCW from the worker: DOWN = S+D, DOWN-RIGHT = D, RIGHT = W+D,
+// UP = W+A, and so on (center = stand still; keyboard / gamepad mapping is unchanged).
 // Bottom-right: translucent action button = SPACE (pick up trash / dump it into the truck).
 // Keyboard + gamepad input is mirrored onto this pad too, so the stick and the button
 // always show what is currently pressed from ANY input source.
@@ -3268,7 +3269,10 @@ function joyDirFromPoint(e){
   const r = joy.getBoundingClientRect();
   const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
   if (Math.hypot(dx, dy) < r.width * 0.15){ vt.fwd = vt.back = vt.left = vt.right = false; return; } // dead zone: stand still
-  const snapped = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4); // nearest of the 8 directions
+  // The pad is rotated 45° COUNTER-CLOCKWISE from the worker's directions, so each push
+  // behaves exactly like the keyboard combo one step CCW: DOWN = S+D, DOWN-RIGHT = D,
+  // RIGHT = W+D, UP = W+A, and so on around all 8 directions (keyboard / gamepad unchanged).
+  const snapped = Math.round((Math.atan2(dy, dx) - Math.PI / 4) / (Math.PI / 4)) * (Math.PI / 4);
   const vx = Math.round(Math.cos(snapped)), vy = Math.round(Math.sin(snapped)); // each in {-1, 0, 1}
   vt.fwd = vy < 0; vt.back = vy > 0; vt.left = vx < 0; vt.right = vx > 0;
 }
