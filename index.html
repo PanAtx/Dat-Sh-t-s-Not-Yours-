@@ -1646,7 +1646,9 @@ function makeBlockContents(b, baseX){
     dash.position.set(2 + i * 4, -4.5, 0.31);
     b.group.add(dash);
   }
-  const joint = new THREE.Mesh(new THREE.BoxGeometry(0.1, 7.6, 0.03), M(0x79818a));
+  // sidewalk expansion joint — must stay ON the concrete (wy 0.5..5.0);
+  // the old 7.6u length spilled out into the street AND the grass
+  const joint = new THREE.Mesh(new THREE.BoxGeometry(0.1, 4.4, 0.03), M(0x79818a));
   joint.position.set(0.2, 2.75, 0.31);
   b.group.add(joint);
   // static hazards
@@ -1657,8 +1659,8 @@ function makeBlockContents(b, baseX){
   else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
   // loose food wrappers on the street next to the sidewalk (litter dressing)
   if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
-  // random dog shit piles on the sidewalk (kept RARE)
-  if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.5, 5.5));
+  // random dog shit piles on the sidewalk (kept RARE; on the concrete only)
+  if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.2, 4.8));
   // sidewalk trees
   if (Math.random() < 0.5){
     const t = makeTree();
@@ -1678,16 +1680,17 @@ function spawnWorld(){
   }
   const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
-  // pigeon flock: 1-3 birds (random) clustered on ONE shared seed spot; each scatters its own way
-  {
+  // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
+  // shared seed spot; every bird scatters on its own random heading when shooed
+  for (let fI = 0; fI < 2; fI++){
     const flock = 1 + ((Math.random() * 3) | 0);
-    const fpx = R(-45, 55), fpy = R(2, 5.5);
+    const fpx = R(-45, 55), fpy = R(1.5, 4.4);
     const fsd = makeSeedScatter();
     fsd.position.set(fpx, fpy, GZ);
     dynamicGroup.add(fsd);
     for (let bI = 0; bI < flock; bI++){
       const c = addCreature('pigeon');
-      c.wx = fpx + R(-0.55, 0.55); c.wy = fpy + R(-0.45, 0.45);
+      c.wx = fpx + R(-0.55, 0.55); c.wy = fpy + R(-0.4, 0.4);
       c.g.position.set(c.wx, c.wy, GZ);
     }
   }
@@ -2722,9 +2725,21 @@ function updateCreatures(dt){
           c.g.rotation.y = 0.5; // nose-down glide
           const fl = Math.sin(performance.now() * 0.045) * 0.9;
           c.wingL.rotation.x = -fl; c.wingR.rotation.x = fl;
-          if (c.flyT <= 0){ c.g.visible = false; } // gone — the seed scatter stays behind
+          if (c.flyT <= 0){
+            c.g.visible = false;
+            c.returnT = R(5, 10); // gone for a while — the bird comes back to peck again
+          }
         } else if (c.g.visible === false){
-          // already gone, nothing to do
+          // gone: come back and land somewhere on the sidewalk, so the birds keep
+          // being around all shift instead of disappearing forever
+          if (state === 'play'){
+            c.returnT = (c.returnT || 5) - dt;
+            if (c.returnT <= 0){
+              c.g.visible = true;
+              c.wx = R(-45, 60); c.wy = R(1.2, 4.8); // re-land on the concrete
+              c.gz = 0; c.peck = R(0, 6.28);
+            }
+          }
         } else if (state === 'play' && Math.abs(tx) < 3.2 && Math.abs(c.wy - p.wy) < 2.5){
           // Worker gets close → take flight, flapping, with a yell
           c.flyT = 1.1; c.gz = 0.5;
