@@ -336,7 +336,7 @@ window.addEventListener('resize', () => {
 });
 // ==================== PROCEDURAL AUDIO (Web Audio API) ====================
 const SFX = {
-  ctx: null, master: null,
+  ctx: null, master: null, introBuf: null, introSrc: null,
   ensure(){
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -391,7 +391,30 @@ const SFX = {
   playComplaintSound(){ this.ensure(); this.tone('sawtooth', 210, 185, 0.22, 0.35); this.tone('sawtooth', 210, 185, 0.22, 0.35, 0.3); },
   playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
   playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
-  playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); }
+  playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); },
+  // --- Intro song: plays ONCE when the player starts the game (no loop) ---
+  playIntroSong(){
+    this.ensure();
+    if (!this.ctx) return;
+    const startBuf = (buf) => {
+      if (this.introSrc){ try { this.introSrc.stop(); } catch (e) {} } // never stack two copies
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.master);
+      this.introSrc = src;
+      src.onended = () => { if (this.introSrc === src) this.introSrc = null; };
+      src.start(0);
+    };
+    if (this.introBuf){ startBuf(this.introBuf); return; } // already decoded — instant
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'Gold_in_the_Hopper.mp3', true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () => {
+      try { this.ctx.decodeAudioData(xhr.response, (buf) => { this.introBuf = buf; startBuf(buf); }, () => {}); } catch (e) {}
+    };
+    xhr.onerror = () => {}; // missing/blocked file: stay silent, never break the game
+    xhr.send();
+  }
 };
 // ==================== VOICE SYNTHESIS (queue-managed) ====================
 const Voice = {
@@ -3102,6 +3125,7 @@ function startGame(){
   enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
+  SFX.playIntroSong(); // "Gold in the Hopper" — plays once at the start of the game
   resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
   $('menu').classList.add('hidden');
   $('over').classList.add('hidden');
