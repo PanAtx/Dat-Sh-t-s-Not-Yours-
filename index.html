@@ -1597,6 +1597,7 @@ function addCreature(type){
   dynamicGroup.add(c.g);
   if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
   creatures.push(c);
+  return c; // callers (e.g. the pigeon-flock spawner) reposition the creature right after
 }
 // ==================== WORLD SPAWNING & BLOCK RECYCLING ====================
 function makeCurbBag(wx, wy, house){
