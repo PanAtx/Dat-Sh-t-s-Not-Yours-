@@ -19,14 +19,15 @@ let pass = true;
 const check = (n, c, e) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  [' + e + ']')); if (!c) pass = false; };
 
 // radio on air + unmuted -> voice ducks, bubble at the speaker's coords
-Voice.say('scram birds!', 1, 1, 1, 3.5, 2);
+Voice.say('scram birds!', 1, 1, 3.5, 2);
 check('line spoken', spokes.length === 1);
 check('voice DUCKS under playing radio (0.42)', spokes.length === 1 && spokes[0].volume === 0.42, JSON.stringify(spokes.map(x => x.volume)));
 check('bubble spawned at speaker coords', bubbles.length === 1 && bubbles[0][0] === 'scram birds!' && bubbles[0][1] === 3.5 && bubbles[0][2] === 2, JSON.stringify(bubbles));
+check('utterance rate is sane (1.08, not a coord)', spokes[0].rate === 1.08, String(spokes[0].rate));
 
 // radio muted -> voice back to full volume
 global.SFX.radioMuted = true;
-Voice.say('dog shit!', 1, 1, 1, 1, 1);
+Voice.say('dog shit!', 1, 1, 1, 1);
 setTimeout(() => {
   check('muted radio -> voice at FULL volume (0.95)', spokes.length === 2 && spokes[1].volume === 0.95, JSON.stringify(spokes.map(x => x.volume)));
   // legacy 3-arg call (no speaker coords) -> no bubble

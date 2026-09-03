@@ -561,7 +561,8 @@ $('btnSkip').addEventListener('click', () => SFX.radioSkip());
 const Voice = {
   enabled: typeof window !== 'undefined' && 'speechSynthesis' in window,
   busy: false, queue: [], last: {},
-  say(text, gap, pitch, rate, bx, by){
+  // NOTE: (text, gap, pitch, bx, by) — speaker coords are 4th/5th; every call site relies on this order
+  say(text, gap, pitch, bx, by){
     if (!this.enabled) return;
     const now = performance.now();
     gap = gap || 1.4;
@@ -575,15 +576,16 @@ const Voice = {
       this.queue.length = 0;
       try { window.speechSynthesis.cancel(); } catch (e) {}
     }
-    this.queue.push({ text: text, pitch: pitch || 0.8, rate: rate || 1.08, bx: bx, by: by });
-    if (interrupt) setTimeout(() => this.pump(), 30); // small delay to dodge the Chrome cancel/speak race
+    this.queue.push({ text: text, pitch: pitch || 0.8, bx: bx, by: by });
+    if (interrupt) setTimeout(() => this.pump(), 60); // delay dodges the Chrome cancel/speak race that can double-play a line
     else this.pump();
   },
   pump(){
     if (this.busy || !this.queue.length || !this.enabled) return;
     const item = this.queue.shift();
     const u = new SpeechSynthesisUtterance(item.text);
-    u.pitch = item.pitch; u.rate = item.rate;
+    u.pitch = item.pitch;
+    u.rate = 1.08; // fixed, sane rate — never trust caller-supplied values (Chrome stutters/repeats at bad rates)
     // Duck the synthesized voice under the radio when the station is on air and NOT muted;
     // with the radio muted (or off) the voice plays at full volume.
     u.volume = (SFX.radioEl && !SFX.radioEl.paused && !SFX.radioMuted) ? 0.42 : 0.95;
@@ -1291,6 +1293,15 @@ function makePerson(o){
   g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
   return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
 }
+// Seed scatter pile pigeons peck at (one pile per flock)
+function makeSeedScatter(){
+  const sg = new THREE.Group();
+  for (let sI = 0; sI < 12; sI++){
+    const sd = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.02), M(0xcfa84a));
+    sd.position.set(R(-0.5, 0.5), R(-0.4, 0.4), 0.012); sg.add(sd);
+  }
+  return sg;
+}
 function makePigeon(){
   const g = new THREE.Group();
   const grey = M(0x6b7280), dark = M(0x454b56), neck = M(0x2e6e5a), beakM = M(0xc97a28), eyeM = M(0x14100e);
@@ -1554,17 +1565,8 @@ function addCreature(type){
     case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
     case 'raccoon': c.wy = R(1, 7); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, 7.5); c.data = makeRaccoon(); break;
     case 'squirrel': c.wy = 6.5; c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
-    case 'pigeon':{
-      c.wy = R(1.5, 5); c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0;
-      c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR;
-      const sg = new THREE.Group(); // seed scatter the pigeon pecks at
-      for (let sI = 0; sI < 10; sI++){
-        const sd = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.02), M(0xcfa84a));
-        sd.position.set(R(-0.5, 0.5), R(-0.4, 0.4), 0.012); sg.add(sd);
-      }
-      sg.position.set(c.wx + R(-0.6, 0.6), c.wy + R(-0.4, 0.4), GZ);
-      c.seed = sg; break;
-    }
+    case 'pigeon': c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0; c.fleeAng = 0;
+                   c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR; break;
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.35; c.boxL = 0.35; c.data = makeTricycle(); break;
     case 'dogwalker': c.wy = R(1.0, 4.0); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
@@ -1654,8 +1656,8 @@ function makeBlockContents(b, baseX){
   else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
   // loose food wrappers on the street next to the sidewalk (litter dressing)
   if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
-  // random dog shit piles on the sidewalk
-  if (Math.random() < 0.42) addDogShit(b, baseX + R(1, 6), R(1.5, 5.5));
+  // random dog shit piles on the sidewalk (kept RARE)
+  if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.5, 5.5));
   // sidewalk trees
   if (Math.random() < 0.5){
     const t = makeTree();
@@ -1673,8 +1675,21 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, pigeon: 3, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
+  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
+  // pigeon flock: 1-3 birds (random) clustered on ONE shared seed spot; each scatters its own way
+  {
+    const flock = 1 + ((Math.random() * 3) | 0);
+    const fpx = R(-45, 55), fpy = R(2, 5.5);
+    const fsd = makeSeedScatter();
+    fsd.position.set(fpx, fpy, GZ);
+    dynamicGroup.add(fsd);
+    for (let bI = 0; bI < flock; bI++){
+      const c = addCreature('pigeon');
+      c.wx = fpx + R(-0.55, 0.55); c.wy = fpy + R(-0.45, 0.45);
+      c.g.position.set(c.wx, c.wy, GZ);
+    }
+  }
 }
 function recycleBlock(b){
   const h = b.house;
@@ -2698,9 +2713,10 @@ function updateCreatures(dt){
       }
       case 'pigeon':{
         if (c.flyT > 0){
-          // Scared off: flapping wings, climbing away from the worker into the sky
+          // Scared off: flapping wings, climbing into the sky on this bird's OWN escape heading
           c.flyT -= dt;
-          c.wx += (c.wx >= p.wx ? 1 : -1) * 7 * dt;
+          c.wx += Math.cos(c.fleeAng) * 7 * dt;
+          c.wy += Math.sin(c.fleeAng) * 7 * dt;
           c.gz = Math.min(9, c.gz + 9 * dt);
           c.g.rotation.y = 0.5; // nose-down glide
           const fl = Math.sin(performance.now() * 0.045) * 0.9;
@@ -2711,6 +2727,7 @@ function updateCreatures(dt){
         } else if (state === 'play' && Math.abs(tx) < 3.2 && Math.abs(c.wy - p.wy) < 2.5){
           // Worker gets close → take flight, flapping, with a yell
           c.flyT = 1.1; c.gz = 0.5;
+          c.fleeAng = Math.atan2(c.wy - p.wy, c.wx - p.wx) + R(-1.8, 1.8); // every bird picks a DIFFERENT scatter direction
           Voice.say('scram birds!', 2.2, 0.95, p.wx, p.wy);
         } else {
           // Pecking at seed on the sidewalk: hop-bob + slight body sway
@@ -3362,8 +3379,9 @@ let speechBubbles = [];
 const _bubVec = new THREE.Vector3();
 function worldToScreen(wx, wy, wz){
   if (!camera || !worldGroup) return null;
+  if (typeof wx !== 'number' || typeof wy !== 'number' || !isFinite(wx) || !isFinite(wy)) return null;
   _bubVec.set(wx, wy, wz).applyMatrix4(worldGroup.matrixWorld).project(camera);
-  if (_bubVec.z > 1 || _bubVec.z < -1) return null;
+  if (!isFinite(_bubVec.x) || !isFinite(_bubVec.y) || _bubVec.z > 1 || _bubVec.z < -1) return null;
   return { x: (_bubVec.x * 0.5 + 0.5) * innerWidth, y: (-_bubVec.y * 0.5 + 0.5) * innerHeight };
 }
 function spawnBubble(text, wx, wy){
@@ -3379,8 +3397,9 @@ function updateBubbles(dt){
     b.life -= dt;
     if (b.life <= 0){ b.el.remove(); speechBubbles.splice(i, 1); continue; }
     b.el.style.opacity = b.life > (b.max - 0.3) ? (b.max - b.life) / 0.3 : Math.min(1, b.life / 0.45);
-    const s = worldToScreen(b.wx, b.wy, GZ + 2.35); // just above the speaker's head
-    if (s){ b.el.style.left = s.x + 'px'; b.el.style.top = s.y + 'px'; }
+    const s = worldToScreen(b.wx, b.wy, GZ + 2.35) || { x: innerWidth / 2, y: innerHeight * 0.3 }; // never let a bubble sit off-screen
+    b.el.style.left = s.x + 'px';
+    b.el.style.top = s.y + 'px';
   }
 }
 // ==================== GAME FLOW ====================

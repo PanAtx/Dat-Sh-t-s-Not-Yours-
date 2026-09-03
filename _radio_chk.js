@@ -34,7 +34,11 @@ console.log('python-listing ->', JSON.stringify(l1, null, 0));
 console.log('live-server    ->', JSON.stringify(l2, null, 0));
 const manifest = JSON.parse(fs.readFileSync('music/manifest.json', 'utf8'));
 console.log('manifest       ->', manifest.length + ' tracks: ' + manifest.join(' | '));
+const files = fs.readdirSync('music').filter(n => isMp3(n));
 const ok = l1.length === 3 && l1.includes('Bensonhurst Scavenger Hunt.mp3') && l1.includes('Brooklyn D S N Y.mp3')
-       && l2.length === 3 && manifest.length === 7 && manifest.every(isMp3);
+       && l2.length === 3
+       && manifest.length === files.length                       // manifest lists every song in the folder
+       && manifest.every(n => files.includes(n))                 // ...and no stale/missing entries
+       && manifest.every(isMp3);
 console.log('SCAN PARSING OK:', ok);
 process.exit(ok ? 0 : 1);
