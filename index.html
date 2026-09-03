@@ -76,7 +76,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 }
 .menu-bottom button:hover { animation:none; color:#fff; background:rgba(92,240,173,.8); border-color:rgba(92,240,173,.95); box-shadow:0 0 32px rgba(46,224,144,.8), 0 4px 20px rgba(0,0,0,.4); }
 /* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
-#camfeed { position:fixed; right:18px; bottom:16px; z-index:11; pointer-events:none;
+#camfeed { position:fixed; right:18px; bottom:calc(var(--act) + 26px); z-index:11; pointer-events:none;
   font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
   text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.7); }
 #camfeed .rec { color:#ff3b3b; font-size:14px; text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 10px rgba(255,59,59,.85);
@@ -125,6 +125,37 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   84% { transform:translateX(-50%) scale(1.06) rotate(0); opacity:1; }
   100% { transform:translateX(-50%) scale(1) rotate(0); opacity:0; }
 }
+/* ===== Mobile virtual pad: 8-way joystick (bottom-left) + action button (bottom-right) =====
+   Large translucent circle = travel radius, small translucent circle = the stick.
+   Keyboard / gamepad input is mirrored onto this pad, so it also shows what's pressed on desktop. */
+:root { --joy: min(36vh, 24vw, 200px); --act: min(24vh, 16vw, 132px); }
+#vpad { position:fixed; inset:0; z-index:12; pointer-events:none; display:none; }
+#vpad.on { display:block; }
+#joy { position:absolute; left:max(16px, 3vw);
+  bottom:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  width:var(--joy); height:var(--joy); border-radius:50%;
+  border:2px solid rgba(120,215,255,.35);
+  background:radial-gradient(circle at 50% 42%, rgba(140,220,255,.10), rgba(140,220,255,.03) 72%);
+  box-shadow:inset 0 0 22px rgba(90,190,255,.16), 0 4px 18px rgba(0,0,0,.35);
+  pointer-events:auto; touch-action:none; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+#joy-stick { position:absolute; left:50%; top:50%; width:46%; height:46%;
+  transform:translate(-50%,-50%); border-radius:50%;
+  border:2px solid rgba(150,225,255,.55);
+  background:radial-gradient(circle at 42% 38%, rgba(190,240,255,.30), rgba(120,200,255,.12) 78%);
+  box-shadow:0 0 16px rgba(110,200,255,.4), inset 0 0 10px rgba(150,225,255,.35); }
+#actbtn { position:absolute; right:max(16px, 3vw);
+  bottom:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  width:var(--act); height:var(--act); border-radius:50%;
+  border:2px solid rgba(46,224,144,.5);
+  background:radial-gradient(circle at 45% 40%, rgba(46,224,144,.22), rgba(46,224,144,.06) 78%);
+  box-shadow:0 0 18px rgba(46,224,144,.25), 0 4px 18px rgba(0,0,0,.35), inset 0 0 14px rgba(46,224,144,.2);
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:auto; touch-action:none; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+#actbtn span { font-family:"Courier New",monospace; font-size:calc(var(--act) * .19); letter-spacing:2px;
+  color:rgba(210,255,225,.8); text-shadow:0 0 8px rgba(46,224,144,.85); pointer-events:none; }
+#actbtn.pressed { border-color:rgba(140,255,190,.95);
+  background:radial-gradient(circle at 45% 40%, rgba(140,255,190,.42), rgba(46,224,144,.2) 78%);
+  box-shadow:0 0 30px rgba(46,224,144,.65), inset 0 0 20px rgba(140,255,190,.45); }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
@@ -146,6 +177,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="cam">FIAT CAM 01</div>
   <div class="ts" id="camdate">--/--/----</div>
   <div class="ts" id="camtime">--:--:--</div>
+</div>
+<div id="vpad">
+  <div id="joy"><div id="joy-stick"></div></div>
+  <div id="actbtn"><span>ACT</span></div>
 </div>
 <div class="rotate-overlay">
   <div class="icon">&#128241;</div>
@@ -2032,13 +2067,13 @@ function collideCreatures(){
 }
 // ==================== PLAYER UPDATE ====================
 function updatePlayer(dt){
-  // 4-way, 100% player-driven movement (keyboard OR gamepad):
-  // W/Up = forward, S/Down = back along the route, A/D = strafe; no input = stands still
-  let fwd  = !!(keys['KeyW'] || keys['ArrowUp']   || gp.fwd);
-  let back = !!(keys['KeyS'] || keys['ArrowDown'] || gp.back);
+  // 8-way, 100% player-driven movement (keyboard OR gamepad OR touch pad):
+  // W/Up = forward, S/Down = back along the route, A/D = strafe, combos = diagonals; no input = stands still
+  let fwd  = !!(keys['KeyW'] || keys['ArrowUp']   || gp.fwd  || vt.fwd);
+  let back = !!(keys['KeyS'] || keys['ArrowDown'] || gp.back || vt.back);
   let lat = 0;
-  if (keys['KeyA'] || keys['ArrowLeft']  || gp.left) lat = 1;
-  if (keys['KeyD'] || keys['ArrowRight'] || gp.right) lat = -1;
+  if (keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left) lat = 1;
+  if (keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) lat = -1;
   if (p.stunT > 0){
     p.stunT -= dt;
     fwd = false; back = false; lat = 0;
@@ -2057,8 +2092,9 @@ function updatePlayer(dt){
    }
   const dir = fwd ? 1 : (back ? -1 : 0);
   const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
-  if (dir !== 0) p.wx += dir * speed * dt;
-  p.wy = clamp(p.wy + lat * 5.5 * dt, -9.4, 4.5);
+  const diagF = (dir !== 0 && lat !== 0) ? 0.82 : 1; // 8-way diagonals don't outpace straight-line runs
+  if (dir !== 0) p.wx += dir * speed * diagF * dt;
+  p.wy = clamp(p.wy + lat * 5.5 * diagF * dt, -9.4, 4.5);
   // === Truck body collision: worker can't clip through the truck, but can walk freely
   // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
   // box (rounded corners), so rounding the cab or the hopper never teleports the worker
@@ -3165,6 +3201,9 @@ function gameOver(){
   setTxt($('finalscore'), pad(score));
   setTxt($('hiscore2'), pad(hi));
   $('over').classList.remove('hidden');
+  $('vpad').classList.remove('on'); // hide the touch pad; drop any held touch state
+  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  joyPid = null;
 }
 function startGame(){
   enterLandscapeFullscreen();
@@ -3175,6 +3214,7 @@ function startGame(){
   $('menu').classList.add('hidden');
   $('over').classList.add('hidden');
   state = 'play';
+  $('vpad').classList.add('on'); // show the on-screen pad (keyboard / gamepad input mirrors onto it too)
 }
 // ==================== INPUT ====================
 // ---- gamepad (polled every frame; works in parallel with the keyboard) ----
@@ -3214,6 +3254,62 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Enter' && state !== 'play') startGame();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+// ==================== VIRTUAL PAD (MOBILE) ====================
+// Bottom-left: 8-way joystick — the large translucent circle is the travel radius,
+// the small translucent circle is the stick; the finger snaps to one of 8 directions
+// (N, NE, E, SE, S, SW, W, NW) and center = stand still.
+// Bottom-right: translucent action button = SPACE (pick up trash / dump it into the truck).
+// Keyboard + gamepad input is mirrored onto this pad too, so the stick and the button
+// always show what is currently pressed from ANY input source.
+const vt = { left:false, right:false, fwd:false, back:false, act:false }; // touch-pad state
+const joy = $('joy'), joyStick = $('joy-stick'), actBtn = $('actbtn');
+let joyPid = null, lastStickT = '';
+function joyDirFromPoint(e){
+  const r = joy.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  if (Math.hypot(dx, dy) < r.width * 0.15){ vt.fwd = vt.back = vt.left = vt.right = false; return; } // dead zone: stand still
+  const snapped = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4); // nearest of the 8 directions
+  const vx = Math.round(Math.cos(snapped)), vy = Math.round(Math.sin(snapped)); // each in {-1, 0, 1}
+  vt.fwd = vy < 0; vt.back = vy > 0; vt.left = vx < 0; vt.right = vx > 0;
+}
+joy.addEventListener('pointerdown', e => {
+  if (state !== 'play') return;
+  e.preventDefault();
+  joyPid = e.pointerId;
+  try { joy.setPointerCapture(e.pointerId); } catch (err) {}
+  joyDirFromPoint(e);
+});
+joy.addEventListener('pointermove', e => { if (e.pointerId === joyPid) joyDirFromPoint(e); });
+function joyRelease(e){
+  if (e.pointerId !== joyPid) return;
+  joyPid = null;
+  vt.fwd = vt.back = vt.left = vt.right = false;
+}
+joy.addEventListener('pointerup', joyRelease);
+joy.addEventListener('pointercancel', joyRelease);
+actBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  vt.act = true;
+  if (state === 'play') tryInteract(); // SPACE: pick up the trash / dump it into the truck hopper
+  else startGame();
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => actBtn.addEventListener(ev, () => { vt.act = false; }));
+[joy, actBtn].forEach(el => el.addEventListener('contextmenu', e => e.preventDefault()));
+// Mirrors keyboard / gamepad / touch state onto the on-screen pad (called every frame).
+function updateVirtualPad(){
+  let ax = ((keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) ? 1 : 0)
+         - ((keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left)  ? 1 : 0);
+  let ay = ((keys['KeyS'] || keys['ArrowDown']  || gp.back  || vt.back)  ? 1 : 0)
+         - ((keys['KeyW'] || keys['ArrowUp']    || gp.fwd   || vt.fwd)   ? 1 : 0);
+  const m = Math.hypot(ax, ay);
+  const travel = (joy.clientWidth - joyStick.clientWidth) / 2;
+  const t = m > 0
+    ? 'translate(calc(-50% + ' + (ax / m * travel).toFixed(1) + 'px), calc(-50% + ' + (ay / m * travel).toFixed(1) + 'px))'
+    : 'translate(-50%, -50%)';
+  if (t !== lastStickT){ joyStick.style.transform = t; lastStickT = t; }
+  actBtn.classList.toggle('pressed', !!(keys['Space'] || keys['KeyE'] || gp.act || vt.act));
+}
+// ==================== END VIRTUAL PAD ====================
 $('btnStart').addEventListener('click', startGame);
 $('btnRestart').addEventListener('click', startGame); // startGame() already resets the world
 // Click outside the logo on the start screen → enter fullscreen (landscape)
@@ -3229,6 +3325,7 @@ function loop(now){
   if (dt > 0.05) dt = 0.05;
   if (dt < 0) dt = 0;
   pollGamepad();
+  updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch
   if (state === 'play'){
     updatePlayer(dt);
     updateTruck(dt);
