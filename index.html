@@ -76,7 +76,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 }
 .menu-bottom button:hover { animation:none; color:#fff; background:rgba(92,240,173,.8); border-color:rgba(92,240,173,.95); box-shadow:0 0 32px rgba(46,224,144,.8), 0 4px 20px rgba(0,0,0,.4); }
 /* ===== Security-camera DVR overlay (bottom-right, clears the HUD / score) ===== */
-#camfeed { position:fixed; right:18px; bottom:calc(var(--act) + 26px); z-index:11; pointer-events:none;
+#camfeed { position:fixed; right:18px; bottom:calc(var(--act) + 82px); z-index:11; pointer-events:none;
   font-family:'Press Start 2P','Courier New',monospace; text-align:right; line-height:2.3;
   text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 4px rgba(0,0,0,.7); }
 #camfeed .rec { color:#ff3b3b; font-size:14px; text-shadow:1px 1px 0 rgba(0,0,0,.95), 0 0 10px rgba(255,59,59,.85);
@@ -131,8 +131,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 :root { --joy: min(36vh, 24vw, 200px); --act: min(24vh, 16vw, 132px); }
 #vpad { position:fixed; inset:0; z-index:12; pointer-events:none; display:none; }
 #vpad.on { display:block; }
-#joy { position:absolute; left:max(16px, 3vw);
-  bottom:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+#joy { position:absolute; left:max(56px, 7vw);
+  bottom:56px; bottom:calc(56px + env(safe-area-inset-bottom, 0px));
   width:var(--joy); height:var(--joy); border-radius:50%;
   border:2px solid rgba(120,215,255,.35);
   background:radial-gradient(circle at 50% 42%, rgba(140,220,255,.10), rgba(140,220,255,.03) 72%);
@@ -143,8 +143,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   border:2px solid rgba(150,225,255,.55);
   background:radial-gradient(circle at 42% 38%, rgba(190,240,255,.30), rgba(120,200,255,.12) 78%);
   box-shadow:0 0 16px rgba(110,200,255,.4), inset 0 0 10px rgba(150,225,255,.35); }
-#actbtn { position:absolute; right:max(16px, 3vw);
-  bottom:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+#actbtn { position:absolute; right:max(56px, 7vw);
+  bottom:56px; bottom:calc(56px + env(safe-area-inset-bottom, 0px));
   width:var(--act); height:var(--act); border-radius:50%;
   border:2px solid rgba(46,224,144,.5);
   background:radial-gradient(circle at 45% 40%, rgba(46,224,144,.22), rgba(46,224,144,.06) 78%);
