@@ -1048,21 +1048,31 @@ function makeCopper(){
 }
 function makeCash(){
   const g = new THREE.Group();
-  const green = M(0x5e8f3f), green2 = M(0x6f9f4a), cream = M(0xd8d4b6);
-  // two USA $20 bills lying flat on the street, slightly fanned
+  const paper = M(0xe6e2c8), green = M(0x3f6b45), greenL = M(0x79a879);
+  // two real-ish USA bills: cream paper, green border, oval portrait, green corner numerals
+  const ovalM = new THREE.MeshLambertMaterial({ color: 0x6f9f6f, side: THREE.DoubleSide });
+  const sealM = new THREE.MeshLambertMaterial({ color: 0x4a7a52, side: THREE.DoubleSide });
   for (let i = 0; i < 2; i++){
-    const b = BX(1.05, 0.52, 0.03, i ? green2 : green);
-    b.position.set(0, i * 0.09, 0.05 + i * 0.03);
-    b.rotation.x = R(-0.06, 0.06);
+    const b = new THREE.Group();
+    b.position.set(i ? 0.05 : -0.05, i ? 0.04 : -0.04, i * 0.03);
+    b.rotation.z = i ? R(0.10, 0.26) : R(-0.26, -0.10);   // natural fanned lay
+    const base = BX(1.05, 0.52, 0.022, paper); base.position.z = 0.011; b.add(base);
+    const bz = 0.024;
+    const t = BX(1.05, 0.05, 0.007, green); t.position.set(0, 0.235, bz); b.add(t);
+    const bo = BX(1.05, 0.05, 0.007, green); bo.position.set(0, -0.235, bz); b.add(bo);
+    const l = BX(0.05, 0.42, 0.007, green); l.position.set(-0.5, 0, bz); b.add(l);
+    const r = BX(0.05, 0.42, 0.007, green); r.position.set(0.5, 0, bz); b.add(r);
+    const oval = new THREE.Mesh(new THREE.CircleGeometry(0.155, 22), ovalM);   // portrait area
+    oval.scale.set(1, 0.82, 1); oval.position.set(-0.04, 0, bz + 0.002); b.add(oval);
+    const seal = new THREE.Mesh(new THREE.CircleGeometry(0.075, 18), sealM);   // seal
+    seal.position.set(0.30, 0, bz + 0.002); b.add(seal);
+    [[-0.385, -0.165], [0.385, -0.165], [-0.385, 0.165], [0.385, 0.165]].forEach((c) => {   // corner numerals
+      const q = BX(0.14, 0.14, 0.005, greenL); q.position.set(c[0], c[1], bz + 0.002); b.add(q);
+    });
+    const band1 = BX(0.62, 0.018, 0.004, greenL); band1.position.set(0, 0.155, bz + 0.002); b.add(band1);
+    const band2 = BX(0.62, 0.018, 0.004, greenL); band2.position.set(0, -0.155, bz + 0.002); b.add(band2);
     g.add(b);
   }
-  const top = 0.125;
-  const panel = BX(0.85, 0.4, 0.015, cream); panel.position.set(0, 0, top); g.add(panel);
-  const oval = new THREE.Mesh(new THREE.CircleGeometry(0.17, 20), new THREE.MeshLambertMaterial({ color: 0xbdb995, side: THREE.DoubleSide }));
-  oval.scale.set(1, 0.62, 1); oval.position.set(0, 0, top + 0.006); g.add(oval);
-  [[-0.44, -0.18], [0.44, -0.18], [-0.44, 0.18], [0.44, 0.18]].forEach((c) => {
-    const q = BX(0.13, 0.13, 0.012, M(0xdcd8ba)); q.position.set(c[0], c[1], top + 0.006); g.add(q);
-  });
   return g;
 }
 function makeTreasure(kind){
@@ -1078,16 +1088,50 @@ function makeTreasure(kind){
     const stem = CY(0.04, 0.04, 0.5, MS(0xb8963a), 8); stem.rotation.x = Math.PI / 2; stem.position.z = 0.32; g.add(stem);
     const shade = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.35, 10, 1, true), new THREE.MeshStandardMaterial({ color: 0xe8c46a, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide }));
     shade.rotation.x = Math.PI / 2; shade.position.z = 0.75; shade.castShadow = true; g.add(shade);
-  } else if (kind === 2){ // oil painting on a little easel
+  } else if (kind === 2){ // oil painting: regular gold frame, canvas with a bouquet of flowers
     const wood = M(0x6a4a26);
-    const frame = BX(0.82, 0.06, 0.96, wood); frame.position.set(0, 0, 0.48); g.add(frame);
-    const canvas = BX(0.66, 0.03, 0.8, M(0x2f4a6a)); canvas.position.set(0, 0.02, 0.48); g.add(canvas);
-    const cols = [0xd9534f, 0xf0ad4e, 0x5bc0de, 0x9acd32, 0xfff2a8, 0x8e44ad];
-    for (let i = 0; i < 7; i++){
-      const s = BX(0.1 + Math.random() * 0.22, 0.02, 0.05, M(cols[i]));
-      s.position.set((Math.random() - 0.5) * 0.55, 0.04, 0.24 + (Math.random() - 0.5) * 0.6);
-      g.add(s);
-    }
+    const gold = MS(0xc9a227), goldL = MS(0xe8c94f);
+    const W = 0.8, H = 0.96, FT = 0.085, zc = 0.48;
+    [[W, FT, 0, H/2 - FT/2], [W, FT, 0, -(H/2 - FT/2)],
+     [FT, H - 2*FT, -(W/2 - FT/2), 0], [FT, H - 2*FT, W/2 - FT/2, 0]]
+      .forEach(bt => { const bar = BX(bt[0], bt[1], 0.07, gold); bar.position.set(bt[2], bt[3], zc); g.add(bar); });
+    [[W - 2*FT, 0.02, 0, H/2 - FT - 0.012], [W - 2*FT, 0.02, 0, -(H/2 - FT - 0.012)],
+     [0.02, H - 2*FT - 0.05, -(W/2 - FT - 0.012), 0], [0.02, H - 2*FT - 0.05, W/2 - FT - 0.012, 0]]
+      .forEach(bt => { const bar = BX(bt[0], bt[1], 0.04, goldL); bar.position.set(bt[2], bt[3], zc + 0.008); g.add(bar); });
+    const canvas = BX(W - 2*FT + 0.03, H - 2*FT + 0.03, 0.02, M(0xefe6cf)); canvas.position.set(0, 0, zc - 0.025); g.add(canvas);
+    const front = zc - 0.025 + 0.011;
+    const stemM = M(0x4f7a3a);
+    const centerM = new THREE.MeshLambertMaterial({ color: 0xf0c040, side: THREE.DoubleSide });
+    const petalCache = {};
+    // a fixed, composed bouquet (never random — always looks painted on purpose)
+    const flowers = [
+      [0.00, 0.17, 0.075, 0xd4536a], [-0.17, 0.06, 0.065, 0xe8a13c], [0.18, 0.05, 0.06, 0xf2f0e2],
+      [-0.09, -0.09, 0.06, 0xb05ac0], [0.10, -0.11, 0.058, 0xd4536a], [0.00, -0.01, 0.05, 0xe86fa0]
+    ];
+    const baseY = -0.34;   // stems gather at the bottom of the canvas
+    flowers.forEach(f => {
+      const fx = f[0], fy = f[1], fr = f[2];
+      const len = Math.sqrt(fx * fx + (fy - baseY) * (fy - baseY));
+      const stem = BX(0.016, len, 0.01, stemM);
+      stem.position.set(fx / 2, (fy + baseY) / 2, front - 0.004);
+      stem.rotation.z = Math.atan2(-fx, fy - baseY);
+      g.add(stem);
+      let pm = petalCache[f[3]];
+      if (!pm){ pm = petalCache[f[3]] = new THREE.MeshLambertMaterial({ color: f[3], side: THREE.DoubleSide }); }
+      for (let p = 0; p < 5; p++){
+        const a = p * Math.PI * 2 / 5;
+        const pet = new THREE.Mesh(new THREE.CircleGeometry(fr * 0.62, 8), pm);
+        pet.position.set(fx + Math.cos(a) * fr * 0.8, fy + Math.sin(a) * fr * 0.8, front);
+        g.add(pet);
+      }
+      const cen = new THREE.Mesh(new THREE.CircleGeometry(fr * 0.5, 8), centerM);
+      cen.position.set(fx, fy, front + 0.002); g.add(cen);
+    });
+    [[-0.14, -0.22, 0.3], [0.13, -0.24, -0.25], [0.0, -0.30, 0.05]].forEach(leafP => {   // leaves
+      const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.05, 8), stemM);
+      leaf.scale.set(1.6, 0.7, 1); leaf.position.set(leafP[0], leafP[1], front - 0.002); leaf.rotation.z = leafP[2];
+      g.add(leaf);
+    });
     const legL = CY(0.03, 0.03, 1.05, wood, 6); legL.position.set(-0.18, 0, 0.3); legL.rotation.x = 0.42; g.add(legL);
     const legR = CY(0.03, 0.03, 1.05, wood, 6); legR.position.set(0.18, 0, 0.3); legR.rotation.x = 0.42; g.add(legR);
   } else if (kind === 3){ // video game system + controller
@@ -1100,7 +1144,7 @@ function makeTreasure(kind){
     const btn = BX(0.07, 0.03, 0.07, M(0xd9534f)); btn.position.set(0.42, 0.03, 0.13); g.add(btn);
   } else { // stuffed plush doll
     const fur = M(0x9c6b43), furL = M(0xc1946a), dark = M(0x241811);
-    const body = SP(0.24, fur); body.scale.set(1, 0.9, 1.1); body.position.z = 0.26; g.add(body);
+    const body = SP(0.24, fur); body.scale.set(1, 0.9, 1.1); body.position.z = 0.27; g.add(body);
     const head = SP(0.2, fur); head.position.z = 0.6; g.add(head);
     const earL = SP(0.08, fur); earL.position.set(-0.15, 0.08, 0.72); g.add(earL);
     const earR = SP(0.08, fur); earR.position.set(0.15, 0.08, 0.72); g.add(earR);
@@ -1109,8 +1153,8 @@ function makeTreasure(kind){
     const eyeR = SP(0.035, dark); eyeR.position.set(0.09, 0.05, 0.72); g.add(eyeR);
     const armL = SP(0.11, fur); armL.position.set(-0.26, 0, 0.34); g.add(armL);
     const armR = SP(0.11, fur); armR.position.set(0.26, 0, 0.34); g.add(armR);
-    const legL = SP(0.12, fur); legL.position.set(-0.15, 0, 0.1); g.add(legL);
-    const legR = SP(0.12, fur); legR.position.set(0.15, 0, 0.1); g.add(legR);
+    const legL = SP(0.12, fur); legL.position.set(-0.15, 0, 0.12); g.add(legL);
+    const legR = SP(0.12, fur); legR.position.set(0.15, 0, 0.12); g.add(legR);
   }
   return g;
 }
