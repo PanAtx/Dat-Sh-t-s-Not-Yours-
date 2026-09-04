@@ -163,11 +163,20 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   background:radial-gradient(circle at 45% 40%, rgba(140,255,190,.42), rgba(46,224,144,.2) 78%);
   box-shadow:0 0 30px rgba(46,224,144,.65), inset 0 0 20px rgba(140,255,190,.45); }
 /* ===== Car-stereo NOW PLAYING widget: LED-pixel title + fake spectrum bars + MUTE / SKIP ===== */
-#radio { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none;
+/* z-index 30 sits the widget above the menu modal (z 20) and the touch pad (z 12),
+   but below reward popups (z 55) and the rotate-to-landscape gate (z 60). It is a
+   standalone fixed element (not inside #hud) so it shows on the START screen too,
+   where it becomes the pre-game music player. */
+#radio { position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:30; pointer-events:none;
   display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:6px;
   border:2px solid rgba(46,224,144,.42);
   background:radial-gradient(rgba(60,255,138,.12) 1px, transparent 1.5px) 0 0/4px 4px, linear-gradient(180deg, rgba(3,12,8,.88), rgba(3,12,8,.78));
   box-shadow:inset 0 0 20px rgba(0,0,0,.75), 0 0 14px rgba(46,224,144,.18); }
+/* Start-screen / game-over: park the NOW PLAYING bar in the top-right corner
+   (top-center in play keeps it clear of the joystick + action pad). */
+#radio.in-menu { left:auto; right:14px; transform:none; }
+#radio-title { pointer-events:auto; cursor:pointer; }
+#radio-bars { pointer-events:auto; } /* whole left half of the widget is a tap target for "tune in" */
 #radio-bars { display:flex; align-items:flex-end; gap:2px; height:16px; width:27px; flex:none; }
 #radio-bars i { flex:1; height:18%; border-radius:1px; background:#39f78e; box-shadow:0 0 6px rgba(60,255,138,.85); opacity:.9; }
 #radio.on #radio-bars i { animation:eq 1s ease-in-out infinite; }
@@ -205,16 +214,20 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="flash"></div>
 <div id="hud">
   <div id="tl" class="hudbox"><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
-  <div id="radio">
-    <div id="radio-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div id="radio-title"><span class="tk">NO SIGNAL</span></div>
-    <button id="btnMute" class="radio-btn">MUTE</button>
-    <button id="btnSkip" class="radio-btn">SKIP »</button>
-  </div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div id="carry" class="hudbox">HANDS FREE</div>
 </div>
+<!-- Car-stereo NOW PLAYING widget. Standalone fixed element (NOT inside #hud) so it
+     shows on the START screen too, where it acts as the pre-game music player.
+     Same widget, same scrolling LED title, same MUTE / SKIP, same audio element as
+     in-game — so the song keeps playing seamlessly when the shift starts. -->
+<div id="radio">
+    <div id="radio-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="radio-title"><span class="tk">TAP TO TUNE IN</span></div>
+    <button id="btnMute" class="radio-btn">MUTE</button>
+    <button id="btnSkip" class="radio-btn">SKIP »</button>
+  </div>
 <div id="camfeed">
   <div class="rec"><span class="dot"></span>REC</div>
   <div class="cam">FIAT CAM 01</div>
@@ -576,6 +589,25 @@ function radioToggleMute(){
 }
 $('btnMute').addEventListener('click', () => radioToggleMute());
 $('btnSkip').addEventListener('click', () => SFX.radioSkip());
+// ---- Start-screen music player: the SAME widget + SAME audio element, so the song
+//      is continuous from the menu straight into the game (radioStart() is
+//      idempotent — it never restarts a track that is already on air). ----
+// Tapping the widget body (NOT the MUTE / SKIP buttons) brings the station on air.
+// This is a user gesture, which is exactly what the browser requires to unlock
+// audio — so we can start music on the menu without ever touching the game sim.
+radioBox.addEventListener('click', function(e){
+  if (e && e.target && e.target.closest && e.target.closest('button')) return; // MUTE / SKIP own their click
+  if (SFX.ctx && SFX.ctx.state === 'suspended') { try { SFX.ctx.resume(); } catch (err) {} }
+  SFX.radioStart(); // idempotent: a no-op once the station is already on air
+});
+// Park the widget in the top-right corner whenever the game is NOT running
+// (start menu + game-over screen); it sits top-center while you play.
+function radioMode(){
+  try {
+    const inMenu = (typeof state !== 'undefined' && state !== 'play');
+    if (radioBox && radioBox.classList) radioBox.classList.toggle('in-menu', inMenu);
+  } catch (err) {}
+}
 // ==================== END RADIO HUD ====================
 // ==================== VOICE SYNTHESIS (queue-managed) ====================
 // Every NPC speaks with a GENDERED American (en-US) voice: male voices for the
@@ -4050,6 +4082,7 @@ function gameOver(){
   setTxt($('finalscore'), pad(score));
   setTxt($('hiscore2'), pad(hi));
   $('over').classList.remove('hidden');
+  radioMode(); // NOW PLAYING bar parks back in the top-right corner
   $('vpad').classList.remove('on'); // hide the touch pad; drop any held touch state
   vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
   joyPid = null;
@@ -4063,6 +4096,8 @@ function startGame(){
   $('menu').classList.add('hidden');
   $('over').classList.add('hidden');
   state = 'play';
+  radioMode(); // NOW PLAYING bar moves from the top-right corner (menu) to top-center (game)
+  lastT = performance.now(); // the sim idled on the menu: don't let the first frame see a huge dt
   $('vpad').classList.add('on'); // show the on-screen pad (keyboard / gamepad input mirrors onto it too)
 }
 // ==================== INPUT ====================
@@ -4179,49 +4214,13 @@ $('menu').addEventListener('click', function(e){
   if (!e.target.closest('.menu-logo-wrap')) enterLandscapeFullscreen();
 });
 // ==================== MAIN LOOP ====================
-function loop(now){
-  requestAnimationFrame(loop);
-  if (window.innerHeight > window.innerWidth) return; // portrait mode: freeze the sim; the CSS overlay prompts the player to rotate to landscape
-  let dt = (now - lastT) / 1000;
-  lastT = now;
-  if (dt > 0.05) dt = 0.05;
-  if (dt < 0) dt = 0;
-  pollGamepad();
-  updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch
-  updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
-  if (state === 'play'){
-    updatePlayer(dt);
-    updateTruck(dt);
-    updateCreatures(dt);
-    updateBonuses(dt);
-    updateFlyingCans(dt);
-    updateDustParticles(dt);
-    updateBlocks(dt);
-    cleanupLandedCans();
-    updateFootprints(dt);
-    collideStatic(dt);
-    collideLandedCans();
-    collideCreatures();
-    updateHUD();
-  } else if (state === 'menu'){
-    // live world drift behind the start menu
-    p.wx += 3 * dt;
-    updateTruck(dt);
-    updateCreatures(dt);
-    updateFlyingCans(dt);
-    updateDustParticles(dt);
-    updateBlocks(dt);
-    p.phase += dt * 5;
-    const s = Math.sin(p.phase) * 0.3;
-    if (wparts){
-      wparts.legL.rotation.y = s;
-      wparts.legR.rotation.y = -s;
-      wparts.armL.rotation.y = -s * 0.7;
-      wparts.armR.rotation.y = s * 0.7;
-    }
-    worker.group.position.set(p.wx, p.wy, GZ);
-  }
-  // ===== camera follow: bulletproof explicit world-space math (no parent matrices) =====
+// While the start menu / game-over screen is up, the sim + WebGL renderer stay ASLEEP:
+// one static backdrop frame is drawn, then the loop does no per-frame work. That is
+// what keeps mobile devices from running hot and draining battery before a shift
+// begins. The radio is pure audio + CSS animation, so the music player keeps working
+// on the menu at zero rendering cost.
+let needsIdleRender = true;
+function positionCamera(){
   // worldGroup is rotated +45deg: local (x, y) -> world (c45*(x - y), c45*(x + y)).
   // The camera sits ISO_A behind the target and ISO_A above it, exactly on the
   // isometric axis, so the worker is ALWAYS at screen center as it moves.
@@ -4241,6 +4240,38 @@ function loop(now){
   camera.position.set(camTX, camTY - 1.4142 * ISO_A, ISO_A);
   camera.up.set(0, 0, 1);
   camera.lookAt(camTX, camTY, 0);
+}
+function loop(now){
+  requestAnimationFrame(loop);
+  if (window.innerHeight > window.innerWidth){ lastT = now; return; } // portrait mode: freeze the sim; the CSS overlay prompts the player to rotate to landscape
+  let dt = (now - lastT) / 1000;
+  lastT = now;
+  if (dt > 0.05) dt = 0.05;
+  if (dt < 0) dt = 0;
+  updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
+  pollGamepad();     // cheap input poll: on the menu, gamepad START / ACT still begins the shift
+  updateVirtualPad();// keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)
+  if (state !== 'play'){
+    // IDLE on the menu / game-over: render ONE static backdrop frame, then do no work.
+    if (needsIdleRender){ needsIdleRender = false; positionCamera(); renderer.render(scene, camera); }
+    return;
+  }
+  if (state === 'play'){
+    updatePlayer(dt);
+    updateTruck(dt);
+    updateCreatures(dt);
+    updateBonuses(dt);
+    updateFlyingCans(dt);
+    updateDustParticles(dt);
+    updateBlocks(dt);
+    cleanupLandedCans();
+    updateFootprints(dt);
+    collideStatic(dt);
+    collideLandedCans();
+    collideCreatures();
+    updateHUD();
+  }
+  positionCamera();
   renderer.render(scene, camera);
 }
 // ==================== FBX ASSET SWAP-IN ====================
@@ -4279,6 +4310,7 @@ wparts = worker;
 truck = buildTruck();
 spawnWorld();
 updateHUD();
+radioMode(); // initial placement: we're on the start menu, so the NOW PLAYING bar parks top-right
 requestAnimationFrame(loop);
 // Load the 3D truck / can / bag model in the background and swap it in when ready.
 if (typeof THREE.FBXLoader !== 'undefined'){

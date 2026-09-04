@@ -41,7 +41,7 @@ global.Audio = class { addEventListener(ev, fn){ (this._h = this._h || {})[ev] =
   fire(ev){ (this._h[ev] || []).forEach(fn => fn()); } };
 
 // combine real code: SFX radio methods object + HUD wiring
-const out = new Function('$', 'const SFX = {' + methods + '};' + '\n' + hud + '\nreturn { SFX, radioSetTitle, radioToggleMute };')($);
+const out = new Function('$', 'const SFX = {' + methods + '};' + '\n' + hud + '\nreturn { SFX, radioSetTitle, radioToggleMute, radioMode };')($);
 let pass = true;
 const check = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n); if (!c) pass = false; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -88,6 +88,19 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   check('plain name passes through', els['radio-title'].textContent === 'White Cab Pushin\'');
   out.radioSetTitle('');
   check('empty falls back to ON AIR', els['radio-title'].textContent === 'ON AIR');
+
+  // --- start-screen music player: SAME widget, top-right when the game is NOT running ---
+  check('radioMode() wiring exists', typeof out.radioMode === 'function');
+  global.state = 'menu';
+  out.radioMode();
+  check('on the menu the bar parks top-right (in-menu class set)', els['radio'].classList.has('in-menu'));
+  global.state = 'play';
+  out.radioMode();
+  check('in play the bar returns to top-center (in-menu cleared)', !els['radio'].classList.has('in-menu'));
+  check('tapping the widget to start music is wired (click handler on #radio)', (els['radio']._h['click'] || []).length >= 1);
+  let clickThrew = false;
+  try { (els['radio']._h['click'] || [])[0]({ target: { closest: function(){ return null; } } }); } catch (e) { clickThrew = true; }
+  check('tapping the widget body is safe and idempotent (no throw, no double-start)', !clickThrew && played.length === 3);
 
   console.log(pass ? '\nALL RADIO HUD TESTS PASSED' : '\nSOME TESTS FAILED');
   process.exit(pass ? 0 : 1);
