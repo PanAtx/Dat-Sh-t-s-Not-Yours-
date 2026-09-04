@@ -51,7 +51,7 @@ for (let i = 0; i < N; i++){
 const check = (label, cond) => { console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
 check('painting pickups announced with a famous painter name: ' + [...seen.painting].join(' | '), seen.painting.size >= 3);   // all 4 in 600 rolls is overwhelming odds
 check('other treasures still say Treasure! only', [...seen.otherTreasure].every(v => v === 'Treasure!') && seen.otherTreasure.size === 1);
-check('mongo line intact', [...seen.mongo].every(v => v === 'Mongah!') && seen.mongo.size === 1);
+check('mongo line intact', [...seen.mongo].every(v => v === 'Mongo!') && seen.mongo.size === 1);
 check('cash line intact', [...seen.cash].every(v => v === 'Street cash!') && seen.cash.size === 1);
 console.log(ok ? 'BONUS VOICE ALL CHECKS PASS' : 'BONUS VOICE FAILURES');
 process.exit(ok ? 0 : 1);

@@ -1094,7 +1094,7 @@ function finishHopperCycle(){
   hopperCycling = false;
   addScore(HOPPER_CYCLE_BONUS, true);
   SFX.playHopperJingle();
-  Voice.say('Hopper full, compactin\u2019 it!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Hopper full, compacting!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
 }
 function updateHopperTrash(dt){
   if (!hopperTrash || hopperLumps.length === 0) return;
@@ -1982,8 +1982,8 @@ function updateFlyingCans(dt){
         // Can hits an NPC - they react with a random complaint
         const npcVoices = [
           'Hey! Watch it!',
-          'Ow! Dat hurt!',
-          "I'm callin' 3-1-1!"
+          'Ow! That hurt!',
+          "I'm calling 3-1-1!"
         ];
         Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender);
         hitNPC.vcd = 3; // longer cooldown so they don't repeat immediately
@@ -2028,7 +2028,7 @@ function updateFlyingCans(dt){
         if (!fc.landed && Math.sin(t * Math.PI) > 0.1){
           const hitNPC = checkFlyingCanNpcHit(curX, curY);
           if (hitNPC){
-            const npcVoices = ['Hey! Watch it!', 'Ow! Dat hurt!', "I'm callin' 3-1-1!"];
+            const npcVoices = ['Hey! Watch it!', 'Ow! That hurt!', "I'm calling 3-1-1!"];
             Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender);
             hitNPC.vcd = 3;
           }
@@ -2091,7 +2091,7 @@ function addWriteUp(){
   if (state !== 'play') return;
   complaints++;
   SFX.playComplaintSound();
-  Voice.say('I\u2019m callin\u2019 yer supervisor!', 3, 1.0, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('I\'m calling your supervisor!', 3, 1.0, p.wx, p.wy, WORKER_GENDER);
   const f = $('flash');
   f.style.opacity = 1;
   setTimeout(() => { f.style.opacity = 0; }, 500);
@@ -2115,7 +2115,7 @@ function pickUp(item){
   } else {
     carry = item.kind === 'bag' ? 'bag' : 'canFull';
     item.state = 'carried';
-    Voice.say('This gawbage bag\u2019s heavy!', 3.5, 0.8, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('This bag is heavy!', 3.5, 0.8, p.wx, p.wy, WORKER_GENDER);
   }
   carried = item;
   attachCarried(item);
@@ -2196,7 +2196,7 @@ function dropCarried(){
 function spawnBonus(wx, wy){
   const r = Math.random();
   let g, val, type, voice;
-  if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongah!'; }
+  if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
   else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
   else {
     const tKind = (Math.random() * 5) | 0;
@@ -2267,7 +2267,7 @@ function tryInteract(){
     }
   }
   if (shooed){
-    Voice.say('Shoo! Get outta here!', 2.5, 0.85, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('Shoo! Get out of here!', 2.5, 0.85, p.wx, p.wy, WORKER_GENDER);
     SFX.playShooSound();
   }
 }
@@ -2289,7 +2289,7 @@ function collideStatic(dt){
       if (dx * dx + dy * dy > hz.r * hz.r) continue;
       hz.cd = 1.4;
       if (hz.type === 'poop'){
-        Voice.say('Dawg shit!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+        Voice.say('dog shit!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
         p.poopSteps = 16; footDist = 0; // the worker leaves a brown footprint trail for a while
       } else if (hz.type === 'hit'){
         p.wx -= 0.7;
@@ -2371,7 +2371,7 @@ function collideCreatures(){
       dropCarried();
       p.invuln = 1.6;
       doStun(1.2, 'hit');
-      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch da road!', 4, 0.7, c.wx, c.wy, c.gender);
+      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7, c.wx, c.wy, c.gender);
       else Voice.say('Hey! Hurry up!', 5, 0.85, c.wx, c.wy, c.gender);
     }
     return;
@@ -2916,7 +2916,7 @@ function updateCreatures(dt){
           // Worker gets close → take flight, flapping, with a yell
           c.flyT = 1.1; c.gz = 0.5;
           c.fleeAng = Math.atan2(c.wy - p.wy, c.wx - p.wx) + R(-1.8, 1.8); // every bird picks a DIFFERENT scatter direction
-          Voice.say('Scram, ya birds!', 2.2, 0.95, p.wx, p.wy, WORKER_GENDER);
+          Voice.say('scram birds!', 2.2, 0.95, p.wx, p.wy, WORKER_GENDER);
         } else {
           // Pecking at seed on the sidewalk: hop-bob + slight body sway
           c.peck += dt * 7;
@@ -3504,7 +3504,7 @@ function updateCreatures(dt){
         if (state === 'play' && Math.abs(tx) < 12){
           c.shout -= dt;
           if (c.shout <= 0){
-            const lines = ['Hey! Watch it out heah!', 'Hey! Hurry up!', 'Whoa - watch da road!'];
+            const lines = ['Hey! Watch it out here!', 'Hey! Hurry up!', 'Whoa - watch the road!'];
             Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3), c.wx, c.wy, c.gender);
             c.shout = R(5, 9);
           }
@@ -3594,7 +3594,7 @@ function updateBubbles(dt){
 function gameOver(){
   state = 'over';
   SFX.playGameOver();
-  Voice.say('Suspended! Report to da borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
   if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('finalscore'), pad(score));
   setTxt($('hiscore2'), pad(hi));
