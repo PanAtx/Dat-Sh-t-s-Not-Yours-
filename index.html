@@ -1746,7 +1746,8 @@ function makeEScooter(){
     const arm = CY(0.045, 0.038, 0.44, shirtM, 8); arm.rotation.z = Math.PI / 2; arm.position.set(0.2, s * 0.19, 1.35); g.add(arm);
     const hand = SP(0.045, skin, 8); hand.position.set(0.36, s * 0.18, 1.13); g.add(hand);
   });
-  const head = SPH(0.13, skin, 14, 10); head.position.z = 1.66; g.add(head);
+  const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.62; g.add(head); // square head like the other NPCs
+  const hair = BX(0.24, 0.28, 0.1, M(pick([0x111111, 0x2a1a10, 0x5a3a1a]))); hair.position.set(-0.02, 0, 1.65); g.add(hair); // hair slab (same style as the skater)
   g.userData.wheelF = wheelF; g.userData.wheelR = wheelR;
   return g;
 }

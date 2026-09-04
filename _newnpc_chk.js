@@ -185,5 +185,10 @@ check('hooker: left arm (elbow out) uses a single X rotation, not the x+z combo 
   mkHk.indexOf('upper.rotation.x = Math.PI / 2 + 0.85') >= 0 && mkHk.indexOf('upper.rotation.z') < 0);
 check('hooker: shoe long axis along the TOE direction (+X) with toe-down pitch (was lateral, read as pointing up)',
   mkHk.indexOf('BX(0.17, 0.1, 0.04, heelM)') >= 0);
+
+// --- round 5: e-scooter head ---
+const mkEs = src.slice(src.indexOf('function makeEScooter'), src.indexOf('function makeEScooter') + 2500);
+check('escooter: square BOX head like the other NPCs (bare sphere removed)',
+  mkEs.indexOf('head = BX(0.22, 0.26, 0.22, skin)') >= 0 && mkEs.indexOf('head = SPH') < 0);
 console.log(pass ? '\nNEW NPC CHECKS PASSED' : '\nNEW NPC CHECKS FAILED');
 process.exit(pass ? 0 : 1);
