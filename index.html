@@ -188,6 +188,18 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   color:#04140c; background:#39f78e; border:1px solid rgba(190,255,220,.8); border-radius:3px;
   padding:5px 7px; cursor:pointer; box-shadow:0 0 9px rgba(60,255,138,.5); -webkit-tap-highlight-color:transparent; }
 .radio-btn:active { transform:scale(.93); }
+/* ===== VOICE SETTINGS PANEL (pick the male / female voice for this machine) ===== */
+#voicePanel { position:fixed; top:72px; left:50%; transform:translateX(-50%); z-index:11; pointer-events:auto;
+  display:flex; flex-direction:column; gap:7px; padding:10px 13px; border-radius:6px;
+  border:2px solid rgba(46,224,144,.42); background:rgba(4,18,10,.94);
+  box-shadow:0 0 30px rgba(46,224,144,.4), inset 0 0 18px rgba(140,255,190,.25);
+  font-family:'Press Start 2P','Courier New',monospace; color:#9fe8b8; }
+#voicePanel.hidden { display:none; }
+#voicePanel .vp-title { font-size:8px; letter-spacing:2px; color:#39f78e; margin-bottom:1px; }
+#voicePanel label { display:flex; align-items:center; gap:8px; font-size:8px; letter-spacing:1px; }
+#voicePanel select { background:#04140c; color:#39f78e; border:1px solid rgba(46,224,144,.6); border-radius:3px;
+  font-family:inherit; font-size:8px; padding:4px 5px; max-width:220px; cursor:pointer; }
+#voicePanel .vp-note { font-size:7px; line-height:1.5; color:#6fae8a; letter-spacing:1px; }
 #btnMute.off { background:rgba(30,46,38,.9); color:#54ff9c; box-shadow:none; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -205,6 +217,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
     <div id="radio-title">NO SIGNAL</div>
     <button id="btnMute" class="radio-btn">MUTE</button>
     <button id="btnSkip" class="radio-btn">SKIP »</button>
+    <button id="btnVoice" class="radio-btn">VOICE</button>
+  </div>
+  <div id="voicePanel" class="hidden">
+    <div class="vp-title">SPEECH VOICES</div>
+    <label>MALE <select id="selMale"></select></label>
+    <label>FEMALE <select id="selFemale"></select></label>
+    <div class="vp-note">MALE LINES SOUND DEEPER THAN FEMALE LINES. AUTO PICKS A VOICE PER GENDER FROM THIS DEVICE.</div>
   </div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
@@ -568,6 +587,7 @@ const Voice = {
   enabled: typeof window !== 'undefined' && 'speechSynthesis' in window,
   busy: false, queue: [], last: {},
   _male: [], _female: [], _any: [],
+  maleSel: 'auto', femaleSel: 'auto',   // player-picked voice names ('auto' = pick by gender)
   // NOTE: (text, gap, pitch, bx, by, gender) — speaker coords stay 4th/5th so every
   // pre-existing call site keeps working; the 6th arg (gender) is optional.
   say(text, gap, pitch, bx, by, gender){
@@ -613,7 +633,33 @@ const Voice = {
       else if (g === 'female') this._female.push(pool[i]);
     }
   },
+  // Player voice preferences (persisted) — the VOICE panel lets anyone pick the
+  // exact voice each gender uses, on any machine.
+  _loadPrefs(){
+    this.maleSel = 'auto'; this.femaleSel = 'auto';
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const j = JSON.parse(localStorage.getItem('dsnboy.voice') || '{}');
+      if (j && j.male) this.maleSel = j.male;
+      if (j && j.female) this.femaleSel = j.female;
+    } catch (e) {}
+  },
+  _savePrefs(){
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem('dsnboy.voice', JSON.stringify({ male: this.maleSel, female: this.femaleSel })); } catch (e) {}
+  },
+  setMale(name){ this.maleSel = name || 'auto'; this._savePrefs(); },
+  setFemale(name){ this.femaleSel = name || 'auto'; this._savePrefs(); },
   _pickVoice(gender){
+    // An explicit player pick always wins; a voice no longer on the machine falls through to auto.
+    if (gender === 'male' || gender === 'female'){
+      const sel = (gender === 'male' ? this.maleSel : this.femaleSel);
+      if (sel && sel !== 'auto'){
+        let all = [];
+        try { all = window.speechSynthesis.getVoices() || []; } catch (e) {}
+        const v = all.find(x => x.name === sel);
+        if (v) return { v: v, matched: this._classify(v) === gender };   // mismatched gender still gets the deep/high pitch
+      }
+    }
     if (gender === 'male' && this._male.length) return { v: this._male[0], matched: true };
     if (gender === 'female' && this._female.length) return { v: this._female[0], matched: true };
     return { v: (this._any[0] || null), matched: false };
@@ -626,9 +672,10 @@ const Voice = {
     const callerPitch = item.pitch;
     const sel = this._pickVoice(item.gender);
     if (sel.v) u.voice = sel.v;
-    // No matching-gender voice on this device? Nudge the pitch so male/female still read.
+    // No matching-gender voice (or a deliberately mismatched manual pick)? Bend the
+    // pitch hard: male lines drop to a clearly deeper range, female lines rise.
     u.pitch = (item.gender && !sel.matched)
-      ? (item.gender === 'male' ? Math.max(0.5, callerPitch * 0.88) : Math.min(2, callerPitch * 1.18))
+      ? (item.gender === 'male' ? Math.max(0.5, callerPitch * 0.7) : Math.min(2, callerPitch * 1.22))
       : callerPitch;
     u.rate = 1.08; // fixed, sane rate — never trust caller-supplied values (Chrome stutters/repeats at bad rates)
     // Duck the synthesized voice under the radio when the station is on air and NOT muted;
@@ -648,6 +695,33 @@ const Voice = {
     try { window.speechSynthesis.cancel(); } catch (e) {}
   }
 };
+// ==================== VOICE SETTINGS PANEL (VOICE button in the HUD) ====================
+(function(){
+  if (typeof document === 'undefined' || typeof $ !== 'function') return;   // skip in non-browser test harnesses
+  Voice._loadPrefs();   // restore the player's per-gender picks (defaults to 'auto')
+  const voicePanel = $('voicePanel'), selMale = $('selMale'), selFemale = $('selFemale');
+  function voiceFillOptions(sel, current){
+    sel.length = 0;
+    const a0 = document.createElement('option'); a0.value = 'auto'; a0.textContent = 'AUTO';
+    sel.appendChild(a0);
+    let vs = [];
+    try { vs = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) {}
+    for (let i = 0; i < vs.length; i++){
+      const o = document.createElement('option');
+      o.value = vs[i].name;
+      o.textContent = vs[i].name + (vs[i].lang ? ' (' + vs[i].lang + ')' : '');
+      sel.appendChild(o);
+    }
+    const keep = (current && current !== 'auto' && vs.some(v => v.name === current)) ? current : 'auto';
+    sel.value = keep;
+  }
+  function voiceRefreshPanel(){ voiceFillOptions(selMale, Voice.maleSel); voiceFillOptions(selFemale, Voice.femaleSel); }
+  $('btnVoice').addEventListener('click', () => { voicePanel.classList.toggle('hidden'); voiceRefreshPanel(); });
+  selMale.addEventListener('change', () => Voice.setMale(selMale.value));
+  selFemale.addEventListener('change', () => Voice.setFemale(selFemale.value));
+  try { if (window.speechSynthesis) window.speechSynthesis.addEventListener('voiceschanged', () => { if (!voicePanel.classList.contains('hidden')) voiceRefreshPanel(); }); } catch (e) {}
+})();
+// ==================== END VOICE SETTINGS ====================
 // ==================== PRIMITIVE HELPERS ====================
 function M(c, opt){ return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {})); }
 function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.95, roughness: 0.28 }, opt || {})); }

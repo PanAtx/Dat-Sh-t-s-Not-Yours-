@@ -16,8 +16,11 @@ global.window = global;
 global.SpeechSynthesisUtterance = SpeechSynthesisUtterance;
 global.speechSynthesis = { getVoices: () => voices, speak(u){ u.onend && u.onend(); }, cancel: () => {} };
 global.SFX = { radioEl: null, radioMuted: false };
+const store = {};
+global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
 const Voice = new Function('SFX', 'SpeechSynthesisUtterance', 'performance', 'spawnBubble',
   code + '\n;return Voice;')(global.SFX, SpeechSynthesisUtterance, performance, () => {});
+Voice._loadPrefs();
 
 let pass = true;
 const check = (n, c, e) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  [' + e + ']')); if (!c) pass = false; };
@@ -64,15 +67,36 @@ check('female speaker keeps caller pitch when a match exists', f && Math.abs(f.p
 const onlyFemale = [{ name: 'Samantha', lang: 'en-US' }];
 let mFb = speakWith(onlyFemale, 'Dawg shit!', 'male', 0.9);
 check('single-voice device: male falls back to the only voice', mFb && mFb.voice && mFb.voice.name === 'Samantha', mFb && mFb.voice && mFb.voice.name);
-check('single-voice device: male pitch nudged LOWER (< 0.9)', mFb && mFb.pitch < 0.9, String(mFb && mFb.pitch));
+check('single-voice device: male pitch DROPS DEEP (0.9 -> ~0.63)', mFb && mFb.pitch < 0.68, String(mFb && mFb.pitch));
 const onlyMale = [{ name: 'Microsoft David', lang: 'en-US' }];
 let fFb = speakWith(onlyMale, 'Ow! Dat hurt!', 'female', 1.1);
 check('single-voice device: female falls back to the only voice', fFb && fFb.voice && fFb.voice.name === 'Microsoft David', fFb && fFb.voice && fFb.voice.name);
-check('single-voice device: female pitch nudged HIGHER (> 1.1)', fFb && fFb.pitch > 1.1, String(fFb && fFb.pitch));
+check('single-voice device: female pitch RISES (1.1 -> ~1.34)', fFb && fFb.pitch > 1.25, String(fFb && fFb.pitch));
 
 // --- genderless (animal) line: caller pitch untouched, no nudge ---
 let a = speakWith(onlyFemale, 'Eeek!', null, 1.5);
 check('genderless line keeps caller pitch (1.5)', a && Math.abs(a.pitch - 1.5) < 1e-9, String(a && a.pitch));
+
+// --- manual voice picks (the HUD VOICE panel API) ---
+Voice.setMale('Microsoft Zira');   // force a female-classified voice onto male lines
+let mSel = speakWith(rich, 'This gawbage bag\u2019s heavy!', 'male', 0.9);
+check('manual pick: male line uses the chosen voice (Zira)', mSel && mSel.voice && mSel.voice.name === 'Microsoft Zira', mSel && mSel.voice && mSel.voice.name);
+check('manual pick of a mismatched voice still sounds DEEP (< 0.68)', mSel && mSel.pitch < 0.68, String(mSel && mSel.pitch));
+Voice.setMale('Microsoft David');
+let mSel2 = speakWith(rich, 'Back on the job!', 'male', 0.9);
+check('manual pick of a real male voice -> caller pitch kept (0.9)', mSel2 && mSel2.voice.name === 'Microsoft David' && Math.abs(mSel2.pitch - 0.9) < 1e-9, mSel2 && mSel2.voice.name + ' @ ' + mSel2.pitch);
+Voice.setFemale('Microsoft David');   // force the male voice onto female lines
+let fSel = speakWith(rich, 'Ow! Dat hurt!', 'female', 1.1);
+check('manual pick: female line uses chosen voice (David) at HIGHER pitch', fSel && fSel.voice.name === 'Microsoft David' && fSel.pitch > 1.25, fSel && fSel.voice.name + ' @ ' + fSel.pitch);
+check('picks persisted to localStorage', (function(){ try { const j = JSON.parse(localStorage.getItem('dsnboy.voice')); return j.male === 'Microsoft David' && j.female === 'Microsoft David'; } catch (e) { return false; } })(), String(localStorage.getItem('dsnboy.voice')));
+// a pick for a voice that vanished off the machine falls back to auto
+Voice.setMale('Microsoft Paul');
+let mGone = speakWith(rich, 'Voice gone test', 'male', 0.9);
+check('vanished pick falls back to the pooled male voice', mGone && mGone.voice && mGone.voice.name === 'Microsoft David', mGone && mGone.voice && mGone.voice.name);
+// back to AUTO
+Voice.setMale('auto'); Voice.setFemale('auto');
+let mAuto = speakWith(rich, 'Auto again test', 'male', 0.9);
+check('auto restored -> pooled male voice at caller pitch', mAuto && mAuto.voice.name === 'Microsoft David' && Math.abs(mAuto.pitch - 0.9) < 1e-9, mAuto && mAuto.voice.name + ' @ ' + mAuto.pitch);
 
 console.log(pass ? '\nVOICE GENDER CHECKS PASSED' : '\nVOICE GENDER CHECKS FAILED');
 process.exit(pass ? 0 : 1);
