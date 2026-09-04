@@ -107,6 +107,20 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   try { (els['radio']._h['click'] || [])[0]({ target: { closest: function(){ return null; } } }); } catch (e) { clickThrew = true; }
   check('tapping the widget body is safe and idempotent (no throw, no double-start)', !clickThrew && played.length === 3);
 
+  // --- docked widget: in-game size, visible title, whole bar tappable, pinned to frame bottom ---
+  check('menu button styling is scoped to #btnStart (no .menu-bottom button leak onto MUTE/SKIP)', !/\.menu-bottom\s*button/.test(html) && /#btnStart\s*\{/.test(html));
+  check('panel button styling is scoped to #btnStart/#btnRestart (radio buttons keep .radio-btn size)', !/\.panel\s*button/.test(html) && /#btnStart,\s*#btnRestart/.test(html));
+  check('whole widget bar is a tap target (#radio pointer-events:auto)', /#radio\s*\{[^}]*pointer-events:auto/.test(html));
+  check('title has an explicit line-height (dock inherits line-height:0 from .menu-logo-wrap)', /#radio-title\s*\{[^}]*line-height/.test(html));
+  check('menu bar pinned to the very bottom of the logo frame', /\.menu-bottom\s*\{[^}]*bottom:0/.test(html));
+  let titleThrew = false;
+  try { (els['radio']._h['click'] || [])[0]({ target: els['radio-title'] }); } catch (e) { titleThrew = true; }
+  check('tapping the song title area tunes in (not just the analyzer)', !titleThrew && played.length === 3);
+  let btnThrew = false;
+  const btnTarget = { closest: function(sel){ return sel === 'button' ? els['btnMute'] : null; } };
+  try { (els['radio']._h['click'] || [])[0]({ target: btnTarget }); } catch (e) { btnThrew = true; }
+  check('tapping MUTE is excluded from the tune-in handler (no throw)', !btnThrew && played.length === 3);
+
   console.log(pass ? '\nALL RADIO HUD TESTS PASSED' : '\nSOME TESTS FAILED');
   process.exit(pass ? 0 : 1);
 })();
