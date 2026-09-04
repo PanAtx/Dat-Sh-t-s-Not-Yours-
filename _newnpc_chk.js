@@ -163,5 +163,17 @@ check('jackhammer: concrete-grit particle shower wired (small tumbly bits, dust 
 check('jackhammer: worker shudders + gravel at the chisel tip in the AI case',
   src.indexOf('c.g.position.z = GZ + vib * 0.012') >= 0 && src.indexOf('spawnGravelBits(hx, hy)') >= 0);
 check('hooker: hip shimmy (side-to-side rock) in the AI case', src.indexOf('c.g.rotation.y = Math.sin(c.swayT * 2.2) * 0.14') >= 0);
+
+// --- round 3 fixes ---
+const skCase3 = src.slice(src.lastIndexOf("case 'skater'"), src.lastIndexOf("case 'skater'") + 1600);
+check('skater: big readable tricks (full flip + 0.9m pop + crouch + 360 body spin)',
+  skCase3.indexOf('t * Math.PI * 2') >= 0 && skCase3.indexOf('pop * 0.9') >= 0 &&
+  skCase3.indexOf('0.3 * crouch') >= 0 && skCase3.indexOf('c.doSpin ? t * Math.PI * 2 : 0') >= 0);
+check('skater: bright orange deck for contrast against the dark asphalt', src.indexOf('0xff7a1a') >= 0);
+check('skater: parks at the curb edge (y 4.3..4.9), out of the main walking line',
+  src.indexOf('c.wy = R(4.3, 4.9)') >= 0);
+const chainZ = (src.match(/chain\.position\.set\([^;]*0\.38\)/g) || []).length;
+check('chain: sits ABOVE the grass surface (z 0.38) in BOTH spawn + per-frame update', chainZ >= 2, 'occurrences=' + chainZ);
+check('doghouse: bright chain stake at the anchor (moves with the house on recycle)', src.indexOf('stakeM = M(0xe8b416)') >= 0);
 console.log(pass ? '\nNEW NPC CHECKS PASSED' : '\nNEW NPC CHECKS FAILED');
 process.exit(pass ? 0 : 1);

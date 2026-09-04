@@ -181,7 +181,12 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 @keyframes eq { 0%,100% { height:16%; } 50% { height:100%; } }
 #radio-title { font-family:'Press Start 2P','Courier New',monospace; font-size:9px; letter-spacing:1px;
   color:#54ff9c; text-shadow:0 0 8px rgba(60,255,138,.85), 1px 1px 0 rgba(0,0,0,.9);
-  max-width:min(34vw, 230px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-transform:uppercase; }
+  width:168px; flex:none; white-space:nowrap; overflow:hidden; text-transform:uppercase; }
+/* The widget is a FIXED size: short titles just sit there; when a title is too
+   wide it ticker-scrolls inside the box instead of stretching the widget. */
+#radio-title .tk { display:inline-block; white-space:nowrap; will-change:transform; }
+#radio.tick #radio-title .tk { padding-left:100%; animation:radio-tick 9s linear infinite; }
+@keyframes radio-tick { to { transform:translateX(-100%); } }
 #radio.muted #radio-title { color:rgba(110,130,120,.6); text-shadow:none; }
 #radio.muted #radio-bars i { background:rgba(90,120,105,.5); box-shadow:none; }
 .radio-btn { pointer-events:auto; font-family:'Press Start 2P','Courier New',monospace; font-size:8px; letter-spacing:1px;
@@ -202,7 +207,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div id="tl" class="hudbox"><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
   <div id="radio">
     <div id="radio-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-    <div id="radio-title">NO SIGNAL</div>
+    <div id="radio-title"><span class="tk">NO SIGNAL</span></div>
     <button id="btnMute" class="radio-btn">MUTE</button>
     <button id="btnSkip" class="radio-btn">SKIP »</button>
   </div>
@@ -555,7 +560,11 @@ const SFX = {
 const radioBox = $('radio'), radioTitle = $('radio-title');
 function radioSetTitle(name){
   const t = (name || '').replace(/\.mp3$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() || 'ON AIR';
-  if (radioTitle.textContent !== t) radioTitle.textContent = t;
+  // Fixed-size widget: the title lives in a .tk span so long titles can
+  // ticker-scroll inside the box (see #radio.tick CSS) instead of stretching it
+  radioTitle.innerHTML = '<span class="tk">' + t + '</span>';
+  const over = radioTitle.scrollWidth > radioTitle.clientWidth + 1;
+  if (radioBox && radioBox.classList) radioBox.classList.toggle('tick', !!over);
   radioBox.classList.add('on'); // music is on air: light up the title + animate the spectrum bars
 }
 function radioToggleMute(){
@@ -1663,19 +1672,23 @@ function makeHooker(){
   return g;
 }
 function makeSkater(){
-  // Skateboarder working tricks IN PLACE on the sidewalk: crouched stance,
-  // pops the board (kickflip) while his feet stay planted on the concrete
+  // Skateboarder working tricks IN PLACE at the curb: bright board (a near-black
+  // board on dark asphalt reads as "not animated"), big visible kickflip, and
+  // the rider crouches/pops with the trick
   const g = new THREE.Group();
-  const skin = M(pick(SKIN_TONES)), shirtM = M(pick(SHIRTS)), pantsM = M(0x2f3640), hairM = M(pick(HAIRS));
+  const skin = M(pick(SKIN_TONES)), shirtM = M(pick(SHIRTS)), pantsM = M(0x2f3640);
+  const deckM = M(0xff7a1a); // bright orange deck - the flip MUST read from the camera
+  const wheelM = M(0xf2f0ea); // white wheels
   const board = new THREE.Group();
-  const deck = BX(0.95, 0.1, 0.06, M(0x23262b)); deck.position.z = 0.06; board.add(deck);
-  const grip = BX(0.9, 0.09, 0.012, M(0x4a4f55)); grip.position.z = 0.1; board.add(grip);
-  [[0.36, 0.055], [0.36, -0.055], [-0.36, 0.055], [-0.36, -0.055]].forEach(wp => {
-    const w = CY(0.045, 0.045, 0.04, M(0xd8d2c8), 8); w.position.set(wp[0], wp[1], 0.02); board.add(w);
+  const deck = BX(0.95, 0.1, 0.06, deckM); deck.position.z = 0.06; board.add(deck);
+  const grip = BX(0.85, 0.09, 0.014, M(0x2b2f35)); grip.position.z = 0.1; board.add(grip);
+  const kick = BX(0.14, 0.1, 0.05, deckM); kick.position.set(0.5, 0, 0.12); kick.rotation.z = 0.35; board.add(kick);
+  const kick2 = BX(0.14, 0.1, 0.05, deckM); kick2.position.set(-0.5, 0, 0.12); kick2.rotation.z = -0.35; board.add(kick2);
+  [[0.36, 0.06], [0.36, -0.06], [-0.36, 0.06], [-0.36, -0.06]].forEach(wp => {
+    const w = CY(0.05, 0.05, 0.045, wheelM, 10); w.position.set(wp[0], wp[1], 0.025); board.add(w);
   });
   g.add(board);
   const mkLeg = (side, xoff) => {
-    // crouched leg: hip over the board, foot planted on the deck
     const pv = new THREE.Group(); pv.position.set(xoff, side * 0.09, 0.9);
     const leg = CY(0.065, 0.055, 0.78, pantsM, 8); leg.rotation.x = Math.PI / 2; leg.position.z = -0.4; pv.add(leg);
     const shoe = BX(0.16, 0.11, 0.09, M(0x111417)); shoe.position.set(0.03, 0, -0.76); pv.add(shoe);
@@ -1684,7 +1697,6 @@ function makeSkater(){
   const legL = mkLeg(1, 0.16), legR = mkLeg(-1, -0.18);
   const torso = BX(0.2, 0.5, 0.5, shirtM); torso.position.z = 1.05; torso.rotation.y = 0.15; g.add(torso); // slight forward lean
   const mkArm = side => {
-    // arms out wide for balance
     const pv = new THREE.Group(); pv.position.set(0, side * 0.26, 1.32);
     const arm = CY(0.05, 0.042, 0.44, shirtM, 8); arm.rotation.x = Math.PI / 2; arm.rotation.z = side * 0.75; arm.position.set(0.1, side * 0.12, -0.2); pv.add(arm);
     const hand = SP(0.05, skin, 8); hand.position.set(0.2, side * 0.24, -0.42); pv.add(hand);
@@ -1692,7 +1704,7 @@ function makeSkater(){
   };
   const armL = mkArm(1), armR = mkArm(-1);
   const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.5; g.add(head);
-  const hairC = BX(0.24, 0.28, 0.18, hairM); hairC.position.z = 1.58; g.add(hairC);
+  const hairC = BX(0.24, 0.28, 0.18, M(0xd0342c)); hairC.position.z = 1.58; g.add(hairC); // red cap
   g.userData.board = board;
   g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
   return g;
@@ -1772,14 +1784,14 @@ function makeDogHouse(){
   // high-poly dog). The chain stake sits at the group origin - that's where
   // the chain anchor (c.anchorX / c.anchorY) is.
   const g = new THREE.Group();
-  const wood = M(0x7a5a3a), roof = M(0x8a3a30), dark = M(0x14100e), stakeM = M(0x3a3f45);
+  const wood = M(0x7a5a3a), roof = M(0x8a3a30), dark = M(0x14100e), stakeM = M(0xe8b416); // stake is bright yellow so the chain reads as tied to it
   const walls = BX(0.7, 0.55, 0.6, wood); walls.position.z = 0.3; g.add(walls);
   const hole = BX(0.3, 0.04, 0.3, dark); hole.position.set(0, -0.29, 0.27); g.add(hole); // entry on the street-facing (-Y) side
   // gabled roof: TWO slabs mirrored across a ridge that runs left/right (Y),
   // sloping down toward +X and -X (walls are 0.7 long in X, top at z 0.6)
   const roofF = BX(0.46, 0.85, 0.05, roof); roofF.rotation.y = 0.42; roofF.position.set(0.21, 0, 0.68); g.add(roofF);
   const roofB = BX(0.46, 0.85, 0.05, roof); roofB.rotation.y = -0.42; roofB.position.set(-0.21, 0, 0.68); g.add(roofB);
-  const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); g.add(stake);
+  const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); g.add(stake); // the chain visually ties here
   return g;
 }
 function makeTricycle(){
@@ -1964,7 +1976,7 @@ function addCreature(type){
     case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
                  c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
     case 'hooker': c.wy = R(1.2, 4.2); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
-    case 'skater': c.wy = R(1.2, 4.2); c.trickT = R(0.4, 1.4); c.flipT = 0;
+    case 'skater': c.wy = R(4.3, 4.9); c.trickT = R(0.4, 1.4); c.flipT = 0; // curb edge, out of the main walking line
                  c.data = makeSkater(); c.board = c.data.userData.board; break;
     case 'escooter': c.wy = R(1.4, 3.8); c.sp = R(2.4, 3.4);
                  c.data = makeEScooter(); c.wheelF = c.data.userData.wheelF; c.wheelR = c.data.userData.wheelR; break;
@@ -2096,7 +2108,7 @@ function spawnWorld(){
     dynamicGroup.add(ld.houseG);
     const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
     ld.chain.scale.x = Math.max(0.02, cl0);
-    ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.22);
+    ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38); // above the grass surface
     ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
     dynamicGroup.add(ld.chain);
     ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
@@ -3833,23 +3845,35 @@ function updateCreatures(dt){
         break;
       }
       case 'skater':{
-        // working tricks IN PLACE: pop, kickflip the board, land, repeat
+        // WORKING TRICKS IN PLACE, big enough to read from the camera:
+        // crouch -> POP (the bright board flips a full 360 while he launches)
+        // -> land -> repeat. Every 3rd trick he adds a 360 body spin.
         c.trickT -= dt;
-        if (c.trickT <= 0 && c.flipT <= 0) c.flipT = 0.8;
+        if (c.trickT <= 0 && c.flipT <= 0){
+          c.flipT = 1.1;
+          c.nth = (c.nth || 0) + 1;
+          c.doSpin = (c.nth % 3 === 0);
+        }
         if (c.flipT > 0){
           c.flipT -= dt;
-          const t = 1 - Math.max(0, c.flipT) / 0.8; // 0..1 through the trick
+          const t = 1 - Math.max(0, c.flipT) / 1.1; // 0..1 through the trick
+          const pop = Math.sin(t * Math.PI);        // 0 -> 1 -> 0
           if (c.board){
-            c.board.rotation.x = t * Math.PI * 2;             // full kickflip spin
-            c.board.position.z = 0.04 + Math.sin(t * Math.PI) * 0.55; // board leaves his feet
+            c.board.rotation.x = t * Math.PI * 2;   // full kickflip, board spins end over end
+            c.board.position.z = 0.04 + pop * 0.9;  // board lifts a FULL meter off his feet
           }
-          c.g.position.z = GZ + Math.sin(t * Math.PI) * 0.16; // he pops up and lands
+          const crouch = Math.max(0, 1 - t * 3);    // knees bend through the first third
+          c.g.position.z = GZ - 0.3 * crouch + 0.6 * pop; // crouch low, launch high, land
+          c.g.rotation.z = c.doSpin ? t * Math.PI * 2 : 0; // 360 body spin every 3rd trick
+          if (c.parts){ const aw = Math.sin(t * Math.PI) * 0.7; c.parts.armL.rotation.z = aw; c.parts.armR.rotation.z = -aw; }
         } else {
           if (c.board){ c.board.rotation.x = 0; c.board.position.z = 0.04; }
           c.g.position.z = GZ;
-          c.trickT = R(0.9, 2.2);
+          c.g.rotation.z = 0;
+          if (c.parts){ c.parts.armL.rotation.z = 0; c.parts.armR.rotation.z = 0; }
+          c.trickT = R(0.8, 1.6);
         }
-        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
+        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(4.3, 4.9); }
         break;
       }
       case 'escooter':{
@@ -3900,7 +3924,7 @@ function updateCreatures(dt){
           const cx2 = c.anchorX - c.wx, cy2 = c.anchorY - c.wy;
           const cl = Math.sqrt(cx2 * cx2 + cy2 * cy2);
           c.chain.scale.x = Math.max(0.02, cl);
-          c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, 0.22);
+          c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, 0.38); // ABOVE the grass top (ground solid to z 0.3)
           c.chain.rotation.z = Math.atan2(cy2, cx2);
         }
         if (tx < -55){

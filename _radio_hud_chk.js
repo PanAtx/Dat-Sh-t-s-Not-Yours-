@@ -16,9 +16,17 @@ function fakeClass(){ const set = new Set(); return {
   add: c => set.add(c), remove: c => set.delete(c),
   toggle: (c, f) => { if (f === undefined){ set.has(c) ? set.delete(c) : set.add(c); } else if (f) set.add(c); else set.delete(c); },
   has: c => set.has(c) }; }
-function fakeEl(){ return { style:{}, textContent:'', volume:1, src:'', _h:{}, classList: fakeClass(),
+function fakeEl(){ const el = { style:{}, textContent:'', volume:1, src:'', _h:{},
+  scrollWidth: 999, clientWidth: 168, // pretend the (fixed) box is too small -> ticker engages
+  classList: fakeClass(),
   addEventListener: function(ev, fn){ (this._h[ev] = this._h[ev] || []).push(fn); },
-  fire: function(ev){ (this._h[ev] || []).forEach(fn => fn()); } }; }
+  fire: function(ev){ (this._h[ev] || []).forEach(fn => fn()); } };
+  let _html = '';
+  // emulate the real DOM: setting innerHTML reparents the text so textContent reflects it
+  Object.defineProperty(el, 'innerHTML', {
+    get(){ return _html; },
+    set(v){ _html = String(v || ''); el.textContent = _html.replace(/<[^>]*>/g, ''); } });
+  return el; }
 const els = { 'radio': fakeEl(), 'radio-title': fakeEl(), 'btnMute': fakeEl(), 'btnSkip': fakeEl() };
 const $ = id => els[id];
 const FILES = JSON.parse(fs.readFileSync('music/manifest.json', 'utf8'));
@@ -48,6 +56,7 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   const norm = n => n.replace(/\.mp3$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   check('title shows first song (no .mp3)', els['radio-title'].textContent === norm(t1));
   check('widget lit (on class)', els['radio'].classList.has('on'));
+  check('fixed-size ticker: wide title engages tick class', els['radio'].classList.has('tick'));
 
   // --- SKIP: next track immediately, title follows ---
   out.SFX.radioSkip();
