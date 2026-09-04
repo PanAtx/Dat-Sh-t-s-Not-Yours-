@@ -1608,21 +1608,56 @@ function makeDogWalker(){
   return person;
 }
 function makeTricycle(){
+  // Classic "Big Wheel" kid tricycle, child-sized (ref: low plastic trike).
+  // Axes: +X forward, Y lateral, Z up (ground z=0). Cylinder axis = Y (unrotated = upright wheel).
   const g = new THREE.Group();
-  const kid = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), h: 0.85 });
-  kid.g.scale.set(0.75, 0.75, 0.75);
-  g.add(kid.g);
-  const frame = M(0xc94a4a);
-  const f1 = BX(0.5, 0.06, 0.06, frame); f1.position.set(-0.1, 0, 0.5); g.add(f1);
-  const wheelM = M(0x23262b);
-  const wpos = [[0.42, 0, 0.2], [-0.35, 0.24, 0.2], [-0.35, -0.24, 0.2]];
-  for (let i = 0; i < 3; i++){
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.06, 10), wheelM);
-    w.position.set(wpos[i][0], wpos[i][1], 0.2);
-    w.castShadow = true;
-    g.add(w);
-  }
-  const handle = BX(0.05, 0.3, 0.32, frame); handle.position.set(0.42, 0, 0.35); g.add(handle);
+  const RED = M(0xd93b32), YEL = M(0xf4c522), BLU = M(0x2f6fd0);
+  const TIRE = M(0x1d1f24), HUB = MS(0xb9c2cb), DARK = M(0x33383e);
+  const wheel = (r, x, y, z, thick, seg) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, seg), TIRE); w.position.set(x, y, z); w.castShadow = true; g.add(w); };
+  // ===== GIANT FRONT WHEEL (blue pedals + grey hub on the axle) =====
+  wheel(0.30, 0.42, 0, 0.30, 0.12, 16);
+  const hubF = CY(0.08, 0.08, 0.14, HUB, 10); hubF.position.set(0.42, 0, 0.30); g.add(hubF);
+  for (let i = 0; i < 3; i++){ const sp = BX(0.48, 0.03, 0.03, HUB); sp.position.set(0.42, 0, 0.30); sp.rotation.y = (i / 3) * Math.PI; g.add(sp); }
+  const axleF = CY(0.02, 0.02, 0.18, DARK, 6); axleF.position.set(0.42, 0, 0.30); g.add(axleF);
+  [-1, 1].forEach(s => { const ped = BX(0.12, 0.03, 0.10, BLU); ped.position.set(0.42, s * 0.14, 0.30); g.add(ped); });
+  // ===== YELLOW FRONT FORK + HANDLEBAR =====
+  const fork = CY(0.03, 0.03, 0.44, YEL, 8); fork.rotation.x = Math.PI / 2; fork.position.set(0.42, 0, 0.51); g.add(fork);
+  const fender = BX(0.16, 0.36, 0.10, YEL); fender.position.set(0.42, 0, 0.52); g.add(fender);
+  const bar = BX(0.05, 0.42, 0.05, YEL); bar.position.set(0.42, 0, 0.74); g.add(bar);
+  [-1, 1].forEach(s => { const grip = CY(0.03, 0.03, 0.16, DARK, 8); grip.position.set(0.42, s * 0.20, 0.74); g.add(grip); });
+  // ===== RED BODY / LOW BUCKET SEAT =====
+  const deck = BX(0.6, 0.28, 0.14, RED); deck.position.set(0.05, 0, 0.26); g.add(deck);
+  const seat = BX(0.30, 0.26, 0.22, RED); seat.position.set(-0.20, 0, 0.38); g.add(seat);
+  const back = BX(0.08, 0.26, 0.24, RED); back.position.set(-0.38, 0, 0.44); g.add(back);
+  const beam = BX(0.4, 0.06, 0.06, RED); beam.position.set(0.02, 0, 0.22); g.add(beam);
+  // ===== BLUE STORAGE TRUNK (behind the seat) =====
+  const trunk = BX(0.26, 0.26, 0.22, BLU); trunk.position.set(-0.58, 0, 0.32); g.add(trunk);
+  // ===== WIDE REAR WHEELS + AXLE =====
+  const rearAxle = CY(0.02, 0.02, 0.56, DARK, 6); rearAxle.position.set(-0.52, 0, 0.19); g.add(rearAxle);
+  [-1, 1].forEach(s => {
+    wheel(0.19, -0.52, s * 0.27, 0.19, 0.10, 12);
+    const hubR = CY(0.07, 0.07, 0.12, HUB, 8); hubR.position.set(-0.52, s * 0.27, 0.19); g.add(hubR);
+  });
+  // ===== SMALL CHILD RIDER (recumbent: back in the seat, legs forward to the
+  // pedals, arms forward to the grips — denim jacket, khaki pants, grey helmet) =====
+  const denim = M(0x3f5c86), khaki = M(0xb59a66), skin = M(pick(SKIN_TONES));
+  const torso = BX(0.24, 0.24, 0.32, denim); torso.position.set(-0.24, 0, 0.56); torso.rotation.y = -0.22; g.add(torso); // hunched back in the seat
+  const head = BX(0.16, 0.16, 0.16, skin); head.position.set(-0.30, 0, 0.77); g.add(head);
+  const helmet = SPH(0.115, M(0x5c6167)); helmet.scale.set(1.12, 1.12, 0.92); helmet.position.set(-0.31, 0, 0.82); g.add(helmet); // grey safety helmet
+  const hemBand = CY(0.12, 0.12, 0.03, DARK, 10); hemBand.rotation.x = Math.PI / 2; hemBand.position.set(-0.30, 0, 0.76); g.add(hemBand);
+  const kid = {};
+  [-1, 1].forEach(s => {
+    // leg: hip pivot at the seat, thigh/shin stretched FORWARD (+X) to the blue pedal
+    const pv = new THREE.Group(); pv.position.set(-0.16, s * 0.08, 0.42); g.add(pv);
+    const leg = BX(0.46, 0.09, 0.10, khaki); leg.position.set(0.23, 0, -0.02); pv.add(leg);
+    const shoe = BX(0.14, 0.10, 0.09, M(0xefe9dd)); shoe.position.set(0.46, 0, -0.06); pv.add(shoe); // sneaker on the pedal
+    if (s === 1) kid.legL = pv; else kid.legR = pv;
+    // arm: shoulder pivot, reaching FORWARD + up to the handlebar grip
+    const ap = new THREE.Group(); ap.position.set(-0.20, s * 0.14, 0.62); g.add(ap);
+    const arm = BX(0.48, 0.07, 0.08, denim); arm.position.set(0.24, 0, 0.06); ap.add(arm);
+    const hand = BX(0.08, 0.08, 0.08, skin); hand.position.set(0.46, 0, 0.12); ap.add(hand);
+    if (s === 1) kid.armL = ap; else kid.armR = ap;
+  });
   g.userData.parts = { legL: kid.legL, legR: kid.legR, armL: kid.armL, armR: kid.armR };
   return g;
 }
@@ -1735,7 +1770,7 @@ function addCreature(type){
     case 'pigeon': c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0; c.fleeAng = 0;
                    c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR; break;
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
-                  c.boxW = 0.35; c.boxL = 0.35; c.data = makeTricycle(); break;
+                  c.boxW = 0.38; c.boxL = 0.7; c.data = makeTricycle(); break;
     case 'dogwalker': c.wy = R(1.0, 4.0); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
     case 'rc':    c.wy = R(1, 4); c.sp = R(6, 9); c.dir = 1; c.flip = R(0.4, 1); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.25; c.boxL = 0.3; c.data = makeRC(); break;
