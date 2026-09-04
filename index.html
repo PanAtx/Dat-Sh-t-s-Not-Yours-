@@ -1747,7 +1747,7 @@ function makeEScooter(){
     const hand = SP(0.045, skin, 8); hand.position.set(0.36, s * 0.18, 1.13); g.add(hand);
   });
   const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.62; g.add(head); // square head like the other NPCs
-  const hair = BX(0.24, 0.28, 0.1, M(pick([0x111111, 0x2a1a10, 0x5a3a1a]))); hair.position.set(-0.02, 0, 1.65); g.add(hair); // hair slab (same style as the skater)
+  const hair = BX(0.25, 0.29, 0.12, M(pick([0x111111, 0x2a1a10, 0x5a3a1a]))); hair.position.set(-0.03, 0, 1.72); g.add(hair); // hair cap on the CROWN (sticks up past the head top, not buried in it)
   g.userData.wheelF = wheelF; g.userData.wheelR = wheelR;
   return g;
 }
