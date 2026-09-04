@@ -1629,8 +1629,8 @@ function makeHooker(){
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.1, 0.8);
     const leg = CY(0.075, 0.05, 0.72, stockM, 10); leg.rotation.x = Math.PI / 2; leg.position.z = -0.36; pv.add(leg); // stockings
-    const foot = BX(0.1, 0.17, 0.04, heelM); foot.position.set(0.07, 0, -0.06); foot.rotation.y = -0.55; pv.add(foot); // heel pump
-    const spike = CY(0.015, 0.015, 0.11, heelM, 6); spike.rotation.x = Math.PI / 2; spike.position.set(-0.02, 0, -0.05); pv.add(spike); // stiletto
+    const foot = BX(0.1, 0.17, 0.04, heelM); foot.position.set(0.08, 0, -0.74); foot.rotation.y = -0.55; pv.add(foot); // heel pump at the bottom of the leg
+    const spike = CY(0.018, 0.018, 0.12, heelM, 6); spike.rotation.x = Math.PI / 2; spike.position.set(-0.03, 0, -0.74); pv.add(spike); // stiletto heel
     g.add(pv); return pv;
   };
   const legL = mkLeg(1), legR = mkLeg(-1);
@@ -1774,10 +1774,11 @@ function makeDogHouse(){
   const g = new THREE.Group();
   const wood = M(0x7a5a3a), roof = M(0x8a3a30), dark = M(0x14100e), stakeM = M(0x3a3f45);
   const walls = BX(0.7, 0.55, 0.6, wood); walls.position.z = 0.3; g.add(walls);
-  const hole = BX(0.3, 0.34, 0.05, dark); hole.position.set(0.15, 0, 0.31); g.add(hole); // entry, street-facing
-  // gabled roof: two slabs meeting at a ridge that runs left/right (Y)
-  const roofF = BX(0.42, 0.8, 0.05, roof); roofF.rotation.y = 0.55; roofF.position.set(0.2, 0, 0.53); g.add(roofF);
-  const roofB = BX(0.42, 0.8, 0.05, roof); roofB.rotation.y = -0.55; roofB.position.set(0.2, 0, 0.79); g.add(roofB);
+  const hole = BX(0.3, 0.04, 0.3, dark); hole.position.set(0, -0.29, 0.27); g.add(hole); // entry on the street-facing (-Y) side
+  // gabled roof: TWO slabs mirrored across a ridge that runs left/right (Y),
+  // sloping down toward +X and -X (walls are 0.7 long in X, top at z 0.6)
+  const roofF = BX(0.46, 0.85, 0.05, roof); roofF.rotation.y = 0.42; roofF.position.set(0.21, 0, 0.68); g.add(roofF);
+  const roofB = BX(0.46, 0.85, 0.05, roof); roofB.rotation.y = -0.42; roofB.position.set(-0.21, 0, 0.68); g.add(roofB);
   const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); g.add(stake);
   return g;
 }
@@ -1960,17 +1961,20 @@ function addCreature(type){
                   c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
     case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
-    case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.dustCd = R(0.8, 2); c.data = makeJacker(); break;
+    case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
+                 c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
     case 'hooker': c.wy = R(1.2, 4.2); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
-    case 'skater': c.wy = R(1.2, 4.2); c.trickT = R(0.4, 1.4); c.flipT = 0; c.data = makeSkater(); break;
-    case 'escooter': c.wy = R(1.4, 3.8); c.sp = R(2.4, 3.4); c.data = makeEScooter(); break;
+    case 'skater': c.wy = R(1.2, 4.2); c.trickT = R(0.4, 1.4); c.flipT = 0;
+                 c.data = makeSkater(); c.board = c.data.userData.board; break;
+    case 'escooter': c.wy = R(1.4, 3.8); c.sp = R(2.4, 3.4);
+                 c.data = makeEScooter(); c.wheelF = c.data.userData.wheelF; c.wheelR = c.data.userData.wheelR; break;
     case 'leashdog':{
       // dog + doghouse + chain: the anchor is the stake at the doghouse (front
       // lawn, in front of a house). spawnWorld re-places it right after.
       const dg = makeHighPolyDog();
       c.data = dg;
       c.houseG = makeDogHouse();
-      c.chain = new THREE.Mesh(new THREE.BoxGeometry(1, 0.02, 0.02), M(0x2a2e33));
+      c.chain = new THREE.Mesh(new THREE.BoxGeometry(1, 0.07, 0.05), MS(0xb0b8c0)); // chunky metal chain - must read at distance
       c.chainR = 2.3;
       c.anchorX = 0; c.anchorY = 7.6;
       c.homeX = 0.6; c.homeY = 6.3;
@@ -2218,6 +2222,30 @@ function spawnDustEffect(wx, wy){
       life: 1.0,
       decay: 0.8 + R(0, 0.6),
       rotSpeed: R(-6, 6)
+    });
+  }
+}
+// ==================== CONCRETE GRIT (jackhammer chipping the sidewalk) ====================
+function spawnGravelBits(wx, wy){
+  // A small shower of concrete fragments at the chisel tip: lots of TINY bits,
+  // low and quick, so it reads as the hammer breaking up the concrete without
+  // turning into a fireworks show. Rides the dust-particle pipeline.
+  const count = 4 + ((Math.random() * 3) | 0);
+  for (let i = 0; i < count; i++){
+    const size = 0.025 + Math.random() * 0.04;
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size),
+      new THREE.MeshLambertMaterial({ color: pick([0x9aa0a8, 0x858b93, 0xb0b6bd]), transparent: true, opacity: 0.95 }));
+    g.add(mesh);
+    dynamicGroup.add(g);
+    dustParticles.push({
+      g: g,
+      wx: wx, wy: wy,
+      vx: R(-1.1, 1.1), vy: R(-1.1, 1.1),
+      vz: 0.4 + Math.random() * 1.0,
+      life: 0.5 + Math.random() * 0.3,
+      decay: 1.5,
+      rotSpeed: R(-16, 16) // tumbly little chunks
     });
   }
 }
@@ -3774,25 +3802,33 @@ function updateCreatures(dt){
       }
       case 'jacker':{
         // grinding the sidewalk: the hammer judders down into the concrete,
-        // the whole tool shivers. He never says a word.
+        // the whole tool shivers, the worker vibrates with it, and small bits
+        // of concrete chip off the chisel tip. He never says a word.
         c.hamT += dt;
+        const vib = Math.abs(Math.sin(c.hamT * 24));
         if (c.hammer){
-          c.hammer.position.z = 0.14 + Math.abs(Math.sin(c.hamT * 24)) * 0.05;
-          c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.03;
+          c.hammer.position.z = 0.14 + vib * 0.055;
+          c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.035;
+          c.hammer.rotation.z = Math.sin(c.hamT * 27) * 0.02;
         }
-        c.dustCd -= dt;
-        if (state === 'play' && Math.abs(tx) < 11 && c.dustCd <= 0){
-          c.dustCd = R(1.2, 2.2);
+        if (c.parts){ const tr = Math.sin(c.hamT * 40) * 0.05; c.parts.armL.rotation.x = tr; c.parts.armR.rotation.x = -tr; }
+        c.g.position.z = GZ + vib * 0.012; // he shudders with the tool
+        c.gravCd -= dt;
+        if (state === 'play' && Math.abs(tx) < 13 && c.gravCd <= 0){
+          c.gravCd = R(0.28, 0.5);
           const az = c.g.rotation.z;
-          spawnDustEffect(c.wx + Math.cos(az) * 0.45, c.wy + Math.sin(az) * 0.45);
+          const hx = c.wx + Math.cos(az) * 0.45, hy = c.wy + Math.sin(az) * 0.45; // chisel tip
+          spawnGravelBits(hx, hy);
+          if (Math.random() < 0.3) spawnDustEffect(hx, hy); // occasional bigger dust puff
         }
         if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.g.rotation.z = R(-0.55, 0.55); }
         break;
       }
       case 'hooker':{
-        // standing the corner: slow hip sway while she faces the traffic
+        // standing the corner: slow hip sway with a little side-to-side shimmy
         c.swayT += dt;
         c.g.rotation.z = -Math.PI / 2 + Math.sin(c.swayT * 1.3) * 0.1;
+        c.g.rotation.y = Math.sin(c.swayT * 2.2) * 0.14; // hips rocking
         if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
         break;
       }
@@ -3879,7 +3915,7 @@ function updateCreatures(dt){
     }
     c.g.position.x = c.wx;
     c.g.position.y = c.wy;
-    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon' && c.type !== 'pigeon' && c.type !== 'skater') c.g.position.z = GZ;
+    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon' && c.type !== 'pigeon' && c.type !== 'skater' && c.type !== 'jacker') c.g.position.z = GZ;
     // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
     if (c.dogParts){
       const ds = Math.sin(c.phase) * 0.55;
@@ -3887,7 +3923,9 @@ function updateCreatures(dt){
       c.dogParts.legHR.rotation.y = ds;
       c.dogParts.legFR.rotation.y = -ds;
       c.dogParts.legHL.rotation.y = -ds;
-      c.dogParts.root.position.z = Math.abs(Math.sin(c.phase)) * 0.015;
+      // standalone dogs (the root IS c.g) bob around GZ; companion dogs (a child
+      // of their walker) bob around their local origin
+      c.dogParts.root.position.z = (c.dogParts.root === c.g ? GZ : 0) + Math.abs(Math.sin(c.phase)) * 0.015;
     }
     // dog bark animation: tail wags and the head lifts/shakes while the bark timer runs
     if (c.bark > 0){

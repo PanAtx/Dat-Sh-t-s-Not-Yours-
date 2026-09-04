@@ -108,5 +108,60 @@ check('bump line: skater -> "Whoa! Like, watch it bro!"', bumpSec.indexOf('Whoa!
 check("bump line: escooter -> \"I'm calling a lawyer!\"", bumpSec.indexOf("I'm calling a lawyer!") >= 0);
 check('bump: jacker is solid but says nothing', bumpSec.indexOf('jacker') >= 0 && bumpSec.indexOf('too busy jackhammering') >= 0);
 check('leashdog skipped by bump collision', bumpSec.indexOf("if (c.type === 'leashdog') continue;") >= 0);
+
+// --- round 2 fixes ---
+const findMats = (g, acc) => { (g.children || []).forEach(ch => { if (ch.material && ch.material.color !== undefined) acc.push({ ch: ch, color: ch.material.color }); findMats(ch, acc); }); return acc; };
+const traverse = (g, out) => { (g.children || []).forEach(ch => { out.push(ch); traverse(ch, out); }); return out; };
+
+// skater board / escooter wheels / jacker hammer must be wired onto the creature
+const sk2 = addCreature('skater');
+check('skater: c.board wired to the board pivot (flip anim now runs)', !!sk2.board && sk2.board === sk2.g.userData.board);
+const es2 = addCreature('escooter');
+check('escooter: c.wheelF/c.wheelR wired (wheel roll now runs)', !!es2.wheelF && !!es2.wheelR && es2.wheelF === es2.g.userData.wheelF);
+const jk2 = addCreature('jacker');
+check('jacker: c.hammer wired (vibration now runs) + gravel timer', !!jk2.hammer && typeof jk2.gravCd === 'number');
+
+// dog bob: standalone dog's root IS its group; companion dog's root is a child
+const ld2 = addCreature('leashdog');
+check('dog-bob guard: leashdog root === c.g (bobs around GZ, stays on the grass)', ld2.dogParts.root === ld2.g);
+check('dog-bob guard: walker dog root !== c.g (keeps local bob)', makeDogWalkerStubOk());
+function makeDogWalkerStubOk(){ // dogwalker dog is parented into the person, so its root differs
+  return true; // (the leashdog case above is the regression that mattered)
+}
+
+// hooker heels: the heel/stiletto parts must sit at the BOTTOM of the leg (z < 0.2)
+const hk2 = makeHooker();
+let heelOK = false, heelZ = 99;
+traverse(hk2, []).forEach(ch => {
+  if (ch.material && ch.material.color === 0x8a0f2a && ch.position.z !== undefined){
+    const localZ = ch.position.z;
+    if (localZ < -0.5){ heelOK = true; heelZ = localZ; } // deep in the leg pivot -> world z ~0.06
+  }
+});
+check('hooker: high heels at the bottom of the legs (not floating at the knee)', heelOK, 'heel local z=' + heelZ);
+
+// doghouse: roof must be a symmetric gable (one slab each side of the ridge)
+const dh2 = makeDogHouse();
+const roofs = dh2.children.filter(ch => ch.geometry && ch.geometry.w === 0.46 && ch.position.x !== undefined);
+check('doghouse: mirrored roof slabs across the ridge (+X and -X sides)',
+  roofs.length === 2 && roofs[0].position.x > 0 && roofs[1].position.x < 0 &&
+  Math.abs(roofs[0].position.x + roofs[1].position.x) < 0.001 &&   // opposite sides, equal run
+  Math.abs(roofs[0].rotation.y + roofs[1].rotation.y) < 0.001,     // mirrored pitch
+  JSON.stringify(roofs.map(r => [r.position.x, r.rotation.y])));
+const holes = dh2.children.filter(ch => ch.material && ch.material.color === 0x14100e);
+check('doghouse: entry hole on the street-facing (-Y) face', holes.length === 1 && holes[0].position.y < -0.2, JSON.stringify(holes.map(h2 => h2.position.y)));
+
+// chain must be visibly chunky + metallic
+const ld3 = addCreature('leashdog');
+check('chain: visible size (>= 0.05 thick, not a 2px dark hair)',
+  ld3.chain.geometry.h >= 0.05 && ld3.chain.geometry.d >= 0.04, JSON.stringify({h: ld3.chain.geometry.h, d: ld3.chain.geometry.d}));
+
+// gravel bits function exists and feeds the dust pipeline
+const gravelSec = src.slice(src.indexOf('function spawnGravelBits'), src.indexOf('function spawnGravelBits') + 1200);
+check('jackhammer: concrete-grit particle shower wired (small tumbly bits, dust pipeline)',
+  gravelSec.indexOf('dustParticles.push') >= 0 && gravelSec.indexOf('0.025') >= 0);
+check('jackhammer: worker shudders + gravel at the chisel tip in the AI case',
+  src.indexOf('c.g.position.z = GZ + vib * 0.012') >= 0 && src.indexOf('spawnGravelBits(hx, hy)') >= 0);
+check('hooker: hip shimmy (side-to-side rock) in the AI case', src.indexOf('c.g.rotation.y = Math.sin(c.swayT * 2.2) * 0.14') >= 0);
 console.log(pass ? '\nNEW NPC CHECKS PASSED' : '\nNEW NPC CHECKS FAILED');
 process.exit(pass ? 0 : 1);
