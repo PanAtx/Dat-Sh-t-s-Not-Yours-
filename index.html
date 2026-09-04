@@ -1719,11 +1719,11 @@ function makeSkater(){
   return g;
 }
 function makeEScooter(){
-  // Stand-up electric scooter rider cruising the sidewalk, bike helmet on
+  // Stand-up electric scooter rider cruising the sidewalk (helmet removed - the
+  // squashed dome + floating visor slab read as a broken head)
   const g = new THREE.Group();
   const skin = M(pick(SKIN_TONES)), shirtM = M(pick(SHIRTS)), pantsM = M(0x2f3640);
   const steelM = MS(0xaab2ba), frameM = M(0x30363d), tireM = M(0x14171a);
-  const helmM = M(pick([0xd0342c, 0x2a6fd0, 0x27a848, 0xe8e8ea]));
   const deck = BX(0.62, 0.09, 0.18, frameM); deck.position.z = 0.12; g.add(deck);
   // small wheels: axle along Y (lateral); the pivot spins on rotation.y to roll
   const mkWheel = x => {
@@ -1747,8 +1747,6 @@ function makeEScooter(){
     const hand = SP(0.045, skin, 8); hand.position.set(0.36, s * 0.18, 1.13); g.add(hand);
   });
   const head = SPH(0.13, skin, 14, 10); head.position.z = 1.66; g.add(head);
-  const helm = SPH(0.15, helmM, 14, 10); helm.scale.set(1.05, 1.05, 0.8); helm.position.set(-0.02, 0, 1.7); g.add(helm); // bike helmet
-  const visor = BX(0.05, 0.24, 0.07, M(0x22262a)); visor.position.set(0.13, 0, 1.7); g.add(visor);
   g.userData.wheelF = wheelF; g.userData.wheelR = wheelR;
   return g;
 }
