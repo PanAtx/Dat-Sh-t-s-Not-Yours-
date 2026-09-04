@@ -188,18 +188,6 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   color:#04140c; background:#39f78e; border:1px solid rgba(190,255,220,.8); border-radius:3px;
   padding:5px 7px; cursor:pointer; box-shadow:0 0 9px rgba(60,255,138,.5); -webkit-tap-highlight-color:transparent; }
 .radio-btn:active { transform:scale(.93); }
-/* ===== VOICE SETTINGS PANEL (pick the male / female voice for this machine) ===== */
-#voicePanel { position:fixed; top:72px; left:50%; transform:translateX(-50%); z-index:11; pointer-events:auto;
-  display:flex; flex-direction:column; gap:7px; padding:10px 13px; border-radius:6px;
-  border:2px solid rgba(46,224,144,.42); background:rgba(4,18,10,.94);
-  box-shadow:0 0 30px rgba(46,224,144,.4), inset 0 0 18px rgba(140,255,190,.25);
-  font-family:'Press Start 2P','Courier New',monospace; color:#9fe8b8; }
-#voicePanel.hidden { display:none; }
-#voicePanel .vp-title { font-size:8px; letter-spacing:2px; color:#39f78e; margin-bottom:1px; }
-#voicePanel label { display:flex; align-items:center; gap:8px; font-size:8px; letter-spacing:1px; }
-#voicePanel select { background:#04140c; color:#39f78e; border:1px solid rgba(46,224,144,.6); border-radius:3px;
-  font-family:inherit; font-size:8px; padding:4px 5px; max-width:220px; cursor:pointer; }
-#voicePanel .vp-note { font-size:7px; line-height:1.5; color:#6fae8a; letter-spacing:1px; }
 #btnMute.off { background:rgba(30,46,38,.9); color:#54ff9c; box-shadow:none; }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -217,13 +205,6 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
     <div id="radio-title">NO SIGNAL</div>
     <button id="btnMute" class="radio-btn">MUTE</button>
     <button id="btnSkip" class="radio-btn">SKIP »</button>
-    <button id="btnVoice" class="radio-btn">VOICE</button>
-  </div>
-  <div id="voicePanel" class="hidden">
-    <div class="vp-title">SPEECH VOICES</div>
-    <label>MALE <select id="selMale"></select></label>
-    <label>FEMALE <select id="selFemale"></select></label>
-    <div class="vp-note">MALE LINES SOUND DEEPER THAN FEMALE LINES. AUTO PICKS A VOICE PER GENDER FROM THIS DEVICE.</div>
   </div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
@@ -706,32 +687,11 @@ const Voice = {
     try { window.speechSynthesis.cancel(); } catch (e) {}
   }
 };
-// ==================== VOICE SETTINGS PANEL (VOICE button in the HUD) ====================
-(function(){
-  if (typeof document === 'undefined' || typeof $ !== 'function') return;   // skip in non-browser test harnesses
-  Voice._loadPrefs();   // restore the player's per-gender picks (defaults to 'auto')
-  const voicePanel = $('voicePanel'), selMale = $('selMale'), selFemale = $('selFemale');
-  function voiceFillOptions(sel, current){
-    sel.length = 0;
-    const a0 = document.createElement('option'); a0.value = 'auto'; a0.textContent = 'AUTO';
-    sel.appendChild(a0);
-    let vs = [];
-    try { vs = (window.speechSynthesis && window.speechSynthesis.getVoices()) || []; } catch (e) {}
-    for (let i = 0; i < vs.length; i++){
-      const o = document.createElement('option');
-      o.value = vs[i].name;
-      o.textContent = vs[i].name + (vs[i].lang ? ' (' + vs[i].lang + ')' : '');
-      sel.appendChild(o);
-    }
-    const keep = (current && current !== 'auto' && vs.some(v => v.name === current)) ? current : 'auto';
-    sel.value = keep;
-  }
-  function voiceRefreshPanel(){ voiceFillOptions(selMale, Voice.maleSel); voiceFillOptions(selFemale, Voice.femaleSel); }
-  $('btnVoice').addEventListener('click', () => { voicePanel.classList.toggle('hidden'); voiceRefreshPanel(); });
-  selMale.addEventListener('change', () => Voice.setMale(selMale.value));
-  selFemale.addEventListener('change', () => Voice.setFemale(selFemale.value));
-  try { if (window.speechSynthesis) window.speechSynthesis.addEventListener('voiceschanged', () => { if (!voicePanel.classList.contains('hidden')) voiceRefreshPanel(); }); } catch (e) {}
-})();
+// ==================== VOICE SETTINGS ====================
+// NOTE: the voice-picker UI (VOICE button + SPEECH VOICES panel) was removed at
+// the player's request — speech always uses the STANDARD automatic voices
+// (one male, one female, picked by the engine above per device). The engine's
+// setMale/setFemale preference API is intentionally kept for later use.
 // ==================== END VOICE SETTINGS ====================
 // ==================== PRIMITIVE HELPERS ====================
 function M(c, opt){ return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {})); }
@@ -1618,6 +1578,209 @@ function makeDogWalker(){
   person.g.add(leash);
   return person;
 }
+// ---- New sidewalk regulars (added with the "more NPCs" pass) ----
+function makeJacker(){
+  // Construction worker jackhammering the sidewalk: hi-vis vest, yellow hard
+  // hat, both hands braced on the vibrating tool. Says nothing - he's too
+  // busy jackhammering.
+  const g = new THREE.Group();
+  const skin = M(pick(SKIN_TONES)), vestM = M(0xff6a1a), stripeM = M(0xd8e35a),
+        pantsM = M(0x39424d), bootM = M(0x1f2226), steelM = MS(0x9aa3ab),
+        ironM = M(0x3a3f45), hatM = M(0xf2c230);
+  const mkLeg = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.13, 0.62);
+    const leg = BX(0.15, 0.16, 0.6, pantsM); leg.position.z = -0.3; pv.add(leg);
+    const shoe = BX(0.24, 0.16, 0.14, bootM); shoe.position.set(0.06, 0, -0.57); pv.add(shoe);
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1), legR = mkLeg(-1);
+  const torso = BX(0.26, 0.64, 0.62, vestM); torso.position.z = 1.15; g.add(torso);
+  const band = BX(0.28, 0.68, 0.09, stripeM); band.position.z = 1.3; g.add(band); // hi-vis chest stripe
+  const mkArm = side => {
+    // both arms reach forward-down to brace the hammer handles
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.3, 1.42);
+    const arm = BX(0.11, 0.13, 0.4, vestM); arm.position.set(0.2, side * 0.05, -0.18); arm.rotation.z = 0.35; pv.add(arm);
+    const glove = BX(0.1, 0.1, 0.12, M(0x2a2e33)); glove.position.set(0.42, side * 0.1, -0.4); pv.add(glove);
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = BX(0.24, 0.28, 0.24, skin); head.position.z = 1.66; g.add(head);
+  const dome = SPH(0.17, hatM, 14, 10); dome.scale.set(1, 1.05, 0.7); dome.position.z = 1.8; g.add(dome); // hard hat
+  const brim = BX(0.34, 0.4, 0.05, hatM); brim.position.set(0.05, 0, 1.74); g.add(brim);
+  // jackhammer: steel body + motor cap + chisel tip + twin side handles
+  const hammer = new THREE.Group();
+  const body = CY(0.09, 0.11, 0.8, steelM, 10); body.position.z = 0.52; hammer.add(body);
+  const motor = CY(0.11, 0.1, 0.3, ironM, 10); motor.position.z = 0.9; hammer.add(motor);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.3, 8), ironM);
+  tip.rotation.x = -Math.PI / 2; tip.position.z = 0.16; tip.castShadow = true; hammer.add(tip); // chisel down into the concrete
+  [-1, 1].forEach(s => { const hd = CY(0.03, 0.03, 0.32, ironM, 8); hd.position.set(0, s * 0.16, 0.72); hammer.add(hd); });
+  hammer.position.set(0.45, 0, 0.14);
+  g.add(hammer);
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  g.userData.hammer = hammer;
+  return g;
+}
+function makeHooker(){
+  // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
+  const g = new THREE.Group();
+  const skin = M(pick(SKIN_TONES));
+  const dressM = new THREE.MeshLambertMaterial({ color: 0xd81e4a, emissive: 0x2a020c, emissiveIntensity: 0.55 });
+  const stockM = M(0x241016), heelM = M(0x8a0f2a), hairM = M(pick([0x111111, 0x2a1a10, 0x5a3a1a]));
+  const mkLeg = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.1, 0.8);
+    const leg = CY(0.075, 0.05, 0.72, stockM, 10); leg.rotation.x = Math.PI / 2; leg.position.z = -0.36; pv.add(leg); // stockings
+    const foot = BX(0.1, 0.17, 0.04, heelM); foot.position.set(0.07, 0, -0.06); foot.rotation.y = -0.55; pv.add(foot); // heel pump
+    const spike = CY(0.015, 0.015, 0.11, heelM, 6); spike.rotation.x = Math.PI / 2; spike.position.set(-0.02, 0, -0.05); pv.add(spike); // stiletto
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1), legR = mkLeg(-1);
+  const hips = SPH(0.11, dressM, 14, 10); hips.scale.set(0.95, 1.3, 0.95); hips.position.z = 0.92; g.add(hips);
+  const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.27, 0.55, 12, 1, true),
+    new THREE.MeshLambertMaterial({ color: 0xd81e4a, side: THREE.DoubleSide }));
+  skirt.rotation.x = Math.PI / 2; skirt.position.z = 0.78; g.add(skirt); // tight mini skirt
+  const torso = BX(0.18, 0.46, 0.4, dressM); torso.position.z = 1.2; g.add(torso);
+  const bustL = SPH(0.12, dressM, 16, 12); bustL.scale.set(1, 1.05, 0.9); bustL.position.set(0.07, 0.1, 1.36); g.add(bustL);
+  const bustR = SPH(0.12, dressM, 16, 12); bustR.scale.set(1, 1.05, 0.9); bustR.position.set(0.07, -0.1, 1.36); g.add(bustR);
+  const neck = CY(0.035, 0.045, 0.12, skin, 8); neck.position.z = 1.44; g.add(neck);
+  const mkArm = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.26, 1.38);
+    if (side === 1){ // left arm: elbow out, hand on hip
+      const upper = CY(0.045, 0.04, 0.3, skin, 8); upper.rotation.x = Math.PI / 2; upper.rotation.z = 0.9; upper.position.set(0.05, 0.14, -0.1); pv.add(upper);
+      const hand = SP(0.045, skin, 8); hand.position.set(0.22, 0.16, -0.08); pv.add(hand);
+    } else { // right arm relaxed at her side
+      const arm = CY(0.045, 0.04, 0.42, skin, 8); arm.rotation.x = Math.PI / 2; arm.position.z = -0.21; pv.add(arm);
+      const hand = SP(0.045, skin, 8); hand.position.z = -0.45; pv.add(hand);
+    }
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = SPH(0.13, skin, 16, 12); head.scale.set(1, 1.15, 1.05); head.position.z = 1.6; g.add(head);
+  const lips = BX(0.03, 0.05, 0.02, M(0xa5102e)); lips.position.set(0.115, 0, 1.6); g.add(lips);
+  [-1, 1].forEach(s => { const eye = BX(0.015, 0.03, 0.015, M(0x14100e)); eye.position.set(0.125, s * 0.05, 1.63); g.add(eye); });
+  const hair = SPH(0.145, hairM, 16, 12); hair.scale.set(1, 1.1, 1.05); hair.position.set(-0.015, 0, 1.63); g.add(hair);
+  const hairBack = SPH(0.12, hairM, 12, 10); hairBack.scale.set(0.85, 1.15, 1.7); hairBack.position.set(-0.07, 0, 1.48); g.add(hairBack);
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  return g;
+}
+function makeSkater(){
+  // Skateboarder working tricks IN PLACE on the sidewalk: crouched stance,
+  // pops the board (kickflip) while his feet stay planted on the concrete
+  const g = new THREE.Group();
+  const skin = M(pick(SKIN_TONES)), shirtM = M(pick(SHIRTS)), pantsM = M(0x2f3640), hairM = M(pick(HAIRS));
+  const board = new THREE.Group();
+  const deck = BX(0.95, 0.1, 0.06, M(0x23262b)); deck.position.z = 0.06; board.add(deck);
+  const grip = BX(0.9, 0.09, 0.012, M(0x4a4f55)); grip.position.z = 0.1; board.add(grip);
+  [[0.36, 0.055], [0.36, -0.055], [-0.36, 0.055], [-0.36, -0.055]].forEach(wp => {
+    const w = CY(0.045, 0.045, 0.04, M(0xd8d2c8), 8); w.position.set(wp[0], wp[1], 0.02); board.add(w);
+  });
+  g.add(board);
+  const mkLeg = (side, xoff) => {
+    // crouched leg: hip over the board, foot planted on the deck
+    const pv = new THREE.Group(); pv.position.set(xoff, side * 0.09, 0.9);
+    const leg = CY(0.065, 0.055, 0.78, pantsM, 8); leg.rotation.x = Math.PI / 2; leg.position.z = -0.4; pv.add(leg);
+    const shoe = BX(0.16, 0.11, 0.09, M(0x111417)); shoe.position.set(0.03, 0, -0.76); pv.add(shoe);
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1, 0.16), legR = mkLeg(-1, -0.18);
+  const torso = BX(0.2, 0.5, 0.5, shirtM); torso.position.z = 1.05; torso.rotation.y = 0.15; g.add(torso); // slight forward lean
+  const mkArm = side => {
+    // arms out wide for balance
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.26, 1.32);
+    const arm = CY(0.05, 0.042, 0.44, shirtM, 8); arm.rotation.x = Math.PI / 2; arm.rotation.z = side * 0.75; arm.position.set(0.1, side * 0.12, -0.2); pv.add(arm);
+    const hand = SP(0.05, skin, 8); hand.position.set(0.2, side * 0.24, -0.42); pv.add(hand);
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.5; g.add(head);
+  const hairC = BX(0.24, 0.28, 0.18, hairM); hairC.position.z = 1.58; g.add(hairC);
+  g.userData.board = board;
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  return g;
+}
+function makeEScooter(){
+  // Stand-up electric scooter rider cruising the sidewalk, bike helmet on
+  const g = new THREE.Group();
+  const skin = M(pick(SKIN_TONES)), shirtM = M(pick(SHIRTS)), pantsM = M(0x2f3640);
+  const steelM = MS(0xaab2ba), frameM = M(0x30363d), tireM = M(0x14171a);
+  const helmM = M(pick([0xd0342c, 0x2a6fd0, 0x27a848, 0xe8e8ea]));
+  const deck = BX(0.62, 0.09, 0.18, frameM); deck.position.z = 0.12; g.add(deck);
+  // small wheels: axle along Y (lateral); the pivot spins on rotation.y to roll
+  const mkWheel = x => {
+    const pv = new THREE.Group(); pv.position.set(x, 0, 0.13);
+    const w = CY(0.11, 0.11, 0.07, tireM, 12); pv.add(w);
+    const hub = CY(0.04, 0.04, 0.08, steelM, 8); pv.add(hub);
+    g.add(pv); return pv;
+  };
+  const wheelF = mkWheel(0.34), wheelR = mkWheel(-0.34);
+  const stem = CY(0.03, 0.04, 1.0, frameM, 8); stem.rotation.x = Math.PI / 2; stem.position.set(0.36, 0, 0.6); g.add(stem);
+  const bar = CY(0.025, 0.025, 0.36, steelM, 8); bar.position.set(0.36, 0, 1.12); g.add(bar);
+  [1, -1].forEach(s => { const grip = CY(0.035, 0.035, 0.09, M(0x111417), 8); grip.position.set(0.36, s * 0.2, 1.12); g.add(grip); });
+  // rider standing on the deck, feet front/back
+  [[0.14, 0.08], [-0.14, -0.08]].forEach(fp => {
+    const leg = CY(0.065, 0.055, 0.78, pantsM, 8); leg.rotation.x = Math.PI / 2; leg.position.set(fp[0], fp[1], 0.5); g.add(leg);
+    const shoe = BX(0.16, 0.1, 0.08, M(0x111417)); shoe.position.set(fp[0] + 0.02, fp[1], 0.12); g.add(shoe);
+  });
+  const torso = BX(0.2, 0.52, 0.55, shirtM); torso.position.set(0.03, 0, 1.25); torso.rotation.y = 0.12; g.add(torso);
+  [1, -1].forEach(s => {
+    const arm = CY(0.045, 0.038, 0.44, shirtM, 8); arm.rotation.z = Math.PI / 2; arm.position.set(0.2, s * 0.19, 1.35); g.add(arm);
+    const hand = SP(0.045, skin, 8); hand.position.set(0.36, s * 0.18, 1.13); g.add(hand);
+  });
+  const head = SPH(0.13, skin, 14, 10); head.position.z = 1.66; g.add(head);
+  const helm = SPH(0.15, helmM, 14, 10); helm.scale.set(1.05, 1.05, 0.8); helm.position.set(-0.02, 0, 1.7); g.add(helm); // bike helmet
+  const visor = BX(0.05, 0.24, 0.07, M(0x22262a)); visor.position.set(0.13, 0, 1.7); g.add(visor);
+  g.userData.wheelF = wheelF; g.userData.wheelR = wheelR;
+  return g;
+}
+function makeHighPolyDog(){
+  // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
+  // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
+  // animation block drives it (trotting legs, wagging tail, barking head).
+  const g = new THREE.Group();
+  const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+  const fur = M(furC), furD = M(0x241c14), furL = M(0xc7ab87), eyeM = M(0x14100e);
+  const body = SPH(0.1, fur, 18, 14); body.scale.set(2.4, 1.1, 1.3); body.position.set(-0.05, 0, 0.2); g.add(body);
+  const belly = SPH(0.085, furL, 14, 10); belly.scale.set(1.9, 0.8, 0.9); belly.position.set(-0.05, 0, 0.12); g.add(belly);
+  const chest = SPH(0.08, furL, 14, 10); chest.scale.set(1, 0.9, 1); chest.position.set(0.16, 0, 0.2); g.add(chest);
+  const headPivot = new THREE.Group(); headPivot.position.set(0.26, 0, 0.24); g.add(headPivot);
+  const head = SPH(0.08, fur, 16, 12); head.scale.set(1.2, 1.05, 1); head.position.set(0.06, 0, 0.07); headPivot.add(head);
+  const muzzle = SPH(0.045, furL, 12, 10); muzzle.scale.set(1.35, 0.85, 0.8); muzzle.position.set(0.15, 0, 0.04); headPivot.add(muzzle);
+  const nose = SPH(0.018, furD, 10, 8); nose.position.set(0.21, 0, 0.045); headPivot.add(nose);
+  [-1, 1].forEach(s => {
+    const eye = SPH(0.014, eyeM, 8, 6); eye.position.set(0.08, s * 0.045, 0.13); headPivot.add(eye);
+    const ear = SPH(0.04, furD, 10, 8); ear.scale.set(0.7, 1.0, 0.5); ear.position.set(0.0, s * 0.075, 0.11); headPivot.add(ear);
+  });
+  // red collar with a little brass tag
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.015, 8, 16), M(0xb02020));
+  collar.rotation.y = Math.PI / 2; collar.position.set(0.02, 0, 0.08); headPivot.add(collar);
+  const tag = SPH(0.02, MS(0xd8b23a), 8, 6); tag.position.set(0.0, 0, -0.02); headPivot.add(tag);
+  // four legs on hip pivots (trotting gait driven by the shared dogParts block)
+  const dogLegs = {};
+  [['legFL', 0.19, 0.1], ['legFR', 0.19, -0.1], ['legHL', -0.21, 0.11], ['legHR', -0.21, -0.11]].forEach(lg => {
+    const pivot = new THREE.Group(); pivot.position.set(lg[1], lg[2], 0.18); g.add(pivot);
+    const leg = CY(0.028, 0.036, 0.17, fur, 10); leg.rotation.x = Math.PI / 2; leg.position.z = -0.085; pivot.add(leg);
+    const paw = SPH(0.034, furD, 10, 8); paw.scale.set(1.25, 0.75, 0.85); paw.position.set(0.012, 0, -0.15); pivot.add(paw);
+    dogLegs[lg[0]] = pivot;
+  });
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.3, 0, 0.26); g.add(tailPivot);
+  const t1 = SPH(0.055, fur, 12, 10); t1.scale.set(1.1, 0.85, 0.95); t1.position.set(-0.07, 0, 0.06); tailPivot.add(t1);
+  const t2 = SPH(0.045, furL, 12, 10); t2.position.set(-0.14, 0, 0.13); tailPivot.add(t2);
+  g.userData.dog = { tailPivot: tailPivot, headPivot: headPivot, legFL: dogLegs.legFL, legFR: dogLegs.legFR, legHL: dogLegs.legHL, legHR: dogLegs.legHR, root: g };
+  return g;
+}
+function makeDogHouse(){
+  // LOW-poly doghouse for the front lawn (deliberately chunky next to the
+  // high-poly dog). The chain stake sits at the group origin - that's where
+  // the chain anchor (c.anchorX / c.anchorY) is.
+  const g = new THREE.Group();
+  const wood = M(0x7a5a3a), roof = M(0x8a3a30), dark = M(0x14100e), stakeM = M(0x3a3f45);
+  const walls = BX(0.7, 0.55, 0.6, wood); walls.position.z = 0.3; g.add(walls);
+  const hole = BX(0.3, 0.34, 0.05, dark); hole.position.set(0.15, 0, 0.31); g.add(hole); // entry, street-facing
+  // gabled roof: two slabs meeting at a ridge that runs left/right (Y)
+  const roofF = BX(0.42, 0.8, 0.05, roof); roofF.rotation.y = 0.55; roofF.position.set(0.2, 0, 0.53); g.add(roofF);
+  const roofB = BX(0.42, 0.8, 0.05, roof); roofB.rotation.y = -0.55; roofB.position.set(0.2, 0, 0.79); g.add(roofB);
+  const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); g.add(stake);
+  return g;
+}
 function makeTricycle(){
   // Classic "Big Wheel" kid tricycle, child-sized (ref: low plastic trike).
   // Axes: +X forward, Y lateral, Z up (ground z=0). Cylinder axis = Y (unrotated = upright wheel).
@@ -1764,13 +1927,14 @@ function makeCar(colorHex){
 function addCreature(type){
   const c = { type: type, wx: R(-58, 58), wy: 6, vx: 1, phase: R(0, 6.28), cd: R(1, 4), flee: 0, data: null };
   // Gender of the voice used when this NPC speaks (male/female/neutral):
-  //   ped=man, lady=woman, breaker=man, yeller=man, dogwalker=mixed,
-  //   car/moto/bike/ebike/tric/rc = the driver/rider (mixed), animals = neutral
+  //   ped=man, lady=woman, breaker=man, yeller=man, jacker/skater/escooter=men,
+  //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
+  //   driver/rider (mixed), animals = neutral
   const MIXED = () => (Math.random() < 0.5 ? 'male' : 'female');
-  if (type === 'lady') c.gender = 'female';
-  else if (type === 'ped' || type === 'breaker' || type === 'yeller') c.gender = 'male';
+  if (type === 'lady' || type === 'hooker') c.gender = 'female';
+  else if (type === 'ped' || type === 'breaker' || type === 'yeller' || type === 'jacker' || type === 'skater' || type === 'escooter') c.gender = 'male';
   else if (type === 'dogwalker' || type === 'car' || type === 'moto' || type === 'bike' || type === 'ebike' || type === 'tric' || type === 'rc') c.gender = MIXED();
-  else c.gender = null; // animals & birds: no human gender
+  else c.gender = null; // animals & birds (incl. the leashed dog): no human gender
   switch (type){
     case 'ped':   c.wy = R(1, 4); c.sp = R(1.0, 2.2); c.data = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) }); break;
     case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
@@ -1796,6 +1960,24 @@ function addCreature(type){
                   c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
     case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
+    case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.dustCd = R(0.8, 2); c.data = makeJacker(); break;
+    case 'hooker': c.wy = R(1.2, 4.2); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
+    case 'skater': c.wy = R(1.2, 4.2); c.trickT = R(0.4, 1.4); c.flipT = 0; c.data = makeSkater(); break;
+    case 'escooter': c.wy = R(1.4, 3.8); c.sp = R(2.4, 3.4); c.data = makeEScooter(); break;
+    case 'leashdog':{
+      // dog + doghouse + chain: the anchor is the stake at the doghouse (front
+      // lawn, in front of a house). spawnWorld re-places it right after.
+      const dg = makeHighPolyDog();
+      c.data = dg;
+      c.houseG = makeDogHouse();
+      c.chain = new THREE.Mesh(new THREE.BoxGeometry(1, 0.02, 0.02), M(0x2a2e33));
+      c.chainR = 2.3;
+      c.anchorX = 0; c.anchorY = 7.6;
+      c.homeX = 0.6; c.homeY = 6.3;
+      c.wx = c.homeX; c.wy = c.homeY;
+      c.agro = 0; c.barkCd = 0;
+      break;
+    }
   }
   const isPerson = c.data && c.data.g && c.data.legL;
   c.vcd = 0; // voice cooldown — MUST start at 0 (undefined would make "c.vcd <= 0" always false and mute all bump lines)
@@ -1805,6 +1987,10 @@ function addCreature(type){
   // fentanyl addict: slightly hunched over with his head looking down; the forward
   // lean also swings his outstretched arms to point straight ahead, blocking the way
   if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; c.g.rotation.y = 0.45; }
+  // new sidewalk regulars: set their idle facing (jacker grinds at an angle,
+  // hooker stands facing the street)
+  if (type === 'jacker') c.g.rotation.z = R(-0.55, 0.55);
+  if (type === 'hooker') c.g.rotation.z = -Math.PI / 2;
   c.g.position.set(c.wx, c.wy, GZ);
   dynamicGroup.add(c.g);
   if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
@@ -1890,8 +2076,27 @@ function spawnWorld(){
     makeBlockContents(b, worldX);
     blocks.push(b);
   }
-  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2 };
+  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2, jacker: 1, hooker: 1, skater: 1, escooter: 1 };
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
+  // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
+  // The dog barks and lunges at the worker but the chain limits how far it gets.
+  const ld = addCreature('leashdog');
+  {
+    const b = blocks[(Math.random() * blocks.length) | 0];
+    ld.anchorX = b.worldX + R(-1.0, 2.0);   // lawn strip (y 5..8.5), house front is y 10.5
+    ld.anchorY = R(7.4, 8.2);
+    ld.homeX = ld.anchorX + R(-0.4, 0.8);
+    ld.homeY = ld.anchorY - R(0.9, 1.5);
+    ld.wx = ld.homeX; ld.wy = ld.homeY;
+    ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+    dynamicGroup.add(ld.houseG);
+    const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+    ld.chain.scale.x = Math.max(0.02, cl0);
+    ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.22);
+    ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+    dynamicGroup.add(ld.chain);
+    ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
+  }
   // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
   // shared seed spot; every bird scatters on its own random heading when shooed
   for (let fI = 0; fI < 2; fI++){
@@ -2085,7 +2290,8 @@ function updateFlyingCans(dt){
 function checkFlyingCanNpcHit(fcx, fcy){
   for (let i = creatures.length - 1; i >= 0; i--){
     const c = creatures[i];
-    if (c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker'){
+    if (c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker' ||
+        c.type === 'jacker' || c.type === 'hooker' || c.type === 'skater' || c.type === 'escooter'){
       const dx = fcx - c.wx, dy = fcy - c.wy;
       if (dx * dx + dy * dy < 0.8){
         return c;
@@ -2369,6 +2575,7 @@ function collideCreatures(){
   for (let i = 0; i < creatures.length; i++){
     const c = creatures[i];
     if (c.type === 'pigeon') continue; // pigeons scatter and fly away before any contact — no bump collision
+    if (c.type === 'leashdog') continue; // chained to its lawn; the worker's lane never reaches it
     const dx = c.wx - p.wx, dy = c.wy - p.wy;
     const d2 = dx * dx + dy * dy;
     let rad = 1.0;
@@ -2382,8 +2589,12 @@ function collideCreatures(){
     else if (c.type === 'dogwalker') rad = 0.95;
     else if (c.type === 'breaker') rad = 1.2;
     else if (c.type === 'yeller') rad = 0.95;
+    else if (c.type === 'jacker') rad = 0.95;
+    else if (c.type === 'hooker' || c.type === 'skater') rad = 0.85;
+    else if (c.type === 'escooter') rad = 1.0;
     if (d2 > rad * rad) continue;
-    if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker')){
+    if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker' ||
+        c.type === 'jacker' || c.type === 'hooker' || c.type === 'skater' || c.type === 'escooter')){
       // People are SOLID: push the worker out so they can't walk through, but NEVER stun
       // (a stun here caused an infinite stun-lock loop when the worker was stuck against them)
       const d = Math.sqrt(d2) || 0.001;
@@ -2394,6 +2605,10 @@ function collideCreatures(){
       if (c.vcd <= 0){
         c.vcd = 2.5;
         if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy); }
+        else if (c.type === 'jacker'){ /* says nothing - too busy jackhammering */ }
+        else if (c.type === 'hooker') Voice.say('Want a date?', 3, 1.2, c.wx, c.wy, c.gender);
+        else if (c.type === 'skater') Voice.say('Whoa! Like, watch it bro!', 3, 1.15, c.wx, c.wy, c.gender);
+        else if (c.type === 'escooter') Voice.say("I'm calling a lawyer!", 3, 1.0, c.wx, c.wy, c.gender);
         else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9, c.wx, c.wy, c.gender);
         else Voice.say('Hey! Watch it!', 4, 1.1, c.wx, c.wy, c.gender);
       }
@@ -3557,10 +3772,114 @@ function updateCreatures(dt){
         if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
         break;
       }
+      case 'jacker':{
+        // grinding the sidewalk: the hammer judders down into the concrete,
+        // the whole tool shivers. He never says a word.
+        c.hamT += dt;
+        if (c.hammer){
+          c.hammer.position.z = 0.14 + Math.abs(Math.sin(c.hamT * 24)) * 0.05;
+          c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.03;
+        }
+        c.dustCd -= dt;
+        if (state === 'play' && Math.abs(tx) < 11 && c.dustCd <= 0){
+          c.dustCd = R(1.2, 2.2);
+          const az = c.g.rotation.z;
+          spawnDustEffect(c.wx + Math.cos(az) * 0.45, c.wy + Math.sin(az) * 0.45);
+        }
+        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.g.rotation.z = R(-0.55, 0.55); }
+        break;
+      }
+      case 'hooker':{
+        // standing the corner: slow hip sway while she faces the traffic
+        c.swayT += dt;
+        c.g.rotation.z = -Math.PI / 2 + Math.sin(c.swayT * 1.3) * 0.1;
+        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
+        break;
+      }
+      case 'skater':{
+        // working tricks IN PLACE: pop, kickflip the board, land, repeat
+        c.trickT -= dt;
+        if (c.trickT <= 0 && c.flipT <= 0) c.flipT = 0.8;
+        if (c.flipT > 0){
+          c.flipT -= dt;
+          const t = 1 - Math.max(0, c.flipT) / 0.8; // 0..1 through the trick
+          if (c.board){
+            c.board.rotation.x = t * Math.PI * 2;             // full kickflip spin
+            c.board.position.z = 0.04 + Math.sin(t * Math.PI) * 0.55; // board leaves his feet
+          }
+          c.g.position.z = GZ + Math.sin(t * Math.PI) * 0.16; // he pops up and lands
+        } else {
+          if (c.board){ c.board.rotation.x = 0; c.board.position.z = 0.04; }
+          c.g.position.z = GZ;
+          c.trickT = R(0.9, 2.2);
+        }
+        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
+        break;
+      }
+      case 'escooter':{
+        // cruising the sidewalk in the traffic direction, wheels rolling
+        c.wx += c.sp * dt;
+        if (c._lane === undefined) c._lane = c.wy;
+        c.wy += (c._lane - c.wy) * 1.5 * dt;
+        c.wy += Math.sin(c.wx * 0.4) * 0.015; // subtle wobble while riding
+        const wspin = c.sp * dt * 7;
+        if (c.wheelF) c.wheelF.rotation.y += wspin;
+        if (c.wheelR) c.wheelR.rotation.y += wspin;
+        if (tx > 58){ c.wx = p.wx - 38; c._lane = R(1.4, 3.8); }
+        else if (tx < -58){ c.wx = p.wx + 42; c._lane = R(1.4, 3.8); }
+        break;
+      }
+      case 'leashdog':{
+        // Guard dog on a chain: worker gets close -> barks and lunges at him,
+        // but the chain (radius chainR around the stake) stops the run.
+        // Walks back to its spot on the lawn once the worker moves on.
+        const dwx = p.wx - c.wx, dwy = p.wy - c.wy;
+        const dWorker = Math.sqrt(dwx * dwx + dwy * dwy);
+        if (dWorker < 6.5) c.agro = Math.max(c.agro || 0, 2.2);
+        else if (c.agro > 0) c.agro -= dt;
+        // target: worker (clamped to the chain circle) while aggro, else its home spot
+        let gx, gy;
+        if (c.agro > 0){
+          gx = p.wx; gy = p.wy;
+          const ox = gx - c.anchorX, oy = gy - c.anchorY;
+          const ol = Math.sqrt(ox * ox + oy * oy) || 1;
+          if (ol > c.chainR){ gx = c.anchorX + (ox / ol) * c.chainR; gy = c.anchorY + (oy / ol) * c.chainR; }
+          c.barkCd = (c.barkCd || 0) - dt;
+          if (c.barkCd <= 0 && dWorker < 9){
+            c.bark = 0.9; c.barkCd = R(1.0, 1.7);
+            Voice.say('WOOF! WOOF! WOOF!', 1.5, 1.0, c.wx, c.wy);
+          }
+        } else { gx = c.homeX; gy = c.homeY; }
+        const mvx = gx - c.wx, mvy = gy - c.wy;
+        const ml = Math.sqrt(mvx * mvx + mvy * mvy);
+        if (ml > 0.06){
+          const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
+          c.wx += (mvx / ml) * step;
+          c.wy += (mvy / ml) * step;
+          c.phase += step * 8; // drives the shared dogParts trot cycle (legs animate)
+          c.g.rotation.z = Math.atan2(mvy, mvx); // dog faces +X - point it along its travel
+        }
+        // chain: stake -> dog, kept taut
+        if (c.chain){
+          const cx2 = c.anchorX - c.wx, cy2 = c.anchorY - c.wy;
+          const cl = Math.sqrt(cx2 * cx2 + cy2 * cy2);
+          c.chain.scale.x = Math.max(0.02, cl);
+          c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, 0.22);
+          c.chain.rotation.z = Math.atan2(cy2, cx2);
+        }
+        if (tx < -55){
+          // recycle the whole set-up ahead of the route so it keeps showing up
+          c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
+          c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
+          c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+          if (c.houseG) c.houseG.position.set(c.anchorX, c.anchorY, GZ);
+        }
+        break;
+      }
     }
     c.g.position.x = c.wx;
     c.g.position.y = c.wy;
-    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon' && c.type !== 'pigeon') c.g.position.z = GZ;
+    if (c.type !== 'squirrel' && c.type !== 'yeller' && c.type !== 'raccoon' && c.type !== 'pigeon' && c.type !== 'skater') c.g.position.z = GZ;
     // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
     if (c.dogParts){
       const ds = Math.sin(c.phase) * 0.55;
