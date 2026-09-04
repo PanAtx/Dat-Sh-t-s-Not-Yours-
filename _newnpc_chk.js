@@ -38,7 +38,7 @@ const SKIN_TONES = [0xffd7b0];
 const SHIRTS = [0x3d6ea5], PANTS = [0x2f3640], HAIRS = [0x2a2118];
 const pick = a => a[0];
 const R = (a,b) => (a+b)/2;
-const makePerson = () => ({ g: new THREE.Group(), legL: new THREE.Group() });
+const makePerson = () => { const g = new THREE.Group(); const legL = new THREE.Group(), legR = new THREE.Group(), armL = new THREE.Group(), armR = new THREE.Group(); const upper = new THREE.Group(); g.add(legL); g.add(legR); g.add(upper); upper.add(armL); upper.add(armR); g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR, upper: upper }; return { g: g, legL: legL, legR: legR, armL: armL, armR: armR }; };
 const GZ = 0.3;
 const creatures = [];
 const dynamicGroup = { add(){} };
@@ -190,5 +190,20 @@ check('hooker: shoe long axis along the TOE direction (+X) with toe-down pitch (
 const mkEs = src.slice(src.indexOf('function makeEScooter'), src.indexOf('function makeEScooter') + 2500);
 check('escooter: square BOX head like the other NPCs (bare sphere removed)',
   mkEs.indexOf('head = BX(0.22, 0.26, 0.22, skin)') >= 0 && mkEs.indexOf('head = SPH') < 0);
+// --- round 6: fentanyl fold (yeller) ---
+const yel = addCreature('yeller');
+check('yeller: shuffles VERY slowly (pedestrians are 1.0-2.2)', yel.sp >= 0.2 && yel.sp <= 0.5, 'sp=' + yel.sp);
+check('yeller: legs stand UPRIGHT (root never tilted — the old whole-body tilt is gone)',
+  yel.g.rotation.y === 0 && src.indexOf('c.g.rotation.y = 1.0') < 0, 'root ry=' + yel.g.rotation.y);
+check('yeller: chest folds ~60° forward at the hips (makePerson fold: 1.05 on a hip "upper" pivot)',
+  src.indexOf('fold: 1.05') >= 0 && src.indexOf('upper.rotation.y = o.fold || 0') >= 0 && !!yel.parts.upper);
+check('yeller: arms hang STRAIGHT DOWN to the knees at spawn (counter-rotated -1.05, NOT the old outstretched -2.0 zombie T-pose)',
+  yel.parts.armL.rotation.y === -1.05 && yel.parts.armR.rotation.y === -1.05,
+  JSON.stringify({ l: yel.parts.armL.rotation.y, r: yel.parts.armR.rotation.y }));
+const yCase = src.slice(src.indexOf("case 'yeller':{"), src.indexOf("case 'jacker':{"));
+check('yeller: AI case re-asserts the arm hang, shambles forward, unsteady sway + slow leg swing',
+  yCase.indexOf('armL.rotation.y = -1.05') >= 0 && yCase.indexOf('c.wx += ySp * dt') >= 0 &&
+  yCase.indexOf('c.g.rotation.x') >= 0 && yCase.indexOf('animParts(c, ySp * dt * 1.8, 0.24)') >= 0);
+check('yeller: old zombie pose (arm rotation.y = -2.0) is gone', src.indexOf('armL.rotation.y = -2.0') < 0);
 console.log(pass ? '\nNEW NPC CHECKS PASSED' : '\nNEW NPC CHECKS FAILED');
 process.exit(pass ? 0 : 1);

@@ -1419,20 +1419,24 @@ function makePerson(o){
     const sk = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.72, 8, 1, true), new THREE.MeshLambertMaterial({ color: o.shirt || 0x3d6ea5, side: THREE.DoubleSide }));
     sk.rotation.x = Math.PI / 2; sk.position.z = 0.86; sk.castShadow = true; g.add(sk);
   }
-  const torso = BX(0.2, 0.58, 0.6, shirt); torso.position.z = 1.15; g.add(torso);
+  // Upper body (torso, arms, head) hangs off a hip pivot: with o.fold set, the
+  // legs stay UPRIGHT and the whole chest folds forward at the hips (the
+  // "fentanyl fold"); without it, world geometry is exactly as before
+  const upper = new THREE.Group(); upper.position.z = 0.62; upper.rotation.y = o.fold || 0; g.add(upper);
+  const torso = BX(0.2, 0.58, 0.6, shirt); torso.position.z = 1.15 - 0.62; upper.add(torso);
   const mkArm = side => {
-    const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38 - 0.62);
     const arm = BX(0.11, 0.13, 0.44, shirt); arm.position.z = -0.22; pv.add(arm);
     const hand = BX(0.1, 0.1, 0.12, skin); hand.position.z = -0.5; pv.add(hand);
-    g.add(pv); return pv;
+    upper.add(pv); return pv;
   };
   const armL = mkArm(1), armR = mkArm(-1);
-  const head = BX(0.26, 0.3, 0.26, skin); head.position.z = 1.66; g.add(head);
+  const head = BX(0.26, 0.3, 0.26, skin); head.position.z = 1.66 - 0.62; upper.add(head);
   const hair = o.cap ? M(0x1e6b30) : M(o.hair || 0x2a2118);
-  const hairC = BX(0.28, 0.32, 0.2, hair); hairC.position.z = o.cap ? 1.86 : 1.76; g.add(hairC);
-  if (o.cap){ const brim = BX(0.16, 0.22, 0.05, M(0x1e6b30)); brim.position.set(0.16, 0, 1.84); g.add(brim); }
-  if (o.hood){ const hood = BX(0.14, 0.36, 0.2, shirt); hood.position.set(-0.12, 0, 1.45); g.add(hood); }
-  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  const hairC = BX(0.28, 0.32, 0.2, hair); hairC.position.z = (o.cap ? 1.86 : 1.76) - 0.62; upper.add(hairC);
+  if (o.cap){ const brim = BX(0.16, 0.22, 0.05, M(0x1e6b30)); brim.position.set(0.16, 0, 1.84 - 0.62); upper.add(brim); }
+  if (o.hood){ const hood = BX(0.14, 0.36, 0.2, shirt); hood.position.set(-0.12, 0, 1.45 - 0.62); upper.add(hood); }
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR, upper: upper };
   return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
 }
 // Seed scatter pile pigeons peck at (one pile per flock)
@@ -1980,7 +1984,7 @@ function addCreature(type){
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
     case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
-    case 'yeller': c.wy = R(1.2, 4.2); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS) }); break;
+    case 'yeller': c.wy = R(1.2, 4.2); c.sp = R(0.25, 0.4); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS), fold: 1.05 }); break; // VERY slow shamble (pedestrians are 1.0-2.2); fold: chest folds ~60° forward at the hips
     case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
                  c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
     case 'hooker': c.wy = R(1.2, 4.2); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
@@ -2008,9 +2012,11 @@ function addCreature(type){
   c.g = isPerson ? c.data.g : c.data;
   c.parts = c.g.userData && c.g.userData.parts ? c.g.userData.parts : null;
   c.dogParts = c.g.userData && c.g.userData.dog ? c.g.userData.dog : null;
-  // fentanyl addict: slightly hunched over with his head looking down; the forward
-  // lean also swings his outstretched arms to point straight ahead, blocking the way
-  if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -2.0; c.parts.armR.rotation.y = -2.0; c.g.rotation.y = 0.45; }
+  // fentanyl addict: legs stand UPRIGHT, the chest folds ~60° forward at the hips
+  // (baked into makePerson via fold), and the arms are counter-rotated so they
+  // hang STRAIGHT DOWN to the knees (re-applied every frame in the yeller update
+  // case, because the shuffling leg-swing would otherwise reset the arms)
+  if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -1.05; c.parts.armR.rotation.y = -1.05; }
   // new sidewalk regulars: set their idle facing (jacker grinds at an angle,
   // hooker stands facing the street)
   if (type === 'jacker') c.g.rotation.z = R(-0.55, 0.55);
@@ -3808,7 +3814,16 @@ function updateCreatures(dt){
         break;
       }
       case 'yeller':{
-        c.g.position.z = GZ + Math.abs(Math.sin(c.wx * 2)) * 0.08;
+        // "FENTANYL FOLD": legs stand upright, chest folded ~60° forward at the
+        // hips (head buried), arms hanging straight down to the knees, shuffling
+        // VERY slowly with an unsteady sway - always about to fall over, but
+        // never actually does
+        const ySp = c.sp || 0.35;
+        c.wx += ySp * dt;
+        animParts(c, ySp * dt * 1.8, 0.24); // slow, short-shuffle leg swing
+        if (c.parts){ c.parts.armL.rotation.y = -1.05; c.parts.armR.rotation.y = -1.05; } // arms hang straight down to the knees
+        c.g.rotation.x = Math.sin(c.phase * 0.5) * 0.05; // unsteady side-to-side sway
+        c.g.position.z = GZ + Math.abs(Math.sin(c.wx * 2)) * 0.04; // faint dragging drag
         if (state === 'play' && Math.abs(tx) < 12){
           c.shout -= dt;
           if (c.shout <= 0){
@@ -3817,7 +3832,8 @@ function updateCreatures(dt){
             c.shout = R(5, 9);
           }
         }
-        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
+        if (tx > 58){ c.wx = p.wx - 38; c.wy = R(1.2, 4.2); }
+        else if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
         break;
       }
       case 'jacker':{
