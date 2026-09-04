@@ -19,6 +19,8 @@ function fakeClass(){ const set = new Set(); return {
 function fakeEl(){ const el = { style:{}, textContent:'', volume:1, src:'', _h:{},
   scrollWidth: 999, clientWidth: 168, // pretend the (fixed) box is too small -> ticker engages
   classList: fakeClass(),
+  children: [], parentNode: null,
+  appendChild: function(c){ this.children.push(c); if (c) c.parentNode = this; return c; },
   addEventListener: function(ev, fn){ (this._h[ev] = this._h[ev] || []).push(fn); },
   fire: function(ev){ (this._h[ev] || []).forEach(fn => fn()); } };
   let _html = '';
@@ -89,14 +91,17 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   out.radioSetTitle('');
   check('empty falls back to ON AIR', els['radio-title'].textContent === 'ON AIR');
 
-  // --- start-screen music player: SAME widget, top-right when the game is NOT running ---
+  // --- start-screen music player: SAME widget, docked below START SHIFT (where the hi-score was) ---
   check('radioMode() wiring exists', typeof out.radioMode === 'function');
+  const dock = els['menu-bottom'] = fakeEl();
   global.state = 'menu';
   out.radioMode();
-  check('on the menu the bar parks top-right (in-menu class set)', els['radio'].classList.has('in-menu'));
+  check('on the menu the widget DOCKS into the menu bar (below START SHIFT)', els['radio'].parentNode === dock && els['radio'].classList.has('in-menu'));
+  out.radioMode();
+  check('re-docking is idempotent (no double append)', els['radio'].parentNode === dock && dock.children.length === 1);
   global.state = 'play';
   out.radioMode();
-  check('in play the bar returns to top-center (in-menu cleared)', !els['radio'].classList.has('in-menu'));
+  check('in play the in-menu class is cleared (back to the top-center HUD slot)', !els['radio'].classList.has('in-menu'));
   check('tapping the widget to start music is wired (click handler on #radio)', (els['radio']._h['click'] || []).length >= 1);
   let clickThrew = false;
   try { (els['radio']._h['click'] || [])[0]({ target: { closest: function(){ return null; } } }); } catch (e) { clickThrew = true; }

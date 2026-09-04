@@ -172,9 +172,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   border:2px solid rgba(46,224,144,.42);
   background:radial-gradient(rgba(60,255,138,.12) 1px, transparent 1.5px) 0 0/4px 4px, linear-gradient(180deg, rgba(3,12,8,.88), rgba(3,12,8,.78));
   box-shadow:inset 0 0 20px rgba(0,0,0,.75), 0 0 14px rgba(46,224,144,.18); }
-/* Start-screen / game-over: park the NOW PLAYING bar in the top-right corner
-   (top-center in play keeps it clear of the joystick + action pad). */
-#radio.in-menu { left:auto; right:14px; transform:none; }
+/* Start screen: the widget DOCKS into the menu bar below START SHIFT (where the
+   hi-score used to sit) and flows in document order; in play / on game-over it
+   lives in the body as the top-center HUD slot, clear of joystick + action pad. */
+#radio.in-menu { position:static; transform:none; }
 #radio-title { pointer-events:auto; cursor:pointer; }
 #radio-bars { pointer-events:auto; } /* whole left half of the widget is a tap target for "tune in" */
 #radio-bars { display:flex; align-items:flex-end; gap:2px; height:16px; width:27px; flex:none; }
@@ -246,9 +247,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal"><div class="panel">
   <div class="menu-logo-wrap">
     <img src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div class="menu-bottom">
+    <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
-      <div class="score">HI-SCORE $<span id="hiscore">000000</span></div>
+      <!-- The NOW PLAYING widget (#radio) docks in here on the start screen:
+           below START SHIFT, exactly where the hi-score used to sit -->
     </div>
   </div>
 </div></div>
@@ -348,7 +350,6 @@ let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
 const keys = {};
 const gp = { left:false, right:false, fwd:false, back:false, act:false, pAct:false, pStart:false };
 let lastT = performance.now();
-$('hiscore').textContent = pad(hi);
 $('hiscore2').textContent = pad(hi);
 
 // ==================== THREE SETUP (diagonal top-right matrix) ====================
@@ -600,12 +601,22 @@ radioBox.addEventListener('click', function(e){
   if (SFX.ctx && SFX.ctx.state === 'suspended') { try { SFX.ctx.resume(); } catch (err) {} }
   SFX.radioStart(); // idempotent: a no-op once the station is already on air
 });
-// Park the widget in the top-right corner whenever the game is NOT running
-// (start menu + game-over screen); it sits top-center while you play.
+// Start screen: DOCK the widget into the menu bar, right below START SHIFT
+// (where the hi-score used to sit). While playing / on game-over it lives in the
+// body as the top-center HUD slot. (It must not live inside a hidden modal, so we
+// physically move it between the menu and the body whenever the state changes.)
 function radioMode(){
   try {
-    const inMenu = (typeof state !== 'undefined' && state !== 'play');
-    if (radioBox && radioBox.classList) radioBox.classList.toggle('in-menu', inMenu);
+    if (!radioBox || !radioBox.classList) return;
+    const st = (typeof state !== 'undefined') ? state : 'menu';
+    if (st === 'menu'){
+      const dock = (typeof $ === 'function') ? $('menu-bottom') : null;
+      if (dock && typeof dock.appendChild === 'function' && radioBox.parentNode !== dock) dock.appendChild(radioBox);
+      radioBox.classList.add('in-menu');
+    } else {
+      if (typeof document !== 'undefined' && radioBox.parentNode && radioBox.parentNode !== document.body) document.body.appendChild(radioBox);
+      radioBox.classList.remove('in-menu');
+    }
   } catch (err) {}
 }
 // ==================== END RADIO HUD ====================
