@@ -2075,7 +2075,12 @@ function spawnBonus(wx, wy){
   let g, val, type, voice;
   if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
   else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
-  else { g = makeTreasure((Math.random() * 5) | 0); val = 250; type = 'treasure'; voice = 'Treasure!'; }
+  else {
+    const tKind = (Math.random() * 5) | 0;
+    g = makeTreasure(tKind); val = 250; type = 'treasure';
+    // the easel painting (kind 2) is always some "masterpiece" of a famous painter
+    voice = (tKind === 2) ? pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']) : 'Treasure!';
+  }
   g.position.set(wx, wy, GZ);
   g.rotation.z = R(-0.5, 0.5);   // a natural resting angle — looks placed, never spinning
   dynamicGroup.add(g);
