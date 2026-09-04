@@ -434,7 +434,7 @@ const SFX = {
   //  1) HTTP directory listing (autoindex — works on VS Code Live Server, python http.server,
   //     Apache/nginx autoindex, Caddy: adding/removing .mp3 files "just works")
   //  2) fallback: music/manifest.json (for hosts with no directory listing, e.g. GitHub Pages)
-  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false, radioMuted: false,
+  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false, radioMuted: false, radioGen: 0,
   ensure(){
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -491,34 +491,48 @@ const SFX = {
   playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
   playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); },
   // --- RADIO STATION: scan music/ for .mp3 files, then play them one after another
-  //     in random order (shuffled bag — no back-to-back repeats until all have aired),
-  //     with a ~2 second pause between tracks. Runs forever, like a radio station. ---
+  //     in random order (shuffled bag — every song airs exactly once before any song
+  //     repeats; the bag reshuffles only when fully consumed), with a ~2 second pause between
+  //     tracks. Runs forever, like a radio station. Hardened so the rotation can never
+  //     degrade into "the same few songs on repeat": the playlist is the deduped UNION of
+  //     the directory listing AND the manifest, and every "advance" event (ended / error /
+  //     autoplay-reject / SKIP) funnels through ONE pending slot (_radioSchedule), so stale
+  //     aborted-load events can't queue up a skip-cascade that eats the bag early. ---
   async radioScan(){
     const isMp3 = n => /\.mp3$/i.test(n);
-    // 1) Try the HTTP directory listing of music/ and pull out the .mp3 links
+    const found = [];
+    const add = n => { if (n && isMp3(n) && found.indexOf(n) < 0) found.push(n); };
+    // 1) HTTP directory listing of music/ (autoindex / python http.server / VS Code Live
+    //    Server / Apache / nginx / Caddy: adding/removing .mp3 files "just works")
     try {
       const r = await fetch('music/', { cache: 'no-cache' });
       if (r.ok){
         const txt = await r.text();
         const re = /href=["']([^"'\?#<>]+\.mp3)["']/gi;
-        const names = new Set(); let m;
+        let m;
         while ((m = re.exec(txt))){
-          try { const n = decodeURIComponent(m[1].split('/').pop()); if (isMp3(n)) names.add(n); } catch (e) {}
+          try { add(decodeURIComponent(m[1].split('/').pop())); } catch (e) {}
         }
-        if (names.size) return [...names];
       }
     } catch (e) {}
-    // 2) Fallback manifest (keep in sync when hosting without directory listings)
+    // 2) manifest.json (for hosts with no directory listing, e.g. GitHub Pages), unioned
+    //    with the listing above so the playlist is always the full set.
     try {
       const r = await fetch('music/manifest.json', { cache: 'no-cache' });
       if (r.ok){
         const j = await r.json();
         const arr = Array.isArray(j) ? j : (j && Array.isArray(j.files) ? j.files : []);
-        const clean = arr.filter(isMp3);
-        if (clean.length) return clean;
+        for (let i = 0; i < arr.length; i++) add(arr[i]);
       }
     } catch (e) {}
-    return [];
+    return found;
+  },
+  _radioSchedule(delay){ // single pending "advance" slot: replaces any earlier one
+    if (this.radioTimer) clearTimeout(this.radioTimer);
+    this.radioTimer = setTimeout(() => { this.radioTimer = null; this.radioNext(); }, delay);
+  },
+  _radioCancel(){
+    if (this.radioTimer){ clearTimeout(this.radioTimer); this.radioTimer = null; }
   },
   radioNext(){
     if (!this.radioEl || !this.radioList.length) return;
@@ -527,35 +541,32 @@ const SFX = {
       for (let i = this.radioBag.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = this.radioBag[i]; this.radioBag[i] = this.radioBag[j]; this.radioBag[j] = t; }
     }
     const name = this.radioBag.pop();
+    this.radioGen++;        // new current track: pending events from abandoned loads are stale
+    this._radioCancel();    // never double-advance from a leftover timer
     try { radioSetTitle(name); } catch (e) {} // update the NOW PLAYING LED title
     this.radioEl.src = 'music/' + encodeURIComponent(name);
     const p = this.radioEl.play();
-    if (p && p.catch) p.catch(() => {}); // blocked/failed track: the 'error' handler skips ahead
+    if (p && p.catch) p.catch(() => this._radioSchedule(250)); // blocked/failed track: skip ahead
   },
-  radioStart(){
+  async radioStart(){
     if (this.radioEl) return; // already on air — restarting the game must not double-start
     if (this.radioStarting) return;
     this.radioStarting = true;
-    this.radioScan().then(list => {
-      this.radioStarting = false;
-      if (!list.length) return; // no songs found: stay silent, never break the game
-      this.radioList = list;
-      const el = this.radioEl = new Audio();
-      el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
-      el.addEventListener('ended', () => {           // song finished → 2s of air → next song
-        if (this.radioTimer) clearTimeout(this.radioTimer);
-        this.radioTimer = setTimeout(() => this.radioNext(), 2000);
-      });
-      el.addEventListener('error', () => {           // bad/missing file → skip it right away
-        if (this.radioTimer) clearTimeout(this.radioTimer);
-        this.radioTimer = setTimeout(() => this.radioNext(), 300);
-      });
-      this.radioNext();
-    }).catch(() => { this.radioStarting = false; });
+    let list = [];
+    try { list = await this.radioScan(); } catch (e) {}
+    this.radioStarting = false;
+    if (!list.length) return; // no songs found: stay silent, never break the game
+    this.radioList = list;    // radioScan() already dedupes
+    try { console.log('[radio] ' + list.length + ' tracks on the rotation: ' + list.join(' | ')); } catch (e) {}
+    const el = this.radioEl = new Audio();
+    el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
+    el.addEventListener('ended', () => this._radioSchedule(2000)); // song finished → 2s of air → next song
+    el.addEventListener('error', () => this._radioSchedule(300));  // bad/missing file → skip it right away
+    this.radioNext();
   },
   radioSkip(){ // SKIP button: jump to the next song right now (no 2-second gap)
     if (!this.radioEl || !this.radioList.length) return;
-    if (this.radioTimer){ clearTimeout(this.radioTimer); this.radioTimer = null; }
+    this._radioCancel();
     this.radioNext();
   }
 };
@@ -1626,7 +1637,6 @@ function makeTricycle(){
   const bar = BX(0.05, 0.42, 0.05, YEL); bar.position.set(0.42, 0, 0.74); g.add(bar);
   [-1, 1].forEach(s => { const grip = CY(0.03, 0.03, 0.16, DARK, 8); grip.position.set(0.42, s * 0.20, 0.74); g.add(grip); });
   // ===== RED BODY / LOW BUCKET SEAT =====
-  const deck = BX(0.6, 0.28, 0.14, RED); deck.position.set(0.05, 0, 0.26); g.add(deck);
   const seat = BX(0.30, 0.26, 0.22, RED); seat.position.set(-0.20, 0, 0.38); g.add(seat);
   const back = BX(0.08, 0.26, 0.24, RED); back.position.set(-0.38, 0, 0.44); g.add(back);
   const beam = BX(0.4, 0.06, 0.06, RED); beam.position.set(0.02, 0, 0.22); g.add(beam);
