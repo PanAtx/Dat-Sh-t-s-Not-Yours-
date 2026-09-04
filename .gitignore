@@ -1,3 +1,6 @@
 # Node.js (used only by the fbx_*.mjs verification scripts, not by the browser)
 node_modules/
 package-lock.json
+
+# downloaded three r128 build (auto-fetched by fbx_warn_chk.mjs / gltf_warn_chk.mjs)
+_three128.js

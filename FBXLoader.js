@@ -443,7 +443,15 @@
 
 			}
 
-			material.setValues( parameters );
+			// Apply only parameters this material class actually supports (a Lambert
+			// material has no normalMap/specularMap/shininess) and skip undefined
+			// values (e.g. texture-only materials carry no color) — otherwise three.js
+			// logs harmless "is not a property" / "parameter is undefined" warnings.
+			const supported = {};
+			for ( const key in parameters ) {
+				if ( parameters[ key ] !== undefined && material[ key ] !== undefined ) supported[ key ] = parameters[ key ];
+			}
+			material.setValues( supported );
 			material.name = name;
 			return material;
 
