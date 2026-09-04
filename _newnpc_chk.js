@@ -175,5 +175,15 @@ check('skater: parks at the curb edge (y 4.3..4.9), out of the main walking line
 const chainZ = (src.match(/chain\.position\.set\([^;]*0\.38\)/g) || []).length;
 check('chain: sits ABOVE the grass surface (z 0.38) in BOTH spawn + per-frame update', chainZ >= 2, 'occurrences=' + chainZ);
 check('doghouse: bright chain stake at the anchor (moves with the house on recycle)', src.indexOf('stakeM = M(0xe8b416)') >= 0);
+
+// --- round 4 fixes: arm/shoe orientation ---
+const mkSk = src.slice(src.indexOf('function makeSkater'), src.indexOf('function makeSkater') + 2600);
+check('skater: arms use a single X rotation (lateral spread, no forward/back tilt)',
+  mkSk.indexOf('arm.rotation.x = Math.PI / 2 + side * 0.75') >= 0 && mkSk.indexOf('arm.rotation.z') < 0);
+const mkHk = src.slice(src.indexOf('function makeHooker'), src.indexOf('function makeHooker') + 3000);
+check('hooker: left arm (elbow out) uses a single X rotation, not the x+z combo that flung it back/up',
+  mkHk.indexOf('upper.rotation.x = Math.PI / 2 + 0.85') >= 0 && mkHk.indexOf('upper.rotation.z') < 0);
+check('hooker: shoe long axis along the TOE direction (+X) with toe-down pitch (was lateral, read as pointing up)',
+  mkHk.indexOf('BX(0.17, 0.1, 0.04, heelM)') >= 0);
 console.log(pass ? '\nNEW NPC CHECKS PASSED' : '\nNEW NPC CHECKS FAILED');
 process.exit(pass ? 0 : 1);
