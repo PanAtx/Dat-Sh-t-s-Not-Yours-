@@ -188,7 +188,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #radio.tick #radio-title .tk { padding-left:100%; animation:radio-tick 9s linear infinite; }
 @keyframes radio-tick { to { transform:translateX(-100%); } }
 #radio.muted #radio-title { color:rgba(110,130,120,.6); text-shadow:none; }
-#radio.muted #radio-bars i { background:rgba(90,120,105,.5); box-shadow:none; }
+#radio.muted #radio-bars i { background:rgba(90,120,105,.5); box-shadow:none; animation:none; height:18%; } /* muted = spectrum frozen */
 .radio-btn { pointer-events:auto; font-family:'Press Start 2P','Courier New',monospace; font-size:8px; letter-spacing:1px;
   color:#04140c; background:#39f78e; border:1px solid rgba(190,255,220,.8); border-radius:3px;
   padding:5px 7px; cursor:pointer; box-shadow:0 0 9px rgba(60,255,138,.5); -webkit-tap-highlight-color:transparent; }
@@ -721,8 +721,8 @@ function disposeObj(o){
 function buildWorker(){
   const g = new THREE.Group();
   const greenPants = M(0x1e6b30);   // signature DSNY green work pants
-  const hiVis = M(0xff7a1a);        // high-vis fluorescent safety vest
-  const silver = M(0xd9dde2);       // reflective silver stripes
+  const hiVis = M(0xd8f010);        // high-vis fluorescent YELLOW safety shirt
+  const stripe = M(0xf5f7f2);       // vertical white reflective stripes
   const skin = M(pick(SKIN_TONES)); // NYC is diverse: random skin tone for the worker
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.13, 0.78);
@@ -731,10 +731,13 @@ function buildWorker(){
     g.add(pv); return pv;
   };
   const legL = mkLeg(1), legR = mkLeg(-1);
-  const shirt = BX(0.26, 0.52, 0.62, M(0x2e7d32)); shirt.position.z = 1.1; g.add(shirt);
+  const shirt = BX(0.26, 0.52, 0.62, hiVis); shirt.position.z = 1.1; g.add(shirt); // hi-vis yellow shirt
   const vest = BX(0.3, 0.56, 0.68, hiVis); vest.position.z = 1.1; g.add(vest);
-  const st1 = BX(0.02, 0.09, 0.6, silver); st1.position.set(0.14, 0, 1.1); g.add(st1);
-  const st2 = BX(0.02, 0.09, 0.6, silver); st2.position.set(-0.14, 0, 1.1); g.add(st2);
+  // two vertical white stripes on the FRONT (+X) and two on the BACK (-X)
+  [0.11, -0.11].forEach(sy => {
+    const sf = BX(0.03, 0.11, 0.6, stripe); sf.position.set(0.155, sy, 1.1); g.add(sf); // front stripe
+    const sb = BX(0.03, 0.11, 0.6, stripe); sb.position.set(-0.155, sy, 1.1); g.add(sb); // back stripe
+  });
   const belt = BX(0.3, 0.5, 0.1, M(0x3a3f45)); belt.position.z = 0.82; g.add(belt);
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
@@ -3848,9 +3851,9 @@ function updateCreatures(dt){
         // WORKING TRICKS IN PLACE, big enough to read from the camera:
         // crouch -> POP (the bright board flips a full 360 while he launches)
         // -> land -> repeat. Every 3rd trick he adds a 360 body spin.
-        c.trickT -= dt;
         if (c.trickT <= 0 && c.flipT <= 0){
           c.flipT = 1.1;
+          c.trickT = R(0.8, 1.6); // re-arm the countdown ONCE (was the bug: it ran every idle frame forever)
           c.nth = (c.nth || 0) + 1;
           c.doSpin = (c.nth % 3 === 0);
         }
@@ -3867,11 +3870,12 @@ function updateCreatures(dt){
           c.g.rotation.z = c.doSpin ? t * Math.PI * 2 : 0; // 360 body spin every 3rd trick
           if (c.parts){ const aw = Math.sin(t * Math.PI) * 0.7; c.parts.armL.rotation.z = aw; c.parts.armR.rotation.z = -aw; }
         } else {
+          // idle between tricks: the countdown genuinely reaches zero here
+          c.trickT -= dt;
           if (c.board){ c.board.rotation.x = 0; c.board.position.z = 0.04; }
           c.g.position.z = GZ;
           c.g.rotation.z = 0;
           if (c.parts){ c.parts.armL.rotation.z = 0; c.parts.armR.rotation.z = 0; }
-          c.trickT = R(0.8, 1.6);
         }
         if (tx < -55){ c.wx = p.wx + 42; c.wy = R(4.3, 4.9); }
         break;
