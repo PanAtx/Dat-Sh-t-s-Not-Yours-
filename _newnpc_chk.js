@@ -42,6 +42,7 @@ const makePerson = () => { const g = new THREE.Group(); const legL = new THREE.G
 const GZ = 0.3;
 const creatures = [];
 const dynamicGroup = { add(){} };
+const p = { wx: 0, wy: 2.5 }; // player position (addCreature now spawns creatures around p.wx)
 
 eval(extract('makeJacker'));
 eval(extract('makeHooker'));

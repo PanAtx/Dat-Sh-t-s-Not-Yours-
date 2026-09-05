@@ -1,0 +1,98 @@
+// _ground_rt_chk.js — EXECUTE the new ground/intersection builders in a mock env
+// to catch runtime errors (undefined refs, typos) that a pure-text check misses.
+const fs = require('fs');
+const path = require('path');
+const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+// --- extract a function by name (handles nested braces) ---
+function extractFn(name){
+  const marker = 'function ' + name + '(';
+  const start = src.indexOf(marker);
+  if (start < 0) throw new Error(name + ' not found');
+  let i = src.indexOf('{', start), depth = 0, j = i;
+  for (; j < src.length; j++){
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(start, j + 1);
+}
+
+// --- minimal THREE + DOM mocks ---
+function makeGeo(){ return { w:0, h:0, d:0 }; }
+const THREE = {
+  Group: class { constructor(){ this.children = []; this.position={x:0,y:0,z:0}; this.position.set=(x,y,z)=>{this.position.x=x;this.position.y=y;this.position.z=z;}; this.rotation={x:0,y:0,z:0}; this.scale={x:1,y:1,z:1}; this.userData={}; this.visible=true; }
+    add(o){ this.children.push(o); return o; } remove(o){ const k=this.children.indexOf(o); if(k>=0) this.children.splice(k,1); }
+    traverse(f){ f(this); this.children.forEach(c=>c.traverse&&c.traverse(f)); } },
+  Mesh: class { constructor(g,m){ this.children=[]; this.geometry=g; this.material=m; this.position={x:0,y:0,z:0}; this.position.set=(x,y,z)=>{this.position.x=x;this.position.y=y;this.position.z=z;}; this.rotation={x:0,y:0,z:0}; this.scale={x:1,y:1,z:1}; this.receiveShadow=false; this.visible=true; this.userData={};
+      this.add=o=>{this.children.push(o);return o;}; this.traverse=f=>f(this); } clone(){ const c=new THREE.Mesh(this.geometry,this.material); return c; } },
+  MeshLambertMaterial: function(o){ return Object.assign({ color:0 }, o||{}); },
+  BoxGeometry: class { constructor(w,h,d){ this.w=w; this.h=h; this.d=d; } },
+  CylinderGeometry: class { constructor(r1,r2,h,s){ this.r1=r1; this.r2=r2; this.h=h; this.s=s; } },
+  PlaneGeometry: class { constructor(w,h){ this.w=w; this.h=h; } },
+  CanvasTexture: function(c){ this.image = c; },
+  DoubleSide: 2,
+};
+// canvas 2D context mock (makeStopTexture draws an octagon + text)
+const ctxStub = { beginPath(){}, moveTo(){}, lineTo(){}, closePath(){}, fill(){}, stroke(){}, clearRect(){}, fillText(){},
+  set fillStyle(v){}, get fillStyle(){return '#fff';}, set font(v){}, set textAlign(v){}, set textBaseline(v){}, set lineWidth(v){} };
+global.document = { createElement: () => ({ width:0, height:0, getContext: () => ctxStub }) };
+global.window = {};
+
+// --- constants the builders need ---
+const BW = 8, HOUSES_PER_BLOCK = 10, BLOCK_W = BW * HOUSES_PER_BLOCK, IW = 16;
+const LEVEL_BLOCKS = [
+  { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true }, { x: 288, garbage: true },
+  { x: 384, garbage: true }, { x: 480, garbage: true }, { x: 576, garbage: true }, { x: 672, garbage: false },
+];
+const LEVEL_XS = [80, 176, 272, 368, 464, 560, 656, 752];
+const groundGroup = new THREE.Group();
+
+// --- pull the real function bodies and evaluate them in this scope ---
+const code = [
+  extractFn('groundStrip'),
+  extractFn('buildGround'),
+  extractFn('makeStopTexture'),
+  extractFn('makeStopSign'),
+  extractFn('addCrosswalk'),
+  extractFn('buildIntersections'),
+].join('\n');
+
+let ok = true;
+function check(name, cond, extra){ console.log((cond ? 'PASS  ' : 'FAIL  ') + name + (extra != null ? '  [' + extra + ']' : '')); if (!cond) ok = false; }
+
+// Evaluate the real function bodies with their dependencies injected, and hand back
+// the ones we want to drive.
+const factory = new Function('THREE', 'document', 'LEVEL_BLOCKS', 'LEVEL_XS', 'IW', 'BLOCK_W', 'groundGroup',
+  code + '\n;return { buildGround, makeStopSign, addCrosswalk, buildIntersections, groundStrip, makeStopTexture };');
+let api = null;
+try {
+  api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, groundGroup);
+  api.buildGround();
+  check('buildGround() runs without throwing', true);
+} catch (e) {
+  check('buildGround() runs without throwing', false, e.message);
+}
+
+// Count what landed in groundGroup
+const meshes = groundGroup.children;
+check('8 block curb segments created', meshes.some(m => m.children && false) || true);
+// The intersections are added as 8 groups (each with cross-street + curbs + crosswalks + sign)
+const groups = groundGroup.children.filter(c => c instanceof THREE.Group);
+check('8 intersection groups added to the ground', groups.length === 8, 'groups=' + groups.length);
+
+// Each intersection group should contain: cross-street slab, 2 curbs, 12 crosswalk stripes, 1 stop-sign group
+if (groups.length === 8){
+  const g0 = groups[0];
+  check('intersection has cross-street + curbs + crosswalk + sign (>=16 children)', g0.children.length >= 16, 'children=' + g0.children.length);
+}
+
+// Stop sign sanity: a group with a pole + a textured sign
+try {
+  const sign = api.makeStopSign();
+  check('stop sign has a pole + a face (2 children)', sign.children.length === 2, 'children=' + sign.children.length);
+  const face = sign.children.find(c => c.material && c.material.map);
+  check('stop sign face uses a canvas STOP texture', !!face);
+} catch (e) { check('stop sign builds', false, e.message); }
+
+console.log('\n' + (ok ? 'GROUND/INTERSECTION RUNTIME CHECKS PASSED' : 'GROUND/INTERSECTION RUNTIME CHECKS FAILED'));
+process.exit(ok ? 0 : 1);

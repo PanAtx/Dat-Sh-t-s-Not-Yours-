@@ -4,3 +4,6 @@ package-lock.json
 
 # downloaded three r128 build (auto-fetched by fbx_warn_chk.mjs / gltf_warn_chk.mjs)
 _three128.js
+
+# local DSH rollback / session state (tooling, not source)
+.dsh/
