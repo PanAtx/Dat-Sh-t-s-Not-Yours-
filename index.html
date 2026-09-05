@@ -282,7 +282,7 @@ const pad = n => String(Math.max(0, Math.floor(n))).padStart(6, '0');
 const TILE = 144, NB = 18, BW = 8;
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
 const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
-const TRUCK_SPEED = 0.8;  // the DSNY truck crawls very slowly (half walking pace, pedestrians are 1.0-2.2)
+const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
 const TEST_KEEP_PLAYING = true; // TEMP (testing): missed garbage stops still give write-ups, but NEVER suspend you. Set false to restore 3-strike game over.
 const GZ = 0.3;
 const ISO_A = 26; // isometric camera arm length
@@ -2855,14 +2855,60 @@ function updatePlayer(dt){
   worker.group.traverse(o => { if (o.isMesh) o.visible = vis; });
 }
 // ==================== TRUCK UPDATE ====================
+// The driver only backs the truck up when the worker is out in the street,
+// to the LEFT or RIGHT of the truck (clear of its own lane). Never on the
+// sidewalk, and never with the worker directly in the truck's lane behind
+// the hopper.
+function canBackUp(){
+  if (!p) return false;
+  const lw = (truck.boxW != null) ? truck.boxW : 1.9; // truck's lateral half-width
+  const inStreet  = p.wy > -10 && p.wy < -0.3;  // on the road, not the sidewalk (wy >= ~0)
+  const leftSide  = p.wy < -4.5 - lw - 0.3;     // out on the far street side
+  const rightSide = p.wy > -4.5 + lw + 0.3;     // on the near (sidewalk-edge) street side
+  return inStreet && (leftSide || rightSide);
+}
 function updateTruck(dt){
-  // the DSNY truck NEVER disappears: it slowly crawls down the street and keeps
-  // circulating around the worker, so there is always a hopper nearby to deposit in
-  const sp = (state === 'play') ? TRUCK_SPEED : 1.6;
-  truck.wx += sp * dt;
-  const rel = truck.wx - p.wx;
-  if (rel > 30) truck.wx = p.wx - 28;      // came up from behind -> loop to ahead
-  else if (rel < -30) truck.wx = p.wx + 28; // fell behind -> loop to ahead
+  // The driver never drives away. Like a real collection route, the truck keeps
+  // its REAR (the hopper) positioned right next to the worker, so the garbage
+  // can always be carried back to it:
+  //   hopper too far behind the worker -> creep FORWARD at a modest speed
+  //     (eases off as it closes in — it never zooms past the worker);
+  //   hopper within the dead zone      -> stop dead and let the worker load;
+  //   hopper ahead of the worker's spot -> back up to reposition instead of
+  //     rolling off ahead of him.
+  const hopperOff = (truck.hopperOff != null) ? truck.hopperOff : -4.3;
+  const rearX  = truck.wx + hopperOff;      // where the truck's rear (hopper) is
+  const target = 1.5;                       // keep the hopper about this far ahead of the worker
+  const err = rearX - (p.wx + target);      // <0: too far behind, >0: too far ahead (needs to back up)
+  const DEAD = 0.8;                         // dead zone around the worker: hold position
+  const MAXSP = RUN_SPEED;                  // fast enough to eventually catch a sprinting worker
+  let sp = 0;
+  if (Math.abs(err) > DEAD){
+    // Proportional control: the creep speed scales with the gap and is capped,
+    // so the truck eases in without blasting past its hopper position.
+    const v = Math.min(MAXSP, (Math.abs(err) - DEAD) * 2.0);
+    if (err < 0){
+      // Hopper is behind the worker -> drive forward (+x). Always permitted,
+      // no matter where the worker is (sidewalk, street, anywhere).
+      sp = v;
+    } else if (canBackUp()){
+      // Hopper is ahead of the worker -> the driver backs up (-x) to re-
+      // position... but ONLY when the worker is out in the street, to the
+      // left or right of the truck. Never on the sidewalk, never with the
+      // worker directly in the truck's own lane (directly behind it).
+      sp = -v;
+    }
+    // otherwise the driver holds position and waits
+  }
+  truck.sp = sp;
+  if (Math.abs(err) > 40){
+    // Safety net: if a pause/reset/world-reposition ever let the gap blow up,
+    // snap the truck to its proper spot (rear at worker + target) instead of
+    // having it drive across the whole street to catch up.
+    truck.wx = p.wx + target - hopperOff;
+  } else {
+    truck.wx += sp * dt;
+  }
   // Truck physical bounding box: used for vehicle collision avoidance (set per-model in buildTruck)
   if (truck.boxL == null) truck.boxL = 4.0;
   if (truck.boxW == null) truck.boxW = 1.9;
