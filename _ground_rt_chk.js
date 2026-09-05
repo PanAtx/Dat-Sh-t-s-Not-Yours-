@@ -31,6 +31,8 @@ const THREE = {
   PlaneGeometry: class { constructor(w,h){ this.w=w; this.h=h; } },
   CanvasTexture: function(c){ this.image = c; },
   DoubleSide: 2,
+  Shape: class { constructor(){ this._pts = []; } moveTo(){} lineTo(){} quadraticCurveTo(){} closePath(){} },
+  ShapeGeometry: class { constructor(s){ this.shape = s; } },
 };
 // canvas 2D context mock (makeStopTexture draws an octagon + text)
 const ctxStub = { beginPath(){}, moveTo(){}, lineTo(){}, closePath(){}, fill(){}, stroke(){}, clearRect(){}, fillText(){},
@@ -40,6 +42,7 @@ global.window = {};
 
 // --- constants the builders need ---
 const BW = 8, HOUSES_PER_BLOCK = 10, BLOCK_W = BW * HOUSES_PER_BLOCK, IW = 16;
+const CROSS_W = 9, CROSS_H = 27, CROSS_CY = 2.5, CROSS_R = 3;
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true }, { x: 288, garbage: true },
   { x: 384, garbage: true }, { x: 480, garbage: true }, { x: 576, garbage: true }, { x: 672, garbage: false },
@@ -53,6 +56,8 @@ const code = [
   extractFn('buildGround'),
   extractFn('makeStopTexture'),
   extractFn('makeStopSign'),
+  extractFn('roundedRectShape'),
+  extractFn('crossStreetShape'),
   extractFn('addCrosswalk'),
   extractFn('buildIntersections'),
 ].join('\n');
@@ -62,11 +67,11 @@ function check(name, cond, extra){ console.log((cond ? 'PASS  ' : 'FAIL  ') + na
 
 // Evaluate the real function bodies with their dependencies injected, and hand back
 // the ones we want to drive.
-const factory = new Function('THREE', 'document', 'LEVEL_BLOCKS', 'LEVEL_XS', 'IW', 'BLOCK_W', 'groundGroup',
-  code + '\n;return { buildGround, makeStopSign, addCrosswalk, buildIntersections, groundStrip, makeStopTexture };');
+const factory = new Function('THREE', 'document', 'LEVEL_BLOCKS', 'LEVEL_XS', 'IW', 'BLOCK_W', 'CROSS_W', 'CROSS_H', 'CROSS_CY', 'CROSS_R', 'groundGroup',
+  code + '\n;return { buildGround, makeStopSign, addCrosswalk, buildIntersections, groundStrip, makeStopTexture, roundedRectShape, crossStreetShape };');
 let api = null;
 try {
-  api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, groundGroup);
+  api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, CROSS_W, CROSS_H, CROSS_CY, CROSS_R, groundGroup);
   api.buildGround();
   check('buildGround() runs without throwing', true);
 } catch (e) {
@@ -83,7 +88,7 @@ check('8 intersection groups added to the ground', groups.length === 8, 'groups=
 // Each intersection group should contain: cross-street slab, 2 curbs, 12 crosswalk stripes, 1 stop-sign group
 if (groups.length === 8){
   const g0 = groups[0];
-  check('intersection has cross-street + curbs + crosswalk + sign (>=16 children)', g0.children.length >= 16, 'children=' + g0.children.length);
+  check('intersection has curb + cross-street + 2 crosswalks (8 bars each) + sign (>=18 children)', g0.children.length >= 18, 'children=' + g0.children.length);
 }
 
 // Stop sign sanity: a group with a pole + a textured sign

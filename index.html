@@ -296,7 +296,11 @@ const TILE = 144, NB = 18, BW = 8;
 //   * Block 1 (behind the start) and Block 8 (past the finish) carry NO curb garbage.
 const HOUSES_PER_BLOCK = 10;
 const BLOCK_W = BW * HOUSES_PER_BLOCK;   // 80 world units per block (10 houses x 8u)
-const IW = 16;                          // intersection (cross-street) width
+const IW = 16;                          // intersection (cross-street) width (along the route)
+const CROSS_W = 9;                      // cross-street WIDTH (along the route / X) — NARROWER than the 16u intersection gap so it clears the flanking houses (no more "into the first house") and reads as a real street, not a blob
+const CROSS_H = 27;                     // cross-street LENGTH (across the road / Y) — long enough to run from the far nose (y=-11) past the houses (y=+16) so the top-left reads as ROAD, not grass
+const CROSS_CY = 2.5;                   // cross-street lateral centerline — spans y = -11 → +16 (long, reaching past the top-left grass)
+const CROSS_R = 3;                      // rounded radius — applied ONLY to the far "nose" (open side); the near side stays square so the road reaches the top-left corner
 // 8 blocks, each 80u wide, separated by 16u intersections:
 const LEVEL_BLOCKS = [
   { x: 0,   garbage: false }, // Block 1 — behind the start, NO garbage
@@ -512,44 +516,80 @@ function makeStopSign(){
   g.add(sign);
   return g;
 }
-function addCrosswalk(g, x){
-  const crossM = new THREE.MeshLambertMaterial({ color: 0xf5f6f7 });
-  const yStart = -8.5, yEnd = 0.0, n = 6;
-  const step = (yEnd - yStart) / n;
+// A flat rounded-rectangle in the ground plane (local X = route, local Y = lateral).
+// `r` is capped so opposite corners never overlap (mirrors CSS border-radius clamping).
+function roundedRectShape(w, h, r){
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  const s = new THREE.Shape();
+  const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+  s.moveTo(x0 + r, y0);
+  s.lineTo(x1 - r, y0);
+  s.quadraticCurveTo(x1, y0, x1, y0 + r);
+  s.lineTo(x1, y1 - r);
+  s.quadraticCurveTo(x1, y1, x1 - r, y1);
+  s.lineTo(x0 + r, y1);
+  s.quadraticCurveTo(x0, y1, x0, y1 - r);
+  s.lineTo(x0, y0 + r);
+  s.quadraticCurveTo(x0, y0, x0 + r, y0);
+  s.closePath();
+  return s;
+}
+// A cross-street slab in the ground plane (local +Y = the house/lawn side).
+// The NEAR edge (local +Y) is a STRAIGHT, square line — so the road reaches flush
+// to the top-left of the screen (no grass poking through the corner). Only the FAR
+// "nose" (local -Y, the open side) is rounded, like the end of a real crossing street.
+// This is the corrected (un-inverted) rounding: square where it meets the blocks,
+// rounded only at the street's nose.
+function crossStreetShape(w, h, noseR){
+  noseR = Math.max(0, Math.min(noseR, w / 2, h / 2));
+  const s = new THREE.Shape();
+  const x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;   // y0 = far nose, y1 = near (houses)
+  s.moveTo(x0, y1);                          // near-left   (SQUARE)
+  s.lineTo(x1, y1);                          // near-right  (SQUARE) — straight edge toward the houses
+  s.lineTo(x1, y0 + noseR);                  // down the right lip to the nose
+  s.quadraticCurveTo(x1, y0, x1 - noseR, y0);   // far-right nose corner (rounded)
+  s.lineTo(x0 + noseR, y0);                  // across the nose (bottom edge)
+  s.quadraticCurveTo(x0, y0, x0, y0 + noseR);   // far-left  nose corner (rounded)
+  s.lineTo(x0, y1);                          // up the left lip back to the near edge (SQUARE)
+  s.closePath();
+  return s;
+}
+function addCrosswalk(g, x, yMin, yMax){
+  const crossM = new THREE.MeshLambertMaterial({ color: 0xf2f4f6 });
+  const n = 8;                                    // zebra bars across the road
+  const pitch = (yMax - yMin) / n;
+  const bar = Math.min(pitch * 0.6, 1.2);
   for (let i = 0; i < n; i++){
-    const y = yStart + i * step + step / 2;
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.5, step * 0.62, 0.05), crossM);
-    stripe.position.set(x, y, 0.34);
+    const y = yMin + pitch * (i + 0.5);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.4, bar, 0.06), crossM);
+    stripe.position.set(x, y, 0.35);
     g.add(stripe);
   }
 }
 function buildIntersections(){
-  const crossM = new THREE.MeshLambertMaterial({ color: 0x33383f });
-  const curbM  = new THREE.MeshLambertMaterial({ color: 0xaab2ba });
-  const stopM  = new THREE.MeshLambertMaterial({ color: 0xd42a2a });
+  const crossM = new THREE.MeshLambertMaterial({ color: 0x2f353c, side: THREE.DoubleSide });
+  const curbM  = new THREE.MeshLambertMaterial({ color: 0xaab2ba, side: THREE.DoubleSide });
   for (const xInt of LEVEL_XS){
     const g = new THREE.Group();
-    // Cross-street asphalt: a slab crossing the main road (and spilling into the
-    // sidewalk + lawn) so it reads as a real crossing street. Sits just above the base
-    // asphalt to avoid Z-fighting.
-    const cross = new THREE.Mesh(new THREE.BoxGeometry(IW, 20, 0.04), crossM);
-    cross.position.set(xInt + IW / 2, -2, 0.32);
+    const cx = xInt + IW / 2;                 // center of the intersection gap
+    const halfW = CROSS_W / 2;                // cross-street half-width (narrower than the gap, clears the flanking houses)
+    const roadYMin = -9.5, roadYMax = 0.5;    // main-road extent (matches the asphalt strip)
+    // Curb border: slightly larger light slab — narrow house-side edge (square) + rounded nose.
+    const curb = new THREE.Mesh(new THREE.ShapeGeometry(crossStreetShape(CROSS_W + 0.8, CROSS_H + 0.8, CROSS_R + 0.4)), curbM);
+    curb.position.set(cx, CROSS_CY, 0.315);
+    g.add(curb);
+    // Cross-street asphalt: NARROW (clears the houses) and LONG (runs past them to the top-left).
+    const cross = new THREE.Mesh(new THREE.ShapeGeometry(crossStreetShape(CROSS_W, CROSS_H, CROSS_R)), crossM);
+    cross.position.set(cx, CROSS_CY, 0.325);
     cross.receiveShadow = true;
     g.add(cross);
-    // Curb returns: the two long edges of the cross-street (run along Y)
-    const curbL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 20, 0.5), curbM);
-    curbL.position.set(xInt + 0.25, -2, 0.1);
-    g.add(curbL);
-    const curbR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 20, 0.5), curbM);
-    curbR.position.set(xInt + IW - 0.25, -2, 0.1);
-    g.add(curbR);
-    // Crosswalk stripes across the main road at both lips of the cross-street
-    addCrosswalk(g, xInt + 1.1);
-    addCrosswalk(g, xInt + IW - 1.1);
-    // Stop sign on the near curb corner
+    // Crosswalks: bold zebra bars across the MAIN ROAD at both lips of the cross-street.
+    addCrosswalk(g, cx - halfW + 1, roadYMin, roadYMax);
+    addCrosswalk(g, cx + halfW - 1, roadYMin, roadYMax);
+    // Stop sign at the near curb corner (right lip, at the road edge)
     const sign = makeStopSign();
-    sign.position.x = xInt + IW - 1.2;
-    sign.position.y = 1.4;
+    sign.position.x = cx + halfW - 1.2;
+    sign.position.y = roadYMax + 0.5;
     g.add(sign);
     groundGroup.add(g);
   }
