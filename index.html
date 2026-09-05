@@ -556,12 +556,13 @@ function crossStreetShape(w, h, noseR){
 }
 function addCrosswalk(g, x, yMin, yMax){
   const crossM = new THREE.MeshLambertMaterial({ color: 0xf2f4f6 });
-  const n = 8;                                    // zebra bars across the road
+  const n = 8;                                    // zebra bars stacked across the road
   const pitch = (yMax - yMin) / n;
-  const bar = Math.min(pitch * 0.6, 1.2);
+  const bar = Math.min(pitch * 0.7, 1.3);         // bar thickness (bolder than before)
+  const barW = 2.8;                               // bar WIDTH along the road — TWICE the previous 1.4
   for (let i = 0; i < n; i++){
     const y = yMin + pitch * (i + 0.5);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.4, bar, 0.06), crossM);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(barW, bar, 0.06), crossM);
     stripe.position.set(x, y, 0.35);
     g.add(stripe);
   }
@@ -583,9 +584,11 @@ function buildIntersections(){
     cross.position.set(cx, CROSS_CY, 0.325);
     cross.receiveShadow = true;
     g.add(cross);
-    // Crosswalks: bold zebra bars across the MAIN ROAD at both lips of the cross-street.
-    addCrosswalk(g, cx - halfW + 1, roadYMin, roadYMax);
-    addCrosswalk(g, cx + halfW - 1, roadYMin, roadYMax);
+    // Crosswalks: bold zebra bars OUTSIDE the intersection — beyond each lip of the
+    // cross-street on the main-road approach, and further apart than the lips.
+    const cwOffset = halfW + 2;                   // just outside each lip of the cross-street
+    addCrosswalk(g, cx - cwOffset, roadYMin, roadYMax);
+    addCrosswalk(g, cx + cwOffset, roadYMin, roadYMax);
     // Stop sign at the near curb corner (right lip, at the road edge)
     const sign = makeStopSign();
     sign.position.x = cx + halfW - 1.2;
