@@ -468,12 +468,11 @@ function buildGround(){
     groundGroup.add(seg);
   }
   const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
-  const edgeL = new THREE.Mesh(new THREE.BoxGeometry(GW, 0.22, 0.05), edgeM);
-  edgeL.position.set(GCX, -9.2, 0.31);
-  groundGroup.add(edgeL);
-  const edgeR = edgeL.clone();
-  edgeR.position.y = 0.2;
-  groundGroup.add(edgeR);
+  for (const bl of LEVEL_BLOCKS){
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W, 0.24, 0.05), edgeM);
+    edge.position.set(bl.x + BLOCK_W / 2, -9.2, 0.31);
+    groundGroup.add(edge);
+  }
   // Paperboy-style cross-streets with crosswalks at every intersection
   buildIntersections();
 }
@@ -547,33 +546,120 @@ function addCrosswalkAcross(g, y, xMin, xMax){
   }
 }
 function buildIntersections(){
-  const crossM = new THREE.MeshLambertMaterial({ color: 0x2f353c, side: THREE.DoubleSide });
+  const crossM = new THREE.MeshLambertMaterial({ color: 0x3a4046, side: THREE.DoubleSide }); // same asphalt as the main road — no dark stripe through the intersection
   const curbM  = new THREE.MeshLambertMaterial({ color: 0xaab2ba, side: THREE.DoubleSide });
+  const walkM  = new THREE.MeshLambertMaterial({ color: 0x8d949c, side: THREE.DoubleSide });
+  const CR = 2.0;   // NYC corner radius — quarter-circle curb return at each intersection corner
+  const CB = 0.5;   // curb-stone band width — SAME thickness as the main-road curb (0.5u),
+                    // so the return is flush with the straight curbs it meets
   for (const xInt of LEVEL_XS){
     const g = new THREE.Group();
     const cx = xInt + IW / 2;                 // center of the intersection gap
-    const halfW = CROSS_W / 2;                // cross-street half-width (narrower than the gap, clears the flanking houses)
+    const halfW = CROSS_W / 2;                // cross-street half-width
     const roadYMin = -9.5, roadYMax = 0.5;    // main-road extent (matches the asphalt strip)
-    // Curb border: slightly larger light slab — narrow house-side edge (square) + rounded nose.
-    const curb = new THREE.Mesh(new THREE.ShapeGeometry(crossStreetShape(CROSS_W + 0.8, CROSS_H + 0.8, CROSS_R + 0.4)), curbM);
-    curb.position.set(cx, CROSS_CY, 0.315);
-    g.add(curb);
-    // Cross-street asphalt: NARROW (clears the houses) and LONG (runs past them to the top-left).
-    const cross = new THREE.Mesh(new THREE.ShapeGeometry(crossStreetShape(CROSS_W, CROSS_H, CROSS_R)), crossM);
+    // Cross-street asphalt: simple rectangle (the road — NOT a pill, NOT rounded ends)
+    const cross = new THREE.Mesh(new THREE.BoxGeometry(CROSS_W, CROSS_H, 0.1), crossM);
     cross.position.set(cx, CROSS_CY, 0.325);
     cross.receiveShadow = true;
     g.add(cross);
-    // Crosswalks: bold zebra bars OUTSIDE the intersection — beyond each lip of the
-    // cross-street on the main-road approach, and further apart than the lips.
-    const cwOffset = halfW + 2;                   // just outside each lip of the cross-street
+    // Curb lines along the cross-street — they BEGIN at the curb-return tangent
+    // points and run out to the street's noses. Nothing crosses the main road:
+    // the intersection interior is pure asphalt, the only curb at the corners is
+    // the curved return (drawn below).
+    const topNose = CROSS_CY + CROSS_H / 2;   // near nose (house side)
+    const botNose = CROSS_CY - CROSS_H / 2;   // far nose (horizon side)
+    // The curb LINE of the main road (where asphalt meets curb-stone) sits 0.25u
+    // inside the road edge — the main-road curb is 0.5u wide (0.25..0.75 near,
+    // -9.25..-9.75 far). The corner return is built on that same line so the
+    // curved curb and the straight curb run flush end-to-end.
+    const tyN = roadYMax - 0.25;              // near-side curb-line level
+    const tyF = roadYMin + 0.25;              // far-side curb-line level
+    const tNear = tyN + CR;                   // near-side: where the return meets the cross-street curbs
+    const tFar  = tyF - CR;                   // far-side:  same
+    const strip = (w, h, x, y) => {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), curbM);
+      s.position.set(x, y, 0.315);
+      g.add(s);
+    };
+    // 0.5u thick, exactly matching the curb-return band (CB): the band's
+    // sidewalk-side edge touches x = cx +/- (halfW + 0.5), so the straight curb
+    // and the curved return meet FLUSH.
+    strip(CROSS_W + 1.0, 0.5, cx, topNose + 0.25);                   // near nose edge
+    strip(CROSS_W + 1.0, 0.5, cx, botNose - 0.25);                   // far nose edge
+    strip(0.5, topNose - tNear, cx - halfW - 0.25, (topNose + tNear) / 2);  // near-left curb
+    strip(0.5, topNose - tNear, cx + halfW + 0.25, (topNose + tNear) / 2);  // near-right curb
+    strip(0.5, tFar - botNose,  cx - halfW - 0.25, (tFar + botNose) / 2);  // far-left curb
+    strip(0.5, tFar - botNose,  cx + halfW + 0.25, (tFar + botNose) / 2);  // far-right curb
+    // ---- 4 NYC-style rounded corners (true curb returns) ----
+    // At each corner the sidewalk is CUT by a quarter-circle arc that is tangent
+    // to BOTH curb lines: the road-side edge (radius CR) runs from
+    // (vx + sx*CR, ty) on the main-road curb line to (vx, ty + sy*CR) on the
+    // cross-street curb line; the sidewalk-side edge (radius CR - CB) is the
+    // same arc offset 0.5u toward the corner. The arc center sits INSIDE the
+    // sidewalk at (vx + sx*CR, ty + sy*CR), so the curve is concave toward the
+    // road — exactly like a real corner.
+    //   - asphalt flare: the curved triangle between the two curb lines and the arc
+    //   - curb band:     0.5u light-grey stone ring along the arc (the "curb return")
+    const corners = [
+      { sx: -1, sy: +1 },  // top-left
+      { sx: +1, sy: +1 },  // top-right
+      { sx: -1, sy: -1 },  // bottom-left
+      { sx: +1, sy: -1 },  // bottom-right
+    ];
+    for (const c of corners){
+      const ty = c.sy > 0 ? tyN : tyF;        // curb-line level on this side
+      const vx = cx + c.sx * halfW;           // cross-street curb line (x)
+      const acx = vx + c.sx * CR;             // arc center (inside the sidewalk)
+      const acy = ty + c.sy * CR;
+      // Bottom corners sit past the road edge where no ground strip exists, so lay
+      // a sidewalk base under that quadrant first (the far-side sidewalk).
+      if (c.sy < 0){
+        const base = new THREE.Mesh(new THREE.BoxGeometry(CR, CR, 0.06), walkM);
+        base.position.set(vx + c.sx * CR / 2, ty + c.sy * CR / 2, 0.33);
+        g.add(base);
+      }
+      // Arc endpoints as seen from the arc center:
+      //   tangent on the main-road curb line:     angle -PI/2 (sy=+1) or PI/2 (sy=-1)
+      //   tangent on the cross-street curb line:  angle 0 (sx=-1) or PI (sx=+1)
+      const aR = c.sy > 0 ? -Math.PI / 2 : Math.PI / 2;
+      const aT = c.sx > 0 ? Math.PI : 0;
+      const cw = c.sx * c.sy === -1;          // sweep direction bowing through the vertex
+      const rIn = CR - CB;                    // sidewalk-side edge of the curb band
+      // Asphalt flare (curved triangle holding the corner vertex)
+      const sF = new THREE.Shape();
+      sF.moveTo(acx, ty);                     // main-road tangent point
+      sF.lineTo(vx, ty);                      // corner vertex
+      sF.lineTo(vx, acy);                     // cross-street tangent point
+      sF.absarc(acx, acy, CR, aT, aR, cw);    // return arc back to the start
+      sF.closePath();
+      const flare = new THREE.Mesh(new THREE.ShapeGeometry(sF), crossM);
+      flare.position.z = 0.335;
+      flare.receiveShadow = true;
+      g.add(flare);
+      // Curb-stone band: annular sector between rIn and CR along the same arc.
+      // At the main-road end it spans exactly the curb-stone zone (0.25..0.75),
+      // so it is flush with the straight curb of the main road; at the
+      // cross-street end its outer edge lands exactly on x = vx + sx*0.5, flush
+      // with the cross-street side curbs.
+      const sC = new THREE.Shape();
+      sC.moveTo(acx + rIn * Math.cos(aT), acy + rIn * Math.sin(aT));
+      sC.absarc(acx, acy, rIn, aT, aR, cw);
+      sC.lineTo(acx + CR * Math.cos(aR), acy + CR * Math.sin(aR));
+      sC.absarc(acx, acy, CR, aR, aT, !cw);
+      sC.closePath();
+      const band = new THREE.Mesh(new THREE.ShapeGeometry(sC), curbM);
+      band.position.z = 0.34;
+      g.add(band);
+    }
+    // Crosswalks: positioned to MEET at the rounded corners (NYC style).
+    // Main-road crosswalks: the bar just clears the curb return (band outer edge
+    // is at cx +/- (halfW + 0.5)), sitting on the intersection apron.
+    const cwOffset = halfW + 2.0;
     addCrosswalk(g, cx - cwOffset, roadYMin, roadYMax);
     addCrosswalk(g, cx + cwOffset, roadYMin, roadYMax);
-    // Crosswalks on the CROSS-STREET (the perpendicular street): OUTSIDE the
-    // main road on both sides (clear of the intersection), further apart than the
-    // road's width — spanning the cross-street's width, like a full 4-side crossing.
-    const cwPerpOffset = 3;                        // how far outside the main-road edges each sits
-    addCrosswalkAcross(g, roadYMax + cwPerpOffset, cx - halfW, cx + halfW);   // top — above the road, off the intersection
-    addCrosswalkAcross(g, roadYMin - cwPerpOffset, cx - halfW, cx + halfW);   // bottom — below the road, off the intersection
+    // Cross-street crosswalks: just past the curb return, on the cross-street asphalt.
+    addCrosswalkAcross(g, tyN + CR + 1.5, cx - halfW, cx + halfW);    // near side
+    addCrosswalkAcross(g, tyF - CR - 1.5, cx - halfW, cx + halfW);    // far side
     groundGroup.add(g);
   }
 }

@@ -31,7 +31,7 @@ const THREE = {
   PlaneGeometry: class { constructor(w,h){ this.w=w; this.h=h; } },
   CanvasTexture: function(c){ this.image = c; },
   DoubleSide: 2,
-  Shape: class { constructor(){ this._pts = []; } moveTo(){} lineTo(){} quadraticCurveTo(){} closePath(){} },
+  Shape: class { constructor(){ this._pts = []; } moveTo(){} lineTo(){} quadraticCurveTo(){} absarc(){} closePath(){} },
   ShapeGeometry: class { constructor(s){ this.shape = s; } },
 };
 // canvas 2D context mock (makeStopTexture draws an octagon + text)
@@ -84,11 +84,17 @@ check('8 block curb segments created', meshes.some(m => m.children && false) || 
 const groups = groundGroup.children.filter(c => c instanceof THREE.Group);
 check('8 intersection groups added to the ground', groups.length === 8, 'groups=' + groups.length);
 
-// Each intersection group should contain: curb + cross-street + both crosswalk pairs (no stop sign)
+// Each intersection group should contain: 1 cross box + 6 curb strips + 2 far bases
+// + 4 asphalt flares + 4 curb-return bands + route cw (8+8) + perp cw (6+6) = 45
 if (groups.length === 8){
   const g0 = groups[0];
-  check('intersection has curb + cross-street + route cw (8+8) + perpendicular cw (6+6)', g0.children.length === 30, 'children=' + g0.children.length);
+  check('intersection has 6 curb strips + road + 2 far bases + 4 flares + 4 return bands + route cw (8+8) + perp cw (6+6)', g0.children.length === 45, 'children=' + g0.children.length);
 }
+// No dark stripe: cross-street asphalt must be the SAME color as the main road.
+check('cross-street asphalt matches main-road color (no dark stripe)', src.includes('0x3a4046, side: THREE.DoubleSide'));
+check('cross-street no longer uses the darker 0x2f353c', !src.includes('0x2f353c'));
+// No continuous line left running through the intersection gaps.
+check('no full-length road-edge line through the intersections', !/BoxGeometry\(GW,\s*0\.2/.test(src) && !src.includes('edgeR'));
 
 console.log('\n' + (ok ? 'GROUND/INTERSECTION RUNTIME CHECKS PASSED' : 'GROUND/INTERSECTION RUNTIME CHECKS FAILED'));
 process.exit(ok ? 0 : 1);
