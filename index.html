@@ -458,18 +458,20 @@ function buildGround(){
   groundStrip(GW, 4.5, 0.3, 2.75, 0x8d949c, GCX);  // sidewalk
   groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
   groundStrip(GW, 16, 0.3, 16, 0x35522c, GCX);     // park beyond the blocks
-  // Main curb: ONE segment per block, so the curb naturally BREAKS at every intersection
-  // (the cross-street slots into the gap). No curb garbage lives in the gaps.
+  // Main curb: ONE segment per block. Each extends 1.5u PAST the block on both
+  // sides so its end lands EXACTLY on the curb-return arc's main-road tangent
+  // point (x = blockEdge +/- 1.5), where the straight curb and the curved corner
+  // return meet flush end-to-end — no gap at the corner.
   const curbM = new THREE.MeshLambertMaterial({ color: 0xaab2ba });
   for (const bl of LEVEL_BLOCKS){
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W, 0.5, 0.5), curbM);
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W + 3.0, 0.5, 0.5), curbM);
     seg.position.set(bl.x + BLOCK_W / 2, 0.5, 0.1);
     seg.receiveShadow = true;
     groundGroup.add(seg);
   }
   const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
   for (const bl of LEVEL_BLOCKS){
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W, 0.24, 0.05), edgeM);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W + 3.0, 0.24, 0.05), edgeM);
     edge.position.set(bl.x + BLOCK_W / 2, -9.2, 0.31);
     groundGroup.add(edge);
   }
@@ -557,9 +559,12 @@ function buildIntersections(){
     const cx = xInt + IW / 2;                 // center of the intersection gap
     const halfW = CROSS_W / 2;                // cross-street half-width
     const roadYMin = -9.5, roadYMax = 0.5;    // main-road extent (matches the asphalt strip)
-    // Cross-street asphalt: simple rectangle (the road — NOT a pill, NOT rounded ends)
-    const cross = new THREE.Mesh(new THREE.BoxGeometry(CROSS_W, CROSS_H, 0.1), crossM);
-    cross.position.set(cx, CROSS_CY, 0.325);
+    // Cross-street asphalt: simple rectangle (the road — NOT a pill, NOT rounded ends).
+    // FLAT plane at the SAME z as the corner flares (0.335) — a raised box here left
+    // a dark vertical edge/shadow line across the intersection, so the whole
+    // intersection asphalt lies on one flat, uniformly-colored plane.
+    const cross = new THREE.Mesh(new THREE.PlaneGeometry(CROSS_W, CROSS_H), crossM);
+    cross.position.set(cx, CROSS_CY, 0.335);
     cross.receiveShadow = true;
     g.add(cross);
     // Curb lines along the cross-street — they BEGIN at the curb-return tangent
@@ -614,8 +619,10 @@ function buildIntersections(){
       // Bottom corners sit past the road edge where no ground strip exists, so lay
       // a sidewalk base under that quadrant first (the far-side sidewalk).
       if (c.sy < 0){
-        const base = new THREE.Mesh(new THREE.BoxGeometry(CR, CR, 0.06), walkM);
-        base.position.set(vx + c.sx * CR / 2, ty + c.sy * CR / 2, 0.33);
+        // Flat plane UNDER the asphalt (z=0.32 < flare 0.335) so no raised box
+        // edge pokes through the road and casts a dark line.
+        const base = new THREE.Mesh(new THREE.PlaneGeometry(CR, CR), walkM);
+        base.position.set(vx + c.sx * CR / 2, ty + c.sy * CR / 2, 0.32);
         g.add(base);
       }
       // Arc endpoints as seen from the arc center:
@@ -652,9 +659,11 @@ function buildIntersections(){
       g.add(band);
     }
     // Crosswalks: positioned to MEET at the rounded corners (NYC style).
-    // Main-road crosswalks: the bar just clears the curb return (band outer edge
-    // is at cx +/- (halfW + 0.5)), sitting on the intersection apron.
-    const cwOffset = halfW + 2.0;
+    // Main-road crosswalks: pushed OUT to halfW + 3.5 (offset 8.0). Each bar is
+    // 2.8u wide, so its inner edge lands at cx +/- 6.6 — just past the
+    // curb-return tangent (cx +/- 6.5), placing the bars on the approach right
+    // outside the corners, aligned with them and not overlapping the arc.
+    const cwOffset = halfW + 3.5;
     addCrosswalk(g, cx - cwOffset, roadYMin, roadYMax);
     addCrosswalk(g, cx + cwOffset, roadYMin, roadYMax);
     // Cross-street crosswalks: just past the curb return, on the cross-street asphalt.
