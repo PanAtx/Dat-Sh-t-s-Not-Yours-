@@ -42,7 +42,7 @@ global.window = {};
 
 // --- constants the builders need ---
 const BW = 8, HOUSES_PER_BLOCK = 10, BLOCK_W = BW * HOUSES_PER_BLOCK, IW = 16;
-const CROSS_W = 9, CROSS_H = 27, CROSS_CY = 2.5, CROSS_R = 3;
+const CROSS_W = 9, CROSS_H = 30, CROSS_CY = 1.0, CROSS_R = 3;
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true }, { x: 288, garbage: true },
   { x: 384, garbage: true }, { x: 480, garbage: true }, { x: 576, garbage: true }, { x: 672, garbage: false },
@@ -54,11 +54,10 @@ const groundGroup = new THREE.Group();
 const code = [
   extractFn('groundStrip'),
   extractFn('buildGround'),
-  extractFn('makeStopTexture'),
-  extractFn('makeStopSign'),
   extractFn('roundedRectShape'),
   extractFn('crossStreetShape'),
   extractFn('addCrosswalk'),
+  extractFn('addCrosswalkAcross'),
   extractFn('buildIntersections'),
 ].join('\n');
 
@@ -68,7 +67,7 @@ function check(name, cond, extra){ console.log((cond ? 'PASS  ' : 'FAIL  ') + na
 // Evaluate the real function bodies with their dependencies injected, and hand back
 // the ones we want to drive.
 const factory = new Function('THREE', 'document', 'LEVEL_BLOCKS', 'LEVEL_XS', 'IW', 'BLOCK_W', 'CROSS_W', 'CROSS_H', 'CROSS_CY', 'CROSS_R', 'groundGroup',
-  code + '\n;return { buildGround, makeStopSign, addCrosswalk, buildIntersections, groundStrip, makeStopTexture, roundedRectShape, crossStreetShape };');
+  code + '\n;return { buildGround, addCrosswalk, addCrosswalkAcross, buildIntersections, groundStrip, roundedRectShape, crossStreetShape };');
 let api = null;
 try {
   api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, CROSS_W, CROSS_H, CROSS_CY, CROSS_R, groundGroup);
@@ -85,19 +84,11 @@ check('8 block curb segments created', meshes.some(m => m.children && false) || 
 const groups = groundGroup.children.filter(c => c instanceof THREE.Group);
 check('8 intersection groups added to the ground', groups.length === 8, 'groups=' + groups.length);
 
-// Each intersection group should contain: cross-street slab, 2 curbs, 12 crosswalk stripes, 1 stop-sign group
+// Each intersection group should contain: curb + cross-street + both crosswalk pairs (no stop sign)
 if (groups.length === 8){
   const g0 = groups[0];
-  check('intersection has curb + cross-street + 2 crosswalks (8 bars each) + sign (>=18 children)', g0.children.length >= 18, 'children=' + g0.children.length);
+  check('intersection has curb + cross-street + route cw (8+8) + perpendicular cw (6+6)', g0.children.length === 30, 'children=' + g0.children.length);
 }
-
-// Stop sign sanity: a group with a pole + a textured sign
-try {
-  const sign = api.makeStopSign();
-  check('stop sign has a pole + a face (2 children)', sign.children.length === 2, 'children=' + sign.children.length);
-  const face = sign.children.find(c => c.material && c.material.map);
-  check('stop sign face uses a canvas STOP texture', !!face);
-} catch (e) { check('stop sign builds', false, e.message); }
 
 console.log('\n' + (ok ? 'GROUND/INTERSECTION RUNTIME CHECKS PASSED' : 'GROUND/INTERSECTION RUNTIME CHECKS FAILED'));
 process.exit(ok ? 0 : 1);

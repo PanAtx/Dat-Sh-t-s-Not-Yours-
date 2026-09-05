@@ -298,8 +298,8 @@ const HOUSES_PER_BLOCK = 10;
 const BLOCK_W = BW * HOUSES_PER_BLOCK;   // 80 world units per block (10 houses x 8u)
 const IW = 16;                          // intersection (cross-street) width (along the route)
 const CROSS_W = 9;                      // cross-street WIDTH (along the route / X) — NARROWER than the 16u intersection gap so it clears the flanking houses (no more "into the first house") and reads as a real street, not a blob
-const CROSS_H = 27;                     // cross-street LENGTH (across the road / Y) — long enough to run from the far nose (y=-11) past the houses (y=+16) so the top-left reads as ROAD, not grass
-const CROSS_CY = 2.5;                   // cross-street lateral centerline — spans y = -11 → +16 (long, reaching past the top-left grass)
+const CROSS_H = 30;                     // cross-street LENGTH (across the road / Y) — runs from the far nose (y=-14) past the houses (y=+16), with room for the perpendicular crosswalks to sit clear of the main road on both sides
+const CROSS_CY = 1.0;                   // cross-street lateral centerline — spans y = -14 → +16 (still reaches the top-left corner, plus clearance below the road for the crosswalk)
 const CROSS_R = 3;                      // rounded radius — applied ONLY to the far "nose" (open side); the near side stays square so the road reaches the top-left corner
 // 8 blocks, each 80u wide, separated by 16u intersections:
 const LEVEL_BLOCKS = [
@@ -474,48 +474,10 @@ function buildGround(){
   const edgeR = edgeL.clone();
   edgeR.position.y = 0.2;
   groundGroup.add(edgeR);
-  // Paperboy-style cross-streets with crosswalks + stop signs at every intersection
+  // Paperboy-style cross-streets with crosswalks at every intersection
   buildIntersections();
 }
 // ---- Cross-street intersection builders (Paperboy! look) ----
-function makeStopTexture(){
-  const c = document.createElement('canvas');
-  c.width = 128; c.height = 128;
-  const ctx = c.getContext('2d');
-  ctx.clearRect(0, 0, 128, 128);
-  const oct = (r) => {
-    ctx.beginPath();
-    const start = Math.PI / 8, cx = 64, cy = 64;
-    for (let i = 0; i < 8; i++){
-      const a = start + i * Math.PI / 4;
-      const x = cx + r * Math.cos(a), y = cy + r * Math.sin(a);
-      (i === 0) ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-  };
-  oct(62); ctx.fillStyle = '#ffffff'; ctx.fill();   // white border
-  oct(53); ctx.fillStyle = '#d42a2a'; ctx.fill();   // red body
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px Arial, sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('STOP', 64, 66);
-  const tex = new THREE.CanvasTexture(c);
-  return tex;
-}
-function makeStopSign(){
-  const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 1.7, 8),
-    new THREE.MeshLambertMaterial({ color: 0x8a929c }));
-  pole.rotation.x = Math.PI / 2;   // stand UP along Z
-  pole.position.z = 0.85;
-  g.add(pole);
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9),
-    new THREE.MeshLambertMaterial({ map: makeStopTexture(), transparent: true, side: THREE.DoubleSide }));
-  sign.rotation.y = Math.PI / 2;   // face the route (+X), i.e. the plane sits in the Y-Z plane
-  sign.position.z = 1.55;
-  g.add(sign);
-  return g;
-}
 // A flat rounded-rectangle in the ground plane (local X = route, local Y = lateral).
 // `r` is capped so opposite corners never overlap (mirrors CSS border-radius clamping).
 function roundedRectShape(w, h, r){
@@ -567,6 +529,23 @@ function addCrosswalk(g, x, yMin, yMax){
     g.add(stripe);
   }
 }
+// A crosswalk band on the CROSS-STREET (the street perpendicular to the route):
+// bars are arranged along X (the cross-street's width), each bar bold in Y — the
+// same zebra look, just rotated 90°. Lets a pedestrian cross the cross-street at
+// the main road's top/bottom edges.
+function addCrosswalkAcross(g, y, xMin, xMax){
+  const crossM = new THREE.MeshLambertMaterial({ color: 0xf2f4f6 });
+  const n = 6;                                     // zebra bars across the cross-street width
+  const pitch = (xMax - xMin) / n;
+  const bar = Math.min(pitch * 0.7, 1.3);          // bar thickness (thin in X)
+  const barW = 2.8;                                // bar WIDTH (along Y) — same bold width as the route crosswalks
+  for (let i = 0; i < n; i++){
+    const x = xMin + pitch * (i + 0.5);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(bar, barW, 0.06), crossM);
+    stripe.position.set(x, y, 0.35);
+    g.add(stripe);
+  }
+}
 function buildIntersections(){
   const crossM = new THREE.MeshLambertMaterial({ color: 0x2f353c, side: THREE.DoubleSide });
   const curbM  = new THREE.MeshLambertMaterial({ color: 0xaab2ba, side: THREE.DoubleSide });
@@ -589,11 +568,12 @@ function buildIntersections(){
     const cwOffset = halfW + 2;                   // just outside each lip of the cross-street
     addCrosswalk(g, cx - cwOffset, roadYMin, roadYMax);
     addCrosswalk(g, cx + cwOffset, roadYMin, roadYMax);
-    // Stop sign at the near curb corner (right lip, at the road edge)
-    const sign = makeStopSign();
-    sign.position.x = cx + halfW - 1.2;
-    sign.position.y = roadYMax + 0.5;
-    g.add(sign);
+    // Crosswalks on the CROSS-STREET (the perpendicular street): OUTSIDE the
+    // main road on both sides (clear of the intersection), further apart than the
+    // road's width — spanning the cross-street's width, like a full 4-side crossing.
+    const cwPerpOffset = 3;                        // how far outside the main-road edges each sits
+    addCrosswalkAcross(g, roadYMax + cwPerpOffset, cx - halfW, cx + halfW);   // top — above the road, off the intersection
+    addCrosswalkAcross(g, roadYMin - cwPerpOffset, cx - halfW, cx + halfW);   // bottom — below the road, off the intersection
     groundGroup.add(g);
   }
 }
