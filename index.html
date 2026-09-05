@@ -455,19 +455,28 @@ function buildGround(){
   const GW = GROUND_R - GROUND_L;
   const GCX = (GROUND_L + GROUND_R) / 2;
   groundStrip(GW, 10, 0.3, -4.5, 0x3a4046, GCX);   // asphalt
+  groundStrip(GW, 4.5, 0.3, -11.75, 0x8d949c, GCX); // far-side sidewalk (y -9.5..-14, past the far road edge)
+  groundStrip(GW, 10, 0.3, -19, 0x35522c, GCX);     // park beyond the far sidewalk
   groundStrip(GW, 4.5, 0.3, 2.75, 0x8d949c, GCX);  // sidewalk
   groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
   groundStrip(GW, 16, 0.3, 16, 0x35522c, GCX);     // park beyond the blocks
-  // Main curb: ONE segment per block. Each extends 1.5u PAST the block on both
-  // sides so its end lands EXACTLY on the curb-return arc's main-road tangent
-  // point (x = blockEdge +/- 1.5), where the straight curb and the curved corner
-  // return meet flush end-to-end — no gap at the corner.
+  // Main curb: ONE segment per block ON EACH SIDE. Each extends 1.5u PAST the
+  // block on both sides so its end lands EXACTLY on the curb-return arc's
+  // main-road tangent point (x = blockEdge +/- 1.5), where the straight curb
+  // and the curved corner return meet flush end-to-end — no gap at the corner.
+  // Near side: y 0.25..0.75 (road edge 0.5). Far side: y -9.75..-9.25 (road
+  // edge -9.5) — same 0.5u width and same z-top (0.35) as the near curb, and
+  // flush with the far corner curb-return bands.
   const curbM = new THREE.MeshLambertMaterial({ color: 0xaab2ba });
   for (const bl of LEVEL_BLOCKS){
     const seg = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W + 3.0, 0.5, 0.5), curbM);
     seg.position.set(bl.x + BLOCK_W / 2, 0.5, 0.1);
     seg.receiveShadow = true;
     groundGroup.add(seg);
+    const segF = new THREE.Mesh(new THREE.BoxGeometry(BLOCK_W + 3.0, 0.5, 0.5), curbM);
+    segF.position.set(bl.x + BLOCK_W / 2, -9.5, 0.1);
+    segF.receiveShadow = true;
+    groundGroup.add(segF);
   }
   const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
   for (const bl of LEVEL_BLOCKS){
@@ -659,13 +668,13 @@ function buildIntersections(){
       g.add(band);
     }
     // Crosswalks: positioned to MEET at the rounded corners (NYC style).
-    // Main-road crosswalks: pushed OUT to halfW + 3.5 (offset 8.0). Each bar is
-    // 2.8u wide, so its inner edge lands at cx +/- 6.6 — just past the
-    // curb-return tangent (cx +/- 6.5), placing the bars on the approach right
-    // outside the corners, aligned with them and not overlapping the arc.
+    // Main-road crosswalks: pushed OUT to halfW + 3.5 (offset 8.0).
+    // The Y-range is inset by 0.5 on each side so the outermost zebra bars
+    // stay on the asphalt, clear of the curb-stone inner edges (y 0.25 / -9.25).
     const cwOffset = halfW + 3.5;
-    addCrosswalk(g, cx - cwOffset, roadYMin, roadYMax);
-    addCrosswalk(g, cx + cwOffset, roadYMin, roadYMax);
+    const cwInset = 0.5;   // clearance from curb on each side
+    addCrosswalk(g, cx - cwOffset, roadYMin + cwInset, roadYMax - cwInset);
+    addCrosswalk(g, cx + cwOffset, roadYMin + cwInset, roadYMax - cwInset);
     // Cross-street crosswalks: just past the curb return, on the cross-street asphalt.
     addCrosswalkAcross(g, tyN + CR + 1.5, cx - halfW, cx + halfW);    // near side
     addCrosswalkAcross(g, tyF - CR - 1.5, cx - halfW, cx + halfW);    // far side

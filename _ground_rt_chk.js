@@ -80,6 +80,16 @@ try {
 // Count what landed in groundGroup
 const meshes = groundGroup.children;
 check('8 block curb segments created', meshes.some(m => m.children && false) || true);
+// Far side (bottom of the main street) must have curb segments + a sidewalk strip.
+let farCurb = 0, farWalk = false;
+for (const m of groundGroup.children){
+  if (!m.geometry || !m.position) continue;
+  const g = m.geometry;
+  if (g.d === 0.5 && Math.abs(m.position.y + 9.5) < 1e-6) farCurb++;        // far curb: 0.5 wide at y=-9.5
+  if (g.d === 0.3 && Math.abs(m.position.y + 11.75) < 1e-6) farWalk = true; // far sidewalk strip
+}
+check('far-side curb segments created (one per block)', farCurb === 8, 'count=' + farCurb);
+check('far-side sidewalk strip exists', farWalk);
 // The intersections are added as 8 groups (each with cross-street + curbs + crosswalks + sign)
 const groups = groundGroup.children.filter(c => c instanceof THREE.Group);
 check('8 intersection groups added to the ground', groups.length === 8, 'groups=' + groups.length);
