@@ -1398,58 +1398,58 @@ function buildLitterTrash(){
   g.add(bag);
 
   // taller cans + bottles leaning up past the rim (still central)
-  const topStanders = 12 + (Math.random() < 0.5 ? 1 : 0);
+  const topStanders = 14 + (Math.random() < 0.5 ? 1 : 0);
   for (let i = 0; i < topStanders; i++){
     const tall = (Math.random() < 0.5);
     const s = tall ? CY(0.026, 0.03, 0.26, waterM, 6) : CY(0.034, 0.036, 0.2, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
-    s.position.set(jxTop(), jyTop(), rnd(0.54, 0.88));
+    s.position.set(jxTop(), jyTop(), rnd(0.52, 0.9));
     s.rotation.z = tilt();
     g.add(s);
   }
 
   // extra crumpled dark balls for bulk, nestled up high
-  const crump = 3 + (Math.random() < 0.5 ? 1 : 0);
+  const crump = 4 + (Math.random() < 0.5 ? 1 : 0);
   for (let i = 0; i < crump; i++){
     const c = SP(rnd(0.05, 0.07), M(0x2a2f36));
     c.scale.set(1.0, 0.8, 1.0);
-    c.position.set(jxTop(), jyTop(), rnd(0.8, 1.04));
+    c.position.set(jxTop(), jyTop(), rnd(0.78, 1.06));
     g.add(c);
   }
 
   // ---- THE OVERFLOW: pizza boxes + cups riding UP over the rim ---------------
-  // six pizza boxes for a heavy mound
-  for (let k = 0; k < 6; k++){
-    const box = BX(0.14 + (Math.random() < 0.5 ? 0.06 : 0), 0.14, 0.07, k % 2 ? M(0xc79a4f) : boxM);
-    box.position.set(jxTop(), jyTop(), rnd(0.74, 1.08));
+  // eight pizza boxes for a heavy mound
+  for (let k = 0; k < 8; k++){
+    const box = BX(0.13 + (Math.random() < 0.5 ? 0.05 : 0), 0.13, 0.07, k % 2 ? M(0xc79a4f) : boxM);
+    box.position.set(jxTop(), jyTop(), rnd(0.72, 1.1));
     box.rotation.z = rnd(-0.34, 0.34);
     box.rotation.x = rnd(-0.18, 0.18);
     g.add(box);
   }
 
-  const topCups = 11 + (Math.random() < 0.5 ? 2 : 1);
+  const topCups = 13 + (Math.random() < 0.5 ? 2 : 1);
   for (let i = 0; i < topCups; i++){
     const cp = CY(0.05, 0.04, 0.17, Math.random() < 0.5 ? cupM : cupM2, 7);
-    cp.position.set(jxTop(), jyTop(), rnd(0.8, 1.16));
+    cp.position.set(jxTop(), jyTop(), rnd(0.78, 1.18));
     cp.rotation.z = tilt();
     g.add(cp);
   }
 
   // several tall bottles/cans sticking way UP for height (still central)
-  const spires = 6 + (Math.random() < 0.5 ? 2 : 1);
+  const spires = 8 + (Math.random() < 0.5 ? 2 : 1);
   for (let i = 0; i < spires; i++){
     const tall = (Math.random() < 0.5);
     const s = tall ? CY(0.026, 0.03, 0.3, waterM, 6) : CY(0.034, 0.036, 0.22, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
-    s.position.set(jxTop(), jyTop(), rnd(0.9, 1.16));
+    s.position.set(jxTop(), jyTop(), rnd(0.9, 1.18));
     s.rotation.z = tilt();
     g.add(s);
   }
 
   // ---- LIGHT SCRAPS: green/neutral shreds scattered thickly over the top -----
-  const greens = 24 + (Math.random() < 0.5 ? 8 : 4);
+  const greens = 32 + (Math.random() < 0.5 ? 12 : 6);
   const gm = M(0x4c8c2a), g2 = M(0x7fc24a), g3 = M(0x9a9a9a), g4 = M(0x6b5436), g5 = M(0xc23b22);
   for (let i = 0; i < greens; i++){
     const s = SP(rnd(0.035, 0.06), [gm, g2, g3, g4, g5][(Math.random() * 5) | 0], 6);
-    s.position.set(jxTop(), jyTop(), rnd(0.64, 1.32));
+    s.position.set(jxTop(), jyTop(), rnd(0.62, 1.36));
     g.add(s);
   }
   return g;
