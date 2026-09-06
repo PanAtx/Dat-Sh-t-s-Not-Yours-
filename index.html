@@ -412,7 +412,7 @@ function makeFrustum(){
 }
 function initThree(){
   renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1)); // 2→1: cuts fragment-shader work ~75 % on HiDPI displays
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -432,7 +432,7 @@ function initThree(){
   dirLight.position.set(-25, 28, 58);
   dirLight.castShadow = true;
   // --- shadow tuning: tighter frustum + normalBias to kill house-edge flicker ---
-  dirLight.shadow.mapSize.set(4096, 4096); // 2048→4096: safety net — de-aliases any remaining thin-caster shadows (pigeons, NPCs, dog) on the grass
+  dirLight.shadow.mapSize.set(2048, 2048); // 4096→2048: houses no longer cast shadows, so thin-caster aliasing is the only concern — 2048 is plenty
   dirLight.shadow.bias = -0.00015;        // was -0.0006 (normalBias handles acne now)
   dirLight.shadow.normalBias = 0.04;      // was 0.02 — lifts contact shadow off the co-planar doormat/grass plane so the band's leading edge doesn't fall on it
   dirLight.shadow.radius = 2.5;           // was 1.5 — softer PCF blurs the texel-grid banding visible on the thin lawn strip
@@ -549,6 +549,7 @@ function addCrosswalk(g, x, yMin, yMax){
     const y = yMin + pitch * (i + 0.5);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(barW, bar, 0.06), crossM);
     stripe.position.set(x, y, 0.35);
+    stripe.receiveShadow = true;
     g.add(stripe);
   }
 }
@@ -566,6 +567,7 @@ function addCrosswalkAcross(g, y, xMin, xMax){
     const x = xMin + pitch * (i + 0.5);
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(bar, barW, 0.06), crossM);
     stripe.position.set(x, y, 0.35);
+    stripe.receiveShadow = true;
     g.add(stripe);
   }
 }
@@ -606,6 +608,7 @@ function buildIntersections(){
     const strip = (w, h, x, y) => {
       const s = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), curbM);
       s.position.set(x, y, 0.315);
+      s.receiveShadow = true;
       g.add(s);
     };
     // 0.5u thick, exactly matching the curb-return band (CB): the band's
@@ -678,6 +681,7 @@ function buildIntersections(){
       sC.closePath();
       const band = new THREE.Mesh(new THREE.ShapeGeometry(sC), curbM);
       band.position.z = 0.34;
+      band.receiveShadow = true;
       g.add(band);
     }
     // Crosswalks: positioned to MEET at the rounded corners (NYC style).
@@ -1601,6 +1605,9 @@ function makeHouse(){
   lamp.position.set(0, -d / 2 - 0.1, 2.0);
   g.add(lamp);
   g.userData.lamp = lamp;
+  // Houses are static — disable castShadow on every mesh so the shadow pass
+  // only renders dynamic casters (player, truck, bags, cans, creatures).
+  g.traverse(o => { if (o.isMesh) o.castShadow = false; });
   return g;
 }
 function makeTree(){
