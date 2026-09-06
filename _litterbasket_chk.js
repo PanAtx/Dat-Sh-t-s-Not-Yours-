@@ -15,20 +15,21 @@ function check(n, f){ try { f(); pass++; console.log('  ok  ' + n); } catch (e){
 
 // ---- lightweight THREE-style mocks -------------------------------------------------
 function makeG(){ return {
-  parent: null, visible: true,
+  parent: null, visible: true, children: [],
   position: { x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } },
   rotation: { x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } },
-  add(){}, remove(){}
+  add(c){ this.children.push(c); if(c) c.parent=this; }, remove(){}
 }; }
 const THREE = { Group: function(){ return makeG(); } };
 // ---- primitive-hierarchy mocks used by buildLitterTrash ---------------------------
+// _h = the piece's horizontal half-extent, so a test can prove nothing pokes out.
 const POS = () => ({ x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } });
-function meshMock(){ return { parent:null, visible:true, position:POS(), rotation:POS(), scale:Object.assign(POS(),{ setScalar:function(s){ this.x=this.y=this.z=s; } }), add(){}, remove(){} }; }
+function meshMock(h){ return { parent:null, visible:true, _h:(h||0), position:POS(), rotation:POS(), scale:Object.assign(POS(),{ setScalar:function(s){ this.x=this.y=this.z=s; } }), add(){}, remove(){} }; }
 const M = (c,o)=>({ c:c });
 const MS = (c,o)=>({ c:c });
-const BX = (w,h,d,m)=>meshMock();
-const CY = (r1,r2,h,m,s)=>meshMock();
-const SP = (r,m,s)=>meshMock();
+const BX = (w,h,d,m)=>meshMock(w/2);
+const CY = (r1,r2,h,m,s)=>meshMock(Math.max(r1||0,r2||0));
+const SP = (r,m,s)=>meshMock(r||0);
 function makeContainer(){ return { add(g){ if(g) g.parent=this; }, remove(g){ if(g) g.parent=null; } }; }
 const worker = { group: makeContainer() };
 const groundGroup = makeContainer();
@@ -66,7 +67,7 @@ const api = new Function(
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
   'function tossBag(){} function dumpCan(){}\n' +
   fns + '\n' +
-  'return { nearHopper, pickUp, attachCarried, dumpLitterBasket, updateFlyingBaskets, resetLitterBaskets, placeLitterBasket, dropCarried, tryInteract, ' +
+  'return { nearHopper, pickUp, attachCarried, dumpLitterBasket, updateFlyingBaskets, resetLitterBaskets, placeLitterBasket, dropCarried, tryInteract, buildLitterTrash, ' +
   'carry:()=>carry, carried:()=>carried, baskets:()=>litterBaskets, homes:()=>litterBasketHomes, flying:()=>flyingBaskets, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
@@ -83,6 +84,26 @@ check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup, 
     assert.strictEqual(b.hx, b.wx); assert.strictEqual(b.hy, b.wy);
     assert.ok(b.trash && b.trash.visible === true, 'each basket is filled with visible trash');
   }
+});
+
+// ---- 1b) geometry: no piece may poke out the sides of the basket -----------------
+check('trash geometry -> every piece stays INSIDE the walls, only overflows the TOP', ()=>{
+  const LIMIT = 0.32;            // basket outer half-width ~0.33; keep a hair of margin
+  const seen = [];
+  (function walk(n){ for (const c of (n.children||[])){ if (c._h!==undefined) seen.push(c); walk(c); } })(api.buildLitterTrash());
+  assert.ok(seen.length >= 8, 'the pile should have several pieces, got ' + seen.length);
+  let anyLow = false, anyHigh = false;
+  for (const m of seen){
+    const sx = (m.scale.x || 1), sy = (m.scale.y || 1);
+    const rx = Math.abs(m.position.x) + (m._h||0) * sx;
+    const ry = Math.abs(m.position.y) + (m._h||0) * sy;
+    assert.ok(rx <= LIMIT, 'piece pokes out the +X side: reach ' + rx.toFixed(3) + ' > ' + LIMIT);
+    assert.ok(ry <= LIMIT, 'piece pokes out the +Y side: reach ' + ry.toFixed(3) + ' > ' + LIMIT);
+    if (m.position.z < 0.35) anyLow = true;    // fills the lower half
+    if (m.position.z > 0.9)  anyHigh = true;   // spills over the rim
+  }
+  assert.ok(anyLow,  'some trash should sit low, filling the bottom half');
+  assert.ok(anyHigh, 'some trash should spill over the top rim');
 });
 
 // ---- 2) pickup when hands empty and standing on a basket ---------------------------

@@ -1340,59 +1340,94 @@ function loadLitterbasketGltf(){
   });
 }
 
-// Build a pile of litter that FILLS the basket and spills OVER the rim — the
-// same everyday street junk a real overflowing bin holds: a slumped trash bag,
-// a pizza box, paper cups, soda/beer cans, a plastic water bottle, plus loose
-// green shreds. Kept procedural (same primitives as the curbside bag) so no
-// extra asset is needed. Placed inside the basket's inner footprint and
-// bulging above the ~0.93 rim. Slightly randomized so all 14 look different.
+// Build a pile of litter that FILLS the basket from near its base and spills
+// OVER the rim — the same everyday street junk a real overflowing bin holds:
+// a slumped black bag, a pizza box, paper cups, soda/beer cans, plastic water
+// bottles and loose shreds. Kept procedural (same primitives as the curbside
+// bag) so no extra asset is needed.
+//
+// RULE: nothing may poke out the SIDES. The basket's world footprint is only
+// 0.664x0.664 (half-extent ~0.33), so every piece keeps its center AND its
+// widest extent inside that. Overflow only happens by piling UP past the
+// ~0.93 rim, and the over-the-top bits stay close to the mouth's center.
+// Lower bottles/cans stand upright near the base so the bottom isn't hollow.
 function buildLitterTrash(){
   const g = new THREE.Group();
   const rnd = (a, b) => a + Math.random() * (b - a);
-  const jx = () => rnd(-0.18, 0.18);   // spread within the basket's mouth
-  const jy = () => rnd(-0.18, 0.18);
+  const jxIn = () => rnd(-0.17, 0.17);   // lower/mid fill: within the walls
+  const jyIn = () => rnd(-0.17, 0.17);
+  const jxTop = () => rnd(-0.10, 0.10);  // over-the-top overflow: hug the mouth
+  const jyTop = () => rnd(-0.10, 0.10);
+  const tilt = () => rnd(-0.10, 0.10);   // small lean only — never sideways out
+  const canCols = [0xc23b22, 0x2f7ab5, 0xd8a13a, 0x3aa03f, 0x8e7fbf];
+  const waterM = M(0x8fd0e8, { transparent: true, opacity: 0.85 });
+  const cupM = M(0xe8e0d8), cupM2 = M(0xc9a227);
+  const boxM = M(0xd2ae6b);
 
-  // 1) slumped black trash bag — the big bulk that mounds up over the rim
-  const bag = SP(0.20, M(0x23272e));
-  bag.scale.set(1.2, 1.0, 0.85);
-  bag.position.set(jx(), jy(), rnd(0.55, 0.72));
+  // ---- LOWER FILL: standing bottles & cans that reach near the base --------
+  // (kills the hollow bottom; these sit upright, well inside the walls)
+  const lowBottles = 3;
+  for (let i = 0; i < lowBottles; i++){
+    const b = CY(0.026, 0.03, 0.24, waterM, 6);
+    b.position.set(jxIn(), jyIn(), rnd(0.12, 0.22));
+    b.rotation.z = tilt();
+    g.add(b);
+  }
+  const lowCans = 3 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < lowCans; i++){
+    const c = CY(0.034, 0.036, 0.18, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
+    c.position.set(jxIn(), jyIn(), rnd(0.10, 0.18));
+    c.rotation.z = tilt();
+    g.add(c);
+  }
+  // a couple of low cups nestled in the middle fill
+  const lowCups = 2;
+  for (let i = 0; i < lowCups; i++){
+    const cp = CY(0.05, 0.04, 0.17, Math.random() < 0.5 ? cupM : cupM2, 7);
+    cp.position.set(jxIn(), jyIn(), rnd(0.34, 0.42));
+    cp.rotation.z = tilt();
+    g.add(cp);
+  }
+
+  // ---- MID MASS: the slumped black bag mounded through the mid heights -----
+  // Kept near-center and scaled so its widest edge stays inside the walls.
+  const bag = SP(0.2, M(0x23272e));
+  bag.scale.set(0.9, 0.8, 0.95);
+  bag.position.set(rnd(-0.10, 0.10), rnd(-0.10, 0.10), rnd(0.42, 0.55));
   bag.rotation.y = rnd(0, Math.PI);
   g.add(bag);
 
-  // 2) pizza box — flat, tilted on top
-  const box = BX(0.26, 0.26, 0.07, M(0xd2ae6b));
-  box.position.set(jx(), jy(), rnd(0.82, 0.95));
-  box.rotation.z = rnd(-0.5, 0.5);
-  g.add(box);
-
-  // 3) paper coffee cup — tapered, poking near the rim
-  const cup = CY(0.055, 0.042, 0.16, M(0xe8e0d8), 8);
-  cup.position.set(jx(), jy(), rnd(0.78, 0.86));
-  cup.rotation.z = rnd(-0.4, 0.4);
-  g.add(cup);
-
-  // 4) soda / beer cans — tall metal cylinders
-  const canCols = [0xc23b22, 0x2f7ab5, 0xd8a13a, 0x3aa03f];
-  const cans = 2 + (Math.random() < 0.5 ? 1 : 0);
-  for (let i = 0; i < cans; i++){
-    const c = CY(0.034, 0.036, 0.18, MS(canCols[(Math.random() * canCols.length) | 0]), 8);
-    c.position.set(jx(), jy(), rnd(0.76, 1.02));
-    c.rotation.z = rnd(-0.35, 0.35);
-    g.add(c);
+  // taller cans + bottles leaning up past the rim (still central)
+  const topStanders = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < topStanders; i++){
+    const tall = (Math.random() < 0.5);
+    const s = tall ? CY(0.026, 0.03, 0.26, waterM, 6) : CY(0.034, 0.036, 0.2, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
+    s.position.set(jxTop(), jyTop(), rnd(0.62, 0.78));
+    s.rotation.z = tilt();
+    g.add(s);
   }
 
-  // 5) plastic water bottle — tinted, standing out of the top
-  const bottle = CY(0.032, 0.032, 0.22, M(0x8fd0e8, { transparent: true, opacity: 0.85 }), 8);
-  bottle.position.set(jx(), jy(), rnd(0.80, 0.92));
-  bottle.rotation.z = rnd(-0.3, 0.3);
-  g.add(bottle);
+  // ---- THE OVERFLOW: pizza box + cups riding UP over the rim ----------------
+  const box = BX(0.24, 0.24, 0.07, boxM);
+  box.position.set(jxTop(), jyTop(), rnd(0.88, 0.98));
+  box.rotation.z = rnd(-0.25, 0.25);
+  box.rotation.x = rnd(-0.12, 0.12);
+  g.add(box);
 
-  // 6) loose green shreds — little scraps scattered above the rest
-  const greens = 3 + (Math.random() < 0.5 ? 2 : 1);
-  const gm = M(0x4c8c2a), g2 = M(0x7fc24a);
+  const topCups = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < topCups; i++){
+    const cp = CY(0.05, 0.04, 0.17, Math.random() < 0.5 ? cupM : cupM2, 7);
+    cp.position.set(jxTop(), jyTop(), rnd(0.92, 1.05));
+    cp.rotation.z = tilt();
+    g.add(cp);
+  }
+
+  // ---- LIGHT SCRAPS: green/neutral shreds scattered over the top -----------
+  const greens = 4 + (Math.random() < 0.5 ? 2 : 1);
+  const gm = M(0x4c8c2a), g2 = M(0x7fc24a), g3 = M(0x9a9a9a);
   for (let i = 0; i < greens; i++){
-    const s = SP(0.05, Math.random() < 0.5 ? gm : g2, 6);
-    s.position.set(jx(), jy(), rnd(0.6, 1.12));
+    const s = SP(rnd(0.035, 0.06), [gm, g2, g3][(Math.random() * 3) | 0], 6);
+    s.position.set(jxTop(), jyTop(), rnd(0.75, 1.12));
     g.add(s);
   }
   return g;
