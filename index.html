@@ -54,7 +54,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
   border:3px solid #2ee090; border-radius:14px;
   box-shadow:0 0 28px rgba(46,224,144,.55), 0 0 60px rgba(46,224,144,.2), 0 0 50px rgba(0,0,0,.8); }
-.menu-logo-wrap img { max-width:82vw; max-height:84vh; width:auto; height:auto; display:block; }
+.menu-logo-wrap .menu-logo-img { max-width:82vw; max-height:84vh; width:auto; height:auto; display:block; }
+/* "Parental Advisory: Explicit Lyrics" gag badge — pinned to the bottom-right
+   corner of the logo frame. Small, readable, decorative; click-through so it never
+   blocks the START SHIFT button / the docked radio widget. */
+.menu-explicit { position:absolute; bottom:8px; right:8px; z-index:3; pointer-events:none;
+  width: clamp(80px, 9vw, 120px); max-width:120px; height:auto;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.85)); }
 /* Pinned to the VERY BOTTOM of the logo frame: START SHIFT with the NOW PLAYING
    widget docked just below it (flush with the frame's bottom edge, minimal footprint). */
 .menu-bottom { position:absolute; bottom:0; left:0; right:0; text-align:center; padding:0;
@@ -252,12 +258,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 </div>
 <div id="menu" class="modal"><div class="panel">
   <div class="menu-logo-wrap">
-    <img src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
+    <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <!-- The NOW PLAYING widget (#radio) docks in here on the start screen:
            below START SHIFT, exactly where the hi-score used to sit -->
     </div>
+    <img class="menu-explicit" src="explicit_logo.webp" alt="Parental Advisory: Explicit Lyrics">
   </div>
 </div></div>
 <div id="over" class="modal hidden"><div class="panel">
@@ -388,7 +395,7 @@ function showPopup(kind){
   setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1350);
 }
 let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
-let flyingCans = [], dustParticles = [], landedCans = [];
+let flyingCans = [], dustParticles = [], landedCans = [], flyingBags = [];
 let worker = null, wparts = null, truck = null;
 let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
 const keys = {};
@@ -2529,7 +2536,7 @@ function resetWorldState(){
   hopperLoad = 0; hopperCycling = false; hopperCycleT = 0;
   clearHopperTrash();
   pendingHouses.length = 0; bonuses.length = 0;
-  flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0;
+  flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0; flyingBags.length = 0;
   footprints.length = 0; footDist = 0; p.poopSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
@@ -2661,6 +2668,45 @@ function updateFlyingCans(dt){
     }
   }
 }
+// Basketball-style toss: a carried bag arcs up and over into the rear hopper,
+// then is absorbed into the pile. The target is the LIVE hopper position each
+// frame so the bag lands cleanly even if the truck drifts during the throw.
+function updateFlyingBags(dt){
+  for (let i = flyingBags.length - 1; i >= 0; i--){
+    const fb = flyingBags[i];
+    fb.progress += dt / fb.duration;
+    const t = fb.progress;
+    if (t >= 1){
+      // Landed in the hopper — absorb into the pile, score, free the worker.
+      hopperDeposit();
+      addScore(25);
+      SFX.playCanDropSound();   // the thud of the bag hitting the compactor
+      checkHouse(fb.h);
+      if (fb.g && fb.g.parent) fb.g.parent.remove(fb.g);
+      disposeObj(fb.g);
+      flyingBags.splice(i, 1);
+    } else {
+      const tx = hopperWorldX(), ty = hopperWorldY();
+      const curX = fb.sx + (tx - fb.sx) * t;
+      const curY = fb.sy + (ty - fb.sy) * t;
+      // Arc height depends on WHERE the worker threw from:
+      //  - Dead BEHIND the rear (small lateral offset): a low, gentle lob straight
+      //    into the open rear scoop — the worker is right there, no need to heave it.
+      //  - OFF TO THE SIDE (large lateral offset): a high arc that clears the solid
+      //    compactor body (roof ~5.05) so the bag never clips through it.
+      // peak blends from z~3.0 (behind) up to z~7.0 (side) as the lateral offset grows.
+      const baseZ = GZ + hopperTopZ();                       // release + landing at the scoop floor
+      const lateral = Math.abs(fb.sy - ty);                  // 0 = dead behind, up to ~4.5 = off to the side
+      const k = Math.min(lateral, 4.5) / 4.5;
+      const peak = (GZ + 3.0) + k * 4.0;
+      const amp = peak - baseZ;
+      const arcH = Math.sin(t * Math.PI) * amp;
+      fb.g.position.set(curX, curY, baseZ + arcH);
+      fb.g.rotation.z += dt * 7;    // tumble like a spun trash bag
+      fb.g.rotation.x += dt * 2.5;
+    }
+  }
+}
 function checkFlyingCanNpcHit(fcx, fcy){
   for (let i = creatures.length - 1; i >= 0; i--){
     const c = creatures[i];
@@ -2724,9 +2770,11 @@ function addWriteUp(){
 }
 function nearHopper(){
   if (!truck || truck.hidden > 0) return false;
-  const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5;
+  const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
   const dx = hx - p.wx, dy = hy - p.wy;
-  return dx > -1.5 && dx < 5.0 && Math.abs(dy) < 8.0;
+  // The worker must stand right at the open rear scoop to deposit — a tight band
+  // around the hopper, NOT a long-distance throw across the whole street.
+  return dx > -1.0 && dx < 3.5 && Math.abs(dy) < 4.5;
 }
 function attachCarried(item){
   worker.group.add(item.g);
@@ -2748,12 +2796,12 @@ function pickUp(item){
 }
 function tossBag(bag){
   bag.state = 'dumped';
+  // Throw the bag in a basketball-style arc into the rear hopper (see
+  // updateFlyingBags); it is absorbed into the pile on arrival.
   if (bag.g.parent) bag.g.parent.remove(bag.g);
-  disposeObj(bag.g);
-  addScore(25);
-  hopperDeposit();
+  dynamicGroup.add(bag.g);
+  flyingBags.push({ g: bag.g, sx: p.wx, sy: p.wy, h: bag.h, progress: 0, duration: 0.6 });
   SFX.playTossSound();
-  checkHouse(bag.h);
   carried = null; carry = 'none';
 }
 function dumpCan(){
@@ -2861,9 +2909,14 @@ function updateBonuses(dt){
 }
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
-  if (nearHopper()){
-    if (carry === 'bag') return tossBag(carried);
-    if (carry === 'canFull') return dumpCan();
+  if (carry === 'bag' || carry === 'canFull'){
+    if (nearHopper()){
+      if (carry === 'bag') return tossBag(carried);
+      return dumpCan();
+    }
+    // Carrying trash but standing too far from the rear scoop to dump it.
+    Voice.say('I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
+    return;
   }
   if (carry === 'none'){
     let best = null, bd = 2.4;
@@ -4618,6 +4671,7 @@ function loop(now){
     updateCreatures(dt);
     updateBonuses(dt);
     updateFlyingCans(dt);
+    updateFlyingBags(dt);
     updateDustParticles(dt);
     updateBlocks(dt);
     cleanupLandedCans();
