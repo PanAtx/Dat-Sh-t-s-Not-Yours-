@@ -1398,36 +1398,49 @@ function buildLitterTrash(){
   g.add(bag);
 
   // taller cans + bottles leaning up past the rim (still central)
-  const topStanders = 2 + (Math.random() < 0.5 ? 1 : 0);
+  const topStanders = 4 + (Math.random() < 0.5 ? 1 : 0);
   for (let i = 0; i < topStanders; i++){
     const tall = (Math.random() < 0.5);
     const s = tall ? CY(0.026, 0.03, 0.26, waterM, 6) : CY(0.034, 0.036, 0.2, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
-    s.position.set(jxTop(), jyTop(), rnd(0.62, 0.78));
+    s.position.set(jxTop(), jyTop(), rnd(0.6, 0.8));
     s.rotation.z = tilt();
     g.add(s);
   }
 
-  // ---- THE OVERFLOW: pizza box + cups riding UP over the rim ----------------
-  const box = BX(0.24, 0.24, 0.07, boxM);
-  box.position.set(jxTop(), jyTop(), rnd(0.88, 0.98));
-  box.rotation.z = rnd(-0.25, 0.25);
-  box.rotation.x = rnd(-0.12, 0.12);
-  g.add(box);
+  // ---- THE OVERFLOW: pizza boxes + cups riding UP over the rim ---------------
+  // two pizza boxes for a heavier mound
+  for (let k = 0; k < 2; k++){
+    const box = BX(0.22 + (Math.random() < 0.5 ? 0.04 : 0), 0.22, 0.07, k ? M(0xc79a4f) : boxM);
+    box.position.set(jxTop(), jyTop(), rnd(0.84, 1.0));
+    box.rotation.z = rnd(-0.25, 0.25);
+    box.rotation.x = rnd(-0.12, 0.12);
+    g.add(box);
+  }
 
-  const topCups = 2 + (Math.random() < 0.5 ? 1 : 0);
+  const topCups = 3 + (Math.random() < 0.5 ? 2 : 1);
   for (let i = 0; i < topCups; i++){
     const cp = CY(0.05, 0.04, 0.17, Math.random() < 0.5 ? cupM : cupM2, 7);
-    cp.position.set(jxTop(), jyTop(), rnd(0.92, 1.05));
+    cp.position.set(jxTop(), jyTop(), rnd(0.9, 1.08));
     cp.rotation.z = tilt();
     g.add(cp);
   }
 
-  // ---- LIGHT SCRAPS: green/neutral shreds scattered over the top -----------
-  const greens = 4 + (Math.random() < 0.5 ? 2 : 1);
-  const gm = M(0x4c8c2a), g2 = M(0x7fc24a), g3 = M(0x9a9a9a);
+  // a couple of tall bottles/cans sticking way UP for height (still central)
+  const spires = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < spires; i++){
+    const tall = (Math.random() < 0.5);
+    const s = tall ? CY(0.026, 0.03, 0.3, waterM, 6) : CY(0.034, 0.036, 0.22, MS(canCols[(Math.random() * canCols.length) | 0]), 6);
+    s.position.set(jxTop(), jyTop(), rnd(0.92, 1.06));
+    s.rotation.z = tilt();
+    g.add(s);
+  }
+
+  // ---- LIGHT SCRAPS: green/neutral shreds scattered thickly over the top -----
+  const greens = 7 + (Math.random() < 0.5 ? 3 : 1);
+  const gm = M(0x4c8c2a), g2 = M(0x7fc24a), g3 = M(0x9a9a9a), g4 = M(0x6b5436);
   for (let i = 0; i < greens; i++){
-    const s = SP(rnd(0.035, 0.06), [gm, g2, g3][(Math.random() * 3) | 0], 6);
-    s.position.set(jxTop(), jyTop(), rnd(0.75, 1.12));
+    const s = SP(rnd(0.035, 0.06), [gm, g2, g3, g4][(Math.random() * 4) | 0], 6);
+    s.position.set(jxTop(), jyTop(), rnd(0.72, 1.15));
     g.add(s);
   }
   return g;
