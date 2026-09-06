@@ -33,7 +33,7 @@ const CROSS_W = 9, IW = 16, LEVEL_XS = [0,16,32,48,64,80,96,112];
 const R = (a,b)=>a + Math.random()*(b-a);
 const clamp = (v,a,b)=>v<a?a:(v>b?b:v);
 const GZ = 0.01;
-const LITTER_DUMP_RADIUS = 1.6;
+const LITTER_DUMP_RADIUS = 3.5;
 const truck = { wx: 10, hopperOff: -4.3, hopperY: 0, hidden: 0 };
 const p = { wx: 5, wy: -4.5, stunT: 0 };
 const state = 'play', blocks = [], creatures = [], WORKER_GENDER = 'male';
@@ -97,10 +97,11 @@ check('carrying basket + far from hopper -> closer line, no dump', ()=>{
   assert.strictEqual(calls.deposit, 0);
 });
 
-// ---- 3b) inside the OLD generous band but OUTSIDE the tight radius -> no dump -------
-check('carrying basket in old band but >1.6 from scoop -> closer line (tight zone enforced)', ()=>{
+// ---- 3b) inside the bag/can band but outside the basket radius -> no dump ----------
+check('carrying basket within the bag/can band but >radius from scoop -> closer line', ()=>{
   resetCalls();
-  p.wx = 2.5; p.wy = -4.5;   // old nearHopper()=true here, but 3.2 from the scoop (>1.6)
+  p.wx = 5.7; p.wy = -0.5;   // nearHopper()=true here, but 4.0 from the scoop (>3.5)
+  assert.strictEqual(api.nearHopper(), true);
   api.tryInteract();
   assert.deepStrictEqual(calls.voices, ['I need to get closer to the truck!']);
   assert.strictEqual(api.flying().length, 0);

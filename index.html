@@ -2929,9 +2929,10 @@ function nearHopper(){
   // around the hopper, NOT a long-distance throw across the whole street.
   return dx > -1.0 && dx < 3.5 && Math.abs(dy) < 4.5;
 }
-// Litter baskets are serviced-once and tossed away — so the worker must be
-// RIGHT at the rear scoop to dump one (much tighter than the bag/can band).
-const LITTER_DUMP_RADIUS = 1.6;
+// Litter baskets are serviced-once and tossed away — the worker dumps one from
+// a tighter zone than bags/cans. Keep the radius comfortably bigger than the
+// truck's ~1.5 auto-follow offset, or the worker can't reach the scoop at all.
+const LITTER_DUMP_RADIUS = 3.5;
 function nearHopperLitter(){
   if (!truck || truck.hidden > 0) return false;
   const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
