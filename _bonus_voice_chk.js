@@ -24,6 +24,7 @@ function CY(r1, r2, h, m, s){ return new THREE.Mesh(new THREE.CylinderGeometry(r
 function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); }
 function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const GZ = 0.01;
+const CASH_LIFT = 0.12;   // kept in sync with index.html — spawnBonus references it
 const dynamicGroup = { add(){} };
 const bonuses = [];
 

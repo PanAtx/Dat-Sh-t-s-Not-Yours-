@@ -3051,6 +3051,7 @@ function dropCarried(){
   carried = null; carry = 'none';
   SFX.playDropSound();
 }
+const CASH_LIFT = 0.12;   // raise street cash clear of the raised curbs (top ~0.365) so no bill gets clipped
 function spawnBonus(wx, wy){
   const r = Math.random();
   let g, val, type, voice;
@@ -3062,16 +3063,17 @@ function spawnBonus(wx, wy){
     // the easel painting (kind 2) is always some "masterpiece" of a famous painter
     voice = (tKind === 2) ? pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']) : 'Treasure!';
   }
-  g.position.set(wx, wy, GZ);
+  const lift = (type === 'cash') ? CASH_LIFT : 0;   // cash is thin & flat — lift it clear of the curb
+  g.position.set(wx, wy, GZ + lift);
   g.rotation.z = R(-0.5, 0.5);   // a natural resting angle — looks placed, never spinning
   dynamicGroup.add(g);
-  bonuses.push({ g: g, wx: wx, wy: wy, val: val, type: type, voice: voice, t: R(0, 6) });
+  bonuses.push({ g: g, wx: wx, wy: wy, val: val, type: type, voice: voice, t: R(0, 6), lift: lift });
 }
 function updateBonuses(dt){
   for (let i = bonuses.length - 1; i >= 0; i--){
     const b = bonuses[i];
     b.t += dt;
-    b.g.position.set(b.wx, b.wy, GZ);   // sit on the street (grounded — no hop, no spin)
+    b.g.position.set(b.wx, b.wy, GZ + (b.lift || 0));   // cash sits lifted clear of the curb; others stay flush
     if (state === 'play' && dist(b.wx, b.wy) < 1.8){
       addScore(b.val, true);
       if (b.type === 'treasure') SFX.playTreasureJingle();
