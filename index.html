@@ -431,10 +431,15 @@ function initThree(){
   dirLight = new THREE.DirectionalLight(0xfff2dd, 0.75);
   dirLight.position.set(-25, 28, 58);
   dirLight.castShadow = true;
-  dirLight.shadow.bias = -0.0006;
-  dirLight.shadow.mapSize.set(2048, 2048);
+  // --- shadow tuning: tighter frustum + normalBias to kill house-edge flicker ---
+  dirLight.shadow.mapSize.set(4096, 4096); // 2048→4096: safety net — de-aliases any remaining thin-caster shadows (pigeons, NPCs, dog) on the grass
+  dirLight.shadow.bias = -0.00015;        // was -0.0006 (normalBias handles acne now)
+  dirLight.shadow.normalBias = 0.04;      // was 0.02 — lifts contact shadow off the co-planar doormat/grass plane so the band's leading edge doesn't fall on it
+  dirLight.shadow.radius = 2.5;           // was 1.5 — softer PCF blurs the texel-grid banding visible on the thin lawn strip
   const sc = dirLight.shadow.camera;
-  sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 220;
+  sc.left = -28; sc.right = 28; sc.top = 24; sc.bottom = -24; // was ±45 — ~3.4× more texels/unit
+  sc.near = 5; sc.far = 160;              // near 1→5: pushes near clip below the asphalt so the shadow frustum edge never sweeps across the road and shows as a flickering bar
+  sc.updateProjectionMatrix();
   scene.add(dirLight); scene.add(dirLight.target);
 
   // Rotate the whole world +45deg so local +X (route forward) points to the
@@ -452,6 +457,7 @@ function groundStrip(w, h, d, y, col, cx){
   const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: col }));
   q.position.set(cx != null ? cx : 0, y, 0.15);
   q.receiveShadow = true;
+  q.castShadow = false; // ground strips are receivers, not casters — self-shadowing on the thin 0.3u slab produced banding on the front lawn
   groundGroup.add(q);
   return q;
 }
@@ -466,7 +472,7 @@ function buildGround(){
   groundStrip(GW, 10, 0.3, -19, 0x35522c, GCX);     // park beyond the far sidewalk
   groundStrip(GW, 4.5, 0.3, 2.75, 0x8d949c, GCX);  // sidewalk
   groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
-  groundStrip(GW, 16, 0.3, 16, 0x35522c, GCX);     // park beyond the blocks
+  groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX);  // park beyond the blocks (shifted to y 8.5..24 to avoid Z-fight with the front lawn strip at y 5..8.5)
   // Main curb: ONE segment per block ON EACH SIDE. Each extends 1.5u PAST the
   // block on both sides so its end lands EXACTLY on the curb-return arc's
   // main-road tangent point (x = blockEdge +/- 1.5), where the straight curb
@@ -1573,19 +1579,23 @@ function makeHouse(){
   const cols = [0x8a5a3b, 0xb08954, 0x7a3b34, 0x5d6b75, 0x9c7a4d, 0x6b5a7e, 0x98683f, 0x4a6a5a];
   const col = cols[(Math.random() * cols.length) | 0];
   const w = R(3.6, 4.6), d = R(3.4, 4.2), h = R(3.0, 4.4);
-  const body = BX(w, d, h, M(col)); body.position.z = h / 2; body.receiveShadow = true; g.add(body);
-  const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26)); roof.position.z = h + 0.2; g.add(roof);
-  const door = BX(0.9, 0.12, 1.7, M(0x3a2c20)); door.position.set(0, -d / 2 - 0.06, 0.85); g.add(door);
+  // House body sits ON TOP of the grass (z=0.3), not embedded in it (z=0).
+  // Lifting by 0.3u eliminates the Z-fight between the house base and the front-lawn strip.
+  const body = BX(w, d, h, M(col)); body.position.z = 0.3 + h / 2; body.receiveShadow = false; g.add(body);
+  const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26)); roof.position.z = 0.3 + h + 0.2; g.add(roof);
+  const door = BX(0.9, 0.12, 1.7, M(0x3a2c20)); door.position.set(0, -d / 2 - 0.06, 0.3 + 0.85); g.add(door);
   const wm = new THREE.MeshLambertMaterial({ color: 0x9fd0e8, emissive: 0x24434f, emissiveIntensity: 0.7 });
   for (let i = 0; i < 2; i++){
     const win = BX(0.8, 0.1, 0.8, wm);
-    win.position.set((i === 0 ? -1 : 1) * w * 0.3, -d / 2 - 0.05, h * 0.6);
+    win.position.set((i === 0 ? -1 : 1) * w * 0.3, -d / 2 - 0.05, 0.3 + h * 0.6);
     g.add(win);
   }
-  const winS = BX(0.1, 0.8, 0.8, wm); winS.position.set(w / 2 + 0.05, 0, h * 0.6); g.add(winS);
+  const winS = BX(0.1, 0.8, 0.8, wm); winS.position.set(w / 2 + 0.05, 0, 0.3 + h * 0.6); g.add(winS);
   const sm = M(0x9a948a);
-  const s1 = BX(1.5, 0.7, 0.3, sm); s1.position.set(0, -d / 2 - 0.45, 0.15); s1.receiveShadow = true; g.add(s1);
-  const s2 = BX(2.1, 0.7, 0.22, sm); s2.position.set(0, -d / 2 - 1.05, 0.1); s2.receiveShadow = true; g.add(s2);
+  // Concrete step: a single rectangular slab in front of the door, sitting on top of the grass (z 0.3..0.55).
+  // castShadow stays false (a flat slab casts a hard 2-texel line that reads as striping);
+  // receiveShadow stays true so the house's shadow still falls on the doormat.
+  const step = BX(2.5, 1.0, 0.25, sm); step.position.set(0, -d / 2 - 0.6, 0.425); step.castShadow = false; step.receiveShadow = true; g.add(step);
   // service status lamp (red = waiting, green = serviced)
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.3), new THREE.MeshLambertMaterial({ color: 0xff5544, emissive: 0xff3322, emissiveIntensity: 0.9 }));
   lamp.position.set(0, -d / 2 - 0.1, 2.0);
@@ -1595,9 +1605,12 @@ function makeHouse(){
 }
 function makeTree(){
   const g = new THREE.Group();
-  const trunk = CY(0.11, 0.2, 1.3, M(0x5a4632), 10); trunk.rotation.x = Math.PI / 2; trunk.position.z = 0.65; g.add(trunk);
-  const c1 = SP(1.0, M(0x3f7a33), 8); c1.position.z = 2.05; g.add(c1);
-  const c2 = SP(0.6, M(0x4c8a3c), 8); c2.position.set(0.4, 0.3, 2.5); g.add(c2);
+  // Trees don't cast shadows: their thin trunk is only ~5–8 texels wide in the
+  // 2048² / ±28 frustum, so the contact shadow on the grass flickers badly as
+  // the camera scrolls. Trees still receive light normally, so they don't float.
+  const trunk = CY(0.11, 0.2, 1.3, M(0x5a4632), 10); trunk.rotation.x = Math.PI / 2; trunk.position.z = 0.65; trunk.castShadow = false; g.add(trunk);
+  const c1 = SP(1.0, M(0x3f7a33), 8); c1.position.z = 2.05; c1.castShadow = false; g.add(c1);
+  const c2 = SP(0.6, M(0x4c8a3c), 8); c2.position.set(0.4, 0.3, 2.5); c2.castShadow = false; g.add(c2);
   return g;
 }
 // ==================== STATIC HAZARDS ====================
@@ -2106,15 +2119,18 @@ function makeDogHouse(){
   // LOW-poly doghouse for the front lawn (deliberately chunky next to the
   // high-poly dog). The chain stake sits at the group origin - that's where
   // the chain anchor (c.anchorX / c.anchorY) is.
+  // NOTE: doghouse meshes don't cast shadows — the doghouse is small and its
+  // ground-level slabs are only ~6–10 texels wide in the shadow map, so the
+  // contact shadow on the grass flickers as the camera scrolls.
   const g = new THREE.Group();
   const wood = M(0x7a5a3a), roof = M(0x8a3a30), dark = M(0x14100e), stakeM = M(0xe8b416); // stake is bright yellow so the chain reads as tied to it
-  const walls = BX(0.7, 0.55, 0.6, wood); walls.position.z = 0.3; g.add(walls);
-  const hole = BX(0.3, 0.04, 0.3, dark); hole.position.set(0, -0.29, 0.27); g.add(hole); // entry on the street-facing (-Y) side
+  const walls = BX(0.7, 0.55, 0.6, wood); walls.position.z = 0.3; walls.castShadow = false; g.add(walls);
+  const hole = BX(0.3, 0.04, 0.3, dark); hole.position.set(0, -0.29, 0.27); hole.castShadow = false; g.add(hole); // entry on the street-facing (-Y) side
   // gabled roof: TWO slabs mirrored across a ridge that runs left/right (Y),
   // sloping down toward +X and -X (walls are 0.7 long in X, top at z 0.6)
-  const roofF = BX(0.46, 0.85, 0.05, roof); roofF.rotation.y = 0.42; roofF.position.set(0.21, 0, 0.68); g.add(roofF);
-  const roofB = BX(0.46, 0.85, 0.05, roof); roofB.rotation.y = -0.42; roofB.position.set(-0.21, 0, 0.68); g.add(roofB);
-  const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); g.add(stake); // the chain visually ties here
+  const roofF = BX(0.46, 0.85, 0.05, roof); roofF.rotation.y = 0.42; roofF.position.set(0.21, 0, 0.68); roofF.castShadow = false; g.add(roofF);
+  const roofB = BX(0.46, 0.85, 0.05, roof); roofB.rotation.y = -0.42; roofB.position.set(-0.21, 0, 0.68); roofB.castShadow = false; g.add(roofB);
+  const stake = CY(0.02, 0.02, 0.35, stakeM, 6); stake.rotation.x = Math.PI / 2; stake.position.set(0, 0, 0.17); stake.castShadow = false; g.add(stake); // the chain visually ties here
   return g;
 }
 function makeTricycle(){
@@ -4627,6 +4643,19 @@ $('menu').addEventListener('click', function(e){
 // begins. The radio is pure audio + CSS animation, so the music player keeps working
 // on the menu at zero rendering cost.
 let needsIdleRender = true;
+// ---- Shadow-snapping basis (precomputed once) ----
+// The directional light's view direction is fixed in scene space: eye=(plWx-25, plWy+28, 58),
+// target=(plWx, plWy, 0), so forward = (25, -28, -58).normalize() is constant.
+// The shadow camera's right and up vectors are derived from that and are also constant.
+// We use them to quantize the light target to the shadow-map texel grid each frame,
+// which kills the shadow-edge "swimming" flicker that otherwise occurs when the light
+// moves with the player. See positionCamera() for the per-frame usage.
+const _SNAP_FWD  = new THREE.Vector3(25, -28, -58).normalize();
+const _SNAP_UP0  = new THREE.Vector3(0, 1, 0);
+const _SNAP_R    = new THREE.Vector3().crossVectors(_SNAP_UP0, _SNAP_FWD).normalize();
+const _SNAP_U    = new THREE.Vector3().crossVectors(_SNAP_FWD, _SNAP_R).normalize();
+const _SNAP_TEXEL_R = 56 / 4096;  // (sc.right - sc.left) / shadowMapSize.x
+const _SNAP_TEXEL_U = 48 / 4096;  // (sc.top   - sc.bottom) / shadowMapSize.y
 function positionCamera(){
   // worldGroup is rotated +45deg: local (x, y) -> world (c45*(x - y), c45*(x + y)).
   // The camera sits ISO_A behind the target and ISO_A above it, exactly on the
@@ -4639,8 +4668,23 @@ function positionCamera(){
   // +/-45 frustum half-size.
   const plWx = c45 * (p.wx - p.wy);
   const plWy = c45 * (p.wx + p.wy);
-  dirLight.position.set(plWx - 25, plWy + 28, 58);
-  dirLight.target.position.set(plWx, plWy, 0);
+  // ---- Shadow snapping ----
+  // The light moves with the player every frame, so the shadow map is re-rendered from
+  // a slightly different angle every frame. Shadow edges then "swim" across the grass —
+  // the flicker you see. The fix is to quantize the light's target to the shadow-map
+  // texel grid so the shadow map stays STATIONARY in world space. Each texel is
+  // ~0.014 world units, so the shadow only shifts by one texel (invisible) when the
+  // player crosses a texel boundary.
+  // Basis vectors are precomputed below (see _SNAP_* constants at module scope).
+  const tr = plWx * _SNAP_R.x + plWy * _SNAP_R.y;
+  const tu = plWx * _SNAP_U.x + plWy * _SNAP_U.y;
+  const trs = Math.round(tr / _SNAP_TEXEL_R) * _SNAP_TEXEL_R;
+  const tus = Math.round(tu / _SNAP_TEXEL_U) * _SNAP_TEXEL_U;
+  const snappedX = _SNAP_R.x * trs + _SNAP_U.x * tus;
+  const snappedY = _SNAP_R.y * trs + _SNAP_U.y * tus;
+  dirLight.position.set(snappedX - 25, snappedY + 28, 58);
+  dirLight.target.position.set(snappedX, snappedY, 0);
+  dirLight.shadow.camera.updateProjectionMatrix(); // refresh ortho frustum after moving the light
   // The ground is now a FIXED route (blocks + intersections) at absolute positions,
   // so it must NOT follow the player any more — keep it anchored at the origin.
   groundGroup.position.x = 0;
