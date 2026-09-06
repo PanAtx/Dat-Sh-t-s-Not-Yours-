@@ -33,6 +33,7 @@ const CROSS_W = 9, IW = 16, LEVEL_XS = [0,16,32,48,64,80,96,112];
 const R = (a,b)=>a + Math.random()*(b-a);
 const clamp = (v,a,b)=>v<a?a:(v>b?b:v);
 const GZ = 0.01;
+const LITTER_DUMP_RADIUS = 1.6;
 const truck = { wx: 10, hopperOff: -4.3, hopperY: 0, hidden: 0 };
 const p = { wx: 5, wy: -4.5, stunT: 0 };
 const state = 'play', blocks = [], creatures = [], WORKER_GENDER = 'male';
@@ -48,11 +49,11 @@ function disposeObj(){ calls.dispose++; }
 function resetCalls(){ calls.score=0; calls.deposit=0; calls.dispose=0; calls.voices.length=0; }
 
 // ---- build the real logic closure --------------------------------------------------
-const fns = ['nearHopper','attachCarried','pickUp','dumpLitterBasket','updateFlyingBaskets',
+const fns = ['nearHopper','nearHopperLitter','attachCarried','pickUp','dumpLitterBasket','updateFlyingBaskets',
   'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
-  'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','truck','p','state','blocks','creatures','WORKER_GENDER',
+  'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER',
   'dist','SFX','Voice','addScore','hopperDeposit','disposeObj',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
   'function tossBag(){} function dumpCan(){}\n' +
@@ -61,7 +62,7 @@ const api = new Function(
   'carry:()=>carry, carried:()=>carried, baskets:()=>litterBaskets, homes:()=>litterBasketHomes, flying:()=>flyingBaskets, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
-  CROSS_W, IW, LEVEL_XS, R, clamp, GZ, truck, p, state, blocks, creatures, WORKER_GENDER,
+  CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER,
   dist, SFX, Voice, addScore, hopperDeposit, disposeObj);
 // ---- 1) placement ------------------------------------------------------------------
 check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup', ()=>{
@@ -96,6 +97,17 @@ check('carrying basket + far from hopper -> closer line, no dump', ()=>{
   assert.strictEqual(calls.deposit, 0);
 });
 
+// ---- 3b) inside the OLD generous band but OUTSIDE the tight radius -> no dump -------
+check('carrying basket in old band but >1.6 from scoop -> closer line (tight zone enforced)', ()=>{
+  resetCalls();
+  p.wx = 2.5; p.wy = -4.5;   // old nearHopper()=true here, but 3.2 from the scoop (>1.6)
+  api.tryInteract();
+  assert.deepStrictEqual(calls.voices, ['I need to get closer to the truck!']);
+  assert.strictEqual(api.flying().length, 0);
+  assert.strictEqual(api.carry(), 'litterBasket');
+  assert.strictEqual(calls.deposit, 0);
+});
+
 // ---- 4) carrying basket AT the hopper -> dump + launch flight ----------------------
 check('carrying basket + at hopper -> dumped, flight launched, worker freed', ()=>{
   resetCalls();
@@ -111,14 +123,24 @@ check('carrying basket + at hopper -> dumped, flight launched, worker freed', ()
 });
 
 // ---- 5) flight lands the basket back on its home corner ----------------------------
-check('updateFlyingBaskets -> lands upright at home corner, re-placed', ()=>{
+check('updateFlyingBaskets -> lands upright at home corner, marked SERVICED (not re-armed)', ()=>{
   const b0 = api.baskets()[0];
   for (let i=0;i<10;i++) api.updateFlyingBaskets(0.1);
   assert.strictEqual(api.flying().length, 0);
-  assert.strictEqual(b0.state, 'placed');
+  assert.strictEqual(b0.state, 'serviced');
   assert.strictEqual(b0.wx, b0.hx); assert.strictEqual(b0.wy, b0.hy);
   assert.strictEqual(b0.g.parent, groundGroup);
   assert.strictEqual(b0.g.rotation.z, 0);
+});
+
+// ---- 5b) a serviced basket must NOT be picked up again ------------------------------
+check('serviced basket -> standing on it does nothing (no re-carry)', ()=>{
+  const b0 = api.baskets()[0];
+  p.wx = b0.wx; p.wy = b0.wy;
+  api.tryInteract();
+  assert.notStrictEqual(api.carry(), 'litterBasket');
+  assert.strictEqual(b0.state, 'serviced');
+  assert.strictEqual(b0.g.parent, groundGroup);
 });
 
 // ---- 6) knocked-out basket stays pickable ------------------------------------------

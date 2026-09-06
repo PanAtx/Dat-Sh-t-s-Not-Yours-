@@ -2738,7 +2738,10 @@ function updateFlyingBaskets(dt){
       if (fl.g.parent) fl.g.parent.remove(fl.g);
       groundGroup.add(fl.g);
       const b = litterBaskets.find(x => x.g === fl.g);
-      if (b){ b.state = 'placed'; b.wx = fl.home.wx; b.wy = fl.home.wy; }
+      // Serviced! It was emptied and tossed back to its corner, so it does NOT
+      // need to be carried/emptied again this shift — leave it 'serviced' (the
+      // pickup loop only grabs 'placed'), not re-armed to 'placed'.
+      if (b){ b.state = 'serviced'; b.wx = fl.home.wx; b.wy = fl.home.wy; }
       flyingBaskets.splice(i, 1);
       SFX.playCanDropSound();
     } else {
@@ -2926,6 +2929,14 @@ function nearHopper(){
   // around the hopper, NOT a long-distance throw across the whole street.
   return dx > -1.0 && dx < 3.5 && Math.abs(dy) < 4.5;
 }
+// Litter baskets are serviced-once and tossed away — so the worker must be
+// RIGHT at the rear scoop to dump one (much tighter than the bag/can band).
+const LITTER_DUMP_RADIUS = 1.6;
+function nearHopperLitter(){
+  if (!truck || truck.hidden > 0) return false;
+  const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
+  return Math.hypot(p.wx - hx, p.wy - hy) < LITTER_DUMP_RADIUS;
+}
 function attachCarried(item){
   worker.group.add(item.g);
   if (item.kind === 'litterbasket'){
@@ -3097,7 +3108,10 @@ function updateBonuses(dt){
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
   if (carry === 'bag' || carry === 'canFull' || carry === 'litterBasket'){
-    if (nearHopper()){
+    // Litter baskets need a much tighter zone — you have to be right at the
+    // rear scoop to dump one. Bags/cans keep the generous nearHopper() band.
+    const near = (carry === 'litterBasket') ? nearHopperLitter() : nearHopper();
+    if (near){
       if (carry === 'bag') return tossBag(carried);
       if (carry === 'canFull') return dumpCan();
       return dumpLitterBasket();
