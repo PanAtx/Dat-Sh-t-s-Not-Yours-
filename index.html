@@ -396,7 +396,7 @@ function showPopup(kind){
   setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1350);
 }
 let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
-let flyingCans = [], dustParticles = [], landedCans = [], flyingBags = [];
+let flyingCans = [], dustParticles = [], landedCans = [], flyingBags = [], flyingBaskets = [];
 let worker = null, wparts = null, truck = null;
 let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
 const keys = {};
@@ -1292,6 +1292,8 @@ function rebuildCarsFromGltf(){
 const LITTERBASKET_SCALE = 0.93 / 168;
 let LITTERBASKET_TPL = null;   // { template: THREE.Object3D } — single instance, no clone needed
 let litterBasketPlaced = false;
+let litterBaskets = [];        // live baskets: { kind, state, g, hx, hy, wx, wy }
+let litterBasketHomes = null;  // [{ wx, wy }] corner homes, computed once
 
 function loadLitterbasketGltf(){
   if (LITTERBASKET_TPL) return Promise.resolve(true);
@@ -1344,34 +1346,41 @@ function placeLitterBasket(){
   // ONE LITTER BASKET ON EVERY CORNER of the left (house-side) sidewalk,
   // at both the approach and departure corners of Intersections 1–7
   // (the active gameplay route; Intersection 8 sits past the finish line).
-  //
-  // Corner math (from buildIntersections):
-  //   intersection center cx = xInt + IW/2; cross-street curb line at
-  //   x = cx +/- (CROSS_W/2) = cx +/- 4.5; the 0.5u curb band reaches
-  //   cx +/- 5.0, and the 2.0u curb-return arc reaches cx +/- 6.5.
-  //   So x = cx +/- 6.0 lands just off the curb return, on the sidewalk.
-  //   y = 1.8 → ~1u behind the main-road curb line (0.75), walking strip clear.
-  // CLONE the template for each instance — the template stays intact — and
-  // add to groundGroup (the persistent world group), NOT dynamicGroup, which
-  // resetWorldState() purges on every START SHIFT. Clones share geometry and
-  // material, so 14 baskets cost one draw each with no extra GPU memory.
-  const tpl = LITTERBASKET_TPL.template;
+  //   cx = xInt + IW/2; x = cx +/- (CROSS_W/2 + 1.5); y = 1.8.
+  litterBasketHomes = [];
   const offsets = [ -(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5 ];
   const activeIntersections = LEVEL_XS.slice(0, 7);
   for (const xInt of activeIntersections){
     const cx = xInt + IW / 2;
     for (const off of offsets){
-      const g = new THREE.Group();
-      const model = tpl.clone(true);
-      // Native base is at z=0 and Z is up (matches the game) — no rotation needed.
-      model.scale.setScalar(LITTERBASKET_SCALE);
-      model.position.set(0, 0, 0);
-      g.add(model);
-      g.position.set(cx + off, 1.8, GZ);
-      groundGroup.add(g);
+      litterBasketHomes.push({ wx: cx + off, wy: 1.8 });
     }
   }
-  console.log('[GLTF] litterbaskets placed on both corners of Intersections 1–7 (left sidewalk)');
+  resetLitterBaskets();
+}
+// Re-create every litter basket at its corner home. Disposes whatever is
+// currently out there (resting, carried, or mid-flight), then re-clones the
+// shared template into the persistent groundGroup. Safe to call on START SHIFT.
+function resetLitterBaskets(){
+  for (const b of litterBaskets){
+    if (b.g && b.g.parent) b.g.parent.remove(b.g);
+    if (b.g) disposeObj(b.g);
+  }
+  litterBaskets.length = 0;
+  flyingBaskets.length = 0;
+  if (!LITTERBASKET_TPL || !litterBasketHomes) return;
+  const tpl = LITTERBASKET_TPL.template;
+  for (const home of litterBasketHomes){
+    const g = new THREE.Group();
+    const model = tpl.clone(true);
+    // Native base is at z=0 and Z is up (matches the game) — no rotation needed.
+    model.scale.setScalar(LITTERBASKET_SCALE);
+    model.position.set(0, 0, 0);
+    g.add(model);
+    g.position.set(home.wx, home.wy, GZ);
+    groundGroup.add(g);
+    litterBaskets.push({ kind: 'litterbasket', state: 'placed', g: g, hx: home.wx, hy: home.wy, wx: home.wx, wy: home.wy });
+  }
 }
 // ==================== DSNY COLLECTION TRUCK ====================
 function buildTruck(){
@@ -2651,6 +2660,7 @@ function resetWorldState(){
   clearHopperTrash();
   pendingHouses.length = 0; bonuses.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0; flyingBags.length = 0;
+  resetLitterBaskets();   // restore all litter baskets to their corner homes
   footprints.length = 0; footDist = 0; p.poopSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
@@ -2714,6 +2724,32 @@ function spawnGravelBits(wx, wy){
       decay: 1.5,
       rotSpeed: R(-16, 16) // tumbly little chunks
     });
+  }
+}
+function updateFlyingBaskets(dt){
+  for (let i = flyingBaskets.length - 1; i >= 0; i--){
+    const fl = flyingBaskets[i];
+    fl.progress += dt / fl.duration;
+    if (fl.progress >= 1){
+      // Land upright on its corner home (the same spot it came from).
+      fl.g.position.set(fl.home.wx, fl.home.wy, GZ);
+      fl.g.rotation.set(0, 0, 0);
+      fl.g.visible = true;
+      if (fl.g.parent) fl.g.parent.remove(fl.g);
+      groundGroup.add(fl.g);
+      const b = litterBaskets.find(x => x.g === fl.g);
+      if (b){ b.state = 'placed'; b.wx = fl.home.wx; b.wy = fl.home.wy; }
+      flyingBaskets.splice(i, 1);
+      SFX.playCanDropSound();
+    } else {
+      const t = fl.progress;
+      const easeT = -Math.cos(t * Math.PI) * 0.5 + 0.5;
+      const curX = fl.sx + (fl.tx - fl.sx) * easeT;
+      const curY = fl.sy + (fl.ty - fl.sy) * easeT;
+      const arcH = Math.sin(t * Math.PI) * 2.4;
+      fl.g.position.set(curX, curY, GZ + arcH);
+      fl.g.rotation.z += dt * 6;
+    }
   }
 }
 function updateFlyingCans(dt){
@@ -2892,11 +2928,19 @@ function nearHopper(){
 }
 function attachCarried(item){
   worker.group.add(item.g);
-  item.g.position.set(0.72, 0.15, 0.5);
+  if (item.kind === 'litterbasket'){
+    // Taller model — hold it out to the side, base low, so it reads as "carried".
+    item.g.position.set(0.95, 0.0, 0.2);
+  } else {
+    item.g.position.set(0.72, 0.15, 0.5);
+  }
   item.g.rotation.set(0, 0, 0);
 }
 function pickUp(item){
-  if (item.kind === 'can' && item.state === 'droppedEmpty'){
+  if (item.kind === 'litterbasket' && item.state === 'placed'){
+    carry = 'litterBasket';
+    item.state = 'carried';
+  } else if (item.kind === 'can' && item.state === 'droppedEmpty'){
     carry = 'canEmpty';
     item.state = 'carriedEmpty';
   } else {
@@ -2951,6 +2995,31 @@ function dumpCan(){
   carried = null;
   checkHouse(c.h);
 }
+// Dump the litter basket's contents into the truck hopper, then toss the
+// (now-empty) basket back to the exact corner it was picked up from.
+function dumpLitterBasket(){
+  const b = carried;
+  if (!b) return;
+  b.state = 'dumped';
+  addScore(30);
+  hopperDeposit();
+  SFX.playCanDropSound();
+  SFX.playTossSound();
+  carry = 'none';
+  // Toss it BACK to the same spot it came from (a clean, short hop).
+  const tx = b.hx + R(-0.25, 0.25);
+  const ty = b.hy + R(-0.15, 0.15);
+  flyingBaskets.push({
+    g: b.g,
+    sx: p.wx, sy: p.wy,
+    tx: tx, ty: ty,
+    home: { wx: b.hx, wy: b.hy },
+    progress: 0, duration: 0.8,
+  });
+  if (b.g.parent) b.g.parent.remove(b.g);
+  dynamicGroup.add(b.g);
+  carried = null;
+}
 function returnCan(){
   const c = carried;
   c.state = 'returned';
@@ -2968,7 +3037,9 @@ function dropCarried(){
   const item = carried;
   item.wx = p.wx - 0.4 + R(-0.3, 0.3);
   item.wy = clamp(p.wy + R(0.6, 1.0), -2, 4.5);
-  if (item.kind === 'can' && item.state === 'carriedEmpty'){
+  if (item.kind === 'litterbasket'){
+    item.state = 'placed';   // knocked-out basket stays pickable; reset restores it home
+  } else if (item.kind === 'can' && item.state === 'carriedEmpty'){
     item.state = 'droppedEmpty';
     item.home.wx = item.wx; item.home.wy = item.wy;
   } else {
@@ -3023,10 +3094,11 @@ function updateBonuses(dt){
 }
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
-  if (carry === 'bag' || carry === 'canFull'){
+  if (carry === 'bag' || carry === 'canFull' || carry === 'litterBasket'){
     if (nearHopper()){
       if (carry === 'bag') return tossBag(carried);
-      return dumpCan();
+      if (carry === 'canFull') return dumpCan();
+      return dumpLitterBasket();
     }
     // Carrying trash but standing too far from the rear scoop to dump it.
     Voice.say('I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
@@ -3045,6 +3117,12 @@ function tryInteract(){
         const d = dist(c.wx, c.wy);
         if (d < bd){ bd = d; best = c; }
       }
+    }
+    // Litter baskets sit on the corners (not per-house) — nearest one in range.
+    for (const bsk of litterBaskets){
+      if (bsk.state !== 'placed') continue;
+      const d = dist(bsk.wx, bsk.wy);
+      if (d < bd){ bd = d; best = bsk; }
     }
     if (best) return pickUp(best);
   }
@@ -4543,7 +4621,8 @@ function updateHUD(){
   setTxt($('bonus'), pad(bonusTally));
   const carryTxt = carry === 'none' ? 'HANDS FREE' :
     carry === 'bag' ? 'CARRYING HEAVY BAG' :
-    carry === 'canFull' ? 'CARRYING METAL CAN' : 'HANDS FREE';
+    carry === 'canFull' ? 'CARRYING METAL CAN' :
+    carry === 'litterBasket' ? 'CARRYING LITTER BASKET' : 'HANDS FREE';
   setTxt($('carry'), carryTxt);
   const pips = $('pips').children;
   for (let i = 0; i < 3; i++) pips[i].classList.toggle('on', i < complaints);
@@ -4814,6 +4893,7 @@ function loop(now){
     updateBonuses(dt);
     updateFlyingCans(dt);
     updateFlyingBags(dt);
+    updateFlyingBaskets(dt);
     updateDustParticles(dt);
     updateBlocks(dt);
     cleanupLandedCans();
