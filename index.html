@@ -285,6 +285,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <script src="fflate.min.js"></script>
 <script src="FBXLoader.js"></script>
 <script src="GLTFLoader.js"></script>
+<script src="DRACOLoader.js"></script>
 <script>
 'use strict';
 // ==================== HELPERS & CORE STATE ====================
@@ -1281,6 +1282,96 @@ function rebuildCarsFromGltf(){
     c.g.position.set(c.wx, c.wy, GZ);
     dynamicGroup.add(c.g);
   }
+}
+// ==================== NYC LITTER BASKET (litterReduced2.glb) ====================
+// Native space (measured via GLTFLoader bounds): 120x120x168, base at z=0, Z is up.
+// The game also uses Z-up, so no rotation is needed — just scale and position.
+// Scale 0.00554 * 168 ≈ 0.93 world units ≈ half the sanitation worker's ~1.87u height.
+// NOTE: litterReduced2.glb is Draco-compressed (~328KB vs the old 8.5MB file, ~91k verts
+// vs ~364k) — it REQUIRES a DRACOLoader attached to the GLTFLoader.
+const LITTERBASKET_SCALE = 0.93 / 168;
+let LITTERBASKET_TPL = null;   // { template: THREE.Object3D } — single instance, no clone needed
+let litterBasketPlaced = false;
+
+function loadLitterbasketGltf(){
+  if (LITTERBASKET_TPL) return Promise.resolve(true);
+  if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  return new Promise((resolve, reject) => {
+    const gltfLoader = new THREE.GLTFLoader();
+    // Draco-compressed mesh support (required by litterReduced2.glb — KHR_draco_mesh_compression).
+    if (typeof THREE.DRACOLoader !== 'undefined'){
+      const dracoLoader = new THREE.DRACOLoader();
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+      gltfLoader.setDRACOLoader(dracoLoader);
+    }
+    gltfLoader.load('litterReduced2.glb', (gltf) => {
+      try {
+        const model = gltf.scene;
+        // The Blender export includes a stray default "Cube" (2x2x2 at the origin) as a
+        // second scene root — strip it so only the actual basket renders.
+        const stray = model.getObjectByName('Cube');
+        if (stray && stray.parent) stray.parent.remove(stray);
+        model.traverse(o => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          o.receiveShadow = true;
+          if (o.material){
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach(m => {
+              m.metalness = 0.0;   // matte painted metal, no PBR shine
+              m.roughness   = 0.75;
+              m.side = THREE.DoubleSide;  // wire-frame basket: see through from every angle
+              m.color.setHex(0x12401d);        // dark DSNY green (deep forest tone, reads as painted metal)
+              m.emissive.setHex(0x12401d);     // subtle self-lit green so it stays visible on the grey sidewalk
+              m.emissiveIntensity = 0.45;
+            });
+          }
+        });
+        LITTERBASKET_TPL = { template: model };
+        placeLitterBasket(); // place it now that the model is ready
+        const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        console.log('[GLTF] litterReduced2.glb loaded in ' + Math.round(t1 - t0) + 'ms');
+        resolve(true);
+      } catch (e){ console.error('[GLTF] litterbasket build failed:', e); reject(e); }
+    }, undefined, (err) => { console.error('[GLTF] litterbasket load failed:', err); reject(err); });
+  });
+}
+
+function placeLitterBasket(){
+  if (litterBasketPlaced || !LITTERBASKET_TPL) return;
+  litterBasketPlaced = true;
+  // ONE LITTER BASKET ON EVERY CORNER of the left (house-side) sidewalk,
+  // at both the approach and departure corners of Intersections 1–7
+  // (the active gameplay route; Intersection 8 sits past the finish line).
+  //
+  // Corner math (from buildIntersections):
+  //   intersection center cx = xInt + IW/2; cross-street curb line at
+  //   x = cx +/- (CROSS_W/2) = cx +/- 4.5; the 0.5u curb band reaches
+  //   cx +/- 5.0, and the 2.0u curb-return arc reaches cx +/- 6.5.
+  //   So x = cx +/- 6.0 lands just off the curb return, on the sidewalk.
+  //   y = 1.8 → ~1u behind the main-road curb line (0.75), walking strip clear.
+  // CLONE the template for each instance — the template stays intact — and
+  // add to groundGroup (the persistent world group), NOT dynamicGroup, which
+  // resetWorldState() purges on every START SHIFT. Clones share geometry and
+  // material, so 14 baskets cost one draw each with no extra GPU memory.
+  const tpl = LITTERBASKET_TPL.template;
+  const offsets = [ -(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5 ];
+  const activeIntersections = LEVEL_XS.slice(0, 7);
+  for (const xInt of activeIntersections){
+    const cx = xInt + IW / 2;
+    for (const off of offsets){
+      const g = new THREE.Group();
+      const model = tpl.clone(true);
+      // Native base is at z=0 and Z is up (matches the game) — no rotation needed.
+      model.scale.setScalar(LITTERBASKET_SCALE);
+      model.position.set(0, 0, 0);
+      g.add(model);
+      g.position.set(cx + off, 1.8, GZ);
+      groundGroup.add(g);
+    }
+  }
+  console.log('[GLTF] litterbaskets placed on both corners of Intersections 1–7 (left sidewalk)');
 }
 // ==================== DSNY COLLECTION TRUCK ====================
 function buildTruck(){
@@ -4783,6 +4874,8 @@ if (typeof THREE.FBXLoader !== 'undefined'){
 if (typeof THREE.GLTFLoader !== 'undefined'){
   loadCarGltf()
     .catch(err => console.warn('[GLTF] using procedural cars:', err && err.message));
+  loadLitterbasketGltf()
+    .catch(err => console.warn('[GLTF] litterbasket not loaded:', err && err.message));
 }
 </script>
 </body>
