@@ -1340,6 +1340,64 @@ function loadLitterbasketGltf(){
   });
 }
 
+// Build a pile of litter that FILLS the basket and spills OVER the rim — the
+// same everyday street junk a real overflowing bin holds: a slumped trash bag,
+// a pizza box, paper cups, soda/beer cans, a plastic water bottle, plus loose
+// green shreds. Kept procedural (same primitives as the curbside bag) so no
+// extra asset is needed. Placed inside the basket's inner footprint and
+// bulging above the ~0.93 rim. Slightly randomized so all 14 look different.
+function buildLitterTrash(){
+  const g = new THREE.Group();
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const jx = () => rnd(-0.18, 0.18);   // spread within the basket's mouth
+  const jy = () => rnd(-0.18, 0.18);
+
+  // 1) slumped black trash bag — the big bulk that mounds up over the rim
+  const bag = SP(0.20, M(0x23272e));
+  bag.scale.set(1.2, 1.0, 0.85);
+  bag.position.set(jx(), jy(), rnd(0.55, 0.72));
+  bag.rotation.y = rnd(0, Math.PI);
+  g.add(bag);
+
+  // 2) pizza box — flat, tilted on top
+  const box = BX(0.26, 0.26, 0.07, M(0xd2ae6b));
+  box.position.set(jx(), jy(), rnd(0.82, 0.95));
+  box.rotation.z = rnd(-0.5, 0.5);
+  g.add(box);
+
+  // 3) paper coffee cup — tapered, poking near the rim
+  const cup = CY(0.055, 0.042, 0.16, M(0xe8e0d8), 8);
+  cup.position.set(jx(), jy(), rnd(0.78, 0.86));
+  cup.rotation.z = rnd(-0.4, 0.4);
+  g.add(cup);
+
+  // 4) soda / beer cans — tall metal cylinders
+  const canCols = [0xc23b22, 0x2f7ab5, 0xd8a13a, 0x3aa03f];
+  const cans = 2 + (Math.random() < 0.5 ? 1 : 0);
+  for (let i = 0; i < cans; i++){
+    const c = CY(0.034, 0.036, 0.18, MS(canCols[(Math.random() * canCols.length) | 0]), 8);
+    c.position.set(jx(), jy(), rnd(0.76, 1.02));
+    c.rotation.z = rnd(-0.35, 0.35);
+    g.add(c);
+  }
+
+  // 5) plastic water bottle — tinted, standing out of the top
+  const bottle = CY(0.032, 0.032, 0.22, M(0x8fd0e8, { transparent: true, opacity: 0.85 }), 8);
+  bottle.position.set(jx(), jy(), rnd(0.80, 0.92));
+  bottle.rotation.z = rnd(-0.3, 0.3);
+  g.add(bottle);
+
+  // 6) loose green shreds — little scraps scattered above the rest
+  const greens = 3 + (Math.random() < 0.5 ? 2 : 1);
+  const gm = M(0x4c8c2a), g2 = M(0x7fc24a);
+  for (let i = 0; i < greens; i++){
+    const s = SP(0.05, Math.random() < 0.5 ? gm : g2, 6);
+    s.position.set(jx(), jy(), rnd(0.6, 1.12));
+    g.add(s);
+  }
+  return g;
+}
+
 function placeLitterBasket(){
   if (litterBasketPlaced || !LITTERBASKET_TPL) return;
   litterBasketPlaced = true;
@@ -1377,9 +1435,14 @@ function resetLitterBaskets(){
     model.scale.setScalar(LITTERBASKET_SCALE);
     model.position.set(0, 0, 0);
     g.add(model);
+    // Fill it with litter that spills over the rim. It's a child of the basket
+    // group, so it rides along when carried and tossed; we just hide it on dump.
+    const trash = buildLitterTrash();
+    trash.position.set(0, 0, 0);
+    g.add(trash);
     g.position.set(home.wx, home.wy, GZ);
     groundGroup.add(g);
-    litterBaskets.push({ kind: 'litterbasket', state: 'placed', g: g, hx: home.wx, hy: home.wy, wx: home.wx, wy: home.wy });
+    litterBaskets.push({ kind: 'litterbasket', state: 'placed', g: g, trash: trash, hx: home.wx, hy: home.wy, wx: home.wx, wy: home.wy });
   }
 }
 // ==================== DSNY COLLECTION TRUCK ====================
@@ -3015,6 +3078,7 @@ function dumpLitterBasket(){
   b.state = 'dumped';
   addScore(30);
   hopperDeposit();
+  if (b.trash) b.trash.visible = false;   // contents dumped — the tossed/returned basket is EMPTY
   SFX.playCanDropSound();
   SFX.playTossSound();
   carry = 'none';

@@ -21,6 +21,14 @@ function makeG(){ return {
   add(){}, remove(){}
 }; }
 const THREE = { Group: function(){ return makeG(); } };
+// ---- primitive-hierarchy mocks used by buildLitterTrash ---------------------------
+const POS = () => ({ x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } });
+function meshMock(){ return { parent:null, visible:true, position:POS(), rotation:POS(), scale:Object.assign(POS(),{ setScalar:function(s){ this.x=this.y=this.z=s; } }), add(){}, remove(){} }; }
+const M = (c,o)=>({ c:c });
+const MS = (c,o)=>({ c:c });
+const BX = (w,h,d,m)=>meshMock();
+const CY = (r1,r2,h,m,s)=>meshMock();
+const SP = (r,m,s)=>meshMock();
 function makeContainer(){ return { add(g){ if(g) g.parent=this; }, remove(g){ if(g) g.parent=null; } }; }
 const worker = { group: makeContainer() };
 const groundGroup = makeContainer();
@@ -50,11 +58,11 @@ function resetCalls(){ calls.score=0; calls.deposit=0; calls.dispose=0; calls.vo
 
 // ---- build the real logic closure --------------------------------------------------
 const fns = ['nearHopper','nearHopperLitter','attachCarried','pickUp','dumpLitterBasket','updateFlyingBaskets',
-  'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract'].map(n=>extractFn(html,n)).join('\n');
+  'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
   'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER',
-  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj',
+  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
   'function tossBag(){} function dumpCan(){}\n' +
   fns + '\n' +
@@ -63,9 +71,9 @@ const api = new Function(
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
   CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER,
-  dist, SFX, Voice, addScore, hopperDeposit, disposeObj);
+  dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP);
 // ---- 1) placement ------------------------------------------------------------------
-check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup', ()=>{
+check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup, FULL of visible trash', ()=>{
   api.placeLitterBasket();
   assert.strictEqual(api.baskets().length, 14);
   assert.strictEqual(api.homes().length, 14);
@@ -73,6 +81,7 @@ check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup',
     assert.strictEqual(b.state, 'placed');
     assert.strictEqual(b.g.parent, groundGroup);
     assert.strictEqual(b.hx, b.wx); assert.strictEqual(b.hy, b.wy);
+    assert.ok(b.trash && b.trash.visible === true, 'each basket is filled with visible trash');
   }
 });
 
@@ -119,6 +128,7 @@ check('carrying basket + at hopper -> dumped, flight launched, worker freed', ()
   assert.strictEqual(api.carry(), 'none');
   assert.strictEqual(b0.state, 'dumped');
   assert.strictEqual(b0.g.parent, dynamicGroup);
+  assert.strictEqual(b0.trash.visible, false);   // contents dumped -> empty basket tossed back
   assert.strictEqual(calls.deposit, 1);
   assert.ok(calls.score >= 1);
 });
@@ -170,6 +180,7 @@ check('resetLitterBaskets -> all 14 restored "placed" on groundGroup, in-flight 
   for (const b of api.baskets()){
     assert.strictEqual(b.state, 'placed');
     assert.strictEqual(b.g.parent, groundGroup);
+    assert.ok(b.trash && b.trash.visible === true, 'fresh shift: every basket refilled with visible trash');
   }
 });
 
