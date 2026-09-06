@@ -1781,7 +1781,7 @@ function makeTreasure(kind){
     const ctrl = BX(0.36, 0.22, 0.09, M(0xd0d0d0)); ctrl.position.set(0.32, 0, 0.07); ctrl.rotation.z = 0.35; g.add(ctrl);
     const dpad = BX(0.1, 0.03, 0.1, dark); dpad.position.set(0.24, 0, 0.13); g.add(dpad);
     const btn = BX(0.07, 0.03, 0.07, M(0xd9534f)); btn.position.set(0.42, 0.03, 0.13); g.add(btn);
-  } else { // stuffed plush doll
+  } else if (kind === 4){ // stuffed plush doll
     const fur = M(0x9c6b43), furL = M(0xc1946a), dark = M(0x241811);
     const body = SP(0.24, fur); body.scale.set(1, 0.9, 1.1); body.position.z = 0.27; g.add(body);
     const head = SP(0.2, fur); head.position.z = 0.6; g.add(head);
@@ -1794,6 +1794,98 @@ function makeTreasure(kind){
     const armR = SP(0.11, fur); armR.position.set(0.26, 0, 0.34); g.add(armR);
     const legL = SP(0.12, fur); legL.position.set(-0.15, 0, 0.12); g.add(legL);
     const legR = SP(0.12, fur); legR.position.set(0.15, 0, 0.12); g.add(legR);
+  }
+  else if (kind === 5){ // baseball cards — a fanned stack, top card showing a ball
+    const card = M(0xf2f0e6), ink = M(0x2b2b30), red = M(0xc0392b);
+    const W = 0.3, H = 0.38;
+    for (let i = 0; i < 3; i++){
+      const c = new THREE.Group();
+      c.rotation.z = (i - 1) * 0.28;
+      c.position.x = (i - 1) * 0.02;
+      const base = BX(W, H, 0.014, card); base.position.z = 0.012 + i * 0.014; c.add(base);
+      const head = BX(W, 0.08, 0.008, ink); head.position.set(0, H/2 - 0.05, 0.016 + i * 0.014); c.add(head);
+      g.add(c);
+    }
+    const ball = SP(0.065, M(0xf4f2e8)); ball.position.set(0, 0.02, 0.12); g.add(ball);
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(0.062, 0.006, 6, 16), red);
+    seam.position.set(0, 0.02, 0.12); g.add(seam);
+  }
+  else if (kind === 6){ // comic book — bold red cover, yellow title, speech bubbles
+    const cover = M(0xd8452a), paper = M(0xf2f0e6), ink = M(0x2b2b30), yellow = M(0xf2c12e);
+    const W = 0.44, H = 0.58;
+    const base = BX(W, H, 0.03, paper); base.position.z = 0.015; g.add(base);
+    const coverP = BX(W * 0.96, H * 0.96, 0.012, cover); coverP.position.z = 0.036; g.add(coverP);
+    const title = BX(W * 0.78, H * 0.18, 0.008, yellow); title.position.set(0, H * 0.3, 0.044); g.add(title);
+    const titleInk = BX(W * 0.68, H * 0.05, 0.004, ink); titleInk.position.set(0, H * 0.3, 0.049); g.add(titleInk);
+    const panel = BX(W * 0.44, H * 0.3, 0.006, ink); panel.position.set(-W * 0.14, -H * 0.05, 0.044); g.add(panel);
+    const panelIn = BX(W * 0.36, H * 0.22, 0.006, paper); panelIn.position.set(-W * 0.14, -H * 0.05, 0.047); g.add(panelIn);
+    const bubble = (x, y, r) => { const b = new THREE.Mesh(new THREE.CircleGeometry(r, 14), M(0xf4f2e8)); b.position.set(x, y, 0.049); b.scale.set(1, 0.8, 1); g.add(b); };
+    bubble(W * 0.18, 0.02, 0.08); bubble(-W * 0.14, -H * 0.05, 0.05);
+  }
+  else if (kind === 7){ // glossy magazine — cream cover, masthead bar, glossy sheen
+    const cream = M(0xe9e2d0), dark = M(0x2b2b30), photo = M(0xb08a6a);
+    const gloss = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+    const W = 0.4, H = 0.54;
+    const base = BX(W, H, 0.03, cream); base.position.z = 0.015; g.add(base);
+    const cover = BX(W * 0.95, H * 0.95, 0.012, cream); cover.position.z = 0.036; g.add(cover);
+    const mast = BX(W * 0.82, H * 0.16, 0.008, dark); mast.position.set(0, H * 0.3, 0.044); g.add(mast);
+    const ph = BX(W * 0.56, H * 0.42, 0.006, photo); ph.position.set(0, -H * 0.06, 0.044); g.add(ph);
+    const sheen = BX(W * 0.9, H * 0.07, 0.004, gloss); sheen.position.set(0, -H * 0.34, 0.046); sheen.rotation.z = 0.35; g.add(sheen);
+  }
+  else if (kind === 8){ // pokemon cards — fanned cards, top one with a pokeball
+    const card = M(0xf4f0e0), ink = M(0x2b2b30), holo = M(0x6fb34a), red = M(0xd43b2a);
+    const W = 0.28, H = 0.34;
+    for (let i = 0; i < 3; i++){
+      const c = new THREE.Group();
+      c.rotation.z = (i - 1) * 0.3;
+      c.position.x = (i - 1) * 0.02;
+      const base = BX(W, H, 0.014, card); base.position.z = 0.012 + i * 0.014; c.add(base);
+      const band = BX(W * 0.88, H * 0.2, 0.006, holo); band.position.set(0, H/2 - 0.05, 0.016 + i * 0.014); c.add(band);
+      g.add(c);
+    }
+    const ballZ = 0.13, ballR = 0.07, bx = 0.01;
+    const lo = new THREE.Mesh(new THREE.SphereGeometry(ballR, 14, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), M(0xf4f2e8));
+    const hi = new THREE.Mesh(new THREE.SphereGeometry(ballR, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), red);
+    const eq = new THREE.Mesh(new THREE.TorusGeometry(ballR, 0.008, 6, 16), ink);
+    lo.position.set(bx, 0.01, ballZ); hi.position.set(bx, 0.01, ballZ); eq.position.set(bx, 0.01, ballZ);
+    g.add(lo); g.add(hi); g.add(eq);
+    const nub = CY(0.016, 0.016, 0.02, M(0xf4f2e8), 10); nub.rotation.x = Math.PI / 2; nub.position.set(bx, 0.01, ballZ); g.add(nub);
+  }
+  else if (kind === 9){ // vintage record player — wooden deck, vinyl platter, tonearm, knobs
+    const wood = M(0x7a5230), woodD = M(0x5a3a22), black = M(0x1c1c20), steel = MS(0xc9cdd2);
+    const W = 1.05, H = 0.55, T = 0.26;
+    const deck = BX(W, H, T, wood); deck.position.z = T / 2; g.add(deck);
+    const lip = BX(W, H, 0.03, woodD); lip.position.z = T; g.add(lip);
+    const platter = CY(0.22, 0.22, 0.04, black, 22); platter.rotation.x = Math.PI / 2; platter.position.set(-0.26, 0, T + 0.02); g.add(platter);
+    const vinyl = CY(0.17, 0.17, 0.006, M(0x0a0a0c), 22); vinyl.rotation.x = Math.PI / 2; vinyl.position.set(-0.26, 0, T + 0.044); g.add(vinyl);
+    const label = CY(0.05, 0.05, 0.006, M(0xc0392b), 14); label.rotation.x = Math.PI / 2; label.position.set(-0.26, 0, T + 0.048); g.add(label);
+    const arm = CY(0.014, 0.014, 0.26, steel, 8); arm.rotation.z = 0.9; arm.position.set(0.02, 0.12, T + 0.05); g.add(arm);
+    const armBase = CY(0.05, 0.05, 0.04, steel, 12); armBase.rotation.x = Math.PI / 2; armBase.position.set(0.16, 0.16, T + 0.03); g.add(armBase);
+    [-0.14, 0.0].forEach((y) => { const k = CY(0.045, 0.045, 0.04, black, 12); k.rotation.x = Math.PI / 2; k.position.set(0.34, y, T + 0.02); g.add(k); });
+  }
+  else if (kind === 10){ // ipod — silver body, blue screen, click wheel
+    const body = MS(0xc9cdd2);
+    const blue = new THREE.MeshLambertMaterial({ color: 0x6fa8dc, emissive: 0x1c3a5a, emissiveIntensity: 0.5 });
+    const W = 0.28, H = 0.5, T = 0.05;
+    const shell = BX(W, H, T, body); shell.position.z = T / 2; g.add(shell);
+    const screen = BX(W * 0.72, H * 0.44, 0.008, blue); screen.position.set(0, H * 0.16, T + 0.004); g.add(screen);
+    const wheel = CY(0.095, 0.095, 0.01, MS(0xe8eaee), 20); wheel.rotation.x = Math.PI / 2; wheel.position.set(0, -H * 0.2, T + 0.005); g.add(wheel);
+    const center = CY(0.035, 0.035, 0.012, MS(0xc9cdd2), 14); center.rotation.x = Math.PI / 2; center.position.set(0, -H * 0.2, T + 0.008); g.add(center);
+  }
+  else if (kind === 11){ // old laptop — open: flat base with keys + hinged screen
+    const body = M(0x3a3a40), key = M(0x24242a), dark = M(0x1c1c20);
+    const scrM = new THREE.MeshLambertMaterial({ color: 0x8fb0c9, emissive: 0x243a4a, emissiveIntensity: 0.6 });
+    const BW = 0.6, BD = 0.44, BT = 0.045;
+    const base = BX(BW, BD, BT, body); base.position.z = BT / 2; g.add(base);
+    const keys = BX(BW * 0.8, BD * 0.66, 0.008, key); keys.position.set(0, 0.02, BT + 0.004); g.add(keys);
+    const track = BX(BW * 0.3, BD * 0.14, 0.006, dark); track.position.set(0, -BD * 0.3, BT + 0.004); g.add(track);
+    const SW = BW * 0.98, SH = BD * 1.02, ST = 0.03;
+    const sc = new THREE.Group();
+    const panel = BX(SW, ST, SH, body); sc.add(panel);
+    const scr = BX(SW * 0.84, 0.006, SH * 0.8, scrM); scr.position.set(0, ST / 2 + 0.003, 0); sc.add(scr);
+    sc.position.set(0, -BD / 2, BT + SH / 2);
+    sc.rotation.x = -0.26;
+    g.add(sc);
   }
   return g;
 }
@@ -3185,16 +3277,20 @@ function dropCarried(){
   SFX.playDropSound();
 }
 const CASH_LIFT = 0.12;   // raise street cash clear of the raised curbs (top ~0.365) so no bill gets clipped
+// The named "finds" the worker can dig out of the trash — each gets its own spoken line.
+const TREASURE_NAMES = { 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!' };
 function spawnBonus(wx, wy){
   const r = Math.random();
   let g, val, type, voice;
   if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
   else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
   else {
-    const tKind = (Math.random() * 5) | 0;
+    const tKind = (Math.random() * 12) | 0;
     g = makeTreasure(tKind); val = 250; type = 'treasure';
-    // the easel painting (kind 2) is always some "masterpiece" of a famous painter
-    voice = (tKind === 2) ? pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']) : 'Treasure!';
+    // kind 2 (easel painting) is always a "masterpiece" of a famous painter;
+    // the named finds (5-11) are announced by what they are; the rest stay "Treasure!"
+    if (tKind === 2) voice = pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']);
+    else voice = TREASURE_NAMES[tKind] || 'Treasure!';
   }
   const lift = (type === 'cash') ? CASH_LIFT : 0;   // cash is thin & flat — lift it clear of the curb
   g.position.set(wx, wy, GZ + lift);

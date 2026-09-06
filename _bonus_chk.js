@@ -41,6 +41,7 @@ let ok = true;
 const check = (label, cond) => { console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
 
 function stats(g){
+  g.updateMatrixWorld(true);   // measure rendered world-space geometry (matches the live frame), not stale local matrices
   let meshes = 0, mats = new Set(), minZ = 1e9, maxR = 0, badMat = false;
   g.traverse(ch => {
     if (ch.isMesh){
@@ -105,7 +106,7 @@ const paint = makeTreasure(2);
 }
 
 console.log('makeTreasure(other kinds still build):');
-for (let k = 0; k < 5; k++){
+for (let k = 0; k < 12; k++){
   const t = makeTreasure(k);
   const s = stats(t);
   check('kind ' + k + ': ' + s.meshes + ' meshes, grounded, no bad mats', !s.badMat && s.minZ >= -0.001 && s.maxR < 1.8);

@@ -25,6 +25,7 @@ function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, 
 function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const GZ = 0.01;
 const CASH_LIFT = 0.12;   // kept in sync with index.html — spawnBonus references it
+const TREASURE_NAMES = { 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!' };   // kept in sync with index.html
 const dynamicGroup = { add(){} };
 const bonuses = [];
 
@@ -34,24 +35,29 @@ eval(extract('makeTreasure'));
 eval(extract('spawnBonus'));
 
 const PAINTERS = new Set(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']);
+const NAMED = new Set(['Baseball cards!', 'Comic book!', 'Playboy!', 'Pokemon cards!', 'Record player!', 'iPod!', 'Old laptop!']);
 let ok = true;
-const seen = { painting: new Set(), otherTreasure: new Set(), mongo: new Set(), cash: new Set() };
-const N = 600;
+const seen = { painting: new Set(), named: new Set(), generic: new Set(), mongo: new Set(), cash: new Set() };
+const N = 1200;
 for (let i = 0; i < N; i++){
   const before = bonuses.length;
   spawnBonus(0, 0);
   const b = bonuses[bonuses.length - 1];
   if (bonuses.length !== before + 1){ ok = false; console.log('FAIL  bonus not recorded'); break; }
-  if (b.type === 'treasure' && b.voice !== 'Treasure!' && PAINTERS.has(b.voice)) seen.painting.add(b.voice);
-  else if (b.type === 'treasure') seen.otherTreasure.add(b.voice);
+  if (b.type === 'treasure'){
+    if (b.voice !== 'Treasure!' && PAINTERS.has(b.voice)) seen.painting.add(b.voice);
+    else if (NAMED.has(b.voice)) seen.named.add(b.voice);
+    else if (b.voice === 'Treasure!') seen.generic.add(b.voice);
+    else { ok = false; console.log('FAIL  bad treasure voice:', b.voice); }
+  }
   else if (b.type === 'mongo') seen.mongo.add(b.voice);
   else if (b.type === 'cash') seen.cash.add(b.voice);
   else { ok = false; console.log('FAIL  unexpected bonus', b.type, b.voice); }
-  if (!PAINTERS.has(b.voice) && b.type === 'treasure' && b.voice !== 'Treasure!'){ ok = false; console.log('FAIL  bad treasure voice:', b.voice); }
 }
 const check = (label, cond) => { console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
-check('painting pickups announced with a famous painter name: ' + [...seen.painting].join(' | '), seen.painting.size >= 3);   // all 4 in 600 rolls is overwhelming odds
-check('other treasures still say Treasure! only', [...seen.otherTreasure].every(v => v === 'Treasure!') && seen.otherTreasure.size === 1);
+check('painting pickups announced with a famous painter name: ' + [...seen.painting].join(' | '), seen.painting.size >= 3);
+check('each new find announced by what it is: ' + [...seen.named].sort().join(' | '), [...NAMED].every(v => seen.named.has(v)));
+check('legacy (unnamed) treasures still say Treasure! only', [...seen.generic].every(v => v === 'Treasure!') && seen.generic.size === 1);
 check('mongo line intact', [...seen.mongo].every(v => v === 'Mongo!') && seen.mongo.size === 1);
 check('cash line intact', [...seen.cash].every(v => v === 'Street cash!') && seen.cash.size === 1);
 console.log(ok ? 'BONUS VOICE ALL CHECKS PASS' : 'BONUS VOICE FAILURES');
