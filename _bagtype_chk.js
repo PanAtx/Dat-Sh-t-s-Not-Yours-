@@ -97,7 +97,7 @@ check('makeBag heavy -> visibly scaled up (fuller)', ()=>{
 check('makeBag specials -> carry extra hazard bits beyond the base 4', ()=>{
   assert.strictEqual(api.makeBag('normal').children.length, 4);
   assert.ok(api.makeBag('maggot').children.length > 4, 'maggot slime/worms');
-  assert.ok(api.makeBag('piss').children.length   > 4, 'piss streaks');
+  assert.ok(api.makeBag('piss').children.length   > 4, 'piss puddle');
   assert.ok(api.makeBag('glass').children.length  > 4, 'glass shards');
   assert.ok(api.makeBag('needle').children.length > 4, 'needle');
 });
