@@ -1648,14 +1648,41 @@ function updateHopperTrash(dt){
   }
 }
 // ==================== TRASH & BONUS ITEMS ====================
-function makeBag(){
+function makeBag(type){
   // Procedural garbage bag (reverted from the FBX bag back to the original soft-bag look).
+  // Each bag rolls a "type" that changes how it looks and how the worker reacts to it.
+  type = type || 'normal';
+  // Base plastic tone shifts a touch with the contents so special bags read differently.
+  let c1 = 0x23272e, c2 = 0x1b1f24;
+  if (type === 'heavy'){ c1 = 0x1d2127; c2 = 0x14171b; }      // packed solid, darker & denser
+  else if (type === 'maggot'){ c1 = 0x33351f; c2 = 0x262814; } // sickly green-black, slimy
+  else if (type === 'piss'){ c1 = 0x2b2b1f; c2 = 0x22221a; }   // dull, stained
   const g = new THREE.Group();
-  const m = M(0x23272e), m2 = M(0x1b1f24);
+  const m = M(c1), m2 = M(c2);
   const body = SP(0.4, m); body.scale.set(1.05, 0.9, 1.15); body.position.z = 0.4; g.add(body);
   const lump = SP(0.26, m2); lump.position.set(0.15, -0.12, 0.58); g.add(lump);
   const neck = CY(0.14, 0.2, 0.22, m); neck.position.z = 0.98; g.add(neck);
   const knot = SP(0.13, m2, 6); knot.position.z = 1.12; g.add(knot);
+
+  // Heavy bags are visibly fuller / bigger — the worker can tell just by looking.
+  if (type === 'heavy'){ g.scale.setScalar(1.28); }
+
+  // Extra grime / hazards, only on the special bags.
+  if (type === 'maggot'){
+    const slime = M(0x6f7d2c);   // slimy green ooze smeared over the plastic
+    for (let i = 0; i < 5; i++){ const st = SP(0.05, slime); st.scale.set(1.5, 0.5, 1); st.position.set(R(-0.28, 0.28), R(-0.24, 0.12), 0.5 + R(0, 0.25)); g.add(st); }
+    for (let i = 0; i < 6; i++){ const mg = CY(0.012, 0.012, 0.09, M(0xd4d4a2)); mg.position.set(R(-0.3, 0.3), R(-0.2, 0.24), 0.55 + R(0, 0.25)); mg.rotation.z = R(-1.5, 1.5); g.add(mg); }
+  } else if (type === 'piss'){
+    const y = M(0xc9c24a);       // yellow dog-piss streaks running down the bag
+    for (let i = 0; i < 5; i++){ const st = CY(0.02, 0.05, 0.42, y); st.position.set(R(-0.3, 0.3), R(-0.05, 0.25), 0.45 + R(0, 0.3)); st.rotation.z = R(-0.3, 0.3); g.add(st); }
+  } else if (type === 'glass'){
+    const gl = M(0xbfe3e8);      // a few broken shards poking out of the top
+    for (let i = 0; i < 6; i++){ const sh = BX(0.03, 0.09, 0.01, gl); sh.position.set(R(-0.28, 0.28), R(0.0, 0.32), 0.5 + R(0, 0.3)); sh.rotation.z = R(-1.0, 1.0); g.add(sh); }
+  } else if (type === 'needle'){
+    const steel = MS(0xd3d9de);  // a hypodermic needle jutting straight out of the bag
+    const barrel = CY(0.016, 0.016, 0.22, steel); barrel.position.set(0.16, 0.16, 0.92); barrel.rotation.z = -0.5; g.add(barrel);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.013, 0.06, 8), steel); tip.position.set(0.27, 0.22, 0.92); tip.rotation.z = -0.5; g.add(tip);
+  }
   return g;
 }
 function makeCan(openLid){
@@ -3129,9 +3156,22 @@ function addCreature(type){
   return c; // callers (e.g. the pigeon-flock spawner) reposition the creature right after
 }
 // ==================== WORLD SPAWNING & BLOCK RECYCLING ====================
+// Roll which kind of garbage this bag is. Most are ordinary; a handful of
+// special contents make the worker react, and only the HEAVY ones must be
+// hauled right up to the rear scoop to dump.
+function rollBagType(){
+  const r = Math.random();
+  if (r < 0.55) return 'normal';   // the common case — nothing to comment on
+  if (r < 0.75) return 'heavy';    // packed full & heavy
+  if (r < 0.85) return 'maggot';   // maggot juice all over it
+  if (r < 0.93) return 'piss';     // coated in dog piss
+  if (r < 0.98) return 'glass';    // rare: broken glass inside
+  return 'needle';                 // rarest: a hypodermic needle
+}
 function makeCurbBag(wx, wy, house){
-  const g = makeBag();
-  const bag = { kind: 'bag', state: 'curb', wx: wx, wy: wy, h: house, g: g };
+  const type = rollBagType();
+  const g = makeBag(type);
+  const bag = { kind: 'bag', state: 'curb', wx: wx, wy: wy, h: house, g: g, type: type };
   g.position.set(wx, wy, GZ);
   dynamicGroup.add(g);
   house.bags.push(bag);
@@ -3674,6 +3714,14 @@ function nearHopperLitter(){
   const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
   return Math.hypot(p.wx - hx, p.wy - hy) < LITTER_DUMP_RADIUS;
 }
+// Heavy bags can't be lobbed across the street — the worker has to haul them
+// right up to the rear scoop. Tighter than the generous nearHopper() band.
+const HEAVY_DUMP_RADIUS = 3.2;
+function nearHopperHeavy(){
+  if (!truck || truck.hidden > 0) return false;
+  const hx = truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3), hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
+  return Math.hypot(p.wx - hx, p.wy - hy) < HEAVY_DUMP_RADIUS;
+}
 function attachCarried(item){
   worker.group.add(item.g);
   if (item.kind === 'litterbasket'){
@@ -3683,6 +3731,19 @@ function attachCarried(item){
     item.g.position.set(0.72, 0.15, 0.5);
   }
   item.g.rotation.set(0, 0, 0);
+}
+// The worker's one-line reaction to whatever a bag turns out to contain.
+// Ordinary bags get no comment at all.
+function speakBagType(bag){
+  const line = {
+    heavy:  'This bag is heavy!',
+    maggot: 'Maggots!!!',
+    piss:   'Dog piss! Shake it before you take it!',
+    glass:  'OW! Broken glass!',
+    needle: "There's a needle sticking out!"
+  }[bag && bag.type];
+  if (!line) return;
+  Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER);
 }
 function pickUp(item){
   if (item.kind === 'litterbasket' && item.state === 'placed'){
@@ -3694,7 +3755,7 @@ function pickUp(item){
   } else {
     carry = item.kind === 'bag' ? 'bag' : 'canFull';
     item.state = 'carried';
-    Voice.say('This bag is heavy!', 3.5, 0.8, p.wx, p.wy, WORKER_GENDER);
+    if (item.kind === 'bag') speakBagType(item);   // only special bags get a comment
   }
   carried = item;
   attachCarried(item);
@@ -3860,14 +3921,18 @@ function updateBonuses(dt){
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
   if (carry === 'bag' || carry === 'canFull' || carry === 'litterBasket'){
+    if (carry === 'bag'){
+      // Heavy bags must be hauled right up to the rear scoop to dump — a tighter
+      // zone than the generous nearHopper() band the other bags/cans use.
+      const heavy = !!(carried && carried.type === 'heavy');
+      if (heavy ? nearHopperHeavy() : nearHopper()) return tossBag(carried);
+      Voice.say(heavy ? 'I need to be closer to the truck. This bag is too heavy!' : 'I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
+      return;
+    }
     // Litter baskets need a much tighter zone — you have to be right at the
     // rear scoop to dump one. Bags/cans keep the generous nearHopper() band.
     const near = (carry === 'litterBasket') ? nearHopperLitter() : nearHopper();
-    if (near){
-      if (carry === 'bag') return tossBag(carried);
-      if (carry === 'canFull') return dumpCan();
-      return dumpLitterBasket();
-    }
+    if (near) return (carry === 'litterBasket') ? dumpLitterBasket() : dumpCan();
     // Carrying trash but standing too far from the rear scoop to dump it.
     Voice.say('I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
     return;
@@ -5388,7 +5453,7 @@ function updateHUD(){
   setTxt($('score'), pad(score));
   setTxt($('bonus'), pad(bonusTally));
   const carryTxt = carry === 'none' ? 'HANDS FREE' :
-    carry === 'bag' ? 'CARRYING HEAVY BAG' :
+    carry === 'bag' ? 'CARRYING ' + (carried && carried.type === 'heavy' ? 'HEAVY BAG' : 'GARBAGE BAG') :
     carry === 'canFull' ? 'CARRYING METAL CAN' :
     carry === 'litterBasket' ? 'CARRYING LITTER BASKET' : 'HANDS FREE';
   setTxt($('carry'), carryTxt);
@@ -5692,7 +5757,7 @@ function rebuildTruckFromFbx(){
       if (bag.state === 'curb' && bag.g && bag.g.parent){
         const pg = bag.g.parent;
         pg.remove(bag.g); disposeObj(bag.g);
-        bag.g = makeBag(); bag.g.position.set(bag.wx, bag.wy, GZ); pg.add(bag.g);
+        bag.g = makeBag(bag.type); bag.g.position.set(bag.wx, bag.wy, GZ); pg.add(bag.g);
       }
     });
     if (h.can && (h.can.state === 'curb' || h.can.state === 'droppedEmpty') && h.can.g && h.can.g.parent){
