@@ -105,7 +105,9 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 /* ===== Animated reward popups (MONGO! / STREET CASH! / TREASURE!) ===== */
 .popup { position:fixed; left:50%; top:26vh; z-index:55; pointer-events:none; white-space:nowrap; text-align:center;
   font-family:'Press Start 2P','Courier New',monospace; font-size:min(8.5vw,64px); font-weight:bold; letter-spacing:4px; }
-.popup .pop-sub { display:inline-block; margin-top:16px; font-size:min(3vw,22px); letter-spacing:3px; color:#fff;
+.popup .pop-name { display:block; margin-top:12px; font-size:min(3.6vw,26px); letter-spacing:2px; color:#fff;
+  background:rgba(0,0,0,.62); padding:7px 16px; border:2px solid rgba(255,210,58,.6); border-radius:6px; white-space:normal; max-width:80vw; }
+.popup .pop-sub { display:block; margin-top:12px; font-size:min(3vw,22px); letter-spacing:3px; color:#fff;
   background:rgba(0,0,0,.55); padding:6px 14px; border:2px solid rgba(255,255,255,.35); border-radius:4px; }
 /* ===== Comic-strip speech bubbles (worker + NPC lines, ~2s each) ===== */
 .bubble { position:fixed; z-index:50; pointer-events:none; transform:translate(-50%,-110%);
@@ -382,16 +384,20 @@ function enterLandscapeFullscreen(){
 window.addEventListener('orientationchange', function(){ try { window.focus(); } catch (e) {} });
 
 // ===== Big animated "reward" popups (MONGO! / STREET CASH! / TREASURE!) =====
-function showPopup(kind){
+function showPopup(kind, val, name){
   document.querySelectorAll('.popup').forEach(function(n){ n.remove(); }); // never let two stack
+  const money = (val ? '+$' + val : null);   // show the actual payout (treasure value now varies)
   const cfg = ({
-    mongo:    { text: 'MONGO!',       cls: 'pop-mongo',    sub: '+$50'  },
-    cash:     { text: 'STREET CASH!', cls: 'pop-cash',     sub: '+$100' },
-    treasure: { text: 'TREASURE!',    cls: 'pop-treasure', sub: '+$250' }
-  }[kind]) || { text: 'BONUS!', cls: 'pop-mongo', sub: '' };
+    mongo:    { text: 'MONGO!',       cls: 'pop-mongo'    },
+    cash:     { text: 'STREET CASH!', cls: 'pop-cash'     },
+    treasure: { text: 'TREASURE!',    cls: 'pop-treasure' }
+  }[kind]) || { text: 'BONUS!', cls: 'pop-mongo' };
   const el = document.createElement('div');
   el.className = 'popup ' + cfg.cls;
-  el.innerHTML = cfg.text + (cfg.sub ? '<span class="pop-sub">' + cfg.sub + '</span>' : '');
+  let html = cfg.text;
+  if ((kind === 'treasure' || kind === 'mongo') && name) html += '<span class="pop-name">' + name + '</span>'; // read the find on screen too
+  if (money) html += '<span class="pop-sub">' + money + '</span>';
+  el.innerHTML = html;
   document.body.appendChild(el);
   setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1350);
 }
@@ -1064,7 +1070,7 @@ function buildWorker(){
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
     const arm = BX(0.11, 0.13, 0.45, hiVis); arm.position.z = -0.22; pv.add(arm);
-    const glove = BX(0.13, 0.15, 0.15, M(0x6d4c2a)); glove.position.z = -0.52; pv.add(glove); // heavy work gloves
+    const glove = BX(0.13, 0.15, 0.15, M(0xff5722)); glove.position.z = -0.52; pv.add(glove); // rubber work gloves (red-orange)
     g.add(pv); return pv;
   };
   const armL = mkArm(1), armR = mkArm(-1);
@@ -1673,16 +1679,96 @@ function makeCan(openLid){
   g.userData.lid = lid;
   return g;
 }
-function makeCopper(){
+function makeCopper(kind){
+  kind = kind | 0;
   const g = new THREE.Group();
-  const brass = Math.random() < 0.5;
-  const m  = MS(brass ? 0xd8b13c : 0xc47a3a);   // brass (yellow) or copper (orange)
-  const m2 = MS(brass ? 0xecc95a : 0xd18a48);   // brighter collar tone
-  // two metal pipes lying on the street (running across the lane), side by side
-  const p1 = CY(0.11, 0.11, 1.1, m, 12); p1.position.set(0.08, 0, 0.11); g.add(p1);
-  const p2 = CY(0.09, 0.09, 0.95, m, 12); p2.position.set(-0.12, 0, 0.09); g.add(p2);
-  // end collars / fittings on the upper pipe
-  [-0.5, 0.5].forEach((y) => { const c = CY(0.15, 0.15, 0.08, m2, 12); c.position.set(0.08, y, 0.11); g.add(c); });
+  if (kind === 0){ // brass / copper pipes — the classic scrap (two pipes side by side)
+    const brass = Math.random() < 0.5;
+    const m  = MS(brass ? 0xd8b13c : 0xc47a3a);   // brass (yellow) or copper (orange)
+    const m2 = MS(brass ? 0xecc95a : 0xd18a48);   // brighter collar tone
+    const p1 = CY(0.11, 0.11, 1.1, m, 12); p1.position.set(0.08, 0, 0.11); g.add(p1);
+    const p2 = CY(0.09, 0.09, 0.95, m, 12); p2.position.set(-0.12, 0, 0.09); g.add(p2);
+    [-0.5, 0.5].forEach((y) => { const c = CY(0.15, 0.15, 0.08, m2, 12); c.position.set(0.08, y, 0.11); g.add(c); });
+  }
+  else if (kind === 1){ // kitchen sink — an enamel basin with a gooseneck faucet
+    const enamel = M(0xd8dbe0), enamelD = M(0xb0b4bc), steel = MS(0xc9cdd2);
+    const W = 0.52, D = 0.4, TH = 0.03, h = 0.16;
+    const base = BX(W, D, TH, enamel); base.position.z = TH / 2; g.add(base);
+    const back = BX(W, TH, h, enamel); back.position.set(0, D / 2 - TH / 2, h / 2); g.add(back);
+    const left = BX(TH, D, h, enamelD); left.position.set(-W / 2 + TH / 2, 0, h / 2); g.add(left);
+    const right = BX(TH, D, h, enamelD); right.position.set(W / 2 - TH / 2, 0, h / 2); g.add(right);
+    const fy = D / 2 + 0.05;
+    const col = CY(0.028, 0.028, 0.3, steel, 10); col.rotation.x = Math.PI / 2; col.position.set(0, fy, 0.15); g.add(col);
+    const spout = CY(0.024, 0.024, 0.16, steel, 10); spout.position.set(0, fy - 0.08, 0.3); g.add(spout);
+    const tip = CY(0.02, 0.02, 0.06, steel, 8); tip.rotation.x = Math.PI / 2; tip.position.set(0, fy - 0.16, 0.27); g.add(tip);
+    const drain = CY(0.045, 0.045, 0.02, steel, 12); drain.position.set(0, 0, 0.02); g.add(drain);
+  }
+  else if (kind === 2){ // aluminum radiator — finned panels between two pipes
+    const alu = MS(0xb8bcc4), aluD = MS(0x9096a0);
+    const W = 0.7, H = 0.5, fins = 9;
+    const top = CY(0.04, 0.04, W, aluD, 10); top.rotation.z = Math.PI / 2; top.position.set(0, 0, H); g.add(top);
+    const bot = CY(0.04, 0.04, W, aluD, 10); bot.rotation.z = Math.PI / 2; bot.position.set(0, 0, 0.06); g.add(bot);
+    for (let i = 0; i < fins; i++){
+      const x = -W / 2 + (i + 0.5) * (W / fins);
+      const fin = BX(0.02, 0.03, H - 0.05, alu); fin.position.set(x, 0, H / 2); g.add(fin);
+    }
+    [-W / 2, W / 2].forEach(x => { const cap = CY(0.06, 0.06, 0.06, aluD, 14); cap.rotation.z = Math.PI / 2; cap.position.set(x, 0, H / 2); g.add(cap); });
+  }
+  else if (kind === 3){ // air conditioner — a window unit with a round top fan + side louvres
+    const body = M(0xc9ced6), bodyD = M(0xa8adb5), vent = M(0x8a9098), dark = M(0x2b2b31);
+    const W = 0.7, H = 0.42, D = 0.4;
+    const box = BX(W, H, D, body); box.position.z = D / 2 + 0.03; g.add(box);
+    const grille = CY(0.16, 0.16, 0.03, vent, 20); grille.rotation.x = Math.PI / 2; grille.position.set(W * 0.15, 0, D + 0.045); g.add(grille);
+    const hub = CY(0.05, 0.05, 0.04, dark, 12); hub.rotation.x = Math.PI / 2; hub.position.set(W * 0.15, 0, D + 0.05); g.add(hub);
+    for (let i = 0; i < 3; i++){ const slat = BX(0.3, 0.015, 0.01, dark); slat.position.set(W * 0.15, 0, D + 0.055); slat.rotation.z = i * Math.PI / 3; g.add(slat); }
+    for (let i = 0; i < 5; i++){ const lv = BX(0.36, 0.02, 0.012, bodyD); lv.position.set(-W * 0.12, H / 2 + 0.012, 0.12 + i * 0.07); g.add(lv); }
+    [-0.06, 0.06].forEach(y => { const k = CY(0.03, 0.03, 0.02, dark, 10); k.rotation.x = Math.PI / 2; k.position.set(-W * 0.3, -H / 2 + 0.012, y + D * 0.3); g.add(k); });
+  }
+  else if (kind === 4){ // copper wire spool — a reel with wire wound around it
+    const wood = M(0x8a6a3a), woodD = M(0x6a4a2a), copper = MS(0xc47a3a);
+    const R = 0.2, L = 0.34;
+    const core = CY(R * 0.7, R * 0.7, L, copper, 20); core.rotation.z = Math.PI / 2; core.position.set(0, 0, R); g.add(core);
+    [-L / 2, L / 2].forEach(x => { const fl = CY(R, R, 0.03, wood, 20); fl.rotation.z = Math.PI / 2; fl.position.set(x, 0, R); g.add(fl); });
+    for (let i = 0; i < 5; i++){ const ring = CY(R * 0.8, R * 0.8, 0.02, copper, 20); ring.rotation.z = Math.PI / 2; ring.position.set(-L / 2 + (i + 0.5) * (L / 5), 0, R); g.add(ring); }
+    const hub = CY(0.05, 0.05, L + 0.12, woodD, 12); hub.rotation.z = Math.PI / 2; hub.position.set(0, 0, R); g.add(hub);
+  }
+  else if (kind === 5){ // lead pipe — a heavy grey pipe with flanged joints + a branch
+    const lead = MS(0x6b6f78), leadD = MS(0x52565e), dark = M(0x2b2b31);
+    const R = 0.13, L = 1.2;
+    const pipe = CY(R, R, L, lead, 16); pipe.rotation.z = Math.PI / 2; pipe.position.set(0, 0, R); g.add(pipe);
+    [-0.25, 0.25].forEach(x => { const fl = CY(R + 0.05, R + 0.05, 0.06, leadD, 16); fl.rotation.z = Math.PI / 2; fl.position.set(x, 0, R); g.add(fl); });
+    [-L / 2, L / 2].forEach(x => { const rim = CY(R, R, 0.04, dark, 16); rim.rotation.z = Math.PI / 2; rim.position.set(x, 0, R); g.add(rim); });
+    const br = CY(0.08, 0.08, 0.28, lead, 12); br.rotation.x = Math.PI / 2; br.position.set(0.35, 0.05, R + 0.14); g.add(br);
+  }
+  else if (kind === 6){ // electric motor — ribbed body + fan cowl + shaft + base
+    const body = MS(0x3a5a7a), dark = M(0x2b2b31), steel = MS(0xc9cdd2), iron = MS(0x8a8f96);
+    const R = 0.18, L = 0.5;
+    const base = BX(L + 0.15, 0.3, 0.06, iron); base.position.set(0, 0, 0.03); g.add(base);
+    const bodyM = CY(R, R, L, body, 18); bodyM.rotation.z = Math.PI / 2; bodyM.position.set(0, 0, R + 0.02); g.add(bodyM);
+    for (let i = 0; i < 8; i++){ const rib = CY(R + 0.015, R + 0.015, 0.02, dark, 18); rib.rotation.z = Math.PI / 2; rib.position.set(-L / 2 + (i + 0.5) * (L / 8), 0, R + 0.02); g.add(rib); }
+    const cowl = CY(R + 0.03, R + 0.03, 0.16, dark, 18); cowl.rotation.z = Math.PI / 2; cowl.position.set(-L / 2 - 0.08, 0, R + 0.02); g.add(cowl);
+    const shaft = CY(0.03, 0.03, 0.16, steel, 10); shaft.rotation.z = Math.PI / 2; shaft.position.set(L / 2 + 0.08, 0, R + 0.02); g.add(shaft);
+    const pulley = CY(0.1, 0.1, 0.05, iron, 16); pulley.rotation.z = Math.PI / 2; pulley.position.set(L / 2 + 0.15, 0, R + 0.02); g.add(pulley);
+    const jbox = BX(0.2, 0.14, 0.13, dark); jbox.position.set(0, 0, R + R * 0.85 + 0.02); g.add(jbox);
+  }
+  else if (kind === 7){ // stainless steel faucet — a gooseneck tap on a flared base + cross handle
+    const steel = MS(0xc9cdd2), steelD = MS(0xa8adb5);
+    const base = CY(0.14, 0.18, 0.06, steel, 16); base.position.set(0, 0, 0.03); g.add(base);
+    const col = CY(0.035, 0.035, 0.42, steel, 12); col.position.set(0, 0, 0.24); g.add(col);
+    const spout = CY(0.032, 0.032, 0.2, steel, 10); spout.position.set(0, -0.1, 0.44); g.add(spout);
+    const tip = CY(0.025, 0.025, 0.06, steel, 8); tip.rotation.x = Math.PI / 2; tip.position.set(0, -0.2, 0.41); g.add(tip);
+    const cross = CY(0.05, 0.05, 0.03, steelD, 4); cross.rotation.x = Math.PI / 2; cross.position.set(0, 0, 0.48); g.add(cross);
+    const knob = SP(0.03, steelD); knob.position.set(0, 0, 0.5); g.add(knob);
+  }
+  else if (kind === 8){ // copper tubing — a loose coil of flexible copper line
+    const copper = MS(0xc47a3a), copperL = MS(0xd18a48);
+    for (let i = 0; i < 3; i++){
+      const loop = new THREE.Mesh(new THREE.TorusGeometry(0.16 + i * 0.06, 0.02, 8, 24), copper);
+      loop.position.set(i * 0.03, i * 0.02, 0.025 + i * 0.012); g.add(loop);
+    }
+    const e1 = CY(0.02, 0.02, 0.42, copperL, 8); e1.position.set(0.25, 0.1, 0.03); g.add(e1);
+    const e2 = CY(0.02, 0.02, 0.42, copperL, 8); e2.position.set(-0.22, -0.08, 0.035); g.add(e2);
+  }
   return g;
 }
 function makeCash(){
@@ -1887,6 +1973,323 @@ function makeTreasure(kind){
     sc.rotation.x = -0.26;
     g.add(sc);
   }
+  else if (kind === 12){ // Rubik's cube — colored 3x3 stickers on black plastic (visible faces)
+    const size = 0.52, st = size / 3, sq = st * 0.84, black = M(0x141418);
+    const cube = BX(size, size, size, black); cube.position.z = size / 2; g.add(cube);
+    const pal = [0xc0392b, 0xf1c40f, 0x27ae60, 0x2980b9, 0xf1f1f1, 0xe67e22];
+    // faces: [normalAxis(0=x,1=y,2=z), uAxis, vAxis]; even index = +axis, odd = -axis
+    const faces = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1]];
+    faces.forEach((f, fi) => {
+      const n = f[0], uAx = f[1], vAx = f[2];
+      const sign = (fi % 2 === 0) ? 1 : -1;
+      const off = size / 2 + 0.008, th = 0.02;
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++){
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(n === 0 ? th : sq, n === 1 ? th : sq, n === 2 ? th : sq),
+          new THREE.MeshLambertMaterial({ color: pal[((i * 3 + j) + 6 + fi * 2) % pal.length] })
+        );
+        const pos = [0, 0, 0];
+        pos[n] = sign * off; pos[uAx] = i * st; pos[vAx] = j * st;
+        m.position.set(pos[0], pos[1], pos[2]);
+        g.add(m);
+      }
+    });
+  }
+  else if (kind === 13){ // Gameboy — gray handheld, green screen, dpad + A/B
+    const shell = M(0xb8bcc2), dark = M(0x33383f);
+    const green = new THREE.MeshLambertMaterial({ color: 0x8fae6f, emissive: 0x2c3a1e, emissiveIntensity: 0.5 });
+    const W = 0.34, H = 0.56, T = 0.05;
+    const body = BX(W, H, T, shell); body.position.z = T / 2; g.add(body);
+    const frame = BX(W * 0.7, H * 0.38, 0.006, dark); frame.position.set(0, H * 0.16, T + 0.002); g.add(frame);
+    const screen = BX(W * 0.58, H * 0.3, 0.01, green); screen.position.set(0, H * 0.16, T + 0.004); g.add(screen);
+    const dp = (x, y, w, h) => { const d = BX(w, h, 0.02, dark); d.position.set(x, y, T + 0.006); g.add(d); };
+    dp(-W * 0.24, -H * 0.1, 0.05, 0.16); dp(-W * 0.24, -H * 0.1, 0.16, 0.05);   // dpad
+    const redB = M(0xb03a3a);
+    [[W * 0.16, -H * 0.14], [W * 0.28, -H * 0.24]].forEach(pt => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 12), redB); b.rotation.x = Math.PI / 2; b.position.set(pt[0], pt[1], T + 0.006); g.add(b); });
+    dp(0, -H * 0.32, 0.14, 0.03);
+  }
+  else if (kind === 14){ // Nintendo 64 — gray console on legs + trident controller
+    const gray = M(0x9aa0a8), dark = M(0x3a3f46), accent = M(0x4a4f56);
+    const W = 0.62, H = 0.4, T = 0.28;
+    const con = BX(W, H, T, gray); con.position.z = T / 2 + 0.05; g.add(con);
+    const lid = BX(W * 0.9, H * 0.86, 0.03, accent); lid.position.z = T + 0.05; g.add(lid);
+    for (let i = 0; i < 4; i++){ const leg = CY(0.05, 0.05, 0.08, dark, 10); leg.position.set((i % 2 ? 1 : -1) * W * 0.4, (i < 2 ? 1 : -1) * H * 0.35, 0.04); g.add(leg); }
+    // trident controller
+    const cg = new THREE.Group();
+    const grip = BX(0.16, 0.16, 0.1, gray); cg.add(grip);
+    const aBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 14), M(0xc0392b)); aBtn.position.set(0.02, 0.02, 0.08); cg.add(aBtn);
+    for (let i = 0; i < 3; i++){ const a = -0.5 + i * 0.5; const pr = CY(0.018, 0.018, 0.16, gray, 8); pr.position.set(-0.08 + Math.cos(a) * 0.04, -0.05 + Math.sin(a) * 0.04, 0.03); pr.rotation.z = a; pr.rotation.x = Math.PI / 2; cg.add(pr); }
+    cg.position.set(0.28, -0.12, 0.06); g.add(cg);
+  }
+  else if (kind === 15){ // PlayStation — black console + 4-button controller
+    const black = M(0x1c1c20), dark = M(0x2b2b31), silver = MS(0xc9cdd2);
+    const W = 0.78, H = 0.4, T = 0.16;
+    const con = BX(W, H, T, black); con.position.z = T / 2 + 0.03; g.add(con);
+    const lid = BX(W * 0.86, H * 0.7, 0.03, dark); lid.position.set(-0.02, 0, T + 0.03); g.add(lid);
+    const slot = BX(W * 0.5, 0.03, 0.02, silver); slot.position.set(0.1, H * 0.28, T + 0.03); g.add(slot);
+    const body = BX(0.36, 0.22, 0.09, black); body.position.set(0.32, -0.08, 0.06); body.rotation.z = 0.3; g.add(body);
+    const dp = (x, y, w, h) => { const d = BX(w, h, 0.015, dark); d.position.set(0.26 + x, -0.08 + y, 0.11); g.add(d); };
+    dp(0, 0.02, 0.05, 0.14); dp(0, 0.02, 0.14, 0.05);
+    [[0.4, 0.04, 0x27ae60], [0.44, -0.02, 0xf1c40f], [0.36, -0.02, 0xc0392b], [0.42, -0.06, 0x2980b9]].forEach(b => { const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.02, 12), new THREE.MeshLambertMaterial({ color: b[2] })); btn.rotation.x = Math.PI / 2; btn.position.set(b[0], b[1], 0.11); g.add(btn); });
+  }
+  else if (kind === 16){ // Star Wars action figure — helmeted hero with a blaster
+    const suit = M(0x3f6ea5), dark = M(0x2b2b31), gun = M(0x1c1c20);
+    const visor = new THREE.MeshLambertMaterial({ color: 0x9fd0e8, emissive: 0x24434f, emissiveIntensity: 0.6 });
+    const legL = BX(0.09, 0.16, 0.09, suit); legL.position.set(-0.06, 0, 0.08); g.add(legL);
+    const legR = BX(0.09, 0.16, 0.09, suit); legR.position.set(0.06, 0, 0.08); g.add(legR);
+    const torso = BX(0.2, 0.24, 0.12, suit); torso.position.set(0, 0, 0.3); g.add(torso);
+    const belt = BX(0.2, 0.04, 0.12, dark); belt.position.set(0, 0, 0.2); g.add(belt);
+    const armL = BX(0.07, 0.2, 0.07, suit); armL.position.set(-0.14, 0, 0.32); g.add(armL);
+    const armR = BX(0.07, 0.2, 0.07, suit); armR.position.set(0.14, 0, 0.32); g.add(armR);
+    const head = BX(0.14, 0.16, 0.14, suit); head.position.set(0, 0, 0.5); g.add(head);
+    const vis = BX(0.02, 0.06, 0.08, visor); vis.position.set(0.074, 0, 0.5); g.add(vis);   // helmet visor (+x face)
+    const blaster = BX(0.04, 0.2, 0.05, gun); blaster.position.set(0.2, 0, 0.34); g.add(blaster);
+  }
+  else if (kind === 17){ // vintage GI Joe — uniformed figure, bandana + rifle
+    const uni = M(0x6b6b3a), dark = M(0x3a3a2a), skin = M(0xd9a06b), band = M(0xc0392b), gun = M(0x2b2b31), boot = M(0x3a2c20);
+    const legL = BX(0.08, 0.16, 0.08, uni); legL.position.set(-0.05, 0, 0.08); g.add(legL);
+    const legR = BX(0.08, 0.16, 0.08, uni); legR.position.set(0.05, 0, 0.08); g.add(legR);
+    const bL = BX(0.09, 0.06, 0.1, boot); bL.position.set(-0.05, 0.02, 0.03); g.add(bL);
+    const bR = BX(0.09, 0.06, 0.1, boot); bR.position.set(0.05, 0.02, 0.03); g.add(bR);
+    const torso = BX(0.18, 0.2, 0.1, uni); torso.position.set(0, 0, 0.28); g.add(torso);
+    const chest = BX(0.18, 0.08, 0.11, dark); chest.position.set(0, 0, 0.32); g.add(chest);
+    const armL = BX(0.06, 0.18, 0.06, uni); armL.position.set(-0.12, 0, 0.3); g.add(armL);
+    const armR = BX(0.06, 0.18, 0.06, uni); armR.position.set(0.12, 0, 0.3); g.add(armR);
+    const head = BX(0.12, 0.14, 0.12, skin); head.position.set(0, 0, 0.46); g.add(head);
+    const bandN = BX(0.02, 0.05, 0.13, band); bandN.position.set(0.064, 0.02, 0.46); g.add(bandN); // bandana on the forehead (+x)
+    const cap = BX(0.14, 0.13, 0.04, uni); cap.position.set(0, 0.01, 0.53); g.add(cap);
+    const rifle = BX(0.04, 0.22, 0.05, gun); rifle.position.set(0.16, 0, 0.34); g.add(rifle);
+  }
+  else if (kind === 18){ // old Singer sewing machine — black cast-iron body, gold handwheel
+    const black = M(0x1c1c20), dark = M(0x2a2a30), gold = MS(0xc9a227);
+    const base = BX(0.7, 0.5, 0.12, black); base.position.z = 0.06; g.add(base);
+    const bed = BX(0.5, 0.4, 0.08, dark); bed.position.z = 0.16; g.add(bed);
+    const column = BX(0.16, 0.28, 0.5, black); column.position.set(-0.22, 0, 0.42); g.add(column);
+    const arm = BX(0.55, 0.2, 0.18, black); arm.position.set(0.02, 0, 0.62); g.add(arm);
+    const head = BX(0.12, 0.16, 0.22, black); head.position.set(0.24, 0, 0.52); g.add(head);
+    const needle = CY(0.01, 0.01, 0.14, MS(0xc9cdd2), 8); needle.position.set(0.24, 0, 0.34); g.add(needle);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.02, 8, 20), gold); wheel.position.set(-0.22, 0.17, 0.5); wheel.rotation.y = Math.PI / 2; g.add(wheel);
+    const spool = CY(0.03, 0.03, 0.06, gold, 10); spool.position.set(-0.1, 0, 0.62); g.add(spool);
+    const plate = BX(0.14, 0.05, 0.01, gold); plate.position.set(-0.02, 0.105, 0.62); g.add(plate); // gold logo plate
+  }
+  else if (kind === 19){ // Optimus Prime — red/blue autobot with crest fins
+    const red = M(0xb03a3a), blue = M(0x2a4a8a), silver = MS(0xc9cdd2);
+    const chrome = new THREE.MeshLambertMaterial({ color: 0x9fb6c9, emissive: 0x24354a, emissiveIntensity: 0.5 });
+    const legL = BX(0.1, 0.18, 0.1, blue); legL.position.set(-0.08, 0, 0.09); g.add(legL);
+    const legR = BX(0.1, 0.18, 0.1, blue); legR.position.set(0.08, 0, 0.09); g.add(legR);
+    const pelvis = BX(0.22, 0.12, 0.14, red); pelvis.position.set(0, 0, 0.26); g.add(pelvis);
+    const torso = BX(0.26, 0.24, 0.18, red); torso.position.set(0, 0, 0.44); g.add(torso);
+    const chest = BX(0.24, 0.14, 0.05, silver); chest.position.set(0, 0, 0.53); g.add(chest);
+    const armL = BX(0.09, 0.24, 0.09, blue); armL.position.set(-0.18, 0, 0.42); g.add(armL);
+    const armR = BX(0.09, 0.24, 0.09, blue); armR.position.set(0.18, 0, 0.42); g.add(armR);
+    const head = BX(0.14, 0.14, 0.16, silver); head.position.set(0, 0, 0.66); g.add(head);
+    const face = BX(0.02, 0.1, 0.1, red); face.position.set(0.074, 0, 0.66); g.add(face);
+    const visor = BX(0.02, 0.03, 0.08, chrome); visor.position.set(0.076, 0.02, 0.66); g.add(visor);
+    for (let i = 0; i < 3; i++){ const fin = BX(0.02, 0.02, 0.09, red); fin.position.set(0, -0.05 + i * 0.05, 0.56); g.add(fin); } // crest fins on the back
+  }
+  else if (kind === 20){ // college textbooks — a tidy stack of hardcovers + a pencil
+    const page = M(0xe9e4d3), cols = [0x3b5a8a, 0x9a3b3b, 0x3b7a4a];
+    for (let i = 0; i < 3; i++){
+      const b = BX(0.5, 0.68, 0.1, M(cols[i])); b.position.z = 0.05 + i * 0.1; b.rotation.z = (i - 1) * 0.05; g.add(b);
+      const pg = BX(0.47, 0.6, 0.012, page); pg.position.set(0, 0.3, 0.1 + i * 0.1); g.add(pg);
+    }
+    const pencil = CY(0.02, 0.02, 0.5, M(0xf1c40f), 8); pencil.rotation.x = Math.PI / 2; pencil.rotation.z = 0.15; pencil.position.set(0.05, -0.1, 0.38); g.add(pencil);
+  }
+  else if (kind === 21){ // 1964 Barbie — tall slender doll, long hair + a dress
+    const skin = M(0xf3d1b5), hair = M(0xd8a24a), dress = M(0xe64980), shoe = M(0xc0306a);
+    const legL = BX(0.05, 0.52, 0.05, skin); legL.position.set(-0.05, 0, 0.55); g.add(legL);
+    const legR = BX(0.05, 0.52, 0.05, skin); legR.position.set(0.05, 0, 0.55); g.add(legR);
+    const shL = BX(0.06, 0.16, 0.07, shoe); shL.position.set(-0.05, 0.05, 0.09); g.add(shL);
+    const shR = BX(0.06, 0.16, 0.07, shoe); shR.position.set(0.05, 0.05, 0.09); g.add(shR);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.5, 14), dress); cone.rotation.x = Math.PI / 2; cone.position.z = 1.0; g.add(cone);
+    const waist = SP(0.09, skin); waist.position.set(0, 0, 1.24); g.add(waist);
+    const armL = BX(0.03, 0.4, 0.03, skin); armL.position.set(-0.13, 0, 1.12); g.add(armL);
+    const armR = BX(0.03, 0.4, 0.03, skin); armR.position.set(0.13, 0, 1.12); g.add(armR);
+    const head = SP(0.08, skin); head.position.set(0, 0, 1.4); g.add(head);
+    const hairBack = BX(0.16, 0.2, 0.5, hair); hairBack.position.set(0, -0.1, 1.15); g.add(hairBack);
+    const topHair = BX(0.17, 0.15, 0.12, hair); topHair.position.set(0, 0, 1.44); g.add(topHair);
+  }
+  else if (kind === 22){ // Beatles gold record — gold vinyl disc in a sleeve
+    const sleeve = M(0x1c1c20), gold = MS(0xc9a227), goldL = MS(0xe8c94f), ink = M(0x2b2b30);
+    const W = 0.6, sq = [0x3b5a8a, 0x9a3b3b, 0x3b7a4a, 0xd8a24a];
+    const cov = BX(W, W, 0.02, sleeve); cov.position.z = 0.01; g.add(cov);
+    for (let i = 0; i < 4; i++){ const s = BX(0.12, 0.12, 0.01, M(sq[i])); s.position.set(-0.15 + (i % 2) * 0.3, 0.15 - ((i / 2) | 0) * 0.3, 0.022); g.add(s); }
+    const disc = CY(0.34, 0.34, 0.012, gold, 26); disc.rotation.x = Math.PI / 2; disc.position.set(0.1, 0.02, 0.03); g.add(disc);
+    const label = CY(0.1, 0.1, 0.02, goldL, 18); label.rotation.x = Math.PI / 2; label.position.set(0.1, 0.02, 0.04); g.add(label);
+    const hole = CY(0.02, 0.02, 0.022, ink, 10); hole.rotation.x = Math.PI / 2; hole.position.set(0.1, 0.02, 0.045); g.add(hole);
+  }
+  else if (kind === 23){ // DVD movies — a fan of slim cases
+    const shell = M(0x2b3a5a), silver = MS(0xc9cdd2);
+    const W = 0.34, H = 0.5, arts = [0x9a3b3b, 0x3b5a8a, 0x7a4a8a];
+    for (let i = 0; i < 3; i++){
+      const c = new THREE.Group(); c.rotation.z = (i - 1) * 0.28;
+      const base = BX(W, H, 0.016, shell); base.position.z = 0.014; c.add(base);
+      const art = BX(W * 0.86, H * 0.62, 0.006, M(arts[i])); art.position.set(0, H * 0.12, 0.024); c.add(art);
+      const strip = BX(W * 0.86, 0.05, 0.006, silver); strip.position.set(0, -H * 0.36, 0.024); c.add(strip);
+      c.position.x = (i - 1) * 0.02; c.position.z = i * 0.02; g.add(c);
+    }
+  }
+  else if (kind === 24){ // Commodore 64 — beige keyboard + dark top bar
+    const beige = M(0xcfc7b0), dark = M(0x4a4a52), key = M(0xd8d2c0), redM = M(0xb03a3a);
+    const W = 0.9, H = 0.55, T = 0.14;
+    const base = BX(W, H, T, beige); base.position.z = T / 2; g.add(base);
+    const top = BX(W * 0.6, H * 0.5, 0.03, dark); top.position.set(-0.12, H * 0.2, T + 0.012); g.add(top);
+    for (let cx = 0; cx < 10; cx++) for (let cy = 0; cy < 4; cy++){
+      const k = BX(W * 0.06, H * 0.09, 0.02, key);
+      k.position.set(-W * 0.42 + cx * (W * 0.085), -H * 0.16 + cy * (H * 0.13), T + 0.02);
+      g.add(k);
+    }
+    const pwr = BX(0.06, 0.08, 0.03, redM); pwr.position.set(W * 0.42, H * 0.3, T + 0.02); g.add(pwr);
+  }
+  else if (kind === 25){ // box of Legos — a box with colorful bricks + studs
+    const boxM = M(0x1c1c20), red = M(0xc0392b), blue = M(0x2a6fd0), yellow = M(0xf1c40f), green = M(0x3aa54a);
+    const W = 0.6, H = 0.45, T = 0.3;
+    const base = BX(W, H, T, boxM); base.position.z = T / 2; g.add(base);
+    const lab = BX(W * 0.7, H * 0.5, 0.01, yellow); lab.position.set(0, 0, T + 0.006); g.add(lab);
+    const brick = (x, y, z, c) => {
+      const p = BX(0.16, 0.14, 0.05, c); p.position.set(x, y, z); g.add(p);
+      for (let s = -1; s <= 1; s += 2){ const st = CY(0.018, 0.018, 0.03, c, 8); st.position.set(x + s * 0.04, y, z + 0.035); g.add(st); }
+    };
+    brick(-0.15, 0.1, 0.34, red); brick(0.1, -0.05, 0.36, blue); brick(0.0, 0.18, 0.38, yellow); brick(-0.12, -0.15, 0.4, green);
+  }
+  else if (kind === 26){ // Teenage Mutant Ninja Turtle — green turtle + shell + headband
+    const green = M(0x5a9a3a), shell = M(0x6b4a2a), shellP = M(0x8a6a3a), band = M(0xc0392b);
+    for (let i = 0; i < 4; i++){ const leg = SP(0.05, green); leg.position.set((i % 2 ? 0.12 : -0.12), (i < 2 ? 0.1 : -0.1), 0.08); g.add(leg); }
+    const body = SP(0.18, green); body.scale.set(1.3, 1, 1); body.position.set(0, 0, 0.2); g.add(body);
+    const sh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell); sh.position.z = 0.24; g.add(sh);
+    const shellTop = CY(0.16, 0.16, 0.03, shellP, 12); shellTop.rotation.x = Math.PI / 2; shellTop.position.z = 0.44; g.add(shellTop);
+    const head = SP(0.09, green); head.position.set(0.24, 0, 0.22); g.add(head);
+    const band2 = BX(0.02, 0.14, 0.03, band); band2.position.set(0.24, 0, 0.24); g.add(band2);
+  }
+  else if (kind === 27){ // VHS tapes — a small stack of cassettes
+    const shell = M(0x1c1c20), dark = M(0x2b2b31), red = M(0xc0392b), silver = MS(0xc9cdd2);
+    const W = 0.72, H = 0.34, T = 0.16;
+    for (let i = 0; i < 2; i++){
+      const z = T / 2 + i * (T + 0.01);
+      const c = BX(W, H, T, shell); c.position.z = z; c.rotation.z = (i - 0.5) * 0.06; g.add(c);
+      const win = BX(W * 0.55, H * 0.3, 0.01, dark); win.position.set(0, H * 0.05, T + i * (T + 0.01)); g.add(win);
+      for (let rr = -1; rr <= 1; rr += 2){ const reel = CY(0.05, 0.05, 0.012, silver, 12); reel.rotation.x = Math.PI / 2; reel.position.set(rr * W * 0.14, H * 0.05, T + i * (T + 0.01)); g.add(reel); }
+      const lab = BX(W * 0.5, H * 0.22, 0.008, red); lab.position.set(0, -H * 0.24, T + i * (T + 0.01)); g.add(lab);
+    }
+  }
+  else if (kind === 28){ // stained glass lamp — leaded color panes on a brass stem
+    const brass = MS(0xb8963a), panes = [0xc0392b, 0xf1c40f, 0x2a6fd0, 0x3aa54a, 0x9a3b8a, 0x2bb0c0];
+    const base = CY(0.24, 0.3, 0.08, brass, 14); base.rotation.x = Math.PI / 2; base.position.z = 0.04; g.add(base);
+    const stem = CY(0.035, 0.035, 0.5, brass, 8); stem.rotation.x = Math.PI / 2; stem.position.z = 0.34; g.add(stem);
+    const shade = new THREE.Group();
+    for (let i = 0; i < 6; i++){
+      const holder = new THREE.Group(); holder.rotation.z = (i / 6) * Math.PI * 2;
+      const face = BX(0.3, 0.02, 0.42, new THREE.MeshLambertMaterial({ color: panes[i], side: THREE.DoubleSide, emissive: panes[i], emissiveIntensity: 0.4 }));
+      face.position.y = 0.26; holder.add(face); shade.add(holder);
+    }
+    shade.rotation.z = Math.PI / 12; shade.position.z = 0.62; g.add(shade);
+  }
+  else if (kind === 29){ // Fiestaware bowl — glazed ceramic, fuchsia + green interior
+    const fiest = M(0xc02a6a), fiestL = M(0xd85a92), green = M(0x3a8a4a);
+    const rTop = 0.28, rBot = 0.15, H = 0.22;
+    const outer = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, H, 20, 1, true), new THREE.MeshLambertMaterial({ color: fiest, side: THREE.DoubleSide }));
+    outer.rotation.x = Math.PI / 2; outer.position.z = 0.11; g.add(outer);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(rTop * 0.9, rBot * 0.85, H * 0.92, 20, 1, true), new THREE.MeshLambertMaterial({ color: green, side: THREE.DoubleSide }));
+    inner.rotation.x = Math.PI / 2; inner.position.z = 0.11; g.add(inner);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(rTop, 0.02, 8, 20), fiestL); rim.position.z = 0.22; g.add(rim);
+    const foot = CY(rBot * 1.05, rBot * 1.1, 0.04, fiest, 18); foot.rotation.x = Math.PI / 2; foot.position.z = 0.02; g.add(foot);
+  }
+  else if (kind === 30){ // vintage beer tap — brass tap with side lever on a base
+    const brass = MS(0xb8963a), brassL = MS(0xd8b84a), redM = M(0xc0392b);
+    const base = BX(0.3, 0.3, 0.08, brass); base.position.z = 0.04; g.add(base);
+    const pipe = CY(0.04, 0.04, 0.5, brass, 12); pipe.rotation.x = Math.PI / 2; pipe.position.z = 0.3; g.add(pipe);
+    const head = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.14, 14), brassL); head.rotation.x = Math.PI / 2; head.position.z = 0.58; g.add(head);
+    const spout = CY(0.02, 0.02, 0.14, brass, 10); spout.rotation.x = Math.PI / 2; spout.position.set(0, 0.08, 0.6); g.add(spout);
+    const lever = CY(0.02, 0.02, 0.3, brass, 8); lever.rotation.z = Math.PI / 2; lever.position.set(0.16, 0, 0.42); g.add(lever);
+    const knob = SP(0.045, redM); knob.position.set(0.3, 0, 0.42); g.add(knob);
+    const band = CY(0.052, 0.052, 0.03, brassL, 12); band.rotation.x = Math.PI / 2; band.position.z = 0.2; g.add(band);
+  }
+  else if (kind === 31){ // metal lunch box — blue tin with a handle + star badge
+    const blue = MS(0x2a5a9a), blueL = MS(0x3a6ab0), silver = MS(0xc9cdd2), redM = M(0xc0392b);
+    const W = 0.6, H = 0.32, T = 0.2;
+    const base = BX(W, H, T, blue); base.position.z = T / 2; g.add(base);
+    const lid = BX(W * 1.02, H * 1.02, 0.03, blueL); lid.position.z = T + 0.015; g.add(lid);
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.018, 8, 16, Math.PI), silver); handle.position.set(0, 0, T + 0.06); g.add(handle);
+    const badge = new THREE.Mesh(new THREE.CircleGeometry(0.09, 5), redM); badge.position.set(W * 0.2, 0, T + 0.005); g.add(badge);
+    for (let i = -1; i <= 1; i += 2){ const lat = BX(0.04, 0.05, 0.02, silver); lat.position.set(i * W * 0.4, H * 0.35, T + 0.01); g.add(lat); }
+  }
+  else if (kind === 32){ // 1939 Monopoly — the wooden board + tokens + dice
+    const paper = M(0xf0e8d0), woodD = M(0x8a6a30), redM = M(0xc0392b), blue = M(0x2a5a9a);
+    const S = 0.7;
+    const board = BX(S, S, 0.03, paper); board.position.z = 0.015; g.add(board);
+    const edge = [0xc0392b, 0xf1c40f, 0x3b5a8a, 0x3b7a4a, 0x9a3b8a, 0xd8a24a, 0x2b9a8a, 0xc06a2a];
+    const n = 5, gap = S / n;
+    for (let i = 0; i < n; i++){
+      const pos = -S / 2 + gap * (i + 0.5);
+      [[pos, S / 2 - gap * 0.5], [pos, -S / 2 + gap * 0.5], [-S / 2 + gap * 0.5, pos], [S / 2 - gap * 0.5, pos]].forEach((p, k) => {
+        const sqb = BX(gap * 0.8, gap * 0.8, 0.02, M(edge[(i + k) % edge.length])); sqb.position.set(p[0], p[1], 0.032); g.add(sqb);
+      });
+    }
+    const logo = BX(S * 0.3, S * 0.3, 0.02, redM); logo.position.set(0, 0, 0.032); g.add(logo);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 8), woodD); hat.rotation.x = Math.PI / 2; hat.position.set(0.1, 0.05, 0.06); g.add(hat);
+    const car = BX(0.08, 0.05, 0.04, blue); car.position.set(-0.12, -0.08, 0.05); g.add(car);
+    const dice = BX(0.05, 0.05, 0.05, paper); dice.position.set(0.02, -0.1, 0.04); dice.rotation.z = 0.4; g.add(dice);
+  }
+  else if (kind === 33){ // Lionel train — a vintage steam engine on a rail
+    const redM = M(0xb03a3a), black = M(0x1c1c20), brass = MS(0xc9a227), dark = M(0x2b2b31);
+    const boiler = CY(0.09, 0.09, 0.5, redM, 16); boiler.rotation.z = Math.PI / 2; boiler.position.set(-0.05, 0, 0.14); g.add(boiler);
+    const funnel = CY(0.03, 0.05, 0.14, black, 10); funnel.position.set(-0.18, 0, 0.26); g.add(funnel);
+    const dome = SP(0.05, brass); dome.position.set(0.05, 0, 0.24); g.add(dome);
+    const cab = BX(0.16, 0.2, 0.22, redM); cab.position.set(0.24, 0, 0.24); g.add(cab);
+    const cabRoof = BX(0.2, 0.24, 0.03, black); cabRoof.position.set(0.24, 0, 0.36); g.add(cabRoof);
+    for (let i = 0; i < 4; i++){
+      const wl = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.02, 8, 16), black); wl.position.set(-0.24 + i * 0.12, -0.11, 0.12); g.add(wl);
+      const wr = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.02, 8, 16), black); wr.position.set(-0.24 + i * 0.12, 0.11, 0.12); g.add(wr);
+    }
+    const rail = BX(0.7, 0.03, 0.02, dark); rail.position.set(0, 0, 0.02); g.add(rail);
+  }
+  else if (kind === 34){ // boombox radio — big speakers + cassette deck + handle
+    const dark = M(0x1c1c20), silver = MS(0xc9cdd2), redM = M(0xc0392b), blue = M(0x2a5a9a);
+    const W = 0.85, H = 0.45, T = 0.16;
+    const body = BX(W, H, T, dark); body.position.z = T / 2; g.add(body);
+    for (let i = -1; i <= 1; i += 2){
+      const spk = CY(0.16, 0.16, 0.03, silver, 20); spk.rotation.x = Math.PI / 2; spk.position.set(i * W * 0.28, -H * 0.05, T + 0.01); g.add(spk);
+      const cone = CY(0.1, 0.1, 0.02, dark, 18); cone.rotation.x = Math.PI / 2; cone.position.set(i * W * 0.28, -H * 0.05, T + 0.02); g.add(cone);
+      const cap = SP(0.03, redM); cap.position.set(i * W * 0.28, -H * 0.05, T + 0.03); g.add(cap);
+    }
+    const deck = BX(0.2, 0.14, 0.02, blue); deck.position.set(0, H * 0.12, T + 0.01); g.add(deck);
+    for (let rr = -1; rr <= 1; rr += 2){ const reel = CY(0.03, 0.03, 0.01, silver, 12); reel.rotation.x = Math.PI / 2; reel.position.set(rr * 0.04, H * 0.12, T + 0.02); g.add(reel); }
+    const dial = BX(0.24, 0.06, 0.02, silver); dial.position.set(0, H * 0.3, T + 0.01); g.add(dial);
+    const handle = BX(0.3, 0.04, 0.04, silver); handle.position.set(0, 0, T + 0.08); g.add(handle);
+    const hL = CY(0.015, 0.015, 0.1, dark, 8); hL.position.set(-0.15, 0, T + 0.04); g.add(hL);
+    const hR = CY(0.015, 0.015, 0.1, dark, 8); hR.position.set(0.15, 0, T + 0.04); g.add(hR);
+  }
+  else if (kind === 35){ // metal Coca-Cola sign — red panel with a white script band on posts
+    const redM = M(0xc01a1a), white = M(0xf4f2e8), dark = M(0x2b2b31);
+    const W = 0.7, H = 0.42, T = 0.03;
+    const panel = BX(W, H, T, redM); panel.position.z = 0.35; g.add(panel);
+    const band = BX(W * 0.82, 0.1, 0.02, white); band.position.set(0, 0, 0.365); band.rotation.z = -0.15; g.add(band);
+    const swoosh = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.012, 6, 20, Math.PI * 0.7), white); swoosh.position.set(0.05, -0.02, 0.37); swoosh.rotation.z = 2.4; g.add(swoosh);
+    for (let i = -1; i <= 1; i += 2){ const post = CY(0.02, 0.02, 0.36, dark, 8); post.position.set(i * W * 0.3, 0, 0.18); g.add(post); }
+  }
+  else if (kind === 36){ // Gibson guitar — figure-8 body + long neck + sound hole
+    const wood = M(0x8a4a2a), woodD = M(0x5a2f1a), dark = M(0x1c1c20), silver = MS(0xc9cdd2);
+    const lower = SP(0.22, wood); lower.scale.set(1, 0.7, 0.5); lower.position.set(-0.08, 0, 0.16); g.add(lower);
+    const upper = SP(0.16, wood); upper.scale.set(1, 0.7, 0.5); upper.position.set(-0.22, 0, 0.24); g.add(upper);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.02, 8, 20), woodD); rim.position.set(-0.1, 0, 0.2); rim.scale.set(1, 0.7, 1); g.add(rim);
+    const sound = CY(0.07, 0.07, 0.02, dark, 16); sound.rotation.x = Math.PI / 2; sound.position.set(-0.08, 0, 0.22); g.add(sound);
+    const bridge = BX(0.04, 0.16, 0.02, woodD); bridge.position.set(0.12, 0, 0.2); g.add(bridge);
+    const neck = BX(0.4, 0.05, 0.03, woodD); neck.position.set(0.28, 0, 0.22); g.add(neck);
+    const head = BX(0.1, 0.08, 0.04, dark); head.position.set(0.52, 0, 0.22); head.rotation.z = 0.2; g.add(head);
+    for (let i = 0; i < 3; i++){ const peg = CY(0.012, 0.012, 0.02, silver, 8); peg.rotation.x = Math.PI / 2; peg.position.set(0.5 + i * 0.02, 0.05, 0.23); g.add(peg); }
+    for (let i = -2; i <= 2; i++){ const str = BX(0.5, 0.004, 0.004, silver); str.position.set(0.2, i * 0.012, 0.24); g.add(str); }
+  }
+  else if (kind === 37){ // gold necklace — a ring of gold beads + a pendant
+    const gold = MS(0xd8b84a), goldL = MS(0xf0d878), gem = new THREE.MeshLambertMaterial({ color: 0x2bb0c0, emissive: 0x1a6a7a, emissiveIntensity: 0.6 });
+    const Rr = 0.22, beads = 14;
+    for (let i = 0; i < beads; i++){
+      const a = (i / beads) * Math.PI * 2;
+      const b = SP(0.028, gold); b.position.set(Math.cos(a) * Rr, Math.sin(a) * Rr, 0.12); g.add(b);
+    }
+    const bail = CY(0.02, 0.02, 0.04, gold, 8); bail.rotation.x = Math.PI / 2; bail.position.set(0, -Rr - 0.04, 0.12); g.add(bail);
+    const pend = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 4), goldL); pend.rotation.x = Math.PI; pend.position.set(0, -Rr - 0.1, 0.12); g.add(pend);
+    const gemS = SP(0.035, gem); gemS.position.set(0, -Rr - 0.11, 0.15); g.add(gemS);
+  }
   return g;
 }
 // ==================== HOUSES, MAILBOXES, TREES ====================
@@ -2005,12 +2408,59 @@ function addPothole(b, wx, wy){
 }
 function addHydrant(b, wx, wy){
   const g = new THREE.Group();
-  const red = M(0xb5322a);
-  const body = CY(0.16, 0.2, 0.55, red); body.rotation.x = Math.PI / 2; body.position.z = 0.27; g.add(body);
-  const cap = SP(0.14, red, 8); cap.position.z = 0.6; g.add(cap);
-  const s1 = CY(0.05, 0.05, 0.14, red, 6); s1.rotation.y = Math.PI / 2; s1.position.set(0.24, 0, 0.35); g.add(s1);
-  const s2 = CY(0.05, 0.05, 0.14, red, 6); s2.rotation.y = Math.PI / 2; s2.position.set(-0.24, 0, 0.35); g.add(s2);
-  g.position.set(wx - b.worldX, wy, GZ);
+  const iron = M(0x1d2125);      // black cast-iron body (the base)
+  const ironHi = M(0x34393f);    // raised collars, fluting and bolts
+  const steel = M(0x9ba0a6);      // dull, weathered light silver-grey bonnet (matte Lambert — no specular sheen)
+  const steelDk = M(0x7e848a);    // darker weathered steel: nozzle caps + stem (matte)
+  const up = q => (q.rotation.x = Math.PI / 2, q);   // stand a cylinder on its world-up (Z) axis
+
+  // --- black flared foot / bell ---
+  const base = up(CY(0.18, 0.21, 0.13, iron, 16)); base.position.z = 0.065; g.add(base);   // subtle foot, just a touch larger than the 0.165 shaft
+  const collarB = up(CY(0.17, 0.19, 0.06, ironHi, 16)); collarB.position.z = 0.15; g.add(collarB);
+
+  // --- black tapered barrel body ---
+  const body = up(CY(0.13, 0.165, 0.4, iron, 16)); body.position.z = 0.36; g.add(body);
+
+  // classic vertical fluting around the barrel
+  for (let i = 0; i < 8; i++){
+    const a = i / 8 * Math.PI * 2;
+    const rib = BX(0.028, 0.05, 0.3, ironHi);
+    rib.position.set(Math.cos(a) * 0.155, Math.sin(a) * 0.155, 0.35);
+    rib.rotation.z = a - Math.PI / 2;
+    g.add(rib);
+  }
+
+  // --- raised iron collar where the bonnet meets the body + steel shoulder ---
+  const collarT = up(CY(0.16, 0.15, 0.1, ironHi, 16)); collarT.position.z = 0.56; g.add(collarT);
+  const domeBase = up(CY(0.17, 0.18, 0.06, steel, 20)); domeBase.position.z = 0.59; g.add(domeBase);
+
+  // --- steel grey BELL bonnet: a hemisphere (flat base, rounded top), NOT a full ball ---
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.19, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), steel);
+  dome.castShadow = true;
+  dome.scale.y = 0.55;            // flatten the height (local Y) into a low, wide bell
+  dome.rotation.x = Math.PI / 2;  // stand it up: flat base down, rounded peak toward +Z
+  dome.position.z = 0.6;          // the wide rim rests on the collar
+  g.add(dome);
+
+  // --- hex valve plug on the very top of the bell ---
+  const stem = up(CY(0.04, 0.045, 0.1, steelDk, 6)); stem.position.z = 0.72; g.add(stem);
+  const nut = up(CY(0.055, 0.055, 0.05, iron, 6)); nut.position.z = 0.78; g.add(nut);
+  const nutTop = up(CY(0.03, 0.03, 0.03, steel, 6)); nutTop.position.z = 0.815; g.add(nutTop);
+
+  // --- two side nozzle caps (steel face, hex center bolt) ---
+  const sideNozzle = sx => {
+    const n = new THREE.Group();
+    const neck = CY(0.055, 0.06, 0.16, iron, 10); neck.rotation.z = -Math.PI / 2; n.add(neck);
+    const cap = CY(0.085, 0.085, 0.05, steelDk, 12); cap.rotation.z = -Math.PI / 2; cap.position.x = sx * 0.1; n.add(cap);
+    const bolt = CY(0.032, 0.032, 0.05, iron, 6); bolt.rotation.z = -Math.PI / 2; bolt.position.x = sx * 0.15; n.add(bolt);
+    n.position.set(sx * 0.15, 0, 0.42);
+    g.add(n);
+  };
+  sideNozzle(1); sideNozzle(-1);
+
+  // The near curb top sits 0.05 above the street (GZ 0.3 -> curb top 0.35). Rest the
+  // hydrant base ON the curb top so the raised curb never clips through the foot.
+  g.position.set(wx - b.worldX, wy, GZ + 0.05);
   b.group.add(g);
   b.hazards.push({ wx: wx, wy: wy, r: 0.75, type: 'hit', drop: 0, cd: 0 });
 }
@@ -2714,8 +3164,11 @@ function makeBlockContents(b, baseX){
       makeCurbBag(baseX + R(2, 6), R(1.0, 2.4), house);
     }
     if (hasCan) house.can = makeCurbCan(baseX + R(2, 6), R(1.0, 2.2), house);
-    // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start
-    if (Math.random() < 0.40) spawnBonus(baseX + R(1.5, 6.0), R(-1.0, 1.5));
+    // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start.
+    // Higher spawn rate (0.85), placed ONLY on the near sidewalk / curb (wy 0.6..4.8) — never out
+    // in the street. It stays inside a house's footprint (baseX + 1.5..6.0), and since the 16u
+    // cross-streets live in the GAPS between blocks, a treasure can never land in an intersection.
+    if (Math.random() < 0.85) spawnBonus(baseX + R(1.5, 6.0), R(0.6, 4.8));
   }
   // lane markings & sidewalk joints (scroll with the block)
   const dashM = M(0xcfd5da);
@@ -3278,18 +3731,28 @@ function dropCarried(){
 }
 const CASH_LIFT = 0.12;   // raise street cash clear of the raised curbs (top ~0.365) so no bill gets clipped
 // The named "finds" the worker can dig out of the trash — each gets its own spoken line.
-const TREASURE_NAMES = { 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!' };
+const TREASURE_NAMES = { 0: 'Vintage TV!', 1: 'Brass lamp!', 3: 'Video game system + controller!', 4: 'Stuffed plush doll!', 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!', 12: "Rubik's cube!", 13: 'Gameboy!', 14: 'Nintendo 64!', 15: 'Playstation!', 16: 'Star Wars action figure!', 17: 'Vintage G.I. Joe!', 18: 'Old Singer sewing machine!', 19: 'Optimus Prime!', 20: 'College Text Books!', 21: '1964 Barbie!', 22: 'Beatles Gold Record!', 23: 'DVD Movies!', 24: 'Commodore 64!', 25: 'Box of Legos!', 26: 'Teenage Mutant Ninja Turtle Doll!', 27: 'VHS Tapes!', 28: 'Stained Glass Lamp!', 29: 'Fiestaware Bowl!', 30: 'Vintage Beer Tap!', 31: 'Metal Lunch Box!', 32: '1939 Monopoly!', 33: 'Lionel Train!', 34: 'Boombox Radio!', 35: 'Metal Coca Cola Sign!', 36: 'Gibson Guitar!', 37: 'Gold Necklace!' };
+// The named mongo scrap the worker hauls in — each is spoken + shown under "MONGO!".
+const MONGO_NAMES = { 0: 'Brass pipes!', 1: 'Kitchen sink!', 2: 'Aluminum radiator!', 3: 'Air conditioner!', 4: 'Copper wire spool!', 5: 'Lead pipe!', 6: 'Electric motor!', 7: 'Stainless steel faucet!', 8: 'Copper tubing!' };
 function spawnBonus(wx, wy){
   const r = Math.random();
   let g, val, type, voice;
-  if (r < 0.4){ g = makeCopper(); val = 50; type = 'mongo'; voice = 'Mongo!'; }
-  else if (r < 0.75){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
+  if (r < 0.3){
+    const mKind = (Math.random() * 9) | 0;   // 9 distinct mongo scrap types (kinds 0-8)
+    g = makeCopper(mKind);
+    val = 10 + 10 * ((Math.random() * 10) | 0);   // mongo scrap is worth $10-$100 in $10 steps
+    type = 'mongo';
+    voice = MONGO_NAMES[mKind];
+  }
+  else if (r < 0.55){ g = makeCash(); val = 100; type = 'cash'; voice = 'Street cash!'; }
   else {
-    const tKind = (Math.random() * 12) | 0;
-    g = makeTreasure(tKind); val = 250; type = 'treasure';
+    const tKind = (Math.random() * 38) | 0;   // 38 distinct treasures (kinds 0-37)
+    g = makeTreasure(tKind);
+    val = 50 + 25 * ((Math.random() * 9) | 0);   // every treasure is worth $50-$250 in $25 steps
+    type = 'treasure';
     // kind 2 (easel painting) is always a "masterpiece" of a famous painter;
-    // the named finds (5-11) are announced by what they are; the rest stay "Treasure!"
-    if (tKind === 2) voice = pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']);
+    // every other find is announced by what it actually is (all 37 others are named)
+    if (tKind === 2) voice = pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkade!']);
     else voice = TREASURE_NAMES[tKind] || 'Treasure!';
   }
   const lift = (type === 'cash') ? CASH_LIFT : 0;   // cash is thin & flat — lift it clear of the curb
@@ -3308,7 +3771,7 @@ function updateBonuses(dt){
       if (b.type === 'treasure') SFX.playTreasureJingle();
       else if (b.type === 'cash') SFX.playMoneySound();
       else SFX.playKaChing();
-      showPopup(b.type || 'mongo');
+      showPopup(b.type || 'mongo', b.val, (b.type === 'treasure' || b.type === 'mongo') ? (b.voice || '').replace(/[! ]+$/, '') : undefined);
       Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3, b.wx, b.wy, WORKER_GENDER);
       if (b.g.parent) b.g.parent.remove(b.g);
       disposeObj(b.g);

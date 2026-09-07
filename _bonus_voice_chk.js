@@ -26,6 +26,7 @@ function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws
 const GZ = 0.01;
 const CASH_LIFT = 0.12;   // kept in sync with index.html — spawnBonus references it
 const TREASURE_NAMES = { 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!' };   // kept in sync with index.html
+global.MONGO_NAMES = { 0: 'Brass pipes!', 1: 'Kitchen sink!', 2: 'Aluminum radiator!', 3: 'Air conditioner!', 4: 'Copper wire spool!', 5: 'Lead pipe!', 6: 'Electric motor!', 7: 'Stainless steel faucet!', 8: 'Copper tubing!' };   // kept in sync with index.html
 const dynamicGroup = { add(){} };
 const bonuses = [];
 
@@ -34,11 +35,11 @@ eval(extract('makeCash'));
 eval(extract('makeTreasure'));
 eval(extract('spawnBonus'));
 
-const PAINTERS = new Set(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkaid!']);
+const PAINTERS = new Set(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkade!']);
 const NAMED = new Set(['Baseball cards!', 'Comic book!', 'Playboy!', 'Pokemon cards!', 'Record player!', 'iPod!', 'Old laptop!']);
 let ok = true;
 const seen = { painting: new Set(), named: new Set(), generic: new Set(), mongo: new Set(), cash: new Set() };
-const N = 1200;
+const N = 3000;
 for (let i = 0; i < N; i++){
   const before = bonuses.length;
   spawnBonus(0, 0);
@@ -58,7 +59,7 @@ const check = (label, cond) => { console.log('  ' + (cond ? 'PASS' : 'FAIL') + '
 check('painting pickups announced with a famous painter name: ' + [...seen.painting].join(' | '), seen.painting.size >= 3);
 check('each new find announced by what it is: ' + [...seen.named].sort().join(' | '), [...NAMED].every(v => seen.named.has(v)));
 check('legacy (unnamed) treasures still say Treasure! only', [...seen.generic].every(v => v === 'Treasure!') && seen.generic.size === 1);
-check('mongo line intact', [...seen.mongo].every(v => v === 'Mongo!') && seen.mongo.size === 1);
+check('mongo announced by its specific type (saw ' + seen.mongo.size + '/9)', [...seen.mongo].every(v => ['Brass pipes!','Kitchen sink!','Aluminum radiator!','Air conditioner!','Copper wire spool!','Lead pipe!','Electric motor!','Stainless steel faucet!','Copper tubing!'].indexOf(v) >= 0) && seen.mongo.size >= 5);
 check('cash line intact', [...seen.cash].every(v => v === 'Street cash!') && seen.cash.size === 1);
 console.log(ok ? 'BONUS VOICE ALL CHECKS PASS' : 'BONUS VOICE FAILURES');
 process.exit(ok ? 0 : 1);
