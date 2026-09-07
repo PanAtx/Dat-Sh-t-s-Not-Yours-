@@ -1609,7 +1609,10 @@ function hopperDeposit(){
   if (hopperCycling) return; // mid-cycle (emptying) — skip buildup this time
   hopperLoad++;
   addHopperLump();
-  if (hopperLoad >= HOPPER_CYCLE_AT){ hopperCycling = true; hopperCycleT = HOPPER_CYCLE_DUR; }
+  if (hopperLoad >= HOPPER_CYCLE_AT){
+    hopperCycling = true; hopperCycleT = HOPPER_CYCLE_DUR;
+    spawnHopperBurst(hopperWorldX(), hopperWorldY(), 0.7);   // compactor kicks in — first spew of debris, dust & juice
+  }
 }
 function clearHopperTrash(){
   if (!hopperTrash){ hopperLumps.length = 0; return; } // nothing has been deposited yet
@@ -1620,6 +1623,7 @@ function clearHopperTrash(){
 }
 function finishHopperCycle(){
   clearHopperTrash();
+  spawnHopperBurst(hopperWorldX(), hopperWorldY(), 1.0);   // the POP — bags crushed, debris/maggots/dust/juice blast out
   hopperLoad = 0;
   hopperCycling = false;
   addScore(HOPPER_CYCLE_BONUS, true);
@@ -1639,6 +1643,7 @@ function updateHopperTrash(dt){
       L.g.position.x = L.baseX + (1 - k) * 0.5;                 // slide forward into the compactor
       L.mat.opacity = k;                                        // fade out
     }
+    if (Math.random() < 0.5) spawnHopperBurst(hopperWorldX(), hopperWorldY(), 0.14);   // continuous spew of dust & bits while it compacts
     if (hopperCycleT <= 0) finishHopperCycle();
   }
 }
@@ -3391,6 +3396,71 @@ function spawnGravelBits(wx, wy){
     });
   }
 }
+// ==================== HOPPER COMPACTION BURST — debris, dust, maggots, juice, goo ====================
+// Fired from the open rear mouth while the compactor squishes the pile: the bags "pop" and
+// spew a gross, fast, tumbling shower of tiny bits that blow up & out, then rain back down
+// to the street. Rides the dust-particle pipeline (elevated via p.bz so bits start at the
+// hopper mouth instead of the ground).
+function spawnHopperBurst(wx, wy, intensity){
+  intensity = (intensity == null) ? 1 : intensity;
+  const mouthZ = hopperTopZ();
+  const n = Math.max(3, Math.round(16 * intensity));
+  for (let i = 0; i < n; i++){
+    const ang = R(-Math.PI, Math.PI);
+    const rad = (0.6 + Math.random() * 1.7) * (0.55 + intensity * 0.55);
+    let vx = Math.cos(ang) * rad - 0.4;                       // slight bias out toward the worker (rear/-X)
+    let vy = Math.sin(ang) * rad;
+    let vz = (1.4 + Math.random() * 2.6) * (0.5 + intensity * 0.5);   // strong upward pop
+    let life = 0.5 + Math.random() * 0.3, decay = 1.4, rot = R(-16, 16);
+    let geo, mat;
+    const roll = Math.random();
+    if (roll < 0.32){
+      // AIR / DUST puff — flat, translucent, tan-grey (the "blow out" of pressurized air)
+      const s = 0.07 + Math.random() * 0.07;
+      geo = new THREE.PlaneGeometry(s, s);
+      mat = new THREE.MeshLambertMaterial({ color: pick([0x9a9a8a, 0x8a8578, 0x75726a]), transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+      life = 0.65 + Math.random() * 0.35; decay = 1.0; rot = R(-7, 7);
+    } else if (roll < 0.6){
+      // DEBRIS bits — tumbling trashy chunks (dark bags, paper, plastic, cardboard)
+      const s = 0.02 + Math.random() * 0.03;
+      geo = new THREE.BoxGeometry(s, s, s);
+      mat = new THREE.MeshLambertMaterial({ color: pick([0x23272e, 0x3a4048, 0xd8d2c4, 0x6a4a2a, 0x4a5a6a]), transparent: true, opacity: 0.95 });
+      life = 0.5 + Math.random() * 0.3; decay = 1.6; rot = R(-18, 18);
+    } else if (roll < 0.76){
+      // MAGGOTS — pale, frantic wriggly bits that spray the fastest
+      geo = new THREE.BoxGeometry(0.011, 0.011, 0.035);
+      mat = new THREE.MeshLambertMaterial({ color: pick([0xcfcf9a, 0xbdbd80, 0xd8d8a8]), transparent: true, opacity: 0.95 });
+      life = 0.55 + Math.random() * 0.25; decay = 1.5; rot = R(-28, 28);
+      vz *= 1.1;
+    } else if (roll < 0.9){
+      // HOPPER JUICE — wet, sickly-green goo drops that splash low and rain down
+      const s = 0.016 + Math.random() * 0.02;
+      geo = new THREE.SphereGeometry(s, 6, 6);
+      mat = new THREE.MeshLambertMaterial({ color: pick([0x6a6a2a, 0x5a5a22, 0x75703a]), transparent: true, opacity: 0.9 });
+      life = 0.5 + Math.random() * 0.25; decay = 1.7; rot = R(-10, 10);
+      vz = Math.max(0.4, vz * 0.5);
+    } else {
+      // SHIT / BROWN GOO — chunky brown splatter bits
+      const s = 0.02 + Math.random() * 0.025;
+      geo = new THREE.SphereGeometry(s, 6, 6);
+      mat = new THREE.MeshLambertMaterial({ color: pick([0x4a3820, 0x5a4528, 0x6a5230]), transparent: true, opacity: 0.9 });
+      life = 0.5 + Math.random() * 0.25; decay = 1.7; rot = R(-12, 12);
+      vz = Math.max(0.3, vz * 0.4);
+    }
+    const g = new THREE.Group();
+    const mesh = new THREE.Mesh(geo, mat);
+    g.add(mesh);
+    dynamicGroup.add(g);
+    dustParticles.push({
+      g: g,
+      wx: wx + R(-0.25, 0.28),
+      wy: wy + R(-0.35, 0.35),
+      bz: mouthZ + R(-0.35, -0.05),    // a touch lower into the hopper — pops out just under the rim, then rains to the street
+      vx: vx, vy: vy, vz: vz,
+      life: life, decay: decay, rotSpeed: rot
+    });
+  }
+}
 function updateFlyingBaskets(dt){
   for (let i = flyingBaskets.length - 1; i >= 0; i--){
     const fl = flyingBaskets[i];
@@ -3552,7 +3622,8 @@ function updateDustParticles(dt){
     p.wy += p.vy * dt;
     p.vz -= dt * 2.5; // gravity pulls dust down
     if (p.g){
-      p.g.position.set(p.wx, p.wy, GZ + Math.max(0, p.vz));
+      const baseZ = (p.bz != null) ? p.bz : GZ;   // elevated emitters (the hopper) fall back down to the street
+      p.g.position.set(p.wx, p.wy, Math.max(GZ, baseZ + p.vz));
       p.g.scale.setScalar(Math.max(0.1, 1 - p.life * 0.5) * (2 - p.life));
       // Fade opacity
       const mesh = p.g.children[0];
