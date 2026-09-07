@@ -1673,9 +1673,12 @@ function makeBag(type){
     for (let i = 0; i < 5; i++){ const st = SP(0.05, slime); st.scale.set(1.5, 0.5, 1); st.position.set(R(-0.28, 0.28), R(-0.24, 0.12), 0.5 + R(0, 0.25)); g.add(st); }
     for (let i = 0; i < 6; i++){ const mg = CY(0.012, 0.012, 0.09, M(0xd4d4a2)); mg.position.set(R(-0.3, 0.3), R(-0.2, 0.24), 0.55 + R(0, 0.25)); mg.rotation.z = R(-1.5, 1.5); g.add(mg); }
   } else if (type === 'piss'){
-    const y = M(0xc9c24a);       // a yellow puddle of dog piss smeared across the front of the bag (a flat pool, NOT spikes)
-    const pud = SP(0.16, y); pud.scale.set(1.5, 1.2, 0.3); pud.position.set(R(-0.05, 0.05), R(-0.1, 0.05), 0.86); g.add(pud);   // main flat pool on the front face
-    const drip = SP(0.08, y); drip.scale.set(1.3, 1.0, 0.34); drip.position.set(R(-0.14, 0.14), -0.26, 0.78); g.add(drip);      // a small run lower on the bag
+    const y = M(0xc9c24a);   // yellow dog piss — a flat, round/long puddle smeared down the SIDE of the bag (NOT on top)
+    const ang = R(0, 6.283); // a random side around the bag; the flat face points outward (radially)
+    const pud = SP(0.13, y); // main flat pool on the side, mid-body height (well below the tie on top)
+    pud.scale.set(0.34, 1.25, 1.0); pud.position.set(0.40 * Math.cos(ang), 0.34 * Math.sin(ang), 0.36); pud.rotation.z = ang; g.add(pud);
+    const run = SP(0.07, y); // a smaller run lower on the same side
+    run.scale.set(0.36, 1.0, 1.0); run.position.set(0.34 * Math.cos(ang), 0.28 * Math.sin(ang), 0.16); run.rotation.z = ang; g.add(run);
   } else if (type === 'glass'){
     const gl = M(0xbfe3e8);      // a few broken shards poking out of the top
     for (let i = 0; i < 6; i++){ const sh = BX(0.03, 0.09, 0.01, gl); sh.position.set(R(-0.28, 0.28), R(0.0, 0.32), 0.5 + R(0, 0.3)); sh.rotation.z = R(-1.0, 1.0); g.add(sh); }
