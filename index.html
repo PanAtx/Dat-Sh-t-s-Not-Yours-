@@ -2351,6 +2351,11 @@ function makeHouse(){
   // castShadow stays false (a flat slab casts a hard 2-texel line that reads as striping);
   // receiveShadow stays true so the house's shadow still falls on the doormat.
   const step = BX(2.5, 1.0, 0.25, sm); step.position.set(0, -d / 2 - 0.6, 0.425); step.castShadow = false; step.receiveShadow = true; g.add(step);
+   // Expose the step's local footprint so makeBlockContents can compute its world-space
+   // bounds — a yard NPC standing in that footprint must sit ON TOP of the slab (see
+   // stepTopAt), not clip into it. (top = center 0.425 + half-height 0.125 = 0.55)
+   g.userData.step = { cx: 0, cy: -d / 2 - 0.6, hw: 1.25, hd: 0.5, top: 0.425 + 0.125 };
+
   // service status lamp (red = waiting, green = serviced)
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.3), new THREE.MeshLambertMaterial({ color: 0xff5544, emissive: 0xff3322, emissiveIntensity: 0.9 }));
   lamp.position.set(0, -d / 2 - 0.1, 2.0);
@@ -3193,9 +3198,15 @@ function makeBlockContents(b, baseX){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
   const hg = makeHouse();
-  hg.position.y = 10.5;
+  const HOUSE_Y = 10.5; // lateral offset of the house from the road (its front/step faces the street)
+  hg.position.y = HOUSE_Y;
   b.group.add(hg);
   const house = { serviced: false, lamp: hg.userData.lamp, bags: [], can: null };
+  // World-space footprint of the raised concrete step/door-mat (z GZ..GZ+0.25, top 0.55).
+  // stepTopAt() reads this every frame so yard NPCs that cross it stand ON the landing top
+  // instead of clipping into the 0.3..0.55 slab.
+  const stLocal = hg.userData.step;
+  house.step = { x0: baseX - stLocal.hw, x1: baseX + stLocal.hw, y0: HOUSE_Y + stLocal.cy - stLocal.hd, y1: HOUSE_Y + stLocal.cy + stLocal.hd, top: stLocal.top };
   b.house = house;
   // Curb garbage ONLY on "garbage" blocks. Blocks 1 & 8 (and the route's edge blocks)
   // stay clean — a fresh block just swept / a block past the shift's end.
@@ -4590,6 +4601,19 @@ function resolveTruckCollisions(vehicles, dt){
   }
 }
 
+// The concrete step/door-mat in front of each house is a raised slab (z GZ..GZ+0.25, top 0.55).
+// A yard creature (raccoon / squirrel / leashed dog / ...) that walks across it would clip
+// INTO the slab if it stayed at ground level. This returns the TOP of whichever step (if any)
+// sits under a world (wx, wy) point — GZ when there's none — so the creature stands ON TOP.
+function stepTopAt(wx, wy){
+  let top = GZ;
+  for (let i = 0; i < blocks.length; i++){
+    const s = blocks[i].house && blocks[i].house.step;
+    if (!s) continue;
+    if (wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) top = s.top;
+  }
+  return top;
+}
 function updateCreatures(dt){
   for (let i = 0; i < creatures.length; i++){
     const c = creatures[i];
@@ -5441,6 +5465,11 @@ function updateCreatures(dt){
       }
     }
     if (c.type === 'raccoon') c.g.position.z = (c.t > 0 && c.flee <= 0) ? GZ + Math.abs(Math.sin(performance.now() * 0.01)) * 0.04 : GZ;
+    // Final word on z, AFTER every per-type z assignment above: if this creature is over a
+    // house's raised concrete step, lift it up to the landing top so it stands ON the mat
+    // instead of clipping into the slab. Only ever RAISES (a floor), so airborne creatures
+    // (flying pigeons, popping skaters) keep their height.
+    { const _stTop = stepTopAt(c.wx, c.wy); if (_stTop > c.g.position.z) c.g.position.z = _stTop; }
   }
   // Separate overlapping vehicles after all movement is done this frame
   const vehicleList = creatures.filter(v => v.boxW !== undefined && v.type !== 'ped' && v.type !== 'lady');
