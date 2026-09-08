@@ -6187,9 +6187,9 @@ function showDayStats(){
 // When the level is complete (route reached, or test-mode L) the worker takes the
 // stage instead of the report popping up instantly:
 //   1) CHEER — Super-Mario style: two hops with the right fist planted overhead;
-//   2) WALK  — he strolls up and around to the truck's cab (camera follows him,
-//              so the street scrolls by while he walks);
-//   3) BOARD — he steps into the cab and sinks out of sight (he's inside now);
+//   2) WALK  — he walks AROUND the truck (clear behind the hopper, then up along
+//              the street-side to the cab door) — never through the body;
+//   3) BOARD — he steps into the cab from the side and sinks out of sight;
 //   4) DRIVE — the truck rolls off down the street. The camera stays LOCKED on the
 //              boarding spot (p.wx/p.wy are frozen), so the playfield holds still
 //              while the truck drives off screen with the worker aboard.
@@ -6203,13 +6203,26 @@ function startRouteEnd(){
   state = 'routeend';                        // worker is OFF LIMITS: cinematic, no input, no damage
   if (carried) dropCarried();                // hands are free for the fist pump
   if (truck){ truck.hidden = 0; if (truck.g) truck.g.visible = true; }   // the truck must be out there
-  // Boarding spot: beside the cab (the +X front of the truck) on whichever street
-  // side the worker is on, so he always strolls "around" to the cab.
+  // Walk-around path: the cab door is at the FRONT of the truck (the +X end), but the
+  // worker is standing at the REAR (behind the hopper), so a straight line would cut
+  // through the hopper body. Instead he walks AROUND the truck, on whichever street
+  // side he's on:
+  //   Waypoint 1: clear BEHIND the hopper (a beat back from the rear face, same side)
+  //   Waypoint 2: the cab door (beside the cab, same side)
+  // Both legs of the path stay at least 0.8u off the body (worker radius is 0.45), so
+  // he never clips the truck. If he's already out in front of the cab (test-mode L
+  // mid-route), the direct line is clear of the body and we skip the rear waypoint.
   const boxW = (truck && truck.boxW) || 2.25;
+  const boxL = (truck && truck.boxL) || 4.0;
   const cabX = truck.wx + ((truck && truck.cabOff) || 6) * 0.55;
   const side = (p.wy >= -4.5) ? 1 : -1;
+  const doorY = -4.5 + side * (boxW + 0.8);    // 0.8u OUTSIDE the side panel (same street side)
+  const pts = [{ x: cabX, y: doorY }];             // final: the cab door
+  if (p.wx < cabX - 1.0){
+    pts.unshift({ x: truck.wx - boxL - 0.8, y: doorY });  // first: clear behind the hopper
+  }
   routeEnd = { t: 0, phase: 'cheer', wx0: p.wx, wy0: p.wy,
-               tx: cabX, ty: -4.5 + side * (boxW + 0.9),
+               pts: pts, pt: 0,
                bx: cabX, by: -4.5 + side * boxW * 0.45,  // deep INSIDE the body — past the side panel, fully clipped
                walkT: 0, driveT: 0 };
   Voice.say('Route done! Clocking out — see ya tomorrow, city!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
@@ -6250,11 +6263,20 @@ function updateRouteEnd(dt){
     return;
   }
   if (routeEnd.phase === 'walk'){
-    // ---- Phase 2: stroll up and around to the cab. positionCamera() keeps the
-    // worker centered, so the screen scrolls along while he walks over to the truck.
-    const dx = routeEnd.tx - p.wx, dy = routeEnd.ty - p.wy;
+    // ---- Phase 2: walk AROUND the truck to the cab door (waypoint to waypoint).
+    // positionCamera() keeps the worker centered, so the screen scrolls along while
+    // he walks over to the truck. The path is pre-computed in startRouteEnd() so
+    // every leg stays clear of the truck body (no clipping through the hopper).
+    const tgt = routeEnd.pts[routeEnd.pt];
+    const dx = tgt.x - p.wx, dy = tgt.y - p.wy;
     const dist = Math.hypot(dx, dy);
-    if (dist < 0.35){ routeEnd.phase = 'board'; routeEnd.t = 0; }
+    if (dist < 0.35){
+      if (routeEnd.pt < routeEnd.pts.length - 1){
+        routeEnd.pt++;                       // next leg of the walk-around
+      } else {
+        routeEnd.phase = 'board'; routeEnd.t = 0;
+      }
+    }
     else {
       const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
       p.wx += (dx / dist) * sp * dt;
