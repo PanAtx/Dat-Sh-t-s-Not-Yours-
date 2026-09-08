@@ -74,9 +74,21 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .panel .tag { font-family:"Courier New", monospace; color:#9fe8b8; letter-spacing:2px; font-size:clamp(10px,1.7vw,13px); margin-top:8px; }
 .panel .ctl { font-family:"Courier New", monospace; color:#cfe6ff; font-size:clamp(11px,1.8vw,14px); line-height:clamp(1.45,2.3vh,1.9); margin:clamp(10px,2vh,20px) 0; text-align:left; display:inline-block; }
 .panel .score { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); color:#ffd66b; margin:clamp(8px,1.6vh,14px) 0 4px; letter-spacing:2px; }
-#btnStart, #btnRestart, #btnRestart2 { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(28px,6vw,44px); margin-top:clamp(10px,2vh,18px); cursor:pointer;
+/* ===== Day intro + per-day collection breakdown (the 7-day level system) ===== */
+#day-intro .day { font-family:"Arial Black", Impact, sans-serif; font-size:clamp(26px,7vw,54px); font-weight:bold; color:#2ee090; letter-spacing:6px; text-shadow:0 0 18px rgba(46,224,144,.85); margin-bottom:4px; }
+#day-intro .loc { font-family:"Courier New", monospace; font-size:clamp(13px,2.6vw,20px); letter-spacing:4px; color:#bfe9ff; margin-bottom:2px; }
+#day-intro .obj { font-family:"Courier New", monospace; font-size:clamp(10px,1.8vw,13px); letter-spacing:2px; color:#9fe8b8; margin:14px 0 4px; line-height:1.5; }
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:clamp(6px,1.2vh,10px) clamp(12px,2.4vw,22px); margin:clamp(10px,2vh,18px) auto; max-width:560px; text-align:left; }
+.stat-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; border-bottom:1px dashed rgba(46,224,144,.35); padding-bottom:4px; }
+.stat-row .lbl { font-family:"Courier New", monospace; font-size:clamp(10px,1.9vw,14px); letter-spacing:1px; color:#cfe6ff; }
+.stat-row .val { font-family:"Courier New", monospace; font-size:clamp(12px,2.2vw,17px); font-weight:bold; color:#7dff9e; white-space:nowrap; }
+.stat-row .val .tot { color:#6d8f9f; font-weight:normal; font-size:.82em; }
+.stat-row .val.perfect { color:#ffd23a; }
+.stat-row.bonus .lbl { color:#ffab45; }
+.stat-row.bonus .val { color:#54ff88; }
+#btnStart, #btnRestart, #btnRestart2, #btnBeginDay, #btnNextDay, #btnWeekRestart { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(28px,6vw,44px); margin-top:clamp(10px,2vh,18px); cursor:pointer;
   color:#04140c; background:#2ee090; border:none; box-shadow:0 0 18px rgba(46,224,144,.7); pointer-events:auto; }
-#btnStart:hover, #btnRestart:hover, #btnRestart2:hover { background:#5cf0ad; }
+#btnStart:hover, #btnRestart:hover, #btnRestart2:hover, #btnBeginDay:hover, #btnNextDay:hover, #btnWeekRestart:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
 .kbd { color:#7dff9e; }
 /* ===== Menu logo screen ===== */
@@ -313,6 +325,27 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="score">HI-SCORE $<span id="hiscore3">000000</span></div>
   <button id="btnRestart2">START NEXT ROUTE</button>
 </div></div>
+<div id="day-intro" class="modal hidden"><div class="panel">
+  <div class="day" id="day-intro-day">MONDAY</div>
+  <div class="loc" id="day-intro-loc">MANHATTAN · UPTOWN</div>
+  <div class="obj">CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br>3 WRITE-UPS OR A WORKER DOWN = SUSPENDED</div>
+  <button id="btnBeginDay">START THE SHIFT</button>
+</div></div>
+<div id="day-stats" class="modal hidden"><div class="panel">
+  <h2 id="day-stats-title">SHIFT REPORT</h2>
+  <div class="tag" id="day-stats-loc">MONDAY &middot; MANHATTAN / UPTOWN</div>
+  <div class="stats-grid" id="day-stats-grid"></div>
+  <div class="score">DAY SCORE $<span id="day-stats-score">000000</span></div>
+  <div class="score">WEEK TOTAL $<span id="day-stats-week">000000</span></div>
+  <button id="btnNextDay">NEXT DAY</button>
+</div></div>
+<div id="week-complete" class="modal hidden"><div class="panel">
+  <h1 id="week-title">WEEK COMPLETE</h1>
+  <div class="tag" id="week-tag">ALL 7 DAYS CLEARED - TOP NOTCH!</div>
+  <div class="score">WEEK TOTAL $<span id="week-score">000000</span></div>
+  <div class="score">BEST SHIFT $<span id="week-hi">000000</span></div>
+  <button id="btnWeekRestart">WORK ANOTHER WEEK</button>
+</div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="fflate.min.js"></script>
 <script src="FBXLoader.js"></script>
@@ -375,6 +408,55 @@ let hopperTrash = null, hopperLumps = [];
 let routeIdx = 0, routeDist = 0;
 const ROUTES = ['ROUTE 1 - MANHATTAN UPTOWN', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
 let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10) || 0; } catch (e) {}
+
+// ==================== 7-DAY LEVEL SYSTEM (Monday→Sunday) ====================
+// Each day is a fresh pass over the same route. Difficulty ramps up: one more of
+// every street hazard (people + vehicles) spawns each day, so Sunday is the busiest,
+// most dangerous shift of the week.
+const LEVEL_DAYS = [
+  { day: 'MONDAY',    borough: 'MANHATTAN',     area: 'UPTOWN' },
+  { day: 'TUESDAY',   borough: 'THE BRONX',     area: 'BRONXDALE' },
+  { day: 'WEDNESDAY', borough: 'BROOKLYN',      area: 'FLATBUSH' },
+  { day: 'THURSDAY',  borough: 'QUEENS',        area: 'ASTORIA' },
+  { day: 'FRIDAY',    borough: 'STATEN ISLAND', area: 'NEW DORP' },
+  { day: 'SATURDAY',  borough: 'MANHATTAN',     area: 'HARLEM' },
+  { day: 'SUNDAY',    borough: 'BROOKLYN',      area: 'BED-STUY' },
+];
+const MAX_LEVEL = LEVEL_DAYS.length;               // 7 days (Mon..Sun)
+let level = 1;                                     // current day of the week (1..MAX_LEVEL)
+let weekScore = 0;                                 // running score across the whole week
+let dayScore = 0;                                  // score earned today only
+let dayStats = null;                               // { bags|cans|baskets|mongo|treasure|cash : {got,total} }
+let dayBonusGot = { mongo: 0, treasure: 0, cash: 0 };
+function newDayStats(){
+  return { bags:{got:0,total:0}, cans:{got:0,total:0}, baskets:{got:0,total:0}, mongo:{got:0,total:0}, treasure:{got:0,total:0}, cash:{got:0,total:0} };
+}
+function recordDayGot(kind){ if (dayStats && dayStats[kind]) dayStats[kind].got++; }
+// Snapshot how many of each item type exist on today's street (call right after spawnWorld).
+function computeDayTotals(){
+  dayStats = newDayStats();
+  dayBonusGot = { mongo: 0, treasure: 0, cash: 0 };
+  for (let i = 0; i < blocks.length; i++){
+    const h = blocks[i].house; if (!h) continue;
+    dayStats.bags.total += (h.bags || []).length;
+    if (h.can) dayStats.cans.total++;
+  }
+  for (let i = 0; i < litterBaskets.length; i++) dayStats.baskets.total++;
+  for (let i = 0; i < bonuses.length; i++){ const t = bonuses[i].type; if (dayStats[t]) dayStats[t].total++; }
+}
+// Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
+// Only the main crowd (pedestrians + cars, see SCALING_NPC) grows busier as the week goes on,
+// so the street ramps up clearly without exploding:  Mon 16 -> Tue 18 -> Wed 20 -> Thu 22 -> Fri 24 -> Sat 26 -> Sun 28.
+// Every other type stays at its Monday count; the ambient critters (rats/raccoons/squirrels) are constant flavour.
+const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 0, moto: 0, rc: 0, jacker: 0 };
+const SCALING_NPC = { ped: true, car: true };               // +1 per day (the crowd that gets busier each level)
+const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 };    // constant critters (kept for reference/tests)
+function npcCounts(day){
+  const extra = Math.max(0, (day || 1) - 1);                // +0 on Monday ... +6 by Sunday
+  const c = {};
+  for (const t in BASE_NPC_COUNTS) c[t] = BASE_NPC_COUNTS[t] + (SCALING_NPC[t] ? extra : 0);
+  return c;
+}
 
 // Security-camera DVR clock (bottom-right #camfeed): live 24-hour time + date, updated every second.
 const camDateEl = document.getElementById('camdate');
@@ -3313,7 +3395,10 @@ function spawnWorld(){
       blocks.push(b);
     }
   }
-  const counts = { ped: 2, lady: 1, rat: 5, raccoon: 1, squirrel: 2, tric: 2, rc: 1, bike: 1, ebike: 1, moto: 1, car: 2, breaker: 2, yeller: 2, dogwalker: 2, jacker: 1, hooker: 1, skater: 1, escooter: 1 };
+  // Difficulty scales with the day of the week: the main crowd (pedestrians + cars) gets +1
+  // per day, so Monday is a quiet, easy street and Sunday is noticeably busier. Everything
+  // else (critters, parked vehicles, extras) stays at its Monday count. See npcCounts().
+  const counts = npcCounts(level);
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
   // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
   // The dog barks and lunges at the worker but the chain limits how far it gets.
@@ -3432,6 +3517,7 @@ function resetWorldState(){
   if (carried) disposeObj(carried.g);
   carried = null; carry = 'none';
   score = 0; bonusTally = 0; complaints = 0;
+  dayScore = 0;   // per-day score (weekScore keeps running across the whole week)
   health = maxHealth;
   p.wx = PLAYER_START_X; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.immuneT = 0; p.phase = 0; p.shake = 0; p.facing = 0;
   routeIdx = 0; routeDist = 0; hopperAnim = 0;
@@ -3445,8 +3531,10 @@ function resetWorldState(){
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
   spawnWorld();
+  computeDayTotals();   // count how many bags/cans/baskets/mongo/treasure/cash are out on today's street
   truck.wx = p.wx - 8; truck.hidden = 0; truck.g.visible = true;  // start close behind the worker at the route beginning
-  $('route').textContent = ROUTES[0];
+  const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
+  $('route').textContent = _d.day + ' \u00b7 ' + _d.borough + ' / ' + _d.area;
   worker.group.rotation.set(0, 0, 0);
   worker.group.position.set(p.wx, p.wy, GZ);
   if (worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]); // new shift = new random worker
@@ -3454,6 +3542,8 @@ function resetWorldState(){
 // ==================== GAMEPLAY ACTIONS ====================
 function addScore(n, isBonus){
   score += n;
+  dayScore += n;          // today's tally (shown on the day-end report)
+  weekScore += n;         // running total across all 7 days (the hi-score candidate)
   if (isBonus) bonusTally += n;
 }
 // ==================== FLYING CAN SYSTEM ====================
@@ -3833,6 +3923,7 @@ function pickUp(item){
 }
 function tossBag(bag){
   bag.state = 'dumped';
+  if (typeof recordDayGot === 'function') recordDayGot('bags');
   // Throw the bag in a basketball-style arc into the rear hopper (see
   // updateFlyingBags); it is absorbed into the pile on arrival.
   if (bag.g.parent) bag.g.parent.remove(bag.g);
@@ -3844,6 +3935,7 @@ function tossBag(bag){
 function dumpCan(){
   const c = carried;
   c.state = 'dumped'; // mark can as dumped for checkHouse recognition
+  if (typeof recordDayGot === 'function') recordDayGot('cans');
   // Immediately toss can to sidewalk from where worker is standing - worker is free to service another item right away
   addScore(30);
   hopperDeposit();
@@ -3880,6 +3972,7 @@ function dumpLitterBasket(){
   const b = carried;
   if (!b) return;
   b.state = 'dumped';
+  if (typeof recordDayGot === 'function') recordDayGot('baskets');
   addScore(30);
   hopperDeposit();
   if (b.trash) b.trash.visible = false;   // contents dumped — the tossed/returned basket is EMPTY
@@ -3903,6 +3996,7 @@ function dumpLitterBasket(){
 function returnCan(){
   const c = carried;
   c.state = 'returned';
+  if (typeof recordDayGot === 'function') recordDayGot('cans');
   c.wx = c.home.wx; c.wy = c.home.wy;
   worker.group.remove(c.g);
   dynamicGroup.add(c.g);
@@ -3975,6 +4069,7 @@ function updateBonuses(dt){
     b.g.position.set(b.wx, b.wy, GZ + (b.lift || 0));   // every bonus rests on the (possibly raised) curb — nothing clips into the curb lip
     if (state === 'play' && dist(b.wx, b.wy) < 1.8){
       addScore(b.val, true);
+      if (typeof recordDayGot === 'function') recordDayGot(b.type);
       if (b.type === 'treasure') SFX.playTreasureJingle();
       else if (b.type === 'cash') SFX.playMoneySound();
       else SFX.playKaChing();
@@ -4513,8 +4608,8 @@ function updatePlayer(dt){
   routeDist += speed * dt;
   if (routeDist > 150){
     routeDist = 0;
-    routeIdx = (routeIdx + 1) % ROUTES.length;
-    setTxt($('route'), ROUTES[routeIdx]);
+    // The route HUD now shows the current day (set in resetWorldState), so we no longer
+    // re-brand it periodically — that would clobber the day/borough text.
   }
   // animation (legs pump only while the player is actually moving)
   const amp = (dir !== 0 ? 0.7 : (lat !== 0 ? 0.35 : 0));
@@ -5861,55 +5956,124 @@ function updateBubbles(dt){
   }
 }
 // ==================== GAME FLOW ====================
+function statRow(label, got, total, isBonus){
+  const perfect = (total > 0 && got >= total);
+  const cls = isBonus ? 'stat-row bonus' : 'stat-row';
+  return '<div class="' + cls + '"><span class="lbl">' + label + '</span>' +
+         '<span class="val' + (perfect ? ' perfect' : '') + '">' + got + ' <span class="tot">/ ' + total + '</span>' + (perfect ? ' \u2605' : '') + '</span></div>';
+}
+function showDayStats(){
+  const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
+  const s = dayStats || newDayStats();
+  $('day-stats-title').textContent = d.day + ' \u00b7 ' + d.borough;
+  $('day-stats-loc').textContent = 'SHIFT REPORT \u2014 ' + d.borough + ' / ' + d.area;
+  const g = $('day-stats-grid');
+  if (g){
+    g.innerHTML =
+      statRow('GARBAGE BAGS',   s.bags.got,     s.bags.total,     false) +
+      statRow('GARBAGE CANS',   s.cans.got,     s.cans.total,     false) +
+      statRow('LITTER BASKETS', s.baskets.got,  s.baskets.total,  false) +
+      statRow('MONGO HAULED',   s.mongo.got,    s.mongo.total,    true)  +
+      statRow('TREASURES',      s.treasure.got, s.treasure.total, true)  +
+      statRow('STREET CASH',    s.cash.got,     s.cash.total,     true);
+  }
+  setTxt($('day-stats-score'), pad(dayScore));
+  setTxt($('day-stats-week'),  pad(weekScore));
+  $('btnNextDay').textContent = (level < MAX_LEVEL) ? 'NEXT DAY \u25b6' : 'FINISH WEEK \u2605';
+}
 function routeComplete(){
-  state = 'complete';
+  state = 'dayend';
   SFX.playHopperJingle();
-  Voice.say('Route complete! Clean sweep out there!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
-  if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
-  setTxt($('finalscore2'), pad(score));
-  setTxt($('hiscore3'), pad(hi));
-  $('complete').classList.remove('hidden');
-  $('over').classList.add('hidden');
+  const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
+  Voice.say('That\'s the ' + d.day + ' route, ' + d.borough + '. Clean sweep!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+  if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
+  ['over', 'complete', 'week-complete', 'day-intro'].forEach(function(id){ $(id).classList.add('hidden'); });
+  showDayStats();
+  $('day-stats').classList.remove('hidden');
   radioMode();
   $('vpad').classList.remove('on');
   vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
   joyPid = null;
 }
-function gameOver(reason){
-  state = 'over';
-  SFX.playGameOver();
-  const title = $('over-title'), tag = $('over-tag');
-  if (reason === 'health'){
-    if (title) title.textContent = 'WORKER DOWNED';
-    if (tag) tag.textContent = 'OUT OF HEALTH - SHIFT TERMINATED';
-    Voice.say('I\'m too beat to keep going... I\'m done for the day!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
-  } else {
-    if (title) title.textContent = 'SUSPENDED BY DSNY';
-    if (tag) tag.textContent = '3 WRITE-UPS - SHIFT TERMINATED';
-    Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
-  }
-  if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
-  setTxt($('finalscore'), pad(score));
-  setTxt($('hiscore2'), pad(hi));
-  $('over').classList.remove('hidden');
-  radioMode(); // NOW PLAYING bar parks back in the top-right corner
-  $('vpad').classList.remove('on'); // hide the touch pad; drop any held touch state
+function nextDay(){
+  level = Math.min(level + 1, MAX_LEVEL);
+  showDayIntro();   // resetWorldState() rebuilds the street for the new (harder) day
+}
+function showWeekComplete(){
+  state = 'weekcomplete';
+  SFX.playHopperJingle();
+  Voice.say('Whole week in the bag! Best shift I ever pulled!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+  if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
+  setTxt($('week-score'), pad(weekScore));
+  setTxt($('week-hi'), pad(hi));
+  ['over', 'complete', 'day-intro', 'day-stats'].forEach(function(id){ $(id).classList.add('hidden'); });
+  $('week-complete').classList.remove('hidden');
+  radioMode();
+  $('vpad').classList.remove('on');
   vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
   joyPid = null;
+}
+function showDayIntro(){
+  const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
+  $('day-intro-day').textContent = d.day;
+  $('day-intro-loc').textContent = d.borough + ' \u00b7 ' + d.area;
+  resetWorldState();   // (re)build the street for this day + re-anchor the worker at the start
+  ['menu', 'over', 'complete', 'day-stats', 'week-complete'].forEach(function(id){ $(id).classList.add('hidden'); });
+  $('day-intro').classList.remove('hidden');
+  state = 'intro';
+  radioMode();
+  needsIdleRender = true;   // draw a fresh backdrop frame behind the day card
+  lastT = performance.now();
+  $('vpad').classList.remove('on');
+  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+}
+function beginDay(){
+  $('day-intro').classList.add('hidden');
+  state = 'play';
+  radioMode();
+  lastT = performance.now();   // the sim idled on the intro card: don't let the first frame see a huge dt
+  $('vpad').classList.add('on');
+  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
 }
 function startGame(){
   enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
   SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
-  resetWorldState(); // always start fresh: worker at route beginning (menu drift no longer carries over)
-  $('menu').classList.add('hidden');
-  $('over').classList.add('hidden');
-  $('complete').classList.add('hidden');
-  state = 'play';
-  radioMode(); // NOW PLAYING bar moves from the top-right corner (menu) to top-center (game)
-  lastT = performance.now(); // the sim idled on the menu: don't let the first frame see a huge dt
-  $('vpad').classList.add('on'); // show the on-screen pad (keyboard / gamepad input mirrors onto it too)
+  level = 1;          // a new week always starts on Monday
+  weekScore = 0;      // fresh running total
+  showDayIntro();     // show the Monday card, then wait for the player to begin
+}
+function advanceGame(){
+  // One "start / next" action (Space / Enter / gamepad / touch), routed by game state.
+  if (state === 'play') return;                 // never restart mid-shift
+  if (state === 'intro') return beginDay();
+  if (state === 'dayend') return (level < MAX_LEVEL) ? nextDay() : showWeekComplete();
+  return startGame();   // 'menu' / 'over' / 'weekcomplete' -> start a fresh week
+}
+function gameOver(reason){
+  state = 'over';
+  SFX.playGameOver();
+  const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
+  const title = $('over-title'), tag = $('over-tag');
+  if (reason === 'health'){
+    if (title) title.textContent = 'WORKER DOWNED';
+    if (tag) tag.textContent = 'OUT OF HEALTH - SUSPENDED ON ' + d.day;
+    Voice.say('I\'m too beat to keep going... I\'m done for the day!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  } else {
+    if (title) title.textContent = 'SUSPENDED BY DSNY';
+    if (tag) tag.textContent = '3 WRITE-UPS ON ' + d.day + ' - WEEK OVER';
+    Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  }
+  if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
+  setTxt($('finalscore'), pad(weekScore));
+  setTxt($('hiscore2'), pad(hi));
+  ['complete', 'week-complete', 'day-intro', 'day-stats'].forEach(function(id){ $(id).classList.add('hidden'); });
+  $('over').classList.remove('hidden');
+  radioMode(); // NOW PLAYING bar parks back in the top-right corner
+  $('vpad').classList.remove('on'); // hide the touch pad; drop any held touch state
+  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  joyPid = null;
 }
 // ==================== INPUT ====================
 // ---- gamepad (polled every frame; works in parallel with the keyboard) ----
@@ -5932,9 +6096,9 @@ function pollGamepad(){
   } else { gp.start = false; }
   if (gp.act && !gp.pAct){
     if (state === 'play') tryInteract();
-    else startGame();
+    else advanceGame();
   }
-  if (gp.start && !gp.pStart && state !== 'play') startGame();
+  if (gp.start && !gp.pStart && state !== 'play') advanceGame();
   gp.pAct = gp.act;
   gp.pStart = !!gp.start;
 }
@@ -5944,9 +6108,9 @@ window.addEventListener('keydown', e => {
   if (e.repeat) return;
   if (e.code === 'Space' || e.code === 'KeyE'){
     if (state === 'play') tryInteract();
-    else startGame();
+    else advanceGame();   // begin a day / next day / start a fresh week, by state
   }
-  if (e.code === 'Enter' && state !== 'play') startGame();
+  if (e.code === 'Enter' && state !== 'play') advanceGame();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 // ==================== VIRTUAL PAD (MOBILE) ====================
@@ -5994,7 +6158,7 @@ actBtn.addEventListener('pointerdown', e => {
   e.preventDefault();
   vt.act = true;
   if (state === 'play') tryInteract(); // SPACE: pick up the trash / dump it into the truck hopper
-  else startGame();
+  else advanceGame();                 // on a card: begin / next day / start a week
 });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => actBtn.addEventListener(ev, () => { vt.act = false; }));
 [joy, actBtn].forEach(el => el.addEventListener('contextmenu', e => e.preventDefault()));
@@ -6018,9 +6182,12 @@ function updateVirtualPad(){
   actBtn.classList.toggle('pressed', !!(keys['Space'] || keys['KeyE'] || gp.act || vt.act));
 }
 // ==================== END VIRTUAL PAD ====================
-$('btnStart').addEventListener('click', startGame);
-$('btnRestart').addEventListener('click', startGame); // startGame() already resets the world
-$('btnRestart2').addEventListener('click', startGame); // startGame() also hides the route-complete panel
+$('btnStart').addEventListener('click', function(){ advanceGame(); });      // menu card -> begin a fresh week (Monday)
+$('btnRestart').addEventListener('click', function(){ startGame(); });       // game over  -> restart the whole week
+$('btnRestart2').addEventListener('click', function(){ startGame(); });      // legacy route-complete button (unused now)
+$('btnBeginDay').addEventListener('click', function(){ advanceGame(); });    // day-intro card -> start the shift
+$('btnNextDay').addEventListener('click', function(){ advanceGame(); });     // day-end report -> next day / finish the week
+$('btnWeekRestart').addEventListener('click', function(){ startGame(); });   // week complete -> work another week
 // Click outside the logo on the start screen → enter fullscreen (landscape)
 $('menu').addEventListener('click', function(e){
   if (!e.target.closest('.menu-logo-wrap')) enterLandscapeFullscreen();
