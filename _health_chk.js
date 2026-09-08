@@ -81,17 +81,31 @@ const SFX = {
   playHurtSound(){ sfx.push('hurt'); },
   playPowerUpSound(){ sfx.push('power'); },
   playRunItUpSound(){ sfx.push('run'); },
-  playGameOver(){}
+  playGameOver(){},
+  playSadTrombone(){ sfx.push('trombone'); },
+  playComplaintSound(){ sfx.push('complaint'); }
 };
 const voice = [];
 const Voice = { say(t){ voice.push(t); } };
 const WORKER_GENDER = 'male';
 const gameOverCalls = [];
 function gameOver(reason){ gameOverCalls.push(reason); }
+const downTexts = [];
+function showDownText(){ downTexts.push('LODI'); }
+let dying = null;   // the out-of-health down-sequence state (startDyingSequence assigns it)
+let complaints = 0; // supervisor write-ups (addWriteUp closes over this)
+// finishDying() dependencies: worker rig + parts + HUD (the real function runs against these)
+const worker = { group: { quaternion: { identity(){} }, rotation: { set(){} }, position: { set(){} } } };
+const wparts = { legL: { rotation: { set(){} } }, legR: { rotation: { set(){} } }, armL: { rotation: { set(){} } }, armR: { rotation: { set(){} } } };
+function updateHUD(){}
 
 // ---- pull the REAL functions out of index.html (eval at module scope so they stay) ----
 eval(extractFn('heal'));
 eval(extractFn('hurtNPC'));
+eval(extractFn('startDyingSequence'));
+eval(extractFn('addWriteUp'));
+eval(extractFn('finishDying'));
+eval(extractFn('showWriteUpText'));
 eval(extractFn('announcePower'));
 eval(extractFn('makeHalo'));
 eval(extractFn('makeCoffee'));
@@ -113,7 +127,7 @@ const reset = function(){
   health = 100; maxHealth = 100; state = 'play';
   p.invuln = 0; p.immuneT = 0; p.stunT = 0; p.wx = 88; p.wy = 2.5;
   powerups.length = 0; starParticles.length = 0;
-  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0;
+  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0;
 };
 const lastPopup = function(){ return popups.length ? popups[popups.length - 1] : null; };
 
@@ -181,12 +195,38 @@ reset();
 p.immuneT = POWERUP_IMMUNE_DUR;
 hurtNPC(HP_HIT_VEHICLE); check('immune (Monster) -> NO health loss', health === 100);
 
-// ===== 6) running health out ends the shift (reason: health) =====
+// ===== 6) running health out downs the worker: sad-trombone alert + "LODI" callout,
+//          worker locked out (state "dying"), game-over deferred until the anim ends =====
 reset();
 health = 5; p.invuln = 0; p.immuneT = 0;
 hurtNPC(HP_HIT_VEHICLE);
 check('health clamps at 0 (does not go negative)', health === 0);
-check('health hits 0 -> gameOver called with reason "health"', gameOverCalls.length === 1 && gameOverCalls[0] === 'health');
+check('health hits 0 -> worker goes DOWN (state "dying", uncontrollable)', state === 'dying');
+check('down-sequence plays the sad-trombone alert', sfx.indexOf('trombone') >= 0);
+check('down-sequence shows the animated "LODI" callout', downTexts.length >= 1 && downTexts[downTexts.length - 1] === 'LODI');
+check('game-over screen deferred until the down-sequence completes', gameOverCalls.length === 0);
+
+// ===== 6b) the LODI ends in a WRITE-UP (not a direct game over): under 3 the
+//           worker comes to, health restored, shift continues; on the 3rd -> over =====
+reset();
+state = 'dying'; dying = { t: 99 }; health = 0;
+finishDying();
+check('LODI #1 -> one write-up logged', complaints === 1);
+check('LODI #1 -> NO game over (shift continues)', gameOverCalls.length === 0);
+check('LODI #1 -> worker back to full health', health === maxHealth);
+check('LODI #1 -> state back to "play"', state === 'play');
+check('LODI #1 -> recovery i-frames granted', p.invuln > 0);
+check('LODI #1 -> the "WRITTEN UP!" callout showed', popups.some(e => e.className.indexOf('pop-writeup') >= 0 && e.textContent.indexOf('1/3') >= 0));
+
+state = 'dying'; dying = { t: 99 }; health = 0;
+finishDying();
+check('LODI #2 -> two write-ups, still NO game over', complaints === 2 && gameOverCalls.length === 0);
+check('LODI #2 -> the "WRITTEN UP!" callout showed 2/3', popups.some(e => e.className.indexOf('pop-writeup') >= 0 && e.textContent.indexOf('2/3') >= 0));
+
+state = 'dying'; dying = { t: 99 }; health = 0;
+finishDying();
+check('LODI #3 -> THREE write-ups -> GAME OVER (reason "writeup")', complaints === 3 && gameOverCalls.length === 1 && gameOverCalls[gameOverCalls.length - 1] === 'writeup');
+check('write-up SFX rang', sfx.indexOf('complaint') >= 0);
 
 // ===== 7) coffee restores a little health + POWER UP! + "I needed that!" =====
 reset();

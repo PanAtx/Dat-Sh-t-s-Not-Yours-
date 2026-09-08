@@ -183,6 +183,45 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   84% { transform:translateX(-50%) scale(1.06) rotate(0); opacity:1; }
   100% { transform:translateX(-50%) scale(1) rotate(0); opacity:0; }
 }
+/* "LODI" — the worker's out-of-health down-callout: slams in the instant he goes
+   down (sad trombone + dizzy spin + fall onto the sidewalk), holds a few seconds,
+   then fades just before the game-over screen takes over. */
+.pop-down { color:#d9e6ee; text-shadow:5px 5px 0 rgba(0,0,0,.92), 0 0 30px rgba(110,160,200,.85); animation:downFall 2.65s ease-out forwards; }
+@keyframes downFall {
+  0%   { transform:translateX(-50%) scale(.08) rotate(10deg); opacity:0; }
+  15%  { transform:translateX(-50%) scale(1.4) rotate(-4deg); opacity:1; }
+  29%  { transform:translateX(-50%) scale(.95) rotate(2.5deg); }
+  45%  { transform:translateX(-50%) scale(1.08) rotate(-1deg); }
+  62%  { transform:translateX(-50%) scale(1) rotate(0); opacity:1; }
+  88%  { transform:translateX(-50%) scale(1.03) rotate(0); opacity:1; }
+  100% { transform:translateX(-50%) scale(.6); opacity:0; }
+}
+/* "WRITTEN UP!" — the supervisor's red stamp that slams in when the downed
+   worker comes to (one per LODI; the 3rd ends the run). */
+.pop-writeup { color:#ff5c5c; text-shadow:5px 5px 0 rgba(50,0,0,.92), 0 0 30px rgba(255,80,80,.85); animation:writeUpSlam 2.2s cubic-bezier(.34,1.56,.64,1) forwards; }
+@keyframes writeUpSlam {
+  0%   { transform:translateX(-50%) scale(2.6) rotate(-8deg); opacity:0; }
+  14%  { transform:translateX(-50%) scale(1) rotate(2deg); opacity:1; }
+  24%  { transform:translateX(-50%) scale(1.07) rotate(-2deg); }
+  34%  { transform:translateX(-50%) scale(1) rotate(0); }
+  80%  { opacity:1; }
+  100% { transform:translateX(-50%) scale(.8); opacity:0; }
+}
+/* "Zzz" — sleep letters that drift up off the passed-out worker's head (the LODI
+   "he's out cold" tell). DOM text projected to the screen exactly like the speech
+   bubbles; crisper than 3D sprites for letters. */
+.zzz { position:fixed; z-index:55; pointer-events:none; user-select:none; white-space:nowrap;
+  font-family:"Press Start 2P","Courier New",monospace; font-style:italic; letter-spacing:1px;
+  color:#b9c8ff;
+  text-shadow:2px 2px 0 rgba(8,12,34,.9), 0 0 12px rgba(130,160,255,.6);
+  transform:translate(-50%,-50%);
+  animation:zzzFloat 2.3s ease-out forwards; }
+@keyframes zzzFloat {
+  0%   { opacity:0;   transform:translate(-50%,-50%)  scale(.55)  rotate(-10deg); }
+  14%  { opacity:.95; }
+  60%  { opacity:.85; transform:translate(-52%,-140%) scale(1.05) rotate(4deg); }
+  100% { opacity:0;   transform:translate(-55%,-260%) scale(1.35) rotate(12deg); }
+}
 /* ===== Mobile virtual pad: 8-way joystick (bottom-left) + action button (bottom-right) =====
    Large translucent circle = travel radius, small translucent circle = the stick.
    Keyboard / gamepad input is mirrored onto this pad, so it also shows what's pressed on desktop. */
@@ -328,7 +367,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="day-intro" class="modal hidden"><div class="panel">
   <div class="day" id="day-intro-day">MONDAY</div>
   <div class="loc" id="day-intro-loc">MANHATTAN · UPTOWN</div>
-  <div class="obj">CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br>3 WRITE-UPS OR A WORKER DOWN = SUSPENDED</div>
+  <div class="obj">CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED</div>
   <button id="btnBeginDay">START THE SHIFT</button>
 </div></div>
 <div id="day-stats" class="modal hidden"><div class="panel">
@@ -394,13 +433,12 @@ const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
 const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
 const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
-const TEST_KEEP_PLAYING = true; // TEMP (testing): missed garbage stops still give write-ups, but NEVER suspend you. Set false to restore 3-strike game over.
 const GZ = 0.3;
 const ISO_A = 26; // isometric camera arm length
 const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
 
 let state = 'menu', score = 0, bonusTally = 0, complaints = 0;
-let health = 100, maxHealth = 100;   // worker health pool: NPCs drain it; power-ups restore it; 0 -> game over
+let health = 100, maxHealth = 100;   // worker health pool: NPCs drain it; power-ups restore it; 0 -> worker down (write-up); 3 write-ups -> game over
 let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, immuneT: 0, shake: 0, facing: 0 };
 let carry = 'none', carried = null, hopperAnim = 0;
 let hopperLoad = 0, hopperCycling = false, hopperCycleT = 0;
@@ -889,6 +927,11 @@ const SFX = {
   playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
   playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
   playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); },
+  // Sad trombone — the "wah wah wah waaah": three short F4 waa's, then a long one
+  // that bends down. Layered triangle (brass bright) + sine sub (body) + a whisper
+  // of saw (reed bite) for a trombone-ish tone. The out-of-health down alert.
+  playSadTrombone(){     this.ensure(); const F = 349.23; const n = [[0, 0.26, F * 0.995], [0.3, 0.26, F * 0.995], [0.6, 0.26, F * 0.995], [0.9, 1.35, F * 0.72]];
+                         for (let i = 0; i < n.length; i++){ this.tone('triangle', F, n[i][2], n[i][1] + 0.05, 0.42, n[i][0]); this.tone('sine', F / 2, n[i][2] / 2, n[i][1] + 0.05, 0.3, n[i][0]); this.tone('sawtooth', F, n[i][2], n[i][1], 0.04, n[i][0]); } },
   // --- Health / power-up feedback ---
   playHurtSound(){      this.ensure(); this.tone('sawtooth', 200, 70, 0.24, 0.4); this.tone('square', 150, 55, 0.26, 0.34, 0.02); this.noise(0.18, 'lowpass', 320, 0.5); },
   playPowerUpSound(){   this.ensure(); const seq = [523.25, 659.25, 880, 1174.7]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.07); this.tone('sine', seq[i] * 1.5, seq[i] * 1.5, 0.1, 0.16, i * 0.07); } this.tone('sine', 1568, 2093, 0.2, 0.2, seq.length * 0.07); },
@@ -1774,18 +1817,19 @@ function makeBag(type){
   // Each bag rolls a "type" that changes how it looks and how the worker reacts to it.
   type = type || 'normal';
   // Base plastic tone shifts a touch with the contents so special bags read differently.
-  let c1 = 0x23272e, c2 = 0x1b1f24;
-  if (type === 'heavy'){ c1 = 0x1d2127; c2 = 0x14171b; }      // packed solid, darker & denser
+  let c1 = 0x23272e, c2 = 0x1b1f24, glow = null;
+  if (type === 'heavy'){ c1 = 0x14621f; c2 = 0x0e4516; glow = { emissive: 0x082410, emissiveIntensity: 0.4 }; } // DARK GREEN bag — the "haul it to the truck" tell
   else if (type === 'maggot'){ c1 = 0x33351f; c2 = 0x262814; } // sickly green-black, slimy
   else if (type === 'piss'){ c1 = 0x2b2b1f; c2 = 0x22221a; }   // dull, stained
   const g = new THREE.Group();
-  const m = M(c1), m2 = M(c2);
+  const m = M(c1, glow), m2 = M(c2, glow);
   const body = SP(0.4, m); body.scale.set(1.05, 0.9, 1.15); body.position.z = 0.4; g.add(body);
   const lump = SP(0.26, m2); lump.position.set(0.15, -0.12, 0.58); g.add(lump);
   const neck = CY(0.14, 0.2, 0.22, m); neck.position.z = 0.98; g.add(neck);
   const knot = SP(0.13, m2, 6); knot.position.z = 1.12; g.add(knot);
 
-  // Heavy bags are visibly fuller / bigger — the worker can tell just by looking.
+  // Heavy bags are the GREEN ones — colored so the player reads them at a glance:
+  // this is the one that has to be hauled to the truck. Size stays the usual full bag.
   if (type === 'heavy'){ g.scale.setScalar(1.28); }
 
   // Extra grime / hazards, only on the special bags.
@@ -3288,8 +3332,8 @@ function addCreature(type){
 }
 // ==================== WORLD SPAWNING & BLOCK RECYCLING ====================
 // Roll which kind of garbage this bag is. Most are ordinary; a handful of
-// special contents make the worker react, and only the HEAVY ones must be
-// hauled right up to the rear scoop to dump.
+// special contents make the worker react, and the HEAVY ones — the GREEN
+// bags — must be hauled right up to the rear scoop to dump.
 function rollBagType(){
   const r = Math.random();
   if (r < 0.55) return 'normal';   // the common case — nothing to comment on
@@ -3449,11 +3493,8 @@ function spawnWorld(){
 }
 function recycleBlock(b){
   const h = b.house;
-  if (h && !h.serviced){
-    const inFlight = h.bags.some(x => x.state === 'carried') || (h.can && (h.can.state === 'carried' || h.can.state === 'carriedEmpty'));
-    if (inFlight){ h.pending = 1; pendingHouses.push(h); }
-    else addWriteUp();
-  }
+  // Missed stops no longer write the worker up — going down (LODI) is the only
+  // write-up (see finishDying). Unserviced garbage just recycles off-screen.
   if (h){
     for (let i = 0; i < h.bags.length; i++){
       const bag = h.bags[i];
@@ -3466,28 +3507,16 @@ function recycleBlock(b){
   }
 }
 function updateBlocks(dt){
-  // Fixed route (no recycling). Instead, when the worker moves FORWARD past a
-  // garbage house that was never serviced, it counts as a missed stop (write-up).
+  // Fixed route (no recycling). Once the worker moves FORWARD past a garbage
+  // house, mark it "passed" (its full 8u width, so the curb bags/cans that sit
+  // up to ~6.6u in are all behind him). Missed stops no longer write him up —
+  // going down (LODI) is the only write-up (see finishDying).
   for (let i = 0; i < blocks.length; i++){
     const b = blocks[i];
     if (b.passed) continue;
-    // A "missed stop" once the worker has clearly walked PAST this house (its full 8u
-    // width, so the curb bags/cans that sit up to ~6.6u in are all behind them).
     if (b.garbage && b.house && p.wx > b.worldX + BW){
       b.passed = true;
-      if (!b.house.serviced){
-        const h = b.house;
-        const inFlight = h.bags.some(x => x.state === 'carried') || (h.can && (h.can.state === 'carried' || h.can.state === 'carriedEmpty'));
-        if (inFlight){ h.pending = 1; pendingHouses.push(h); }
-        else addWriteUp();
-      }
     }
-  }
-  for (let i = pendingHouses.length - 1; i >= 0; i--){
-    const h = pendingHouses[i];
-    if (h.serviced){ pendingHouses.splice(i, 1); continue; }
-    h.pending--;
-    if (h.pending <= 0){ pendingHouses.splice(i, 1); addWriteUp(); }
   }
 }
 // ==================== CLEAN UP LANDED CANS (OFF-SCREEN RECYCLING) ====================
@@ -3537,6 +3566,9 @@ function resetWorldState(){
   const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
   $('route').textContent = _d.day + ' \u00b7 ' + _d.borough + ' / ' + _d.area;
   worker.group.rotation.set(0, 0, 0);
+  wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
+  wparts.armL.rotation.set(0, 0, 0); wparts.armR.rotation.set(0, 0, 0);
+  dying = null;   // any out-of-health down sequence is over — the worker stands back up
   worker.group.position.set(p.wx, p.wy, GZ);
   if (worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]); // new shift = new random worker
 }
@@ -3853,15 +3885,17 @@ function checkHouse(h){
     }
   }
 }
+// A supervisor WRITE-UP. Only the worker going down (LODI) gets him written —
+// missed cans / bags / baskets no longer count. Lights up one more HUD pip and
+// flashes; the 3rd write-up suspends the worker (the game-over screen).
 function addWriteUp(){
-  if (state !== 'play') return;
+  if (state !== 'play' && state !== 'dying') return complaints;
   complaints++;
   SFX.playComplaintSound();
-  Voice.say('I\'m calling your supervisor!', 3, 1.0, p.wx, p.wy, WORKER_GENDER);
   const f = $('flash');
   f.style.opacity = 1;
   setTimeout(() => { f.style.opacity = 0; }, 500);
-  if (complaints >= 3 && !TEST_KEEP_PLAYING) gameOver();
+  return complaints;
 }
 function nearHopper(){
   if (!truck || truck.hidden > 0) return false;
@@ -3902,7 +3936,7 @@ function attachCarried(item){
 // Ordinary bags get no comment at all.
 function speakBagType(bag){
   const line = {
-    heavy:  'This bag is heavy!',
+    heavy:  'That green bag is heavy — haul it to the truck!',
     maggot: 'Maggots!!!',
     piss:   'Dog piss! Shake it before you take it!',
     glass:  'OW! Broken glass!',
@@ -4115,7 +4149,139 @@ function hurtNPC(amount){
   const bar = $('hpbar'); if (bar){ bar.classList.add('hurt'); setTimeout(function(){ bar.classList.remove('hurt'); }, 320); }
   SFX.playHurtSound();
   Voice.say('Ow! That one hurt!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
-  if (health <= 0) gameOver('health');
+  if (health <= 0) startDyingSequence();   // out of health: play the down sequence, THEN the write-up (game over on the 3rd)
+}
+// ==================== OUT-OF-HEALTH DOWN SEQUENCE (the "LODI" moment) ====================
+// When the worker's health hits 0 he is DOWN: uncontrollable until the sequence
+// finishes. A short sad-trombone jingle alerts the player, the worker does a slow
+// dizzy spin and falls on his BACK onto the sidewalk with his arms spread out wide —
+// like he passed out — a big animated "LODI" callout pops up for a few seconds, and
+// only then does the supervisor log a WRITE-UP (finishDying). Under 3 write-ups he
+// comes to and the shift continues; on the 3rd the game-over screen takes over and
+// the run restarts from the beginning.
+const DYING_SPIN  = 1.4;    // seconds of a slow dizzy spin (two turns) before the topple
+const DYING_FALL  = 0.55;   // seconds to fall face-up onto the sidewalk, arms flung wide
+const DYING_TOTAL = 4.0;    // hold the fainted pose + "LODI" before the game-over screen
+let dying = null;           // { t, wy0, wyEnd, qStart } — the active down-sequence state
+// The fainted pose as a quaternion: face (+X) to the sky, head (+Z) toward the
+// sidewalk (+Y), sides (arms) flat along the street (±X) — on his BACK, like he
+// passed out. Matrix columns are the target images of the body axes. Slerping the
+// body to it lands EXACTLY face-up no matter which way he was facing (verified
+// against the real r128 build in _lodi_pose_chk.js — the Euler math for this pose
+// is nasty, so the quaternion is the trustworthy path).
+const DYING_Q_POSE = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().set(
+  0, 1, 0, 0,
+  0, 0, 1, 0,
+  1, 0, 0, 0,
+  0, 0, 0, 1
+));
+const DYING_Q = new THREE.Quaternion();            // scratch quaternion for the fall
+const DYING_Q_WOBBLE = new THREE.Quaternion();     // scratch for the fainted wobble
+const DYING_AXIS_X = new THREE.Vector3(1, 0, 0);   // wobble rocks around the street axis
+function startDyingSequence(){
+  if (state !== 'play') return;
+  state = 'dying';                          // worker is OFF LIMITS: no input, no damage, no pickups
+  dying = { t: 0, wy0: p.wy, wyEnd: Math.max(p.wy, 1.1),         // the fall lands on the sidewalk (+Y side)
+            qStart: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, (p.facing || 0) + Math.PI * 4)),
+            zzzT: 0.95 };                                         // "Zzz" timer — the first one lands right as he hits the walk
+  if (carried) dropCarried();               // he's down: drops whatever he was hauling
+  SFX.playSadTrombone();                    // the short sad-trombone down alert
+  showDownText();                           // the big animated "LODI" callout (a few seconds)
+}
+function updateDying(dt){
+  dying.t += dt;
+  const t = dying.t;
+  // The street keeps living around the downed worker: traffic, NPCs and particles
+  // all tick, but the worker himself can't be controlled (and takes no more damage).
+  updateTruck(dt);
+  updateCreatures(dt);
+  updateBonuses(dt);
+  updatePowerups(dt);
+  updateFlyingCans(dt);
+  updateFlyingBags(dt);
+  updateFlyingBaskets(dt);
+  updateDustParticles(dt);
+  updateStarParticles(dt);
+  updateBlocks(dt);
+  cleanupLandedCans();
+  updateFootprints(dt);
+  updateHUD();
+  const g = worker.group;
+  const fallEnd = DYING_SPIN + DYING_FALL;
+  if (t < DYING_SPIN){
+    // Phase 1: slow dizzy spin in place (two full rotations, easing out) with a flail
+    const spinK = t / DYING_SPIN;
+    const e = 1 - Math.pow(1 - spinK, 3);
+    g.rotation.z = p.facing + e * Math.PI * 4;
+    g.rotation.x = Math.sin(t * 22) * 0.12 * (1 - spinK);
+    const fl = Math.sin(t * 15) * 0.55 * (1 - spinK * 0.7);
+    wparts.armL.rotation.set(0, fl, 0);             wparts.armR.rotation.set(0, -fl, 0);
+    wparts.legL.rotation.set(0, fl * 0.6, 0);       wparts.legR.rotation.set(0, -fl * 0.6, 0);
+    g.position.set(p.wx, dying.wy0, GZ + Math.abs(Math.sin(t * 22)) * 0.05 * (1 - spinK));
+  } else {
+    // Phase 2: topple onto the sidewalk ON HIS BACK — face to the sky, head toward
+    // the sidewalk — arms spread out wide, like he passed out. We slerp the whole
+    // body from the spin-end pose to the exact fainted pose (DYING_Q_POSE), so the
+    // landing is precise no matter which way he was facing. Then hold the pose
+    // with a slow dizzy wobble (a tiny rock around the street axis).
+    const fallK = Math.min(1, (t - DYING_SPIN) / DYING_FALL);
+    const e = 1 - Math.pow(1 - fallK, 2);
+    DYING_Q.copy(dying.qStart).slerp(DYING_Q_POSE, e);
+    if (fallK >= 1){
+      DYING_Q.premultiply(DYING_Q_WOBBLE.setFromAxisAngle(DYING_AXIS_X, Math.sin((t - fallEnd) * 2.2) * 0.05));
+    }
+    g.quaternion.copy(DYING_Q);
+    const out = e * (Math.PI / 2 - 0.22);   // arms spread wide to the sides, with a little droop
+    wparts.armL.rotation.set(out, 0, 0);
+    wparts.armR.rotation.set(-out, 0, 0);
+    wparts.legL.rotation.set(e * 0.3, 0, 0);   // legs splayed a touch, fainted starfish
+    wparts.legR.rotation.set(-e * 0.3, 0, 0);
+    // slide toward the sidewalk so the fall lands on the walk, not the street
+    const slide = Math.min(1, t / fallEnd);
+    p.wy = dying.wy0 + (dying.wyEnd - dying.wy0) * slide;
+    g.position.set(p.wx, p.wy, GZ + 0.3 * e);  // lift as he lies down so nothing clips the curb
+    // he's out cold: "Zzz" letters drift up off his head — the passed-out tell
+    dying.zzzT += dt;
+    if (fallK >= 1 && dying.zzzT >= 0.85){ dying.zzzT = 0; spawnZZZ(p.wx, p.wy + 1.5, GZ + 0.9); }
+  }
+  // he's down for real — no i-frame flicker: force every part visible
+  worker.group.traverse(o => { if (o.isMesh) o.visible = true; });
+  // hold the downed beat (LODI on screen, trombone ringing out, Zzz drifting up),
+  // then hand off: write-up #N — resume the shift, or the game-over screen on #3.
+  if (t >= DYING_TOTAL) finishDying();
+}
+// The LODI beat is over: the supervisor logs a WRITE-UP for the downed worker.
+// Under THREE write-ups he comes to on the sidewalk — health fully restored, a few
+// seconds of i-frames so the street can't drop him again mid-stagger — and the
+// shift continues; on the 3rd the suspension sticks and the game-over screen
+// takes over (restart from the beginning).
+function finishDying(){
+  dying = null;
+  const n = addWriteUp();
+  if (n >= 3) return gameOver('writeup');
+  health = maxHealth;
+  p.stunT = 0; p.shake = 0; p.invuln = 3;
+  const g = worker.group;
+  g.quaternion.identity();
+  g.rotation.set(0, 0, 0);
+  g.position.set(p.wx, p.wy, GZ);
+  wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
+  wparts.armL.rotation.set(0, 0, 0); wparts.armR.rotation.set(0, 0, 0);
+  showWriteUpText(n);
+  Voice.say(n === 1 ? 'Ugh... that write-up is on my record now.' : 'TWO write-ups?! That means business!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  state = 'play';
+  updateHUD();
+}
+// The red "WRITTEN UP!" stamp callout — reuses the .popup base CSS the way the
+// "LODI" / "POWER UP!" callouts do (big centered text, animated, auto-removed).
+function showWriteUpText(n){
+  if (typeof document === 'undefined') return;   // not in the browser (test harness)
+  document.querySelectorAll('.popup').forEach(function(elm){ elm.remove(); });
+  const el = document.createElement('div');
+  el.className = 'popup pop-writeup';
+  el.textContent = 'WRITTEN UP! ' + n + '/3';
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 2300);
 }
 // Big animated "Power Up!" / "Run It Up!" callout — reuses the .popup base CSS class
 // (the same mechanism showPopup uses for MONGO!/STREET CASH!) with dedicated
@@ -4129,6 +4295,31 @@ function announcePower(text, cls){
   el.style.top = '34%';
   document.body.appendChild(el);
   setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1150);
+}
+// The big animated "LODI" down-callout: slams in the instant the worker runs out
+// of health and holds for a few seconds, fading just before the game-over screen.
+function showDownText(){
+  document.querySelectorAll('.popup').forEach(function(n){ n.remove(); });   // never let two stack
+  const el = document.createElement('div');
+  el.className = 'popup pop-down';
+  el.textContent = 'LODI';
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 2750);
+}
+// "Zzz" sleep letters that drift up off the passed-out worker's head — spawned
+// while he lies there, each one projected to screen like the speech bubbles.
+function spawnZZZ(wx, wy, wz){
+  if (typeof document === 'undefined' || typeof worldToScreen !== 'function') return;   // not in the browser
+  const s = worldToScreen(wx, wy, wz);
+  if (!s) return;
+  const el = document.createElement('span');
+  el.className = 'zzz';
+  el.textContent = 'Zzz';
+  el.style.left = (s.x + (Math.random() * 18 - 9)) + 'px';
+  el.style.top = s.y + 'px';
+  el.style.fontSize = (13 + Math.random() * 9).toFixed(0) + 'px';
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 2400);
 }
 // ---- 3D power-up item builders (stand UPRIGHT, base at local z=0, sit ON the sidewalk) ----
 // NOTE: the ground is the X-Y plane at Z=GZ (Z = "up"). CY() is a CylinderGeometry
@@ -5926,7 +6117,7 @@ function updateHUD(){
   setTxt($('score'), pad(score));
   setTxt($('bonus'), pad(bonusTally));
   const carryTxt = carry === 'none' ? 'HANDS FREE' :
-    carry === 'bag' ? 'CARRYING ' + (carried && carried.type === 'heavy' ? 'HEAVY BAG' : 'GARBAGE BAG') :
+    carry === 'bag' ? 'CARRYING ' + (carried && carried.type === 'heavy' ? 'GREEN BAG — TRUCK ONLY!' : 'GARBAGE BAG') :
     carry === 'canFull' ? 'CARRYING METAL CAN' :
     carry === 'litterBasket' ? 'CARRYING LITTER BASKET' : 'HANDS FREE';
   setTxt($('carry'), carryTxt);
@@ -6054,6 +6245,7 @@ function startGame(){
 }
 function advanceGame(){
   // One "start / next" action (Space / Enter / gamepad / touch), routed by game state.
+  if (state === 'dying') return;                // the down sequence is playing out — let it finish
   if (state === 'play') return;                 // never restart mid-shift
   if (state === 'intro') return beginDay();
   if (state === 'dayend') return (level < MAX_LEVEL) ? nextDay() : showWeekComplete();
@@ -6061,18 +6253,12 @@ function advanceGame(){
 }
 function gameOver(reason){
   state = 'over';
-  SFX.playGameOver();
+  if (reason === 'writeup') SFX.playGameOver();   // the sad-trombone down jingle already rang at the LODI
   const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
   const title = $('over-title'), tag = $('over-tag');
-  if (reason === 'health'){
-    if (title) title.textContent = 'WORKER DOWNED';
-    if (tag) tag.textContent = 'OUT OF HEALTH - SUSPENDED ON ' + d.day;
-    Voice.say('I\'m too beat to keep going... I\'m done for the day!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
-  } else {
-    if (title) title.textContent = 'SUSPENDED BY DSNY';
-    if (tag) tag.textContent = '3 WRITE-UPS ON ' + d.day + ' - WEEK OVER';
-    Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
-  }
+  if (title) title.textContent = 'SUSPENDED BY DSNY';
+  if (tag) tag.textContent = '3 WRITE-UPS - ' + d.day + ' - GAME OVER';
+  Voice.say('Three write-ups... I\'m done for good. Back to the top of the route!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
   if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('finalscore'), pad(weekScore));
   setTxt($('hiscore2'), pad(hi));
@@ -6118,6 +6304,18 @@ window.addEventListener('keydown', e => {
     if (state === 'play') tryInteract();
     else advanceGame();   // begin a day / next day / start a fresh week, by state
   }
+  // TEST MODE: T = the worker loses ALL health -> triggers the "LODI" down sequence
+  // (sad trombone, dizzy spin, fall onto the sidewalk, game over). Play state only —
+  // the startDyingSequence guard + dying state make repeat presses harmless.
+  if (e.code === 'KeyT' && state === 'play'){
+    health = 0;
+    updateHUD();
+    startDyingSequence();
+  }
+  // TEST MODE: L = the level is complete right now -> the route-complete flow
+  // (hopper jingle, day-end report, then next day / week complete). Play state
+  // only — once the dayend screen is up, further L presses are ignored.
+  if (e.code === 'KeyL' && state === 'play') routeComplete();
   if (e.code === 'Enter' && state !== 'play') advanceGame();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -6268,8 +6466,9 @@ function loop(now){
   updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
   pollGamepad();     // cheap input poll: on the menu, gamepad START / ACT still begins the shift
   updateVirtualPad();// keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)
-  if (state !== 'play'){
+  if (state !== 'play' && state !== 'dying'){
     // IDLE on the menu / game-over: render ONE static backdrop frame, then do no work.
+    // ('dying' is active: the down sequence still animates + renders every frame.)
     if (needsIdleRender){ needsIdleRender = false; positionCamera(); renderer.render(scene, camera); }
     return;
   }
@@ -6292,6 +6491,8 @@ function loop(now){
     collideLandedCans();
     collideCreatures();
     updateHUD();
+  } else {
+    updateDying(dt);   // 'dying': play out the worker's down sequence (spin -> fall -> LODI hold)
   }
   positionCamera();
   renderer.render(scene, camera);

@@ -74,7 +74,7 @@ check('rollBagType -> only valid types, rarest-to-commonest ordering holds', ()=
 });
 
 // ---- 2) speakBagType: the exact worker line per type; normal is silent ------------
-check('speakBagType heavy -> "This bag is heavy!"', ()=>{ calls.voices.length=0; api.speakBagType({type:'heavy'}); assert.deepStrictEqual(calls.voices, ['This bag is heavy!']); });
+check('speakBagType heavy -> green-bag / haul-to-truck line', ()=>{ calls.voices.length=0; api.speakBagType({type:'heavy'}); assert.deepStrictEqual(calls.voices, ['That green bag is heavy — haul it to the truck!']); });
 check('speakBagType maggot -> "Maggots!!!"', ()=>{ calls.voices.length=0; api.speakBagType({type:'maggot'}); assert.deepStrictEqual(calls.voices, ['Maggots!!!']); });
 check('speakBagType piss -> dog-piss line', ()=>{ calls.voices.length=0; api.speakBagType({type:'piss'}); assert.deepStrictEqual(calls.voices, ['Dog piss! Shake it before you take it!']); });
 check('speakBagType glass -> "OW! Broken glass!"', ()=>{ calls.voices.length=0; api.speakBagType({type:'glass'}); assert.deepStrictEqual(calls.voices, ['OW! Broken glass!']); });
