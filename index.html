@@ -24,6 +24,36 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .hudbox { text-shadow:0 0 8px rgba(46,224,144,.55), 2px 2px 0 rgba(0,0,0,.85); }
 #tl { position:absolute; top:16px; left:20px; font-size:20px; letter-spacing:2px; }
 #tl .sub { font-size:14px; color:#9fe8b8; margin-top:4px; }
+/* Health bar: sits in the top-left, ABOVE the score. Green fill drains to
+   amber/red as the worker takes damage; flashes on each hit. */
+.hp { margin-bottom:7px; }
+.hp .lbl { font-size:12px; letter-spacing:2px; color:#9fe8b8; margin-bottom:3px; }
+.hpbar { width:150px; height:12px; border:2px solid rgba(46,224,144,.7);
+  background:rgba(4,18,10,.7); box-shadow:inset 0 0 8px rgba(0,0,0,.7); overflow:hidden; }
+.hpfill { height:100%; width:100%; background:linear-gradient(90deg,#1f8f4c,#39f78e);
+  box-shadow:0 0 10px rgba(60,255,138,.75); transition:width .18s ease-out; }
+.hpbar.low .hpfill { background:linear-gradient(90deg,#a3322a,#ff5b4d); box-shadow:0 0 10px rgba(255,80,60,.8); }
+.hpbar.mid .hpfill { background:linear-gradient(90deg,#9a7a1f,#ffd23a); box-shadow:0 0 10px rgba(255,210,60,.8); }
+.hpbar.hurt { border-color:#ff5b4d; box-shadow:0 0 14px rgba(255,80,60,.85); }
+/* Animated "Power Up!" / "Run It Up!" callouts — reuse the .popup base layout. */
+.popup.pop-power     { color:#54ff88; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 24px rgba(60,255,120,.9); animation:powerUp 1.05s cubic-bezier(.2,1.5,.4,1) forwards; }
+.popup.pop-power-run { color:#4ec3ff; text-shadow:4px 4px 0 rgba(0,0,0,.85), 0 0 26px rgba(78,195,255,.95); animation:runItUp 1.05s cubic-bezier(.2,1.5,.4,1) forwards; }
+@keyframes powerUp {
+  0% { transform:translateX(-50%) scale(.2) rotate(-8deg); opacity:0; }
+  25% { transform:translateX(-50%) scale(1.35) rotate(4deg); opacity:1; }
+  45% { transform:translateX(-50%) scale(.94); }
+  70% { transform:translateX(-50%) scale(1.12); }
+  85% { transform:translateX(-50%) scale(1); opacity:1; }
+  100% { transform:translateX(-50%) scale(1.06) translateY(-14px); opacity:0; }
+}
+@keyframes runItUp {
+  0% { transform:translateX(-50%) scale(.2) skewX(0); opacity:0; }
+  22% { transform:translateX(-50%) scale(1.4) skewX(-14deg); opacity:1; }
+  44% { transform:translateX(-50%) scale(.95) skewX(10deg); }
+  66% { transform:translateX(-50%) scale(1.15) skewX(-4deg); }
+  85% { transform:translateX(-50%) scale(1) skewX(0); opacity:1; }
+  100% { transform:translateX(-50%) scale(1.1) translateY(-16px); opacity:0; }
+}
 #route { position:absolute; bottom:4px; left:50%; transform:translateX(-50%);
   border:2px solid rgba(46,224,144,.7); background:rgba(4,18,10,.66); padding:6px 22px;
   font-size:16px; letter-spacing:3px; color:#bfe9ff; white-space:nowrap; }
@@ -228,7 +258,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="vignette"></div>
 <div id="flash"></div>
 <div id="hud">
-  <div id="tl" class="hudbox"><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
+  <div id="tl" class="hudbox"><div class="hp"><div class="lbl">WORKER HEALTH</div><div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div></div><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div id="carry" class="hudbox">HANDS FREE</div>
@@ -270,8 +300,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   </div>
 </div></div>
 <div id="over" class="modal hidden"><div class="panel">
-  <h2>SUSPENDED BY DSNY</h2>
-  <div class="tag">3 WRITE-UPS - SHIFT TERMINATED</div>
+  <h2 id="over-title">SUSPENDED BY DSNY</h2>
+  <div class="tag" id="over-tag">3 WRITE-UPS - SHIFT TERMINATED</div>
   <div class="score">FINAL SCORE $<span id="finalscore">000000</span></div>
   <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
   <button id="btnRestart">RESTART SHIFT</button>
@@ -337,7 +367,8 @@ const ISO_A = 26; // isometric camera arm length
 const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
 
 let state = 'menu', score = 0, bonusTally = 0, complaints = 0;
-let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, shake: 0, facing: 0 };
+let health = 100, maxHealth = 100;   // worker health pool: NPCs drain it; power-ups restore it; 0 -> game over
+let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, immuneT: 0, shake: 0, facing: 0 };
 let carry = 'none', carried = null, hopperAnim = 0;
 let hopperLoad = 0, hopperCycling = false, hopperCycleT = 0;
 let hopperTrash = null, hopperLumps = [];
@@ -402,6 +433,7 @@ function showPopup(kind, val, name){
   setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1350);
 }
 let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
+let powerups = [], starParticles = [];   // health/immunity pickups + the "Run It Up!" star burst
 let flyingCans = [], dustParticles = [], landedCans = [], flyingBags = [], flyingBaskets = [];
 let worker = null, wparts = null, truck = null;
 let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
@@ -775,6 +807,10 @@ const SFX = {
   playShooSound(){      this.ensure(); this.tone('triangle', 500, 900, 0.1, 0.25); },
   playHopperJingle(){   this.ensure(); const seq = [523.25, 659.25, 783.99, 1046.5]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.09); this.tone('sine', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.09); } this.tone('sine', 140, 55, 0.34, 0.7, 0.0); this.noise(0.3, 'lowpass', 320, 0.5, 0.0); this.tone('square', 1568, 1568, 0.18, 0.22, seq.length * 0.09); },
   playGameOver(){       this.ensure(); const seq = [440, 330, 220, 110]; for (let i = 0; i < seq.length; i++) this.tone('square', seq[i], seq[i] * 0.96, 0.3, 0.3, i * 0.22); },
+  // --- Health / power-up feedback ---
+  playHurtSound(){      this.ensure(); this.tone('sawtooth', 200, 70, 0.24, 0.4); this.tone('square', 150, 55, 0.26, 0.34, 0.02); this.noise(0.18, 'lowpass', 320, 0.5); },
+  playPowerUpSound(){   this.ensure(); const seq = [523.25, 659.25, 880, 1174.7]; for (let i = 0; i < seq.length; i++){ this.tone('triangle', seq[i], seq[i], 0.14, 0.4, i * 0.07); this.tone('sine', seq[i] * 1.5, seq[i] * 1.5, 0.1, 0.16, i * 0.07); } this.tone('sine', 1568, 2093, 0.2, 0.2, seq.length * 0.07); },
+  playRunItUpSound(){   this.ensure(); const seq = [392, 523.25, 659.25, 783.99, 1046.5, 1318.5]; for (let i = 0; i < seq.length; i++){ this.tone('square', seq[i], seq[i] * 1.02, 0.12, 0.34, i * 0.05); this.tone('sawtooth', seq[i] * 2, seq[i] * 2, 0.1, 0.14, i * 0.05); } this.noise(0.4, 'highpass', 3000, 0.25, 0.0); this.tone('sine', 1568, 2093, 0.35, 0.24, seq.length * 0.05); },
   // --- RADIO STATION: scan music/ for .mp3 files, then play them one after another
   //     in random order (shuffled bag — every song airs exactly once before any song
   //     repeats; the bag reshuffles only when fully consumed), with a ~2 second pause between
@@ -3322,6 +3358,9 @@ function spawnWorld(){
       c.g.position.set(c.wx, c.wy, GZ);
     }
   }
+  // Health / immunity pickups for this shift. Count scales with the level (route),
+  // so the first route is sparse and later routes are more generous.
+  spawnPowerups(routeIdx);
 }
 function recycleBlock(b){
   const h = b.house;
@@ -3393,11 +3432,13 @@ function resetWorldState(){
   if (carried) disposeObj(carried.g);
   carried = null; carry = 'none';
   score = 0; bonusTally = 0; complaints = 0;
-  p.wx = PLAYER_START_X; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.phase = 0; p.shake = 0; p.facing = 0;
+  health = maxHealth;
+  p.wx = PLAYER_START_X; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.immuneT = 0; p.phase = 0; p.shake = 0; p.facing = 0;
   routeIdx = 0; routeDist = 0; hopperAnim = 0;
   hopperLoad = 0; hopperCycling = false; hopperCycleT = 0;
   clearHopperTrash();
   pendingHouses.length = 0; bonuses.length = 0;
+  powerups.length = 0; starParticles.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0; flyingBags.length = 0;
   resetLitterBaskets();   // restore all litter baskets to their corner homes
   footprints.length = 0; footDist = 0; p.poopSteps = 0;
@@ -3952,6 +3993,262 @@ function updateBonuses(dt){
     }
   }
 }
+// ==================== HEALTH & POWER-UP SYSTEM ====================
+// The worker has a finite health pool. NPCs (vehicles / hard hazards) drain it;
+// coffee & a Bacon/Egg/Cheese sandwich restore it; a Monster can grants a few
+// seconds of immunity (rapid blink + a burst of colorful stars). Running the
+// health out ends the shift. Spawn counts scale with the current "level"
+// (routeIdx): level 1 is sparse, later routes spawn more of every item.
+const POWERUP_HEAL_COFFEE = 25;    // coffee restores a little health
+const POWERUP_HEAL_BEC = 40;       // the full sandwich restores more
+const POWERUP_IMMUNE_DUR = 12;     // Monster: seconds of full immunity (a long, satisfying rush)
+const HP_HIT_VEHICLE = 8;          // a vehicle run-over hurts (kept light so it feels fair)
+const HP_HIT_HAZARD = 5;           // a hard static hazard (e.g. hydrant) nicks you a little
+function heal(amount){ health = Math.min(maxHealth, health + (amount || 0)); }
+function hurtNPC(amount){
+  if (state !== 'play') return;
+  if (p.invuln > 0 || p.immuneT > 0) return;   // i-frames / Monster immunity absorb the hit
+  health = Math.max(0, health - (amount || 0));
+  const f = $('flash'); if (f){ f.style.opacity = 1; setTimeout(function(){ f.style.opacity = 0; }, 350); }
+  const bar = $('hpbar'); if (bar){ bar.classList.add('hurt'); setTimeout(function(){ bar.classList.remove('hurt'); }, 320); }
+  SFX.playHurtSound();
+  Voice.say('Ow! That one hurt!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  if (health <= 0) gameOver('health');
+}
+// Big animated "Power Up!" / "Run It Up!" callout — reuses the .popup base CSS class
+// (the same mechanism showPopup uses for MONGO!/STREET CASH!) with dedicated
+// power-up animation classes pop-power / pop-power-run.
+function announcePower(text, cls){
+  document.querySelectorAll('.popup').forEach(function(n){ n.remove(); });   // never let two stack
+  const el = document.createElement('div');
+  el.className = 'popup ' + cls;
+  el.textContent = text;
+  el.style.left = '50%';
+  el.style.top = '34%';
+  document.body.appendChild(el);
+  setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 1150);
+}
+// ---- 3D power-up item builders (stand UPRIGHT, base at local z=0, sit ON the sidewalk) ----
+// NOTE: the ground is the X-Y plane at Z=GZ (Z = "up"). CY() is a CylinderGeometry
+// whose axis runs along Y, so every part that must stand vertical gets rotation.x = PI/2.
+// A soft GREEN ground-halo that sits AROUND a pickup. RingGeometry is already in the XY
+// (ground) plane, and additive blending makes it read as a glow of light — the pickup
+// model itself keeps its normal colors (this is NOT a green tint on the cup/sandwich).
+function makeHalo(color){
+  const geo = new THREE.RingGeometry(0.28, 0.52, 48);
+  const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.6, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+  const ring = new THREE.Mesh(geo, mat);
+  ring.position.z = 0.02;   // just above the sidewalk, flat on the ground
+  ring.userData.halo = true;
+  return ring;
+}
+function makeCoffee(){
+  // An upright takeaway coffee cup: cream paper body, a brown sleeve, an open top
+  // showing the dark coffee. NO lid, NO straw. Base sits at local z=0.
+  const g = new THREE.Group();
+  const paper = M(0xf2efe6), band = M(0x8a5a2a), bandD = M(0x6f471f), coffee = M(0x3a2415);
+  const vert = (r1, r2, h, mat, z) => { const c = CY(r1, r2, h, mat, 16); c.rotation.x = Math.PI / 2; c.position.z = z; g.add(c); return c; };
+  vert(0.14, 0.17, 0.46, paper, 0.23);                 // paper cup (base z=0 -> top z=0.46)
+  vert(0.155, 0.185, 0.22, band, 0.2);                 // brown sleeve wrapped around the middle
+  vert(0.185, 0.185, 0.02, bandD, 0.31);               // sleeve top edge
+  vert(0.185, 0.185, 0.02, bandD, 0.09);               // sleeve bottom edge
+  vert(0.175, 0.175, 0.02, coffee, 0.455);             // dark coffee surface in the open top
+  g.add(makeHalo(0x2bff72));                            // soft green halo ring AROUND the cup (not a green tint)
+  g.scale.setScalar(1.4);                               // bigger so it reads at a distance
+  return g;
+}
+function makeBEC(){
+  // A flat Bacon-Egg-Cheese sandwich sitting on the sidewalk: round toasted buns
+  // (flat discs), crossed bacon, a draping cheese square and a fried egg. Base z=0.
+  const g = new THREE.Group();
+  const bun = M(0xd9a94f), bunT = M(0xe6b866), egg = M(0xf6f2df), yolk = M(0xf0c33a),
+        cheese = M(0xf2c14e), bacon = M(0x9c3b2a), baconD = M(0x6f2418);
+  const disc = (r, h, mat, z) => { const c = CY(r, r, h, mat, 18); c.rotation.x = Math.PI / 2; c.position.z = z; g.add(c); return c; };
+  disc(0.30, 0.09, bun, 0.045);                        // bottom bun (base z=0)
+  const b1 = BX(0.52, 0.1, 0.02, bacon); b1.position.set(-0.02, 0.03, 0.11); b1.rotation.z = 0.5; g.add(b1);     // bacon strip
+  const b2 = BX(0.52, 0.1, 0.02, baconD); b2.position.set(0.03, -0.02, 0.12); b2.rotation.z = -0.45; g.add(b2); // bacon strip
+  const ch = BX(0.5, 0.5, 0.02, cheese); ch.position.z = 0.14; ch.rotation.z = 0.32; g.add(ch);                  // draping cheese square
+  disc(0.26, 0.05, egg, 0.175);                        // egg white
+  const yk = disc(0.09, 0.06, yolk, 0.19); yk.position.set(0.03, -0.02, 0.19);                                  // yolk (off-center)
+  disc(0.31, 0.13, bunT, 0.275);                       // top bun
+  g.add(makeHalo(0x2bff72));                            // soft green halo ring AROUND the sandwich (not a green tint)
+  g.scale.setScalar(1.4);                              // bigger so it reads at a distance
+  return g;
+}
+function makeMonster(){
+  // A tall "Monster" energy can standing upright: dark body, green bands, a lid. Base z=0.
+  const g = new THREE.Group();
+  const body = MS(0x1b1b1f), green = M(0x18a04a), greenL = M(0x41d871), cap = M(0x2a2a2e);
+  const vert = (r, h, mat, z) => { const c = CY(r, r, h, mat, 18); c.rotation.x = Math.PI / 2; c.position.z = z; g.add(c); return c; };
+  vert(0.16, 0.6, body, 0.3);        // can body (base z=0)
+  vert(0.185, 0.12, green, 0.22);    // lower green band (wraps around the body)
+  vert(0.185, 0.12, greenL, 0.42);   // upper green band
+  vert(0.15, 0.05, green, 0.59);     // rim
+  vert(0.13, 0.06, cap, 0.62);       // lid
+  g.scale.setScalar(1.1);
+  return g;
+}
+// ---- Power-up spawning (count scales with the current level / route) ----
+function spawnPowerup(type, wx, wy){
+  const g = (type === 'coffee') ? makeCoffee() : (type === 'bec') ? makeBEC() : makeMonster();
+  g.position.set(wx, wy, GZ + CURB_LIFT + 0.03);       // base sits just ON TOP of the sidewalk
+  g.rotation.z = R(0, Math.PI * 2);                     // random spin around the vertical axis
+  dynamicGroup.add(g);
+  let halo = null; g.traverse(function(o){ if (o.userData && o.userData.halo) halo = o; });
+  powerups.push({ g: g, wx: wx, wy: wy, type: type, t: R(0, 6),
+                  halo: halo,   // coffee + BEC carry a pulsing green ground-halo; the Monster has none
+                  baseScale: g.scale.x });
+}
+function powerupCounts(level){
+  // Coffee & the BEC sandwich are the common healers, so they spawn GENEROUSLY
+  // (double the rate + a guaranteed one). The Monster stays the rarer "big" pickup.
+  // Every kind still scales up with the level/route.
+  const lvl = (level || 0) + 1;                    // 1..N
+  return { coffee: lvl * 2 + 1, bec: lvl * 2 + 1, monster: Math.max(1, lvl) };
+}
+function spawnPowerups(level){
+  const counts = powerupCounts(level);
+  const kinds = [];
+  for (let k = 0; k < counts.coffee; k++) kinds.push('coffee');
+  for (let k = 0; k < counts.bec; k++) kinds.push('bec');
+  for (let k = 0; k < counts.monster; k++) kinds.push('monster');
+  // shuffle so pickups are evenly varied, not clumped by type
+  for (let i = kinds.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = kinds[i]; kinds[i] = kinds[j]; kinds[j] = t; }
+  // spread them across the garbage blocks (Blocks 2-7), on the near sidewalk/curb
+  const usable = LEVEL_BLOCKS.filter(function(b){ return b.garbage; });
+  kinds.forEach(function(kind){
+    const blk = usable[(Math.random() * usable.length) | 0];
+    spawnPowerup(kind, blk.x + R(6, BLOCK_W - 6), R(0.6, 4.8));
+  });
+}
+function consumePowerup(b){
+  if (b.type === 'monster'){
+    p.immuneT = POWERUP_IMMUNE_DUR;                 // a few seconds of full immunity
+    SFX.playRunItUpSound();
+    announcePower('RUN IT UP!', 'pop-power-run');
+    Voice.say("Let's go! Run it up!", 2.5, 1.1, p.wx, p.wy, WORKER_GENDER);
+    spawnStars(b.wx, b.wy, 28);
+  } else if (b.type === 'bec'){
+    heal(POWERUP_HEAL_BEC);
+    SFX.playPowerUpSound();
+    announcePower('POWER UP!', 'pop-power');
+    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER);
+    spawnStars(b.wx, b.wy, 16);
+  } else {                                          // coffee
+    heal(POWERUP_HEAL_COFFEE);
+    SFX.playPowerUpSound();
+    announcePower('POWER UP!', 'pop-power');
+    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER);
+    spawnStars(b.wx, b.wy, 16);
+  }
+}
+function updatePowerups(dt){
+  for (let i = powerups.length - 1; i >= 0; i--){
+    const b = powerups[i];
+    b.t += dt;
+    // gentle bob that stays just ABOVE the sidewalk so the base never dips into the walk
+    b.g.position.set(b.wx, b.wy, GZ + CURB_LIFT + 0.03 + Math.sin(b.t * 2.6) * 0.025);
+    b.g.rotation.z = (b.g.rotation.z || 0) + dt * 0.9;   // slow presentational spin around the vertical axis
+    // coffee + BEC carry a pulsing GREEN ground-halo (the model itself keeps its normal colors)
+    if (b.halo){
+      const k = 0.5 + 0.5 * Math.sin(b.t * 4.5);          // 0..1 breathing pulse
+      b.halo.material.opacity = 0.42 + 0.42 * k;          // 0.42 .. 0.84
+      const s = 1.0 + 0.16 * k;                            // subtle grow/shrink
+      b.halo.scale.set(s, s, 1);
+    }
+    if (state === 'play' && dist(b.wx, b.wy) < 1.8){
+      consumePowerup(b);
+      if (b.g.parent) b.g.parent.remove(b.g);
+      disposeObj(b.g);
+      powerups.splice(i, 1);
+      continue;
+    }
+    // clean up powerups the worker has driven well past so they don't linger
+    if (b.wx < p.wx - 14){
+      if (b.g.parent) b.g.parent.remove(b.g);
+      disposeObj(b.g);
+      powerups.splice(i, 1);
+    }
+  }
+}
+// ==================== "RUN IT UP!" COLORFUL STAR BURST ====================
+// Small colorful stars that shoot outward from the worker, spin, fall and fade —
+// emitted on the Monster drink and trickled while he is immune.
+function spawnStars(wx, wy, n){
+  const colors = [0xffe14d, 0x41d871, 0x4ec3ff, 0xff5c8a, 0xc39bff, 0xffb04d, 0x9dff5c];
+  n = n || 14;
+  for (let i = 0; i < n; i++){
+    const c = colors[(Math.random() * colors.length) | 0];
+    const ang = Math.random() * Math.PI * 2;
+    const speed = 0.8 + Math.random() * 2.2;
+    const m = new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.8, transparent: true, opacity: 0.95, side: THREE.DoubleSide });
+    const star = new THREE.Mesh(new THREE.TetrahedronGeometry(0.12 + Math.random() * 0.12), m);
+    star.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    const g = new THREE.Group();
+    g.add(star);
+    dynamicGroup.add(g);
+    starParticles.push({
+      g: g, mesh: star, wx: wx, wy: wy,
+      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, vz: 0.4 + Math.random() * 1.4,
+      life: 0.7 + Math.random() * 0.6, decay: 0.9, rot: R(-8, 8)
+    });
+  }
+}
+function updateStarParticles(dt){
+  for (let i = starParticles.length - 1; i >= 0; i--){
+    const s = starParticles[i];
+    s.life -= dt * s.decay;
+    if (s.life <= 0){
+      if (s.g.parent) s.g.parent.remove(s.g);
+      disposeObj(s.g);
+      starParticles.splice(i, 1);
+      continue;
+    }
+    s.wx += s.vx * dt;
+    s.wy += s.vy * dt;
+    s.vz -= dt * 2.2;   // gravity pulls the stars back to the street
+    s.g.position.set(s.wx, s.wy, Math.max(GZ, GZ + 0.6 + s.vz));
+    s.mesh.rotation.x += s.rot * dt;
+    s.mesh.rotation.z += s.rot * dt;
+    s.mesh.material.opacity = s.life;
+    s.g.scale.setScalar(Math.max(0.2, s.life));
+  }
+}
+// While the Monster buff is active, simply TOUCHING a curb bag, a full metal can, or a
+// full litter basket empties it on the spot — it flies off to the truck and the worker
+// never has to haul it. Works even while already carrying (the held item is kept).
+function autoDumpWhileImmune(){
+  if (state !== 'play' || p.immuneT <= 0) return;
+  let best = null, bd = 1.8;
+  for (let i = 0; i < blocks.length; i++){
+    const hh = blocks[i].house;
+    if (hh){
+      for (const bag of hh.bags){
+        if (bag.state !== 'curb') continue;
+        const d = dist(bag.wx, bag.wy);
+        if (d < bd){ bd = d; best = bag; }
+      }
+      if (hh.can && hh.can.state === 'curb'){
+        const d = dist(hh.can.wx, hh.can.wy);
+        if (d < bd){ bd = d; best = hh.can; }
+      }
+    }
+  }
+  for (const bsk of litterBaskets){
+    if (bsk.state !== 'placed') continue;
+    const d = dist(bsk.wx, bsk.wy);
+    if (d < bd){ bd = d; best = bsk; }
+  }
+  if (!best) return;
+  const prevCarry = carry, prevCarried = carried;   // the dump routines clobber these
+  if (best.kind === 'bag') tossBag(best);
+  else if (best.kind === 'can'){ carried = best; dumpCan(); }
+  else if (best.kind === 'litterbasket'){ carried = best; dumpLitterBasket(); }
+  carry = prevCarry; carried = prevCarried;          // keep whatever you were already holding
+  spawnStars(best.wx, best.wy, 12);
+  SFX.playTossSound();
+  Voice.say('POW! Dumped it!', 1.8, 1.0, p.wx, p.wy, WORKER_GENDER);
+}
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
   if (carry === 'bag' || carry === 'canFull' || carry === 'litterBasket'){
@@ -4011,13 +4308,14 @@ function tryInteract(){
 // ==================== STUN & COLLISION ====================
 function doStun(dur, type){
   if (p.stunT > 0) return;
+  if (p.immuneT > 0) return;   // Monster buff = true invincibility: no stumble / trip
   p.stunT = dur;
   p.stunDur = dur;
   if (type === 'hit'){ SFX.playStun(); p.shake = 0.5; }
   else SFX.playTripSound();
 }
 function collideStatic(dt){
-  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0 || p.immuneT > 0) return;   // immune = walk right through hazards
   for (let i = 0; i < blocks.length; i++){
     for (const hz of blocks[i].hazards){
       hz.cd -= dt;
@@ -4030,6 +4328,7 @@ function collideStatic(dt){
         p.poopSteps = 16; footDist = 0; // the worker leaves a brown footprint trail for a while
       } else if (hz.type === 'hit'){
         p.wx -= 0.7;
+        hurtNPC(HP_HIT_HAZARD);
         doStun(0.8, 'hit');
         Voice.say('OW! My shin!', 3, 0.9, p.wx, p.wy, WORKER_GENDER);
       } else {
@@ -4043,7 +4342,7 @@ function collideStatic(dt){
 }
 // ==================== LANDED CAN COLLISION (SOLID OBSTACLE) ====================
 function collideLandedCans(){
-  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0 || p.immuneT > 0) return;   // immune = walk right through cans
   for (let i = landedCans.length - 1; i >= 0; i--){
     const lc = landedCans[i];
     const dx = lc.wx - p.wx, dy = lc.wy - p.wy;
@@ -4057,7 +4356,7 @@ function collideLandedCans(){
   }
 }
 function collideCreatures(){
-  if (state !== 'play' || p.invuln > 0 || p.stunT > 0) return;
+  if (state !== 'play' || p.invuln > 0 || p.stunT > 0 || p.immuneT > 0) return;   // immune = no vehicle hits, no drops, no stumbles
   for (let i = 0; i < creatures.length; i++){
     const c = creatures[i];
     if (c.type === 'pigeon') continue; // pigeons scatter and fly away before any contact — no bump collision
@@ -4115,6 +4414,7 @@ function collideCreatures(){
       p.wx -= (dx / nl) * 1.6;
       p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, 4.5);
       dropCarried();
+      hurtNPC(HP_HIT_VEHICLE);   // get run over = lose health (absorbed if immune / i-framed)
       p.invuln = 1.6;
       doStun(1.2, 'hit');
       if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7, c.wx, c.wy, c.gender);
@@ -4208,6 +4508,7 @@ function updatePlayer(dt){
     }
   }
   p.invuln = Math.max(0, p.invuln - dt);
+  p.immuneT = Math.max(0, p.immuneT - dt);
   p.shake = Math.max(0, p.shake - dt * 1.3);
   routeDist += speed * dt;
   if (routeDist > 150){
@@ -4237,8 +4538,15 @@ function updatePlayer(dt){
   const sx = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
   const sy = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
   worker.group.position.set(p.wx + sx, p.wy + sy, GZ);
-  // invulnerability flashing
-  const vis = p.invuln > 0 ? (Math.floor(p.invuln * 12) % 2 === 0) : true;
+  // invulnerability flashing — and IMMUNITY ("Monster") flashes RAPIDLY with a
+  // constant burst of colorful stars shooting off the worker
+  let vis = true;
+  if (p.immuneT > 0){
+    vis = (Math.floor(performance.now() / 60) % 2 === 0);   // ~8 flips/sec, fast
+    if (Math.random() < 0.5) spawnStars(p.wx, p.wy, 2);      // trickle of stars while immune
+  } else if (p.invuln > 0){
+    vis = (Math.floor(p.invuln * 12) % 2 === 0);
+  }
   worker.group.traverse(o => { if (o.isMesh) o.visible = vis; });
 }
 // ==================== TRUCK UPDATE ====================
@@ -5503,6 +5811,15 @@ function setTxt(el, v){
   if (hudCache[el.id] !== v){ hudCache[el.id] = v; el.textContent = v; }
 }
 function updateHUD(){
+  // health bar (top-left, above the score): green -> amber -> red as it drains
+  const hpBar = $('hpbar'), hpFill = $('hpfill');
+  if (hpBar && hpFill){
+    const ratio = Math.max(0, Math.min(1, health / maxHealth));
+    const w = (ratio * 100).toFixed(1) + '%';
+    if (hpBar._w !== w){ hpBar._w = w; hpFill.style.width = w; }
+    hpBar.classList.toggle('low', ratio <= 0.34);
+    hpBar.classList.toggle('mid', ratio > 0.34 && ratio <= 0.6);
+  }
   setTxt($('score'), pad(score));
   setTxt($('bonus'), pad(bonusTally));
   const carryTxt = carry === 'none' ? 'HANDS FREE' :
@@ -5558,10 +5875,19 @@ function routeComplete(){
   vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
   joyPid = null;
 }
-function gameOver(){
+function gameOver(reason){
   state = 'over';
   SFX.playGameOver();
-  Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  const title = $('over-title'), tag = $('over-tag');
+  if (reason === 'health'){
+    if (title) title.textContent = 'WORKER DOWNED';
+    if (tag) tag.textContent = 'OUT OF HEALTH - SHIFT TERMINATED';
+    Voice.say('I\'m too beat to keep going... I\'m done for the day!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  } else {
+    if (title) title.textContent = 'SUSPENDED BY DSNY';
+    if (tag) tag.textContent = '3 WRITE-UPS - SHIFT TERMINATED';
+    Voice.say('Suspended! Report to the borough office!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  }
   if (score > hi){ hi = score; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('finalscore'), pad(score));
   setTxt($('hiscore2'), pad(hi));
@@ -5774,13 +6100,16 @@ function loop(now){
   }
   if (state === 'play'){
     updatePlayer(dt);
+    autoDumpWhileImmune();
     updateTruck(dt);
     updateCreatures(dt);
     updateBonuses(dt);
+    updatePowerups(dt);
     updateFlyingCans(dt);
     updateFlyingBags(dt);
     updateFlyingBaskets(dt);
     updateDustParticles(dt);
+    updateStarParticles(dt);
     updateBlocks(dt);
     cleanupLandedCans();
     updateFootprints(dt);
