@@ -4195,11 +4195,10 @@ function spawnPowerup(type, wx, wy){
                   baseScale: g.scale.x });
 }
 function powerupCounts(level){
-  // Coffee & the BEC sandwich are the common healers, so they spawn GENEROUSLY
-  // (double the rate + a guaranteed one). The Monster stays the rarer "big" pickup.
-  // Every kind still scales up with the level/route.
+  // Coffee & the BEC sandwich are healers, so they now spawn SCARCELY (1 of each) to
+  // make survival genuinely hard. The Monster is the rare "big" immunity pickup.
   const lvl = (level || 0) + 1;                    // 1..N
-  return { coffee: lvl * 2 + 1, bec: lvl * 2 + 1, monster: Math.max(1, lvl) };
+  return { coffee: Math.max(1, lvl), bec: Math.max(1, lvl), monster: Math.max(1, lvl) };
 }
 function spawnPowerups(level){
   const counts = powerupCounts(level);

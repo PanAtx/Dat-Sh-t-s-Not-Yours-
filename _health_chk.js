@@ -250,8 +250,8 @@ check('a pickup well behind the worker is recycled out of the world', powerups.l
 check('NPC hits are kept light & fair (vehicle ' + HP_HIT_VEHICLE + ', hazard ' + HP_HIT_HAZARD + ' <= 10)', HP_HIT_VEHICLE <= 10 && HP_HIT_HAZARD <= 10);
 check('a hazard nick is no worse than a vehicle run-over', HP_HIT_HAZARD <= HP_HIT_VEHICLE);
 check('Monster immunity is now a long rush (>= 10s, was 4s): ' + POWERUP_IMMUNE_DUR + 's', POWERUP_IMMUNE_DUR >= 10);
-check('coffee & BEC are the common healers (more spawns than the rare Monster at every level)', powerupCounts(0).coffee > powerupCounts(0).monster && powerupCounts(0).bec > powerupCounts(0).monster && powerupCounts(7).coffee > powerupCounts(7).monster);
-check('coffee/BEC spawn rate is generous (at least 3 of each on the first level): ' + powerupCounts(0).coffee + '/' + powerupCounts(0).bec, powerupCounts(0).coffee >= 3 && powerupCounts(0).bec >= 3);
+check('coffee & BEC are now scarce (no longer more common than the Monster)', powerupCounts(0).coffee <= powerupCounts(0).monster && powerupCounts(0).bec <= powerupCounts(0).monster);
+check('coffee/BEC spawn rate reduced (1 of each on the first level, was 3): ' + powerupCounts(0).coffee + '/' + powerupCounts(0).bec, powerupCounts(0).coffee <= 1 && powerupCounts(0).bec <= 1);
 
 SFX.playTossSound = function(){ sfx.push('toss'); };
 SFX.playStun = function(){ sfx.push('stun'); };
