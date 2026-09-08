@@ -25,6 +25,7 @@ function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, 
 function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const GZ = 0.01;
 const CASH_LIFT = 0.12;   // kept in sync with index.html — spawnBonus references it
+const CURB_LIFT = 0.06;   // kept in sync with index.html — spawnBonus references it (rests treasure/mongo on the raised curb)
 const TREASURE_NAMES = { 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!' };   // kept in sync with index.html
 global.MONGO_NAMES = { 0: 'Brass pipes!', 1: 'Kitchen sink!', 2: 'Aluminum radiator!', 3: 'Air conditioner!', 4: 'Copper wire spool!', 5: 'Lead pipe!', 6: 'Electric motor!', 7: 'Stainless steel faucet!', 8: 'Copper tubing!' };   // kept in sync with index.html
 const dynamicGroup = { add(){} };

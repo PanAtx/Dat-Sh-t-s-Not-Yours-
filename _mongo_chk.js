@@ -29,6 +29,7 @@ function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, 
 function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const GZ = 0.01;
 const CASH_LIFT = 0.12;
+const CURB_LIFT = 0.06;   // kept in sync with index.html — spawnBonus references it (rests treasure/mongo on the raised curb)
 const TREASURE_NAMES = extractObj('TREASURE_NAMES');
 const MONGO_NAMES = extractObj('MONGO_NAMES');
 eval(extract('makeCopper'));

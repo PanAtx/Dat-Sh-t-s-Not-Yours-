@@ -45,6 +45,8 @@ const state = 'play';
 const Voice = { say(){} };
 const npcRoadRules = () => 0, animParts = () => {}, spawnGravelBits = () => {}, spawnDustEffect = () => {};
 const separateVehicles = () => {}, resolveTruckCollisions = () => {};
+const blocks = [];                        // no houses in this isolated skater test
+const stepTopAt = (wx, wy) => GZ;         // the skater sits on flat curb/sidewalk — no raised step under it
 
 // ---- execute the REAL functions from index.html ----
 eval(fnSrc('makeSkater') + '\n' + fnSrc('addCreature') + '\n' + fnSrc('updateCreatures'));

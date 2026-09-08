@@ -16,6 +16,7 @@ const R = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[(Math.random() * a.length) | 0];
 const SHIRTS = [0x111111], PANTS = [0x222222], HAIRS = [0x333333], DRESSES = [0x444444], CAR_COLORS = [0x555555];
 const GZ = 0.3;
+const p = { wx: 0, wy: 0 };   // player position — addCreature scatters creatures around p.wx
 const creatures = [];
 const dynamicGroup = { add(){} };
 const dummyPerson = { g: { position: { set(){} }, userData: {} }, legL: {} };

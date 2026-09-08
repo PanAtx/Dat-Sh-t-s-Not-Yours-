@@ -1066,7 +1066,10 @@ function buildWorker(){
     const sf = BX(0.03, 0.11, 0.6, stripe); sf.position.set(0.155, sy, 1.1); g.add(sf); // front stripe
     const sb = BX(0.03, 0.11, 0.6, stripe); sb.position.set(-0.155, sy, 1.1); g.add(sb); // back stripe
   });
-  const belt = BX(0.3, 0.5, 0.1, M(0x3a3f45)); belt.position.z = 0.82; g.add(belt);
+  // Dark work belt: sized to sit JUST OUTSIDE the vest (vest is 0.3 x 0.56 at z 0.76-1.44)
+  // so NO face is co-planar with the vest's front/back (±0.15) or sides (±0.28) — an
+  // exact match here is what caused z-fighting flicker along the bottom of the hi-vis shirt.
+  const belt = BX(0.32, 0.6, 0.1, M(0x3a3f45)); belt.position.z = 0.82; g.add(belt);
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.29, 1.38);
     const arm = BX(0.11, 0.13, 0.45, hiVis); arm.position.z = -0.22; pv.add(arm);
@@ -3281,8 +3284,18 @@ function spawnWorld(){
   const ld = addCreature('leashdog');
   {
     const b = blocks[(Math.random() * blocks.length) | 0];
-    ld.anchorX = b.worldX + R(-1.0, 2.0);   // lawn strip (y 5..8.5), house front is y 10.5
-    ld.anchorY = R(7.4, 8.2);
+    // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
+    // walkway — never on the street/sidewalk, never on the raised concrete step in
+    // front of the door (that slab spans |x| <= 1.25 of the house), and never right up
+    // against the door. So stand it a couple of units out to one side of the house; if
+    // the chosen side would run into the cross-street gap (an edge house) use the open
+    // side so it always stays on this block's lawn.
+    const mag = R(2.4, 3.4);
+    let side = Math.random() < 0.5 ? -1 : 1;
+    let ax = b.worldX + side * mag;
+    if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
+    ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+    ld.anchorY = R(6.6, 7.9);
     ld.homeX = ld.anchorX + R(-0.4, 0.8);
     ld.homeY = ld.anchorY - R(0.9, 1.5);
     ld.wx = ld.homeX; ld.wy = ld.homeY;
@@ -3878,6 +3891,7 @@ function dropCarried(){
   SFX.playDropSound();
 }
 const CASH_LIFT = 0.12;   // raise street cash clear of the raised curbs (top ~0.365) so no bill gets clipped
+const CURB_LIFT = 0.06;   // near curb top is GZ+0.05 (0.35); rest treasure/mongo just above it so the raised curb never clips through their base (same fix as the hydrant)
 // The named "finds" the worker can dig out of the trash — each gets its own spoken line.
 const TREASURE_NAMES = { 0: 'Vintage TV!', 1: 'Brass lamp!', 3: 'Video game system + controller!', 4: 'Stuffed plush doll!', 5: 'Baseball cards!', 6: 'Comic book!', 7: 'Playboy!', 8: 'Pokemon cards!', 9: 'Record player!', 10: 'iPod!', 11: 'Old laptop!', 12: "Rubik's cube!", 13: 'Gameboy!', 14: 'Nintendo 64!', 15: 'Playstation!', 16: 'Star Wars action figure!', 17: 'Vintage G.I. Joe!', 18: 'Old Singer sewing machine!', 19: 'Optimus Prime!', 20: 'College Text Books!', 21: '1964 Barbie!', 22: 'Beatles Gold Record!', 23: 'DVD Movies!', 24: 'Commodore 64!', 25: 'Box of Legos!', 26: 'Teenage Mutant Ninja Turtle Doll!', 27: 'VHS Tapes!', 28: 'Stained Glass Lamp!', 29: 'Fiestaware Bowl!', 30: 'Vintage Beer Tap!', 31: 'Metal Lunch Box!', 32: '1939 Monopoly!', 33: 'Lionel Train!', 34: 'Boombox Radio!', 35: 'Metal Coca Cola Sign!', 36: 'Gibson Guitar!', 37: 'Gold Necklace!' };
 // The named mongo scrap the worker hauls in — each is spoken + shown under "MONGO!".
@@ -3903,7 +3917,11 @@ function spawnBonus(wx, wy){
     if (tKind === 2) voice = pick(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkade!']);
     else voice = TREASURE_NAMES[tKind] || 'Treasure!';
   }
-  const lift = (type === 'cash') ? CASH_LIFT : 0;   // cash is thin & flat — lift it clear of the curb
+  // Rest every street-side pickup on the (possibly raised) ground it's on. The near curb
+  // is a lip 0.05 above the sidewalk (top 0.35 vs 0.3), so a flush treasure/mongo would
+  // clip into it just like the hydrant used to — raise them to the curb's Z (a hair above)
+  // so the curb never pokes through the base. Cash is thin & flat, so it lifts a bit more.
+  const lift = (type === 'cash') ? CASH_LIFT : CURB_LIFT;
   g.position.set(wx, wy, GZ + lift);
   g.rotation.z = R(-0.5, 0.5);   // a natural resting angle — looks placed, never spinning
   dynamicGroup.add(g);
@@ -3913,7 +3931,7 @@ function updateBonuses(dt){
   for (let i = bonuses.length - 1; i >= 0; i--){
     const b = bonuses[i];
     b.t += dt;
-    b.g.position.set(b.wx, b.wy, GZ + (b.lift || 0));   // cash sits lifted clear of the curb; others stay flush
+    b.g.position.set(b.wx, b.wy, GZ + (b.lift || 0));   // every bonus rests on the (possibly raised) curb — nothing clips into the curb lip
     if (state === 'play' && dist(b.wx, b.wy) < 1.8){
       addScore(b.val, true);
       if (b.type === 'treasure') SFX.playTreasureJingle();
@@ -5467,9 +5485,10 @@ function updateCreatures(dt){
     if (c.type === 'raccoon') c.g.position.z = (c.t > 0 && c.flee <= 0) ? GZ + Math.abs(Math.sin(performance.now() * 0.01)) * 0.04 : GZ;
     // Final word on z, AFTER every per-type z assignment above: if this creature is over a
     // house's raised concrete step, lift it up to the landing top so it stands ON the mat
-    // instead of clipping into the slab. Only ever RAISES (a floor), so airborne creatures
-    // (flying pigeons, popping skaters) keep their height.
-    { const _stTop = stepTopAt(c.wx, c.wy); if (_stTop > c.g.position.z) c.g.position.z = _stTop; }
+    // instead of clipping into the slab. Only activates when there IS a raised step
+    // (stepTopAt > GZ) and only ever RAISES, so flat-ground animations (skater crouch,
+    // raccoon bob) and airborne creatures (pigeons, popping skaters) are never clamped.
+    { const _stTop = stepTopAt(c.wx, c.wy); if (_stTop > GZ && _stTop > c.g.position.z) c.g.position.z = _stTop; }
   }
   // Separate overlapping vehicles after all movement is done this frame
   const vehicleList = creatures.filter(v => v.boxW !== undefined && v.type !== 'ped' && v.type !== 'lady');
