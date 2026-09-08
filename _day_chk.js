@@ -102,6 +102,8 @@ check('advanceGame: dayend (Sunday) -> week complete', (calls.length = 0, mkAdv(
 check('advanceGame: menu -> start a fresh week', (calls.length = 0, mkAdv('menu', 1)(), calls.length === 1 && calls[0] === 'startGame'));
 check('advanceGame: game over -> start a fresh week', (calls.length = 0, mkAdv('over', 1)(), calls.length === 1 && calls[0] === 'startGame'));
 check('advanceGame: never restarts mid-shift', (calls.length = 0, mkAdv('play', 3)(), calls.length === 0));
+check('advanceGame: never skips the level-complete cinematic', (calls.length = 0, mkAdv('routeend', 3)(), calls.length === 0));
+check('advanceGame: never skips the down sequence', (calls.length = 0, mkAdv('dying', 3)(), calls.length === 0));
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

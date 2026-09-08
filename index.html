@@ -556,6 +556,7 @@ let blocks = [], creatures = [], bonuses = [], pendingHouses = [];
 let powerups = [], starParticles = [];   // health/immunity pickups + the "Run It Up!" star burst
 let flyingCans = [], dustParticles = [], landedCans = [], flyingBags = [], flyingBaskets = [];
 let worker = null, wparts = null, truck = null;
+let routeEnd = null;   // level-complete cinematic sequencer (cheer -> walk -> board -> drive off); null = not playing
 let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
 const keys = {};
 const gp = { left:false, right:false, fwd:false, back:false, act:false, pAct:false, pStart:false };
@@ -3569,6 +3570,8 @@ function resetWorldState(){
   wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
   wparts.armL.rotation.set(0, 0, 0); wparts.armR.rotation.set(0, 0, 0);
   dying = null;   // any out-of-health down sequence is over — the worker stands back up
+  routeEnd = null;   // any level-complete cinematic is over too — the worker is back on his feet
+  if (worker){ worker.group.visible = true; worker.group.scale.set(1, 1, 1); }
   worker.group.position.set(p.wx, p.wy, GZ);
   if (worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]); // new shift = new random worker
 }
@@ -4769,7 +4772,7 @@ function updatePlayer(dt){
   // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
   if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
-  if (p.wx >= ROUTE_FINISH_X && state === 'play'){ routeComplete(); return; }
+  if (p.wx >= ROUTE_FINISH_X && state === 'play'){ startRouteEnd(); return; } // fist pump, cab hop-in, truck rolls out
   // brown footprint trail: one print per ~0.45 units walked while the trail is active
   if (p.poopSteps > 0){
     footDist += (Math.abs(dir) * speed + Math.abs(lat) * 5.5) * diagF * dt;
@@ -6180,6 +6183,138 @@ function showDayStats(){
   setTxt($('day-stats-week'),  pad(weekScore));
   $('btnNextDay').textContent = (level < MAX_LEVEL) ? 'NEXT DAY \u25b6' : 'FINISH WEEK \u2605';
 }
+// ==================== ROUTE-END CINEMATIC ====================
+// When the level is complete (route reached, or test-mode L) the worker takes the
+// stage instead of the report popping up instantly:
+//   1) CHEER — Super-Mario style: two hops with the right fist planted overhead;
+//   2) WALK  — he strolls up and around to the truck's cab (camera follows him,
+//              so the street scrolls by while he walks);
+//   3) BOARD — he steps into the cab and sinks out of sight (he's inside now);
+//   4) DRIVE — the truck rolls off down the street. The camera stays LOCKED on the
+//              boarding spot (p.wx/p.wy are frozen), so the playfield holds still
+//              while the truck drives off screen with the worker aboard.
+// Once the truck is fully out of frame, the day-end report takes over.
+const RE_CHEER = 1.5;       // fist-pump beat (seconds)
+const RE_WALK_SP = 4.0;     // stroll speed to the cab (u/s)
+const RE_BOARD = 1.1;       // climb-into-the-cab beat (seconds)
+const RE_DRIVE_SP = 7.0;    // drive-off speed (u/s)
+const RE_DRIVE_MAX = 9;     // hard cap on the drive-off, so it can never hang
+function startRouteEnd(){
+  if (state !== 'play') return;
+  state = 'routeend';                        // worker is OFF LIMITS: cinematic, no input, no damage
+  if (carried) dropCarried();                // hands are free for the fist pump
+  if (truck){ truck.hidden = 0; if (truck.g) truck.g.visible = true; }   // the truck must be out there
+  // Boarding spot: beside the cab (the +X front of the truck) on whichever street
+  // side the worker is on, so he always strolls "around" to the cab.
+  const boxW = (truck && truck.boxW) || 2.25;
+  const cabX = truck.wx + ((truck && truck.cabOff) || 6) * 0.55;
+  const side = (p.wy >= -4.5) ? 1 : -1;
+  routeEnd = { t: 0, phase: 'cheer', wx0: p.wx, wy0: p.wy,
+               tx: cabX, ty: -4.5 + side * (boxW + 0.9),
+               bx: cabX, by: -4.5 + side * boxW * 0.55,   // a step further IN toward the cab
+               walkT: 0, driveT: 0 };
+  Voice.say('Route done! Clocking out — see ya tomorrow, city!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+}
+function updateRouteEnd(dt){
+  const g = worker.group;
+  routeEnd.t += dt;
+  // The street keeps living around the show (traffic, pigeons, particles) — only the
+  // worker is off limits. The hopper trash must keep following the truck so it doesn't
+  // get left on the pavement when the truck rolls out.
+  updateCreatures(dt);
+  updateBonuses(dt);
+  updatePowerups(dt);
+  updateFlyingCans(dt);
+  updateFlyingBags(dt);
+  updateFlyingBaskets(dt);
+  updateDustParticles(dt);
+  updateStarParticles(dt);
+  updateBlocks(dt);
+  updateFootprints(dt);
+  updateHopperTrash(dt);
+  updateHUD();
+  if (routeEnd.phase === 'cheer'){
+    // ---- Phase 1: fist pump. Two hops, right fist planted straight up, left arm
+    // out, legs tucking a touch at the top of each hop, then a held victory pose.
+    const t = routeEnd.t;
+    let h = 0;
+    if (t < 0.5) h = Math.sin(t / 0.5 * Math.PI) * 1.15;
+    else if (t < 0.95) h = Math.sin((t - 0.5) / 0.45 * Math.PI) * 0.4;
+    wparts.armR.rotation.set(-Math.PI, 0, 0);   // right fist straight overhead
+    wparts.armL.rotation.set(0.55, 0, 0);       // left arm out to the side
+    const tl = 0.15 + 0.3 * h;                  // knees up with the hops
+    wparts.legL.rotation.set(tl, 0, 0);
+    wparts.legR.rotation.set(-tl * 0.7, 0, 0);
+    g.rotation.set(0, 0, p.facing);
+    g.position.set(p.wx, p.wy, GZ + h);
+    if (t >= RE_CHEER){ routeEnd.phase = 'walk'; routeEnd.t = 0; }
+    return;
+  }
+  if (routeEnd.phase === 'walk'){
+    // ---- Phase 2: stroll up and around to the cab. positionCamera() keeps the
+    // worker centered, so the screen scrolls along while he walks over to the truck.
+    const dx = routeEnd.tx - p.wx, dy = routeEnd.ty - p.wy;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.35){ routeEnd.phase = 'board'; routeEnd.t = 0; }
+    else {
+      const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
+      p.wx += (dx / dist) * sp * dt;
+      p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, 4.5);
+      // face the direction of travel (same easing as normal walking)
+      const target = Math.atan2(dy, dx);
+      let diff = target - p.facing;
+      while (diff >  Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      p.facing += diff * Math.min(1, dt * 20);
+      // walk cycle — the same leg/arm pump updatePlayer uses
+      p.phase += RE_WALK_SP * dt * 1.5;
+      const s = Math.sin(p.phase) * 0.6;
+      wparts.legL.rotation.set(0, s, 0);     wparts.legR.rotation.set(0, -s, 0);
+      wparts.armL.rotation.set(0, -s * 0.8, 0); wparts.armR.rotation.set(0, s * 0.8, 0);
+      g.rotation.set(0, 0, p.facing);
+      g.position.set(p.wx, p.wy, GZ);
+      routeEnd.walkT += dt;
+      if (routeEnd.walkT > 12){ routeEnd.phase = 'board'; routeEnd.t = 0; } // safety: never strand him
+    }
+    return;
+  }
+  if (routeEnd.phase === 'board'){
+    // ---- Phase 3: step into the cab and sink out of sight — reads as "he's in".
+    const k = Math.min(1, routeEnd.t / RE_BOARD);
+    const e = 1 - Math.pow(1 - k, 2);
+    p.wx += (routeEnd.bx - p.wx) * Math.min(1, dt * 6);
+    p.wy += (routeEnd.by - p.wy) * Math.min(1, dt * 6);
+    // the fist comes down as he climbs in
+    wparts.armR.rotation.set(-Math.PI * (1 - e), 0, 0);
+    wparts.armL.rotation.set(0.55 * (1 - e), 0, 0);
+    wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
+    const sc = Math.max(0.001, 1 - e);
+    g.scale.set(sc, sc, sc);
+    g.rotation.set(0, 0, p.facing);
+    g.position.set(p.wx, p.wy, GZ);
+    if (k >= 1){
+      g.visible = false;                       // he's inside the truck now
+      routeEnd.phase = 'drive'; routeEnd.t = 0; routeEnd.driveT = 0;
+    }
+    return;
+  }
+  // ---- Phase 4: the truck drives off down the street. p.wx/p.wy are FROZEN at the
+  // boarding spot, and positionCamera() is locked to the worker, so the playfield
+  // holds perfectly still while the truck (worker aboard) rolls out of frame.
+  truck.wx += RE_DRIVE_SP * dt;
+  routeEnd.driveT += dt;
+  const hopperOff = (truck.hopperOff != null) ? truck.hopperOff : -4.3;
+  const halfW = (camera && isFinite(camera.right)) ? Math.abs(camera.right) : 8;
+  // screen-x of the truck's REAR relative to the camera's locked center (world x = c45*(x - y)):
+  const rearX = Math.SQRT1_2 * ((truck.wx + hopperOff) - (-4.5));
+  const camX  = Math.SQRT1_2 * (p.wx - CAM_Y);
+  if (rearX - camX > halfW + 1.0 || routeEnd.driveT >= RE_DRIVE_MAX) finishRouteEnd();
+}
+function finishRouteEnd(){
+  routeEnd = null;
+  if (worker){ worker.group.visible = true; worker.group.scale.set(1, 1, 1); }
+  routeComplete();   // the truck is gone — NOW the day-end report takes over
+}
 function routeComplete(){
   state = 'dayend';
   SFX.playHopperJingle();
@@ -6246,6 +6381,7 @@ function startGame(){
 function advanceGame(){
   // One "start / next" action (Space / Enter / gamepad / touch), routed by game state.
   if (state === 'dying') return;                // the down sequence is playing out — let it finish
+  if (state === 'routeend') return;             // the drive-off cinematic is playing out — let it finish
   if (state === 'play') return;                 // never restart mid-shift
   if (state === 'intro') return beginDay();
   if (state === 'dayend') return (level < MAX_LEVEL) ? nextDay() : showWeekComplete();
@@ -6312,10 +6448,10 @@ window.addEventListener('keydown', e => {
     updateHUD();
     startDyingSequence();
   }
-  // TEST MODE: L = the level is complete right now -> the route-complete flow
-  // (hopper jingle, day-end report, then next day / week complete). Play state
-  // only — once the dayend screen is up, further L presses are ignored.
-  if (e.code === 'KeyL' && state === 'play') routeComplete();
+  // TEST MODE: L = the level is complete right now -> the route-end cinematic
+  // (fist pump, walk to the cab, truck drives off, then the day-end report).
+  // Play state only — once the cinematic is running, further L presses are ignored.
+  if (e.code === 'KeyL' && state === 'play') startRouteEnd();
   if (e.code === 'Enter' && state !== 'play') advanceGame();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -6466,9 +6602,9 @@ function loop(now){
   updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
   pollGamepad();     // cheap input poll: on the menu, gamepad START / ACT still begins the shift
   updateVirtualPad();// keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)
-  if (state !== 'play' && state !== 'dying'){
+  if (state !== 'play' && state !== 'dying' && state !== 'routeend'){
     // IDLE on the menu / game-over: render ONE static backdrop frame, then do no work.
-    // ('dying' is active: the down sequence still animates + renders every frame.)
+    // ('dying' / 'routeend' are active: their sequences still animate + render every frame.)
     if (needsIdleRender){ needsIdleRender = false; positionCamera(); renderer.render(scene, camera); }
     return;
   }
@@ -6491,6 +6627,8 @@ function loop(now){
     collideLandedCans();
     collideCreatures();
     updateHUD();
+  } else if (state === 'routeend'){
+    updateRouteEnd(dt); // 'routeend': the level-complete cinematic (cheer -> walk -> board -> drive off)
   } else {
     updateDying(dt);   // 'dying': play out the worker's down sequence (spin -> fall -> LODI hold)
   }
