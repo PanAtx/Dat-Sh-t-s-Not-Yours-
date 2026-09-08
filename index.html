@@ -1199,7 +1199,7 @@ function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d)
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); q.castShadow = true; return q; }
 function SPH(r, m, ws, hs){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); q.castShadow = true; return q; }
-// NYC is diverse: a spread of skin tones, randomized for the worker (per shift) and every pedestrian
+// NYC is diverse: a spread of skin tones, randomized for the worker (once per game) and every pedestrian
 const SKIN_TONES = [0xf3c6a5, 0xe8b48c, 0xd9a06b, 0xc68642, 0x9c6b3c, 0x8d5524, 0x6f4522, 0x5a3a1e];
 function disposeObj(o){
   o.traverse(ch => {
@@ -3573,7 +3573,6 @@ function resetWorldState(){
   routeEnd = null;   // any level-complete cinematic is over too — the worker is back on his feet
   if (worker){ worker.group.visible = true; worker.group.scale.set(1, 1, 1); }
   worker.group.position.set(p.wx, p.wy, GZ);
-  if (worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]); // new shift = new random worker
 }
 // ==================== GAMEPLAY ACTIONS ====================
 function addScore(n, isBonus){
@@ -6415,6 +6414,9 @@ function startGame(){
   SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
   level = 1;          // a new week always starts on Monday
   weekScore = 0;      // fresh running total
+  // New game = new worker: set the skin tone ONCE here so it stays the same
+  // across every level until the game is restarted (not re-rolled per shift).
+  if (worker && worker.skinMat) worker.skinMat.color.setHex(SKIN_TONES[(Math.random() * SKIN_TONES.length) | 0]);
   showDayIntro();     // show the Monday card, then wait for the player to begin
 }
 function advanceGame(){
