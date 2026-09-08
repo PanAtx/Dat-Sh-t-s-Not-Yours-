@@ -3518,6 +3518,7 @@ function resetWorldState(){
   carried = null; carry = 'none';
   score = 0; bonusTally = 0; complaints = 0;
   dayScore = 0;   // per-day score (weekScore keeps running across the whole week)
+  monsterNextAt = MONSTER_SCORE_STEP;   // fresh $5000 monster milestone for this day
   health = maxHealth;
   p.wx = PLAYER_START_X; p.wy = 2.5; p.stunT = 0; p.invuln = 0; p.immuneT = 0; p.phase = 0; p.shake = 0; p.facing = 0;
   routeIdx = 0; routeDist = 0; hopperAnim = 0;
@@ -3545,6 +3546,11 @@ function addScore(n, isBonus){
   dayScore += n;          // today's tally (shown on the day-end report)
   weekScore += n;         // running total across all 7 days (the hi-score candidate)
   if (isBonus) bonusTally += n;
+  // Monster energy milestone: every $5000 of score (today's day) pops one up near the worker.
+  if (state === 'play' && score >= monsterNextAt){
+    spawnMonsterNearPlayer();
+    monsterNextAt += MONSTER_SCORE_STEP;
+  }
 }
 // ==================== FLYING CAN SYSTEM ====================
 function spawnDustEffect(wx, wy){
@@ -4089,14 +4095,15 @@ function updateBonuses(dt){
   }
 }
 // ==================== HEALTH & POWER-UP SYSTEM ====================
-// The worker has a finite health pool. NPCs (vehicles / hard hazards) drain it;
-// coffee & a Bacon/Egg/Cheese sandwich restore it; a Monster can grants a few
-// seconds of immunity (rapid blink + a burst of colorful stars). Running the
-// health out ends the shift. Spawn counts scale with the current "level"
-// (routeIdx): level 1 is sparse, later routes spawn more of every item.
+// The worker has a finite health pool. NPCs (vehicles / hard hazards) drain it.
+// Coffee & a Bacon/Egg/Cheese sandwich are the healers — they spawn on the street
+// (coffee mid-route, BEC near the end) so you save them for the stretch you need them.
+// The Monster energy drink is SCORE-TRIGGERED: every MONSTER_SCORE_STEP points of
+// progress it pops up right next to the worker for a "run it up!" immunity burst.
 const POWERUP_HEAL_COFFEE = 25;    // coffee restores a little health
 const POWERUP_HEAL_BEC = 40;       // the full sandwich restores more
 const POWERUP_IMMUNE_DUR = 12;     // Monster: seconds of full immunity (a long, satisfying rush)
+const MONSTER_SCORE_STEP = 5000;   // a new Monster can spawns every this much score, near the player
 const HP_HIT_VEHICLE = 8;          // a vehicle run-over hurts (kept light so it feels fair)
 const HP_HIT_HAZARD = 5;           // a hard static hazard (e.g. hydrant) nicks you a little
 function heal(amount){ health = Math.min(maxHealth, health + (amount || 0)); }
@@ -4195,25 +4202,27 @@ function spawnPowerup(type, wx, wy){
                   baseScale: g.scale.x });
 }
 function powerupCounts(level){
-  // Coffee & the BEC sandwich are healers, so they now spawn SCARCELY (1 of each) to
-  // make survival genuinely hard. The Monster is the rare "big" immunity pickup.
-  const lvl = (level || 0) + 1;                    // 1..N
-  return { coffee: Math.max(1, lvl), bec: Math.max(1, lvl), monster: Math.max(1, lvl) };
+  // Only the healers (coffee + BEC) are pre-placed on the street. The Monster
+  // can is now SCORE-TRIGGERED (see spawnMonsterNearPlayer + addScore) and does
+  // not spawn at level start.
+  return { coffee: 1, bec: 1 };
 }
 function spawnPowerups(level){
-  const counts = powerupCounts(level);
-  const kinds = [];
-  for (let k = 0; k < counts.coffee; k++) kinds.push('coffee');
-  for (let k = 0; k < counts.bec; k++) kinds.push('bec');
-  for (let k = 0; k < counts.monster; k++) kinds.push('monster');
-  // shuffle so pickups are evenly varied, not clumped by type
-  for (let i = kinds.length - 1; i > 0; i--){ const j = (Math.random() * (i + 1)) | 0; const t = kinds[i]; kinds[i] = kinds[j]; kinds[j] = t; }
-  // spread them across the garbage blocks (Blocks 2-7), on the near sidewalk/curb
-  const usable = LEVEL_BLOCKS.filter(function(b){ return b.garbage; });
-  kinds.forEach(function(kind){
-    const blk = usable[(Math.random() * usable.length) | 0];
-    spawnPowerup(kind, blk.x + R(6, BLOCK_W - 6), R(0.6, 4.8));
-  });
+  // The healers are placed in the BACK HALF of the route:
+  //   coffee -> the middle of the level (~40-65% along)
+  //   BEC    -> near the end of the level (~65-92% along)
+  // The Monster is NOT placed here — it spawns on a score milestone (see addScore).
+  const span = ROUTE_FINISH_X - ROUTE_START_X;
+  spawnPowerup('coffee', ROUTE_START_X + span * R(0.40, 0.65), R(0.6, 4.8));
+  spawnPowerup('bec',    ROUTE_START_X + span * R(0.65, 0.92), R(0.6, 4.8));
+}
+// A Monster energy can pops up near the worker every MONSTER_SCORE_STEP points
+// (5000) of score, dropped on the sidewalk just ahead so you can grab it right away.
+let monsterNextAt = MONSTER_SCORE_STEP;   // next score milestone at which the Monster spawns
+function spawnMonsterNearPlayer(){
+  const wx = Math.max(ROUTE_START_X + 4, p.wx + R(2.5, 7));   // a bit ahead, never behind the start barrier
+  const wy = Math.max(0.6, Math.min(4.8, p.wy + R(-0.9, 0.9)));
+  spawnPowerup('monster', wx, wy);
 }
 function consumePowerup(b){
   if (b.type === 'monster'){

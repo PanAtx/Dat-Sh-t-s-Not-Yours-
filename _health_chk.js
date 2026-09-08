@@ -39,6 +39,7 @@ const LEVEL_BLOCKS = [
   { x: 288, garbage: true }, { x: 384, garbage: true }, { x: 480, garbage: true },
   { x: 576, garbage: true }, { x: 672, garbage: false }
 ];
+const ROUTE_START_X = 80, ROUTE_FINISH_X = 656;   // match index.html route bounds (spawn placement checks)
 
 // ---- constants under test (read straight from the game so we never drift) ----
 const POWERUP_HEAL_COFFEE = getNumConst('POWERUP_HEAL_COFFEE');
@@ -46,6 +47,7 @@ const POWERUP_HEAL_BEC = getNumConst('POWERUP_HEAL_BEC');
 const POWERUP_IMMUNE_DUR = getNumConst('POWERUP_IMMUNE_DUR');
 const HP_HIT_VEHICLE = getNumConst('HP_HIT_VEHICLE');
 const HP_HIT_HAZARD = getNumConst('HP_HIT_HAZARD');
+const MONSTER_SCORE_STEP = getNumConst('MONSTER_SCORE_STEP');
 
 // ---- mutable game state (the extracted functions close over these) ----
 let health = 100, maxHealth = 100;
@@ -98,6 +100,7 @@ eval(extractFn('makeMonster'));
 eval(extractFn('spawnPowerup'));
 eval(extractFn('powerupCounts'));
 eval(extractFn('spawnPowerups'));
+eval(extractFn('spawnMonsterNearPlayer'));
 eval(extractFn('consumePowerup'));
 eval(extractFn('updatePowerups'));
 eval(extractFn('spawnStars'));
@@ -221,19 +224,24 @@ const starCount = starParticles.length;
 for (let f = 0; f < 60; f++) updateStarParticles(1 / 30);
 check('star burst updates without throwing and expires over time', starCount > 0 && starParticles.length === 0);
 
-// ===== 11) spawn counts scale UP with the level (route) =====
-const c0 = powerupCounts(0), c3 = powerupCounts(3), c7 = powerupCounts(7);
-const tot = function(c){ return c.coffee + c.bec + c.monster; };
-check('spawn counts: level 1 (' + tot(c0) + ') <= level 4 (' + tot(c3) + ') <= level 8 (' + tot(c7) + ')', tot(c0) <= tot(c3) && tot(c3) <= tot(c7));
-check('every level spawns at least one of each pickup type (coffee/BEC/Monster)', c0.coffee >= 1 && c0.bec >= 1 && c0.monster >= 1);
-check('later levels spawn MORE pickups than the first level', tot(c7) > tot(c0));
+// ===== 11) only the healers are pre-placed at level start (coffee + BEC, one each) =====
+const c0 = powerupCounts(0);
+check('level start pre-places exactly 1 coffee + 1 BEC', c0.coffee === 1 && c0.bec === 1);
+check('no Monster is pre-placed at level start (it is score-triggered)', (c0.monster || 0) === 0);
 
-// ===== 12) spawnPowerups() places exactly the right number, valid types + models =====
+// ===== 12) spawnPowerups() places coffee (mid) + BEC (end) in the back half =====
 reset();
-spawnPowerups(3);
-const expected = tot(powerupCounts(3));
-check('spawnPowerups(level 3) places ' + expected + ' pickups (got ' + powerups.length + ')', powerups.length === expected);
-check('all pickups are valid types with a 3D model on the near sidewalk', powerups.every(function(b){ return (b.type === 'coffee' || b.type === 'bec' || b.type === 'monster') && b.g && b.g.children.length > 0 && b.wy >= 0.6 && b.wy <= 4.8; }));
+spawnPowerups(0);
+check('spawnPowerups places exactly 2 healers (coffee + BEC)', powerups.length === 2);
+check('both healers have a 3D model on the near sidewalk', powerups.every(function(b){ return (b.type === 'coffee' || b.type === 'bec') && b.g && b.g.children.length > 0 && b.wy >= 0.6 && b.wy <= 4.8; }));
+const _types = powerups.map(function(b){ return b.type; });
+check('one coffee and one BEC are placed', _types.indexOf('coffee') >= 0 && _types.indexOf('bec') >= 0);
+const _span = ROUTE_FINISH_X - ROUTE_START_X;
+const _coffee = powerups.filter(function(b){ return b.type === 'coffee'; })[0];
+const _bec = powerups.filter(function(b){ return b.type === 'bec'; })[0];
+check('coffee spawns in the middle/back of the level (past 35% of the route)', _coffee.wx >= ROUTE_START_X + _span * 0.35);
+check('BEC spawns in the back half, near the end (past 60% of the route)', _bec.wx >= ROUTE_START_X + _span * 0.60);
+check('both healers sit on the route (start..finish)', _coffee.wx >= ROUTE_START_X && _coffee.wx <= ROUTE_FINISH_X && _bec.wx >= ROUTE_START_X && _bec.wx <= ROUTE_FINISH_X);
 
 // ===== 13) updatePowerups() consumes on contact + cleans up items driven past =====
 reset();
@@ -246,12 +254,22 @@ powerups.push({ type: 'bec', wx: p.wx - 20, wy: 2, t: 0, g: { parent: dynamicGro
 updatePowerups(1 / 30);
 check('a pickup well behind the worker is recycled out of the world', powerups.length === 0);
 
-// ===== 14) balance tuning: fair damage, generous healers, long Monster rush =====
+// ===== 14) balance tuning: fair damage, scarce healers, long Monster rush =====
 check('NPC hits are kept light & fair (vehicle ' + HP_HIT_VEHICLE + ', hazard ' + HP_HIT_HAZARD + ' <= 10)', HP_HIT_VEHICLE <= 10 && HP_HIT_HAZARD <= 10);
 check('a hazard nick is no worse than a vehicle run-over', HP_HIT_HAZARD <= HP_HIT_VEHICLE);
-check('Monster immunity is now a long rush (>= 10s, was 4s): ' + POWERUP_IMMUNE_DUR + 's', POWERUP_IMMUNE_DUR >= 10);
-check('coffee & BEC are now scarce (no longer more common than the Monster)', powerupCounts(0).coffee <= powerupCounts(0).monster && powerupCounts(0).bec <= powerupCounts(0).monster);
-check('coffee/BEC spawn rate reduced (1 of each on the first level, was 3): ' + powerupCounts(0).coffee + '/' + powerupCounts(0).bec, powerupCounts(0).coffee <= 1 && powerupCounts(0).bec <= 1);
+check('Monster immunity is a long rush (>= 10s): ' + POWERUP_IMMUNE_DUR + 's', POWERUP_IMMUNE_DUR >= 10);
+check('healers are scarce: 1 coffee + 1 BEC pre-placed (was 3 of each)', powerupCounts(0).coffee <= 1 && powerupCounts(0).bec <= 1);
+
+// ===== 15) Monster energy drink is score-triggered, spawned near the player =====
+check('Monster energy spawns every $' + MONSTER_SCORE_STEP + ' of score (should be 5000)', MONSTER_SCORE_STEP === 5000);
+check('spawnMonsterNearPlayer drops a Monster just ahead of the worker on the sidewalk', (function(){
+  reset();
+  p.wx = 300; p.wy = 2.5;
+  const before = powerups.length;
+  spawnMonsterNearPlayer();
+  const m = powerups[powerups.length - 1];
+  return powerups.length === before + 1 && m.type === 'monster' && m.wx > p.wx && m.wx <= p.wx + 7.5 && m.wy >= 0.6 && m.wy <= 4.8;
+})());
 
 SFX.playTossSound = function(){ sfx.push('toss'); };
 SFX.playStun = function(){ sfx.push('stun'); };
