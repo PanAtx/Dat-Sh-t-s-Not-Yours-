@@ -6196,7 +6196,6 @@ function showDayStats(){
 // Once the truck is fully out of frame, the day-end report takes over.
 const RE_CHEER = 1.5;       // fist-pump beat (seconds)
 const RE_WALK_SP = 4.0;     // stroll speed to the cab (u/s)
-const RE_BOARD = 1.1;       // climb-into-the-cab beat (seconds)
 const RE_DRIVE_SP = 7.0;    // drive-off speed (u/s)
 const RE_DRIVE_MAX = 9;     // hard cap on the drive-off, so it can never hang
 function startRouteEnd(){
@@ -6211,7 +6210,7 @@ function startRouteEnd(){
   const side = (p.wy >= -4.5) ? 1 : -1;
   routeEnd = { t: 0, phase: 'cheer', wx0: p.wx, wy0: p.wy,
                tx: cabX, ty: -4.5 + side * (boxW + 0.9),
-               bx: cabX, by: -4.5 + side * boxW * 0.55,   // a step further IN toward the cab
+               bx: cabX, by: -4.5 + side * boxW * 0.45,  // deep INSIDE the body — past the side panel, fully clipped
                walkT: 0, driveT: 0 };
   Voice.say('Route done! Clocking out — see ya tomorrow, city!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
 }
@@ -6279,23 +6278,37 @@ function updateRouteEnd(dt){
     return;
   }
   if (routeEnd.phase === 'board'){
-    // ---- Phase 3: step into the cab and sink out of sight — reads as "he's in".
-    const k = Math.min(1, routeEnd.t / RE_BOARD);
-    const e = 1 - Math.pow(1 - k, 2);
-    p.wx += (routeEnd.bx - p.wx) * Math.min(1, dt * 6);
-    p.wy += (routeEnd.by - p.wy) * Math.min(1, dt * 6);
-    // the fist comes down as he climbs in
+    // ---- Phase 3: WALK INTO the truck from the side. No shrinking, no teleport —
+    // he just keeps walking straight in and gets CLIPPED by the cab's side panel:
+    // his body sinks through the truck's hull as he enters, and once he's fully
+    // inside the truck's faces occlude him. When he's past the body's centerline
+    // he's out of sight, so we simply stop drawing him (he's inside now) and the
+    // truck drives off.
+    const dx = routeEnd.bx - p.wx, dy = routeEnd.by - p.wy;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.25){
+      g.visible = false;                       // fully inside the truck now
+      routeEnd.phase = 'drive'; routeEnd.t = 0; routeEnd.driveT = 0;
+      return;
+    }
+    const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
+    p.wx += (dx / dist) * sp * dt;
+    p.wy += (dy / dist) * sp * dt;
+    // face the truck as he climbs in
+    const target = Math.atan2(dy, dx);
+    let diff = target - p.facing;
+    while (diff >  Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    p.facing += diff * Math.min(1, dt * 20);
+    // the fist comes down as he steps in; legs pump a normal walk
+    const e = 1 - Math.min(1, dist / 2.2);
     wparts.armR.rotation.set(-Math.PI * (1 - e), 0, 0);
     wparts.armL.rotation.set(0.55 * (1 - e), 0, 0);
-    wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
-    const sc = Math.max(0.001, 1 - e);
-    g.scale.set(sc, sc, sc);
+    p.phase += RE_WALK_SP * dt * 1.5;
+    const s = Math.sin(p.phase) * 0.6;
+    wparts.legL.rotation.set(0, s, 0);     wparts.legR.rotation.set(0, -s, 0);
     g.rotation.set(0, 0, p.facing);
     g.position.set(p.wx, p.wy, GZ);
-    if (k >= 1){
-      g.visible = false;                       // he's inside the truck now
-      routeEnd.phase = 'drive'; routeEnd.t = 0; routeEnd.driveT = 0;
-    }
     return;
   }
   // ---- Phase 4: the truck drives off down the street. p.wx/p.wy are FROZEN at the
