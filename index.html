@@ -6302,6 +6302,10 @@ function updateRouteEnd(dt){
   // boarding spot, and positionCamera() is locked to the worker, so the playfield
   // holds perfectly still while the truck (worker aboard) rolls out of frame.
   truck.wx += RE_DRIVE_SP * dt;
+  // updateTruck() is NOT running during the cinematic (its auto-follow AI would yank
+  // the truck back to the worker), so we must sync the truck's MESH to its logic
+  // position ourselves — otherwise the model stays parked while truck.wx moves.
+  if (truck.g){ truck.g.visible = true; truck.g.position.set(truck.wx, -4.5, GZ); }
   routeEnd.driveT += dt;
   const hopperOff = (truck.hopperOff != null) ? truck.hopperOff : -4.3;
   const halfW = (camera && isFinite(camera.right)) ? Math.abs(camera.right) : 8;
