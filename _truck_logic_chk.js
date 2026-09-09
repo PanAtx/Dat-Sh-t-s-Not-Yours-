@@ -8,7 +8,7 @@ const assert = require('assert');
 
 function makeWorld(p, truck) {
   const code = `
-  const RUN_SPEED = 8.5;
+  const PLAYER_SPEED = 10;
   function canBackUp(){
     if (!p) return false;
     const lw = (truck.boxW != null) ? truck.boxW : 1.9;
@@ -23,7 +23,7 @@ function makeWorld(p, truck) {
     const target = 1.5;
     const err = rearX - (p.wx + target);
     const DEAD = 0.8;
-    const MAXSP = RUN_SPEED;
+    const MAXSP = PLAYER_SPEED;
     let sp = 0;
     if (Math.abs(err) > DEAD){
       const v = Math.min(MAXSP, (Math.abs(err) - DEAD) * 2.0);
@@ -100,7 +100,7 @@ check('truck converges into dead zone and stops (worker idle on sidewalk)', () =
 check('forward creep is not fast: speed capped + eases off', () => {
   truck.wx = -60; p.wx = 0; p.wy = 3;
   updateTruck(0.05);
-  assert.ok(truck.sp <= 8.5, 'sp ' + truck.sp);
+  assert.ok(truck.sp <= 10, 'sp ' + truck.sp);
   truck.wx = 4.8; p.wx = 0; p.wy = 3; // close in: rear at +0.5, err = -1.0 (just outside dead zone)
   updateTruck(0.05);
   assert.ok(truck.sp < 2.0, 'creep eases off near target: sp=' + truck.sp);

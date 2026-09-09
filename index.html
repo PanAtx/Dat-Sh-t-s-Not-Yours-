@@ -430,8 +430,9 @@ const ROUTE_START_X  = 80;   // barrier: worker can't walk back before Intersect
 const PLAYER_START_X = 88;   // spawn in the middle of Intersection 1, facing Block 2
 const ROUTE_FINISH_X = 656;  // reaching Intersection 7 completes the route
 const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
-const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
-const LAT_SPEED = 5.5;    // worker strafe speed (A/D / stick horizontal)
+const RUN_SPEED = 8.5;    // traffic + follow-truck baseline (cars never crawl below this)
+const PLAYER_SPEED = 10;  // worker forward speed while W / UP / stick is held (no input = stands still)
+const LAT_SPEED = 6.5;    // worker strafe speed (A/D / stick horizontal)
 const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
 const MIN_MOVE = 0.55;    // min speed floor once the stick is off-center (snappy, keyboard-like)
 const MOVE_T = 0.1;       // tiny jitter threshold: below this the worker stands still
@@ -4783,9 +4784,9 @@ function updatePlayer(dt){
      while (diff < -Math.PI) diff += 2 * Math.PI;
      p.facing += diff * Math.min(1, dt * 40);
    }
-  const speed = Math.abs(f) * RUN_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
+  const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
   const lat = l; // strafe component (continuous)
-  p.wx += f * RUN_SPEED * (f < 0 ? 0.75 : 1) * dt;
+  p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * dt;
   p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, 4.5);
   // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
@@ -4892,7 +4893,7 @@ function updateTruck(dt){
   const target = 1.5;                       // keep the hopper about this far ahead of the worker
   const err = rearX - (p.wx + target);      // <0: too far behind, >0: too far ahead (needs to back up)
   const DEAD = 0.8;                         // dead zone around the worker: hold position
-  const MAXSP = RUN_SPEED;                  // fast enough to eventually catch a sprinting worker
+  const MAXSP = PLAYER_SPEED;               // fast enough to keep up with a sprinting worker
   let sp = 0;
   if (Math.abs(err) > DEAD){
     // Proportional control: the creep speed scales with the gap and is capped,
