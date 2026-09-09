@@ -432,7 +432,7 @@ const ROUTE_FINISH_X = 656;  // reaching Intersection 7 completes the route
 const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
 const LAT_SPEED = 5.5;    // worker strafe speed (A/D / stick horizontal)
-const ANALOG_RESP = 0.7;  // analog response exponent (<1 = snappy low end, full push = full speed)
+const ANALOG_RESP = 0.6;  // analog response exponent (<1 = snappy low end, full push = full speed)
 const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
 const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
 const GZ = 0.3;
@@ -6467,9 +6467,16 @@ function pollGamepad(){
     const b  = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
     const ax = i => (pad.axes[i] || 0);
     const sx = ax(0), sy = ax(1);        // left stick: sx = right(+)/left(-), sy = down(+)/up(-)
-    if (Math.hypot(sx, sy) > 0.35){
+    const raw = Math.hypot(sx, sy);
+    const DZ = 0.25;                      // dead zone: below this the stick is treated as centered
+    if (raw > DZ){
       // ANALOG STICK: 360 degrees, proportional. up = forward, left = +strafe.
-      gp.f = -sy; gp.l = -sx;
+      // Remap the magnitude from (DZ, 1] -> (0, 1] so the INSTANT the stick leaves the
+      // dead zone it is already climbing toward full speed (no sluggish "ramp from zero"
+      // in the first third of travel). Full push still caps at 1.0.
+      const rem = Math.min((raw - DZ) / (1 - DZ), 1);
+      const sc = rem / raw;
+      gp.f = -sy * sc; gp.l = -sx * sc;
       const m = Math.hypot(gp.f, gp.l);
       if (m > 1){ gp.f /= m; gp.l /= m; }
     } else {
@@ -6529,7 +6536,7 @@ function joyDirFromPoint(e){
   const r = joy.getBoundingClientRect();
   const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
   const rad = r.width / 2;
-  if (Math.hypot(dx, dy) < rad * 0.15){ vt.f = 0; vt.l = 0; joyVisX = 0; joyVisY = 0; return; } // dead zone: stand still
+  if (Math.hypot(dx, dy) < rad * 0.08){ vt.f = 0; vt.l = 0; joyVisX = 0; joyVisY = 0; return; } // dead zone: stand still
   // Analog: the stick shows EXACTLY where the finger is (clamped to the travel circle),
   // and the worker moves that same direction with speed = fraction of full travel.
   let nx = dx / rad, ny = dy / rad;
