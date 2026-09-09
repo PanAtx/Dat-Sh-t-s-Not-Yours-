@@ -1,5 +1,5 @@
 // Harness: runs the EXACT virtual-pad code from index.html (extracted verbatim)
-// and the EXACT updatePlayer input lines, with faked DOM/state.
+// and the EXACT dominantMove() movement vector, with faked DOM/state.
 const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 
@@ -18,7 +18,7 @@ actBtn.classList = { toggle(c, f){ if (c === 'pressed') pressed.v = f; } };
 const els = { 'joy': joy, 'joy-stick': joyStick, 'actbtn': actBtn };
 const $ = id => els[id];
 const keys = {};
-const gp = { left:false, right:false, fwd:false, back:false, act:false, pAct:false, pStart:false };
+const gp = { f: 0, l: 0, act: false, pAct: false, pStart: false }; // analog: f = forward, l = strafe
 let state = 'play', interacts = 0;
 function tryInteract(){ interacts++; }
 function startGame(){}
@@ -30,67 +30,67 @@ const s = html.indexOf(A);
 if (s < 0) throw new Error('pad block not found');
 const code = html.slice(s, html.indexOf(B, s) + B.length);
 const pad = new Function('$', 'keys', 'gp', 'state', 'tryInteract', 'startGame',
-  code + '\n;return { vt, joyDirFromPoint, updateVirtualPad };')($, keys, gp, state, tryInteract, startGame);
-const { vt, updateVirtualPad } = pad;
+  code + '\n;return { vt, dominantMove, updateVirtualPad };')($, keys, gp, state, tryInteract, startGame);
+const { vt, dominantMove, updateVirtualPad } = pad;
 
 let pass = true;
 function check(name, cond, extra){ console.log((cond ? 'PASS' : 'FAIL') + '  ' + name + (cond ? '' : '  [' + extra + ']')); if (!cond) pass = false; }
+const near = (a, b, tol = 0.05) => Math.abs(a - b) <= tol;
 
-// ---------- 8-way snapping via real pointer handlers ----------
-// Pad is rotated 45° CCW from the worker's directions, but the STICK shows the
-// finger's own (raw) 8-way position. Finger positions (pad is 200x200 at 0,0):
+// ---------- analog joystick via real pointer handlers ----------
+// The stick now moves 360 degrees: the worker goes where the finger points and the
+// speed is proportional to how far the finger is pushed. vt.f = forward (up), vt.l = strafe (left).
 const ev = (x, y) => ({ pointerId: 1, clientX: x, clientY: y, preventDefault(){} });
 const tap = (x, y) => joy.fire('pointerdown', ev(x, y));
 const mv  = (x, y) => joy.fire('pointermove', ev(x, y));
-const dir = () => ({ fwd: vt.fwd, back: vt.back, left: vt.left, right: vt.right });
-const none = d => !d.fwd && !d.back && !d.left && !d.right;
 const stick = () => joyStick.style.transform;
-const T = {
-  N:  'translate(calc(-50% + 0.0px), calc(-50% + -54.0px))',
-  SE: 'translate(calc(-50% + 38.2px), calc(-50% + 38.2px))',
-  W:  'translate(calc(-50% + -54.0px), calc(-50% + 0.0px))',
-  C:  'translate(-50%, -50%)',
-};
+const parseT = t => { const m = /calc\(-50% \+ (-?[\d.]+)px\), calc\(-50% \+ (-?[\d.]+)px\)/.exec(t); return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 }; };
+const stickXY = () => parseT(stick());
+const CENTER = 'translate(-50%, -50%)';
 
+// Full travel (finger 90px from the 100px center = 0.9 of the radius). The stick moves
+// (travel = (200-92)/2 = 54px) toward the finger, so 0.9 * 54 = 48.6px; diagonals = 48.6/2 = 24.3...
+// (the cardinals below use 0.9; the diagonal test below uses the full 54/2 = 27 -> 38.2 after the rim clamp).
 tap(100, 10);
-check('N  (up)          = fwd+left (W+A)', vt.fwd && vt.left && !vt.back && !vt.right, dir());
+check('N  (up)          -> f = +0.9 (proportional)',   near(vt.f, 0.9, 0.005) && near(vt.l, 0), 'f=' + vt.f + ' l=' + vt.l);
 updateVirtualPad();
-check('stick VISUALLY points up (where the finger is)', stick() === T.N, stick());
-mv(185, 15);   check('NE (up-right)    = fwd (W)',         vt.fwd && !vt.back && !vt.left && !vt.right, dir());
-mv(190, 100);  check('E  (right)       = fwd+right (W+D)',vt.fwd && vt.right && !vt.back && !vt.left, dir());
-mv(185, 185);  check('SE (down-right)  = right (D)',       vt.right && !vt.fwd && !vt.back && !vt.left, dir());
+{ const q = stickXY(); check('stick VISUALLY up, proportional (48.6px)', near(q.x, 0, 0.05) && near(q.y, -48.6, 0.05), stick()); }
+mv(185, 15);   check('NE (up-right)    -> f = +0.707, l = -0.707', near(vt.f, 0.7071, 0.005) && near(vt.l, -0.7071, 0.005), 'f=' + vt.f + ' l=' + vt.l);
+mv(190, 100);  check('E  (right)       -> f = 0, l = -0.9',     near(vt.f, 0) && near(vt.l, -0.9, 0.005), 'f=' + vt.f + ' l=' + vt.l);
+mv(185, 185);  check('SE (down-right)  -> f = -0.707, l = -0.707', near(vt.f, -0.7071, 0.005) && near(vt.l, -0.7071, 0.005), 'f=' + vt.f + ' l=' + vt.l);
 updateVirtualPad();
-check('stick VISUALLY points down-right (where the finger is)', stick() === T.SE, stick());
-mv(100, 190);  check('S  (down)        = back+right (S+D)',vt.back && vt.right && !vt.fwd && !vt.left, dir());
-mv(15, 185);   check('SW (down-left)   = back (S)',        vt.back && !vt.fwd && !vt.left && !vt.right, dir());
-mv(10, 100);   check('W  (left)        = back+left (S+A)', vt.back && vt.left && !vt.fwd && !vt.right, dir());
+{ const q = stickXY(); check('stick VISUALLY down-right, proportional (38.2px)', near(q.x, 38.2, 0.05) && near(q.y, 38.2, 0.05), stick()); }
+mv(100, 190);  check('S  (down)        -> f = -0.9 (proportional)', near(vt.f, -0.9, 0.005) && near(vt.l, 0), 'f=' + vt.f + ' l=' + vt.l);
+mv(15, 185);   check('SW (down-left)   -> f = -0.707, l = +0.707', near(vt.f, -0.7071, 0.005) && near(vt.l, 0.7071, 0.005), 'f=' + vt.f + ' l=' + vt.l);
+mv(10, 100);   check('W  (left)        -> f = 0, l = +0.9',     near(vt.f, 0) && near(vt.l, 0.9, 0.005), 'f=' + vt.f + ' l=' + vt.l);
 updateVirtualPad();
-check('stick VISUALLY points left (where the finger is)', stick() === T.W, stick());
-mv(15, 15);    check('NW (up-left)     = left (A)',        vt.left && !vt.fwd && !vt.back && !vt.right, dir());
-mv(100, 100);  check('center deadzone  = no direction',    none(dir()), dir());
+{ const q = stickXY(); check('stick VISUALLY left, proportional (48.6px)', near(q.x, -48.6, 0.05) && near(q.y, 0, 0.05), stick()); }
+mv(15, 15);    check('NW (up-left)     -> f = +0.707, l = +0.707', near(vt.f, 0.7071, 0.005) && near(vt.l, 0.7071, 0.005), 'f=' + vt.f + ' l=' + vt.l);
+mv(100, 100);  check('center deadzone  -> f = 0, l = 0',          near(vt.f, 0) && near(vt.l, 0), 'f=' + vt.f + ' l=' + vt.l);
 updateVirtualPad();
-check('stick VISUALLY back to center in deadzone', stick() === T.C, stick());
+check('stick VISUALLY back to center in deadzone', stick() === CENTER, stick());
 joy.fire('pointerup', { pointerId: 1 });
-check('release            = no direction', none(dir()), dir());
-check('2nd pointer ignored after release', (() => { joy.fire('pointermove', { pointerId: 9, clientX: 190, clientY: 100 }); return none(dir()); })());
+check('release            -> f = 0, l = 0', near(vt.f, 0) && near(vt.l, 0), 'f=' + vt.f + ' l=' + vt.l);
+check('2nd pointer ignored after release', (() => { joy.fire('pointermove', { pointerId: 9, clientX: 190, clientY: 100 }); return near(vt.f, 0) && near(vt.l, 0); })());
 updateVirtualPad();
-check('stick back to center after release', stick() === T.C, stick());
+check('stick back to center after release', stick() === CENTER, stick());
+
 
 // ---------- mirroring: keyboard / gamepad / touch -> stick + button ----------
 updateVirtualPad();
-check('no input -> stick centered', joyStick.style.transform === 'translate(-50%, -50%)');
+check('no input -> stick centered', joyStick.style.transform === CENTER);
 
 keys['KeyW'] = true; updateVirtualPad();
-check('W mirrored -> stick up', joyStick.style.transform === 'translate(calc(-50% + 0.0px), calc(-50% + -54.0px))');
+check('W mirrored -> stick up', stick() === 'translate(calc(-50% + 0.0px), calc(-50% + -54.0px))');
 
 keys['KeyW'] = false; keys['ArrowRight'] = true; updateVirtualPad();
-check('ArrowRight mirrored -> stick right', joyStick.style.transform === 'translate(calc(-50% + 54.0px), calc(-50% + 0.0px))');
+check('ArrowRight mirrored -> stick right', stick() === 'translate(calc(-50% + 54.0px), calc(-50% + 0.0px))');
 keys['ArrowRight'] = false;
 
-gp.fwd = true; gp.left = true; updateVirtualPad();
+gp.f = 1; gp.l = 1; updateVirtualPad();
 const diagOk = joyStick.style.transform === 'translate(calc(-50% + -38.2px), calc(-50% + -38.2px))';
-check('gamepad fwd+left -> stick NW (54/√2 = 38.2)', diagOk);
-gp.fwd = false; gp.left = false; updateVirtualPad();
+check('gamepad fwd+left (analog) -> stick NW (54/\u221a2 = 38.2)', diagOk);
+gp.f = 0; gp.l = 0; updateVirtualPad();
 
 keys['Space'] = true; updateVirtualPad();
 check('Space held -> action button pressed', pressed.v === true);
@@ -99,6 +99,7 @@ check('Space up -> action button unpressed', pressed.v === false);
 
 vt.act = true; updateVirtualPad();
 check('touch act held -> action button pressed', pressed.v === true);
+vt.act = false;
 
 // ---------- action button = SPACE ----------
 const before = interacts;
@@ -107,21 +108,37 @@ check('ACT press in play -> tryInteract()', interacts === before + 1 && vt.act =
 actBtn.fire('pointerup', {});
 check('ACT release -> vt.act cleared', vt.act === false);
 
-// ---------- updatePlayer input lines (extracted verbatim) ----------
-const m0 = html.indexOf('let fwd  = !!');
-const m1 = html.indexOf('lat = -1;', m0);
-const lines = html.slice(m0, m1 + 'lat = -1;'.length);
-const move = new Function('keys', 'gp', 'vt', lines + '\n;return { fwd, back, lat };');
-let r = move(keys, gp, Object.assign({}, vt, { back: true }));
-check('touch SE (S) -> back (movement)', r.back === true && !r.fwd);
-r = move(keys, gp, Object.assign({}, vt, { fwd: true, left: true }));
-check('touch N (W+A) -> fwd + lat +1 (movement)', r.fwd === true && r.lat === 1 && r.back === false);
-r = move({ KeyA: true }, gp, vt);
-check('KeyA -> lat +1 (movement)', r.lat === 1 && !r.fwd && !r.back);
-r = move({}, { back: true }, vt);
-check('gamepad back -> back (movement)', r.back === true);
-r = move({}, gp, vt);
-check('no input -> stands still', !r.fwd && !r.back && r.lat === 0);
+// ---------- dominantMove (the movement vector updatePlayer consumes) ----------
+let r = dominantMove();
+check('no input -> stands still', near(r.f, 0) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyW'] = true;
+r = dominantMove();
+check('KeyW -> f = +1 (full forward)', near(r.f, 1) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyW'] = false; keys['KeyS'] = true;
+r = dominantMove();
+check('KeyS -> f = -1 (full back)', near(r.f, -1) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyS'] = false; keys['KeyA'] = true;
+r = dominantMove();
+check('KeyA -> l = +1 (strafe left)', near(r.l, 1) && near(r.f, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyA'] = false; keys['KeyD'] = true;
+r = dominantMove();
+check('KeyD -> l = -1 (strafe right)', near(r.l, -1) && near(r.f, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyD'] = false; keys['KeyW'] = true; keys['KeyD'] = true;
+r = dominantMove();
+check('W+D -> diagonal normalized (f = 1/\u221a2, l = -1/\u221a2)', near(r.f, 0.7071, 0.005) && near(r.l, -0.7071, 0.005), 'f=' + r.f + ' l=' + r.l);
+keys['KeyW'] = false; keys['KeyD'] = false;
+gp.f = 0.5; gp.l = 0;
+r = dominantMove();
+check('gamepad analog half-stick -> f = 0.5', near(r.f, 0.5) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+gp.f = 0; gp.l = 0;
+vt.f = 0.95; vt.l = 0;
+r = dominantMove();
+check('touch joystick -> f = 0.95', near(r.f, 0.95) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+vt.f = 0; vt.l = 0;
+gp.f = 0.8; gp.l = 0.4; keys['KeyW'] = true;
+r = dominantMove();
+check('keyboard (magnitude 1) beats gamepad (0.89)', near(r.f, 1) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
+keys['KeyW'] = false; gp.f = 0; gp.l = 0;
 
 console.log(pass ? '\nALL VIRTUAL PAD TESTS PASSED' : '\nSOME TESTS FAILED');
 process.exit(pass ? 0 : 1);

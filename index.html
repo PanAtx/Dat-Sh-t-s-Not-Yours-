@@ -222,7 +222,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   60%  { opacity:.85; transform:translate(-52%,-140%) scale(1.05) rotate(4deg); }
   100% { opacity:0;   transform:translate(-55%,-260%) scale(1.35) rotate(12deg); }
 }
-/* ===== Mobile virtual pad: 8-way joystick (bottom-left) + action button (bottom-right) =====
+/* ===== Mobile virtual pad: analog joystick, 360 degrees (bottom-left) + action button (bottom-right) =====
    Large translucent circle = travel radius, small translucent circle = the stick.
    Keyboard / gamepad input is mirrored onto this pad, so it also shows what's pressed on desktop. */
 :root { --joy: min(36vh, 24vw, 200px); --act: min(24vh, 16vw, 132px); }
@@ -431,6 +431,7 @@ const PLAYER_START_X = 88;   // spawn in the middle of Intersection 1, facing Bl
 const ROUTE_FINISH_X = 656;  // reaching Intersection 7 completes the route
 const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
+const LAT_SPEED = 5.5;    // worker strafe speed (A/D / stick horizontal)
 const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
 const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
 const GZ = 0.3;
@@ -559,7 +560,7 @@ let worker = null, wparts = null, truck = null;
 let routeEnd = null;   // level-complete cinematic sequencer (cheer -> walk -> board -> drive off); null = not playing
 let worldGroup, dynamicGroup, groundGroup, scene, camera, renderer, dirLight;
 const keys = {};
-const gp = { left:false, right:false, fwd:false, back:false, act:false, pAct:false, pStart:false };
+const gp = { f: 0, l: 0, act: false, pAct: false, pStart: false }; // f = forward, l = strafe (analog, -1..1)
 let lastT = performance.now();
 $('hiscore2').textContent = pad(hi);
 
@@ -4740,41 +4741,36 @@ function updateFootprints(dt){
 }
 // ==================== PLAYER UPDATE ====================
 function updatePlayer(dt){
-  // 8-way, 100% player-driven movement (keyboard OR gamepad OR touch pad):
-  // W/Up = forward, S/Down = back along the route, A/D = strafe, combos = diagonals; no input = stands still
-  let fwd  = !!(keys['KeyW'] || keys['ArrowUp']   || gp.fwd  || vt.fwd);
-  let back = !!(keys['KeyS'] || keys['ArrowDown'] || gp.back || vt.back);
-  let lat = 0;
-  if (keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left) lat = 1;
-  if (keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) lat = -1;
+  // Analog, 100% player-driven movement (keyboard OR gamepad OR touch joystick):
+  // the input is a 2D vector in the route frame (f = forward/back along the route,
+  // l = strafe left/right). The keyboard is digital (diagonals normalized), while the
+  // gamepad's left analog stick and the touch joystick give 360 degrees with speed
+  // proportional to how far the stick is pushed. No input = stands still.
+  const mv = dominantMove();
+  let f = mv.f, l = mv.l;
   if (p.stunT > 0){
     p.stunT -= dt;
-    fwd = false; back = false; lat = 0;
+    f = 0; l = 0;
   }
-   // ===== dynamic facing: worker turns to match walk direction =====
-   let moveX = 0, moveY = 0;
-   if (fwd) moveX += 1;
-   if (back) moveX -= 1;
-   moveY += lat;
-   if (moveX !== 0 || moveY !== 0){
-     const target = Math.atan2(moveY, moveX);
+   // ===== dynamic facing: worker turns to match walk direction (any of 360 degrees) =====
+   if (f !== 0 || l !== 0){
+     const target = Math.atan2(l, f);
      let diff = target - p.facing;
      while (diff >  Math.PI) diff -= 2 * Math.PI;
      while (diff < -Math.PI) diff += 2 * Math.PI;
      p.facing += diff * Math.min(1, dt * 22);
    }
-  const dir = fwd ? 1 : (back ? -1 : 0);
-  const speed = dir !== 0 ? RUN_SPEED * (dir < 0 ? 0.75 : 1) : 0; // backing up is a touch slower
-  const diagF = (dir !== 0 && lat !== 0) ? 0.82 : 1; // 8-way diagonals don't outpace straight-line runs
-  if (dir !== 0) p.wx += dir * speed * diagF * dt;
-  p.wy = clamp(p.wy + lat * 5.5 * diagF * dt, -9.4, 4.5);
+  const speed = Math.abs(f) * RUN_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
+  const lat = l; // strafe component (continuous)
+  p.wx += f * RUN_SPEED * (f < 0 ? 0.75 : 1) * dt;
+  p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, 4.5);
   // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
   if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
   if (p.wx >= ROUTE_FINISH_X && state === 'play'){ startRouteEnd(); return; } // fist pump, cab hop-in, truck rolls out
   // brown footprint trail: one print per ~0.45 units walked while the trail is active
   if (p.poopSteps > 0){
-    footDist += (Math.abs(dir) * speed + Math.abs(lat) * 5.5) * diagF * dt;
+    footDist += (speed + Math.abs(lat) * LAT_SPEED) * dt;
     if (footDist >= 0.45){ footDist = 0; dropFootprint(); p.poopSteps--; }
   }
   // === Truck body collision: worker can't clip through the truck, but can walk freely
@@ -4812,8 +4808,9 @@ function updatePlayer(dt){
     // The route HUD now shows the current day (set in resetWorldState), so we no longer
     // re-brand it periodically — that would clobber the day/borough text.
   }
-  // animation (legs pump only while the player is actually moving)
-  const amp = (dir !== 0 ? 0.7 : (lat !== 0 ? 0.35 : 0));
+  // animation (legs pump only while the player is actually moving; forward/back = big
+  // stride, strafe = small shuffle, and the analog stick scales the stride with push)
+  const amp = Math.min(0.7, Math.abs(f) * 0.7 + Math.abs(lat) * 0.35);
   const s = Math.sin(p.phase) * amp;
   p.phase += Math.max(speed, Math.abs(lat) * 4.5) * dt * 1.5;
   if (p.stunT > 0){
@@ -6364,7 +6361,7 @@ function routeComplete(){
   $('day-stats').classList.remove('hidden');
   radioMode();
   $('vpad').classList.remove('on');
-  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  vt.f = 0; vt.l = 0; vt.act = false;
   joyPid = null;
 }
 function nextDay(){
@@ -6382,7 +6379,7 @@ function showWeekComplete(){
   $('week-complete').classList.remove('hidden');
   radioMode();
   $('vpad').classList.remove('on');
-  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  vt.f = 0; vt.l = 0; vt.act = false;
   joyPid = null;
 }
 function showDayIntro(){
@@ -6397,7 +6394,7 @@ function showDayIntro(){
   needsIdleRender = true;   // draw a fresh backdrop frame behind the day card
   lastT = performance.now();
   $('vpad').classList.remove('on');
-  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  vt.f = 0; vt.l = 0; vt.act = false;
 }
 function beginDay(){
   $('day-intro').classList.add('hidden');
@@ -6405,7 +6402,7 @@ function beginDay(){
   radioMode();
   lastT = performance.now();   // the sim idled on the intro card: don't let the first frame see a huge dt
   $('vpad').classList.add('on');
-  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  vt.f = 0; vt.l = 0; vt.act = false;
 }
 function startGame(){
   enterLandscapeFullscreen();
@@ -6443,13 +6440,13 @@ function gameOver(reason){
   $('over').classList.remove('hidden');
   radioMode(); // NOW PLAYING bar parks back in the top-right corner
   $('vpad').classList.remove('on'); // hide the touch pad; drop any held touch state
-  vt.left = vt.right = vt.fwd = vt.back = vt.act = false;
+  vt.f = 0; vt.l = 0; vt.act = false;
   joyPid = null;
 }
 // ==================== INPUT ====================
 // ---- gamepad (polled every frame; works in parallel with the keyboard) ----
 function pollGamepad(){
-  gp.left = gp.right = gp.fwd = gp.back = gp.act = false;
+  gp.f = 0; gp.l = 0; gp.act = false;
   let pad = null;
   try {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -6458,10 +6455,17 @@ function pollGamepad(){
   if (pad){
     const b  = i => !!(pad.buttons[i] && pad.buttons[i].pressed);
     const ax = i => (pad.axes[i] || 0);
-    gp.left   = b(14) || ax(0) < -0.4;   // d-pad left  / stick left
-    gp.right  = b(15) || ax(0) >  0.4;   // d-pad right / stick right
-    gp.fwd    = b(12) || ax(1) < -0.4;   // d-pad up    / stick up   = run forward
-    gp.back   = b(13) || ax(1) >  0.4;   // d-pad down  / stick down = back up the route
+    const sx = ax(0), sy = ax(1);        // left stick: sx = right(+)/left(-), sy = down(+)/up(-)
+    if (Math.hypot(sx, sy) > 0.35){
+      // ANALOG STICK: 360 degrees, proportional. up = forward, left = +strafe.
+      gp.f = -sy; gp.l = -sx;
+      const m = Math.hypot(gp.f, gp.l);
+      if (m > 1){ gp.f /= m; gp.l /= m; }
+    } else {
+      // D-PAD fallback (digital)
+      gp.f = (b(12) ? 1 : 0) - (b(13) ? 1 : 0);   // up - down
+      gp.l = (b(14) ? 1 : 0) - (b(15) ? 1 : 0);   // left - right
+    }
     gp.act    = b(0) || b(2) || b(1) || b(3); // A / X / B / Y = action
     gp.start  = b(9);
   } else { gp.start = false; }
@@ -6497,29 +6501,32 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 // ==================== VIRTUAL PAD (MOBILE) ====================
-// Bottom-left: 8-way joystick — the large translucent circle is the travel radius,
-// the small translucent circle is the stick; the finger snaps to one of 8 directions.
-// The pad is rotated 45° CCW from the worker: DOWN = S+D, DOWN-RIGHT = D, RIGHT = W+D,
-// UP = W+A, and so on (center = stand still; keyboard / gamepad mapping is unchanged).
+// Bottom-left: ANALOG joystick (360 degrees) - the large translucent circle is the
+// travel radius, the small translucent circle is the stick; the worker moves in the
+// direction the stick points, with speed proportional to how far it is pushed.
+// Push UP = run forward down the route, DOWN = back up the route, LEFT/RIGHT = strafe,
+// and every angle in between (center = stand still). The gamepad's left analog stick
+// drives the SAME movement vector, so both inputs feel identical.
 // Bottom-right: translucent action button = SPACE (pick up trash / dump it into the truck).
-// The stick visually follows the finger (snapped to the 8 directions); when the input
-// comes from the keyboard or gamepad, the stick is mirrored onto that direction.
+// The stick visually follows the finger; when the input comes from the keyboard or
+// gamepad, the stick is mirrored onto that movement direction.
 // The action button shows its pressed state from ANY input source.
-const vt = { left:false, right:false, fwd:false, back:false, act:false }; // touch-pad state
+const vt = { f: 0, l: 0, act: false }; // touch-joystick state: f = forward, l = strafe (analog, -1..1)
 const joy = $('joy'), joyStick = $('joy-stick'), actBtn = $('actbtn');
-let joyPid = null, lastStickT = '', joyVisX = 0, joyVisY = 0; // joyVis = the stick's visual (finger) direction
+let joyPid = null, lastStickT = '', joyVisX = 0, joyVisY = 0; // joyVis = the stick's visual (finger) position
 function joyDirFromPoint(e){
   const r = joy.getBoundingClientRect();
   const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-  if (Math.hypot(dx, dy) < r.width * 0.15){ vt.fwd = vt.back = vt.left = vt.right = false; joyVisX = 0; joyVisY = 0; return; } // dead zone: stand still
-  // Stick shows WHERE the finger is (nearest of the 8 directions)...
-  const raw = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
-  joyVisX = Math.round(Math.cos(raw)); joyVisY = Math.round(Math.sin(raw));
-  // ...while the worker moves the direction one step COUNTER-CLOCKWISE from that push
-  // (DOWN = S+D, DOWN-RIGHT = D, RIGHT = W+D, UP = W+A, and so on; keyboard / gamepad unchanged).
-  const snapped = raw - Math.PI / 4;
-  const vx = Math.round(Math.cos(snapped)), vy = Math.round(Math.sin(snapped)); // each in {-1, 0, 1}
-  vt.fwd = vy < 0; vt.back = vy > 0; vt.left = vx < 0; vt.right = vx > 0;
+  const rad = r.width / 2;
+  if (Math.hypot(dx, dy) < rad * 0.15){ vt.f = 0; vt.l = 0; joyVisX = 0; joyVisY = 0; return; } // dead zone: stand still
+  // Analog: the stick shows EXACTLY where the finger is (clamped to the travel circle),
+  // and the worker moves that same direction with speed = fraction of full travel.
+  let nx = dx / rad, ny = dy / rad;
+  const nm = Math.hypot(nx, ny);
+  if (nm > 1){ nx /= nm; ny /= nm; }
+  joyVisX = nx; joyVisY = ny;          // visual = finger direction (screen coords)
+  vt.f = -ny;                          // screen up (ny<0) = forward
+  vt.l = -nx;                          // screen left (nx<0) = +strafe
 }
 joy.addEventListener('pointerdown', e => {
   if (state !== 'play') return;
@@ -6533,7 +6540,7 @@ function joyRelease(e){
   if (e.pointerId !== joyPid) return;
   joyPid = null;
   joyVisX = 0; joyVisY = 0;
-  vt.fwd = vt.back = vt.left = vt.right = false;
+  vt.f = 0; vt.l = 0;
 }
 joy.addEventListener('pointerup', joyRelease);
 joy.addEventListener('pointercancel', joyRelease);
@@ -6545,21 +6552,35 @@ actBtn.addEventListener('pointerdown', e => {
 });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => actBtn.addEventListener(ev, () => { vt.act = false; }));
 [joy, actBtn].forEach(el => el.addEventListener('contextmenu', e => e.preventDefault()));
-// Stick: while a finger is on the pad it shows the finger's own 8-way position;
-// otherwise it mirrors the keyboard / gamepad direction (touch acts as one of those sources).
+// The one movement vector for the whole game: combines the keyboard (digital),
+// the gamepad left stick (analog) and the touch joystick (analog) by taking the
+// input with the largest magnitude, in the route frame (f = forward, l = strafe).
+function dominantMove(){
+  let fk = ((keys['KeyW'] || keys['ArrowUp']) ? 1 : 0) - ((keys['KeyS'] || keys['ArrowDown']) ? 1 : 0);
+  let lk = ((keys['KeyA'] || keys['ArrowLeft']) ? 1 : 0) - ((keys['KeyD'] || keys['ArrowRight']) ? 1 : 0);
+  const km = Math.hypot(fk, lk);
+  if (km > 1){ fk /= km; lk /= km; }   // normalize digital diagonals to unit length
+  let f = fk, l = lk, best = Math.min(km, 1); // keyboard magnitude (diagonals normalize to 1)
+  const consider = (cf, cl) => { const m = Math.hypot(cf, cl); if (m > best){ best = m; f = cf; l = cl; } };
+  consider(gp.f, gp.l);   // gamepad (analog stick or d-pad)
+  consider(vt.f, vt.l);   // touch joystick (analog)
+  return { f: f, l: l };
+}
+// Stick: while a finger is on the pad it shows the finger's own position (proportional
+// to how far it is pushed); otherwise it mirrors the keyboard / gamepad movement
+// direction at full travel (touch acts as one of those sources).
 function updateVirtualPad(){
   let ax, ay;
-  if (joyPid !== null){ ax = joyVisX; ay = joyVisY; }
+  if (joyPid !== null){ ax = joyVisX; ay = joyVisY; }   // finger position, magnitude 0..1
   else {
-    ax = ((keys['KeyD'] || keys['ArrowRight'] || gp.right || vt.right) ? 1 : 0)
-       - ((keys['KeyA'] || keys['ArrowLeft']  || gp.left  || vt.left)  ? 1 : 0);
-    ay = ((keys['KeyS'] || keys['ArrowDown']  || gp.back  || vt.back)  ? 1 : 0)
-       - ((keys['KeyW'] || keys['ArrowUp']    || gp.fwd   || vt.fwd)   ? 1 : 0);
+    const mv = dominantMove();
+    ax = -mv.l; ay = -mv.f;   // movement (f,l) -> screen (left = -l, up = -f)
   }
   const m = Math.hypot(ax, ay);
   const travel = (joy.clientWidth - joyStick.clientWidth) / 2;
+  const d = Math.min(m, 1);   // finger: proportional; keyboard / gamepad mirror: full travel
   const t = m > 0
-    ? 'translate(calc(-50% + ' + (ax / m * travel).toFixed(1) + 'px), calc(-50% + ' + (ay / m * travel).toFixed(1) + 'px))'
+    ? 'translate(calc(-50% + ' + (ax / m * d * travel).toFixed(1) + 'px), calc(-50% + ' + (ay / m * d * travel).toFixed(1) + 'px))'
     : 'translate(-50%, -50%)';
   if (t !== lastStickT){ joyStick.style.transform = t; lastStickT = t; }
   actBtn.classList.toggle('pressed', !!(keys['Space'] || keys['KeyE'] || gp.act || vt.act));
