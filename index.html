@@ -4772,12 +4772,16 @@ function updatePlayer(dt){
     f = 0; l = 0;
   }
    // ===== dynamic facing: worker turns to match walk direction (any of 360 degrees) =====
+   // TURN RATE: a high rate makes the worker snap to face the movement direction
+   // almost immediately, so keyboard / stick / gamepad all feel snappy - the body
+   // never visibly "lags behind" the input while turning. 40 = ~2 frames to 90% of
+   // the turn at 60fps (was 22 = ~5 frames, which read as sluggish).
    if (f !== 0 || l !== 0){
      const target = Math.atan2(l, f);
      let diff = target - p.facing;
      while (diff >  Math.PI) diff -= 2 * Math.PI;
      while (diff < -Math.PI) diff += 2 * Math.PI;
-     p.facing += diff * Math.min(1, dt * 22);
+     p.facing += diff * Math.min(1, dt * 40);
    }
   const speed = Math.abs(f) * RUN_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
   const lat = l; // strafe component (continuous)
