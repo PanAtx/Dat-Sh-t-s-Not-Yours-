@@ -4752,6 +4752,17 @@ function updatePlayer(dt){
   // proportional to how far the stick is pushed. No input = stands still.
   const mv = dominantMove();
   let f = mv.f, l = mv.l;
+  // Analog sticks (gamepad left stick + touch joystick) are rotated so the worker
+  // moves in the SCREEN direction the stick points (push up = up on screen), cancelling
+  // the isometric +45deg playfield rotation. Keyboard / d-pad keep the classic
+  // route-aligned diagonal movement (unchanged). The rotation preserves magnitude, so
+  // the speed curve below (which keys off hypot(f, l)) is unaffected.
+  if (mv.analog){
+    const c = Math.SQRT1_2;
+    const rf = c * (f - l);
+    const rl = c * (f + l);
+    f = rf; l = rl;
+  }
   // Snappy analog response: below a tiny jitter threshold the worker stands still;
   // above it, speed is FLOORED at MIN_MOVE (so even a light touch is already a brisk
   // walk, matching the keyboard's instant full speed) and then rises along a concave
@@ -6470,7 +6481,7 @@ function gameOver(reason){
 // ==================== INPUT ====================
 // ---- gamepad (polled every frame; works in parallel with the keyboard) ----
 function pollGamepad(){
-  gp.f = 0; gp.l = 0; gp.act = false;
+  gp.f = 0; gp.l = 0; gp.act = false; gp.analog = false; // analog = true when the LEFT STICK (not the d-pad) drives movement
   let pad = null;
   try {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -6490,6 +6501,7 @@ function pollGamepad(){
       const rem = Math.min((raw - DZ) / (1 - DZ), 1);
       const sc = rem / raw;
       gp.f = -sy * sc; gp.l = -sx * sc;
+      gp.analog = true;   // left stick (analog): updatePlayer rotates it to the screen direction
       const m = Math.hypot(gp.f, gp.l);
       if (m > 1){ gp.f /= m; gp.l /= m; }
     } else {
@@ -6535,9 +6547,10 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 // Bottom-left: ANALOG joystick (360 degrees) - the large translucent circle is the
 // travel radius, the small translucent circle is the stick; the worker moves in the
 // direction the stick points, with speed proportional to how far it is pushed.
-// Push UP = run forward down the route, DOWN = back up the route, LEFT/RIGHT = strafe,
-// and every angle in between (center = stand still). The gamepad's left analog stick
-// drives the SAME movement vector, so both inputs feel identical.
+// The stick is rotated so the worker moves in the SCREEN direction it points: push UP
+// = up on screen, DOWN = down, LEFT/RIGHT = strafe, and every angle in between (center
+// = stand still) - NOT the isometric diagonal. The gamepad's left analog stick drives
+// the SAME movement vector, so both inputs feel identical.
 // Bottom-right: translucent action button = SPACE (pick up trash / dump it into the truck).
 // The stick visually follows the finger; when the input comes from the keyboard or
 // gamepad, the stick is mirrored onto that movement direction.
@@ -6592,10 +6605,11 @@ function dominantMove(){
   const km = Math.hypot(fk, lk);
   if (km > 1){ fk /= km; lk /= km; }   // normalize digital diagonals to unit length
   let f = fk, l = lk, best = Math.min(km, 1); // keyboard magnitude (diagonals normalize to 1)
-  const consider = (cf, cl) => { const m = Math.hypot(cf, cl); if (m > best){ best = m; f = cf; l = cl; } };
-  consider(gp.f, gp.l);   // gamepad (analog stick or d-pad)
-  consider(vt.f, vt.l);   // touch joystick (analog)
-  return { f: f, l: l };
+  let analog = false;  // keyboard is digital (route-aligned); only the analog sticks are screen-aligned
+  const consider = (cf, cl, isAnalog) => { const m = Math.hypot(cf, cl); if (m > best){ best = m; f = cf; l = cl; analog = isAnalog; } };
+  consider(gp.f, gp.l, gp.analog);   // gamepad (left stick = analog, d-pad = digital)
+  consider(vt.f, vt.l, true);        // touch joystick (always analog)
+  return { f: f, l: l, analog: analog };
 }
 // Stick: while a finger is on the pad it shows the finger's own position (proportional
 // to how far it is pushed); otherwise it mirrors the keyboard / gamepad movement

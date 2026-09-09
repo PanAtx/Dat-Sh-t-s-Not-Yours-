@@ -140,5 +140,33 @@ r = dominantMove();
 check('keyboard (magnitude 1) beats gamepad (0.89)', near(r.f, 1) && near(r.l, 0), 'f=' + r.f + ' l=' + r.l);
 keys['KeyW'] = false; gp.f = 0; gp.l = 0;
 
+// ---------- analog rotation: the stick points in the SCREEN direction ----------
+// updatePlayer rotates the analog (f,l) so the worker moves in the screen direction
+// the stick points (push up = up on screen), cancelling the isometric +45deg rotation.
+// In the route frame: screen-right = f - l, screen-up = f + l. The rotation must map
+// each screen cardinal to a straight screen direction (no 45deg drift).
+const c45 = Math.SQRT1_2;
+const rot = (f, l) => ({ f: c45 * (f - l), l: c45 * (f + l) });
+const scr = (a) => ({ right: a.f - a.l, up: a.f + a.l });
+const cardinals = [
+  ['up',    1,  0,  0,       1.4142],
+  ['down', -1,  0,  0,      -1.4142],
+  ['left',  0,  1, -1.4142,  0],
+  ['right', 0, -1,  1.4142,  0],
+];
+cardinals.forEach(function(row){
+  const a = rot(row[1], row[2]); const sd = scr(a);
+  const dir = row[4] > 0 ? 'up' : row[4] < 0 ? 'down' : row[3] > 0 ? 'right' : 'left';
+  check('analog ' + row[0] + ' -> screen ' + dir + ' (right=' + sd.right.toFixed(3) + ', up=' + sd.up.toFixed(3) + ')',
+        near(sd.right, row[3], 0.02) && near(sd.up, row[4], 0.02),
+        'right=' + sd.right + ' up=' + sd.up);
+});
+keys['KeyW'] = true;
+check('keyboard -> analog = false (not rotated)', dominantMove().analog === false);
+keys['KeyW'] = false;
+vt.f = 0.9; vt.l = 0;
+check('touch joystick -> analog = true (rotated)', dominantMove().analog === true);
+vt.f = 0; vt.l = 0;
+
 console.log(pass ? '\nALL VIRTUAL PAD TESTS PASSED' : '\nSOME TESTS FAILED');
 process.exit(pass ? 0 : 1);
