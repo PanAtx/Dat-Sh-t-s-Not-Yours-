@@ -75,10 +75,14 @@ const api = new Function(
   CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, WORKER_MAX_Y,
   dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP);
 // ---- 1) placement ------------------------------------------------------------------
-check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup, FULL of visible trash', ()=>{
+check('placeLitterBasket -> 11 baskets at corners (very first + last pair skipped), all "placed" on groundGroup, FULL of visible trash', ()=>{
   api.placeLitterBasket();
-  assert.strictEqual(api.baskets().length, 14);
-  assert.strictEqual(api.homes().length, 14);
+  assert.strictEqual(api.baskets().length, 11);
+  assert.strictEqual(api.homes().length, 11);
+  // The VERY FIRST corner (approach of intersection 1, cx + (-6) = 2) is skipped,
+  // so the first PLACED basket is the departure corner of intersection 1 (cx + 6 = 14).
+  assert.strictEqual(api.homes()[0].wx, 14, 'first placed basket is the departure corner of intersection 1, not the very first corner');
+  assert.ok(api.homes().every(h => h.wx !== 2), 'the very first corner (wx=2) is not a basket home');
   for (const b of api.baskets()){
     assert.strictEqual(b.state, 'placed');
     assert.strictEqual(b.g.parent, groundGroup);
@@ -191,13 +195,13 @@ check('dropCarried (basket) -> stays "placed" and pickable again', ()=>{
   assert.strictEqual(api.carry(), 'litterBasket');
 });
 
-// ---- 7) reset restores all 14 baskets to their corners -----------------------------
-check('resetLitterBaskets -> all 14 restored "placed" on groundGroup, in-flight cleared', ()=>{
+// ---- 7) reset restores all 11 baskets to their corners ----------------------------
+check('resetLitterBaskets -> all 11 restored "placed" on groundGroup, in-flight cleared', ()=>{
   const b3 = api.baskets()[3];
   p.wx = b3.hx; p.wy = b3.hy;
   if (api.carry() !== 'litterBasket') api.tryInteract();
   api.resetLitterBaskets();
-  assert.strictEqual(api.baskets().length, 14);
+  assert.strictEqual(api.baskets().length, 11);
   assert.strictEqual(api.flying().length, 0);
   for (const b of api.baskets()){
     assert.strictEqual(b.state, 'placed');

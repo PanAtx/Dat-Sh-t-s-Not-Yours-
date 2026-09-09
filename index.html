@@ -1639,15 +1639,19 @@ function placeLitterBasket(){
   // at both the approach and departure corners of Intersections 1–7
   // (the active gameplay route; Intersection 8 sits past the finish line).
   //   cx = xInt + IW/2; x = cx +/- (CROSS_W/2 + 1.5); y = 1.8.
+  // The VERY FIRST basket (the approach corner of the first intersection) is NOT
+  // placed, and the LAST TWO baskets (the pair at the final intersection) are NOT
+  // placed, so they don't need to be picked up -> 11 baskets, not 14.
   litterBasketHomes = [];
   const offsets = [ -(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5 ];
-  const activeIntersections = LEVEL_XS.slice(0, 7);
-  for (const xInt of activeIntersections){
+  const activeIntersections = LEVEL_XS.slice(0, 6);
+  activeIntersections.forEach(function(xInt, i){
     const cx = xInt + IW / 2;
-    for (const off of offsets){
-      litterBasketHomes.push({ wx: cx + off, wy: 1.8 });
+    for (let o = 0; o < offsets.length; o++){
+      if (i === 0 && o === 0) continue;   // skip the very first corner basket
+      litterBasketHomes.push({ wx: cx + offsets[o], wy: 1.8 });
     }
-  }
+  });
   resetLitterBaskets();
 }
 // Re-create every litter basket at its corner home. Disposes whatever is
