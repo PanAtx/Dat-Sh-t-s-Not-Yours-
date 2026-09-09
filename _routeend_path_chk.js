@@ -37,10 +37,19 @@ function clearance(wx, wy, truck){
 
 // ---- scenario: worker finishes at Intersection 7, truck parked behind him ----
 const ROUTE_FINISH_X = 656, boxL = 5.6, boxW = 2.25, cabOff = boxL + 1.6;
+// Build a worker group mock that mirrors the real one: a `visible` flag plus a
+// `traverse` that visits the (mock) meshes. updateRouteEnd forces each mesh visible
+// during the on-stage phases, so the meshes are exposed for assertions.
+function mkWorkerGroup(){
+  const meshes = [{ isMesh: true, visible: true }];
+  const group = { visible: true, position: { set(){} }, rotation: { set(){} }, meshes };
+  group.traverse = function(fn){ meshes.forEach(fn); };
+  return group;
+}
 function mkWorld(p0, truck){
   return {
     state: 'play', carried: null, p: p0, truck: truck,
-    worker: { group: { visible: true, position: { set(){} }, rotation: { set(){} } } },
+    worker: { group: mkWorkerGroup() },
     wparts: { armL: { rotation: { set(){} } }, armR: { rotation: { set(){} } }, legL: { rotation: { set(){} } }, legR: { rotation: { set(){} } } },
     g: null, GZ: 0.01,
     routeEnd: null,
@@ -72,6 +81,7 @@ function harness(world){
     updateHopperTrash: world.updateHopperTrash, updateHUD: world.updateHUD,
     clamp: world.clamp, camera: world.camera, finishRouteEnd: world.finishRouteEnd,
     WORKER_GENDER: 'male',
+    WORKER_MAX_Y: grabConst('WORKER_MAX_Y'),
     RE_CHEER: grabConst('RE_CHEER'), RE_WALK_SP: grabConst('RE_WALK_SP'),
     RE_DRIVE_SP: grabConst('RE_DRIVE_SP'), RE_DRIVE_MAX: grabConst('RE_DRIVE_MAX'),
     Math: Math
@@ -145,6 +155,42 @@ function simWalk(p0, truck){
   const r = simWalk({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, t2);
   check('procedural fallback truck: never clips the body', !r.clipped, 'minClear=' + r.minClear.toFixed(3) + 'u');
   check('procedural fallback truck: reaches the cab door', r.reached, 'phase=' + r.phase);
+}
+// 6) worker frozen INVISIBLE by the "RUN IT UP!" blink when the level completes:
+//    updatePlayer stops running in the 'routeend' state, so the last blink frame's
+//    per-mesh .visible value is frozen. If that frame was the "off" phase the worker
+//    would stay invisible for the whole celebration. updateRouteEnd must force every
+//    mesh visible during the on-stage (cheer + walk) phases, and still let the board
+//    phase hide the group once he steps into the cab.
+{
+  const truck = { wx: 654.5, boxL, boxW, cabOff, hopperOff: -boxL + 1.6, g: null, hidden: 0 };
+  const w = mkWorld({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck);
+  // Freeze the worker exactly as a bad blink frame would leave him: every mesh AND
+  // the group hidden.
+  w.worker.group.visible = false;
+  w.worker.group.meshes.forEach(m => { m.visible = false; });
+  const { ctx, startRouteEnd, updateRouteEnd } = harness(w);
+  startRouteEnd();
+  const dt = 0.05;
+  let sawStageVisible = false, stageMeshVisible = true, groupStageVisible = true;
+  let boardHidGroup = false;
+  for (let i = 0; i < 600; i++){
+    const ph = ctx.routeEnd && ctx.routeEnd.phase;
+    if (!ctx.routeEnd || ph === 'drive') break;
+    updateRouteEnd(dt);
+    const after = ctx.routeEnd && ctx.routeEnd.phase;
+    if (after === 'cheer' || after === 'walk'){
+      sawStageVisible = true;
+      if (!w.worker.group.meshes.every(m => m.visible)) stageMeshVisible = false;
+      if (!w.worker.group.visible) groupStageVisible = false;
+    }
+    // The board phase hides the group (g.visible=false) in the SAME frame it hands
+    // off to 'drive', so observe the hide at the board->drive transition.
+    if (after === 'drive' && w.worker.group.visible === false) boardHidGroup = true;
+  }
+  check('route-end: frozen-invisible worker is re-shown on stage', sawStageVisible && stageMeshVisible && groupStageVisible,
+        'cheer/walk saw=' + sawStageVisible + ' meshVisible=' + stageMeshVisible + ' groupVisible=' + groupStageVisible);
+  check('route-end: board phase still hides the group once he is in the cab', boardHidGroup);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

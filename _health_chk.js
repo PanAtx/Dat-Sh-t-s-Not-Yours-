@@ -33,7 +33,7 @@ function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color
 function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); q.castShadow = true; return q; }
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 const R = (a, b) => a + Math.random() * (b - a);
-const GZ = 0.3, CURB_LIFT = 0.06, BLOCK_W = 80;
+const GZ = 0.3, CURB_LIFT = 0.06, BLOCK_W = 80, BW = 8, HOUSES_PER_BLOCK = 10;
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true },
   { x: 288, garbage: true }, { x: 384, garbage: true }, { x: 480, garbage: true },
@@ -111,6 +111,7 @@ eval(extractFn('makeHalo'));
 eval(extractFn('makeCoffee'));
 eval(extractFn('makeBEC'));
 eval(extractFn('makeMonster'));
+eval(extractFn('snapToHouseCell'));
 eval(extractFn('spawnPowerup'));
 eval(extractFn('powerupCounts'));
 eval(extractFn('spawnPowerups'));
@@ -273,7 +274,7 @@ check('no Monster is pre-placed at level start (it is score-triggered)', (c0.mon
 reset();
 spawnPowerups(0);
 check('spawnPowerups places exactly 2 healers (coffee + BEC)', powerups.length === 2);
-check('both healers have a 3D model on the near sidewalk', powerups.every(function(b){ return (b.type === 'coffee' || b.type === 'bec') && b.g && b.g.children.length > 0 && b.wy >= 0.6 && b.wy <= 4.8; }));
+check('both healers have a 3D model on the sidewalk / front lawn', powerups.every(function(b){ return (b.type === 'coffee' || b.type === 'bec') && b.g && b.g.children.length > 0 && b.wy >= 0.5 && b.wy <= 7.0; }));
 const _types = powerups.map(function(b){ return b.type; });
 check('one coffee and one BEC are placed', _types.indexOf('coffee') >= 0 && _types.indexOf('bec') >= 0);
 const _span = ROUTE_FINISH_X - ROUTE_START_X;
@@ -302,13 +303,13 @@ check('healers are scarce: 1 coffee + 1 BEC pre-placed (was 3 of each)', powerup
 
 // ===== 15) Monster energy drink is score-triggered, spawned near the player =====
 check('Monster energy spawns every $' + MONSTER_SCORE_STEP + ' of score (should be 5000)', MONSTER_SCORE_STEP === 5000);
-check('spawnMonsterNearPlayer drops a Monster just ahead of the worker on the sidewalk', (function(){
+check('spawnMonsterNearPlayer drops a Monster near the worker on the sidewalk / front lawn', (function(){
   reset();
   p.wx = 300; p.wy = 2.5;
   const before = powerups.length;
   spawnMonsterNearPlayer();
   const m = powerups[powerups.length - 1];
-  return powerups.length === before + 1 && m.type === 'monster' && m.wx > p.wx && m.wx <= p.wx + 7.5 && m.wy >= 0.6 && m.wy <= 4.8;
+  return powerups.length === before + 1 && m.type === 'monster' && Math.abs(m.wx - p.wx) <= 16 && m.wy >= 0.5 && m.wy <= 7.0;
 })());
 
 SFX.playTossSound = function(){ sfx.push('toss'); };

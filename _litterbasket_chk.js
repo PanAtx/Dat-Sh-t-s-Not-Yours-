@@ -46,6 +46,7 @@ const LITTER_DUMP_RADIUS = 3.5;
 const truck = { wx: 10, hopperOff: -4.3, hopperY: 0, hidden: 0 };
 const p = { wx: 5, wy: -4.5, stunT: 0 };
 const state = 'play', blocks = [], creatures = [], WORKER_GENDER = 'male';
+const WORKER_MAX_Y = 8.0;   // worker's max lateral reach (sidewalk + front-lawn grass) - mirrors index.html
 const dist = (x,y)=>Math.hypot(x-p.wx, y-p.wy);
 
 // ---- counters / stubs --------------------------------------------------------------
@@ -62,7 +63,7 @@ const fns = ['nearHopper','nearHopperLitter','attachCarried','pickUp','dumpLitte
   'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
-  'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER',
+  'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','WORKER_MAX_Y',
   'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
   'function tossBag(){} function dumpCan(){}\n' +
@@ -71,7 +72,7 @@ const api = new Function(
   'carry:()=>carry, carried:()=>carried, baskets:()=>litterBaskets, homes:()=>litterBasketHomes, flying:()=>flyingBaskets, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
-  CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER,
+  CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, WORKER_MAX_Y,
   dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP);
 // ---- 1) placement ------------------------------------------------------------------
 check('placeLitterBasket -> 14 baskets at corners, all "placed" on groundGroup, FULL of visible trash', ()=>{

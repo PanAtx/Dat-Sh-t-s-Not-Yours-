@@ -433,6 +433,7 @@ const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // traffic + follow-truck baseline (cars never crawl below this)
 const PLAYER_SPEED = 10;  // worker forward speed while W / UP / stick is held (no input = stands still)
 const LAT_SPEED = 6.5;    // worker strafe speed (A/D / stick horizontal)
+const WORKER_MAX_Y = 8.0; // how far toward the houses the worker can reach: the near sidewalk (0.5..5) plus the front-lawn grass (5..8.5) in front of the houses - he can step out onto the grass but stops short of the house bodies (~8.4)
 const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
 const MIN_MOVE = 0.55;    // min speed floor once the stick is off-center (snappy, keyboard-like)
 const MOVE_T = 0.1;       // tiny jitter threshold: below this the worker stands still
@@ -2195,8 +2196,12 @@ function makeTreasure(kind){
           new THREE.BoxGeometry(n === 0 ? th : sq, n === 1 ? th : sq, n === 2 ? th : sq),
           new THREE.MeshLambertMaterial({ color: pal[((i * 3 + j) + 6 + fi * 2) % pal.length] })
         );
-        const pos = [0, 0, 0];
-        pos[n] = sign * off; pos[uAx] = i * st; pos[vAx] = j * st;
+        // Place stickers relative to the cube's CENTER (0, 0, size/2), not the origin:
+        // the cube mesh is lifted by size/2 so its base rests on the ground, so its
+        // top face sits at z=size. Anchoring at the origin buried the top (+z) stickers
+        // inside the black plastic (z=size/2) and shifted the side grids down by size/2.
+        const pos = [0, 0, size / 2];
+        pos[n] += sign * off; pos[uAx] += i * st; pos[vAx] += j * st;
         m.position.set(pos[0], pos[1], pos[2]);
         g.add(m);
       }
@@ -2518,14 +2523,16 @@ function makeHouse(){
   }
   const winS = BX(0.1, 0.8, 0.8, wm); winS.position.set(w / 2 + 0.05, 0, 0.3 + h * 0.6); g.add(winS);
   const sm = M(0x9a948a);
-  // Concrete step: a single rectangular slab in front of the door, sitting on top of the grass (z 0.3..0.55).
+  // Concrete step: a THIN raised lip in front of the door, sitting just above the grass.
+  // Deliberately low (top 0.36, only 0.06 above the GZ 0.3 grass plane) so it reads as a flat
+  // landing rather than a tall slab, and stays just high enough to avoid z-fighting the grass.
   // castShadow stays false (a flat slab casts a hard 2-texel line that reads as striping);
   // receiveShadow stays true so the house's shadow still falls on the doormat.
-  const step = BX(2.5, 1.0, 0.25, sm); step.position.set(0, -d / 2 - 0.6, 0.425); step.castShadow = false; step.receiveShadow = true; g.add(step);
+  const step = BX(2.5, 1.0, 0.06, sm); step.position.set(0, -d / 2 - 0.6, 0.33); step.castShadow = false; step.receiveShadow = true; g.add(step);
    // Expose the step's local footprint so makeBlockContents can compute its world-space
-   // bounds — a yard NPC standing in that footprint must sit ON TOP of the slab (see
-   // stepTopAt), not clip into it. (top = center 0.425 + half-height 0.125 = 0.55)
-   g.userData.step = { cx: 0, cy: -d / 2 - 0.6, hw: 1.25, hd: 0.5, top: 0.425 + 0.125 };
+   // bounds — a yard NPC (or the worker) standing in that footprint must sit ON TOP of the
+   // slab (see stepTopAt), not clip into it. (top = center 0.33 + half-height 0.03 = 0.36)
+   g.userData.step = { cx: 0, cy: -d / 2 - 0.6, hw: 1.25, hd: 0.5, top: 0.33 + 0.03 };
 
   // service status lamp (red = waiting, green = serviced)
   const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.32, 0.3), new THREE.MeshLambertMaterial({ color: 0xff5544, emissive: 0xff3322, emissiveIntensity: 0.9 }));
@@ -3373,15 +3380,21 @@ function makeBlockContents(b, baseX){
   hg.position.y = HOUSE_Y;
   b.group.add(hg);
   const house = { serviced: false, lamp: hg.userData.lamp, bags: [], can: null };
-  // World-space footprint of the raised concrete step/door-mat (z GZ..GZ+0.25, top 0.55).
-  // stepTopAt() reads this every frame so yard NPCs that cross it stand ON the landing top
-  // instead of clipping into the 0.3..0.55 slab.
+  // World-space footprint of the raised concrete step/door-mat (a thin lip, z GZ..GZ+0.06, top 0.36).
+  // stepTopAt() reads this every frame so yard NPCs (and the worker) that cross it stand ON the
+  // landing top instead of clipping into the 0.3..0.36 slab.
   const stLocal = hg.userData.step;
   house.step = { x0: baseX - stLocal.hw, x1: baseX + stLocal.hw, y0: HOUSE_Y + stLocal.cy - stLocal.hd, y1: HOUSE_Y + stLocal.cy + stLocal.hd, top: stLocal.top };
   b.house = house;
   // Curb garbage ONLY on "garbage" blocks. Blocks 1 & 8 (and the route's edge blocks)
   // stay clean — a fresh block just swept / a block past the shift's end.
   if (b.garbage){
+    // Where a bag/can/bonus can sit: the NEAR SIDEWALK (y 0.5..5.0) and the FRONT-LAWN
+    // GRASS in front of the house (y 5.0..7.0). Kept inside THIS house's own 8u cell
+    // (x baseX+0.8..7.2) so it's always in front of a house and can never spill into the
+    // 16u cross-street / intersection gaps between blocks.
+    const sideY  = () => R(0.5, 7.0);
+    const houseX = () => baseX + R(0.8, 7.2);
     // curb trash layout (every house has something to collect)
     const r = Math.random();
     let nBags = 0, hasCan = false;
@@ -3390,17 +3403,15 @@ function makeBlockContents(b, baseX){
     else if (r < 0.86){ nBags = 1; hasCan = true; }
     else hasCan = true;
     if (nBags === 2){
-      makeCurbBag(baseX + R(1.5, 3), R(1.0, 2.4), house);
-      makeCurbBag(baseX + R(4.8, 6.6), R(1.0, 2.4), house);
+      makeCurbBag(houseX(), sideY(), house);
+      makeCurbBag(houseX(), sideY(), house);
     } else if (nBags === 1){
-      makeCurbBag(baseX + R(2, 6), R(1.0, 2.4), house);
+      makeCurbBag(houseX(), sideY(), house);
     }
-    if (hasCan) house.can = makeCurbCan(baseX + R(2, 6), R(1.0, 2.2), house);
+    if (hasCan) house.can = makeCurbCan(houseX(), sideY(), house);
     // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start.
-    // Higher spawn rate (0.85), placed ONLY on the near sidewalk / curb (wy 0.6..4.8) — never out
-    // in the street. It stays inside a house's footprint (baseX + 1.5..6.0), and since the 16u
-    // cross-streets live in the GAPS between blocks, a treasure can never land in an intersection.
-    if (Math.random() < 0.85) spawnBonus(baseX + R(1.5, 6.0), R(0.6, 4.8));
+    // Higher spawn rate (0.85): sidewalk + front-lawn grass, in front of THIS house only.
+    if (Math.random() < 0.85) spawnBonus(houseX(), sideY());
   }
   // lane markings & sidewalk joints (scroll with the block)
   const dashM = M(0xcfd5da);
@@ -3466,7 +3477,7 @@ function spawnWorld(){
     let ax = b.worldX + side * mag;
     if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
     ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-    ld.anchorY = R(6.6, 7.9);
+    ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5) - never on the street/sidewalk
     ld.homeX = ld.anchorX + R(-0.4, 0.8);
     ld.homeY = ld.anchorY - R(0.9, 1.5);
     ld.wx = ld.homeX; ld.wy = ld.homeY;
@@ -4057,7 +4068,7 @@ function dropCarried(){
   if (carry === 'none' || !carried) return;
   const item = carried;
   item.wx = p.wx - 0.4 + R(-0.3, 0.3);
-  item.wy = clamp(p.wy + R(0.6, 1.0), -2, 4.5);
+  item.wy = clamp(p.wy + R(0.6, 1.0), -2, WORKER_MAX_Y);
   if (item.kind === 'litterbasket'){
     item.state = 'placed';   // knocked-out basket stays pickable; reset restores it home
   } else if (item.kind === 'can' && item.state === 'carriedEmpty'){
@@ -4389,6 +4400,20 @@ function makeMonster(){
   return g;
 }
 // ---- Power-up spawning (count scales with the current level / route) ----
+// Snap a route X to the nearest ACTUAL house cell, so a pickup ALWAYS sits in front of a
+// house (on its sidewalk / front-lawn grass) and never in a street, cross-street, or the
+// 16u intersection gaps between blocks (those gaps have no house cell, so they're skipped).
+function snapToHouseCell(wx){
+  let best = null, bestD = Infinity;
+  for (const bl of LEVEL_BLOCKS){
+    for (let k = 0; k < HOUSES_PER_BLOCK; k++){
+      const cs = bl.x + k * BW;
+      const d = Math.abs(cs + BW / 2 - wx);
+      if (d < bestD){ bestD = d; best = cs; }
+    }
+  }
+  return best + 0.8 + (Math.random() * (BW - 1.6));   // front of that house, sidewalk -> grass
+}
 function spawnPowerup(type, wx, wy){
   const g = (type === 'coffee') ? makeCoffee() : (type === 'bec') ? makeBEC() : makeMonster();
   g.position.set(wx, wy, GZ + CURB_LIFT + 0.03);       // base sits just ON TOP of the sidewalk
@@ -4411,15 +4436,17 @@ function spawnPowerups(level){
   //   BEC    -> near the end of the level (~65-92% along)
   // The Monster is NOT placed here — it spawns on a score milestone (see addScore).
   const span = ROUTE_FINISH_X - ROUTE_START_X;
-  spawnPowerup('coffee', ROUTE_START_X + span * R(0.40, 0.65), R(0.6, 4.8));
-  spawnPowerup('bec',    ROUTE_START_X + span * R(0.65, 0.92), R(0.6, 4.8));
+  // The healers land on the sidewalk / front-lawn grass in front of a house (never in an
+  // intersection gap) - snap each to the house cell under its route position.
+  spawnPowerup('coffee', snapToHouseCell(ROUTE_START_X + span * R(0.40, 0.65)), R(0.5, 7.0));
+  spawnPowerup('bec',    snapToHouseCell(ROUTE_START_X + span * R(0.65, 0.92)), R(0.5, 7.0));
 }
 // A Monster energy can pops up near the worker every MONSTER_SCORE_STEP points
 // (5000) of score, dropped on the sidewalk just ahead so you can grab it right away.
 let monsterNextAt = MONSTER_SCORE_STEP;   // next score milestone at which the Monster spawns
 function spawnMonsterNearPlayer(){
-  const wx = Math.max(ROUTE_START_X + 4, p.wx + R(2.5, 7));   // a bit ahead, never behind the start barrier
-  const wy = Math.max(0.6, Math.min(4.8, p.wy + R(-0.9, 0.9)));
+  const wx = snapToHouseCell(p.wx);   // in front of the nearest house to the worker - on the sidewalk/grass, never in an intersection
+  const wy = Math.max(0.5, Math.min(7.0, p.wy + R(-0.9, 0.9)));
   spawnPowerup('monster', wx, wy);
 }
 function consumePowerup(b){
@@ -4653,7 +4680,7 @@ function collideLandedCans(){
     const nx = -dx / d, ny = -dy / d; // push outward
     const pen = Math.sqrt(0.85) - d;
     p.wx += nx * (pen + 0.05);
-    p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, 4.5);
+    p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, WORKER_MAX_Y);
   }
 }
 function collideCreatures(){
@@ -4687,7 +4714,7 @@ function collideCreatures(){
       const nx = -dx / d, ny = -dy / d; // from person toward worker
       const pen = rad - d;             // push out to just touching (small gap)
       p.wx += nx * (pen + 0.05);
-      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, 4.5);
+      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, WORKER_MAX_Y);
       if (c.vcd <= 0){
         c.vcd = 2.5;
         if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy); }
@@ -4705,15 +4732,21 @@ function collideCreatures(){
       Voice.say('Eeek!', 1.2, 1.5, c.wx, c.wy);
       if (carry !== 'none' && Math.random() < 0.45) dropCarried();
       doStun(0.5, 'trip');
-    } else if (c.type === 'squirrel' || c.type === 'raccoon'){
+    } else if (c.type === 'squirrel'){
       c.flee = 1.8; c.dir = dx >= 0 ? -1 : 1;
       if (carry !== 'none' && Math.random() < 0.4) dropCarried();
       doStun(0.5, 'trip');
+    } else if (c.type === 'raccoon'){
+      // The raccoon startles the worker - he screams "Rabies!" and trips over himself
+      c.flee = 2.2; c.dir = dx >= 0 ? -1 : 1;
+      Voice.say('Rabies!', 1.0, 1.5, p.wx, p.wy, WORKER_GENDER);
+      if (carry !== 'none' && Math.random() < 0.5) dropCarried();
+      doStun(0.7, 'trip');
     } else {
       // vehicles: knockback + drop + stun + i-frames
       const nl = Math.sqrt(d2) || 1;
       p.wx -= (dx / nl) * 1.6;
-      p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, 4.5);
+      p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, WORKER_MAX_Y);
       dropCarried();
       hurtNPC(HP_HIT_VEHICLE);   // get run over = lose health (absorbed if immune / i-framed)
       p.invuln = 1.6;
@@ -4798,7 +4831,7 @@ function updatePlayer(dt){
   const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
   const lat = l; // strafe component (continuous)
   p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * dt;
-  p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, 4.5);
+  p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, WORKER_MAX_Y);
   // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
   if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
@@ -4825,7 +4858,7 @@ function updatePlayer(dt){
         const d = Math.sqrt(d2);
         const push = WR - d;
         p.wx += (dx / d) * push;
-        p.wy = clamp(p.wy + (dy / d) * push, -9.4, 4.5);
+        p.wy = clamp(p.wy + (dy / d) * push, -9.4, WORKER_MAX_Y);
       } else {
         // Degenerate (worker inside the box): eject toward the nearer side
         const dBot = Math.abs(p.wy - (tCy - tHalfW));
@@ -4865,7 +4898,11 @@ function updatePlayer(dt){
    worker.group.rotation.z = p.facing;
   const sx = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
   const sy = p.shake > 0 ? R(-0.3, 0.3) * p.shake : 0;
-  worker.group.position.set(p.wx + sx, p.wy + sy, GZ);
+  // Stand ON the raised concrete step/door-mat when over it (lift only, never lower) so the
+  // worker's body doesn't clip through the thin slab while he walks the front lawn. stepTopAt
+  // returns GZ on flat ground, so this is a no-op everywhere except directly over a step.
+  const wStepTop = stepTopAt(p.wx, p.wy);
+  worker.group.position.set(p.wx + sx, p.wy + sy, wStepTop > GZ ? wStepTop : GZ);
   // invulnerability flashing — and IMMUNITY ("Monster") flashes RAPIDLY with a
   // constant burst of colorful stars shooting off the worker
   let vis = true;
@@ -5255,10 +5292,10 @@ function resolveTruckCollisions(vehicles, dt){
   }
 }
 
-// The concrete step/door-mat in front of each house is a raised slab (z GZ..GZ+0.25, top 0.55).
-// A yard creature (raccoon / squirrel / leashed dog / ...) that walks across it would clip
-// INTO the slab if it stayed at ground level. This returns the TOP of whichever step (if any)
-// sits under a world (wx, wy) point — GZ when there's none — so the creature stands ON TOP.
+// The concrete step/door-mat in front of each house is a thin raised lip (z GZ..GZ+0.06, top 0.36).
+// A yard creature (raccoon / squirrel / leashed dog / ...) or the worker that walks across it
+// would clip INTO the slab if it stayed at ground level. This returns the TOP of whichever step
+// (if any) sits under a world (wx, wy) point — GZ when there's none — so the walker stands ON TOP.
 function stepTopAt(wx, wy){
   let top = GZ;
   for (let i = 0; i < blocks.length; i++){
@@ -6261,6 +6298,18 @@ function startRouteEnd(){
 function updateRouteEnd(dt){
   const g = worker.group;
   routeEnd.t += dt;
+  // The worker's body blinks frame-to-frame while he is immune ("RUN IT UP!") or
+  // i-framed: updatePlayer sets each worker MESH's .visible from the blink phase.
+  // Once the route ends, updatePlayer stops running (state -> 'routeend'), so that
+  // last blink value freezes on the meshes. If the level completes on an "off" blink
+  // frame the worker would stay invisible for the whole celebration. Force every mesh
+  // visible during the on-stage phases (cheer + walk need him seen). The board phase
+  // hides the group (g.visible=false) once he's fully inside the cab and the drive
+  // phase keeps him aboard, so we must NOT touch visibility in those two phases.
+  if (routeEnd.phase === 'cheer' || routeEnd.phase === 'walk'){
+    g.visible = true;
+    g.traverse(o => { if (o.isMesh) o.visible = true; });
+  }
   // The street keeps living around the show (traffic, pigeons, particles) — only the
   // worker is off limits. The hopper trash must keep following the truck so it doesn't
   // get left on the pavement when the truck rolls out.
@@ -6311,7 +6360,7 @@ function updateRouteEnd(dt){
     else {
       const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
       p.wx += (dx / dist) * sp * dt;
-      p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, 4.5);
+      p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, WORKER_MAX_Y);
       // face the direction of travel (same easing as normal walking)
       const target = Math.atan2(dy, dx);
       let diff = target - p.facing;
