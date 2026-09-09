@@ -432,7 +432,9 @@ const ROUTE_FINISH_X = 656;  // reaching Intersection 7 completes the route
 const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // worker speed while W / UP / stick is held (no input = stands still)
 const LAT_SPEED = 5.5;    // worker strafe speed (A/D / stick horizontal)
-const ANALOG_RESP = 0.6;  // analog response exponent (<1 = snappy low end, full push = full speed)
+const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
+const MIN_MOVE = 0.55;    // min speed floor once the stick is off-center (snappy, keyboard-like)
+const MOVE_T = 0.1;       // tiny jitter threshold: below this the worker stands still
 const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
 const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
 const GZ = 0.3;
@@ -4749,15 +4751,21 @@ function updatePlayer(dt){
   // proportional to how far the stick is pushed. No input = stands still.
   const mv = dominantMove();
   let f = mv.f, l = mv.l;
-  // Analog response curve: a small stick nudge shouldn't feel sluggish, but a full
-  // push must NOT exceed full speed (no "flying"). pow(m, <1) boosts the low/mid
-  // deflection while capping the top at exactly 1, so the worker is responsive the
-  // instant the stick moves and settles at full speed (never faster) when it's pushed
-  // all the way out. Keyboard (digital, m=1) is unaffected: pow(1, x) = 1.
+  // Snappy analog response: below a tiny jitter threshold the worker stands still;
+  // above it, speed is FLOORED at MIN_MOVE (so even a light touch is already a brisk
+  // walk, matching the keyboard's instant full speed) and then rises along a concave
+  // curve to EXACTLY full speed at full deflection (never faster). The keyboard is
+  // digital (m = 1) and lands on the very top of the curve at 1.0, so it's unchanged.
   const m0 = Math.hypot(f, l);
   if (m0 > 0){
-    const k = Math.pow(m0, ANALOG_RESP) / m0;
-    f *= k; l *= k;
+    if (m0 < MOVE_T){
+      f = 0; l = 0;
+    } else {
+      const t = Math.min((m0 - MOVE_T) / (1 - MOVE_T), 1);
+      const eff = MIN_MOVE + (1 - MIN_MOVE) * Math.pow(t, ANALOG_RESP);
+      const k = eff / m0;
+      f *= k; l *= k;
+    }
   }
   if (p.stunT > 0){
     p.stunT -= dt;
