@@ -4536,7 +4536,14 @@ function loadMonsterGltf(){
           o.castShadow = true;
           if (o.material){
             const mats = Array.isArray(o.material) ? o.material : [o.material];
-            mats.forEach(m => { m.side = THREE.DoubleSide; }); // see the can from every angle
+            mats.forEach(m => {
+              m.side = THREE.DoubleSide;                 // see the can from every angle
+              // The GLB is fully metallic (metalness ~1.0). A metallic PBR surface gets its
+              // color/reflectivity from an environment map, and the scene has none, so left
+              // as-is the can renders near-black. Tame the PBR defaults (same as the car)
+              // so the base-color textures + the ambient/directional lights read correctly.
+              m.metalness = 0.15; m.roughness = 0.5;
+            });
           }
         });
         MONSTER_TPL = { template: model };
