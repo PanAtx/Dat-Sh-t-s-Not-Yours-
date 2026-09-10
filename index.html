@@ -11,8 +11,8 @@
      home-screen entry shows "Dat Sh!t's Not Yours!" instead of the folder name. -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0d12">
-<link rel="icon" type="image/jpeg" href="dsnylogo.jpg">
-<link rel="apple-touch-icon" href="dsnylogo.jpg">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 button { -webkit-tap-highlight-color:transparent; outline:none; }
@@ -162,6 +162,34 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #cachebadge.ready { color:#7dff9e; border-color:rgba(125,255,158,.7); box-shadow:0 0 10px rgba(46,224,144,.45); }
 #cachebadge.caching { color:#4ec3ff; border-color:rgba(78,195,255,.6); }
 #cachebadge.none { color:#ffab45; border-color:rgba(255,171,69,.6); }
+/* connection dropped -> the badge pings red "OFFLINE" (see setConnBadge) */
+#cachebadge.offline { color:#ff5b4d; border-color:rgba(255,91,77,.8); background:rgba(30,6,4,.82);
+  box-shadow:0 0 12px rgba(255,80,60,.6); animation:offPing 1.1s ease-in-out infinite; }
+@keyframes offPing { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+/* ===== "INSTALL GAME" button (menu) =====
+   Shown only when the browser fires beforeinstallprompt (Chrome/Edge/Android).
+   On iOS Safari that event never fires, so the button is hidden there - the
+   iOS install path is surfaced by the fullscreen overlay instead. */
+#btnInstall { font-family:"Arial Black",Impact,sans-serif; font-weight:bold; font-size:clamp(13px,2.2vw,19px); letter-spacing:4px;
+  padding:clamp(9px,1.6vh,12px) clamp(20px,4.5vw,34px); cursor:pointer; margin-top:2px;
+  color:#04140a; text-shadow:0 1px 0 rgba(255,255,255,.25);
+  border:2px solid rgba(92,240,173,.95); border-radius:4px; background:rgba(46,224,144,.85);
+  box-shadow:0 0 16px rgba(46,224,144,.5), 0 4px 14px rgba(0,0,0,.4); pointer-events:auto; }
+#btnInstall:hover { background:rgba(92,240,173,.98); box-shadow:0 0 26px rgba(46,224,144,.8), 0 4px 18px rgba(0,0,0,.4); }
+/* ===== iOS fullscreen nudge (menu) =====
+   iOS Safari can't enter Fullscreen from web content (no requestFullscreen), so the
+   address bar can never be hidden in the browser - the only real fullscreen on an
+   iPhone is the installed app. This one-time toast explains that + how to install. */
+#iosfs { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:45;
+  max-width:92vw; width:340px; pointer-events:auto;
+  background:rgba(4,18,10,.94); border:1px solid rgba(46,224,144,.7); border-radius:8px;
+  box-shadow:0 0 22px rgba(46,224,144,.35), 0 6px 24px rgba(0,0,0,.6);
+  padding:12px 14px; font-family:"Courier New",Courier,monospace; color:#eaf6ff; }
+#iosfs .t { font-size:13px; letter-spacing:2px; color:#7dff9e; margin-bottom:6px; text-shadow:0 0 8px rgba(46,224,144,.6); }
+#iosfs .b { font-size:12px; line-height:1.5; letter-spacing:.5px; color:#cfe8d6; }
+#iosfs .b b { color:#fff; }
+#iosfs .x { position:absolute; top:6px; right:8px; cursor:pointer; color:#9fe8b8; font-size:15px; line-height:1; padding:2px 4px; }
+#iosfs .x:hover { color:#fff; }
 /* ===== Menu logo screen ===== */
 #menu .panel { background:none; border:none; box-shadow:none; padding:0; max-width:none; width:auto; }
 .menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
@@ -425,12 +453,21 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
+      <button id="btnInstall" class="hidden">INSTALL GAME</button>
       <!-- The NOW PLAYING widget (#radio) docks in here on the start screen:
            below START SHIFT, exactly where the hi-score used to sit -->
     </div>
     <img class="menu-explicit" src="explicit_logo.webp" alt="Parental Advisory: Explicit Lyrics">
   </div>
 </div></div>
+<!-- iOS Safari fullscreen nudge: hidden until the menu is shown on an iPhone/iPad
+     in the browser (never in the installed app). See showIosFs(). -->
+<div id="iosfs" class="hidden">
+  <div class="x" id="iosfs-x">&#10005;</div>
+  <div class="t">IPHONE / IPAD - FULLSCREEN</div>
+  <div class="b">The browser keeps its address bar - only the <b>installed app</b> runs edge-to-edge.
+    Tap <b>Share</b> (the box with the up-arrow), then <b>"Add to Home Screen"</b> to install it.</div>
+</div>
 <div id="paused" class="modal hidden"><div class="panel">
   <h1>PAUSED</h1>
   <div class="tag">SHIFT ON HOLD &#8212; TAKE A BREATH, WORKER</div>
@@ -1258,8 +1295,107 @@ const SFX = {
       }
     })();
     return this._radioWarmP;
+  },
+  // ---- OFFLINE CACHE (GATE) helpers -------------------------------------------------
+  // The "Getting Assets" gate uses these to download the ENTIRE radio rotation so
+  // the game is TRULY offline. They are granular (one track at a time) so the gate
+  // can show a live progress bar + the current track name, and they have NO 12MB
+  // cap (unlike radioWarm) - true offline means every track, heavy ones included.
+  // Returns the rotation list (deduped union of the directory listing + manifest),
+  // caching it on this.radioList so repeated calls are free.
+  async radioGetList(){
+    if (this.radioList && this.radioList.length) return this.radioList;
+    try { this.radioList = await this.radioScan(); } catch (e) { this.radioList = []; }
+    return this.radioList;
+  },
+  // Download + store a single track into the radio cache. Returns 'cached' if it
+  // was already stored, 'stored' if it was just downloaded. Throws on a network
+  // failure so the caller can decide how to surface it. Never touches the network
+  // more than once per call (a cache hit short-circuits before any fetch).
+  async radioCacheTrack(name){
+    const cache = await this._radioGetCache();
+    const url = 'music/' + encodeURIComponent(name);
+    if (cache){
+      try { if (await cache.match(url)) return 'cached'; } catch (e) { /* corrupt: re-fetch */ }
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      await cache.put(url, new Response(blob));
+      return 'stored';
+    }
+    // No Cache API (file:// / old browser): verify it's reachable; the game will
+    // stream it live. Nothing is persisted, so this is best-effort only.
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return 'stored';
   }
 };
+// ==================== PWA: INSTALL + CONNECTION + iOS FULLSCREEN ====================
+// beforeinstallprompt: Chrome/Edge/Android fire this when the app is installable.
+// We stash the event so the menu's INSTALL GAME button can call prompt() on demand
+// (instead of the browser's default mini-UI). iOS Safari NEVER fires it - install
+// there is Share > Add to Home Screen - so on iOS we surface a one-time nudge that
+// explains the address bar can't be hidden in the browser and how to install.
+let _installEvt = null;
+let _iosFsShown = false;
+function _isStandalone(){
+  if (typeof navigator === 'undefined') return false;
+  return (navigator.standalone === true) ||
+    (typeof navigator.webkitIsStandalone !== 'undefined' && navigator.webkitIsStandalone === true) ||
+    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+function _isIos(){
+  if (typeof navigator === 'undefined') return false;
+  if (_isStandalone()) return false;   // installed app = already fullscreen, no nudge needed
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+function showIosFsNudge(){
+  if (_iosFsShown || _isStandalone()) return;
+  const el = (typeof $ === 'function') ? $('iosfs') : null;
+  if (!el) return;
+  if (!_isIos()){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  _iosFsShown = true;
+  setTimeout(function(){ el.classList.add('hidden'); }, 12000); // nudge, not a blocker
+}
+// Re-evaluate the install/fullscreen UI. Called whenever the menu is revealed.
+function refreshInstallUi(){
+  if (typeof document === 'undefined') return;
+  const onMenu = (typeof state !== 'undefined') ? state === 'menu' : false;
+  const btn = $('btnInstall');
+  if (btn) btn.classList.toggle('hidden', !(onMenu && !!_installEvt && !_isStandalone()));
+  const ios = $('iosfs');
+  if (ios){
+    if (onMenu && _isIos()) showIosFsNudge();
+    else if (!_isIos()) ios.classList.add('hidden');
+  }
+}
+(function(){
+  if (typeof window === 'undefined') return;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();          // suppress the default mini-UI; we drive our own button
+    _installEvt = e;
+    refreshInstallUi();
+  });
+  window.addEventListener('appinstalled', function(){ _installEvt = null; refreshInstallUi(); });
+  const btn = $('btnInstall');
+  if (btn){
+    btn.addEventListener('click', function(){
+      if (!_installEvt) return;
+      const ev = _installEvt; _installEvt = null;
+      try { ev.prompt(); const uc = ev.userChoice; if (uc && typeof uc.then === 'function') uc.then(function(){ refreshInstallUi(); }); } catch (e) {}
+      refreshInstallUi();
+    });
+  }
+  const x = $('iosfs-x');
+  if (x) x.addEventListener('click', function(){ const ios = $('iosfs'); if (ios) ios.classList.add('hidden'); });
+  // Connection status: while offline the badge pings red "OFFLINE"; on reconnect it
+  // recomputes to the real cache state. This is what makes the badge a live
+  // "can I play right now?" indicator, not just a download-progress one.
+  window.addEventListener('offline', function(){ cacheBadgeSet('OFFLINE', 'offline'); });
+  window.addEventListener('online', function(){ updateCacheBadge(); });
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) cacheBadgeSet('OFFLINE', 'offline');
+})();
 // ==================== RADIO HUD (NOW PLAYING / MUTE / SKIP) ====================
 const radioBox = $('radio'), radioTitle = $('radio-title');
 function radioSetTitle(name){
@@ -7090,6 +7226,7 @@ function quitGame(){
   $('menu').classList.remove('hidden');
   state = 'menu';
   radioMode();             // dock the NOW PLAYING bar back into the menu
+  refreshInstallUi();      // re-surface INSTALL GAME / the iOS nudge on the menu
   $('vpad').classList.remove('on');
   vt.f = 0; vt.l = 0; vt.act = false;
   joyPid = null;
@@ -7510,19 +7647,41 @@ function ldRow(url, cls, text){
   r.st.textContent = text;
 }
 // ---- Offline cache-status badge (top-right HUD) ----
-// "OFFLINE READY" = every gated asset is cached (the game boots with no network).
-// "CACHING n/8"   = some assets still need downloading.
+// "OFFLINE READY" = every model AND every radio track is cached (the game boots
+//                   and the station plays with no network).
+// "CACHING n/N"   = some assets still need downloading (N = models + music).
 // "ONLINE ONLY"   = the Cache API is unavailable (file:// / old browser).
 function cacheBadgeSet(txt, cls){
   const el = $('cachebadge'); if (!el) return;
   el.textContent = txt;
-  el.classList.remove('ready', 'caching', 'none');   // keep .hidden intact
+  el.classList.remove('ready', 'caching', 'none', 'offline');   // keep .hidden intact
   el.classList.add(cls);
   el.classList.remove('hidden');
 }
 function cacheBadgeHide(){
   const el = $('cachebadge'); if (!el) return;
   el.classList.add('hidden');
+}
+// How many radio tracks are in the radio cache, and how many there are in total.
+// Uses cache.keys() (cheap) rather than a per-track match, and reads the track
+// count from the cached SFX list (or the manifest) without a per-track fetch.
+async function _radioCacheStats(){
+  if (typeof SFX === 'undefined') return { have: 0, total: 0 };
+  let total = (SFX.radioList && SFX.radioList.length) ? SFX.radioList.length : 0;
+  if (!total){
+    try {
+      const r = await fetch('music/manifest.json', { cache: 'force-cache' });
+      if (r.ok){ const j = await r.json(); const arr = Array.isArray(j) ? j : (j && Array.isArray(j.files) ? j.files : []); total = arr.length; }
+    } catch (e) {}
+  }
+  let have = 0;
+  try {
+    if (typeof caches !== 'undefined' && caches.open){
+      const rc = await caches.open('dsnboy-radio-v1');
+      if (rc){ const keys = await rc.keys(); have = keys.length; }
+    }
+  } catch (e) {}
+  return { have: have, total: total };
 }
 function updateCacheBadge(){
   if (typeof document === 'undefined') return;
@@ -7531,14 +7690,19 @@ function updateCacheBadge(){
   (async () => {
     const c = await _modelGetCache();
     if (!c){ cacheBadgeSet('ONLINE ONLY', 'none'); return; }
-    let n = 0;
+    let m = 0;
     for (let i = 0; i < PRELOAD_ASSETS.length; i++){
       const a = PRELOAD_ASSETS[i];
-      if (_modelMemCache[a.url]) { n++; continue; }   // in-memory fallback also means it's loaded
-      try { if (await c.match(a.url)) n++; } catch (e) {}
+      if (_modelMemCache[a.url]) { m++; continue; }   // in-memory fallback also means it's loaded
+      try { if (await c.match(a.url)) m++; } catch (e) {}
     }
-    if (n >= PRELOAD_ASSETS.length) cacheBadgeSet('OFFLINE READY', 'ready');
-    else cacheBadgeSet('CACHING ' + n + '/' + PRELOAD_ASSETS.length, 'caching');
+    const r = await _radioCacheStats();
+    const modelsDone = m >= PRELOAD_ASSETS.length;
+    const musicDone = (r.total <= 0) || (r.have >= r.total);
+    const have = m + Math.min(r.have, r.total);
+    const total = PRELOAD_ASSETS.length + r.total;
+    if (modelsDone && musicDone) cacheBadgeSet('OFFLINE READY', 'ready');
+    else cacheBadgeSet('CACHING ' + have + '/' + total, 'caching');
   })();
 }
 // Phase 1: stream every asset into the Cache (with a live byte-accurate progress bar).
@@ -7609,6 +7773,48 @@ async function buildModelTemplates(){
   if (!results[0]) throw new Error('truck template failed to build');
   rebuildTruckFromFbx();   // swap the live truck to the real FBX model now
 }
+// ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
+// The models gate above only covers the 3D assets. To make the game genuinely
+// playable with the network off, this phase pulls EVERY track (no 12MB cap) into
+// dsnboy-radio-v1 with a live progress bar. Cached tracks resolve instantly, so a
+// repeat visit skips straight to the end. A hard failure (a track 404s / the
+// connection drops) throws -> RETRY appears.
+async function preloadRadioCache(){
+  const rc = (typeof SFX !== 'undefined') ? SFX : null;
+  if (!rc || typeof rc.radioGetList !== 'function') return;
+  ldSetLabel('DOWNLOADING RADIO MUSIC...');
+  const list = await rc.radioGetList();
+  if (!list.length) return;   // no music found (e.g. file:// with no manifest): the game still runs
+  ldBuildRadioList(list);
+  for (let i = 0; i < list.length; i++){
+    const name = list[i];
+    ldRow(name, 'active', 'DOWNLOADING...');
+    let res;
+    try { res = await rc.radioCacheTrack(name); }
+    catch (e) { ldRow(name, 'fail', 'FAILED'); throw new Error('failed to cache ' + name + ' (' + (e && e.message ? e.message : e) + ')'); }
+    ldRow(name, 'done', res === 'cached' ? 'CACHED' : 'STORED');
+    ldSetLabel('RADIO MUSIC ' + (i + 1) + ' / ' + list.length);
+    ldSetPct(Math.round((i + 1) / list.length * 100));
+  }
+}
+// Per-track checklist for the radio phase (separate from the model checklist).
+function ldBuildRadioList(list){
+  if (typeof document === 'undefined') return;
+  const el = $('ld-list'); if (!el) return;
+  _ldList = el; _ldRows = {};
+  el.textContent = '';
+  for (let i = 0; i < list.length; i++){
+    const name = list[i];
+    const row = document.createElement('div');
+    row.className = 'ld-row pending';
+    const nm = document.createElement('span'); nm.className = 'ld-name';
+    nm.textContent = (name || '').replace(/\.mp3$/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim() || name;
+    const st = document.createElement('span'); st.className = 'ld-status'; st.textContent = 'WAITING';
+    row.appendChild(nm); row.appendChild(st);
+    el.appendChild(row);
+    _ldRows[name] = { row: row, st: st };
+  }
+}
 async function preloadAssets(){
   if (_preloading) return; // never double-run (RETRY + a stray boot)
   _preloading = true;
@@ -7619,6 +7825,11 @@ async function preloadAssets(){
     await preloadAssetsToCache();
     updateCacheBadge();   // now reflects how many assets actually landed in the cache
     await buildModelTemplates();
+    // TRUE OFFLINE: pull the whole radio rotation in too, so the station plays
+    // with no connection. This runs AFTER the models so a slow music download
+    // never delays the first playable frame's 3D content.
+    await preloadRadioCache();
+    updateCacheBadge();   // reflects models + music -> "OFFLINE READY" once all cached
     ldSetLabel('READY!');
     ldSetFill(100); ldSetPct(100);
     await new Promise(r => setTimeout(r, 450)); // brief beat at 100% before the menu drops in
@@ -7626,6 +7837,7 @@ async function preloadAssets(){
     $('menu').classList.remove('hidden');
     state = 'menu';
     radioMode();
+    refreshInstallUi();      // surface INSTALL GAME (beforeinstallprompt) / the iOS nudge
   } catch (err) {
     console.error('[PRELOAD] asset preload failed:', err && err.message, err);
     ldShowRetry(err && err.message);
