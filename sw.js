@@ -28,6 +28,7 @@ var SHELL = [
   './index.html',
   './dsnylogo.jpg',     // menu logo (also preloaded by the game gate)
   './explicit_logo.webp', // "Parental Advisory" gag badge on the logo
+  './manifest.json',    // PWA manifest (official title for "Add to Home Screen")
   './fflate.min.js',    // FBX decompression
   './FBXLoader.js',
   './GLTFLoader.js',
@@ -56,9 +57,12 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(
-    // Drop any stale caches from previous versions, then take control of tabs.
+    // Drop only STALE SHELL caches (older dsnboy-shell-v* versions). The game's
+    // own model + radio caches (dsnboy-models-v1 / dsnboy-radio-v1) must survive
+    // every SW (re)activation - wiping them would force a full re-download of
+    // the 3D assets and the music on every deploy.
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE_NAME; }).map(function (k) { return caches.delete(k); }));
+      return Promise.all(keys.filter(function (k) { return k.indexOf('dsnboy-shell-v') === 0 && k !== CACHE_NAME; }).map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });

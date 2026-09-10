@@ -6,7 +6,13 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Dat Sh!ts Not Yours!</title>
+<title>Dat Sh!t's Not Yours!</title>
+<!-- PWA: "Add to Home Screen" - the manifest carries the official title, so the
+     home-screen entry shows "Dat Sh!t's Not Yours!" instead of the folder name. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0d12">
+<link rel="icon" type="image/jpeg" href="dsnylogo.jpg">
+<link rel="apple-touch-icon" href="dsnylogo.jpg">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 button { -webkit-tap-highlight-color:transparent; outline:none; }
@@ -1205,6 +1211,53 @@ const SFX = {
     if (!this.radioEl || !this.radioList.length) return;
     this._radioCancel();
     this.radioNext();
+  },
+  // ---- OFFLINE WARM-UP: once the menu is up, quietly pull the whole rotation
+  //     into the radio cache in the background so the station starts OFFLINE on
+  //     any later visit. Silent - it only fills the cache (no audio), it aborts
+  //     the instant the station comes on air (radioEl set -> live play-time
+  //     caching takes over from that point), and it skips tracks over 12MB so a
+  //     metered connection is never surprised. Never throws: the radio is a
+  //     bonus, it must not be able to break the game. ---
+  radioWarm(){
+    // Idempotent + re-entrant-safe: while a pass is in flight, every caller
+    // (boot, retry, a revisit) gets the SAME promise; after it settles, a new
+    // call starts a fresh pass (it re-checks the cache, so a finished pass is
+    // a cheap no-op while the station stays silent). Plain (non-async) function
+    // on purpose: it must return the stored promise object itself, not an
+    // async-function wrapper, so concurrent callers can see the same reference.
+    if (this._radioWarmP) return this._radioWarmP;
+    this._radioWarmP = (async () => {
+      try {
+        const cache = await this._radioGetCache();
+        if (!cache) return;
+        let list = this.radioList;
+        if (!list || !list.length){
+          try { list = await this.radioScan(); } catch (e) { list = []; }
+        }
+        if (!list.length) return;
+        let added = 0;
+        for (let i = 0; i < list.length; i++){
+          if (this.radioEl) break; // station came on air: live play-time caching takes over
+          const name = list[i];
+          const url = 'music/' + encodeURIComponent(name);
+          try {
+            if (await cache.match(url)) continue; // already stored
+            const r = await fetch(url);
+            if (!r.ok) continue;
+            const len = parseInt(r.headers.get('content-length') || '0', 10);
+            if (len > 12582912) continue; // skip the heavy tracks on a warm pass
+            const blob = await r.blob();
+            await cache.put(url, new Response(blob));
+            added++;
+          } catch (e) { break; } // offline / network error: stop silently, resume on a later visit
+        }
+        if (added) try { console.log('[radio] pre-cached ' + added + ' track(s) for offline play'); } catch (e) {}
+      } finally {
+        this._radioWarmP = null;
+      }
+    })();
+    return this._radioWarmP;
   }
 };
 // ==================== RADIO HUD (NOW PLAYING / MUTE / SKIP) ====================
@@ -7595,6 +7648,10 @@ radioMode(); // dock the NOW PLAYING bar while we're (still) on the start screen
 requestAnimationFrame(loop);
 // Kick off the asset gate. It finishes by revealing #menu (and setting state='menu').
 preloadAssets();
+// Radio offline warm-up: start silently as soon as the menu is up - it fills the
+// radio cache with the full rotation in the background (see SFX.radioWarm).
+// It stops on its own the moment the station comes on air.
+SFX.radioWarm();
 </script>
 </body>
 </html>

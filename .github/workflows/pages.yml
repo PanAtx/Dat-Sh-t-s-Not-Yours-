@@ -1,0 +1,39 @@
+# Deploys the game to GitHub Pages on every push to main.
+# One-time setup (Settings -> Pages -> Build and deployment -> Source):
+#   choose "GitHub Actions".
+# After that, every push to main re-deploys the whole site (root of the repo,
+# including music/) and the game is playable at <username>.github.io/DSNYBoy/.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site (repo root - the game is a single-folder static site)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,14 @@
+{
+  "name": "Dat Sh!t's Not Yours!",
+  "short_name": "DSNY",
+  "description": "Sweep the route, dodge the street, and keep the haul. A 7-day sanitation shift in the five boroughs.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0a0d12",
+  "theme_color": "#0a0d12",
+  "icons": [
+    { "src": "dsnylogo.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" }
+  ]
+}
