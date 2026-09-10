@@ -1,4 +1,4 @@
-// Probe monster_energy_drink.glb via the project's local GLTFLoader (three r128):
+// Probe red_bull_energy_drink_can.glb via the project's local GLTFLoader (three r128):
 // report native bounding box, material/texture details, base offset, and clone behavior.
 // Read-only: does NOT modify any project files.
 import fs from 'fs';
@@ -31,7 +31,7 @@ const ow=console.warn, oe=console.error;
 console.warn=(...a)=>warns.push(a.join(' '));
 console.error=(...a)=>errs.push(a.join(' '));
 const loader = new THREE.GLTFLoader();
-const buf = fs.readFileSync('monster_energy_drink.glb');
+const buf = fs.readFileSync('red_bull_energy_drink_can.glb');
 const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 let gltf = null, threw = null;
 try {
@@ -79,26 +79,29 @@ g.traverse(o => { if (o.isMesh) meshCount++; });
 console.log('meshes:', meshCount);
 console.log('top-level scene children:', g.children.map(c => c.name || c.type));
 g.children.forEach(c => console.log('  child', c.name || c.type, 'visible:', c.visible));
-// ---- Clone pipeline (a few instances like a few Monster powerups on screen) ----
-// Scene space is Y-UP (can stands along +Y, base at Y=0.01). The game is Z-UP,
-// so rotate the model so native +Y(up) -> game +Z(up): rotation.x = +PI/2.
-const MONSTER_SCALE = 0.66 / 3.9;   // target ~0.66 world units tall (can height ~3.90 native)
-// After rotation.x=+PI/2 the base sits at z~=0.01; zero it out.
+// ---- Clone pipeline: determine the native "up" axis from the tall dimension ----
+// If the can is tall along +Y (Y-up export): rotation.x = +PI/2 (native +Y -> game +Z).
+// If tall along +Z (Z-up export): no rotation needed.
+const tallAxis = sz.y >= sz.x && sz.y >= sz.z ? 'y' : (sz.z >= sz.x ? 'z' : 'x');
+console.log('tall axis:', tallAxis);
+const TALL = (tallAxis === 'y' ? sz.y : tallAxis === 'z' ? sz.z : sz.x);
+const RB_SCALE = 0.66 / TALL;   // target ~0.66 world units tall
+const baseZ = (tallAxis === 'y' ? box.min.y : tallAxis === 'z' ? box.min.z : box.min.x);
+console.log('native base offset along tall axis:', baseZ.toFixed(4));
 const g2 = new THREE.Group();
 for (let i = 0; i < 4; i++){
   const c = g.clone(true);
-  c.rotation.x = Math.PI / 2;      // native +Y(up) -> game +Z(up)
-  c.scale.setScalar(MONSTER_SCALE);
-  c.position.set(0, 0, -0.01 * MONSTER_SCALE); // zero the base at local z=0
+  if (tallAxis === 'y') c.rotation.x = Math.PI / 2;      // Y-up -> Z-up
+  c.scale.setScalar(RB_SCALE);
+  if (tallAxis === 'y') c.position.set(0, 0, -baseZ * RB_SCALE); // zero the base at local z=0
   g2.add(c);
 }
 g2.updateMatrixWorld(true);
-console.log('clone(true) x4 OK:', g2.children.length,
-  '| clone shares geometry:', g2.children[0].children[0].children[0].geometry === g.children[0].children[0].geometry);
 const cbox = new THREE.Box3().setFromObject(g2.children[0]);
 const csz = new THREE.Vector3();
 cbox.getSize(csz);
-console.log('cloned can world size (native 3.90 tall -> target 0.66):', csz.x.toFixed(3), csz.y.toFixed(3), csz.z.toFixed(3));
+console.log('cloned can world size (native ' + TALL.toFixed(2) + ' tall -> target 0.66):', csz.x.toFixed(3), csz.y.toFixed(3), csz.z.toFixed(3));
 console.log('cloned can base z (should be ~0):', cbox.min.z.toFixed(4), '| top z (should be ~0.66):', cbox.max.z.toFixed(4));
-console.log('RESULT: ' + (meshCount > 0 && Math.abs(sz.y - 3.9) < 0.01 ? 'PASS' : 'FAIL'));
-process.exit(meshCount > 0 && Math.abs(sz.y - 3.9) < 0.01 ? 0 : 2);
+const upright = Math.abs(cbox.min.z) < 0.001 && Math.abs(cbox.max.z - 0.66) < 0.005;
+console.log('RESULT: ' + (meshCount > 0 && upright ? 'PASS' : 'FAIL'));
+process.exit(meshCount > 0 && upright ? 0 : 2);

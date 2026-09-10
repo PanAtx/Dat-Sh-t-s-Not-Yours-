@@ -4513,22 +4513,22 @@ function makeBEC(){
   g.scale.setScalar(1.4);                              // bigger so it reads at a distance
   return g;
 }
-// ==================== MONSTER ENERGY DRINK (monster_energy_drink.glb) ====================
-// The "Run It Up" invincibility pickup uses the real 3D Monster can instead of the
+// ==================== RED BULL ENERGY DRINK (red_bull_energy_drink_can.glb) ====================
+// The "Run It Up" invincibility pickup uses the real 3D Red Bull can instead of the
 // procedural cylinder. The GLB is a Sketchfab export: its scene space is Y-UP (the
-// can stands along +Y, base at Y~=0.01, top at Y~=3.90, diameter ~=1.56) with a single
-// PBR material carrying the can's base-color / normal / metallic-roughness textures.
+// can stands along +Y, base at Y=-0.0849, top at Y=0.0871, diameter ~=0.0585) with a
+// few PBR materials carrying the can's base-color / metallic-roughness textures.
 // The game is Z-UP, so each instance rotates the model (rotation.x = +PI/2) to stand
 // it upright (native +Y -> game +Z) and scales it to ~0.66 world units tall (a bit
 // shorter than the ~1.87u worker). If the GLB hasn't loaded yet (or fails), makeMonster
 // falls back to the procedural can below.
-const MONSTER_SCALE = 0.66 / 3.9;   // target ~0.66 world units tall (native can height ~3.90)
+const MONSTER_SCALE = 0.66 / 0.1721;  // target ~0.66 world units tall (native can height ~0.1721)
 let MONSTER_TPL = null;             // { template: THREE.Object3D } - deep-cloned per Monster instance
 function loadMonsterGltf(){
   if (MONSTER_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
   return new Promise((resolve, reject) => {
-    new THREE.GLTFLoader().load('monster_energy_drink.glb', (gltf) => {
+    new THREE.GLTFLoader().load('red_bull_energy_drink_can.glb', (gltf) => {
       try {
         const model = gltf.scene;
         model.traverse(o => {
@@ -4541,22 +4541,22 @@ function loadMonsterGltf(){
         });
         MONSTER_TPL = { template: model };
         resolve(true);
-      } catch (e){ console.error('[GLTF] monster template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] monster load failed:', err); reject(err); });
+      } catch (e){ console.error('[GLTF] red bull template build failed:', e); reject(e); }
+    }, undefined, (err) => { console.error('[GLTF] red bull load failed:', err); reject(err); });
   });
 }
 function makeMonster(){
-  // A tall "Monster" energy can standing upright. Base z=0.
+  // A tall "Red Bull" energy can standing upright. Base z=0.
   if (MONSTER_TPL){
-    // Real 3D model (monster_energy_drink.glb). The scene is Y-UP; rotation.x = +PI/2
-    // stands it up (native +Y -> game +Z). After that the base sits at z~=0.01, so nudge
-    // it down to rest exactly on the sidewalk. The shared template geometry is cloned,
+    // Real 3D model (red_bull_energy_drink_can.glb). The scene is Y-UP; rotation.x = +PI/2
+    // stands it up (native +Y -> game +Z). After that the base sits at z~=-0.0849, so nudge
+    // it up to rest exactly on the sidewalk. The shared template geometry is cloned,
     // so every Monster instance renders the textured can.
     const g = new THREE.Group();
     const model = MONSTER_TPL.template.clone(true);
     model.rotation.x = Math.PI / 2;
     model.scale.setScalar(MONSTER_SCALE);
-    model.position.set(0, 0, -0.01 * MONSTER_SCALE);
+    model.position.set(0, 0, 0.0849 * MONSTER_SCALE);
     g.add(model);
     return g;
   }
