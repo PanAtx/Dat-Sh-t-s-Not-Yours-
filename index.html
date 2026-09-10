@@ -909,7 +909,7 @@ const SFX = {
   //  1) HTTP directory listing (autoindex — works on VS Code Live Server, python http.server,
   //     Apache/nginx autoindex, Caddy: adding/removing .mp3 files "just works")
   //  2) fallback: music/manifest.json (for hosts with no directory listing, e.g. GitHub Pages)
-  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false, radioMuted: false, radioGen: 0,
+  radioEl: null, radioList: [], radioBag: [], radioTimer: null, radioStarting: false, radioMuted: false, radioGen: 0, radioCacheName: 'dsnboy-radio-v1', radioBlobUrl: null, _radioCache: null, _radioSrcChanged: false,
   ensure(){
     if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1018,7 +1018,54 @@ const SFX = {
   _radioCancel(){
     if (this.radioTimer){ clearTimeout(this.radioTimer); this.radioTimer = null; }
   },
-  radioNext(){
+  // ---- OFFLINE CACHE: the radio downloads every song into the browser Cache
+  //     (Cache API) the first time it plays it. After that the song is loaded
+  //     from the cache and never touches the network again, so the station keeps
+  //     playing even when the connection drops. The cache is a private "music/"
+  //     key-space, so it can't collide with page assets. If the Cache API is
+  //     unavailable (e.g. file:// or an old browser) we degrade to plain
+  //     network streaming, exactly as before. ---
+  async _radioGetCache(){
+    if (this._radioCache) return this._radioCache;
+    if (typeof caches === 'undefined' || !caches.open) return null;
+    try {
+      this._radioCache = await caches.open(this.radioCacheName);
+      return this._radioCache;
+    } catch (e) { return null; }
+  },
+  // Returns a playable object URL for the track: cache hit -> blob from cache;
+  // cache miss -> fetch from the network, store in cache, blob. On a network
+  // failure with an empty cache we fall back to the raw music/ URL so the
+  // browser's own HTTP cache / streaming can still try.
+  async _radioResolveSrc(name){
+    const url = 'music/' + encodeURIComponent(name);
+    const cache = await this._radioGetCache();
+    if (cache){
+      try {
+        const hit = await cache.match(url);
+        if (hit){
+          const blob = await hit.blob();
+          return { blobUrl: URL.createObjectURL(blob, url), fromCache: true };
+        }
+      } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
+      try {
+        const r = await fetch(url);
+        if (r.ok){
+          const blob = await r.blob();
+          await cache.put(url, new Response(blob)); // cache it for next time
+          return { blobUrl: URL.createObjectURL(blob, url), fromCache: false };
+        }
+      } catch (e) { /* offline and not cached yet: let the <audio> element try directly */ }
+    }
+    return { blobUrl: url, fromCache: false };
+  },
+  _radioRevoke(){
+    if (this.radioBlobUrl){
+      try { URL.revokeObjectURL(this.radioBlobUrl); } catch (e) {}
+      this.radioBlobUrl = null;
+    }
+  },
+  async radioNext(){
     if (!this.radioEl || !this.radioList.length) return;
     if (!this.radioBag.length){
       this.radioBag = this.radioList.slice();
@@ -1028,7 +1075,21 @@ const SFX = {
     this.radioGen++;        // new current track: pending events from abandoned loads are stale
     this._radioCancel();    // never double-advance from a leftover timer
     try { radioSetTitle(name); } catch (e) {} // update the NOW PLAYING LED title
-    this.radioEl.src = 'music/' + encodeURIComponent(name);
+    this._radioRevoke();    // release the previous track's blob
+    this._radioSrcChanged = false;
+    const gen = this.radioGen;
+    const res = await this._radioResolveSrc(name);
+    if (this.radioGen !== gen){
+      // superseded by a newer radioNext (e.g. SKIP during resolve): the blob we
+      // just created was never assigned to radioBlobUrl, so revoke it directly
+      if (res.blobUrl && res.blobUrl.indexOf('music/') !== 0){ try { URL.revokeObjectURL(res.blobUrl); } catch (e) {} }
+      return;
+    }
+    if (res.blobUrl !== 'music/' + encodeURIComponent(name)){
+      this.radioBlobUrl = res.blobUrl;
+    }
+    this.radioEl.src = res.blobUrl;
+    this._radioSrcChanged = true;
     const p = this.radioEl.play();
     if (p && p.catch) p.catch(() => this._radioSchedule(250)); // blocked/failed track: skip ahead
   },
@@ -1045,7 +1106,14 @@ const SFX = {
     const el = this.radioEl = new Audio();
     el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
     el.addEventListener('ended', () => this._radioSchedule(2000)); // song finished → 2s of air → next song
-    el.addEventListener('error', () => this._radioSchedule(300));  // bad/missing file → skip it right away
+    el.addEventListener('error', () => {
+      // A revoked blob URL (previous track) can still fire an error event AFTER
+      // the new src is already set. Guard: only treat as a real failure if this
+      // error belongs to the src we just assigned (gen unchanged + src actually
+      // written). Stale errors from abandoned loads are silently ignored.
+      if (this.radioGen === 0 || !this._radioSrcChanged) return;
+      this._radioSchedule(300);
+    });  // bad/missing file → skip it right away
     this.radioNext();
   },
   radioSkip(){ // SKIP button: jump to the next song right now (no 2-second gap)

@@ -62,6 +62,7 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
 
   // --- SKIP: next track immediately, title follows ---
   out.SFX.radioSkip();
+  await sleep(20); // radioNext is async: let the src resolution settle
   check('skip -> 2nd track plays IMMEDIATELY', played.length === 2);
   check('skipped track differs from first', unenc(played[1]) !== t1);
   check('title updated to 2nd song', els['radio-title'].textContent === norm(unenc(played[1])));
@@ -71,6 +72,7 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   await sleep(400);
   check('no auto-next yet during the 2s gap', played.length === 2);
   out.SFX.radioSkip();
+  await sleep(20); // radioNext is async: let the src resolution settle
   check('skip during gap -> 3rd track plays instantly', played.length === 3);
   check('title updated to 3rd song', els['radio-title'].textContent === norm(unenc(played[2])));
 
