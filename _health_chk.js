@@ -58,6 +58,10 @@ const powerups = [];
 const starParticles = [];
 const dynamicGroup = { add(){}, remove(){} };
 function disposeObj(){}
+// Monster GLB template: the harness runs the PROCEDURAL fallback (GLB not loaded in the
+// test scope), so MONSTER_TPL stays null exactly like the game's initial state.
+let MONSTER_TPL = null;
+const MONSTER_SCALE = (function(){ const m = src.match(/const MONSTER_SCALE = ([\d.]+) \/ ([\d.]+)/); return m ? parseFloat(m[1]) / parseFloat(m[2]) : 0.66 / 3.9; })();
 // carry / delivery state that the touch-to-dump + delivery routines read (the test page
 // scope doesn't have a live truck route, so we supply these)
 let carry = 'none', carried = null;
