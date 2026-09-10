@@ -56,7 +56,7 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
     'coffee_shop_cup.glb': 144300, 'dsnylogo.jpg': 1290338, 'explicit_logo.webp': 20448 };
   const store = new Map();
   global.caches = { open: async () => ({
-    match: async (u) => { const v = store.get(u); if (!v) return null; const r = new Response(v); r.size = v.size; return r; },
+    match: async (u) => { const v = store.get(u); if (!v) return null; return new Response(v); },
     put: async (u, r) => { store.set(u, await r.blob()); },
     keys: async () => [...store.keys()],
   }) };
@@ -72,7 +72,7 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const b = html.indexOf('// ---MODEL_CACHE_BEGIN---');
   const e = html.indexOf('// ---MODEL_CACHE_END---');
   const mc = html.slice(b, e + '// ---MODEL_CACHE_END---'.length);
-  const MC = new Function('caches', 'fetch', 'URL', 'Response', mc + '\nreturn { getModelUrl: getModelUrl, _modelGetCache: _modelGetCache };')(global.caches, global.fetch, global.URL, Response);
+  const MC = new Function('caches', 'fetch', 'URL', 'Response', mc + '\nreturn { getModelUrl: getModelUrl, _modelGetCache: _modelGetCache, _modelMemCache: _modelMemCache };')(global.caches, global.fetch, global.URL, Response);
   global.URL.createObjectURL = () => 'blob:x';
   global.URL.revokeObjectURL = () => {};
 
@@ -84,6 +84,10 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   check('onProgress reported the true total (content-length)', sawCL);
   check('final progress = full byte count', finalR === SIZES['truck.fbx']);
   check('cold load returns blob URL (not cache)', res.url.indexOf('blob:') === 0 && !res.fromCache);
+  // Regression guard: a real Response has NO .size property, so the gate must rely on
+  // getModelUrl's reported size (from the Blob) + cached flag, not cache.match().size.
+  check('cold load reports cached:true (persisted)', res.cached === true);
+  check('cold load reports the true byte size from the Blob', res.size === SIZES['truck.fbx']);
 
   // run the REAL preloadAssetsToCache extracted from index.html
   const f1 = html.indexOf('async function preloadAssetsToCache(){');
@@ -92,11 +96,14 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const PRELOAD_ASSETS = Object.keys(SIZES).map(u => ({ url: u, size: SIZES[u], label: u }));
   const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
   let pcts = [];
-  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', 'ldSetLabel', 'ldSetPct', 'ldSetFill',
-    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, () => {}, (p) => { pcts.push(p); }, () => {});
+  const rowCalls = [];   // records the per-asset checklist updates (ldRow)
+  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', '_modelMemCache', 'ldSetLabel', 'ldSetPct', 'ldSetFill', 'ldRow',
+    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, MC._modelMemCache, () => {}, (p) => { pcts.push(p); }, () => {}, (url, cls, text) => { rowCalls.push({ url, cls, text }); });
   await preload();
   check('preload drives the bar to 100%', pcts.length > 0 && pcts[pcts.length - 1] === 100);
   check('all 8 assets are in the cache after preload', store.size === 8);
+  // Per-asset checklist: every asset was marked done + CACHED (the real persisted path)
+  check('every asset row updated to done/CACHED', PRELOAD_ASSETS.every(a => rowCalls.some(c => c.url === a.url && c.cls === 'done' && c.text === 'CACHED')));
   const before = netHits;
   await preload();
   check('second preload is 100% cache (0 new network hits)', netHits === before);

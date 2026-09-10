@@ -129,6 +129,33 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .ld-label { font-family:"Courier New",monospace; font-size:clamp(9px,1.7vw,12px); color:#9fe8b8; letter-spacing:2px; margin-top:8px; min-height:1.5em; }
 #btnRetry { font-family:"Courier New",monospace; font-size:clamp(12px,2.4vw,18px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(24px,6vw,40px); margin-top:clamp(12px,2.4vh,20px); cursor:pointer; color:#04140c; background:#ff5252; border:none; box-shadow:0 0 18px rgba(255,82,82,.7); pointer-events:auto; }
 #btnRetry:hover { background:#ff7a7a; }
+/* ===== Per-asset status list on the "Getting Assets" screen =====
+   A live checklist next to the progress bar: each gated asset shows its own
+   state so the player sees exactly what's downloading and when it lands. */
+.ld-list { margin-top:12px; max-height:24vh; overflow:hidden; display:flex; flex-direction:column; gap:4px; }
+.ld-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  font-family:"Courier New",monospace; font-size:clamp(8px,1.5vw,11px); letter-spacing:1px;
+  color:#7d95a5; border-bottom:1px dashed rgba(46,224,144,.22); padding-bottom:3px; }
+.ld-row .ld-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ld-row .ld-status { flex:none; font-weight:bold; letter-spacing:1px; }
+.ld-row.pending .ld-status { color:#5f7686; }
+.ld-row.active .ld-name { color:#bfe9ff; }
+.ld-row.active .ld-status { color:#4ec3ff; }
+.ld-row.done .ld-name { color:#9fe8b8; }
+.ld-row.done .ld-status { color:#7dff9e; }
+.ld-row.fail .ld-name { color:#ff9d9d; }
+.ld-row.fail .ld-status { color:#ff5b4d; }
+/* ===== Offline cache-status badge (top-right HUD) =====
+   Tells the player whether the game can run without a connection. Green = every
+   gated asset is cached (offline ready); blue = still caching; amber = no cache
+   available (online only). */
+#cachebadge { position:fixed; top:84px; right:20px; z-index:11; pointer-events:none;
+  font-family:"Courier New",monospace; font-size:11px; letter-spacing:2px; font-weight:bold;
+  padding:5px 10px; border-radius:4px; border:1px solid rgba(46,224,144,.6);
+  background:rgba(4,18,10,.72); text-shadow:0 0 6px rgba(46,224,144,.5), 1px 1px 0 rgba(0,0,0,.9); }
+#cachebadge.ready { color:#7dff9e; border-color:rgba(125,255,158,.7); box-shadow:0 0 10px rgba(46,224,144,.45); }
+#cachebadge.caching { color:#4ec3ff; border-color:rgba(78,195,255,.6); }
+#cachebadge.none { color:#ffab45; border-color:rgba(255,171,69,.6); }
 /* ===== Menu logo screen ===== */
 #menu .panel { background:none; border:none; box-shadow:none; padding:0; max-width:none; width:auto; }
 .menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
@@ -367,6 +394,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="ts" id="camdate">--/--/----</div>
   <div class="ts" id="camtime">--:--:--</div>
 </div>
+<div id="cachebadge" class="none hidden">CACHING...</div>
 <div id="vpad">
   <div id="joy"><div id="joy-stick"></div></div>
   <button id="btnPause" aria-label="Pause">PAUSE</button>
@@ -383,6 +411,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="ldbar-wrap"><div class="ldbar-fill" id="ldbar-fill"></div></div>
   <div class="ld-pct" id="ld-pct">0%</div>
   <div class="ld-label" id="ld-label">GETTING ASSETS...</div>
+  <div class="ld-list" id="ld-list"></div>
   <button id="btnRetry" class="hidden">RETRY</button>
 </div></div>
 <div id="menu" class="modal hidden"><div class="panel">
@@ -443,6 +472,16 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <script src="FBXLoader.js"></script>
 <script src="GLTFLoader.js"></script>
 <script src="DRACOLoader.js"></script>
+<script>
+// Register the offline service worker (page-shell cache). Only over http(s) -
+// service workers never run on file://. Fails silently if unsupported so the
+// game still works exactly as before on a browser without SW.
+(function(){
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0){
+    navigator.serviceWorker.register('sw.js').catch(function(e){ console.warn('[SW] registration failed:', e && e.message); });
+  }
+})();
+</script>
 <script>
 'use strict';
 // ==================== HELPERS & CORE STATE ====================
@@ -1525,6 +1564,8 @@ function fbxInstance(tpl, scale){
 // an old browser) we degrade to plain network loading, exactly as before.
 // ---MODEL_CACHE_BEGIN---
 let _modelCache = null;
+const _modelMemCache = {};   // url -> blob URL, for assets that downloaded fine but the
+                             // persistent Cache couldn't hold them (see preloadAssetsToCache)
 async function _modelGetCache(){
   if (_modelCache) return _modelCache;
   if (typeof caches === 'undefined' || !caches.open) return null;
@@ -1539,6 +1580,12 @@ async function _modelGetCache(){
 // being streamed from the network (only on a cache MISS; a cache hit resolves instantly).
 // Lets the pre-game "Getting Assets" screen show a byte-accurate progress bar.
 async function getModelUrl(url, onProgress){
+  let _modelFallbackError = null;   // set if the network fetch fails (so callers can report WHY)
+  // In-memory hit: the asset was already downloaded this session (see preloadAssetsToCache).
+  if (_modelMemCache[url]){
+    if (onProgress) onProgress(1, 1); // instant: already have it in memory
+    return { url: _modelMemCache[url], fromCache: true, cached: false, size: 0, error: null };
+  }
   const cache = await _modelGetCache();
   if (cache){
     try {
@@ -1546,7 +1593,8 @@ async function getModelUrl(url, onProgress){
       if (hit){
         const blob = await hit.blob();
         if (onProgress) onProgress(blob.size, blob.size); // instant: already have it
-        return { url: URL.createObjectURL(blob), fromCache: true };
+        // NOTE: a Response has no .size property -- the byte count comes from the Blob.
+        return { url: URL.createObjectURL(blob), fromCache: true, cached: true, size: blob.size, error: null };
       }
     } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
     try {
@@ -1554,6 +1602,7 @@ async function getModelUrl(url, onProgress){
       if (r.ok){
         const total = Number(r.headers && r.headers.get('content-length')) || 0;
         const body = r.body;
+        let blob;
         if (body && body.getReader && onProgress){
           // Stream so the caller can report byte-level download progress.
           const reader = body.getReader();
@@ -1566,19 +1615,28 @@ async function getModelUrl(url, onProgress){
             received += ch.value.length;
             onProgress(received, total || received);
           }
-          const blob = new Blob(chunks);
-          await cache.put(url, new Response(blob)); // cache it for next time
-          onProgress(blob.size, blob.size);
-          return { url: URL.createObjectURL(blob), fromCache: false };
+          blob = new Blob(chunks);
+        } else {
+          blob = await r.blob();
         }
-        const blob = await r.blob();
+        // Cache it best-effort: a storage/quota/security failure must NOT discard
+        // the bytes we just downloaded (the caller still has them via the blob URL).
+        let persisted = false;
+        try { await cache.put(url, new Response(blob)); persisted = true; }
+        catch (ce) { console.warn('[CACHE] could not cache ' + url + ':', ce && ce.message); }
         if (onProgress) onProgress(blob.size, blob.size);
-        await cache.put(url, new Response(blob)); // cache it for next time
-        return { url: URL.createObjectURL(blob), fromCache: false };
+        return { url: URL.createObjectURL(blob), fromCache: false, cached: persisted, size: blob.size, error: null };
+      } else {
+        // Server said no (404 / 403 / ...). Record the status so the gate can say WHY.
+        _modelFallbackError = new Error('HTTP ' + r.status + (r.statusText ? ' ' + r.statusText : '') + ' for ' + url);
       }
-    } catch (e) { /* offline and not cached yet: let the loader try the raw URL */ }
+    } catch (e) { /* offline and not cached yet: let the loader try the raw URL */
+      // Keep the real reason so the caller (the pre-game gate) can report WHY,
+      // instead of just "failed to get <url>" with no cause.
+      _modelFallbackError = e;
+    }
   }
-  return { url: url, fromCache: false };
+  return { url: url, fromCache: false, cached: false, size: 0, error: _modelFallbackError };
 }
 // ---MODEL_CACHE_END---
 // Load truck.fbx once and extract the three named asset groups into FBX_TPL.
@@ -7359,12 +7417,76 @@ function ldSetLabel(t){ const el = $('ld-label'); if (el) el.textContent = t; }
 function ldSetPct(p){ const el = $('ld-pct'); if (el) el.textContent = p + '%'; }
 function ldSetFill(p){ const el = $('ldbar-fill'); if (el) el.style.width = p + '%'; }
 function ldShowRetry(msg){
-  ldSetLabel(msg || 'CONNECTION PROBLEM - CHECK YOUR NETWORK, THEN RETRY');
+  // Translate the technical error into something the player can act on.
+  let m = msg || 'CONNECTION PROBLEM - CHECK YOUR NETWORK, THEN RETRY';
+  if (/\bfile:\//i.test(m)) m = 'OPEN THE GAME OVER HTTP, NOT FROM A FILE - SERVE THIS FOLDER (e.g. "npx http-server") THEN RETRY';
+  else if (/\bHTTP 404\b/.test(m)) m = 'AN ASSET IS MISSING (404) - MAKE SURE ALL GAME FILES ARE SERVED, THEN RETRY';
+  else if (/\bHTTP \d{3}\b/.test(m)) m = 'SERVER PROBLEM - CHECK THAT ALL GAME FILES ARE PRESENT, THEN RETRY';
+  else if (/(Failed to fetch|NetworkError|load failed)/i.test(m)) m = 'CONNECTION PROBLEM - CHECK YOUR NETWORK, THEN RETRY';
+  ldSetLabel(m);
   const b = $('btnRetry'); if (b) b.classList.remove('hidden');
 }
 function ldReset(){
   ldSetFill(0); ldSetPct(0); ldSetLabel('GETTING ASSETS...');
   const b = $('btnRetry'); if (b) b.classList.add('hidden');
+  _ldRows = {}; _ldList = null;   // rebuild the per-asset checklist fresh on (re)start
+}
+// ---- Per-asset status checklist (the live list next to the progress bar) ----
+// Guarded so the extracted-function Node test (which has no DOM) is unaffected.
+let _ldRows = {}, _ldList = null;
+function ldBuildList(){
+  if (typeof document === 'undefined' || !PRELOAD_ASSETS) return;
+  const el = $('ld-list'); if (!el) return;
+  _ldList = el; _ldRows = {};
+  el.textContent = '';
+  for (let i = 0; i < PRELOAD_ASSETS.length; i++){
+    const a = PRELOAD_ASSETS[i];
+    const row = document.createElement('div');
+    row.className = 'ld-row pending';
+    const name = document.createElement('span'); name.className = 'ld-name'; name.textContent = a.label;
+    const st = document.createElement('span'); st.className = 'ld-status'; st.textContent = 'WAITING';
+    row.appendChild(name); row.appendChild(st);
+    el.appendChild(row);
+    _ldRows[a.url] = { row: row, st: st };
+  }
+}
+function ldRow(url, cls, text){
+  if (!_ldRows[url]) return;
+  const r = _ldRows[url];
+  r.row.className = 'ld-row ' + cls;
+  r.st.textContent = text;
+}
+// ---- Offline cache-status badge (top-right HUD) ----
+// "OFFLINE READY" = every gated asset is cached (the game boots with no network).
+// "CACHING n/8"   = some assets still need downloading.
+// "ONLINE ONLY"   = the Cache API is unavailable (file:// / old browser).
+function cacheBadgeSet(txt, cls){
+  const el = $('cachebadge'); if (!el) return;
+  el.textContent = txt;
+  el.classList.remove('ready', 'caching', 'none');   // keep .hidden intact
+  el.classList.add(cls);
+  el.classList.remove('hidden');
+}
+function cacheBadgeHide(){
+  const el = $('cachebadge'); if (!el) return;
+  el.classList.add('hidden');
+}
+function updateCacheBadge(){
+  if (typeof document === 'undefined') return;
+  const el = $('cachebadge'); if (!el) return;
+  if (typeof caches === 'undefined' || !caches.open){ cacheBadgeSet('ONLINE ONLY', 'none'); return; }
+  (async () => {
+    const c = await _modelGetCache();
+    if (!c){ cacheBadgeSet('ONLINE ONLY', 'none'); return; }
+    let n = 0;
+    for (let i = 0; i < PRELOAD_ASSETS.length; i++){
+      const a = PRELOAD_ASSETS[i];
+      if (_modelMemCache[a.url]) { n++; continue; }   // in-memory fallback also means it's loaded
+      try { if (await c.match(a.url)) n++; } catch (e) {}
+    }
+    if (n >= PRELOAD_ASSETS.length) cacheBadgeSet('OFFLINE READY', 'ready');
+    else cacheBadgeSet('CACHING ' + n + '/' + PRELOAD_ASSETS.length, 'caching');
+  })();
 }
 // Phase 1: stream every asset into the Cache (with a live byte-accurate progress bar).
 // Cached assets resolve instantly, so a repeat visit skips straight to the end.
@@ -7387,15 +7509,32 @@ async function preloadAssetsToCache(){
   let got = 0;
   for (const a of PRELOAD_ASSETS){
     ldSetLabel('GETTING ' + a.label + '...');
+    ldRow(a.url, 'active', 'DOWNLOADING...');   // live per-asset checklist
     const prog = (r, t) => { const p = Math.min(100, Math.round((got + Math.min(r, a.size)) / PRELOAD_TOTAL * 100)); ldSetFill(p); ldSetPct(p); };
-    try { await getModelUrl(a.url, prog); }
-    catch (e) { /* getModelUrl falls back to the raw URL on failure; the loader phase will surface it */ }
+    let res = { error: null };
+    try { res = await getModelUrl(a.url, prog); }
+    catch (e) { res = { error: e }; }   // getModelUrl normally falls back, but record if it throws
     if (cache){
-      try {
-        const hit = await cache.match(a.url);
-        if (hit && hit.size && hit.size >= a.size * 0.9) got += a.size; // verified in cache
-        else throw new Error('missing from cache');
-      } catch (e) { throw new Error('failed to get ' + a.url); }
+      // Trust getModelUrl's authoritative report: res.cached says whether the
+      // persistent Cache now holds the asset, and res.size is the real byte
+      // count (from the Blob -- a Response object has no .size property).
+      if (res.cached && res.size && res.size >= a.size * 0.9){
+        got += a.size; // verified in the persistent cache
+        ldRow(a.url, 'done', 'CACHED');
+      } else if (res.error){
+        // Not in cache AND the network fetch failed -> a real, unrecoverable problem.
+        const why = ' (' + (res.error.message || res.error) + ')';
+        ldRow(a.url, 'fail', 'FAILED');
+        throw new Error('failed to get ' + a.url + why);
+      } else {
+        // Bytes downloaded fine but the persistent cache couldn't hold them
+        // (quota / security policy). Keep them in memory so the model loaders
+        // don't re-download, and let the game start.
+        _modelMemCache[a.url] = res.url;
+        console.warn('[PRELOAD] ' + a.url + ' downloaded but not cached (will not be available offline)');
+        got += a.size;
+        ldRow(a.url, 'done', 'IN MEMORY');
+      }
     }
     ldSetFill(Math.round(got / PRELOAD_TOTAL * 100)); ldSetPct(Math.round(got / PRELOAD_TOTAL * 100));
   }
@@ -7421,8 +7560,11 @@ async function preloadAssets(){
   if (_preloading) return; // never double-run (RETRY + a stray boot)
   _preloading = true;
   ldReset();
+  ldBuildList();   // rebuild the per-asset checklist for this run
+  if (typeof caches !== 'undefined' && caches.open) updateCacheBadge();  // show CACHING n/8 (or OFFLINE READY on a repeat visit)
   try {
     await preloadAssetsToCache();
+    updateCacheBadge();   // now reflects how many assets actually landed in the cache
     await buildModelTemplates();
     ldSetLabel('READY!');
     ldSetFill(100); ldSetPct(100);
@@ -7432,8 +7574,8 @@ async function preloadAssets(){
     state = 'menu';
     radioMode();
   } catch (err) {
-    console.error('[PRELOAD] asset preload failed:', err && err.message);
-    ldShowRetry();
+    console.error('[PRELOAD] asset preload failed:', err && err.message, err);
+    ldShowRetry(err && err.message);
   } finally {
     _preloading = false;
   }
