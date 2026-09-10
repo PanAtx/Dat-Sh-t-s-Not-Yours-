@@ -39,7 +39,7 @@ check('head sets theme-color #0a0d12', /<meta name="theme-color" content="#0a0d1
 check('head has a favicon + apple-touch-icon', /<link rel="icon"[^>]*>/.test(html) && /<link rel="apple-touch-icon"[^>]*>/.test(html));
 check('<title> is the official title', /<title>Dat Sh!t's Not Yours!<\/title>/.test(html));
 check('no apostrophe-less "Sh!ts" title left', html.indexOf('Sh!ts') < 0);
-check('radioWarm is hooked into boot (menu load)', /preloadAssets\(\);\r?\n[\s\S]{0,400}?SFX\.radioWarm\(\);/.test(html));
+check('offline-music background download is hooked into the menu reveal', /refreshInstallUi\(\);[\s\S]{0,200}?radioBackgroundDownload\(\);/.test(html));
 
 // ---- (4) radioWarm() - extracted verbatim, run against fake Cache/fetch ----
 const start = html.indexOf('radioEl: null');

@@ -156,4 +156,4 @@ const prs = html.indexOf('async function preloadRadioCache(){');
 const pre = html.indexOf('// Per-track checklist', prs);
 const prCode = html.slice(prs, pre);
 check('preloadRadioCache is defined in index.html', prs >= 0 && prCode.indexOf('radioGetList()') >= 0);
-check('preloadRadioCache is wired into the gate (after models)', /await buildModelTemplates\(\);[\s\S]{0,300}?await preloadRadioCache\(\);/.test(html));
+check('offline-music background download is wired into the gate (after models)', /await buildModelTemplates\(\);[\s\S]{0,900}?radioBackgroundDownload\(\);/.test(html));
