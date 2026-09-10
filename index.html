@@ -8,8 +8,9 @@
 <meta http-equiv="Expires" content="0">
 <title>Dat Sh!ts Not Yours!</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; user-select:none; -webkit-user-select:none; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+button { -webkit-tap-highlight-color:transparent; outline:none; }
+html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; user-select:none; -webkit-user-select:none; touch-action:none; overscroll-behavior:none; -webkit-tap-highlight-color:transparent; }
 #game { position:fixed; inset:0; }
 #game canvas { display:block; }
 #haze { position:fixed; inset:0; z-index:5; pointer-events:none;
@@ -549,7 +550,16 @@ setInterval(camTick, 1000);
 // Fullscreen is requested first; the orientation lock is attempted after it is granted
 // (and falls back to the older API). All calls are best-effort: iOS/Safari can't lock
 // orientation from the web, so we also rely on the viewport hint + the portrait overlay.
+// fsWanted tracks whether the game wants to be in fullscreen (true from START until
+// the player QUITs). It lets us re-assert fullscreen if a mobile drag / edge-swipe
+// gesture yanks the browser out of it (see the fullscreenchange listener below).
+let fsWanted = false;
+function _fsElement(){
+  const d = document;
+  return d.fullscreenElement || d.webkitFullscreenElement || d.msFullscreenElement || null;
+}
 function enterLandscapeFullscreen(){
+  fsWanted = true;
   function tryLock(){
     const o = (typeof screen !== 'undefined' && screen.orientation) ? screen.orientation : null;
     if (o) {
@@ -570,6 +580,20 @@ function enterLandscapeFullscreen(){
   }
 }
 window.addEventListener('orientationchange', function(){ try { window.focus(); } catch (e) {} });
+// Keep the game in fullscreen unless the player explicitly quits: if the browser
+// drops us out of fullscreen on its own (a drag / edge-swipe on mobile does this),
+// get right back in. On iOS requestFullscreen is unavailable so this is a no-op
+// there; the CSS touch-action + touchmove guards handle iOS.
+function _fsChange(){ if (fsWanted && !_fsElement()) enterLandscapeFullscreen(); }
+window.addEventListener('fullscreenchange', _fsChange);
+window.addEventListener('webkitfullscreenchange', _fsChange);
+window.addEventListener('msfullscreenchange', _fsChange);
+// iOS / mobile: dragging anywhere can trigger the browser's edge-swipe navigation
+// gestures (swipe down from the top / up from the bottom), which reveal the address
+// + tab bars and yank the game "out of fullscreen". Stop the browser from treating
+// our drags as page gestures so the game stays immersive. (The virtual pad uses
+// pointer events, which are unaffected by preventing touchmove.)
+document.addEventListener('touchmove', function(e){ e.preventDefault(); }, { passive: false });
 
 // ===== Big animated "reward" popups (MONGO! / STREET CASH! / TREASURE!) =====
 function showPopup(kind, val, name){
@@ -6621,6 +6645,7 @@ function advanceGame(){
 // EXIT FULLSCREEN: the reverse of enterLandscapeFullscreen(). Best-effort across
 // vendors; leaving fullscreen also releases any orientation lock the browser holds.
 function exitFullscreen(){
+  fsWanted = false;   // the player is leaving fullscreen (QUIT): don't auto re-enter
   const el = document;
   const fsEl = el.fullscreenElement || el.webkitFullscreenElement || el.msFullscreenElement;
   if (!fsEl) return;
