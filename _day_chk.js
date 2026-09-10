@@ -94,8 +94,8 @@ check('Sunday (last) -> "FINISH WEEK" button', els['btnNextDay'].textContent.ind
 // ---------- 7) advanceGame routes by state ----------
 const calls = [];
 const stubs = { beginDay(){ calls.push('beginDay'); }, nextDay(){ calls.push('nextDay'); }, showWeekComplete(){ calls.push('weekComplete'); }, startGame(){ calls.push('startGame'); } };
-const mkAdv = (stateNow, lv) => new Function('state','level','MAX_LEVEL','beginDay','nextDay','showWeekComplete','startGame',
-  extractFn('advanceGame') + '\n; return advanceGame;')(stateNow, lv, 7, stubs.beginDay, stubs.nextDay, stubs.showWeekComplete, stubs.startGame);
+const mkAdv = (stateNow, lv) => new Function('state','level','MAX_LEVEL','beginDay','nextDay','showWeekComplete','startGame','_preloading',
+  extractFn('advanceGame') + '\n; return advanceGame;')(stateNow, lv, 7, stubs.beginDay, stubs.nextDay, stubs.showWeekComplete, stubs.startGame, false);
 check('advanceGame: intro -> begin the day', (calls.length = 0, mkAdv('intro', 3)(), calls.length === 1 && calls[0] === 'beginDay'));
 check('advanceGame: dayend (mid-week) -> next day', (calls.length = 0, mkAdv('dayend', 3)(), calls.length === 1 && calls[0] === 'nextDay'));
 check('advanceGame: dayend (Sunday) -> week complete', (calls.length = 0, mkAdv('dayend', 7)(), calls.length === 1 && calls[0] === 'weekComplete'));

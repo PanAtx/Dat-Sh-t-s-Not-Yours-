@@ -115,6 +115,20 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #btnStart:hover, #btnRestart:hover, #btnRestart2:hover, #btnBeginDay:hover, #btnNextDay:hover, #btnWeekRestart:hover, #btnResume:hover, #btnQuit2:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
 .kbd { color:#7dff9e; }
+/* ===== Pre-game asset preload screen ("Please Wait, Getting Assets") ===== */
+/* Sits ABOVE the start menu (#menu is z-index:20) and covers it while the 3D
+   models + title images stream into the Cache. Opaque enough that the menu
+   behind it never bleeds through. */
+#loading { z-index:30; background:rgba(3,7,10,.94); }
+#loading .panel { width:min(92vw,560px); }
+#loading h1 { font-size:clamp(20px,5vw,40px); margin-bottom:2px; }
+.ld-sub { font-family:"Courier New",monospace; font-size:clamp(11px,2vw,15px); letter-spacing:3px; color:#bfe9ff; margin-bottom:4px; }
+.ldbar-wrap { width:100%; height:22px; border:2px solid #2ee090; border-radius:4px; background:rgba(0,0,0,.55); margin:16px auto 8px; overflow:hidden; box-shadow:0 0 18px rgba(46,224,144,.5); }
+.ldbar-fill { height:100%; width:0%; background:linear-gradient(90deg,#1a8f52,#2ee090,#7dff9e); box-shadow:0 0 14px rgba(46,224,144,.9); transition:width .1s linear; }
+.ld-pct { font-family:"Courier New",monospace; font-size:clamp(16px,3vw,26px); color:#7dff9e; letter-spacing:3px; }
+.ld-label { font-family:"Courier New",monospace; font-size:clamp(9px,1.7vw,12px); color:#9fe8b8; letter-spacing:2px; margin-top:8px; min-height:1.5em; }
+#btnRetry { font-family:"Courier New",monospace; font-size:clamp(12px,2.4vw,18px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(24px,6vw,40px); margin-top:clamp(12px,2.4vh,20px); cursor:pointer; color:#04140c; background:#ff5252; border:none; box-shadow:0 0 18px rgba(255,82,82,.7); pointer-events:auto; }
+#btnRetry:hover { background:#ff7a7a; }
 /* ===== Menu logo screen ===== */
 #menu .panel { background:none; border:none; box-shadow:none; padding:0; max-width:none; width:auto; }
 .menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
@@ -363,7 +377,15 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="msg">ROTATE YOUR DEVICE</div>
   <div class="sub">PLAY IN LANDSCAPE &middot; FULLSCREEN</div>
 </div>
-<div id="menu" class="modal"><div class="panel">
+<div id="loading" class="modal"><div class="panel">
+  <h1>PLEASE WAIT</h1>
+  <div class="ld-sub">GETTING ASSETS</div>
+  <div class="ldbar-wrap"><div class="ldbar-fill" id="ldbar-fill"></div></div>
+  <div class="ld-pct" id="ld-pct">0%</div>
+  <div class="ld-label" id="ld-label">GETTING ASSETS...</div>
+  <button id="btnRetry" class="hidden">RETRY</button>
+</div></div>
+<div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
     <div class="menu-bottom" id="menu-bottom">
@@ -1512,20 +1534,45 @@ async function _modelGetCache(){
 // fetch from the network, store in cache, blob. On a network failure with an empty cache
 // we fall back to the raw URL so the loader's own HTTP handling (and the browser's HTTP
 // cache) can still try.
-async function getModelUrl(url){
+//
+// onProgress (optional): (receivedBytes, totalBytes) => void. Called while the bytes are
+// being streamed from the network (only on a cache MISS; a cache hit resolves instantly).
+// Lets the pre-game "Getting Assets" screen show a byte-accurate progress bar.
+async function getModelUrl(url, onProgress){
   const cache = await _modelGetCache();
   if (cache){
     try {
       const hit = await cache.match(url);
       if (hit){
         const blob = await hit.blob();
+        if (onProgress) onProgress(blob.size, blob.size); // instant: already have it
         return { url: URL.createObjectURL(blob), fromCache: true };
       }
     } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
     try {
       const r = await fetch(url);
       if (r.ok){
+        const total = Number(r.headers && r.headers.get('content-length')) || 0;
+        const body = r.body;
+        if (body && body.getReader && onProgress){
+          // Stream so the caller can report byte-level download progress.
+          const reader = body.getReader();
+          const chunks = [];
+          let received = 0;
+          for (;;) {
+            const ch = await reader.read();
+            if (ch.done) break;
+            chunks.push(ch.value);
+            received += ch.value.length;
+            onProgress(received, total || received);
+          }
+          const blob = new Blob(chunks);
+          await cache.put(url, new Response(blob)); // cache it for next time
+          onProgress(blob.size, blob.size);
+          return { url: URL.createObjectURL(blob), fromCache: false };
+        }
         const blob = await r.blob();
+        if (onProgress) onProgress(blob.size, blob.size);
         await cache.put(url, new Response(blob)); // cache it for next time
         return { url: URL.createObjectURL(blob), fromCache: false };
       }
@@ -1891,6 +1938,14 @@ function buildTruck(){
     return { g: g, bladePush: () => {}, boxL: boxL, boxW: boxW, hopperOff: hopperOff, hopperY: hopperY, hopperZ: hopperZ, cabOff: boxL + 1.6, wx: -28, hidden: 0 };
   }
   // ===== Procedural fallback (identical to the original, so the game always runs) =====
+  // The pre-game "Getting Assets" screen guarantees truck.fbx is loaded + cached BEFORE
+  // the game can start, so buildTruck() is never reached with the FBX template missing
+  // during normal play. If it ever is (e.g. an offline first launch that failed to
+  // download), we REFUSE to build the ugly low-poly box truck: throwing surfaces the
+  // problem to the caller (the preload RETRY screen) instead of silently showing the
+  // placeholder the player asked us to never use.
+  if (typeof console !== 'undefined') console.error('[TRUCK] FBX truck template not ready - refusing to build the procedural fallback truck.');
+  throw new Error('FBX truck model not loaded yet');
   const g = new THREE.Group();
   const white = M(0xf2f5f7), green = M(0x1e6b30);
   const cab = BX(2.2, 1.4, 1.5, white); cab.position.set(2.0, 0, 1.0); g.add(cab);
@@ -6847,6 +6902,7 @@ function beginDay(){
   vt.f = 0; vt.l = 0; vt.act = false;
 }
 function startGame(){
+  if (_preloading) return;   // assets are still streaming in: never start the week until the gate is done
   enterLandscapeFullscreen();
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
@@ -6859,6 +6915,7 @@ function startGame(){
   showDayIntro();     // show the Monday card, then wait for the player to begin
 }
 function advanceGame(){
+  if (_preloading) return;   // "Getting Assets" screen is up: swallow every start/next input until it's done
   // One "start / next" action (Space / Enter / gamepad / touch), routed by game state.
   if (state === 'dying') return;                // the down sequence is playing out — let it finish
   if (state === 'routeend') return;             // the drive-off cinematic is playing out — let it finish
@@ -7249,8 +7306,11 @@ function loop(now){
 // currently-visible curb bags/cans) from the procedural fallback to the FBX model.
 function rebuildTruckFromFbx(){
   if (!FBX_TPL.truck) return;
-  const wx = truck.wx, hidden = truck.hidden;
-  const oldG = truck.g;
+  // The truck may not exist yet (we no longer build a placeholder at boot). When it's
+  // null this is the FIRST build, so use the default spawn position; otherwise we're
+  // hot-swapping an existing truck and preserve its position / visibility.
+  const wx = truck ? truck.wx : -28, hidden = truck ? truck.hidden : 0;
+  const oldG = truck ? truck.g : null;
   if (oldG && oldG.parent) oldG.parent.remove(oldG);
   if (oldG) disposeObj(oldG);
   const nt = buildTruck(); // buildTruck() now takes the FBX path
@@ -7273,34 +7333,126 @@ function rebuildTruckFromFbx(){
   }
 }
 // ==================== BOOT ====================
+// The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (truck.fbx +
+// the five .glb pickups) AND the two title images have been downloaded into the browser
+// Cache and their templates built. Only then does the start menu appear. This is what
+// guarantees the game NEVER starts with the ugly procedural box truck: truck.fbx is
+// cached and its template built before the player can begin. On a repeat visit the
+// assets are already cached, so the bar flashes to 100% and the menu shows in a flash.
+//
+// The radio MP3s are intentionally NOT part of this gate: the game plays fine without
+// them, so they keep their existing "cache as they play" behaviour (see SFX radio
+// code) and are never required before the game can start.
+const PRELOAD_ASSETS = [
+  { url: 'truck.fbx',                          size: 17874592, label: 'DSNY TRUCK' },
+  { url: 'sweet_bread_roll_game_ready__2k_pbr.glb', size: 3752076, label: 'BAGEL' },
+  { url: 'red_bull_energy_drink_can.glb',      size: 2989592,  label: 'RUN IT UP' },
+  { url: 'litterReduced2.glb',                 size: 335980,   label: 'LITTER BASKET' },
+  { url: 'car.glb',                            size: 186248,   label: 'CARS' },
+  { url: 'coffee_shop_cup.glb',                size: 144300,   label: 'COFFEE CUP' },
+  { url: 'dsnylogo.jpg',                       size: 1290338,  label: 'TITLE ART' },
+  { url: 'explicit_logo.webp',                 size: 20448,    label: 'TITLE ART' }
+];
+const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
+let _preloading = false;
+function ldSetLabel(t){ const el = $('ld-label'); if (el) el.textContent = t; }
+function ldSetPct(p){ const el = $('ld-pct'); if (el) el.textContent = p + '%'; }
+function ldSetFill(p){ const el = $('ldbar-fill'); if (el) el.style.width = p + '%'; }
+function ldShowRetry(msg){
+  ldSetLabel(msg || 'CONNECTION PROBLEM - CHECK YOUR NETWORK, THEN RETRY');
+  const b = $('btnRetry'); if (b) b.classList.remove('hidden');
+}
+function ldReset(){
+  ldSetFill(0); ldSetPct(0); ldSetLabel('GETTING ASSETS...');
+  const b = $('btnRetry'); if (b) b.classList.add('hidden');
+}
+// Phase 1: stream every asset into the Cache (with a live byte-accurate progress bar).
+// Cached assets resolve instantly, so a repeat visit skips straight to the end.
+async function preloadAssetsToCache(){
+  if (typeof caches === 'undefined' || !caches.open){
+    // No Cache API (file:// / old browser): the loaders will load straight from the
+    // network. We still surface a progress bar (best-effort) so the player is never
+    // left staring at a blank screen.
+    let got = 0;
+    for (const a of PRELOAD_ASSETS){
+      ldSetLabel('GETTING ' + a.label + '...');
+      try { await getModelUrl(a.url, (r, t) => { const p = Math.round((got + Math.min(r, a.size)) / PRELOAD_TOTAL * 100); ldSetFill(p); ldSetPct(p); }); }
+      catch (e) {}
+      got += a.size;
+      ldSetFill(Math.round(got / PRELOAD_TOTAL * 100)); ldSetPct(Math.round(got / PRELOAD_TOTAL * 100));
+    }
+    return;
+  }
+  const cache = await _modelGetCache();
+  let got = 0;
+  for (const a of PRELOAD_ASSETS){
+    ldSetLabel('GETTING ' + a.label + '...');
+    const prog = (r, t) => { const p = Math.min(100, Math.round((got + Math.min(r, a.size)) / PRELOAD_TOTAL * 100)); ldSetFill(p); ldSetPct(p); };
+    try { await getModelUrl(a.url, prog); }
+    catch (e) { /* getModelUrl falls back to the raw URL on failure; the loader phase will surface it */ }
+    if (cache){
+      try {
+        const hit = await cache.match(a.url);
+        if (hit && hit.size && hit.size >= a.size * 0.9) got += a.size; // verified in cache
+        else throw new Error('missing from cache');
+      } catch (e) { throw new Error('failed to get ' + a.url); }
+    }
+    ldSetFill(Math.round(got / PRELOAD_TOTAL * 100)); ldSetPct(Math.round(got / PRELOAD_TOTAL * 100));
+  }
+}
+// Phase 2: build the 3D templates from the (now cached) assets and swap the live
+// truck to the real FBX model. loadCarGltf() hot-swaps traffic cars itself; the
+// pickup loaders just populate their _TPL; the truck needs an explicit rebuild.
+async function buildModelTemplates(){
+  ldSetLabel('BUILDING 3D MODELS...');
+  const jobs = [loadFbxTemplates()];
+  const gltfJobs = [
+    loadCarGltf(), loadLitterbasketGltf(), loadMonsterGltf(),
+    loadCoffeeGltf(), loadBecGltf()
+  ];
+  const results = await Promise.all([
+    jobs[0],
+    Promise.all(gltfJobs)
+  ]);
+  if (!results[0]) throw new Error('truck template failed to build');
+  rebuildTruckFromFbx();   // swap the live truck to the real FBX model now
+}
+async function preloadAssets(){
+  if (_preloading) return; // never double-run (RETRY + a stray boot)
+  _preloading = true;
+  ldReset();
+  try {
+    await preloadAssetsToCache();
+    await buildModelTemplates();
+    ldSetLabel('READY!');
+    ldSetFill(100); ldSetPct(100);
+    await new Promise(r => setTimeout(r, 450)); // brief beat at 100% before the menu drops in
+    $('loading').classList.add('hidden');
+    $('menu').classList.remove('hidden');
+    state = 'menu';
+    radioMode();
+  } catch (err) {
+    console.error('[PRELOAD] asset preload failed:', err && err.message);
+    ldShowRetry();
+  } finally {
+    _preloading = false;
+  }
+}
+$('btnRetry').addEventListener('click', function(){ if (!_preloading) preloadAssets(); });
 initThree();
 worker = buildWorker();
 worldGroup.add(worker.group);
 wparts = worker;
-truck = buildTruck();
+// The truck is NOT built here: the "Getting Assets" screen loads + caches truck.fbx
+// first and builds its template, so buildTruck() always takes the real FBX path
+// (see buildModelTemplates -> rebuildTruckFromFbx). The procedural box truck is
+// never built, so it can never be what the player sees.
 spawnWorld();
 updateHUD();
-radioMode(); // initial placement: we're on the start menu, so the NOW PLAYING bar parks top-right
+radioMode(); // dock the NOW PLAYING bar while we're (still) on the start screen
 requestAnimationFrame(loop);
-// Load the 3D truck / can / bag model in the background and swap it in when ready.
-if (typeof THREE.FBXLoader !== 'undefined'){
-  loadFbxTemplates()
-    .then(() => rebuildTruckFromFbx())
-    .catch(err => console.warn('[FBX] using procedural assets:', err && err.message));
-}
-// Load car.glb in the background and swap traffic cars to the real model when ready.
-if (typeof THREE.GLTFLoader !== 'undefined'){
-  loadCarGltf()
-    .catch(err => console.warn('[GLTF] using procedural cars:', err && err.message));
-  loadLitterbasketGltf()
-    .catch(err => console.warn('[GLTF] litterbasket not loaded:', err && err.message));
-  loadMonsterGltf()
-    .catch(err => console.warn('[GLTF] monster can not loaded:', err && err.message));
-  loadCoffeeGltf()
-    .catch(err => console.warn('[GLTF] coffee cup not loaded:', err && err.message));
-  loadBecGltf()
-    .catch(err => console.warn('[GLTF] bagel not loaded:', err && err.message));
-}
+// Kick off the asset gate. It finishes by revealing #menu (and setting state='menu').
+preloadAssets();
 </script>
 </body>
 </html>
