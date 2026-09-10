@@ -6847,6 +6847,9 @@ window.addEventListener('keydown', e => {
   // (fist pump, walk to the cab, truck drives off, then the day-end report).
   // Play state only — once the cinematic is running, further L presses are ignored.
   if (e.code === 'KeyL' && state === 'play') startRouteEnd();
+  // TEST MODE: R = spawn a Red Bull can near the worker (quick visual check of the 3D model).
+  // Play state only. Reuses the same spawn as the score-triggered "Run It Up" pickup.
+  if (e.code === 'KeyR' && state === 'play') spawnMonsterNearPlayer();
   if (e.code === 'Enter' && state !== 'play') advanceGame();
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
