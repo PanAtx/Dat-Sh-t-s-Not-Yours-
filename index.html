@@ -1491,12 +1491,56 @@ function fbxInstance(tpl, scale){
   return holder;
 }
 
+// ==================== OFFLINE MODEL CACHE (mirrors the radio MP3 cache) ====================
+// Every 3D model (truck.fbx + the five .glb pickups) is downloaded into the browser Cache
+// API the first time it loads. After that it's served from the cache as a blob URL and
+// never touches the network again, so the 3D assets keep working on poor or dropped
+// connections. Each model is a SINGLE self-contained file: the five .glb are glTF-binary
+// (geometry + textures in one), and truck.fbx has its textures EMBEDDED in Video.Content
+// nodes, so the FBXLoader builds its texture blob URLs from the file itself and never
+// fetches external images. The cache is a private key-space, so it can't collide with the
+// radio's "music/" cache or page assets. If the Cache API is unavailable (e.g. file:// or
+// an old browser) we degrade to plain network loading, exactly as before.
+// ---MODEL_CACHE_BEGIN---
+let _modelCache = null;
+async function _modelGetCache(){
+  if (_modelCache) return _modelCache;
+  if (typeof caches === 'undefined' || !caches.open) return null;
+  try { _modelCache = await caches.open('dsnboy-models-v1'); return _modelCache; } catch (e) { return null; }
+}
+// Returns a loadable URL for the model file: cache hit -> blob from cache; cache miss ->
+// fetch from the network, store in cache, blob. On a network failure with an empty cache
+// we fall back to the raw URL so the loader's own HTTP handling (and the browser's HTTP
+// cache) can still try.
+async function getModelUrl(url){
+  const cache = await _modelGetCache();
+  if (cache){
+    try {
+      const hit = await cache.match(url);
+      if (hit){
+        const blob = await hit.blob();
+        return { url: URL.createObjectURL(blob), fromCache: true };
+      }
+    } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
+    try {
+      const r = await fetch(url);
+      if (r.ok){
+        const blob = await r.blob();
+        await cache.put(url, new Response(blob)); // cache it for next time
+        return { url: URL.createObjectURL(blob), fromCache: false };
+      }
+    } catch (e) { /* offline and not cached yet: let the loader try the raw URL */ }
+  }
+  return { url: url, fromCache: false };
+}
+// ---MODEL_CACHE_END---
 // Load truck.fbx once and extract the three named asset groups into FBX_TPL.
-function loadFbxTemplates(){
+async function loadFbxTemplates(){
   if (FBX_TPL.truck) return Promise.resolve(true);
   if (typeof THREE.FBXLoader === 'undefined') return Promise.reject(new Error('FBXLoader not available'));
+  const res = await getModelUrl('truck.fbx'); // offline cache: serve from cache, else download + store
   return new Promise((resolve, reject) => {
-    new THREE.FBXLoader().load('truck.fbx', (root) => {
+    new THREE.FBXLoader().load(res.url, (root) => {
       try {
         const truck = fbxFind(root, /garbageTruck_geo_grp/i);
         const can   = fbxFind(root, /garbageBin_geo_grp/i);
@@ -1506,9 +1550,10 @@ function loadFbxTemplates(){
         FBX_TPL.can   = fbxExtract(can);   FBX_TPL.can.orient   = orientCan(FBX_TPL.can);
         FBX_TPL.bag   = fbxExtract(bag);   FBX_TPL.bag.orient   = defaultOrient(FBX_TPL.bag);
         root.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[FBX] template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[FBX] load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[FBX] load failed:', err); reject(err); });
   });
 }
 // ==================== GLTF 3D TRAFFIC CAR PIPELINE (car.glb) ====================
@@ -1528,11 +1573,12 @@ if (typeof THREE.GLTFLoader !== 'undefined' && THREE.LoaderUtils && !THREE.Loade
   // r128 CDN build safety net for binary GLB magic check
   THREE.LoaderUtils.decodeText = (array) => { let s = ''; for (let i = 0; i < array.length; i++) s += String.fromCharCode(array[i]); return s; };
 }
-function loadCarGltf(){
+async function loadCarGltf(){
   if (CAR_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const res = await getModelUrl('car.glb'); // offline cache: serve from cache, else download + store
   return new Promise((resolve, reject) => {
-    new THREE.GLTFLoader().load('car.glb', (gltf) => {
+    new THREE.GLTFLoader().load(res.url, (gltf) => {
       try {
         const model = gltf.scene;
         model.traverse(o => {
@@ -1549,9 +1595,10 @@ function loadCarGltf(){
         });
         CAR_TPL = { template: model };
         rebuildCarsFromGltf(); // hot-swap any procedural cars already on the road
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[GLTF] car template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] car load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[GLTF] car load failed:', err); reject(err); });
   });
 }
 function makeCarGltf(colorHex){
@@ -1595,9 +1642,10 @@ let litterBasketPlaced = false;
 let litterBaskets = [];        // live baskets: { kind, state, g, hx, hy, wx, wy }
 let litterBasketHomes = null;  // [{ wx, wy }] corner homes, computed once
 
-function loadLitterbasketGltf(){
+async function loadLitterbasketGltf(){
   if (LITTERBASKET_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const res = await getModelUrl('litterReduced2.glb'); // offline cache: serve from cache, else download + store
   const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   return new Promise((resolve, reject) => {
     const gltfLoader = new THREE.GLTFLoader();
@@ -1607,7 +1655,7 @@ function loadLitterbasketGltf(){
       dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
       gltfLoader.setDRACOLoader(dracoLoader);
     }
-    gltfLoader.load('litterReduced2.glb', (gltf) => {
+    gltfLoader.load(res.url, (gltf) => {
       try {
         const model = gltf.scene;
         // The Blender export includes a stray default "Cube" (2x2x2 at the origin) as a
@@ -1634,9 +1682,10 @@ function loadLitterbasketGltf(){
         placeLitterBasket(); // place it now that the model is ready
         const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
         console.log('[GLTF] litterReduced2.glb loaded in ' + Math.round(t1 - t0) + 'ms');
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[GLTF] litterbasket build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] litterbasket load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[GLTF] litterbasket load failed:', err); reject(err); });
   });
 }
 
@@ -4491,11 +4540,12 @@ function makeHalo(color, outerR){
 // loaded yet (or fails), makeCoffee falls back to the procedural cup below.
 const COFFEE_SCALE = 0.65 / 1.1341;  // target ~0.65 world units tall (native cup height ~1.1341)
 let COFFEE_TPL = null;               // { template: THREE.Object3D } - deep-cloned per coffee instance
-function loadCoffeeGltf(){
+async function loadCoffeeGltf(){
   if (COFFEE_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const res = await getModelUrl('coffee_shop_cup.glb'); // offline cache: serve from cache, else download + store
   return new Promise((resolve, reject) => {
-    new THREE.GLTFLoader().load('coffee_shop_cup.glb', (gltf) => {
+    new THREE.GLTFLoader().load(res.url, (gltf) => {
       try {
         const model = gltf.scene;
         model.traverse(o => {
@@ -4514,9 +4564,10 @@ function loadCoffeeGltf(){
           }
         });
         COFFEE_TPL = { template: model };
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[GLTF] coffee cup template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] coffee cup load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[GLTF] coffee cup load failed:', err); reject(err); });
   });
 }
 function makeCoffee(){
@@ -4563,11 +4614,12 @@ function makeCoffee(){
 // (or fails), makeBEC falls back to the procedural sandwich below.
 const BEC_SCALE = 0.35 / 3.1184;   // target ~0.35 world units thick (native thickness ~3.1184)
 let BEC_TPL = null;                // { template: THREE.Object3D } - deep-cloned per BEC instance
-function loadBecGltf(){
+async function loadBecGltf(){
   if (BEC_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const res = await getModelUrl('sweet_bread_roll_game_ready__2k_pbr.glb'); // offline cache: serve from cache, else download + store
   return new Promise((resolve, reject) => {
-    new THREE.GLTFLoader().load('sweet_bread_roll_game_ready__2k_pbr.glb', (gltf) => {
+    new THREE.GLTFLoader().load(res.url, (gltf) => {
       try {
         const model = gltf.scene;
         model.traverse(o => {
@@ -4585,9 +4637,10 @@ function loadBecGltf(){
           }
         });
         BEC_TPL = { template: model };
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[GLTF] bagel template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] bagel load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[GLTF] bagel load failed:', err); reject(err); });
   });
 }
 function makeBEC(){
@@ -4638,11 +4691,12 @@ function makeBEC(){
 // (or fails), makeMonster falls back to the procedural can below.
 const MONSTER_SCALE = 0.80 / 0.1721;  // target ~0.80 world units tall (native can height ~0.1721)
 let MONSTER_TPL = null;             // { template: THREE.Object3D } - deep-cloned per Monster instance
-function loadMonsterGltf(){
+async function loadMonsterGltf(){
   if (MONSTER_TPL) return Promise.resolve(true);
   if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  const res = await getModelUrl('red_bull_energy_drink_can.glb'); // offline cache: serve from cache, else download + store
   return new Promise((resolve, reject) => {
-    new THREE.GLTFLoader().load('red_bull_energy_drink_can.glb', (gltf) => {
+    new THREE.GLTFLoader().load(res.url, (gltf) => {
       try {
         const model = gltf.scene;
         model.traverse(o => {
@@ -4661,9 +4715,10 @@ function loadMonsterGltf(){
           }
         });
         MONSTER_TPL = { template: model };
+        if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} }
         resolve(true);
       } catch (e){ console.error('[GLTF] red bull template build failed:', e); reject(e); }
-    }, undefined, (err) => { console.error('[GLTF] red bull load failed:', err); reject(err); });
+    }, undefined, (err) => { if (res.url.indexOf('blob:') === 0){ try { URL.revokeObjectURL(res.url); } catch (e) {} } console.error('[GLTF] red bull load failed:', err); reject(err); });
   });
 }
 function makeMonster(){
