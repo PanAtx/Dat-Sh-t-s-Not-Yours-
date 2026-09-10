@@ -4472,15 +4472,69 @@ function spawnZZZ(wx, wy, wz){
 // A soft GREEN ground-halo that sits AROUND a pickup. RingGeometry is already in the XY
 // (ground) plane, and additive blending makes it read as a glow of light — the pickup
 // model itself keeps its normal colors (this is NOT a green tint on the cup/sandwich).
-function makeHalo(color){
-  const geo = new THREE.RingGeometry(0.28, 0.52, 48);
+function makeHalo(color, outerR){
+  outerR = outerR || 0.52;                    // default ring outer radius (coffee cup / BEC / Monster can)
+  const geo = new THREE.RingGeometry(outerR * 0.54, outerR, 48);   // inner ~54% of outer (default 0.28/0.52)
   const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.6, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
   const ring = new THREE.Mesh(geo, mat);
   ring.position.z = 0.02;   // just above the sidewalk, flat on the ground
   ring.userData.halo = true;
   return ring;
 }
+// ==================== COFFEE SHOP CUP (coffee_shop_cup.glb) ====================
+// The coffee healer pickup uses the real 3D coffee cup instead of the procedural
+// cylinder. The GLB is a Sketchfab export: its scene space is Y-UP (the cup stands
+// along +Y, base at Y=0, top at Y=1.1341, diameter ~=0.744) with three flat-color
+// PBR materials (a red body, a silver band, and a cream sleeve). The game is Z-UP,
+// so each instance rotates the model (rotation.x = +PI/2) to stand it upright
+// (native +Y -> game +Z) and scales it to ~0.65 world units tall. If the GLB hasn't
+// loaded yet (or fails), makeCoffee falls back to the procedural cup below.
+const COFFEE_SCALE = 0.65 / 1.1341;  // target ~0.65 world units tall (native cup height ~1.1341)
+let COFFEE_TPL = null;               // { template: THREE.Object3D } - deep-cloned per coffee instance
+function loadCoffeeGltf(){
+  if (COFFEE_TPL) return Promise.resolve(true);
+  if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  return new Promise((resolve, reject) => {
+    new THREE.GLTFLoader().load('coffee_shop_cup.glb', (gltf) => {
+      try {
+        const model = gltf.scene;
+        model.traverse(o => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          if (o.material){
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach(m => {
+              m.side = THREE.DoubleSide;                 // see the cup from every angle
+              // The red body + cream sleeve are fully metallic (metalness ~1.0). A metallic
+              // PBR surface gets its color/reflectivity from an environment map, and the scene
+              // has none, so left as-is those parts render near-black. Tame the PBR defaults
+              // (same as the car / Red Bull can) so the flat colors + lights read correctly.
+              m.metalness = 0.15; m.roughness = 0.5;
+            });
+          }
+        });
+        COFFEE_TPL = { template: model };
+        resolve(true);
+      } catch (e){ console.error('[GLTF] coffee cup template build failed:', e); reject(e); }
+    }, undefined, (err) => { console.error('[GLTF] coffee cup load failed:', err); reject(err); });
+  });
+}
 function makeCoffee(){
+  // An upright coffee shop cup. Base z=0.
+  if (COFFEE_TPL){
+    // Real 3D model (coffee_shop_cup.glb). The scene is Y-UP; rotation.x = +PI/2 stands it
+    // up (native +Y -> game +Z). The native base is already at Y=0, so it rests exactly on the
+    // sidewalk with no extra nudge. The shared template geometry is cloned, so every coffee
+    // instance renders the real cup.
+    const g = new THREE.Group();
+    const model = COFFEE_TPL.template.clone(true);
+    model.rotation.x = Math.PI / 2;
+    model.scale.setScalar(COFFEE_SCALE);
+    g.add(model);
+    g.add(makeHalo(0x2bff72));   // soft green ground-halo AROUND the cup (like the Red Bull can)
+    return g;
+  }
+  // Procedural fallback (used until the GLB finishes loading, or if it fails).
   // An upright takeaway coffee cup: cream paper body, a brown sleeve, an open top
   // showing the dark coffee. NO lid, NO straw. Base sits at local z=0.
   const g = new THREE.Group();
@@ -4495,7 +4549,67 @@ function makeCoffee(){
   g.scale.setScalar(1.4);                               // bigger so it reads at a distance
   return g;
 }
+// ==================== BAGEL (sweet_bread_roll_game_ready__2k_pbr.glb) ====================
+// The "BEC" breakfast healer pickup uses the real 3D bagel instead of the procedural
+// sandwich. The GLB is a Sketchfab export of a flat bagel/torus: its hole axis runs along
+// NATIVE Y (the thin dimension, span ~3.12) and the ring spans ~9.75-10.96 in native X/Z.
+// It carries ONE PBR material with base-color / normal / metalness / roughness MAPS
+// (metalness 0 - not metallic), so it renders straight from its bread textures with no
+// PBR override needed. The game is Z-UP, so each instance rotates the model
+// (rotation.x = +PI/2) to lay it FLAT on the sidewalk with the hole facing UP
+// (native +Y -> game +Z) and scales it to ~0.35 world units thick (footprint ~1.1).
+// A green halo ring is placed AROUND the bagel (outer radius 0.85, wider than the bagel's
+// ~0.615 footprint radius so the ring is visible past its edge). If the GLB hasn't loaded yet
+// (or fails), makeBEC falls back to the procedural sandwich below.
+const BEC_SCALE = 0.35 / 3.1184;   // target ~0.35 world units thick (native thickness ~3.1184)
+let BEC_TPL = null;                // { template: THREE.Object3D } - deep-cloned per BEC instance
+function loadBecGltf(){
+  if (BEC_TPL) return Promise.resolve(true);
+  if (typeof THREE.GLTFLoader === 'undefined') return Promise.reject(new Error('GLTFLoader not available'));
+  return new Promise((resolve, reject) => {
+    new THREE.GLTFLoader().load('sweet_bread_roll_game_ready__2k_pbr.glb', (gltf) => {
+      try {
+        const model = gltf.scene;
+        model.traverse(o => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          if (o.material){
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach(m => {
+              m.side = THREE.DoubleSide;                 // see the bagel from every angle
+              // NOTE: no metalness/roughness override here. Unlike the metal cans, this
+              // bagel is NOT metallic (metalness 0) and its color comes from its base-color
+              // MAP, so the bread texture reads correctly under the ambient/directional
+              // lights as-is. Overriding it (like the cans) would wash out the texture.
+            });
+          }
+        });
+        BEC_TPL = { template: model };
+        resolve(true);
+      } catch (e){ console.error('[GLTF] bagel template build failed:', e); reject(e); }
+    }, undefined, (err) => { console.error('[GLTF] bagel load failed:', err); reject(err); });
+  });
+}
 function makeBEC(){
+  // A breakfast healer pickup. Base z=0.
+  if (BEC_TPL){
+    // Real 3D bagel (sweet_bread_roll_game_ready__2k_pbr.glb). The scene's hole axis is
+    // NATIVE Y; rotation.x = +PI/2 lays it FLAT on the sidewalk with the hole facing UP
+    // (native +Y -> game +Z). The native base is at Y=0.0162, so nudge z by -0.0162*scale
+    // to rest the flat face exactly on the sidewalk (local z=0). The shared template
+    // geometry is cloned, so every BEC instance renders the real bagel.
+    const g = new THREE.Group();
+    const model = BEC_TPL.template.clone(true);
+    model.rotation.x = Math.PI / 2;
+    model.scale.setScalar(BEC_SCALE);
+    model.position.z = -0.0162 * BEC_SCALE;   // zero the base at local z=0
+    g.add(model);
+    // Wider halo ring (outer 0.85) so it extends past the bagel's ~0.615 footprint and reads
+    // as a glow on the ground AROUND the bagel (like the coffee cup + Monster can).
+    g.add(makeHalo(0x2bff72, 0.85));
+    return g;
+  }
+  // Procedural fallback (used until the GLB finishes loading, or if it fails).
   // A flat Bacon-Egg-Cheese sandwich sitting on the sidewalk: round toasted buns
   // (flat discs), crossed bacon, a draping cheese square and a fried egg. Base z=0.
   const g = new THREE.Group();
@@ -4519,10 +4633,10 @@ function makeBEC(){
 // can stands along +Y, base at Y=-0.0849, top at Y=0.0871, diameter ~=0.0585) with a
 // few PBR materials carrying the can's base-color / metallic-roughness textures.
 // The game is Z-UP, so each instance rotates the model (rotation.x = +PI/2) to stand
-// it upright (native +Y -> game +Z) and scales it to ~0.66 world units tall (a bit
-// shorter than the ~1.87u worker). If the GLB hasn't loaded yet (or fails), makeMonster
-// falls back to the procedural can below.
-const MONSTER_SCALE = 0.66 / 0.1721;  // target ~0.66 world units tall (native can height ~0.1721)
+// it upright (native +Y -> game +Z) and scales it to ~0.80 world units tall (a bit
+// larger than before, still well under the ~1.87u worker). If the GLB hasn't loaded yet
+// (or fails), makeMonster falls back to the procedural can below.
+const MONSTER_SCALE = 0.80 / 0.1721;  // target ~0.80 world units tall (native can height ~0.1721)
 let MONSTER_TPL = null;             // { template: THREE.Object3D } - deep-cloned per Monster instance
 function loadMonsterGltf(){
   if (MONSTER_TPL) return Promise.resolve(true);
@@ -4565,6 +4679,7 @@ function makeMonster(){
     model.scale.setScalar(MONSTER_SCALE);
     model.position.set(0, 0, 0.0849 * MONSTER_SCALE);
     g.add(model);
+    g.add(makeHalo(0x2bff72));   // soft green ground-halo AROUND the can (like the coffee cup)
     return g;
   }
   // Procedural fallback (used until the GLB finishes loading, or if it fails).
@@ -4576,7 +4691,8 @@ function makeMonster(){
   vert(0.185, 0.12, greenL, 0.42);   // upper green band
   vert(0.15, 0.05, green, 0.59);     // rim
   vert(0.13, 0.06, cap, 0.62);       // lid
-  g.scale.setScalar(1.1);
+  g.add(makeHalo(0x2bff72));         // soft green ground-halo AROUND the can (like the coffee cup)
+  g.scale.setScalar(1.25);           // a bit larger for presence
   return g;
 }
 // ---- Power-up spawning (count scales with the current level / route) ----
@@ -4601,7 +4717,7 @@ function spawnPowerup(type, wx, wy){
   dynamicGroup.add(g);
   let halo = null; g.traverse(function(o){ if (o.userData && o.userData.halo) halo = o; });
   powerups.push({ g: g, wx: wx, wy: wy, type: type, t: R(0, 6),
-                  halo: halo,   // coffee + BEC carry a pulsing green ground-halo; the Monster has none
+                  halo: halo,   // coffee + BEC + Monster all carry a pulsing green ground-halo
                   baseScale: g.scale.x });
 }
 function powerupCounts(level){
@@ -4656,8 +4772,10 @@ function updatePowerups(dt){
     b.t += dt;
     // gentle bob that stays just ABOVE the sidewalk so the base never dips into the walk
     b.g.position.set(b.wx, b.wy, GZ + CURB_LIFT + 0.03 + Math.sin(b.t * 2.6) * 0.025);
-    b.g.rotation.z = (b.g.rotation.z || 0) + dt * 0.9;   // slow presentational spin around the vertical axis
-    // coffee + BEC carry a pulsing GREEN ground-halo (the model itself keeps its normal colors)
+    // slow presentational spin around the vertical axis (the Monster can spins a bit faster)
+    const spinRate = (b.type === 'monster') ? 2.4 : 0.9;
+    b.g.rotation.z = (b.g.rotation.z || 0) + dt * spinRate;
+    // coffee + BEC + Monster carry a pulsing GREEN ground-halo (the model itself keeps its normal colors)
     if (b.halo){
       const k = 0.5 + 0.5 * Math.sin(b.t * 4.5);          // 0..1 breathing pulse
       b.halo.material.opacity = 0.42 + 0.42 * k;          // 0.42 .. 0.84
@@ -7123,6 +7241,10 @@ if (typeof THREE.GLTFLoader !== 'undefined'){
     .catch(err => console.warn('[GLTF] litterbasket not loaded:', err && err.message));
   loadMonsterGltf()
     .catch(err => console.warn('[GLTF] monster can not loaded:', err && err.message));
+  loadCoffeeGltf()
+    .catch(err => console.warn('[GLTF] coffee cup not loaded:', err && err.message));
+  loadBecGltf()
+    .catch(err => console.warn('[GLTF] bagel not loaded:', err && err.message));
 }
 </script>
 </body>

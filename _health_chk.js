@@ -61,6 +61,12 @@ function disposeObj(){}
 // Monster GLB template: the harness runs the PROCEDURAL fallback (GLB not loaded in the
 // test scope), so MONSTER_TPL stays null exactly like the game's initial state.
 let MONSTER_TPL = null;
+// Coffee GLB template: the harness runs the PROCEDURAL fallback (GLB not loaded in the
+// test scope), so COFFEE_TPL stays null exactly like the game's initial state.
+let COFFEE_TPL = null;
+// Bagel GLB template: the harness runs the PROCEDURAL fallback (GLB not loaded in the
+// test scope), so BEC_TPL stays null exactly like the game's initial state.
+let BEC_TPL = null;
 const MONSTER_SCALE = (function(){ const m = src.match(/const MONSTER_SCALE = ([\d.]+) \/ ([\d.]+)/); return m ? parseFloat(m[1]) / parseFloat(m[2]) : 0.66 / 3.9; })();
 // carry / delivery state that the touch-to-dump + delivery routines read (the test page
 // scope doesn't have a live truck route, so we supply these)
@@ -168,7 +174,9 @@ check('coffee model is NOT tinted green (halo only, natural colors kept)', !tint
 const bG = makeBEC(), bH = findHalo(bG);
 check('BEC sandwich also has a GREEN halo ring', !!(bH && bH.material.color.getHex() === 0x2bff72));
 check('BEC model is NOT tinted green (halo only, natural colors kept)', !tinted(bG));
-check('Monster can has NO halo (it is not a healer)', !findHalo(makeMonster()));
+const mG = makeMonster(), mH = findHalo(mG);
+check('Monster can has a GREEN halo ring (like the healers)', !!(mH && mH.material.color.getHex() === 0x2bff72));
+check('Monster model is NOT tinted green (halo only, natural colors kept)', !tinted(mG));
 // the halo actually PULSES over time, and the model STAYS un-tinted after animating
 powerups.length = 0;
 const pG = makeCoffee(), pH = findHalo(pG);
