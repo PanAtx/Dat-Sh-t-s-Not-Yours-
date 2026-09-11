@@ -148,7 +148,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #over .modal-ver { animation:complete-fade-in 0.4s ease-out 1.1s both; }
 #over button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.3s both; }
 /* Shift report (day stats): punchy reveal with animated stat rows */
-#day-stats .panel { text-align:center; }
+#day-stats .panel { text-align:center; overflow:hidden; }
 #day-stats h2 { font-size:32px; color:#ff4444; text-shadow:3px 3px 0 #8e1a1a, 0 0 18px rgba(255,68,68,0.6); margin-bottom:10px; animation:day-stats-title 0.7s cubic-bezier(.2,1.3,.4,1); }
 @keyframes day-stats-title { 0% { transform:translateY(-90px) scale(0.2); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
 #day-stats .tag { animation:complete-fade-in 0.4s ease-out 0.35s both; }
@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.7</div>
+    <div id="app-version" class="menu-version">v1.0.8</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
