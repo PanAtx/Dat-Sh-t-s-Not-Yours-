@@ -24,7 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.17';
+var CACHE_NAME = 'dsnboy-shell-v1.0.18';
+var APP_VERSION = '1.0.17';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -158,21 +159,17 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Navigation requests: cache-first (the precached index.html), fall back to
-  // the network (with a timeout so iOS offline can't hang it), then to the
-  // cached shell so an offline visit still opens the game instead of a dead tab.
+  // Navigation requests (including index.html): NETWORK-FIRST so we always get
+  // the latest version on reload. Fall back to cache only if offline.
   if (req.mode === 'navigate') {
     e.respondWith(
-      caches.match(req).then(function (hit) {
-        if (hit) return hit;
-        return fetchTimeout(req).then(function (res) {
-          if (res && res.ok) {
-            var copy = res.clone();
-            caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
-          }
-          return res;
-        }).catch(function () { return caches.match('./index.html'); });
-      })
+      fetchTimeout(req).then(function (res) {
+        if (res && res.ok) {
+          var copy = res.clone();
+          caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+        }
+        return res;
+      }).catch(function () { return caches.match(req).then(function (hit) { return hit || caches.match('./index.html'); }); })
     );
     return;
   }
