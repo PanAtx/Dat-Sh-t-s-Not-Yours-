@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.18</div>
+    <div id="app-version" class="menu-version">v1.0.19</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.18';
+const APP_VERSION = '1.0.19';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -911,9 +911,13 @@ function buildGround(){
   groundStrip(GW, 10, 0.3, -4.5, 0x3a4046, GCX);   // asphalt
   groundStrip(GW, 4.5, 0.3, -11.75, 0x8d949c, GCX); // far-side sidewalk (y -9.5..-14, past the far road edge)
   groundStrip(GW, 10, 0.3, -19, 0x35522c, GCX);     // park beyond the far sidewalk
-  groundStrip(GW, 4.5, 0.3, 2.75, 0x8d949c, GCX);  // sidewalk
-  groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
-  groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX);  // park beyond the blocks (shifted to y 8.5..24 to avoid Z-fight with the front lawn strip at y 5..8.5)
+  groundStrip(GW, 4.5, 0.3, 2.75, 0x9a9a94, GCX);  // sidewalk (warm concrete)
+  if (isManhattanLevel()){
+    groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front lawns as concrete (Manhattan has no grass)
+  } else {
+    groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
+  }
+  groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX);  // park beyond the blocks
   // Main curb: ONE segment per block ON EACH SIDE. Each extends 1.5u PAST the
   // block on both sides so its end lands EXACTLY on the curb-return arc's
   // main-road tangent point (x = blockEdge +/- 1.5), where the straight curb
@@ -3532,10 +3536,10 @@ function makeBrownstone(){
     for (let side = -1; side <= 1; side += 2){
       const winX = side * w * 0.25;
       const frame = BX(0.7, 0.12, 1.0, M(0x1a1a1a));
-      frame.position.set(winX, -d / 2 + 0.02, fy);
+      frame.position.set(winX, -d / 2 + 0.04, fy);
       g.add(frame);
       const glass = BX(0.6, 0.04, 0.9, winM);
-      glass.position.set(winX, -d / 2 - 0.02, fy);
+      glass.position.set(winX, -d / 2 - 0.05, fy);
       g.add(glass);
     }
   }
@@ -3556,7 +3560,7 @@ function makeBrownstone(){
 }
 function makeBrownstoneStoop(w, d){
   const stoop = new THREE.Group();
-  const concrete = M(0x999999);
+  const concrete = M(0x8a5a40);  // reddish-brown brownstone stoop
   const iron = M(0x222222);
   const riserH = 0.17;
   const treadD = 0.3;
@@ -3578,13 +3582,22 @@ function makeBrownstoneStoop(w, d){
 }
 function makeSidewalkTree(){
   const tree = new THREE.Group();
-  const trunk = CY(0.08, 0.06, 1.0, M(0x4a3520), 8);
-  trunk.position.z = 0.5;
+  // Taller, thicker trunk
+  const trunk = CY(0.07, 0.09, 1.5, M(0x4a3520), 8);
+  trunk.rotation.x = -Math.PI / 2; // stand upright along +Z
+  trunk.position.z = 0.75;
   tree.add(trunk);
-  const leafM = new THREE.MeshLambertMaterial({ color: 0x3a8a4a, side: THREE.DoubleSide });
-  const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.2, 8), leafM);
-  canopy.position.z = 1.2;
+  // Round canopy (icosahedron) with random size/color variation
+  const size = 0.7 + Math.random() * 0.4;
+  const g = 80 + (Math.random() * 50 | 0);
+  const leafM = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.15, g / 255, 0.15).getHex() });
+  const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1), leafM);
+  canopy.position.z = 2.0;
   canopy.castShadow = true;
+  // Add a second smaller blob for irregularity
+  const blob = SP(size * 0.55, leafM);
+  blob.position.set(size * 0.4, 0, size * 0.2);
+  canopy.add(blob);
   tree.add(canopy);
   return tree;
 }
