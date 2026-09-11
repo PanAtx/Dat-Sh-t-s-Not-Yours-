@@ -29,6 +29,16 @@ var SHELL = [
   './dsnylogo.jpg',     // menu logo (also preloaded by the game gate)
   './explicit_logo.webp', // "Parental Advisory" gag badge on the logo
   './manifest.json',    // PWA manifest (official title for "Add to Home Screen")
+  './music/manifest.json', // radio track list (needed OFFLINE so the station can
+                           // discover which tracks are in the radio cache)
+  // Draco decoder (local copy of the gstatic.com CDN build) - litterReduced2.glb
+  // is Draco-compressed, so the decoder must be available OFFLINE. The DRACOLoader
+  // pulls these in the MAIN THREAD via XHR (FileLoader) and hands the wasm binary
+  // to the Web Worker over postMessage, so precaching them here is enough for
+  // offline decoding. The old CDN path hung forever on iOS with the radios off.
+  './draco/draco_decoder.wasm',
+  './draco/draco_wasm_wrapper.js',
+  './draco/draco_decoder.js',
   './fflate.min.js',    // FBX decompression
   './FBXLoader.js',
   './GLTFLoader.js',
@@ -40,6 +50,27 @@ var SHELL = [
 // Request types the SW may cache; anything else (e.g. the 3D models, the radio
 // music, directory listings) is left to the game's own caches.
 var CACHEABLE = ['text/html', 'text/javascript', 'text/css', 'image/png', 'image/jpeg', 'image/webp'];
+
+// iOS Safari can hang a network fetch() INDEFINITELY when the radios are off
+// (wifi + cellular disabled) instead of failing fast - this is the root cause of
+// the app getting stuck on the "PLEASE WAIT / getting assets" screen. Every
+// network fetch in the SW goes through this helper so a hung request is aborted
+// after `ms` and the caller falls back to whatever is cached. A request that is
+// already served from the cache never reaches the network, so cached loads stay
+// instant.
+function fetchTimeout(req, ms) {
+  var timeout = (typeof ms === 'number' && ms > 0) ? ms : 15000;
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var t = null;
+  if (ctrl) t = setTimeout(function () { ctrl.abort(); }, timeout);
+  return fetch(req, ctrl ? { signal: ctrl.signal } : {}).then(function (res) {
+    if (t) clearTimeout(t);
+    return res;
+  }, function (err) {
+    if (t) clearTimeout(t);
+    throw err;
+  });
+}
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
@@ -80,18 +111,56 @@ self.addEventListener('fetch', function (e) {
 
   // The 3D model + radio music files are owned by the game's own Cache API
   // instances (dsnboy-models-v1 / dsnboy-radio-v1) - let those do their job.
-  // The music/ directory listing + manifest are also passed through (NOT SW-cached)
-  // so adding a new .mp3 to the folder keeps working on the very next scan.
-  if (/\.(fbx|glb|gltf|mp3)$/i.test(url.pathname) || url.pathname.indexOf('/music/') === 0) return;
+  // The music/ directory listing is also passed through (NOT SW-cached) so adding
+  // a new .mp3 to the folder keeps working on the very next scan.
+  // EXCEPTION: music/manifest.json (the track LIST) IS precached above and served
+  // cache-first here - offline the station needs it to know which tracks to play
+  // from the radio cache. The .mp3 files themselves stay owned by the game cache.
+  // NOTE: use indexOf(...) !== -1 (not === 0) so this also matches when the site
+  // is served from a GitHub Pages subdirectory (e.g. /DSNYBoy/music/manifest.json).
+  if (/\.(fbx|glb|gltf|mp3)$/i.test(url.pathname) || url.pathname.indexOf('/music/') !== -1) {
+    if (url.pathname.indexOf('/music/manifest.json') !== -1) {
+      e.respondWith(
+        caches.match('./music/manifest.json').then(function (hit) {
+          if (hit) return hit;
+          return fetchTimeout(req).catch(function () { return caches.match('./music/manifest.json'); });
+        })
+      );
+      return;
+    }
+    return;
+  }
+
+  // Draco decoder files (./draco/*.wasm|js): precached above, served cache-first
+  // so the litter basket's Draco-compressed GLB can decode OFFLINE. These are NOT
+  // in CACHEABLE (wasm/js from a local path) so they need their own rule; a
+  // network fetch (timeout-guarded) is the fallback so a fresh first visit still
+  // works, and a cache hit is always preferred once precached. indexOf(...) !== -1
+  // keeps this correct under a GitHub Pages subdirectory (e.g. /DSNYBoy/draco/).
+  if (url.pathname.indexOf('/draco/') !== -1) {
+    e.respondWith(
+      caches.match(req).then(function (hit) {
+        if (hit) return hit;
+        return fetchTimeout(req).then(function (res) {
+          if (res && res.ok) {
+            var copy = res.clone();
+            caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+          }
+          return res;
+        }).catch(function () { return caches.match(req); });
+      })
+    );
+    return;
+  }
 
   // Navigation requests: cache-first (the precached index.html), fall back to
-  // the network, then to the cached shell so an offline visit still opens the
-  // game instead of a dead tab.
+  // the network (with a timeout so iOS offline can't hang it), then to the
+  // cached shell so an offline visit still opens the game instead of a dead tab.
   if (req.mode === 'navigate') {
     e.respondWith(
       caches.match(req).then(function (hit) {
         if (hit) return hit;
-        return fetch(req).then(function (res) {
+        return fetchTimeout(req).then(function (res) {
           if (res && res.ok) {
             var copy = res.clone();
             caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
@@ -104,18 +173,19 @@ self.addEventListener('fetch', function (e) {
   }
 
   // Other shell resources (three.js, loaders, font css/woff, title art):
-  // cache-first, then network (storing the result), then whatever's cached.
+  // cache-first, then network (with a timeout so iOS offline can't hang it,
+  // storing the result), then whatever's cached.
   e.respondWith(
     caches.match(req).then(function (hit) {
       if (hit) return hit;
-      return fetch(req).then(function (res) {
+      return fetchTimeout(req).then(function (res) {
         var type = res.headers.get('content-type') || '';
         if (res.ok && CACHEABLE.indexOf(type) >= 0) {
           var copy = res.clone();
           caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
         }
         return res;
-      });
+      }).catch(function () { return caches.match(req); });
     })
   );
 });

@@ -1147,6 +1147,29 @@ const SFX = {
         for (let i = 0; i < arr.length; i++) add(arr[i]);
       }
     } catch (e) {}
+    // 3) OFFLINE FALLBACK: if neither the directory listing NOR the manifest could be
+    //    read (the connection is down), the radio cache is the source of truth for
+    //    which tracks are actually on the device. Enumerate the cache keys and build
+    //    the playlist from whatever is stored, so the station keeps playing offline
+    //    even though the track list (manifest) can't be fetched. This only runs when
+    //    the two online sources found nothing, so a normal online load is unchanged.
+    if (!found.length){
+      try {
+        const c = await this._radioGetCache();
+        if (c && typeof c.keys === 'function'){
+          const keys = await c.keys();
+          for (let i = 0; i < keys.length; i++){
+            let n = '';
+            try {
+              const u = keys[i];
+              n = decodeURIComponent((u && u.url) ? u.url : String(u));
+              n = n.split('/').pop();
+            } catch (e) { continue; }
+            add(n);
+          }
+        }
+      } catch (e) { /* cache unreadable: nothing to fall back to */ }
+    }
     return found;
   },
   _radioSchedule(delay){ // single pending "advance" slot: replaces any earlier one
@@ -1765,6 +1788,22 @@ function fbxInstance(tpl, scale){
 let _modelCache = null;
 const _modelMemCache = {};   // url -> blob URL, for assets that downloaded fine but the
                              // persistent Cache couldn't hold them (see preloadAssetsToCache)
+// ---- fetchWithTimeout: wrap fetch() so a hung network call (iOS offline / DNS limbo)
+//      can never block the asset gate forever. On iOS Safari in airplane mode,
+//      fetch() can hang for minutes instead of rejecting fast. This helper aborts
+//      the request after `timeoutMs` (default 15 s) so the gate can fail fast and
+//      show the RETRY button. If the asset is already in the Cache API the fetch
+//      is never reached, so cached loads are still instant. ----
+function fetchWithTimeout(url, opts, timeoutMs){
+  const ms = (typeof timeoutMs === 'number' && timeoutMs > 0) ? timeoutMs : 15000;
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const o = Object.assign({}, opts || {});
+  if (ctrl) o.signal = ctrl.signal;
+  const t = ctrl ? setTimeout(function(){ ctrl.abort(); }, ms) : null;
+  const p = fetch(url, o);
+  const cleanup = function(){ if (t) clearTimeout(t); };
+  return p.then(function(r){ cleanup(); return r; }, function(e){ cleanup(); throw e; });
+}
 async function _modelGetCache(){
   if (_modelCache) return _modelCache;
   if (typeof caches === 'undefined' || !caches.open) return null;
@@ -1797,7 +1836,7 @@ async function getModelUrl(url, onProgress){
       }
     } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
     try {
-      const r = await fetch(url);
+      const r = await fetchWithTimeout(url); // timeout: iOS offline can hang fetch() forever
       if (r.ok){
         const total = Number(r.headers && r.headers.get('content-length')) || 0;
         const body = r.body;
@@ -1954,9 +1993,14 @@ async function loadLitterbasketGltf(){
   return new Promise((resolve, reject) => {
     const gltfLoader = new THREE.GLTFLoader();
     // Draco-compressed mesh support (required by litterReduced2.glb — KHR_draco_mesh_compression).
+    // The decoder is hosted LOCALLY at ./draco/ (draco_decoder.wasm + wrapper) and
+    // precached by the service worker, so it loads offline. The old gstatic.com CDN
+    // path is a known offline hazard: the DRACOLoader loads it inside a Web Worker
+    // via importScripts(), which iOS Safari hangs on forever when the radios are off
+    // (Web Workers can't be timed out with fetch()), stalling the whole asset gate.
     if (typeof THREE.DRACOLoader !== 'undefined'){
       const dracoLoader = new THREE.DRACOLoader();
-      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+      dracoLoader.setDecoderPath('./draco/');
       gltfLoader.setDRACOLoader(dracoLoader);
     }
     gltfLoader.load(res.url, (gltf) => {
