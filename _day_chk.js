@@ -33,14 +33,23 @@ check('every level has a borough + area', LEVEL_DAYS.every(d => d.borough && d.a
 // ---------- 2) NPC difficulty ramps up every level (sparse Monday, busier each day) ----------
 const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
 const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
-const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC);
+const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
+const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
 const sum = c => Object.keys(c).reduce((a, k) => a + c[k], 0);
-check('level 1 (Monday) is the sparse baseline roster', JSON.stringify(npcCounts(1)) === JSON.stringify(BASE_NPC_COUNTS));
+// Monday: gated types (moto/rc) are absent, so the roster is the baseline minus them.
+const mon = {}; for (const k in BASE_NPC_COUNTS) mon[k] = GATED_NPC[k] ? 0 : BASE_NPC_COUNTS[k];
+check('level 1 (Monday) is the sparse baseline roster (gated types absent)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
 check('the main crowd (ped + car) gains +1 every level',
   [2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k] + (l - 1))));
-check('non-scaling types stay at their Monday count',
-  [2,3,4,5,6,7].every(l => Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k]).every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
+check('gated types are absent before their day, then 1 + (day - gateDay) after',
+  [1,2,3,4,5,6,7].every(l => Object.keys(GATED_NPC).every(k =>
+    npcCounts(l)[k] === (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0))));
+check('moto appears from Wednesday, rc from Friday',
+  npcCounts(2).moto === 0 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
+  npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
+check('non-gated, non-scaling types stay at their Monday count',
+  [2,3,4,5,6,7].every(l => Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]).every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
 check('total NPCs strictly increase every level', (function(){ let prev = -1; for (let l = 1; l <= 7; l++){ const n = sum(npcCounts(l)); if (n <= prev) return false; prev = n; } return true; })());
 console.log('   roster: day1 (Mon) = ' + sum(npcCounts(1)) + ' NPCs   ->   day7 (Sun) = ' + sum(npcCounts(7)) + ' NPCs');
 
