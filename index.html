@@ -510,7 +510,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <button id="btnRadioSkip" class="hidden">SKIP MUSIC</button>
 <div id="vpad">
   <div id="joy"><div id="joy-stick"></div></div>
-  <button id="btnPause" aria-label="Pause">PAUSE</button>
+  <button id="btnPause" aria-label="Pause">PAUSE / QUIT</button>
   <div id="actbtn"><span>ACT</span></div>
 </div>
 <div class="rotate-overlay">
@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.12</div>
+    <div id="app-version" class="menu-version">v1.0.13</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.12';
+const APP_VERSION = '1.0.13';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7403,7 +7403,7 @@ function togglePause(){
   const ov = $('paused');
   if (ov) ov.classList.toggle('hidden', !paused);
   const b = $('btnPause');
-  if (b) b.textContent = paused ? 'RESUME' : 'PAUSE';
+  if (b) b.textContent = paused ? 'RESUME' : 'PAUSE / QUIT';
   if (paused){
     // The shift is on hold: drop any held input so nothing carries over on resume.
     // The pad (joystick + ACT + PAUSE) hides behind the overlay while paused.
@@ -7426,7 +7426,7 @@ function quitGame(){
   const ov = $('paused');
   if (ov) ov.classList.add('hidden');
   const b = $('btnPause');
-  if (b) b.textContent = 'PAUSE';
+  if (b) b.textContent = 'PAUSE / QUIT';
   level = 1; weekScore = 0; score = 0; bonusTally = 0; complaints = 0;
   resetWorldState();   // rebuild a clean street + re-anchor the worker at the start
   ['over', 'complete', 'day-intro', 'day-stats', 'week-complete'].forEach(function(id){ $(id).classList.add('hidden'); });
