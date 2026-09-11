@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.19</div>
+    <div id="app-version" class="menu-version">v1.0.20</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.19';
+const APP_VERSION = '1.0.20';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3582,17 +3582,18 @@ function makeBrownstoneStoop(w, d){
 }
 function makeSidewalkTree(){
   const tree = new THREE.Group();
-  // Taller, thicker trunk
-  const trunk = CY(0.07, 0.09, 1.5, M(0x4a3520), 8);
+  // Tall trunk
+  const TRUNK_H = 2.0;
+  const trunk = CY(0.07, 0.09, TRUNK_H, M(0x4a3520), 8);
   trunk.rotation.x = -Math.PI / 2; // stand upright along +Z
-  trunk.position.z = 0.75;
+  trunk.position.z = TRUNK_H / 2;
   tree.add(trunk);
-  // Round canopy (icosahedron) with random size/color variation
+  // Round canopy (icosahedron) with random size/color variation, sitting on top of trunk
   const size = 0.7 + Math.random() * 0.4;
   const g = 80 + (Math.random() * 50 | 0);
   const leafM = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.15, g / 255, 0.15).getHex() });
   const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(size, 1), leafM);
-  canopy.position.z = 2.0;
+  canopy.position.z = TRUNK_H + size * 0.6;
   canopy.castShadow = true;
   // Add a second smaller blob for irregularity
   const blob = SP(size * 0.55, leafM);
@@ -4288,9 +4289,9 @@ function makeBlockContents(b, baseX){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
   const hg = isManhattanLevel() ? makeBrownstone() : makeHouse();
-  // Manhattan brownstones come right up to the sidewalk (no front lawn).
+  // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
   // Other neighborhoods have a grass buffer between the sidewalk and the house.
-  const HOUSE_Y = isManhattanLevel() ? 8.05 : 10.5;
+  const HOUSE_Y = isManhattanLevel() ? 8.7 : 10.5;
   // Shift house row right within the block to balance spacing (not flush with intersection).
   hg.position.x = 4.0;
   hg.position.y = HOUSE_Y;
