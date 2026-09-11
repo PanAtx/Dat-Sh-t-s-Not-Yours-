@@ -478,7 +478,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.4</div>
+    <div id="app-version" class="menu-version">v1.0.5</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -562,7 +562,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -1521,7 +1521,15 @@ function radioToggleMute(){
   return SFX.radioMuted;
 }
 $('btnMute').addEventListener('click', () => radioToggleMute());
+$('btnMute').addEventListener('touchstart', function(e){
+  e.preventDefault(); // iOS: prevents delayed click + ghost click after touch
+  radioToggleMute();
+});
 $('btnSkip').addEventListener('click', () => SFX.radioSkip());
+$('btnSkip').addEventListener('touchstart', function(e){
+  e.preventDefault();
+  SFX.radioSkip();
+});
 // ---- Start-screen music player: the SAME widget + SAME audio element, so the song
 //      is continuous from the menu straight into the game (radioStart() is
 //      idempotent — it never restarts a track that is already on air). ----
