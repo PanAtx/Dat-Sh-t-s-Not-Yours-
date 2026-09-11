@@ -20,7 +20,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version-sync:
+    # Safety net for the pre-commit auto-bump: if APP_VERSION, manifest.json, and
+    # the SW shell cache name ever drift out of lockstep (e.g. a commit made with
+    # --no-verify), this job fails the build so the mismatch can't reach the site.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check version lockstep
+        run: node scripts/bump-version.js check
   deploy:
+    needs: version-sync
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

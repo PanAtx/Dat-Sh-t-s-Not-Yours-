@@ -1,0 +1,49 @@
+#!/bin/sh
+# ============================================================================
+# DSNYBoy pre-commit hook: auto-bump the app version on every commit.
+#
+# Keeps APP_VERSION (index.html), the menu fallback text, manifest.json, and
+# the SW shell cache name in lockstep without anyone having to remember. The
+# bump becomes part of the commit, so a push always ships a fresh build number
+# and (via the versioned SW shell cache) triggers a PWA update for installed
+# clients.
+#
+# Install (once, per machine):
+#   git config core.hooksPath hooks
+# Skip for a specific commit with: git commit --no-verify
+# ============================================================================
+
+# Only bump when app files are actually in this commit (so pure-doc commits
+# don't churn the version).
+CHANGED=$(git diff --cached --name-only -- index.html manifest.json sw.js 2>/dev/null)
+if [ -z "$CHANGED" ]; then
+  exit 0
+fi
+
+# Resolve the repo root so the hook works regardless of where git invokes it.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$ROOT" ]; then
+  echo "pre-commit: could not resolve repo root; skipping version bump"
+  exit 0
+fi
+
+BUMP="$ROOT/scripts/bump-version.js"
+if [ ! -f "$BUMP" ]; then
+  echo "pre-commit: $BUMP not found; skipping version bump"
+  exit 0
+fi
+
+if command -v node >/dev/null 2>&1; then
+  OUT=$(node "$BUMP" patch 2>&1)
+  if [ $? -ne 0 ]; then
+    echo "pre-commit: version bump failed:"
+    echo "$OUT"
+    exit 1
+  fi
+  echo "pre-commit: $OUT"
+  # Re-stage the files the bump touched so the new version is in the commit.
+  git add index.html manifest.json sw.js 2>/dev/null || true
+else
+  echo "pre-commit: node not found; skipping version bump"
+fi
+exit 0

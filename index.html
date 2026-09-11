@@ -217,6 +217,16 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .menu-version { position:absolute; top:8px; left:8px; z-index:3; pointer-events:none;
   font-family:"Courier New",Courier,monospace; font-size:clamp(9px,1.2vw,12px); letter-spacing:2px;
   color:rgba(125,255,158,.8); text-shadow:0 0 6px rgba(46,224,144,.5), 1px 1px 0 rgba(0,0,0,.85); }
+/* In-game build tag: bottom-left corner of the HUD (the cache badge owns the
+   bottom-right). Tiny + dim so it reads as a watermark, not a HUD readout.
+   Populated from APP_VERSION at boot (see the version IIFE). */
+.hud-ver { position:absolute; bottom:12px; left:20px; z-index:10; pointer-events:none;
+  font-family:"Courier New",Courier,monospace; font-size:11px; letter-spacing:2px;
+  color:rgba(125,255,158,.42); text-shadow:1px 1px 0 rgba(0,0,0,.85); }
+/* Build tag on the pause / game-over / route-complete panels. Centered under
+   the buttons, small + dim (a footer watermark). */
+.modal-ver { font-family:"Courier New",Courier,monospace; font-size:10px; letter-spacing:2px;
+  color:rgba(125,255,158,.45); margin-top:14px; text-align:center; text-shadow:1px 1px 0 rgba(0,0,0,.85); }
 /* Pinned to the VERY BOTTOM of the logo frame: START SHIFT with the NOW PLAYING
    widget docked just below it (flush with the frame's bottom edge, minimal footprint). */
 .menu-bottom { position:absolute; bottom:0; left:0; right:0; text-align:center; padding:0;
@@ -426,6 +436,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div id="tl" class="hudbox"><div class="hp"><div class="lbl">WORKER HEALTH</div><div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div></div><div class="dist"><div class="lbl">ROUTE PROGRESS</div><div class="distbar" id="distbar"><div class="distfill" id="distfill"></div></div></div><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
+  <div class="hud-ver" id="hud-version">v1.0.1</div>
 </div>
 <!-- Car-stereo NOW PLAYING widget. Standalone fixed element (NOT inside #hud) so it
      shows on the START screen too, where it acts as the pre-game music player.
@@ -467,7 +478,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.1</div>
+    <div id="app-version" class="menu-version">v1.0.2</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -489,6 +500,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <h1>PAUSED</h1>
   <div class="tag">SHIFT ON HOLD &#8212; TAKE A BREATH, WORKER</div>
   <div class="ctl">RESUME / START = UNPAUSE &middot; START + SELECT = QUIT TO MENU</div>
+  <div class="modal-ver">v1.0.1</div>
   <button id="btnResume">RESUME SHIFT</button>
   <button id="btnQuit2">QUIT TO MENU</button>
 </div></div>
@@ -497,6 +509,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="tag" id="over-tag">3 WRITE-UPS - SHIFT TERMINATED</div>
   <div class="score">FINAL SCORE $<span id="finalscore">000000</span></div>
   <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
+  <div class="modal-ver">v1.0.1</div>
   <button id="btnRestart">RESTART SHIFT</button>
 </div></div>
 <div id="complete" class="modal hidden"><div class="panel">
@@ -504,6 +517,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="tag">ALL 6 BLOCKS CLEARED - SHIFT DONE</div>
   <div class="score">SHIFT SCORE $<span id="finalscore2">000000</span></div>
   <div class="score">HI-SCORE $<span id="hiscore3">000000</span></div>
+  <div class="modal-ver">v1.0.1</div>
   <button id="btnRestart2">START NEXT ROUTE</button>
 </div></div>
 <div id="day-intro" class="modal hidden"><div class="panel">
@@ -525,6 +539,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   <div class="tag" id="week-tag">ALL 7 DAYS CLEARED - TOP NOTCH!</div>
   <div class="score">WEEK TOTAL $<span id="week-score">000000</span></div>
   <div class="score">BEST SHIFT $<span id="week-hi">000000</span></div>
+  <div class="modal-ver">v1.0.1</div>
   <button id="btnWeekRestart">WORK ANOTHER WEEK</button>
 </div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -547,11 +562,20 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
-// Show the running build on the main menu (populated once at boot).
-(function(){ const v = $('app-version'); if (v) v.textContent = 'v' + APP_VERSION; })();
+// Show the running build on the main menu AND in-game (the HUD bottom-left tag
+// + the pause / game-over / route-complete panels), populated once at boot. The
+// fallback HTML already carries the version, so the number shows even before
+// this runs (and the pre-commit bump keeps every copy in lockstep).
+(function(){
+  var t = 'v' + APP_VERSION;
+  var vs = ['app-version', 'hud-version'];
+  for (var i = 0; i < vs.length; i++){ var el = $(vs[i]); if (el) el.textContent = t; }
+  var modals = document.querySelectorAll('.modal-ver');
+  for (var j = 0; j < modals.length; j++) modals[j].textContent = t;
+})();
 const R = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
 const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);

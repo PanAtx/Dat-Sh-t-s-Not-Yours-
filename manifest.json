@@ -1,7 +1,7 @@
 {
   "name": "Dat Sh!t's Not Yours!",
   "short_name": "DSNY",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Sweep the route, dodge the street, and keep the haul. A 7-day sanitation shift in the five boroughs.",
   "start_url": "./",
   "scope": "./",
