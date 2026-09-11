@@ -105,9 +105,12 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .panel .ctl { font-family:"Courier New", monospace; color:#cfe6ff; font-size:clamp(11px,1.8vw,14px); line-height:clamp(1.45,2.3vh,1.9); margin:clamp(10px,2vh,20px) 0; text-align:left; display:inline-block; }
 .panel .score { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); color:#ffd66b; margin:clamp(8px,1.6vh,14px) 0 4px; letter-spacing:2px; }
 /* ===== Day intro + per-day collection breakdown (the 7-day level system) ===== */
-#day-intro .day { font-family:"Arial Black", Impact, sans-serif; font-size:clamp(26px,7vw,54px); font-weight:bold; color:#2ee090; letter-spacing:6px; text-shadow:0 0 18px rgba(46,224,144,.85); margin-bottom:4px; }
-#day-intro .loc { font-family:"Courier New", monospace; font-size:clamp(13px,2.6vw,20px); letter-spacing:4px; color:#bfe9ff; margin-bottom:2px; }
-#day-intro .obj { font-family:"Courier New", monospace; font-size:clamp(10px,1.8vw,13px); letter-spacing:2px; color:#9fe8b8; margin:14px 0 4px; line-height:1.5; }
+#day-intro .day { font-family:"Arial Black", Impact, sans-serif; font-size:clamp(26px,7vw,54px); font-weight:bold; color:#2ee090; letter-spacing:6px; text-shadow:0 0 18px rgba(46,224,144,.85), 0 0 30px rgba(46,224,144,.4); margin-bottom:4px; animation:day-title-enter 0.8s cubic-bezier(.2,1.3,.4,1); }
+@keyframes day-title-enter { 0% { transform:translateY(-140px) scale(.25); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
+#day-intro .loc { font-family:"Courier New", monospace; font-size:clamp(13px,2.6vw,20px); letter-spacing:4px; color:#bfe9ff; margin-bottom:2px; animation:day-loc-enter 0.5s ease-out 0.35s both; }
+@keyframes day-loc-enter { 0% { opacity:0; transform:translateY(20px); } 100% { opacity:1; transform:translateY(0); } }
+#day-intro .obj { font-family:"Courier New", monospace; font-size:clamp(10px,1.8vw,13px); letter-spacing:2px; color:#9fe8b8; margin:14px 0 4px; line-height:1.5; animation:day-obj-enter 0.6s ease-out 0.55s both; }
+@keyframes day-obj-enter { 0% { opacity:0; } 100% { opacity:1; } }
 .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:clamp(6px,1.2vh,10px) clamp(12px,2.4vw,22px); margin:clamp(10px,2vh,18px) auto; max-width:560px; text-align:left; }
 .stat-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; border-bottom:1px dashed rgba(46,224,144,.35); padding-bottom:4px; }
 .stat-row .lbl { font-family:"Courier New", monospace; font-size:clamp(10px,1.9vw,14px); letter-spacing:1px; color:#cfe6ff; }
@@ -121,6 +124,29 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #btnStart:hover, #btnRestart:hover, #btnRestart2:hover, #btnBeginDay:hover, #btnNextDay:hover, #btnWeekRestart:hover, #btnResume:hover, #btnQuit2:hover { background:#5cf0ad; }
 .hidden { display:none !important; }
 .kbd { color:#7dff9e; }
+/* Route complete: celebratory reveal */
+#complete .panel { text-align:center; }
+#complete h2 { font-size:36px; color:#ffd700; text-shadow:3px 3px 0 #b8860b, 0 0 25px rgba(255,215,0,0.7); animation:complete-title-enter 0.7s cubic-bezier(.2,1.4,.5,1); margin-bottom:14px; }
+@keyframes complete-title-enter { 0% { transform:scale(0) rotate(-18deg); opacity:0; } 100% { transform:scale(1) rotate(0); opacity:1; } }
+#complete .tag { font-size:13px; color:#bfe9ff; margin-bottom:18px; animation:complete-fade-in 0.5s ease-out 0.4s both; }
+@keyframes complete-fade-in { 0% { opacity:0; } 100% { opacity:1; } }
+#complete .score { animation:complete-score-enter 0.5s cubic-bezier(.2,1.3,.4,1) both; }
+#complete .score:first-of-type { animation-delay:0.7s; }
+#complete .score:last-of-type { animation-delay:0.9s; }
+@keyframes complete-score-enter { 0% { transform:translateY(45px) scale(0.5); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
+#complete .modal-ver { animation:complete-fade-in 0.4s ease-out 1.1s both; }
+#complete button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.3s both; }
+@keyframes complete-btn-enter { 0% { transform:translateY(40px); opacity:0; } 100% { transform:translateY(0); opacity:1; } }
+/* Game over: dramatic reveal */
+#over .panel { text-align:center; }
+#over h2 { font-size:32px; color:#ff4444; text-shadow:3px 3px 0 #8e1a1a, 0 0 20px rgba(255,68,68,0.6); animation:over-title-enter 0.8s cubic-bezier(.2,1.3,.4,1); margin-bottom:14px; }
+@keyframes over-title-enter { 0% { transform:translateY(-100px) scale(0.3); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
+#over .tag { animation:complete-fade-in 0.5s ease-out 0.4s both; }
+#over .score { animation:complete-score-enter 0.5s cubic-bezier(.2,1.3,.4,1) both; }
+#over .score:first-of-type { animation-delay:0.7s; }
+#over .score:last-of-type { animation-delay:0.9s; }
+#over .modal-ver { animation:complete-fade-in 0.4s ease-out 1.1s both; }
+#over button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.3s both; }
 /* ===== Pre-game asset preload screen ("Please Wait, Getting Assets") ===== */
 /* Sits ABOVE the start menu (#menu is z-index:20) and covers it while the 3D
    models + title images stream into the Cache. Opaque enough that the menu
@@ -478,7 +504,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.5</div>
+    <div id="app-version" class="menu-version">v1.0.6</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -562,7 +588,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.5';
+const APP_VERSION = '1.0.6';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
