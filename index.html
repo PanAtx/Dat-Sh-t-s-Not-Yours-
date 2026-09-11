@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.13</div>
+    <div id="app-version" class="menu-version">v1.0.14</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.13';
+const APP_VERSION = '1.0.14';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3179,14 +3179,54 @@ function makeHouse(){
   // Lifting by 0.3u eliminates the Z-fight between the house base and the front-lawn strip.
   const body = BX(w, d, h, M(col)); body.position.z = 0.3 + h / 2; body.receiveShadow = false; g.add(body);
   const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26)); roof.position.z = 0.3 + h + 0.2; g.add(roof);
-  const door = BX(0.9, 0.12, 1.7, M(0x3a2c20)); door.position.set(0, -d / 2 - 0.06, 0.3 + 0.85); g.add(door);
+
+  // Door: flush with the wall, with frame and doorknob
+  const doorW = 0.9, doorH = 1.7, doorT = 0.08;
+  const doorFrame = BX(doorW + 0.12, 0.10, doorH + 0.06, M(0x2e2820));
+  doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + doorH / 2 + 0.03);
+  g.add(doorFrame);
+  const door = BX(doorW, doorT, doorH, M(0x3a2c20));
+  door.position.set(0, -d / 2 - 0.01, 0.3 + doorH / 2);
+  g.add(door);
+  // Door handle: small chrome sphere on the right side
+  const handle = SPH(0.045, new THREE.MeshLambertMaterial({ color: 0xcccccc, emissive: 0x444444, emissiveIntensity: 0.4 }));
+  handle.position.set(0.32, -d / 2 - 0.04, 0.3 + 0.9);
+  g.add(handle);
+
+  // Windows: flush with the wall, with white frames
   const wm = new THREE.MeshLambertMaterial({ color: 0x9fd0e8, emissive: 0x24434f, emissiveIntensity: 0.7 });
   for (let i = 0; i < 2; i++){
-    const win = BX(0.8, 0.1, 0.8, wm);
-    win.position.set((i === 0 ? -1 : 1) * w * 0.3, -d / 2 - 0.05, 0.3 + h * 0.6);
+    const side = (i === 0 ? -1 : 1);
+    const winX = side * w * 0.3;
+    // White window frame (slightly larger than the glass)
+    const winFrame = BX(0.86, 0.11, 0.86, M(0xffffff));
+    winFrame.position.set(winX, -d / 2 + 0.01, 0.3 + h * 0.6);
+    g.add(winFrame);
+    // Glass pane (recessed slightly into the frame)
+    const win = BX(0.78, 0.06, 0.78, wm);
+    win.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
     g.add(win);
   }
-  const winS = BX(0.1, 0.8, 0.8, wm); winS.position.set(w / 2 + 0.05, 0, 0.3 + h * 0.6); g.add(winS);
+
+  // Side window (on the side of the house facing the sidewalk)
+  const winSFrame = BX(0.11, 0.86, 0.86, M(0xffffff));
+  winSFrame.position.set(w / 2 + 0.01, 0, 0.3 + h * 0.6);
+  g.add(winSFrame);
+  const winS = BX(0.06, 0.78, 0.78, wm);
+  winS.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
+  g.add(winS);
+
+  // Wall-mounted porch light above the door: bracket + lamp shade + glowing bulb
+  const bracket = BX(0.06, 0.10, 0.20, M(0x333333));
+  bracket.position.set(0, -d / 2 - 0.04, 0.3 + 1.95);
+  g.add(bracket);
+  const shade = BX(0.16, 0.16, 0.22, M(0x333333));
+  shade.position.set(0, -d / 2 - 0.04, 0.3 + 1.85);
+  g.add(shade);
+  const bulb = SPH(0.055, new THREE.MeshLambertMaterial({ color: 0xfff8dc, emissive: 0xffd700, emissiveIntensity: 1.5 }));
+  bulb.position.set(0, -d / 2 - 0.04, 0.3 + 1.85);
+  g.add(bulb);
+
   const sm = M(0x9a948a);
   // Concrete step: a THIN raised lip in front of the door, sitting just above the grass.
   // Deliberately low (top 0.36, only 0.06 above the GZ 0.3 grass plane) so it reads as a flat
