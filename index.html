@@ -113,10 +113,10 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 @keyframes day-obj-enter { 0% { opacity:0; } 100% { opacity:1; } }
 .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:clamp(6px,1.2vh,10px) clamp(12px,2.4vw,22px); margin:clamp(10px,2vh,18px) auto; max-width:560px; text-align:left; }
 .stat-row { display:flex; align-items:baseline; justify-content:space-between; gap:8px; border-bottom:1px dashed rgba(46,224,144,.35); padding-bottom:4px; }
-.stat-row .lbl { font-family:"Courier New", monospace; font-size:clamp(10px,1.9vw,14px); letter-spacing:1px; color:#cfe6ff; }
-.stat-row .val { font-family:"Courier New", monospace; font-size:clamp(12px,2.2vw,17px); font-weight:bold; color:#7dff9e; white-space:nowrap; }
+.stat-row .lbl { font-family:"Arial Black", Impact, sans-serif; font-weight:bold; font-size:clamp(11px,2vw,16px); letter-spacing:1px; color:#cfe6ff; text-shadow:1px 1px 0 rgba(0,0,0,.6); }
+.stat-row .val { font-family:"Courier New", monospace; font-size:clamp(13px,2.4vw,19px); font-weight:bold; color:#7dff9e; white-space:nowrap; text-shadow:1px 1px 0 rgba(0,0,0,.5); }
 .stat-row .val .tot { color:#6d8f9f; font-weight:normal; font-size:.82em; }
-.stat-row .val.perfect { color:#ffd23a; }
+.stat-row .val.perfect { color:#ffd23a; text-shadow:1px 1px 0 rgba(0,0,0,.5), 0 0 10px rgba(255,210,58,.6); }
 .stat-row.bonus .lbl { color:#ffab45; }
 .stat-row.bonus .val { color:#54ff88; }
 #btnStart, #btnRestart, #btnRestart2, #btnBeginDay, #btnNextDay, #btnWeekRestart, #btnResume, #btnQuit2 { font-family:"Courier New", monospace; font-size:clamp(14px,2.6vw,20px); letter-spacing:4px; padding:clamp(10px,2vh,14px) clamp(28px,6vw,44px); margin-top:clamp(10px,2vh,18px); cursor:pointer;
@@ -147,6 +147,32 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 #over .score:last-of-type { animation-delay:0.9s; }
 #over .modal-ver { animation:complete-fade-in 0.4s ease-out 1.1s both; }
 #over button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.3s both; }
+/* Shift report (day stats): punchy reveal with animated stat rows */
+#day-stats .panel { text-align:center; }
+#day-stats h2 { font-size:32px; color:#ff4444; text-shadow:3px 3px 0 #8e1a1a, 0 0 18px rgba(255,68,68,0.6); margin-bottom:10px; animation:day-stats-title 0.7s cubic-bezier(.2,1.3,.4,1); }
+@keyframes day-stats-title { 0% { transform:translateY(-90px) scale(0.2); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
+#day-stats .tag { animation:complete-fade-in 0.4s ease-out 0.35s both; }
+/* The stats grid container slides up */
+#day-stats .stats-grid { animation:stats-grid-enter 0.6s cubic-bezier(.2,1.3,.4,1) 0.5s both; }
+@keyframes stats-grid-enter { 0% { transform:translateY(60px) scale(0.8); opacity:0; } 100% { transform:translateY(0) scale(1); opacity:1; } }
+/* Each stat row slides in with a staggered delay (set by JS class) */
+#day-stats .stat-row { animation:stat-row-enter 0.35s cubic-bezier(.2,1.3,.4,1) both; }
+@keyframes stat-row-enter { 0% { transform:translateX(-40px) scale(0.7); opacity:0; } 100% { transform:translateX(0) scale(1); opacity:1; } }
+/* Score totals pop up */
+#day-stats .score { animation:complete-score-enter 0.5s cubic-bezier(.2,1.3,.4,1) both; }
+#day-stats .score:first-of-type { animation-delay:1.2s; }
+#day-stats .score:last-of-type { animation-delay:1.4s; }
+#day-stats button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.6s both; }
+/* Week complete: big celebration */
+#week-complete .panel { text-align:center; }
+#week-complete h1 { font-size:38px; color:#ffd700; text-shadow:3px 3px 0 #b8860b, 0 0 30px rgba(255,215,0,0.8); animation:week-title-enter 0.9s cubic-bezier(.2,1.5,.5,1); margin-bottom:14px; }
+@keyframes week-title-enter { 0% { transform:scale(0) rotate(-25deg); opacity:0; } 100% { transform:scale(1) rotate(0); opacity:1; } }
+#week-complete .tag { font-size:14px; color:#bfe9ff; margin-bottom:18px; animation:complete-fade-in 0.5s ease-out 0.5s both; }
+#week-complete .score { animation:complete-score-enter 0.5s cubic-bezier(.2,1.3,.4,1) both; }
+#week-complete .score:first-of-type { animation-delay:0.8s; }
+#week-complete .score:last-of-type { animation-delay:1.0s; }
+#week-complete .modal-ver { animation:complete-fade-in 0.4s ease-out 1.2s both; }
+#week-complete button { animation:complete-btn-enter 0.5s cubic-bezier(.2,1.4,.5,1) 1.4s both; }
 /* ===== Pre-game asset preload screen ("Please Wait, Getting Assets") ===== */
 /* Sits ABOVE the start menu (#menu is z-index:20) and covers it while the 3D
    models + title images stream into the Cache. Opaque enough that the menu
@@ -504,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.6</div>
+    <div id="app-version" class="menu-version">v1.0.7</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -588,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
