@@ -478,7 +478,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.3</div>
+    <div id="app-version" class="menu-version">v1.0.4</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -562,7 +562,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -672,13 +672,13 @@ function computeDayTotals(){
   for (let i = 0; i < bonuses.length; i++){ const t = bonuses[i].type; if (dayStats[t]) dayStats[t].total++; }
 }
 // Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
-// The main crowd (pedestrians + cars) AND the late-week vehicles (moto + rc, see GATED_NPC)
+// The main crowd (pedestrians + cars) AND the day-gated vehicles (moto/ebike/rc, see GATED_NPC)
 // grow busier as the week goes on, so the street ramps up clearly without exploding:
-//   Mon 18 -> Tue 20 -> Wed 23 -> Thu 26 -> Fri 30 -> Sat 34 -> Sun 38.
+//   Mon 17 -> Tue 19 -> Wed 22 -> Thu 26 -> Fri 31 -> Sat 36 -> Sun 41.
 // Every other type stays at its Monday count; the ambient critters (rats/raccoons/squirrels) are constant flavour.
 const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 1, moto: 1, rc: 1, jacker: 1 };
-const SCALING_NPC = { ped: true, car: true, moto: true, rc: true };   // +1 per day (the crowd/traffic that gets busier each level)
-const GATED_NPC = { moto: 3, rc: 5 };    // appear only from that day (Wed/Fri): 0 before, then 1 on that day, +1 each day after
+const SCALING_NPC = { ped: true, car: true, moto: true, ebike: true, rc: true };   // +1 per day (the crowd/traffic that gets busier each level)
+const GATED_NPC = { moto: 3, ebike: 4, rc: 5 };    // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
 const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 };    // constant critters (kept for reference/tests)
 function npcCounts(day){
   const extra = Math.max(0, (day || 1) - 1);                // +0 on Monday ... +6 by Sunday

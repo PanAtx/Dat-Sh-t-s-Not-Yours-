@@ -45,8 +45,9 @@ check('the main crowd (ped + car) gains +1 every level',
 check('gated types are absent before their day, then 1 + (day - gateDay) after',
   [1,2,3,4,5,6,7].every(l => Object.keys(GATED_NPC).every(k =>
     npcCounts(l)[k] === (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0))));
-check('moto appears from Wednesday, rc from Friday',
+check('moto appears from Wednesday, ebike from Thursday, rc from Friday',
   npcCounts(2).moto === 0 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
+  npcCounts(3).ebike === 0 && npcCounts(4).ebike === 1 && npcCounts(5).ebike === 2 &&
   npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
 check('non-gated, non-scaling types stay at their Monday count',
   [2,3,4,5,6,7].every(l => Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]).every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
