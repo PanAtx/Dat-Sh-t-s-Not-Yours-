@@ -27,7 +27,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 @keyframes crt { 0%,100% { opacity:.9 } 50% { opacity:.72 } }
 #vignette { position:fixed; inset:0; z-index:7; pointer-events:none;
   background:radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(0,0,0,.42) 100%); }
-#hud { position:fixed; inset:0; z-index:10; pointer-events:none; font-family:"Courier New", Courier, monospace; color:#eaf6ff; }
+#hud { position:fixed; inset:0; z-index:10; pointer-events:none; font-family:'Press Start 2P', Courier, monospace; font-size:11px; color:#eaf6ff; }
 .hudbox { text-shadow:0 0 8px rgba(46,224,144,.55), 2px 2px 0 rgba(0,0,0,.85); }
 #tl { position:absolute; top:16px; left:20px; font-size:20px; letter-spacing:2px; }
 #tl .sub { font-size:14px; color:#9fe8b8; margin-top:4px; }
@@ -485,7 +485,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="vignette"></div>
 <div id="flash"></div>
 <div id="hud">
-  <div id="tl" class="hudbox"><div class="hp"><div class="lbl">WORKER HEALTH</div><div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div></div><div class="dist"><div class="lbl">ROUTE PROGRESS</div><div class="distbar" id="distbar"><div class="distfill" id="distfill"></div></div></div><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
+  <div id="tl" class="hudbox"><div class="hp"><div class="lbl">WORKER HEALTH</div><div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div></div><div class="dist"><div class="lbl">DISTANCE</div><div class="distbar" id="distbar"><div class="distfill" id="distfill"></div></div></div><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
   <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div class="hud-ver" id="hud-version">v1.0.1</div>
@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.11</div>
+    <div id="app-version" class="menu-version">v1.0.12</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.11';
+const APP_VERSION = '1.0.12';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
