@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.10</div>
+    <div id="app-version" class="menu-version">v1.0.11</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.10';
+const APP_VERSION = '1.0.11';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7078,7 +7078,7 @@ function statRow(label, got, total, isBonus, idx){
   const cls = isBonus ? 'stat-row bonus' : 'stat-row';
   const delay = 0.55 + (idx || 0) * 0.1;
   return '<div class="' + cls + '" style="animation-delay:' + delay + 's"><span class="lbl">' + label + '</span>' +
-         '<span class="val' + (perfect ? ' perfect' : '') + '" data-got="' + got + '" data-total="' + total + '">' + got + ' <span class="tot">/ ' + total + '</span>' + (perfect ? ' \u2605' : '') + '</span></div>';
+         '<span class="val' + (perfect ? ' perfect' : '') + '"><span class="counter" data-got="' + got + '">' + got + '</span><span class="tot"> / ' + total + '</span>' + (perfect ? ' \u2605' : '') + '</span></div>';
 }
 function showDayStats(){
   const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
@@ -7096,8 +7096,8 @@ function showDayStats(){
       statRow('STREET CASH',    s.cash.got,     s.cash.total,     true,  5);
     // Animate the stat numbers counting up (guarded for Node test)
     if (typeof document !== 'undefined' && typeof performance !== 'undefined' && typeof requestAnimationFrame !== 'undefined'){
-      const rows = g.querySelectorAll('.stat-row .val');
-      rows.forEach(function(el, i){
+      const counters = g.querySelectorAll('.stat-row .counter');
+      counters.forEach(function(el, i){
         const target = parseInt(el.getAttribute('data-got'), 10);
         const startT = performance.now();
         const dur = 2000 + i * 200; // longer, staggered durations so each row counts visibly
@@ -7105,12 +7105,9 @@ function showDayStats(){
           const t = Math.min(1, (now - startT) / dur);
           const ease = 1 - Math.pow(1 - t, 2); // easeOutQuad - slow at end so last digits linger
           const cur = Math.floor(target * ease);
-          const totEl = el.querySelector('.tot');
+          el.textContent = cur;
           if (cur < target && t < 1){
-            el.textContent = cur + (totEl ? ' ' + totEl.outerHTML : '');
             requestAnimationFrame(tick);
-          } else {
-            el.textContent = target + (totEl ? ' ' + totEl.outerHTML : '');
           }
         }
         requestAnimationFrame(tick);
