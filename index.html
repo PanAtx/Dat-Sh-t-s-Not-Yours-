@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.16</div>
+    <div id="app-version" class="menu-version">v1.0.17</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.16';
+const APP_VERSION = '1.0.17';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -643,6 +643,9 @@ const TILE = 144, NB = 18, BW = 8;
 const HOUSES_PER_BLOCK = 10;
 const BLOCK_W = BW * HOUSES_PER_BLOCK;   // 80 world units per block (10 houses x 8u)
 const IW = 16;                          // intersection (cross-street) width (along the route)
+// Each house is centered at its x position (extends 4u each side). Shifting the row right
+// by 4u centers the row within the block so it doesn't start at the cross-street.
+const HOUSE_ROW_X = 4;
 const CROSS_W = 9;                      // cross-street WIDTH (along the route / X) — NARROWER than the 16u intersection gap so it clears the flanking houses (no more "into the first house") and reads as a real street, not a blob
 const CROSS_H = 30;                     // cross-street LENGTH (across the road / Y) — runs from the far nose (y=-14) past the houses (y=+16), with room for the perpendicular crosswalks to sit clear of the main road on both sides
 const CROSS_CY = 1.0;                   // cross-street lateral centerline — spans y = -14 → +16 (still reaches the top-left corner, plus clearance below the road for the crosswalk)
@@ -667,7 +670,12 @@ const ROUTE_END_X    = 768;  // far edge of the route (Intersection 8)
 const RUN_SPEED = 8.5;    // traffic + follow-truck baseline (cars never crawl below this)
 const PLAYER_SPEED = 10;  // worker forward speed while W / UP / stick is held (no input = stands still)
 const LAT_SPEED = 6.5;    // worker strafe speed (A/D / stick horizontal)
-const WORKER_MAX_Y = 8.0; // how far toward the houses the worker can reach: the near sidewalk (0.5..5) plus the front-lawn grass (5..8.5) in front of the houses - he can step out onto the grass but stops short of the house bodies (~8.4)
+// In Manhattan the worker is limited to the sidewalk (y < 5.0); no front lawn or stoops.
+function workerMaxY(){ return isManhattanLevel() ? 5.0 : 8.0; }
+// Creatures in Manhattan are limited to the sidewalk; in other boroughs they can use the lawn.
+function creatureMaxY(){ return isManhattanLevel() ? 4.8 : 7.5; }
+// Spawn y-range for curb items, bonuses, powerups: sidewalk only in Manhattan.
+function spawnMaxY(){ return isManhattanLevel() ? 4.8 : 7.0; }
 const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
 const MIN_MOVE = 0.55;    // min speed floor once the stick is off-center (snappy, keyboard-like)
 const MOVE_T = 0.1;       // tiny jitter threshold: below this the worker stands still
@@ -3498,6 +3506,92 @@ function addManhole(b, wx, wy){
   b.group.add(g);
   b.hazards.push({ wx: wx, wy: wy, r: 0.9, type: 'trip', drop: 0.5, cd: 0 });
 }
+// ==================== MANHATTAN BROWNSTONE ROW HOUSES ====================
+// Brownstones are taller (4-5 stories), narrower, with no front yard.
+// They have high stoops (concrete steps) leading to the door.
+// The building comes right up to the sidewalk with no front yard.
+function makeBrownstone(){
+  const g = new THREE.Group();
+  const cols = [0x7a4a3a, 0x8a6a5a, 0x6a5a4a, 0x9a7a6a, 0x7a5a4a, 0x6a4a3a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = 8.0;
+  const d = 4.0;
+  const h = 5.2;
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  g.add(body);
+  const roof = BX(w - 0.4, d - 0.4, 0.3, M(0x3a3a3a));
+  roof.position.z = 0.3 + h + 0.15;
+  g.add(roof);
+  const cornice = BX(w + 0.4, d + 0.3, 0.4, M(0x2a2a2a));
+  cornice.position.z = 0.3 + h + 0.4;
+  g.add(cornice);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
+  for (let floor = 0; floor < 4; floor++){
+    const fy = 0.3 + 1.0 + floor * 1.2;
+    for (let side = -1; side <= 1; side += 2){
+      const winX = side * w * 0.25;
+      const frame = BX(0.7, 0.12, 1.0, M(0x1a1a1a));
+      frame.position.set(winX, -d / 2 + 0.02, fy);
+      g.add(frame);
+      const glass = BX(0.6, 0.04, 0.9, winM);
+      glass.position.set(winX, -d / 2 - 0.02, fy);
+      g.add(glass);
+    }
+  }
+  const stoop = makeBrownstoneStoop(w, d);
+  g.add(stoop);
+  const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
+  door.position.set(0, -d / 2 - 0.02, 0.3 + 1.7);
+  g.add(door);
+  const doorFrame = BX(0.9, 0.1, 1.7, M(0x2a1a0a));
+  doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + 1.7);
+  g.add(doorFrame);
+  const lampBulb = SPH(0.05, new THREE.MeshLambertMaterial({ color: 0xffffbb, emissive: 0xffff66, emissiveIntensity: 3.0 }));
+  lampBulb.position.set(0, -d / 2 - 0.04, 0.3 + 2.1);
+  g.add(lampBulb);
+  // Door step area data for stepTopAt()
+  g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
+  return g;
+}
+function makeBrownstoneStoop(w, d){
+  const stoop = new THREE.Group();
+  const concrete = M(0x999999);
+  const iron = M(0x222222);
+  const riserH = 0.17;
+  const treadD = 0.3;
+  const stepW = 2.5;
+  const steps = 4;
+  
+  // Steps going UP from sidewalk toward house
+  // Each step extends further from the house (more negative Y)
+  // Higher i = closer to house = higher elevation
+  for (let i = 0; i < steps; i++){
+    const stepY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
+    const stepZ = 0.3 + i * riserH + riserH / 2;
+    const step = BX(stepW, treadD, riserH, concrete);
+    step.position.set(0, stepY, stepZ);
+    stoop.add(step);
+  }
+  
+  return stoop;
+}
+function makeSidewalkTree(){
+  const tree = new THREE.Group();
+  const trunk = CY(0.08, 0.06, 1.0, M(0x4a3520), 8);
+  trunk.position.z = 0.5;
+  tree.add(trunk);
+  const leafM = new THREE.MeshLambertMaterial({ color: 0x3a8a4a, side: THREE.DoubleSide });
+  const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.2, 8), leafM);
+  canopy.position.z = 1.2;
+  canopy.castShadow = true;
+  tree.add(canopy);
+  return tree;
+}
+function isManhattanLevel(){
+  if (!LEVEL_DAYS[level - 1]) return false;
+  return LEVEL_DAYS[level - 1].borough === 'MANHATTAN';
+}
 // ==================== CREATURE / VEHICLE BUILDERS ====================
 // Random piles of dog shit on the sidewalk: step in one and the worker yells, then
 // leaves a brown trail of footprints for a while (see dropFootprint / updateFootprints)
@@ -4085,13 +4179,13 @@ function addCreature(type){
     case 'ped':   c.wy = R(1, 4); c.sp = R(1.0, 2.2); c.data = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) }); break;
     case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
     case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
-    case 'raccoon': c.wy = R(1, 7); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, 7.5); c.data = makeRaccoon(); break;
-    case 'squirrel': c.wy = 6.5; c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
+    case 'raccoon': c.wy = R(1, creatureMaxY()); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, creatureMaxY()); c.data = makeRaccoon(); break;
+    case 'squirrel': c.wy = R(5.0, creatureMaxY()); c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
     case 'pigeon': c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0; c.fleeAng = 0;
                    c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR; break;
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.38; c.boxL = 0.7; c.data = makeTricycle(); break;
-    case 'dogwalker': c.wy = R(1.0, 4.0); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
+    case 'dogwalker': c.wy = R(1.0, creatureMaxY()); c.sp = R(0.9, 1.8); c.data = makeDogWalker(); break;
     case 'rc':    c.wy = R(1, 4); c.sp = R(6, 9); c.dir = 1; c.flip = R(0.4, 1); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.25; c.boxL = 0.3; c.data = makeRC(); break;
     case 'bike':  c.wy = R(-2.4, -0.3); c.sp = R(8, 9.5); c.curSp = 0; c.targetWy = c.wy; c._naturalLane = (c.wy > -1.2) ? 0.5 : -8.5;
@@ -4104,14 +4198,14 @@ function addCreature(type){
                   c.boxW = 0.35; c.boxL = 0.9; c.data = makeMoto(); break;
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
-    case 'breaker': c.wy = R(1.2, 4.2); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
-    case 'yeller': c.wy = R(1.2, 4.2); c.sp = R(0.25, 0.4); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS), fold: 1.05 }); break; // VERY slow shamble (pedestrians are 1.0-2.2); fold: chest folds ~60° forward at the hips
-    case 'jacker': c.wy = R(1.2, 4.2); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
+    case 'breaker': c.wy = R(1.2, creatureMaxY()); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
+    case 'yeller': c.wy = R(1.2, creatureMaxY()); c.sp = R(0.25, 0.4); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS), fold: 1.05 }); break; // VERY slow shamble (pedestrians are 1.0-2.2); fold: chest folds ~60° forward at the hips
+    case 'jacker': c.wy = R(1.2, creatureMaxY()); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
                  c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
-    case 'hooker': c.wy = R(1.2, 4.2); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
-    case 'skater': c.wy = R(4.3, 4.9); c.trickT = R(0.4, 1.4); c.flipT = 0; // curb edge, out of the main walking line
+    case 'hooker': c.wy = R(1.2, creatureMaxY()); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
+    case 'skater': c.wy = R(4.3, creatureMaxY()); c.trickT = R(0.4, 1.4); c.flipT = 0; // curb edge, out of the main walking line
                  c.data = makeSkater(); c.board = c.data.userData.board; break;
-    case 'escooter': c.wy = R(1.4, 3.8); c.sp = R(2.4, 3.4);
+    case 'escooter': c.wy = R(1.4, creatureMaxY()); c.sp = R(2.4, 3.4);
                  c.data = makeEScooter(); c.wheelF = c.data.userData.wheelF; c.wheelR = c.data.userData.wheelR; break;
     case 'leashdog':{
       // dog + doghouse + chain: the anchor is the stake at the doghouse (front
@@ -4180,8 +4274,12 @@ function makeCurbCan(wx, wy, house){
 function makeBlockContents(b, baseX){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
-  const hg = makeHouse();
-  const HOUSE_Y = 10.5; // lateral offset of the house from the road (its front/step faces the street)
+  const hg = isManhattanLevel() ? makeBrownstone() : makeHouse();
+  // Manhattan brownstones come right up to the sidewalk (no front lawn).
+  // Other neighborhoods have a grass buffer between the sidewalk and the house.
+  const HOUSE_Y = isManhattanLevel() ? 8.05 : 10.5;
+  // Shift house row right within the block to balance spacing (not flush with intersection).
+  hg.position.x = 4.0;
   hg.position.y = HOUSE_Y;
   b.group.add(hg);
   const house = { serviced: false, lamp: hg.userData.lamp, bags: [], can: null };
@@ -4189,7 +4287,8 @@ function makeBlockContents(b, baseX){
   // stepTopAt() reads this every frame so yard NPCs (and the worker) that cross it stand ON the
   // landing top instead of clipping into the 0.3..0.36 slab.
   const stLocal = hg.userData.step;
-  house.step = { x0: baseX - stLocal.hw, x1: baseX + stLocal.hw, y0: HOUSE_Y + stLocal.cy - stLocal.hd, y1: HOUSE_Y + stLocal.cy + stLocal.hd, top: stLocal.top };
+  const houseX = baseX + 4.0;
+  house.step = { x0: houseX - stLocal.hw, x1: houseX + stLocal.hw, y0: HOUSE_Y + stLocal.cy - stLocal.hd, y1: HOUSE_Y + stLocal.cy + stLocal.hd, top: stLocal.top };
   b.house = house;
   // Curb garbage ONLY on "garbage" blocks. Blocks 1 & 8 (and the route's edge blocks)
   // stay clean — a fresh block just swept / a block past the shift's end.
@@ -4198,7 +4297,7 @@ function makeBlockContents(b, baseX){
     // GRASS in front of the house (y 5.0..7.0). Kept inside THIS house's own 8u cell
     // (x baseX+0.8..7.2) so it's always in front of a house and can never spill into the
     // 16u cross-street / intersection gaps between blocks.
-    const sideY  = () => R(0.5, 7.0);
+    const sideY  = () => R(0.5, spawnMaxY());
     const houseX = () => baseX + R(0.8, 7.2);
     // curb trash layout (every house has something to collect)
     const r = Math.random();
@@ -4242,9 +4341,16 @@ function makeBlockContents(b, baseX){
   if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.2, 4.8));
   // sidewalk trees
   if (Math.random() < 0.5){
-    const t = makeTree();
-    t.position.set(R(1, 6), R(6, 7.5), 0);
-    b.group.add(t);
+    if (isManhattanLevel()){
+      // Manhattan: trees are on the sidewalk near the curb, not on a front lawn
+      const t = makeSidewalkTree();
+      t.position.set(R(1, 6), R(0.8, 1.8), 0);
+      b.group.add(t);
+    } else {
+      const t = makeTree();
+      t.position.set(R(1, 6), R(6, 7.5), 0);
+      b.group.add(t);
+    }
   }
 }
 function spawnWorld(){
@@ -4268,32 +4374,59 @@ function spawnWorld(){
   for (const t in counts) for (let i = 0; i < counts[t]; i++) addCreature(t);
   // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
   // The dog barks and lunges at the worker but the chain limits how far it gets.
+  // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
+  // instead of having a doghouse (no front lawns in Manhattan).
   const ld = addCreature('leashdog');
   {
     const b = blocks[(Math.random() * blocks.length) | 0];
-    // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
-    // walkway — never on the street/sidewalk, never on the raised concrete step in
-    // front of the door (that slab spans |x| <= 1.25 of the house), and never right up
-    // against the door. So stand it a couple of units out to one side of the house; if
-    // the chosen side would run into the cross-street gap (an edge house) use the open
-    // side so it always stays on this block's lawn.
-    const mag = R(2.4, 3.4);
-    let side = Math.random() < 0.5 ? -1 : 1;
-    let ax = b.worldX + side * mag;
-    if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
-    ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-    ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5) - never on the street/sidewalk
-    ld.homeX = ld.anchorX + R(-0.4, 0.8);
-    ld.homeY = ld.anchorY - R(0.9, 1.5);
-    ld.wx = ld.homeX; ld.wy = ld.homeY;
-    ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
-    dynamicGroup.add(ld.houseG);
-    const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
-    ld.chain.scale.x = Math.max(0.02, cl0);
-    ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38); // above the grass surface
-    ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
-    dynamicGroup.add(ld.chain);
-    ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
+    if (isManhattanLevel()){
+      // Manhattan: dog tied to a fence post on the sidewalk (no doghouse)
+      // Dog stays on the sidewalk, not on a front lawn
+      const mag = R(1.5, 2.5);
+      let side = Math.random() < 0.5 ? -1 : 1;
+      let ax = b.worldX + side * mag;
+      if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
+      ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+      ld.anchorY = R(2.0, 4.5);   // on the sidewalk, not on a front lawn
+      ld.homeX = ld.anchorX + R(-0.4, 0.8);
+      ld.homeY = ld.anchorY - R(0.5, 1.0);
+      ld.wx = ld.homeX; ld.wy = ld.homeY;
+      // In Manhattan, no doghouse - just the chain stake on the sidewalk
+      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
+      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+      ld.chain.scale.x = Math.max(0.02, cl0);
+      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+      dynamicGroup.add(ld.chain);
+      // Make the doghouse invisible in Manhattan
+      ld.houseG.visible = false;
+      dynamicGroup.add(ld.houseG);
+      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
+    } else {
+      // Original doghouse placement for non-Manhattan levels
+      // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
+      // walkway — never on the street/sidewalk, never on the raised concrete step in
+      // front of the door (that slab spans |x| <= 1.25 of the house), and never right up
+      // against the door. So stand it a couple of units out to one side of the house; if
+      // the chosen side would run into the cross-street gap (an edge house) use the open
+      // side so it always stays on this block's lawn.
+      const mag = R(2.4, 3.4);
+      let side = Math.random() < 0.5 ? -1 : 1;
+      let ax = b.worldX + side * mag;
+      if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
+      ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+      ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5) - never on the street/sidewalk
+      ld.homeX = ld.anchorX + R(-0.4, 0.8);
+      ld.homeY = ld.anchorY - R(0.9, 1.5);
+      ld.wx = ld.homeX; ld.wy = ld.homeY;
+      ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+      dynamicGroup.add(ld.houseG);
+      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+      ld.chain.scale.x = Math.max(0.02, cl0);
+      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38); // above the grass surface
+      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+      dynamicGroup.add(ld.chain);
+      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
+    }
   }
   // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
   // shared seed spot; every bird scatters on its own random heading when shooed
@@ -4873,7 +5006,7 @@ function dropCarried(){
   if (carry === 'none' || !carried) return;
   const item = carried;
   item.wx = p.wx - 0.4 + R(-0.3, 0.3);
-  item.wy = clamp(p.wy + R(0.6, 1.0), -2, WORKER_MAX_Y);
+  item.wy = clamp(p.wy + R(0.6, 1.0), -2, workerMaxY());
   if (item.kind === 'litterbasket'){
     item.state = 'placed';   // knocked-out basket stays pickable; reset restores it home
   } else if (item.kind === 'can' && item.state === 'carriedEmpty'){
@@ -5426,7 +5559,7 @@ function spawnPowerups(level){
 let monsterNextAt = MONSTER_SCORE_STEP;   // next score milestone at which the Monster spawns
 function spawnMonsterNearPlayer(){
   const wx = snapToHouseCell(p.wx);   // in front of the nearest house to the worker - on the sidewalk/grass, never in an intersection
-  const wy = Math.max(0.5, Math.min(7.0, p.wy + R(-0.9, 0.9)));
+  const wy = clamp(p.wy + R(-0.9, 0.9), 0.5, spawnMaxY());
   spawnPowerup('monster', wx, wy);
 }
 function consumePowerup(b){
@@ -5662,7 +5795,7 @@ function collideLandedCans(){
     const nx = -dx / d, ny = -dy / d; // push outward
     const pen = Math.sqrt(0.85) - d;
     p.wx += nx * (pen + 0.05);
-    p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, WORKER_MAX_Y);
+    p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
   }
 }
 function collideCreatures(){
@@ -5696,7 +5829,7 @@ function collideCreatures(){
       const nx = -dx / d, ny = -dy / d; // from person toward worker
       const pen = rad - d;             // push out to just touching (small gap)
       p.wx += nx * (pen + 0.05);
-      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, WORKER_MAX_Y);
+      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
       if (c.vcd <= 0){
         c.vcd = 2.5;
         if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy); }
@@ -5728,7 +5861,7 @@ function collideCreatures(){
       // vehicles: knockback + drop + stun + i-frames
       const nl = Math.sqrt(d2) || 1;
       p.wx -= (dx / nl) * 1.6;
-      p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, WORKER_MAX_Y);
+      p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, workerMaxY());
       dropCarried();
       hurtNPC(HP_HIT_VEHICLE);   // get run over = lose health (absorbed if immune / i-framed)
       p.invuln = 1.6;
@@ -5813,7 +5946,7 @@ function updatePlayer(dt){
   const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
   const lat = l; // strafe component (continuous)
   p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * dt;
-  p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, WORKER_MAX_Y);
+  p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, workerMaxY());
   // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
   if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
@@ -5840,7 +5973,7 @@ function updatePlayer(dt){
         const d = Math.sqrt(d2);
         const push = WR - d;
         p.wx += (dx / d) * push;
-        p.wy = clamp(p.wy + (dy / d) * push, -9.4, WORKER_MAX_Y);
+        p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
       } else {
         // Degenerate (worker inside the box): eject toward the nearer side
         const dBot = Math.abs(p.wy - (tCy - tHalfW));
@@ -6326,7 +6459,7 @@ function updateCreatures(dt){
           c.flee -= dt;
           const away = c.wx >= p.wx ? 1 : -1;
           c.wx += away * 7 * dt;
-          c.wy = clamp(c.wy + (Math.random() - 0.5) * 8 * dt, 0.8, 7.5);
+          c.wy = clamp(c.wy + (Math.random() - 0.5) * 8 * dt, 0.8, creatureMaxY());
           c.g.rotation.z = away >= 0 ? R(-0.25, 0.25) : Math.PI + R(-0.25, 0.25); // face the direction it scurries
           animParts(c, dt * 25);
         } else if (c.t > 0){
@@ -6336,9 +6469,9 @@ function updateCreatures(dt){
           const dx = c.tx - c.wx, dy = c.ty - c.wy;
           const dl = Math.hypot(dx, dy) || 1;
           c.wx += (dx / dl) * racSp * dt;
-          c.wy = clamp(c.wy + (dy / dl) * racSp * dt, 0.8, 7.5);
+          c.wy = clamp(c.wy + (dy / dl) * racSp * dt, 0.8, creatureMaxY());
           c.g.rotation.z = Math.atan2(dy, dx); // always face the direction it walks — never backwards
-          if (dl < 0.6){ c.t = R(1, 3); c.tx = R(p.wx - 30, p.wx + 40); c.ty = R(1, 7.5); }
+          if (dl < 0.6){ c.t = R(1, 3); c.tx = R(p.wx - 30, p.wx + 40); c.ty = R(1, creatureMaxY()); }
           animParts(c, dt * 12);
         }
         c.g.position.z = c.g.position.z; // keep
@@ -7367,7 +7500,7 @@ function updateRouteEnd(dt){
     else {
       const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
       p.wx += (dx / dist) * sp * dt;
-      p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, WORKER_MAX_Y);
+      p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, workerMaxY());
       // face the direction of travel (same easing as normal walking)
       const target = Math.atan2(dy, dx);
       let diff = target - p.facing;
