@@ -211,6 +211,12 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .menu-explicit { position:absolute; bottom:8px; right:8px; z-index:3; pointer-events:none;
   width: clamp(80px, 9vw, 120px); max-width:120px; height:auto;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.85)); }
+/* Build/version tag pinned to the TOP-LEFT of the logo frame (the PA badge owns the
+   bottom-right, the START SHIFT bar owns the bottom). Small, dim, decorative -
+   click-through so it never blocks the radio widget or START SHIFT. */
+.menu-version { position:absolute; top:8px; left:8px; z-index:3; pointer-events:none;
+  font-family:"Courier New",Courier,monospace; font-size:clamp(9px,1.2vw,12px); letter-spacing:2px;
+  color:rgba(125,255,158,.8); text-shadow:0 0 6px rgba(46,224,144,.5), 1px 1px 0 rgba(0,0,0,.85); }
 /* Pinned to the VERY BOTTOM of the logo frame: START SHIFT with the NOW PLAYING
    widget docked just below it (flush with the frame's bottom edge, minimal footprint). */
 .menu-bottom { position:absolute; bottom:0; left:0; right:0; text-align:center; padding:0;
@@ -461,6 +467,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
+    <div id="app-version" class="menu-version">v1.0.1</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -537,8 +544,14 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 </script>
 <script>
 'use strict';
+// ==================== APP VERSION ====================
+// Bump this on every release (commit/push) so the main menu can show which build
+// the player is running. Keep it in sync with the "version" field in manifest.json.
+const APP_VERSION = '1.0.1';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
+// Show the running build on the main menu (populated once at boot).
+(function(){ const v = $('app-version'); if (v) v.textContent = 'v' + APP_VERSION; })();
 const R = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
 const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);
@@ -1194,10 +1207,30 @@ const SFX = {
       return this._radioCache;
     } catch (e) { return null; }
   },
+  // iOS Safari can hang a network fetch() INDEFINITELY when the radios are off
+  // (wifi + cellular disabled) instead of failing fast - the exact reason SKIP
+  // could wedge on an uncached track. Every radio network fetch goes through this
+  // helper so a hung request is aborted after `ms` and the caller falls back to
+  // whatever is cached (or the raw URL, which the <audio> element will error on
+  // and the error handler advances past). A cache hit never reaches the network,
+  // so cached loads stay instant.
+  _radioFetch(url, ms){
+    const timeout = (typeof ms === 'number' && ms > 0) ? ms : 5000;
+    let ctrl = null;
+    if (typeof AbortController !== 'undefined') ctrl = new AbortController();
+    const timer = setTimeout(function(){ if (ctrl){ try { ctrl.abort(); } catch (e) {} } }, timeout);
+    return fetch(url, ctrl ? { signal: ctrl.signal } : undefined).finally(function(){ clearTimeout(timer); });
+  },
   // Returns a playable object URL for the track: cache hit -> blob from cache;
   // cache miss -> fetch from the network, store in cache, blob. On a network
   // failure with an empty cache we fall back to the raw music/ URL so the
   // browser's own HTTP cache / streaming can still try.
+  //
+  // iOS offline hardening: a bare fetch() can hang forever when the radios are
+  // off, so on a cache miss we (a) never fetch at all when navigator.onLine is
+  // false (the raw-URL fallback lets the <audio> element error out and the error
+  // handler advances to the next track immediately), and (b) guard every online
+  // fetch with a hard timeout so a stalled request can't wedge the rotation.
   async _radioResolveSrc(name){
     const url = 'music/' + encodeURIComponent(name);
     const cache = await this._radioGetCache();
@@ -1209,14 +1242,17 @@ const SFX = {
           return { blobUrl: URL.createObjectURL(blob, url), fromCache: true };
         }
       } catch (e) { /* corrupt entry: fall through to a fresh fetch */ }
-      try {
-        const r = await fetch(url);
-        if (r.ok){
-          const blob = await r.blob();
-          await cache.put(url, new Response(blob)); // cache it for next time
-          return { blobUrl: URL.createObjectURL(blob, url), fromCache: false };
-        }
-      } catch (e) { /* offline and not cached yet: let the <audio> element try directly */ }
+      const online = (typeof navigator === 'undefined') || navigator.onLine !== false;
+      if (online){
+        try {
+          const r = await this._radioFetch(url, 5000);
+          if (r.ok){
+            const blob = await r.blob();
+            await cache.put(url, new Response(blob)); // cache it for next time
+            return { blobUrl: URL.createObjectURL(blob, url), fromCache: false };
+          }
+        } catch (e) { /* offline / timeout / network error: let the <audio> element try directly */ }
+      }
     }
     return { blobUrl: url, fromCache: false };
   },
@@ -1266,6 +1302,7 @@ const SFX = {
     try { console.log('[radio] ' + list.length + ' tracks on the rotation: ' + list.join(' | ')); } catch (e) {}
     const el = this.radioEl = new Audio();
     el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
+    el.muted = this.radioMuted;            // iOS: the muted property is the reliable mute path
     el.addEventListener('ended', () => this._radioSchedule(2000)); // song finished → 2s of air → next song
     el.addEventListener('error', () => {
       // A revoked blob URL (previous track) can still fire an error event AFTER
@@ -1442,7 +1479,10 @@ function radioSetTitle(name){
 }
 function radioToggleMute(){
   SFX.radioMuted = !SFX.radioMuted;
-  if (SFX.radioEl) SFX.radioEl.volume = SFX.radioMuted ? 0 : 0.9;
+  if (SFX.radioEl){
+    SFX.radioEl.muted = SFX.radioMuted;           // iOS: the muted property is the reliable mute path
+    SFX.radioEl.volume = SFX.radioMuted ? 0 : 0.9; // belt-and-suspenders for non-iOS
+  }
   radioBox.classList.toggle('muted', SFX.radioMuted);
   $('btnMute').classList.toggle('off', SFX.radioMuted);
   return SFX.radioMuted;
