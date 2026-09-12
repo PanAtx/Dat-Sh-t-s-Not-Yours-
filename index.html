@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.23</div>
+    <div id="app-version" class="menu-version">v1.0.24</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.23';
+const APP_VERSION = '1.0.24';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -710,7 +710,7 @@ const LEVEL_DAYS = [
   { day: 'SUNDAY',    borough: 'BROOKLYN',      area: 'BED-STUY' },
 ];
 const MAX_LEVEL = LEVEL_DAYS.length;               // 7 days (Mon..Sun)
-let level = 1;                                     // current day of the week (1..MAX_LEVEL)
+let level = 3;                                     // current day of the week (1..MAX_LEVEL) — starts on Brooklyn Flatbush
 let weekScore = 0;                                 // running score across the whole week
 let dayScore = 0;                                  // score earned today only
 let dayStats = null;                               // { bags|cans|baskets|mongo|treasure|cash : {got,total} }
@@ -3368,89 +3368,108 @@ function makeHouse(){
   return g;
 }
 function makeBrooklynFlatbushHouse(){
-  // Brooklyn Flatbush level: copy of the Queens house layout (small house with flowers).
-  // Edit this function independently of makeHouse() — changes here affect only Flatbush.
+  // Brooklyn Flatbush house: larger two-story home with A-frame roof,
+  // elevated front porch with steps, and porch roof angled away from the house.
   const g = new THREE.Group();
   const cols = [0x8a5a3b, 0xb08954, 0x7a3b34, 0x5d6b75, 0x9c7a4d, 0x6b5a7e, 0x98683f, 0x4a6a5a];
   const col = cols[(Math.random() * cols.length) | 0];
-  const w = R(3.6, 4.6), d = R(3.4, 4.2), h = R(3.0, 4.4);
-  const body = BX(w, d, h, M(col)); body.position.z = 0.3 + h / 2; body.receiveShadow = false; g.add(body);
-  const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26)); roof.position.z = 0.3 + h + 0.2; g.add(roof);
+  const w = R(5.0, 5.8), d = R(4.5, 5.2), h = R(5.0, 5.6);
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  body.receiveShadow = false;
+  g.add(body);
+  // A-frame roof
+  const roofMat = M(0x2e2a26);
+  const roofAngle = Math.atan2(h * 0.45, w * 0.55);
+  const roofLen = w * 0.55 / Math.cos(roofAngle);
+  const roofL = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
+  roofL.position.set(0, 0, 0.3 + h + h * 0.22);
+  roofL.rotation.z = roofAngle;
+  g.add(roofL);
+  const roofR = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
+  roofR.position.set(0, 0, 0.3 + h + h * 0.22);
+  roofR.rotation.z = -roofAngle;
+  g.add(roofR);
+  // Elevated front porch (solid box with brick sides, cement top)
+  const porchW = w * 0.8;
+  const porchD = 1.2;
+  const porchH = 0.7;
+  // Solid brick base
+  const porchBase = BX(porchW, porchD, porchH, M(0x8b5a3a));
+  porchBase.position.set(0, -d / 2 - porchD / 2, 0.3 + porchH / 2);
+  porchBase.receiveShadow = true;
+  g.add(porchBase);
+  // Cement-colored top slab
+  const porchTop = BX(porchW + 0.1, porchD + 0.1, 0.12, M(0x9a948a));
+  porchTop.position.set(0, -d / 2 - porchD / 2, 0.3 + porchH + 0.06);
+  porchTop.receiveShadow = true;
+  g.add(porchTop);
+  // Brick steps leading up to the porch (stacked boxes like Manhattan stoop)
+  const stepMat = M(0x8b5a3a);
+  const stepW = porchW * 0.45;
+  const stepD = 0.4;
+  const stepH = 0.24;
+  for (let s = 0; s < 3; s++){
+    const step = BX(stepW, stepD, stepH, stepMat);
+    // s=0: top step flush with porch front edge; s=2: bottom step furthest out
+    step.position.set(0, -d/2 - porchD - (s + 0.5) * stepD, 0.3 + (2-s) * stepH + stepH/2);
+    step.castShadow = false;
+    step.receiveShadow = true;
+    g.add(step);
+  }
 
+  // Elevated door on the porch (door bottom above porch level)
   const doorW = 0.9, doorH = 1.7, doorT = 0.08;
   const doorFrame = BX(doorW + 0.12, 0.10, doorH + 0.06, M(0x2e2820));
-  doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + doorH / 2 + 0.03);
+  doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + porchH + 0.25 + doorH / 2 + 0.03);
   g.add(doorFrame);
   const door = BX(doorW, doorT, doorH, M(0x3a2c20));
-  door.position.set(0, -d / 2 - 0.01, 0.3 + doorH / 2);
+  door.position.set(0, -d / 2 - 0.01, 0.3 + porchH + 0.25 + doorH / 2);
   g.add(door);
   const handle = SPH(0.045, new THREE.MeshLambertMaterial({ color: 0xcccccc, emissive: 0x444444, emissiveIntensity: 0.4 }));
-  handle.position.set(0.32, -d / 2 - 0.04, 0.3 + 0.9);
+  handle.position.set(0.32, -d / 2 - 0.04, 0.3 + porchH + 0.25 + 0.9);
   g.add(handle);
-
+  // Two floors of windows (raised so first floor isn't too close to porch)
   const wm = new THREE.MeshLambertMaterial({ color: 0x9fd0e8, emissive: 0x24434f, emissiveIntensity: 0.7 });
   const muntinM = M(0x8a8a8a);
-  for (let i = 0; i < 2; i++){
-    const side = (i === 0 ? -1 : 1);
-    const winX = side * w * 0.3;
-    const winFrame = BX(0.86, 0.11, 0.86, M(0xffffff));
-    winFrame.position.set(winX, -d / 2 + 0.01, 0.3 + h * 0.6);
-    g.add(winFrame);
-    const win = BX(0.78, 0.06, 0.78, wm);
-    win.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
-    g.add(win);
-    const muntinV = BX(0.08, 0.08, 0.76, muntinM);
-    muntinV.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
-    g.add(muntinV);
-    const muntinH = BX(0.76, 0.08, 0.08, muntinM);
-    muntinH.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
-    g.add(muntinH);
+  for (let floor = 0; floor < 2; floor++){
+    const fy = 0.3 + 2.2 + floor * 1.8;
+    for (let i = 0; i < 2; i++){
+      const side = (i === 0 ? -1 : 1);
+      const winX = side * w * 0.3;
+      const winFrame = BX(0.86, 0.11, 0.86, M(0xffffff));
+      winFrame.position.set(winX, -d / 2 + 0.01, fy);
+      g.add(winFrame);
+      const win = BX(0.78, 0.06, 0.78, wm);
+      win.position.set(winX, -d / 2 - 0.01, fy);
+      g.add(win);
+      const muntinV = BX(0.08, 0.08, 0.76, muntinM);
+      muntinV.position.set(winX, -d / 2 - 0.01, fy);
+      g.add(muntinV);
+      const muntinH = BX(0.76, 0.08, 0.08, muntinM);
+      muntinH.position.set(winX, -d / 2 - 0.01, fy);
+      g.add(muntinH);
+    }
   }
-
-  const winSFrame = BX(0.11, 0.86, 0.86, M(0xffffff));
-  winSFrame.position.set(w / 2 + 0.01, 0, 0.3 + h * 0.6);
-  g.add(winSFrame);
-  const winS = BX(0.06, 0.78, 0.78, wm);
-  winS.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
-  g.add(winS);
-  const muntinV2 = BX(0.08, 0.76, 0.08, muntinM);
-  muntinV2.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
-  g.add(muntinV2);
-  const muntinH2 = BX(0.08, 0.76, 0.08, muntinM);
-  muntinH2.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
-  g.add(muntinH2);
-
-  const bracket = BX(0.06, 0.08, 0.18, M(0x333333));
-  bracket.position.set(0, -d / 2 - 0.03, 0.3 + 1.92);
-  g.add(bracket);
-  const bulb = SPH(0.065, new THREE.MeshLambertMaterial({ color: 0xffffcc, emissive: 0xffff66, emissiveIntensity: 4.5 }));
-  bulb.position.set(0, -d / 2 - 0.03, 0.3 + 1.82);
-  g.add(bulb);
-  if (true){
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({
-      color: 0xffe680,
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      opacity: 0.55,
-      depthWrite: false
-    }));
-    glow.scale.set(1.4, 1.4, 1);
-    glow.position.set(0, -d / 2 - 0.01, 0.3 + 1.84);
-    g.add(glow);
-    g.userData.glow = glow;
+  // Side windows
+  for (let floor = 0; floor < 2; floor++){
+    const fy = 0.3 + 2.2 + floor * 1.8;
+    const winSFrame = BX(0.11, 0.86, 0.86, M(0xffffff));
+    winSFrame.position.set(w / 2 + 0.01, 0, fy);
+    g.add(winSFrame);
+    const winS = BX(0.06, 0.78, 0.78, wm);
+    winS.position.set(w / 2 - 0.01, 0, fy);
+    g.add(winS);
   }
-  g.userData.flickerPhase = Math.random() * 100;
-  g.userData.flickerSpeed = 0.6 + Math.random() * 0.9;
-
-  const sm = M(0x9a948a);
-  const step = BX(2.5, 1.0, 0.06, sm); step.position.set(0, -d / 2 - 0.6, 0.33); step.castShadow = false; step.receiveShadow = true; g.add(step);
-  g.userData.step = { cx: 0, cy: -d / 2 - 0.6, hw: 1.25, hd: 0.5, top: 0.33 + 0.03 };
-
+  // Step footprint for collision (top of porch)
+  g.userData.step = { cx: 0, cy: -d / 2 - porchD / 2, hw: porchW / 2, hd: porchD / 2, top: 0.3 + porchH + 0.05 };
+  // No front yard flowers (porch takes that space)
+  // Small garden beds on the sides of the house instead
   const flowerColors = [0xe94560, 0xf9c74f, 0xff6b6b, 0xff9ff3, 0xffffff, 0x54a0ff, 0xffd700, 0xc05ac0];
-  for (let i = 0; i < 6; i++){
-    const side = (i < 3 ? -1 : 1);
-    const fx = side * R(w * 0.33, w * 0.47);
-    const fy = -d / 2 - R(1.0, 2.6);
+  for (let i = 0; i < 4; i++){
+    const side = (i < 2 ? -1 : 1);
+    const fx = side * (w / 2 + 0.5);
+    const fy = R(0, 1.5);
     const stem = CY(0.028, 0.022, 0.26, M(0x2d6a4f), 5);
     stem.rotation.x = Math.PI / 2;
     stem.position.set(fx, fy, 0.43);
@@ -4565,8 +4584,10 @@ function makeBlockContents(b, baseX){
   const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
   const hg = makeBuilding();
   // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
-  // Other neighborhoods have a grass buffer between the sidewalk and the house.
-  const HOUSE_Y = isManhattanLevel() ? 8.7 : 10.5;
+  // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
+  let HOUSE_Y = 10.5;
+  if (isManhattanLevel()) HOUSE_Y = 8.7;
+  else if (borough === 'BROOKLYN') HOUSE_Y = 10.5; // porch needs more setback from sidewalk
   // Shift house row right within the block to balance spacing (not flush with intersection).
   hg.position.x = 4.0;
   hg.position.y = HOUSE_Y;
@@ -4630,8 +4651,8 @@ function makeBlockContents(b, baseX){
   if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.2, 4.8));
   // sidewalk trees
   if (Math.random() < 0.5){
-    if (isManhattanLevel()){
-      // Manhattan: trees are on the sidewalk near the curb, not on a front lawn
+    if (isManhattanLevel() || borough === 'BROOKLYN'){
+      // Manhattan AND Flatbush: trees are on the sidewalk near the curb, not on a front lawn
       const t = makeSidewalkTree();
       t.position.set(R(1, 6), R(0.8, 1.8), 0);
       b.group.add(t);
@@ -7926,7 +7947,7 @@ function startGame(){
   SFX.ensure();
   if (SFX.ctx && SFX.ctx.state === 'suspended') SFX.ctx.resume();
   SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
-  level = 1;          // a new week always starts on Monday
+  level = 3;          // start on Wednesday (Brooklyn Flatbush)
   weekScore = 0;      // fresh running total
   // New game = new worker: set the skin tone ONCE here so it stays the same
   // across every level until the game is restarted (not re-rolled per shift).
@@ -7992,7 +8013,7 @@ function quitGame(){
   if (ov) ov.classList.add('hidden');
   const b = $('btnPause');
   if (b) b.textContent = 'PAUSE / QUIT';
-  level = 1; weekScore = 0; score = 0; bonusTally = 0; complaints = 0;
+  level = 3; weekScore = 0; score = 0; bonusTally = 0; complaints = 0;
   resetWorldState();   // rebuild a clean street + re-anchor the worker at the start
   ['over', 'complete', 'day-intro', 'day-stats', 'week-complete'].forEach(function(id){ $(id).classList.add('hidden'); });
   $('menu').classList.remove('hidden');
