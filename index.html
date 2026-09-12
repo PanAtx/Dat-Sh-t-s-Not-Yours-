@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.29</div>
+    <div id="app-version" class="menu-version">v1.0.30</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.29';
+const APP_VERSION = '1.0.30';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4734,84 +4734,86 @@ function spawnWorld(){
   // The dog barks and lunges at the worker but the chain limits how far it gets.
   // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
   // instead of having a doghouse (no front lawns in Manhattan).
-  const ld = addCreature('leashdog');
-  {
-    const b = blocks[(Math.random() * blocks.length) | 0];
-    if (isManhattanLevel()){
-      // Manhattan: dog tied to a fence post on the sidewalk (no doghouse)
-      // Dog stays on the sidewalk, not on a front lawn. Leash reaches the brownstone wall
-      // but dog's home position is far enough from the stoop to avoid clipping.
-      const mag = R(1.5, 2.5);
-      let side = Math.random() < 0.5 ? -1 : 1;
-      let ax = b.worldX + side * mag;
-      if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
-      ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-      ld.anchorY = R(2.5, 4.5);   // on the sidewalk
-      // Home position far enough from stoop that dog can't clip through it
-      ld.homeX = ld.anchorX + R(-0.4, 0.8);
-      ld.homeY = ld.anchorY - R(0.8, 1.5);
-      ld.wx = ld.homeX; ld.wy = ld.homeY;
-      // In Manhattan, no doghouse - just the chain stake on the sidewalk
-      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
-      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
-      ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
-      dynamicGroup.add(ld.chain);
-      // Make the doghouse invisible in Manhattan
-      ld.houseG.visible = false;
-      dynamicGroup.add(ld.houseG);
-      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
-    } else if (isFlatbushLevel()) {
-      // Brooklyn Flatbush: doghouse goes in the concrete driveway to the right
-      // of the house. Driveway is at local (8.0, 9.0), 3.0 wide (x), 8.0 deep (y).
-      // House is at (4.0, 10.5), front edge at y ~8.0. Doghouse must be:
-      //   - On the driveway: x in [6.5, 9.5], y in [5.0, 13.0]
-      //   - In front of the house: y < 8.0
-      //   - Not clipping the house: x > 7.0
-      // So: x in [7.0, 9.0], y in [5.5, 7.5]
-      const anchorX = b.worldX + R(7.0, 9.0);
-      const anchorY = R(5.5, 7.5);
-      ld.anchorX = anchorX;
-      ld.anchorY = anchorY;
-      // Dog's resting spot: closer to the sidewalk than the doghouse
-      ld.homeX = anchorX;
-      ld.homeY = anchorY - 1.5;
-      ld.wx = ld.homeX; ld.wy = ld.homeY;
-      ld.chainR = 3.5;
-      ld.houseG.position.set(anchorX, anchorY, GZ);
-      dynamicGroup.add(ld.houseG);
-      // Dog can bite in Flatbush
-      ld.canBite = true;
-      const cl0 = Math.sqrt((anchorX - ld.homeX) ** 2 + (anchorY - ld.homeY) ** 2);
-      ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.position.set((anchorX + ld.homeX) / 2, (anchorY + ld.homeY) / 2, 0.42);
-      ld.chain.rotation.z = Math.atan2(anchorY - ld.homeY, anchorX - ld.homeX);
-      dynamicGroup.add(ld.chain);
-      ld.g.rotation.z = Math.atan2(ld.homeY - anchorY, ld.homeX - anchorX);
-    } else {
-      // Original doghouse placement for other non-Manhattan levels
-      // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
-      // walkway — never on the street/sidewalk, never on the raised concrete step in
-      // front of the door. Leash should reach the house wall, but dog's resting
-      // position is set back from the door to avoid clipping.
-      const mag = R(2.4, 3.4);
-      let side = Math.random() < 0.5 ? -1 : 1;
-      let ax = b.worldX + side * mag;
-      if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
-      ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-      ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5)
-      // Home position set back from the door so dog can't clip through the house
-      ld.homeX = ld.anchorX + R(-0.4, 0.8);
-      ld.homeY = ld.anchorY - R(1.2, 2.0);
-      ld.wx = ld.homeX; ld.wy = ld.homeY;
-      ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
-      dynamicGroup.add(ld.houseG);
-      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
-      ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
-      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
-      dynamicGroup.add(ld.chain);
-      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
+  // In Flatbush (Brooklyn), 3 leashdogs with doghouses in driveways.
+  const dogCount = isFlatbushLevel() ? 3 : 1;
+  for (let di = 0; di < dogCount; di++) {
+    const ld = addCreature('leashdog');
+    {
+      const b = blocks[(Math.random() * blocks.length) | 0];
+      if (isManhattanLevel()){
+        // Manhattan: dog tied to a fence post on the sidewalk (no doghouse)
+        // Dog stays on the sidewalk, not on a front lawn. Leash reaches the brownstone wall
+        // but dog's home position is far enough from the stoop to avoid clipping.
+        const mag = R(1.5, 2.5);
+        let side = Math.random() < 0.5 ? -1 : 1;
+        let ax = b.worldX + side * mag;
+        if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
+        ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+        ld.anchorY = R(2.5, 4.5);   // on the sidewalk
+        // Home position far enough from stoop that dog can't clip through it
+        ld.homeX = ld.anchorX + R(-0.4, 0.8);
+        ld.homeY = ld.anchorY - R(0.8, 1.5);
+        ld.wx = ld.homeX; ld.wy = ld.homeY;
+        // In Manhattan, no doghouse - just the chain stake on the sidewalk
+        ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
+        const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+        ld.chain.scale.x = Math.max(0.02, cl0);
+        ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+        dynamicGroup.add(ld.chain);
+        // Make the doghouse invisible in Manhattan
+        ld.houseG.visible = false;
+        dynamicGroup.add(ld.houseG);
+        ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
+      } else if (isFlatbushLevel()) {
+        // Brooklyn Flatbush: doghouse on the side driveway to the right of the house.
+        // Driveway is at world position (worldX + 8.0, 9.0), 3.0 wide, 8.0 deep.
+        // House is at (worldX + 4.0, 10.5). Porch/steps at y=5.7 to y=8.1.
+        // Doghouse must be on the driveway in front of the porch: x=worldX+8.0, y<5.7.
+        const worldX = b.worldX;
+        const anchorX = worldX + 8.0;  // center of the driveway
+        const anchorY = R(5.0, 5.4);   // in front of the steps, not under the porch
+        ld.anchorX = anchorX;
+        ld.anchorY = anchorY;
+        // Dog's resting spot: closer to the sidewalk than the doghouse
+        ld.homeX = anchorX;
+        ld.homeY = anchorY - 1.5;
+        ld.wx = ld.homeX; ld.wy = ld.homeY;
+        ld.chainR = 3.5;
+        ld.houseG.position.set(anchorX, anchorY, GZ);
+        dynamicGroup.add(ld.houseG);
+        // Dog can bite in Flatbush
+        ld.canBite = true;
+        const cl0 = Math.sqrt((anchorX - ld.homeX) ** 2 + (anchorY - ld.homeY) ** 2);
+        ld.chain.scale.x = Math.max(0.02, cl0);
+        ld.chain.position.set((anchorX + ld.homeX) / 2, (anchorY + ld.homeY) / 2, 0.42);
+        ld.chain.rotation.z = Math.atan2(anchorY - ld.homeY, anchorX - ld.homeX);
+        dynamicGroup.add(ld.chain);
+        ld.g.rotation.z = Math.atan2(ld.homeY - anchorY, ld.homeX - anchorX);
+      } else {
+        // Original doghouse placement for other non-Manhattan levels
+        // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
+        // walkway — never on the street/sidewalk, never on the raised concrete step in
+        // front of the door. Leash should reach the house wall, but dog's resting
+        // position is set back from the door to avoid clipping.
+        const mag = R(2.4, 3.4);
+        let side = Math.random() < 0.5 ? -1 : 1;
+        let ax = b.worldX + side * mag;
+        if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
+        ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+        ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5)
+        // Home position set back from the door so dog can't clip through the house
+        ld.homeX = ld.anchorX + R(-0.4, 0.8);
+        ld.homeY = ld.anchorY - R(1.2, 2.0);
+        ld.wx = ld.homeX; ld.wy = ld.homeY;
+        ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+        dynamicGroup.add(ld.houseG);
+        const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+        ld.chain.scale.x = Math.max(0.02, cl0);
+        ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
+        ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+        dynamicGroup.add(ld.chain);
+        ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
+      }
     }
   }
   // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
