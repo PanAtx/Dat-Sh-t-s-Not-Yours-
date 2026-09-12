@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.28</div>
+    <div id="app-version" class="menu-version">v1.0.29</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.28';
+const APP_VERSION = '1.0.29';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4763,31 +4763,31 @@ function spawnWorld(){
       ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
     } else if (isFlatbushLevel()) {
       // Brooklyn Flatbush: doghouse goes in the concrete driveway to the right
-      // of the house. Driveway is at x=8.0-11.0 (3.0 wide), y=5.0-13.0 (8.0 deep).
-      // Doghouse is 0.7 wide x 0.55 deep, so anchor must be at least 0.35 from edges.
-      // Keep anchor at least 0.5 from driveway edges to ensure no clipping.
-      const drivewayX0 = b.worldX + 8.0;
-      const drivewayX1 = b.worldX + 11.0;
-      const drivewayY0 = 5.5;
-      const drivewayY1 = 12.5;
-      ld.anchorX = R(drivewayX0 + 0.5, drivewayX1 - 0.5);
-      ld.anchorY = R(drivewayY0, drivewayY1);
-      // Dog's resting spot is near the doghouse but offset toward the sidewalk
-      // so the chain has slack when the dog is at rest.
-      ld.homeX = ld.anchorX;
-      ld.homeY = ld.anchorY - 1.5;
+      // of the house. Driveway is at local (8.0, 9.0), 3.0 wide (x), 8.0 deep (y).
+      // House is at (4.0, 10.5), front edge at y ~8.0. Doghouse must be:
+      //   - On the driveway: x in [6.5, 9.5], y in [5.0, 13.0]
+      //   - In front of the house: y < 8.0
+      //   - Not clipping the house: x > 7.0
+      // So: x in [7.0, 9.0], y in [5.5, 7.5]
+      const anchorX = b.worldX + R(7.0, 9.0);
+      const anchorY = R(5.5, 7.5);
+      ld.anchorX = anchorX;
+      ld.anchorY = anchorY;
+      // Dog's resting spot: closer to the sidewalk than the doghouse
+      ld.homeX = anchorX;
+      ld.homeY = anchorY - 1.5;
       ld.wx = ld.homeX; ld.wy = ld.homeY;
       ld.chainR = 3.5;
-      ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+      ld.houseG.position.set(anchorX, anchorY, GZ);
       dynamicGroup.add(ld.houseG);
       // Dog can bite in Flatbush
       ld.canBite = true;
-      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+      const cl0 = Math.sqrt((anchorX - ld.homeX) ** 2 + (anchorY - ld.homeY) ** 2);
       ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.42);
-      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+      ld.chain.position.set((anchorX + ld.homeX) / 2, (anchorY + ld.homeY) / 2, 0.42);
+      ld.chain.rotation.z = Math.atan2(anchorY - ld.homeY, anchorX - ld.homeX);
       dynamicGroup.add(ld.chain);
-      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
+      ld.g.rotation.z = Math.atan2(ld.homeY - anchorY, ld.homeX - anchorX);
     } else {
       // Original doghouse placement for other non-Manhattan levels
       // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
@@ -4951,6 +4951,32 @@ function spawnDustEffect(wx, wy){
       life: 1.0,
       decay: 0.8 + R(0, 0.6),
       rotSpeed: R(-6, 6)
+    });
+  }
+}
+// ==================== BLOOD SPLATTER (dog bite) ====================
+function spawnBloodSplatter(wx, wy){
+  // A spray of red droplets: some fly high, some land flat
+  const count = 16;
+  for (let i = 0; i < count; i++){
+    const angle = R(-Math.PI, Math.PI);
+    const speed = 0.5 + R(0, 2.0);
+    const g = new THREE.Group();
+    const size = 0.03 + R(0, 0.06);
+    const geo = new THREE.SphereGeometry(size, 6, 4);
+    const mat = new THREE.MeshLambertMaterial({ color: pick([0xcc1a1a, 0xaa1010, 0xe02020]), transparent: true, opacity: 0.9 });
+    const mesh = new THREE.Mesh(geo, mat);
+    g.add(mesh);
+    dynamicGroup.add(g);
+    dustParticles.push({
+      g: g,
+      wx: wx, wy: wy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      vz: 0.3 + R(0, 1.8),
+      life: 0.6 + R(0, 0.4),
+      decay: 1.2,
+      rotSpeed: R(-10, 10)
     });
   }
 }
@@ -7647,6 +7673,7 @@ function updateCreatures(dt){
         if (c.canBite && c.agro > 0 && dWorker < 0.8){
           if (!c.biteCd || c.biteCd <= 0){
             c.biteCd = 1.5;
+            spawnBloodSplatter(p.wx, p.wy);
             hurtNPC(5);
             doStun(0.6, 'trip');
             Voice.say('OW! He bit me!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
