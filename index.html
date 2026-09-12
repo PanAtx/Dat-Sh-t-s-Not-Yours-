@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.27</div>
+    <div id="app-version" class="menu-version">v1.0.28</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.27';
+const APP_VERSION = '1.0.28';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4551,7 +4551,7 @@ function addCreature(type){
       c.anchorX = 0; c.anchorY = 7.6;
       c.homeX = 0.6; c.homeY = 5.5;
       c.wx = c.homeX; c.wy = c.homeY;
-      c.agro = 0; c.barkCd = 0;
+      c.agro = 0; c.barkCd = 0; c.biteCd = 0;
       break;
     }
   }
@@ -4763,22 +4763,28 @@ function spawnWorld(){
       ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
     } else if (isFlatbushLevel()) {
       // Brooklyn Flatbush: doghouse goes in the concrete driveway to the right
-      // of the house (x=8.0 relative to block). The driveway is at y=9.0 relative
-      // to the block, but we place it on the driveway itself to avoid the front
-      // lawn entirely (where the porch and steps cause clipping issues).
-      // Driveway is 3.0 wide (x 8.0-11.0) and 8.0 deep (y 5.0-13.0).
-      const drivewayX = b.worldX + 8.0;
-      const drivewayY = 9.0;
-      ld.anchorX = drivewayX + R(-0.8, 0.8);
-      ld.anchorY = drivewayY + R(-2.0, 2.0);
+      // of the house. Driveway is at x=8.0-11.0 (3.0 wide), y=5.0-13.0 (8.0 deep).
+      // Doghouse is 0.7 wide x 0.55 deep, so anchor must be at least 0.35 from edges.
+      // Keep anchor at least 0.5 from driveway edges to ensure no clipping.
+      const drivewayX0 = b.worldX + 8.0;
+      const drivewayX1 = b.worldX + 11.0;
+      const drivewayY0 = 5.5;
+      const drivewayY1 = 12.5;
+      ld.anchorX = R(drivewayX0 + 0.5, drivewayX1 - 0.5);
+      ld.anchorY = R(drivewayY0, drivewayY1);
+      // Dog's resting spot is near the doghouse but offset toward the sidewalk
+      // so the chain has slack when the dog is at rest.
       ld.homeX = ld.anchorX;
-      ld.homeY = ld.anchorY - R(0.6, 1.0);
+      ld.homeY = ld.anchorY - 1.5;
       ld.wx = ld.homeX; ld.wy = ld.homeY;
+      ld.chainR = 3.5;
       ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
       dynamicGroup.add(ld.houseG);
+      // Dog can bite in Flatbush
+      ld.canBite = true;
       const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
       ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
+      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.42);
       ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
       dynamicGroup.add(ld.chain);
       ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
@@ -7622,14 +7628,35 @@ function updateCreatures(dt){
           c.phase += step * 8; // drives the shared dogParts trot cycle (legs animate)
           c.g.rotation.z = Math.atan2(mvy, mvx); // dog faces +X - point it along its travel
         }
-        // chain: stake -> dog, kept taut
+        // chain: stake -> dog's neck, kept taut in 3D (follows dog up the step/porch)
         if (c.chain){
+          const dogNeckZ = c.dogParts ? (c.dogParts.root.position.z + 0.25) : (GZ + 0.25);
+          const stakeZ = 0.35; // chain anchor height on the stake
           const cx2 = c.anchorX - c.wx, cy2 = c.anchorY - c.wy;
-          const cl = Math.sqrt(cx2 * cx2 + cy2 * cy2);
+          const cz2 = stakeZ - dogNeckZ;
+          const cl = Math.sqrt(cx2 * cx2 + cy2 * cy2 + cz2 * cz2);
           c.chain.scale.x = Math.max(0.02, cl);
-          c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, 0.38); // ABOVE the grass top (ground solid to z 0.3)
+          c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, (dogNeckZ + stakeZ) / 2);
+          // Rotate chain to point from dog's neck toward the stake (3D direction)
           c.chain.rotation.z = Math.atan2(cy2, cx2);
+          // Tilt chain to match the vertical angle
+          const horizontal = Math.sqrt(cx2 * cx2 + cy2 * cy2);
+          c.chain.rotation.x = Math.atan2(cz2, horizontal);
         }
+        // Flatbush: dog can bite the worker if he's close enough
+        if (c.canBite && c.agro > 0 && dWorker < 0.8){
+          if (!c.biteCd || c.biteCd <= 0){
+            c.biteCd = 1.5;
+            hurtNPC(5);
+            doStun(0.6, 'trip');
+            Voice.say('OW! He bit me!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+            SFX.playHurtSound();
+            // Dog lunges animation (brief head snap)
+            if (c.dogParts) c.dogParts.headPivot.rotation.y = -0.8;
+            setTimeout(function(){ if (c.dogParts) c.dogParts.headPivot.rotation.y = 0; }, 300);
+          }
+        }
+        if (c.biteCd) c.biteCd -= dt;
         if (tx < -55){
           // recycle the whole set-up ahead of the route so it keeps showing up
           c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
