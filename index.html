@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.20</div>
+    <div id="app-version" class="menu-version">v1.0.21</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.20';
+const APP_VERSION = '1.0.21';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -748,7 +748,10 @@ function npcCounts(day){
       // Gated + scaling: absent until its day, then BASE + (day - gateDay) so it starts at 1 on that day.
       c[t] = (day >= GATED_NPC[t]) ? BASE_NPC_COUNTS[t] + (day - GATED_NPC[t]) : 0;
     } else {
-      c[t] = BASE_NPC_COUNTS[t] + (SCALING_NPC[t] ? extra : 0);
+      let base = BASE_NPC_COUNTS[t] + (SCALING_NPC[t] ? extra : 0);
+      // Raccoons only appear on Queens (Tue/Wed/Thu) and Staten Island levels, not Manhattan or Brooklyn
+      if (t === 'raccoon' && (day === 1 || day === 5 || day === 6 || day === 7)) base = 0;
+      c[t] = base;
     }
   }
   return c;
@@ -913,11 +916,14 @@ function buildGround(){
   groundStrip(GW, 10, 0.3, -19, 0x35522c, GCX);     // park beyond the far sidewalk
   groundStrip(GW, 4.5, 0.3, 2.75, 0x9a9a94, GCX);  // sidewalk (warm concrete)
   if (isManhattanLevel()){
+    console.log('  -> Manhattan path: concrete lawns');
     groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front lawns as concrete (Manhattan has no grass)
+    groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // park behind brownstones as concrete
   } else {
-    groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns
+    console.log('  -> Non-Manhattan path: green lawns');
+    groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX);  // front lawns (grass)
+    groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX);  // park beyond blocks (grass)
   }
-  groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX);  // park beyond the blocks
   // Main curb: ONE segment per block ON EACH SIDE. Each extends 1.5u PAST the
   // block on both sides so its end lands EXACTLY on the curb-return arc's
   // main-road tangent point (x = blockEdge +/- 1.5), where the straight curb
@@ -4194,7 +4200,7 @@ function addCreature(type){
     case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
     case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
     case 'raccoon': c.wy = R(1, creatureMaxY()); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, creatureMaxY()); c.data = makeRaccoon(); break;
-    case 'squirrel': c.wy = R(5.0, creatureMaxY()); c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
+    case 'squirrel': c.wy = R(1.5, 4.5); c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
     case 'pigeon': c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0; c.fleeAng = 0;
                    c.data = makePigeon(); c.wingL = c.data.userData.wingL; c.wingR = c.data.userData.wingR; break;
     case 'tric':  c.wy = R(1.2, 4.2); c.sp = R(1.5, 2.5); c.stop = R(0, 4); c.curSp = 0; c.targetWy = c.wy;
@@ -4211,7 +4217,10 @@ function addCreature(type){
     case 'moto':  c.wy = R(-6.5, -3.5); c.sp = R(12, 14); c.curSp = 0; c.targetWy = c.wy;
                   c.boxW = 0.35; c.boxL = 0.9; c.data = makeMoto(); break;
     case 'car':   c.wy = R(-3, -7.5); c.sp = R(10, 13); c.sway = R(0, 6.28); c.curSp = 0; c.targetWy = c.wy;
-                  c.boxW = 1.19; c.boxL = 2.66; c.colorHex = pick(CAR_COLORS); c.data = makeCar(c.colorHex); break;
+                  c.boxW = 1.19; c.boxL = 2.66;
+                  if (isManhattanLevel() && Math.random() < 0.35) c.colorHex = 0xf1c40f;
+                  else c.colorHex = pick(CAR_COLORS);
+                  c.data = makeCar(c.colorHex); break;
     case 'breaker': c.wy = R(1.2, creatureMaxY()); c.spin = 0; c.rest = R(0, 1.5); c.data = makePerson({ shirt: pick(SHIRTS), pants: 0x23262b, cap: true, hair: pick(HAIRS) }); break;
     case 'yeller': c.wy = R(1.2, creatureMaxY()); c.sp = R(0.25, 0.4); c.shout = R(2, 8); c.data = makePerson({ shirt: pick(SHIRTS), hoodie: true, hair: pick(HAIRS), fold: 1.05 }); break; // VERY slow shamble (pedestrians are 1.0-2.2); fold: chest folds ~60° forward at the hips
     case 'jacker': c.wy = R(1.2, creatureMaxY()); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
@@ -4228,9 +4237,9 @@ function addCreature(type){
       c.data = dg;
       c.houseG = makeDogHouse();
       c.chain = new THREE.Mesh(new THREE.BoxGeometry(1, 0.07, 0.05), MS(0xb0b8c0)); // chunky metal chain - must read at distance
-      c.chainR = 2.3;
+      c.chainR = 3.0;
       c.anchorX = 0; c.anchorY = 7.6;
-      c.homeX = 0.6; c.homeY = 6.3;
+      c.homeX = 0.6; c.homeY = 5.5;
       c.wx = c.homeX; c.wy = c.homeY;
       c.agro = 0; c.barkCd = 0;
       break;
@@ -4395,15 +4404,17 @@ function spawnWorld(){
     const b = blocks[(Math.random() * blocks.length) | 0];
     if (isManhattanLevel()){
       // Manhattan: dog tied to a fence post on the sidewalk (no doghouse)
-      // Dog stays on the sidewalk, not on a front lawn
+      // Dog stays on the sidewalk, not on a front lawn. Leash reaches the brownstone wall
+      // but dog's home position is far enough from the stoop to avoid clipping.
       const mag = R(1.5, 2.5);
       let side = Math.random() < 0.5 ? -1 : 1;
       let ax = b.worldX + side * mag;
       if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
       ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-      ld.anchorY = R(2.0, 4.5);   // on the sidewalk, not on a front lawn
+      ld.anchorY = R(2.5, 4.5);   // on the sidewalk
+      // Home position far enough from stoop that dog can't clip through it
       ld.homeX = ld.anchorX + R(-0.4, 0.8);
-      ld.homeY = ld.anchorY - R(0.5, 1.0);
+      ld.homeY = ld.anchorY - R(0.8, 1.5);
       ld.wx = ld.homeX; ld.wy = ld.homeY;
       // In Manhattan, no doghouse - just the chain stake on the sidewalk
       ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
@@ -4419,24 +4430,23 @@ function spawnWorld(){
       // Original doghouse placement for non-Manhattan levels
       // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
       // walkway — never on the street/sidewalk, never on the raised concrete step in
-      // front of the door (that slab spans |x| <= 1.25 of the house), and never right up
-      // against the door. So stand it a couple of units out to one side of the house; if
-      // the chosen side would run into the cross-street gap (an edge house) use the open
-      // side so it always stays on this block's lawn.
+      // front of the door. Leash should reach the house wall, but dog's resting
+      // position is set back from the door to avoid clipping.
       const mag = R(2.4, 3.4);
       let side = Math.random() < 0.5 ? -1 : 1;
       let ax = b.worldX + side * mag;
       if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
       ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-      ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5) - never on the street/sidewalk
+      ld.anchorY = R(6.4, 7.8);   // firmly on the front-lawn GRASS (band y 5..8.5)
+      // Home position set back from the door so dog can't clip through the house
       ld.homeX = ld.anchorX + R(-0.4, 0.8);
-      ld.homeY = ld.anchorY - R(0.9, 1.5);
+      ld.homeY = ld.anchorY - R(1.2, 2.0);
       ld.wx = ld.homeX; ld.wy = ld.homeY;
       ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
       dynamicGroup.add(ld.houseG);
       const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
       ld.chain.scale.x = Math.max(0.02, cl0);
-      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38); // above the grass surface
+      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
       ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
       dynamicGroup.add(ld.chain);
       ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX); // resting, street-facing
@@ -4528,7 +4538,9 @@ function resetWorldState(){
   resetLitterBaskets();   // restore all litter baskets to their corner homes
   footprints.length = 0; footDist = 0; p.poopSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
+  while (groundGroup.children.length){ const c = groundGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
+  buildGround();   // rebuild ground for the current level (Manhattan concrete vs other-boroughs grass)
   spawnWorld();
   computeDayTotals();   // count how many bags/cans/baskets/mongo/treasure/cash are out on today's street
   truck.wx = p.wx - 8; truck.hidden = 0; truck.g.visible = true;  // start close behind the worker at the route beginning
@@ -6493,7 +6505,7 @@ function updateCreatures(dt){
       }
       case 'squirrel':{
         c.wx += c.sp * dt;
-        c.wy = 6.5 + Math.sin(c.wx * 0.5) * 1.6;
+        c.wy = 4.0 + Math.sin(c.wx * 0.5) * 1.0;
         c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
         if (tx > 55) c.wx = p.wx - 38;
         break;
