@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.31</div>
+    <div id="app-version" class="menu-version">v1.0.32</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.31';
+const APP_VERSION = '1.0.32';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4554,6 +4554,17 @@ function addCreature(type){
       c.agro = 0; c.barkCd = 0; c.biteCd = 0;
       break;
     }
+    case 'straydog':{
+      // Stray dog on the street: no chain, no doghouse — just the dog itself
+      // wandering, barking, and snapping at the worker.
+      const dg = makeHighPolyDog();
+      c.data = dg;
+      c.homeX = 0; c.homeY = 2.5;
+      c.wx = c.homeX; c.wy = c.homeY;
+      c.agro = 0; c.barkCd = 0; c.biteCd = 0;
+      c.strayR = 8.0; // how far from home it wanders
+      break;
+    }
   }
   const isPerson = c.data && c.data.g && c.data.legL;
   c.vcd = 0; // voice cooldown — MUST start at 0 (undefined would make "c.vcd <= 0" always false and mute all bump lines)
@@ -4734,12 +4745,23 @@ function spawnWorld(){
   // The dog barks and lunges at the worker but the chain limits how far it gets.
   // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
   // instead of having a doghouse (no front lawns in Manhattan).
-  // In Flatbush (Brooklyn), 3 leashdogs with doghouses in driveways.
+  // In Flatbush (Brooklyn), stray dogs roam the street.
   const dogCount = isFlatbushLevel() ? 3 : 1;
   for (let di = 0; di < dogCount; di++) {
-    const ld = addCreature('leashdog');
-    {
+    const dogType = isFlatbushLevel() ? 'straydog' : 'leashdog';
+    const ld = addCreature(dogType);
+    if (isFlatbushLevel()) {
+      // Flatbush: stray dog wanders the street, no chain or doghouse
       const b = blocks[(Math.random() * blocks.length) | 0];
+      ld.wx = b.worldX + R(0.5, BLOCK_W - 0.5);
+      ld.wy = R(1.5, 3.5);
+      ld.homeX = ld.wx;
+      ld.homeY = ld.wy;
+      ld.canBite = true;
+    } else {
+      // Manhattan: leashdog with chain
+      {
+        const b = blocks[(Math.random() * blocks.length) | 0];
       if (isManhattanLevel()){
         // Manhattan: dog tied to a fence post on the sidewalk (no doghouse)
         // Dog stays on the sidewalk, not on a front lawn. Leash reaches the brownstone wall
@@ -7644,6 +7666,57 @@ function updateCreatures(dt){
         if (c.wheelR) c.wheelR.rotation.y += wspin;
         if (tx > 58){ c.wx = p.wx - 38; c._lane = R(1.4, 3.8); }
         else if (tx < -58){ c.wx = p.wx + 42; c._lane = R(1.4, 3.8); }
+        break;
+      }
+      case 'straydog':{
+        // Stray dog wanders the street, barks and lunges when the worker gets close.
+        // No chain, no doghouse - just the dog itself.
+        const dwx = p.wx - c.wx, dwy = p.wy - c.wy;
+        const dWorker = Math.sqrt(dwx * dwx + dwy * dwy);
+        if (dWorker < 6.5) c.agro = Math.max(c.agro || 0, 2.2);
+        else if (c.agro > 0) c.agro -= dt;
+        let gx, gy;
+        if (c.agro > 0){
+          gx = p.wx; gy = p.wy;
+          c.barkCd = (c.barkCd || 0) - dt;
+          if (c.barkCd <= 0 && dWorker < 9){
+            c.bark = 0.9; c.barkCd = R(1.0, 1.7);
+            Voice.say('WOOF! WOOF! WOOF!', 1.5, 1.0, c.wx, c.wy);
+          }
+        } else {
+          // wander randomly when not aggro
+          gx = c.wx + R(-3, 3);
+          gy = c.wy + R(-3, 3);
+        }
+        const mvx = gx - c.wx, mvy = gy - c.wy;
+        const ml = Math.sqrt(mvx * mvx + mvy * mvy);
+        if (ml > 0.06){
+          const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
+          c.wx += (mvx / ml) * step;
+          c.wy += (mvy / ml) * step;
+          c.phase += step * 8;
+          c.g.rotation.z = Math.atan2(mvy, mvx);
+        }
+        // can bite the worker
+        if (c.canBite && c.agro > 0 && dWorker < 0.8){
+          if (!c.biteCd || c.biteCd <= 0){
+            c.biteCd = 1.5;
+            spawnBloodSplatter(p.wx, p.wy);
+            hurtNPC(5);
+            doStun(0.6, 'trip');
+            Voice.say('OW! He bit me!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+            SFX.playHurtSound();
+            if (c.dogParts) c.dogParts.headPivot.rotation.y = -0.8;
+            setTimeout(function(){ if (c.dogParts) c.dogParts.headPivot.rotation.y = 0; }, 300);
+          }
+        }
+        if (c.biteCd) c.biteCd -= dt;
+        // recycle when off-screen
+        if (tx < -55){
+          c.wx = p.wx + 44 + R(0, 10);
+          c.wy = R(1.5, 3.5);
+          c.agro = 0;
+        }
         break;
       }
       case 'leashdog':{
