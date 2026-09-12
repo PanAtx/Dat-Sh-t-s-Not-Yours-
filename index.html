@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.21</div>
+    <div id="app-version" class="menu-version">v1.0.22</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.21';
+const APP_VERSION = '1.0.22';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3608,10 +3608,161 @@ function makeSidewalkTree(){
   tree.add(canopy);
   return tree;
 }
+function makeBronxApartment(){
+  const g = new THREE.Group();
+  const cols = [0x8a5a3a, 0x7a4a3a, 0x9a6a5a, 0x6a3a2a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = 9.0, d = 4.5, h = 4.5;
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  g.add(body);
+  const roof = BX(w - 0.5, d - 0.5, 0.25, M(0x2a2a2a));
+  roof.position.z = 0.3 + h + 0.125;
+  g.add(roof);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
+  for (let floor = 0; floor < 3; floor++){
+    const fy = 0.3 + 1.0 + floor * 1.3;
+    for (let x = -1; x <= 1; x += 2){
+      const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+      frame.position.set(x * w * 0.22, -d / 2 + 0.03, fy);
+      g.add(frame);
+      const glass = BX(0.6, 0.04, 0.9, winM);
+      glass.position.set(x * w * 0.22, -d / 2 - 0.05, fy);
+      g.add(glass);
+    }
+  }
+  const door = BX(0.9, 0.1, 1.7, M(0x3a2a1a));
+  door.position.set(0, -d / 2 + 0.04, 0.3 + 1.5);
+  g.add(door);
+  // Door step area data for stepTopAt()
+  g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
+  return g;
+}
+function makeBrooklynRowHouse(){
+  const g = new THREE.Group();
+  const cols = [0x7a4a3a, 0x8a5a4a, 0x6a3a2a, 0x9a6a5a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = 8.5, d = 5.0, h = 4.0;
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  g.add(body);
+  const roof = BX(w + 0.3, d + 0.3, 0.3, M(0x2a2a2a));
+  roof.position.z = 0.3 + h + 0.15;
+  g.add(roof);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
+  for (let floor = 0; floor < 3; floor++){
+    const fy = 0.3 + 0.9 + floor * 1.2;
+    for (let x = -1; x <= 1; x += 2){
+      const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+      frame.position.set(x * w * 0.24, -d / 2 + 0.04, fy);
+      g.add(frame);
+      const glass = BX(0.6, 0.04, 0.9, winM);
+      glass.position.set(x * w * 0.24, -d / 2 - 0.05, fy);
+      g.add(glass);
+    }
+  }
+  const porch = BX(w * 0.7, 0.8, 0.1, M(0x8a7a6a));
+  porch.position.set(0, -d / 2 - 0.3, 0.3 + 0.6);
+  g.add(porch);
+  const door = BX(0.8, 0.1, 1.6, M(0x4a3a2a));
+  door.position.set(0, -d / 2 + 0.05, 0.3 + 1.5);
+  g.add(door);
+  // Door step area data for stepTopAt()
+  g.userData.step = { hw: w * 0.35, cy: -d / 2 - 0.3, hd: 0.4, top: 0.68 };
+  return g;
+}
+function makeQueensTownhouse(){
+  const g = new THREE.Group();
+  const cols = [0xa08060, 0x9a7a5a, 0xb09070, 0x8a6a4a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = 8.0, d = 5.5, h = 3.5;
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  g.add(body);
+  // pitched roof
+  const roofL = BX(w + 0.5, 2.5, 0.25, M(0x4a3a2a));
+  roofL.position.set(0, -d / 2 - 1.0, 0.3 + h + 0.8);
+  roofL.rotation.z = Math.PI / 6;
+  g.add(roofL);
+  const roofR = BX(w + 0.5, 2.5, 0.25, M(0x4a3a2a));
+  roofR.position.set(0, -d / 2 + 2.0, 0.3 + h + 0.8);
+  roofR.rotation.z = -Math.PI / 6;
+  g.add(roofR);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
+  for (let floor = 0; floor < 2; floor++){
+    const fy = 0.3 + 1.0 + floor * 1.3;
+    for (let x = -1; x <= 1; x += 2){
+      const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+      frame.position.set(x * w * 0.25, -d / 2 + 0.04, fy);
+      g.add(frame);
+      const glass = BX(0.6, 0.04, 0.9, winM);
+      glass.position.set(x * w * 0.25, -d / 2 - 0.05, fy);
+      g.add(glass);
+    }
+  }
+  const porch = BX(w * 0.7, 0.9, 0.1, M(0x8a7a6a));
+  porch.position.set(0, -d / 2 - 0.4, 0.3 + 0.55);
+  g.add(porch);
+  const door = BX(0.8, 0.1, 1.6, M(0x3a2a1a));
+  door.position.set(0, -d / 2 + 0.05, 0.3 + 1.5);
+  g.add(door);
+  // Door step area data for stepTopAt()
+  g.userData.step = { hw: w * 0.35, cy: -d / 2 - 0.4, hd: 0.4, top: 0.36 };
+  return g;
+}
+function makeStatenHouse(){
+  const g = new THREE.Group();
+  const cols = [0x9a8a7a, 0x8a7a6a, 0xaa9a8a];
+  const col = cols[(Math.random() * cols.length) | 0];
+  const w = 10.0, d = 6.0, h = 3.5;
+  const body = BX(w, d, h, M(col));
+  body.position.z = 0.3 + h / 2;
+  g.add(body);
+  const roof = BX(w + 0.5, d + 0.5, 0.3, M(0x2a2a2a));
+  roof.position.z = 0.3 + h + 0.15;
+  g.add(roof);
+  const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
+  for (let floor = 0; floor < 2; floor++){
+    const fy = 0.3 + 1.0 + floor * 1.3;
+    for (let x = -1; x <= 1; x += 2){
+      const frame = BX(0.8, 0.1, 1.1, M(0x1a1a1a));
+      frame.position.set(x * w * 0.22, -d / 2 + 0.04, fy);
+      g.add(frame);
+      const glass = BX(0.7, 0.04, 1.0, winM);
+      glass.position.set(x * w * 0.22, -d / 2 - 0.05, fy);
+      g.add(glass);
+    }
+  }
+  const porch = BX(w * 0.8, 1.0, 0.1, M(0x8a7a6a));
+  porch.position.set(0, -d / 2 - 0.5, 0.3 + 0.55);
+  g.add(porch);
+  const door = BX(0.9, 0.1, 1.7, M(0x4a3a2a));
+  door.position.set(0, -d / 2 + 0.05, 0.3 + 1.55);
+  g.add(door);
+  // Door step area data for stepTopAt()
+  g.userData.step = { hw: w * 0.35, cy: -d / 2 - 0.5, hd: 0.4, top: 0.36 };
+  return g;
+}
 function isManhattanLevel(){
   if (!LEVEL_DAYS[level - 1]) return false;
   return LEVEL_DAYS[level - 1].borough === 'MANHATTAN';
 }
+
+// ==================== HOUSE TEMPLATE REGISTRY ====================
+// Maps each borough's name (from LEVEL_DAYS) to the builder function that
+// creates its characteristic building type. To add a new building style for
+// a borough, create a builder function (e.g. makeBronxApartment()) and update
+// its entry here. The fallback is makeHouse() for any borough without a custom
+// template. This keeps the game loop's spawnWorld() simple: it just looks up
+// the borough's template and calls it.
+const HOUSE_TPLS = {
+  'MANHATTAN':     makeBrownstone,  // tall 4-story brick buildings, high stoops
+  'THE BRONX':     makeBrownstone,  // Manhattan-style (customize later for Bronx apartments)
+  'QUEENS':        makeHouse,       // small house with flowers (old template, customize later)
+  'STATEN ISLAND': makeHouse,       // small house with flowers (old template, customize later)
+  'BROOKLYN':      makeBrownstone,  // Manhattan-style (customize later for Brooklyn rowhouses)
+};
+
 // ==================== CREATURE / VEHICLE BUILDERS ====================
 // Random piles of dog shit on the sidewalk: step in one and the worker yells, then
 // leaves a brown trail of footprints for a while (see dropFootprint / updateFootprints)
@@ -4297,7 +4448,9 @@ function makeCurbCan(wx, wy, house){
 function makeBlockContents(b, baseX){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
-  const hg = isManhattanLevel() ? makeBrownstone() : makeHouse();
+  const borough = LEVEL_DAYS[level - 1].borough;
+  const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
+  const hg = makeBuilding();
   // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
   // Other neighborhoods have a grass buffer between the sidewalk and the house.
   const HOUSE_Y = isManhattanLevel() ? 8.7 : 10.5;
@@ -4535,13 +4688,13 @@ function resetWorldState(){
   pendingHouses.length = 0; bonuses.length = 0;
   powerups.length = 0; starParticles.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0; flyingBags.length = 0;
-  resetLitterBaskets();   // restore all litter baskets to their corner homes
   footprints.length = 0; footDist = 0; p.poopSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   while (groundGroup.children.length){ const c = groundGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
   buildGround();   // rebuild ground for the current level (Manhattan concrete vs other-boroughs grass)
   spawnWorld();
+  resetLitterBaskets();   // place litter baskets in the newly spawned world
   computeDayTotals();   // count how many bags/cans/baskets/mongo/treasure/cash are out on today's street
   truck.wx = p.wx - 8; truck.hidden = 0; truck.g.visible = true;  // start close behind the worker at the route beginning
   const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
