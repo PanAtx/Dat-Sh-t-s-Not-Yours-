@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.30</div>
+    <div id="app-version" class="menu-version">v1.0.31</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.30';
+const APP_VERSION = '1.0.31';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4981,6 +4981,25 @@ function spawnBloodSplatter(wx, wy){
       rotSpeed: R(-10, 10)
     });
   }
+  // Also leave persistent blood drops on the ground like stepping in dog shit
+  spawnBloodDrop(wx, wy);
+}
+// Persistent blood drop on the ground (like a bloodstain)
+let bloodDrops = [];
+function spawnBloodDrop(wx, wy){
+  const g = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.02), new THREE.MeshLambertMaterial({ color: 0x8a1010, transparent: true, opacity: 0.85 }));
+  g.position.set(wx, wy, GZ + 0.02);
+  g.rotation.z = R(-Math.PI, Math.PI);
+  dynamicGroup.add(g);
+  bloodDrops.push({ g: g, mat: g.material, life: 5 });
+}
+function updateBloodDrops(dt){
+  for (let i = bloodDrops.length - 1; i >= 0; i--){
+    const d = bloodDrops[i];
+    d.life -= dt;
+    if (d.life <= 0){ if (d.g.parent) d.g.parent.remove(d.g); disposeObj(d.g); bloodDrops.splice(i, 1); }
+    else if (d.life < 2) d.mat.opacity = Math.max(0, d.life / 2) * 0.85;
+  }
 }
 // ==================== CONCRETE GRIT (jackhammer chipping the sidewalk) ====================
 function spawnGravelBits(wx, wy){
@@ -5577,6 +5596,7 @@ function updateDying(dt){
   updateBlocks(dt);
   cleanupLandedCans();
   updateFootprints(dt);
+  updateBloodDrops(dt);
   updateHUD();
   const g = worker.group;
   const fallEnd = DYING_SPIN + DYING_FALL;
@@ -7914,6 +7934,7 @@ function updateRouteEnd(dt){
   updateStarParticles(dt);
   updateBlocks(dt);
   updateFootprints(dt);
+  updateBloodDrops(dt);
   updateHopperTrash(dt);
   updateHUD();
   if (routeEnd.phase === 'cheer'){
@@ -8468,6 +8489,7 @@ function loop(now){
     updateBlocks(dt);
     cleanupLandedCans();
     updateFootprints(dt);
+    updateBloodDrops(dt);
     collideStatic(dt);
     collideLandedCans();
     collideCreatures();
