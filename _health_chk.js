@@ -33,6 +33,7 @@ function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color
 function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); q.castShadow = true; return q; }
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 const R = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GZ = 0.3, CURB_LIFT = 0.06, BLOCK_W = 80, BW = 8, HOUSES_PER_BLOCK = 10;
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true },
@@ -67,6 +68,25 @@ let COFFEE_TPL = null;
 // Bagel GLB template: the harness runs the PROCEDURAL fallback (GLB not loaded in the
 // test scope), so BEC_TPL stays null exactly like the game's initial state.
 let BEC_TPL = null;
+
+// Borough-level spawn y-range limits (mirrors index.html)
+let level = 3; // Brooklyn Flatbush (day 3)
+const LEVEL_DAYS = [
+  { day: 'MONDAY', borough: 'MANHATTAN' },
+  { day: 'TUESDAY', borough: 'THE BRONX' },
+  { day: 'WEDNESDAY', borough: 'BROOKLYN' },
+  { day: 'THURSDAY', borough: 'QUEENS' },
+  { day: 'FRIDAY', borough: 'STATEN ISLAND' },
+  { day: 'SATURDAY', borough: 'MANHATTAN' },
+  { day: 'SUNDAY', borough: 'BROOKLYN' }
+];
+function isManhattanLevel(){ return level >= 1 && level <= 7 && LEVEL_DAYS[level - 1].borough === 'MANHATTAN'; }
+function isFlatbushLevel(){ return level >= 1 && level <= 7 && LEVEL_DAYS[level - 1].borough === 'BROOKLYN'; }
+function spawnMaxY(){
+  if (isManhattanLevel()) return 4.8;
+  if (isFlatbushLevel()) return 5.0;
+  return 7.0;
+}
 const MONSTER_SCALE = (function(){ const m = src.match(/const MONSTER_SCALE = ([\d.]+) \/ ([\d.]+)/); return m ? parseFloat(m[1]) / parseFloat(m[2]) : 0.66 / 3.9; })();
 // carry / delivery state that the touch-to-dump + delivery routines read (the test page
 // scope doesn't have a live truck route, so we supply these)

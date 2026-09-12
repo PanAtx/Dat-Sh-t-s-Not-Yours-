@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.25</div>
+    <div id="app-version" class="menu-version">v1.0.26</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.25';
+const APP_VERSION = '1.0.26';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -673,9 +673,18 @@ const LAT_SPEED = 6.5;    // worker strafe speed (A/D / stick horizontal)
 // In Manhattan the worker is limited to the sidewalk (y < 5.0); no front lawn or stoops.
 function workerMaxY(){ return isManhattanLevel() ? 5.0 : 8.0; }
 // Creatures in Manhattan are limited to the sidewalk; in other boroughs they can use the lawn.
-function creatureMaxY(){ return isManhattanLevel() ? 4.8 : 7.5; }
+function creatureMaxY(){
+  if (isManhattanLevel()) return 4.8;
+  if (isFlatbushLevel()) return 5.0;
+  return 7.5;
+}
 // Spawn y-range for curb items, bonuses, powerups: sidewalk only in Manhattan.
-function spawnMaxY(){ return isManhattanLevel() ? 4.8 : 7.0; }
+// Flatbush: sidewalk only (no front-lawn spawning — porch and steps clip items).
+function spawnMaxY(){
+  if (isManhattanLevel()) return 4.8;
+  if (isFlatbushLevel()) return 5.0;
+  return 7.0;
+}
 const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
 const MIN_MOVE = 0.55;    // min speed floor once the stick is off-center (snappy, keyboard-like)
 const MOVE_T = 0.1;       // tiny jitter threshold: below this the worker stands still
@@ -3461,15 +3470,27 @@ function makeBrooklynFlatbushHouse(){
     winS.position.set(w / 2 - 0.01, 0, fy);
     g.add(winS);
   }
-  // Step footprint for collision (top of porch)
-  g.userData.step = { cx: 0, cy: -d / 2 - porchD / 2, hw: porchW / 2, hd: porchD / 2, top: 0.3 + porchH + 0.05 };
-  // No front yard flowers (porch takes that space)
-  // Small garden beds on the sides of the house instead
+  // Step footprint for collision (porch landing)
+  // Enlarged to account for worker radius (0.5) - prevent falling through at edges
+  g.userData.step = { cx: 0, cy: -d / 2 - porchD / 2, hw: porchW / 2 + 0.3, hd: porchD / 2 + 0.4, top: 0.3 + porchH + 0.06 };
+  // Individual step collision data (for walking up the stairs)
+  g.userData.stairs = [];
+  for (let s = 0; s < 3; s++) {
+    const stepY = -d / 2 - porchD - (s + 0.5) * stepD;
+    const stepTop = 0.3 + (2 - s) * stepH + stepH;
+    // Make step collision boxes wide enough to cover the entire step area
+    // and overlap with adjacent steps and the porch to prevent gaps
+    g.userData.stairs.push({ cx: 0, cy: stepY, hw: porchW / 2 + 0.3, hd: stepD + 0.2, top: stepTop });
+  }
+  // Front yard flowers: in the grass between the steps and sidewalk.
+  // Bottom step far edge: house-local y=-d/2-2.4 (world 5.5-5.9).
+  // Sidewalk far edge: world y=5.0. Grass: world y 5.0 to 5.5+.
+  // Place flowers at world y=5.2-5.8 (house-local -5.3 to -4.7).
   const flowerColors = [0xe94560, 0xf9c74f, 0xff6b6b, 0xff9ff3, 0xffffff, 0x54a0ff, 0xffd700, 0xc05ac0];
-  for (let i = 0; i < 4; i++){
-    const side = (i < 2 ? -1 : 1);
-    const fx = side * (w / 2 + 0.5);
-    const fy = R(0, 1.5);
+  for (let i = 0; i < 6; i++){
+    const side = (i < 3 ? -1 : 1);
+    const fx = side * R(w * 0.15, w * 0.4);   // offset to side of steps
+    const fy = -R(4.7, 5.1);                  // world y 5.4-5.8, clearly past sidewalk edge
     const stem = CY(0.028, 0.022, 0.26, M(0x2d6a4f), 5);
     stem.rotation.x = Math.PI / 2;
     stem.position.set(fx, fy, 0.43);
@@ -3878,6 +3899,10 @@ function makeStatenHouse(){
 function isManhattanLevel(){
   if (!LEVEL_DAYS[level - 1]) return false;
   return LEVEL_DAYS[level - 1].borough === 'MANHATTAN';
+}
+function isFlatbushLevel(){
+  if (!LEVEL_DAYS[level - 1]) return false;
+  return LEVEL_DAYS[level - 1].borough === 'BROOKLYN';
 }
 
 // ==================== HOUSE TEMPLATE REGISTRY ====================
@@ -4599,6 +4624,14 @@ function makeBlockContents(b, baseX, houseIdx){
   const stLocal = hg.userData.step;
   const houseX = baseX + 4.0;
   house.step = { x0: houseX - stLocal.hw, x1: houseX + stLocal.hw, y0: HOUSE_Y + stLocal.cy - stLocal.hd, y1: HOUSE_Y + stLocal.cy + stLocal.hd, top: stLocal.top };
+  // Store individual step collision data
+  b.stairs = [];
+  if (hg.userData.stairs) {
+    for (let s = 0; s < hg.userData.stairs.length; s++) {
+      const st = hg.userData.stairs[s];
+      b.stairs.push({ x0: houseX - st.hw, x1: houseX + st.hw, y0: HOUSE_Y + st.cy - st.hd, y1: HOUSE_Y + st.cy + st.hd, top: st.top });
+    }
+  }
   b.house = house;
   // Curb garbage ONLY on "garbage" blocks. Blocks 1 & 8 (and the route's edge blocks)
   // stay clean — a fresh block just swept / a block past the shift's end.
@@ -4665,10 +4698,14 @@ function makeBlockContents(b, baseX, houseIdx){
   // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
   if (borough === 'BROOKLYN' && houseIdx < HOUSES_PER_BLOCK - 1){
     const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
-    drv.position.set(8.0, 9.0, 0.31);
+    drv.position.set(8.0, 9.0, GZ);
     drv.castShadow = false;
     drv.receiveShadow = true;
     b.group.add(drv);
+    // White center line on the driveway
+    const line = BX(0.15, 7.0, 0.005, M(0xffffff));
+    line.position.set(8.0, 9.0, GZ + 0.045);
+    b.group.add(line);
   }
 }
 function spawnWorld(){
@@ -4722,8 +4759,29 @@ function spawnWorld(){
       ld.houseG.visible = false;
       dynamicGroup.add(ld.houseG);
       ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
+    } else if (isFlatbushLevel()) {
+      // Brooklyn Flatbush: doghouse goes in the concrete driveway to the right
+      // of the house (x=8.0 relative to block). The driveway is at y=9.0 relative
+      // to the block, but we place it on the driveway itself to avoid the front
+      // lawn entirely (where the porch and steps cause clipping issues).
+      // Driveway is 3.0 wide (x 8.0-11.0) and 8.0 deep (y 5.0-13.0).
+      const drivewayX = b.worldX + 8.0;
+      const drivewayY = 9.0;
+      ld.anchorX = drivewayX + R(-0.8, 0.8);
+      ld.anchorY = drivewayY + R(-2.0, 2.0);
+      ld.homeX = ld.anchorX;
+      ld.homeY = ld.anchorY - R(0.6, 1.0);
+      ld.wx = ld.homeX; ld.wy = ld.homeY;
+      ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+      dynamicGroup.add(ld.houseG);
+      const cl0 = Math.sqrt((ld.anchorX - ld.wx) ** 2 + (ld.anchorY - ld.wy) ** 2);
+      ld.chain.scale.x = Math.max(0.02, cl0);
+      ld.chain.position.set((ld.anchorX + ld.wx) / 2, (ld.anchorY + ld.wy) / 2, 0.38);
+      ld.chain.rotation.z = Math.atan2(ld.anchorY - ld.wy, ld.anchorX - ld.wx);
+      dynamicGroup.add(ld.chain);
+      ld.g.rotation.z = Math.atan2(ld.homeY - ld.anchorY, ld.homeX - ld.anchorX);
     } else {
-      // Original doghouse placement for non-Manhattan levels
+      // Original doghouse placement for other non-Manhattan levels
       // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
       // walkway — never on the street/sidewalk, never on the raised concrete step in
       // front of the door. Leash should reach the house wall, but dog's resting
@@ -5873,8 +5931,9 @@ function spawnPowerups(level){
   const span = ROUTE_FINISH_X - ROUTE_START_X;
   // The healers land on the sidewalk / front-lawn grass in front of a house (never in an
   // intersection gap) - snap each to the house cell under its route position.
-  spawnPowerup('coffee', snapToHouseCell(ROUTE_START_X + span * R(0.40, 0.65)), R(0.5, 7.0));
-  spawnPowerup('bec',    snapToHouseCell(ROUTE_START_X + span * R(0.65, 0.92)), R(0.5, 7.0));
+  // Flatbush: sidewalk only (no front-lawn spawning — porch and steps clip items).
+  spawnPowerup('coffee', snapToHouseCell(ROUTE_START_X + span * R(0.40, 0.65)), R(0.5, spawnMaxY()));
+  spawnPowerup('bec',    snapToHouseCell(ROUTE_START_X + span * R(0.65, 0.92)), R(0.5, spawnMaxY()));
 }
 // A Monster energy can pops up near the worker every MONSTER_SCORE_STEP points
 // (5000) of score, dropped on the sidewalk just ahead so you can grab it right away.
@@ -6736,9 +6795,21 @@ function resolveTruckCollisions(vehicles, dt){
 function stepTopAt(wx, wy){
   let top = GZ;
   for (let i = 0; i < blocks.length; i++){
-    const s = blocks[i].house && blocks[i].house.step;
-    if (!s) continue;
-    if (wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) top = s.top;
+    const b = blocks[i];
+    // Check individual stairs first (higher priority)
+    if (b.stairs) {
+      for (let s = 0; s < b.stairs.length; s++) {
+        const st = b.stairs[s];
+        if (wx >= st.x0 && wx <= st.x1 && wy >= st.y0 && wy <= st.y1) {
+          if (st.top > top) top = st.top;
+        }
+      }
+    }
+    // Check porch landing / step
+    const s = b.house && b.house.step;
+    if (s && wx >= s.x0 && wx <= s.x1 && wy >= s.y0 && wy <= s.y1) {
+      if (s.top > top) top = s.top;
+    }
   }
   return top;
 }
