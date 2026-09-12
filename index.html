@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.24</div>
+    <div id="app-version" class="menu-version">v1.0.25</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.24';
+const APP_VERSION = '1.0.25';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4577,7 +4577,7 @@ function makeCurbCan(wx, wy, house){
   dynamicGroup.add(g);
   return can;
 }
-function makeBlockContents(b, baseX){
+function makeBlockContents(b, baseX, houseIdx){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
   const borough = LEVEL_DAYS[level - 1].borough;
@@ -4662,8 +4662,17 @@ function makeBlockContents(b, baseX){
       b.group.add(t);
     }
   }
+  // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
+  if (borough === 'BROOKLYN' && houseIdx < HOUSES_PER_BLOCK - 1){
+    const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
+    drv.position.set(8.0, 9.0, 0.31);
+    drv.castShadow = false;
+    drv.receiveShadow = true;
+    b.group.add(drv);
+  }
 }
 function spawnWorld(){
+  const borough = LEVEL_DAYS[level - 1].borough;
   // Fixed route: 8 blocks of 10 houses each (Blocks 1 & 8 carry no curb garbage).
   // No block recycling — the whole route is laid out up front at absolute positions.
   for (const bl of LEVEL_BLOCKS){
@@ -4673,7 +4682,7 @@ function spawnWorld(){
       const b = { group: g, worldX: worldX, house: null, hazards: [], garbage: bl.garbage, blockX: bl.x, passed: false };
       g.position.x = worldX;
       dynamicGroup.add(g);
-      makeBlockContents(b, worldX);
+      makeBlockContents(b, worldX, i);
       blocks.push(b);
     }
   }
