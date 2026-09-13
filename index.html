@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.28</div>
+    <div id="app-version" class="menu-version">v1.0.29</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.28';
+const APP_VERSION = '1.0.29';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7646,21 +7646,13 @@ function updateCreatures(dt){
           c.chain.position.set(c.wx + cx2 / 2, c.wy + cy2 / 2, 0.38); // ABOVE the grass top (ground solid to z 0.3)
           c.chain.rotation.z = Math.atan2(cy2, cx2);
         }
-        if (tx < -55){
-          // recycle the whole set-up ahead of the route so it keeps showing up
-          if (isFlatbushLevel() && flatbushDriveways.length > 0) {
-            // Flatbush: pick next available driveway for the recycled doghouse
-            const drivewayIdx = Math.floor(Math.random() * flatbushDriveways.length);
-            const drivewayX = flatbushDriveways[drivewayIdx];
-            flatbushDriveways.splice(drivewayIdx, 1);
-            // Remove old doghouse to prevent accumulation
-            if (c.houseG.parent) c.houseG.parent.remove(c.houseG);
-            c.anchorX = drivewayX;
-            c.anchorY = 6.5; // same as spawn: closer to sidewalk
-          } else {
-            // Other levels: random lawn position (original behavior)
-            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
-          }
+        if (tx < -55 && !isFlatbushLevel()){
+          // recycle the whole set-up ahead of the route so it keeps showing up.
+          // Flatbush is excluded: spawnWorld places exactly 3 doghouses on fixed
+          // driveways for the level, and the player should only ever encounter
+          // those 3 - they stay put instead of teleporting down the route.
+          // Other levels: random lawn position (original behavior)
+          c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
           c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
           c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
           if (c.houseG) c.houseG.position.set(c.anchorX, c.anchorY, GZ);
