@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.33</div>
+    <div id="app-version" class="menu-version">v1.0.35</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.33';
+const APP_VERSION = '1.0.35';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5531,6 +5531,11 @@ const DRIVETR_ATK_SP = 6.0;        // the kid's chase speed while attacking (fas
 const DRIVETR_HOME_SP = 2.6;       // the kid's trot speed when returning to / idle at home
 const DRIVETR_HIT_DIST = 1.3;      // contact distance at which the tricycle bumps the worker
 const DRIVETR_HIT_CD = 1.6;        // per-kid cooldown between bumps (keeps the hits from spamming)
+const DRIVETR_BACKOFF_T = 4.0;     // seconds the kid backs off to its home spot after a bump before it can re-lunge
+const DRIVETR_LATERAL = 1.0;       // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
+                                   // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
+                                   // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
+                                   // off the neighbor's porch and steps entirely.
 function heal(amount){ health = Math.min(maxHealth, health + (amount || 0)); }
 function hurtNPC(amount){
   if (state !== 'play') return;
@@ -7026,12 +7031,24 @@ function updateCreatures(dt){
           const mX = gx - c.wx, mY = gy - c.wy, mLen = Math.sqrt(mX * mX + mY * mY);
           if (mLen > 0.05){
             const step = Math.min(mLen, spd * dt);
+            const startX = c.wx, startY = c.wy;
             c.wx += (mX / mLen) * step;
-            c.wy = clamp(c.wy + (mY / mLen) * step, 0.8, 7.5);  // never past the street edge
-            c.phase += step * 8;
-            animParts(c, step * 3);
-            c.g.rotation.z = Math.atan2(mY, mX);                 // face the direction of travel
-            c.g.rotation.x = Math.sin(c.wx * 3) * 0.08;          // little ride sway
+            c.wy = clamp(c.wy + (mY / mLen) * step, 0.8, 7.5);   // never past the street edge
+            // stay on its OWN driveway: the flanking houses (up to 5.8 wide) reach homeX+-1.1 and
+            // their steps reach homeX+-1.38, so clamping to homeX +- DRIVETR_LATERAL (1.0) keeps
+            // the kid on the open driveway, off the neighbor's porch and steps entirely (the home
+            // spot is inside the band, so the returning/backing/home states are never affected).
+            c.wx = clamp(c.wx, c.homeX - DRIVETR_LATERAL, c.homeX + DRIVETR_LATERAL);
+            // only pedal the legs when the kid actually moved this frame - if a clamp (the
+            // driveway band or the street-edge floor) pinned it in place, it stands still
+            // instead of cranking in place while trying to reach the worker.
+            const moved = Math.hypot(c.wx - startX, c.wy - startY) > 1e-4;
+            if (moved){
+              c.phase += step * 8;
+              animParts(c, step * 3);
+              c.g.rotation.z = Math.atan2(mY, mX);                 // face the direction of travel
+              c.g.rotation.x = Math.sin(c.wx * 3) * 0.08;          // little ride sway
+            }
           } else {
             // parked (or standing at the leash edge): face the worker while attacking,
             // otherwise face the street

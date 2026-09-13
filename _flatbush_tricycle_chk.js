@@ -36,6 +36,7 @@ const DRIVETR_HOME_SP = 2.6;
 const DRIVETR_HIT_DIST = 1.3;
 const DRIVETR_HIT_CD = 1.6;
 const DRIVETR_BACKOFF_T = 4.0;
+const DRIVETR_LATERAL = 1.0;
 
 // ---- extract the REAL 'tric' case body (brace-counted) from updateCreatures ----
 function extractTricCase(){
@@ -62,14 +63,14 @@ function makeRunner(deps){
   const fn = new Function('c', 'dt', 'tx',
     'state', 'p', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER',
     'DRIVETR_CHAIN_R', 'DRIVETR_AGGRO_DIST', 'DRIVETR_AGGRO_DUR', 'DRIVETR_ATK_SP',
-    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'DRIVETR_BACKOFF_T', 'HP_HIT_DRIVETRIC', 'animParts',
+    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'DRIVETR_BACKOFF_T', 'DRIVETR_LATERAL', 'HP_HIT_DRIVETRIC', 'animParts',
     'switch (c.type){' + tricCase + '}');
   return function(c, dt){
     return fn(c, dt, c.wx - deps.p.wx, deps.state, deps.p, clamp, workerMaxY,
       deps.hurtNPC, deps.doStun, deps.Voice, WORKER_GENDER,
       DRIVETR_CHAIN_R, DRIVETR_AGGRO_DIST, DRIVETR_AGGRO_DUR, DRIVETR_ATK_SP,
-      DRIVETR_HOME_SP, DRIVETR_HIT_DIST, DRIVETR_HIT_CD, DRIVETR_BACKOFF_T, HP_HIT_DRIVETRIC,
-      (cc, dphase) => { cc.phase += dphase; });
+      DRIVETR_HOME_SP, DRIVETR_HIT_DIST, DRIVETR_HIT_CD, DRIVETR_BACKOFF_T, DRIVETR_LATERAL, HP_HIT_DRIVETRIC,
+      deps.animParts || ((cc, dphase) => { cc.phase += dphase; }));
   };
 }
 // A driveway tricycle at a fixed driveway home (mirrors spawnWorld placement).
@@ -181,6 +182,56 @@ function runApproach(){
   for (let t = 0; t < 60 * 6; t++) run(c, 1 / 60);   // 6s more (>> 4s backoff)
   check('no second bump after the worker leaves during the backoff', hits.length <= 1, 'hits=' + hits.length);
   check('kid parks at home once the worker is gone', c.state === 'idle' && Math.hypot(c.wx - c.homeX, c.wy - c.homeY) < 0.3, 'state=' + c.state + ' pos=(' + c.wx.toFixed(2) + ',' + c.wy.toFixed(2) + ')');
+}
+
+// ---- 2f) The kid stays on its OWN driveway - never wanders onto a neighbor's porch/steps ----
+{
+  const deps = { state: 'play', p: { wx: 0, wy: 0, invuln: 0, immuneT: 0 }, hurtNPC(){}, doStun(){}, Voice: { say(){} } };
+  const run = makeRunner(deps);
+  const c = makeDrivewayTric(10, 4.3);
+  // Worker rides up into the FRONT YARD, off to the SIDE (toward the neighbor's porch/steps).
+  // The kid chases but must stay confined to its own driveway band (homeX +- DRIVETR_LATERAL)
+  // so it can never clip onto the flanking porch/steps, and it stays off the street (wy >= 0.8).
+  deps.p.wx = c.homeX + 3.5; deps.p.wy = c.homeY + 2.5;
+  let minX = Infinity, maxX = -Infinity, minWy = Infinity;
+  for (let t = 0; t < 60 * 10; t++){
+    run(c, 1 / 60);
+    minX = Math.min(minX, c.wx); maxX = Math.max(maxX, c.wx);
+    minWy = Math.min(minWy, c.wy);
+  }
+  check('kid stays on its driveway (x within homeX +- DRIVETR_LATERAL) when the worker is in the yard',
+    minX >= c.homeX - DRIVETR_LATERAL - 1e-6 && maxX <= c.homeX + DRIVETR_LATERAL + 1e-6,
+    'x=[' + minX.toFixed(2) + ',' + maxX.toFixed(2) + '] band=[' + (c.homeX - DRIVETR_LATERAL).toFixed(1) + ',' + (c.homeX + DRIVETR_LATERAL).toFixed(1) + ']');
+  check('kid stays off the street while chasing into the yard (wy >= 0.8)', minWy >= 0.8, 'minWy=' + minWy.toFixed(3));
+}
+
+// ---- 2g) No pedaling in place: pinned against a clamp, the kid stops cranking the legs ----
+{
+  let pedalFrames = 0, endPedal = 0;
+  const deps = {
+    state: 'play', p: { wx: 14, wy: 4.3, invuln: 0, immuneT: 0 },
+    hurtNPC(){}, doStun(){}, Voice: { say(){} },
+    animParts: () => { pedalFrames++; },
+  };
+  const run = makeRunner(deps);
+  const c = makeDrivewayTric(10, 4.3);
+  // Worker rides up into the FRONT YARD off to the SIDE (due east of the driveway, within
+  // the leash). The leash-clamped chase target lands beyond the driveway x-band
+  // (homeX + DRIVETR_LATERAL = 11), so the kid can only chase as far as the band edge,
+  // where it gets PINNED by the x-band clamp. While pinned it must stop pedaling instead
+  // of cranking in place. The pin point is out of bump range (3.0 > DRIVETR_HIT_DIST), so
+  // no bump fires and the kid stays pinned for the whole run.
+  const total = 60 * 10;
+  for (let t = 0; t < total; t++){
+    const before = pedalFrames;
+    run(c, 1 / 60);
+    if (t >= total - 60) endPedal += (pedalFrames - before);
+  }
+  check('kid holds at the driveway band edge while chasing sideways (x stays at homeX + DRIVETR_LATERAL)',
+    c.wx >= c.homeX + DRIVETR_LATERAL - 1e-6 && c.wx <= c.homeX + DRIVETR_LATERAL + 0.05,
+    'x=' + c.wx.toFixed(3) + ' edge=' + (c.homeX + DRIVETR_LATERAL).toFixed(1));
+  check('kid STOPS pedaling once it can no longer move toward the worker (no leg animation while pinned)',
+    pedalFrames > 0 && endPedal === 0, 'pedalFrames=' + pedalFrames + ' pedalsInLast60=' + endPedal);
 }
 
 // ---- 3) Traffic + collision systems EXCLUDE isDrivewayTric ----
