@@ -51,7 +51,7 @@ check('moto appears from Wednesday, ebike from Thursday, rc from Friday',
   npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
 check('non-gated, non-scaling types stay at their Monday count',
   [2,3,4,5,6,7].every(l => Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]).every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
-check('total NPCs strictly increase every level', (function(){ let prev = -1; for (let l = 1; l <= 7; l++){ const n = sum(npcCounts(l)); if (n <= prev) return false; prev = n; } return true; })());
+check('total NPCs never decrease across the week (Flatbush drops its street tric, so Wed may plateau)', (function(){ let prev = -1; for (let l = 1; l <= 7; l++){ const n = sum(npcCounts(l)); if (n < prev) return false; prev = n; } return true; })());
 console.log('   roster: day1 (Mon) = ' + sum(npcCounts(1)) + ' NPCs   ->   day7 (Sun) = ' + sum(npcCounts(7)) + ' NPCs');
 
 // ---------- 3) recordDayGot bumps only the requested counter ----------

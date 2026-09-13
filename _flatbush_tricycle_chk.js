@@ -146,6 +146,33 @@ function runApproach(){
 
 // ---- 3) Traffic + collision systems EXCLUDE isDrivewayTric ----
 check('collideCreatures skips driveway tricycles (own AI handles the bump)', /if \(c\.type === 'tric' && c\.isDrivewayTric\) continue;/.test(src));
+
+// ---- 4) Flatbush (day 3) spawns NO non-attacking street tricycle ----
+// The generic roster's street tricycle (BASE_NPC_COUNTS.tric) must be zeroed on Flatbush,
+// so the only tricycles on the level are the 3 driveway kids. Uses the REAL npcCounts.
+function extractFn(name){
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error('function not found: ' + name);
+  const b = src.indexOf('{', idx); let d = 0, i = b;
+  for (; i < src.length; i++){ if (src[i] === '{') d++; else if (src[i] === '}'){ d--; if (!d){ i++; break; } } }
+  return src.slice(idx, i);
+}
+function extractLiteral(name, open, close){
+  const marker = 'const ' + name + ' = ';
+  const idx = src.indexOf(marker);
+  if (idx < 0) throw new Error('const not found: ' + name);
+  const s = src.indexOf(open, idx);
+  let d = 0, i = s;
+  for (; i < src.length; i++){ const ch = src[i]; if (ch === open) d++; else if (ch === close){ d--; if (!d){ i++; break; } } }
+  return src.slice(s, i);
+}
+const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
+const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
+const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
+const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
+check('Flatbush (day 3) has NO non-attacking street tricycle (npcCounts(3).tric === 0)', npcCounts(3).tric === 0);
+check('the street-tricycle baseline is otherwise intact (other days keep their base tric count)',
+  [1, 2, 4, 5, 6, 7].every(d => npcCounts(d).tric === BASE_NPC_COUNTS.tric));
 check('findVehicleAhead ignores driveway tricycles', /!VEHICLE_TYPES\[other\.type\] \|\| other\.isDrivewayTric/.test(src));
 check('findClosingVehicle ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
 check('npcLaneFree ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
