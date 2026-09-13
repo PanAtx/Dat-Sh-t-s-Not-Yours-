@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.32</div>
+    <div id="app-version" class="menu-version">v1.0.33</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.32';
+const APP_VERSION = '1.0.33';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4846,7 +4846,7 @@ function spawnWorld(){
       dt.homeX = dtx;                 // fixed home = driveway center (like the doghouse anchor)
       dt.homeY = 4.3;                 // on the driveway slab, back from the street edge
       dt.wx = dt.homeX; dt.wy = dt.homeY;
-      dt.state = 'idle'; dt.hitCd = 0; dt.chainR = DRIVETR_CHAIN_R;   // leash radius around the home spot
+      dt.state = 'idle'; dt.hitCd = 0; dt.backT = 0; dt.chainR = DRIVETR_CHAIN_R;   // leash radius around the home spot
       dt.g.position.set(dt.wx, dt.wy, GZ);
       dt.g.rotation.z = -Math.PI / 2;  // parked, nose toward the street (-Y)
     }
@@ -6978,16 +6978,23 @@ function updateCreatures(dt){
         // A kid parked on a concrete driveway who lunges at the worker when they
         // ride up. Unlike a street tricycle it NEVER enters the roadway: the leash
         // clamp keeps it inside chainR of its home spot and wy is hard-floored at
-        // 0.8 (the street edge). States: idle -> attacking -> returning -> idle.
+        // 0.8 (the street edge). States: idle -> attacking -> backing -> idle
+        // (after a bump the kid backs off ~DRIVETR_BACKOFF_T seconds and re-lunges
+        // only if the worker is still in aggro range).
         if (c.isDrivewayTric){
           c.hitCd = (c.hitCd || 0) - dt;
           const dtwX = p.wx - c.wx, dtwY = p.wy - c.wy;
           const dtw = Math.sqrt(dtwX * dtwX + dtwY * dtwY);
           // --- state transitions ---
-          if (c.state !== 'attacking' && dtw < DRIVETR_AGGRO_DIST) c.state = 'attacking';
+          c.backT = (c.backT || 0) - dt;
+          if (c.state !== 'attacking' && c.backT <= 0 && dtw < DRIVETR_AGGRO_DIST) c.state = 'attacking';
           if (c.state === 'attacking'){
             if (dtw > c.chainR + 0.4) c.state = 'returning';   // worker out of leash reach
             else if (dtw > DRIVETR_AGGRO_DIST) c.state = 'returning'; // worker walked on
+          }
+          if (c.state === 'backing'){
+            if (dtw > DRIVETR_AGGRO_DIST) c.state = 'idle';   // worker left during the backoff: go park
+            else if (c.backT <= 0) c.state = 'attacking';     // ~4s passed, worker still there: lunge again
           }
           if (c.state === 'returning' && Math.hypot(c.homeX - c.wx, c.homeY - c.wy) < 0.25) c.state = 'idle';
           // --- movement target + speed ---
@@ -6997,10 +7004,14 @@ function updateCreatures(dt){
             // leash: clamp the chase target to the driveway circle so the run is bounded
             const ox = gx - c.homeX, oy = gy - c.homeY, ol = Math.sqrt(ox * ox + oy * oy) || 1;
             if (ol > c.chainR){ gx = c.homeX + (ox / ol) * c.chainR; gy = c.homeY + (oy / ol) * c.chainR; }
-            // bump the worker on contact (per-kid cooldown keeps the hits fair; only
-            // during play and only when not i-framed / immune)
+            // bump the worker on contact (only during play and only when not
+            // i-framed / immune). One bump per lunge: the hit flips the kid into
+            // the 'backing' state, so it can't bump again until the ~4s backoff
+            // ends (hitCd below stays as defense in depth)
             if (dtw < DRIVETR_HIT_DIST && c.hitCd <= 0 && state === 'play' && p.invuln <= 0 && p.immuneT <= 0){
               c.hitCd = DRIVETR_HIT_CD;
+              c.backT = DRIVETR_BACKOFF_T;
+              c.state = 'backing';   // hit him once, then back off for ~4s
               const nl = dtw || 1;
               p.wx -= (dtwX / nl) * 0.9;
               p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());

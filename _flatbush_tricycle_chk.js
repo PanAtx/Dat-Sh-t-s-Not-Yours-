@@ -2,9 +2,11 @@
 //   1) spawnWorld places exactly 3 isDrivewayTric kids on the LEFTOVER flatbush
 //      driveways (the 5 the 3 doghouses did NOT take) so they never overlap a doghouse.
 //   2) the REAL 'tric' case body extracted from updateCreatures runs the
-//      idle -> attacking -> returning -> idle state machine: a kid lunges when the
-//      worker rides up, bumps the worker (minor damage + "OW!" / "Stranger Danger!"),
-//      and NEVER crosses into the street (wy stays >= 0.8) or beyond the leash.
+//      idle -> attacking -> backing -> idle state machine: a kid lunges when the
+//      worker rides up, bumps the worker ONCE (minor damage + "OW!" /
+//      "Stranger Danger!"), then backs off to home for ~DRIVETR_BACKOFF_T seconds
+//      and only re-lunges if the worker is still in aggro range - and it NEVER
+//      crosses into the street (wy stays >= 0.8) or beyond the leash.
 //   3) the vehicle/traffic + worker-collision systems EXCLUDE isDrivewayTric so the
 //      parked kid is never double-hit or treated as live traffic.
 const fs = require('fs');
@@ -33,6 +35,7 @@ const DRIVETR_ATK_SP = 6.0;
 const DRIVETR_HOME_SP = 2.6;
 const DRIVETR_HIT_DIST = 1.3;
 const DRIVETR_HIT_CD = 1.6;
+const DRIVETR_BACKOFF_T = 4.0;
 
 // ---- extract the REAL 'tric' case body (brace-counted) from updateCreatures ----
 function extractTricCase(){
@@ -59,13 +62,13 @@ function makeRunner(deps){
   const fn = new Function('c', 'dt', 'tx',
     'state', 'p', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER',
     'DRIVETR_CHAIN_R', 'DRIVETR_AGGRO_DIST', 'DRIVETR_AGGRO_DUR', 'DRIVETR_ATK_SP',
-    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'HP_HIT_DRIVETRIC', 'animParts',
+    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'DRIVETR_BACKOFF_T', 'HP_HIT_DRIVETRIC', 'animParts',
     'switch (c.type){' + tricCase + '}');
   return function(c, dt){
     return fn(c, dt, c.wx - deps.p.wx, deps.state, deps.p, clamp, workerMaxY,
       deps.hurtNPC, deps.doStun, deps.Voice, WORKER_GENDER,
       DRIVETR_CHAIN_R, DRIVETR_AGGRO_DIST, DRIVETR_AGGRO_DUR, DRIVETR_ATK_SP,
-      DRIVETR_HOME_SP, DRIVETR_HIT_DIST, DRIVETR_HIT_CD, HP_HIT_DRIVETRIC,
+      DRIVETR_HOME_SP, DRIVETR_HIT_DIST, DRIVETR_HIT_CD, DRIVETR_BACKOFF_T, HP_HIT_DRIVETRIC,
       (cc, dphase) => { cc.phase += dphase; });
   };
 }
@@ -114,7 +117,7 @@ function runApproach(){
 }
 {
   const r = runApproach();
-  check('kid attacks when worker approaches (state reaches attacking)', r.c.state === 'attacking' || r.c.state === 'returning', 'state=' + r.c.state);
+  check('kid attacks when worker approaches (state reaches attacking)', ['attacking', 'returning', 'backing'].indexOf(r.c.state) >= 0, 'state=' + r.c.state);
   check('kid bumps the worker (hurtNPC called with HP_HIT_DRIVETRIC)', r.hit && r.hits.length > 0 && r.hits.every(h => h === HP_HIT_DRIVETRIC), 'hits=' + JSON.stringify(r.hits));
   check('worker says "OW!" on the bump', r.ow);
   check('kid says "Stranger Danger!" on the bump', r.sd);
@@ -134,14 +137,50 @@ function runApproach(){
   check('kid parks AT its home spot (not adrift)', Math.hypot(c.wx - c.homeX, c.wy - c.homeY) < 0.3, 'pos=(' + c.wx.toFixed(2) + ',' + c.wy.toFixed(2) + ')');
 }
 
-// ---- 2c) No hit spam: per-kid cooldown gates repeated bumps ----
+// ---- 2c) No hit spam: one bump per lunge (backoff + cooldown gate repeats) ----
 {
   const hits = [];
   const deps = { state: 'play', p: { wx: 11, wy: 4.3, invuln: 0, immuneT: 0 }, hurtNPC: (a) => hits.push(a), doStun(){}, Voice: { say(){} } };
   const run = makeRunner(deps);
   const c = makeDrivewayTric(10, 4.3);
   for (let t = 0; t < 300; t++) run(c, 1 / 60);   // ~5s of contact
-  check('bump is rate-limited by per-kid cooldown (no per-frame spam)', hits.length > 0 && hits.length <= 4, 'bumps in ~5s=' + hits.length);
+  check('bumps stay spaced out (one per lunge, ~4s backoff between)', hits.length > 0 && hits.length <= 3, 'bumps in ~5s=' + hits.length);
+}
+
+// ---- 2d) Backoff: one bump per lunge, ~4s backoff, re-lunges if worker is still there ----
+{
+  const hits = [];
+  const deps = { state: 'play', p: { wx: 11, wy: 1.3, invuln: 0, immuneT: 0 }, hurtNPC: () => hits.push(1), doStun(){}, Voice: { say(){} } };
+  const run = makeRunner(deps);
+  const c = makeDrivewayTric(10, 4.3);
+  const frames = 60 * 7;   // 7s: enough for lunge -> backoff -> second lunge
+  const hitTimes = [];
+  let midState = null;
+  for (let t = 0; t < frames; t++){
+    const before = hits.length;
+    run(c, 1 / 60);
+    if (hits.length > before) hitTimes.push(t / 60);
+    // 2s after the first bump the kid must be backing off, not re-attacking
+    if (hitTimes.length === 1 && t / 60 >= hitTimes[0] + 2 && midState === null) midState = c.state;
+  }
+  check('kid bumps, backs off, then re-lunges (two bumps in 7s)', hitTimes.length >= 2, 'hitTimes=' + JSON.stringify(hitTimes.map(t => t.toFixed(2))));
+  check('backoff lasts ~4s before the kid re-lunges', hitTimes.length >= 2 && hitTimes[1] - hitTimes[0] >= 3.7 && hitTimes[1] - hitTimes[0] <= 4.5, 'gap=' + (hitTimes.length >= 2 ? (hitTimes[1] - hitTimes[0]).toFixed(2) : 'n/a'));
+  check('kid is backing off (not attacking) 2s after the bump', midState === 'backing' || midState === 'idle', 'state=' + midState);
+  check('re-lunge reaches the worker again (second bump lands)', hitTimes.length >= 2);
+}
+
+// ---- 2e) Worker leaves mid-backoff -> kid parks, never re-lunges ----
+{
+  const hits = [];
+  const deps = { state: 'play', p: { wx: 11, wy: 1.3, invuln: 0, immuneT: 0 }, hurtNPC: () => hits.push(1), doStun(){}, Voice: { say(){} } };
+  const run = makeRunner(deps);
+  const c = makeDrivewayTric(10, 4.3);
+  for (let t = 0; t < 60 * 2; t++) run(c, 1 / 60);   // ~2s: first bump + start of backoff
+  check('first bump happened before the worker leaves', hits.length >= 1, 'hits=' + hits.length);
+  deps.p.wx = 30; deps.p.wy = -5;                    // worker rides away past aggro + leash reach
+  for (let t = 0; t < 60 * 6; t++) run(c, 1 / 60);   // 6s more (>> 4s backoff)
+  check('no second bump after the worker leaves during the backoff', hits.length <= 1, 'hits=' + hits.length);
+  check('kid parks at home once the worker is gone', c.state === 'idle' && Math.hypot(c.wx - c.homeX, c.wy - c.homeY) < 0.3, 'state=' + c.state + ' pos=(' + c.wx.toFixed(2) + ',' + c.wy.toFixed(2) + ')');
 }
 
 // ---- 3) Traffic + collision systems EXCLUDE isDrivewayTric ----
