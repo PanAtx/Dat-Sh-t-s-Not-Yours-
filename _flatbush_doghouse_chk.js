@@ -24,7 +24,7 @@ const R = (a, b) => a + Math.random() * (b - a);
 const GZ = 0.3;
 const dynamicGroup = { add(){}, remove(){} };
 const Voice = { say(){} };
-const p = { wx: 0, wy: 2.5 };
+const p = { wx: 0, wy: 2.5, invuln: 0, immuneT: 0, bloodSteps: 0 };
 
 // ---- extract the REAL leashdog case body (brace-counted) from updateCreatures ----
 // NOTE: there are TWO `case 'leashdog':{` in index.html - one in the spawner
@@ -46,10 +46,26 @@ function extractLeashDogCase(){
 const caseText = extractLeashDogCase();
 // Wrap the exact case body in a switch so its `break;` is valid, and expose the same
 // free variables updateCreatures gives it. tx is recomputed exactly like updateCreatures.
-function runLeashDogCase(c, flatbush, flatbushDriveways){
+// The case body now ALSO runs the BITE logic, so it references extra free vars
+// (state / clamp / workerMaxY / hurtNPC / doStun / dropBloodSplatter / WORKER_GENDER /
+// HP_HIT_HAZARD); we supply them here, and `rec` lets a test record whether a bite
+// actually fired (hurt / stun / blood / speech).
+function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
+  rec = rec || {}; rec.lines = rec.lines || [];
+  const state = 'play';
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const workerMaxY = () => 5.0;      // Flatbush cap (mirrors index.html workerMaxY)
+  const WORKER_GENDER = 'male';
+  const HP_HIT_HAZARD = 5;           // mirrors index.html
+  const hurtNPC = (amt) => { rec.hurt = (rec.hurt || 0) + 1; rec.dmg = (rec.dmg || 0) + (amt || 0); };
+  const doStun = () => { rec.stun = (rec.stun || 0) + 1; };
+  const dropBloodSplatter = () => { rec.blood = (rec.blood || 0) + 1; };
+  const VoiceRec = { say: function(line){ rec.lines.push(line); } };
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
+    'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
-  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, Voice, flatbushDriveways);
+  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, VoiceRec, flatbushDriveways,
+    state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD);
 }
 // Build a leashdog at a FIXED driveway spawn (mirrors spawnWorld's Flatbush placement).
 function makeFlatbushDog(anchorX, anchorY){
@@ -98,6 +114,51 @@ check('non-Flatbush leashdog still recycles ahead of the player (regression guar
 // ---- 4) The old Flatbush teleport branch is gone from updateCreatures ----
 check('updateCreatures no longer references flatbushDriveways', caseText.indexOf('flatbushDriveways') < 0);
 check('leashdog recycle guard now excludes Flatbush', /tx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)/.test(caseText));
+
+// ---- 5) BITE: a leashed dog that the worker lingers in range of (dWorker < 0.85)
+// latches on: it damages (HP_HIT_HAZARD), stuns, knocks the worker back away from the
+// dog, makes both characters speak, splatters blood, and sets the worker bleeding
+// (p.bloodSteps). i-frames / Monster immunity absorb the bite entirely. ----
+// 5a) In range and not i-framed -> a bite fires exactly once.
+{
+  const c = makeFlatbushDog(100, 6.5);           // home (100, 5.9)
+  p.wx = c.wx + 0.5; p.wy = c.wy + 0.3;          // dWorker ~= 0.58 < 0.85
+  p.invuln = 0; p.immuneT = 0; p.bloodSteps = 0;
+  const rec = {};
+  const beforeX = p.wx, beforeY = p.wy;
+  runLeashDogCase(c, true, [], rec);
+  const knockedAway = Math.hypot(p.wx - beforeX, p.wy - beforeY) > 0.5;
+  check('leashdog BITE fires when worker lingers in range (<0.85)', rec.hurt === 1 && rec.dmg === 5 && rec.stun === 1,
+    'hurt=' + (rec.hurt || 0) + ' dmg=' + (rec.dmg || 0) + ' stun=' + (rec.stun || 0));
+  check('bite knocks the worker back AWAY from the dog', knockedAway,
+    'moved ' + Math.hypot(p.wx - beforeX, p.wy - beforeY).toFixed(2) + ' from the dog');
+  check('bite splatters blood and starts the worker bleeding', rec.blood >= 1 && p.bloodSteps === 12,
+    'blood=' + (rec.blood || 0) + ' bloodSteps=' + p.bloodSteps);
+  check('bite makes the worker + dog speak', rec.lines.indexOf('Ow! He bit me!') >= 0 && rec.lines.indexOf('GRRR! GRRR!') >= 0,
+    JSON.stringify(rec.lines));
+}
+// 5b) Same range but i-framed -> the bite is absorbed (no damage / stun / blood / speech).
+{
+  const c = makeFlatbushDog(100, 6.5);
+  p.wx = c.wx + 0.5; p.wy = c.wy + 0.3;
+  p.invuln = 1; p.immuneT = 0; p.bloodSteps = 0;
+  const rec = {};
+  runLeashDogCase(c, true, [], rec);
+  const noBiteLines = rec.lines.indexOf('Ow! He bit me!') < 0 && rec.lines.indexOf('GRRR! GRRR!') < 0;
+  check('bite is ABSORBED while i-framed (no damage / stun / blood / bite-speech)',
+    !rec.hurt && !rec.stun && !rec.blood && noBiteLines && p.bloodSteps === 0,
+    'hurt=' + (rec.hurt || 0) + ' stun=' + (rec.stun || 0) + ' blood=' + (rec.blood || 0) + ' lines=' + JSON.stringify(rec.lines));
+}
+// 5c) After a bite, biteCd is set (>0) so the dog cannot re-bite until the cooldown lapses.
+{
+  const c = makeFlatbushDog(100, 6.5);
+  p.wx = c.wx + 0.5; p.wy = c.wy + 0.3;
+  p.invuln = 0; p.immuneT = 0; p.bloodSteps = 0;
+  const rec = {};
+  runLeashDogCase(c, true, [], rec);     // the bite fires
+  check('bite sets a cooldown (biteCd > 0) so it cannot immediately re-fire', c.biteCd > 0,
+    'biteCd=' + c.biteCd.toFixed(2));
+}
 
 console.log(ok ? '\nFLATBUSH DOGHOUSE CHECKS PASSED' : '\nFLATBUSH DOGHOUSE CHECKS FAILED');
 process.exit(ok ? 0 : 1);

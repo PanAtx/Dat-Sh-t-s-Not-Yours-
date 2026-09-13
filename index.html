@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.35</div>
+    <div id="app-version" class="menu-version">v1.0.38</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.35';
+const APP_VERSION = '1.0.38';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -693,11 +693,20 @@ const TRUCK_SPEED = 0.8;  // nominal crawl speed reported to traffic (the truck'
 const GZ = 0.3;
 const ISO_A = 26; // isometric camera arm length
 const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
+const JACKER_FACE_SE = -Math.PI / 2;   // the CONSTRUCTION WORKER (the jackhammer guy, the 'jacker' NPC)
+   // ALWAYS faces SOUTHEAST (screen down-and-right, toward the street) on every level,
+   // so the camera never sees his back.
+   // His model front is local +X and his yaw is rotation.z, so his local front is
+   // (cos a, sin a). The worldGroup is pre-rotated +PI/4 (Paperboy diagonal: route +X ->
+   // screen top-right), so on screen his front is (cos(a+PI/4), sin(a+PI/4)).
+   // Screen SE = scene (+X,-Y) = (0.707,-0.707) -> a+PI/4 = -PI/4 -> a = -PI/2.
+   // (Same street-facing angle as the hooker.) Was a random R(-0.55, 0.55) grind angle,
+   // so he sometimes showed his back to the camera.
 
 let state = 'menu', score = 0, bonusTally = 0, complaints = 0;
 let paused = false;   // true = a live shift is frozen (PAUSE overlay up); only meaningful when state === 'play'
 let health = 100, maxHealth = 100;   // worker health pool: NPCs drain it; power-ups restore it; 0 -> worker down (write-up); 3 write-ups -> game over
-let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, immuneT: 0, shake: 0, facing: 0 };
+let p = { wx: 0, wy: 2.5, phase: 0, stunT: 0, stunDur: 1, invuln: 0, immuneT: 0, shake: 0, facing: 0, bloodSteps: 0 };
 let carry = 'none', carried = null, hopperAnim = 0;
 let hopperLoad = 0, hopperCycling = false, hopperCycleT = 0;
 let hopperTrash = null, hopperLumps = [];
@@ -4569,9 +4578,9 @@ function addCreature(type){
   // hang STRAIGHT DOWN to the knees (re-applied every frame in the yeller update
   // case, because the shuffling leg-swing would otherwise reset the arms)
   if (c.parts && (type === 'yeller')){ c.parts.armL.rotation.y = -1.05; c.parts.armR.rotation.y = -1.05; }
-  // new sidewalk regulars: set their idle facing (jacker grinds at an angle,
+  // new sidewalk regulars: set their idle facing (jacker grinds facing SOUTHEAST,
   // hooker stands facing the street)
-  if (type === 'jacker') c.g.rotation.z = R(-0.55, 0.55);
+  if (type === 'jacker') c.g.rotation.z = JACKER_FACE_SE;
   if (type === 'hooker') c.g.rotation.z = -Math.PI / 2;
   c.g.position.set(c.wx, c.wy, GZ);
   dynamicGroup.add(c.g);
@@ -4935,7 +4944,7 @@ function resetWorldState(){
   pendingHouses.length = 0; bonuses.length = 0;
   powerups.length = 0; starParticles.length = 0;
   flyingCans.length = 0; dustParticles.length = 0; landedCans.length = 0; flyingBags.length = 0;
-  footprints.length = 0; footDist = 0; p.poopSteps = 0;
+  footprints.length = 0; footDist = 0; p.poopSteps = 0; p.bloodSteps = 0;
   while (dynamicGroup.children.length){ const c = dynamicGroup.children.pop(); disposeObj(c); }
   while (groundGroup.children.length){ const c = groundGroup.children.pop(); disposeObj(c); }
   blocks = []; creatures = [];
@@ -6316,21 +6325,51 @@ function collideCreatures(){
 }
 // ==================== BROWN FOOTPRINT TRAIL (after stepping in dog shit) ====================
 let footprints = [], footAlt = 1, footDist = 0;
-function dropFootprint(){
+function dropFootprint(isBlood){
   // alternate left / right of the walked axis, just behind the worker's feet
   const fx = Math.cos(p.facing || 0), fy = Math.sin(p.facing || 0);
   const off = 0.16 * footAlt; footAlt *= -1;
-  const g = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.22, 0.02), new THREE.MeshLambertMaterial({ color: 0x3a2410, transparent: true, opacity: 0.85 }));
+  // Blood = a small round drop (a bit wet and dark); dirt = the brown dog-shit smear.
+  // Both are more opaque than a bare print so the trail reads clearly.
+  const col = isBlood ? 0x990000 : 0x3a2410;
+  const op = isBlood ? 0.92 : 0.85;
+  let g;
+  if (isBlood){
+    // a small round drop of blood. The ground is the XY plane with Z = up, so a
+    // default CircleGeometry (flat face in XY, normal +Z) is ALREADY lying flat on
+    // the grass - no rotation needed. (Rotating it tipped it edge-on into the
+    // sidewalk, so it now reads as a flat round drop.)
+    g = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: op, side: THREE.DoubleSide }));
+  } else {
+    g = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.22, 0.02), new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: op }));
+  }
   g.position.set(p.wx - fx * 0.35 - fy * off, p.wy - fy * 0.35 + fx * off, GZ + 0.02);
   dynamicGroup.add(g);
-  footprints.push({ g: g, mat: g.material, life: 7 });
+  footprints.push({ g: g, mat: g.material, life: 7, baseOp: op });
+}
+// A burst of blood splatter at a point (the worker's position when bitten):
+// several red smears scattered in a small ring so it reads as a splat, not a single
+// block. Reuses the footprints array/lifecycle so it fades on the same 7s schedule.
+function dropBloodSplatter(wx, wy){
+  const n = 3 + (Math.random() * 2) | 0;   // 3-4 smears
+  for (let i = 0; i < n; i++){
+    const a = R(0, Math.PI * 2);
+    const r = R(0, 0.35);
+    const col = 0x990000;
+    const g = new THREE.Mesh(new THREE.BoxGeometry(R(0.16, 0.3), R(0.16, 0.3), 0.02),
+      new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: 0.92 }));
+    g.rotation.z = R(0, Math.PI * 2);
+    g.position.set(wx + Math.cos(a) * r, wy + Math.sin(a) * r, GZ + 0.02);
+    dynamicGroup.add(g);
+    footprints.push({ g: g, mat: g.material, life: 7, baseOp: 0.92 });
+  }
 }
 function updateFootprints(dt){
   for (let i = footprints.length - 1; i >= 0; i--){
     const f = footprints[i];
     f.life -= dt;
     if (f.life <= 0){ if (f.g.parent) f.g.parent.remove(f.g); disposeObj(f.g); footprints.splice(i, 1); }
-    else if (f.life < 3) f.mat.opacity = Math.max(0, f.life / 3) * 0.85; // oldest prints fade out
+    else if (f.life < 3) f.mat.opacity = Math.max(0, f.life / 3) * (f.baseOp || 0.85); // oldest prints fade out
   }
 }
 // ==================== PLAYER UPDATE ====================
@@ -6393,10 +6432,17 @@ function updatePlayer(dt){
   // and reaching Intersection 7 (the last one before Block 8) ends the route.
   if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
   if (p.wx >= ROUTE_FINISH_X && state === 'play'){ startRouteEnd(); return; } // fist pump, cab hop-in, truck rolls out
-  // brown footprint trail: one print per ~0.45 units walked while the trail is active
-  if (p.poopSteps > 0){
+  // brown footprint trail: one print per ~0.45 units walked while the trail is active.
+  // The worker can ALSO be bleeding (p.bloodSteps, set when a leashdog bites him):
+  // while bleeding the prints are RED and take priority over the brown dirt trail.
+  const trailSteps = p.bloodSteps > 0 ? p.bloodSteps : p.poopSteps;
+  if (trailSteps > 0){
     footDist += (speed + Math.abs(lat) * LAT_SPEED) * dt;
-    if (footDist >= 0.45){ footDist = 0; dropFootprint(); p.poopSteps--; }
+    if (footDist >= 0.45){
+      footDist = 0;
+      if (p.bloodSteps > 0){ dropFootprint(true); p.bloodSteps--; }
+      else { dropFootprint(); p.poopSteps--; }
+    }
   }
   // === Truck body collision: worker can't clip through the truck, but can walk freely
   // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
@@ -7658,6 +7704,10 @@ function updateCreatures(dt){
         // the whole tool shivers, the worker vibrates with it, and small bits
         // of concrete chip off the chisel tip. He never says a word.
         c.hamT += dt;
+        // Sinusoidal grind sway: the whole worker rocks around his locked SE facing,
+        // driven by the jackhammer's judder clock (c.hamT, NOT the global clock) so the
+        // body sway stays locked to the tool's vibration. Small amplitude (0.045 rad ~ 2.6deg).
+        c.g.rotation.z = JACKER_FACE_SE + Math.sin(c.hamT * 18) * 0.045;
         const vib = Math.abs(Math.sin(c.hamT * 24));
         if (c.hammer){
           c.hammer.position.z = 0.14 + vib * 0.055;
@@ -7674,7 +7724,7 @@ function updateCreatures(dt){
           spawnGravelBits(hx, hy);
           if (Math.random() < 0.3) spawnDustEffect(hx, hy); // occasional bigger dust puff
         }
-        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.g.rotation.z = R(-0.55, 0.55); }
+        if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.g.rotation.z = JACKER_FACE_SE; }
         break;
       }
       case 'hooker':{
@@ -7760,6 +7810,27 @@ function updateCreatures(dt){
           c.wy += (mvy / ml) * step;
           c.phase += step * 8; // drives the shared dogParts trot cycle (legs animate)
           c.g.rotation.z = Math.atan2(mvy, mvx); // dog faces +X - point it along its travel
+        }
+        // BITE: while the leash is taut against the worker (dWorker within the chain's
+        // reach), the dog lunges and bites if the worker lingers in its mouth-range
+        // (0.85). One bite per c.biteCd seconds so it never spam-damages. On a hit it
+        // knocks the worker away, damages, stuns, barks, and the worker starts bleeding
+        // (a red footprint trail) for a short while. i-frames / Monster immunity absorb
+        // the bite entirely (no damage, no stun, no blood).
+        c.biteCd = (c.biteCd || 0) - dt;
+        if (state === 'play' && c.biteCd <= 0 && dWorker < 0.85 && p.invuln <= 0 && p.immuneT <= 0){
+          c.biteCd = 2.0;
+          c.bark = 0.9;
+          const bl = dWorker || 0.001;               // unit vector dog -> worker
+          const bnx = dwx / bl, bny = dwy / bl;
+          p.wx += bnx * 0.9;                          // knockback: shove the worker away from the dog
+          p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
+          hurtNPC(HP_HIT_HAZARD);
+          doStun(0.5, 'hit');
+          Voice.say('Ow! He bit me!', 1.4, 1.0, p.wx, p.wy, WORKER_GENDER);
+          Voice.say('GRRR! GRRR!', 1.2, 1.05, c.wx, c.wy);
+          dropBloodSplatter(p.wx, p.wy);
+          p.bloodSteps = 12;                          // bleed a red footprint trail for a while
         }
         // chain: stake -> dog, kept taut
         if (c.chain){
