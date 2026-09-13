@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.29</div>
+    <div id="app-version" class="menu-version">v1.0.30</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.29';
+const APP_VERSION = '1.0.30';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4824,6 +4824,31 @@ function spawnWorld(){
     }
    }
  }
+  // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
+  // driveways that the doghouses did NOT take. They run AFTER the doghouse loop above
+  // (which splices 3 of the 8 driveway entries) so they consume the LEFTOVER driveways
+  // and can never share a driveway with a doghouse. A Flatbush block has 8 driveway
+  // entries (houses 0-8) and 3 doghouses, leaving 5 - plenty for the 3 tricycles.
+  // Each kid lunges at the sanitation worker when they ride up the driveway, but the
+  // leash clamp (chainR around their home spot + the wy<=0.8 street guard) keeps them
+  // from ever crossing into the street. See the isDrivewayTric state machine in
+  // updateCreatures (case 'tric') for the idle/attacking/returning logic.
+  if (isFlatbushLevel()) {
+    for (let t = 0; t < 3 && flatbushDriveways.length > 0; t++) {
+      const dti = (Math.random() * flatbushDriveways.length) | 0;
+      const dtx = flatbushDriveways[dti];
+      flatbushDriveways.splice(dti, 1);
+      const dt = addCreature('tric');
+      dt.isDrivewayTric = true;
+      dt.homeX = dtx;                 // fixed home = driveway center (like the doghouse anchor)
+      dt.homeY = 4.3;                 // on the driveway slab, back from the street edge
+      dt.wx = dt.homeX; dt.wy = dt.homeY;
+      dt.state = 'idle'; dt.hitCd = 0; dt.chainR = DRIVETR_CHAIN_R;   // leash radius around the home spot
+      dt.g.position.set(dt.wx, dt.wy, GZ);
+      dt.g.rotation.z = -Math.PI / 2;  // parked, nose toward the street (-Y)
+    }
+  }
+
   // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
   // shared seed spot; every bird scatters on its own random heading when shooed
   for (let fI = 0; fI < 2; fI++){
@@ -5494,6 +5519,15 @@ const POWERUP_IMMUNE_DUR = 12;     // Monster: seconds of full immunity (a long,
 const MONSTER_SCORE_STEP = 5000;   // a new Monster can spawns every this much score, near the player
 const HP_HIT_VEHICLE = 8;          // a vehicle run-over hurts (kept light so it feels fair)
 const HP_HIT_HAZARD = 5;           // a hard static hazard (e.g. hydrant) nicks you a little
+const HP_HIT_DRIVETRIC = 4;        // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
+// ---- Flatbush driveway tricycles (kids who chase the worker up the driveway) ----
+const DRIVETR_CHAIN_R = 4.2;       // leash radius around a kid's home spot (never reaches the street)
+const DRIVETR_AGGRO_DIST = 6.5;    // worker distance that scares a parked kid into attacking
+const DRIVETR_AGGRO_DUR = 3.0;     // seconds a kid stays aggro before returning home
+const DRIVETR_ATK_SP = 6.0;        // the kid's chase speed while attacking (faster than a worker's walk)
+const DRIVETR_HOME_SP = 2.6;       // the kid's trot speed when returning to / idle at home
+const DRIVETR_HIT_DIST = 1.3;      // contact distance at which the tricycle bumps the worker
+const DRIVETR_HIT_CD = 1.6;        // per-kid cooldown between bumps (keeps the hits from spamming)
 function heal(amount){ health = Math.min(maxHealth, health + (amount || 0)); }
 function hurtNPC(amount){
   if (state !== 'play') return;
@@ -6203,6 +6237,7 @@ function collideCreatures(){
     const c = creatures[i];
     if (c.type === 'pigeon') continue; // pigeons scatter and fly away before any contact — no bump collision
     if (c.type === 'leashdog') continue; // chained to its lawn; the worker's lane never reaches it
+    if (c.type === 'tric' && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
     const dx = c.wx - p.wx, dy = c.wy - p.wy;
     const d2 = dx * dx + dy * dy;
     let rad = 1.0;
@@ -6522,7 +6557,7 @@ function findVehicleAhead(vehicle, allCreatures){
     if (!yOverlap) continue;
     // NO SLOW TRAFFIC: vehicles NEVER brake for NPCs (pedestrians, animals, dog walkers...).
     // Those creatures clear the way themselves via npcRoadRules(). Only real vehicles block.
-    if (!VEHICLE_TYPES[other.type]) continue;
+    if (!VEHICLE_TYPES[other.type] || other.isDrivewayTric) continue; // driveway kids are parked, not traffic
     // Same-type bike detection removed - bikes should all detect the truck ahead independently
     // Previous check caused them to ignore each other and pile up at the hopper
     
@@ -6596,7 +6631,7 @@ function findClosingVehicle(c, all){
   let best = null;
   for (let i = 0; i < all.length; i++){
     const v = all[i];
-    if (v === c || !VEHICLE_TYPES[v.type] || !v.boxW) continue;
+    if (v === c || !VEHICLE_TYPES[v.type] || !v.boxW || v.isDrivewayTric) continue;
     const vSp = (v.curSp !== undefined ? v.curSp : (v.sp || 0));
     if (vSp < 2) continue; // only live, moving traffic is a threat
     const dx = c.wx - v.wx; // positive = NPC is ahead
@@ -6629,7 +6664,7 @@ function npcLaneFree(wy, wx, all, self){
   // True if no vehicle occupies the candidate lateral lane near the NPC, and it's not the truck
   for (let i = 0; i < all.length; i++){
     const v = all[i];
-    if (v === self || !VEHICLE_TYPES[v.type] || !v.boxW) continue;
+    if (v === self || !VEHICLE_TYPES[v.type] || !v.boxW || v.isDrivewayTric) continue;
     if (Math.abs(v.wy - wy) > v.boxW + 0.6) continue;
     const dx = v.wx - wx;
     if (dx > -8 && dx < 15) return false; // a vehicle occupies that lane nearby
@@ -6936,6 +6971,63 @@ function updateCreatures(dt){
         break;
       }
       case 'tric':{
+        // ===== Flatbush driveway tricycle (isDrivewayTric) =====
+        // A kid parked on a concrete driveway who lunges at the worker when they
+        // ride up. Unlike a street tricycle it NEVER enters the roadway: the leash
+        // clamp keeps it inside chainR of its home spot and wy is hard-floored at
+        // 0.8 (the street edge). States: idle -> attacking -> returning -> idle.
+        if (c.isDrivewayTric){
+          c.hitCd = (c.hitCd || 0) - dt;
+          const dtwX = p.wx - c.wx, dtwY = p.wy - c.wy;
+          const dtw = Math.sqrt(dtwX * dtwX + dtwY * dtwY);
+          // --- state transitions ---
+          if (c.state !== 'attacking' && dtw < DRIVETR_AGGRO_DIST) c.state = 'attacking';
+          if (c.state === 'attacking'){
+            if (dtw > c.chainR + 0.4) c.state = 'returning';   // worker out of leash reach
+            else if (dtw > DRIVETR_AGGRO_DIST) c.state = 'returning'; // worker walked on
+          }
+          if (c.state === 'returning' && Math.hypot(c.homeX - c.wx, c.homeY - c.wy) < 0.25) c.state = 'idle';
+          // --- movement target + speed ---
+          let gx, gy, spd;
+          if (c.state === 'attacking'){
+            gx = p.wx; gy = p.wy; spd = DRIVETR_ATK_SP;
+            // leash: clamp the chase target to the driveway circle so the run is bounded
+            const ox = gx - c.homeX, oy = gy - c.homeY, ol = Math.sqrt(ox * ox + oy * oy) || 1;
+            if (ol > c.chainR){ gx = c.homeX + (ox / ol) * c.chainR; gy = c.homeY + (oy / ol) * c.chainR; }
+            // bump the worker on contact (per-kid cooldown keeps the hits fair; only
+            // during play and only when not i-framed / immune)
+            if (dtw < DRIVETR_HIT_DIST && c.hitCd <= 0 && state === 'play' && p.invuln <= 0 && p.immuneT <= 0){
+              c.hitCd = DRIVETR_HIT_CD;
+              const nl = dtw || 1;
+              p.wx -= (dtwX / nl) * 0.9;
+              p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());
+              hurtNPC(HP_HIT_DRIVETRIC);
+              doStun(0.7, 'hit');
+              Voice.say('OW!', 1.2, 1.1, p.wx, p.wy, WORKER_GENDER);
+              Voice.say('Stranger Danger!', 1.8, 1.25, c.wx, c.wy, c.gender);
+            }
+          } else {
+            gx = c.homeX; gy = c.homeY; spd = DRIVETR_HOME_SP;
+          }
+          const mX = gx - c.wx, mY = gy - c.wy, mLen = Math.sqrt(mX * mX + mY * mY);
+          if (mLen > 0.05){
+            const step = Math.min(mLen, spd * dt);
+            c.wx += (mX / mLen) * step;
+            c.wy = clamp(c.wy + (mY / mLen) * step, 0.8, 7.5);  // never past the street edge
+            c.phase += step * 8;
+            animParts(c, step * 3);
+            c.g.rotation.z = Math.atan2(mY, mX);                 // face the direction of travel
+            c.g.rotation.x = Math.sin(c.wx * 3) * 0.08;          // little ride sway
+          } else {
+            // parked (or standing at the leash edge): face the worker while attacking,
+            // otherwise face the street
+            c.g.rotation.z = (c.state === 'attacking') ? Math.atan2(dtwY, dtwX) : -Math.PI / 2;
+            c.g.rotation.x = 0;
+          }
+          // a driveway tricycle is a fixed fixture: it never recycles off-screen
+          break;
+        }
+        // ===== street tricycle (unchanged) =====
         const sprintTric = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
         c.stop -= dt;
         if (c.stop <= 0){
@@ -7695,7 +7787,7 @@ function updateCreatures(dt){
     { const _stTop = stepTopAt(c.wx, c.wy); if (_stTop > GZ && _stTop > c.g.position.z) c.g.position.z = _stTop; }
   }
   // Separate overlapping vehicles after all movement is done this frame
-  const vehicleList = creatures.filter(v => v.boxW !== undefined && v.type !== 'ped' && v.type !== 'lady');
+  const vehicleList = creatures.filter(v => v.boxW !== undefined && v.type !== 'ped' && v.type !== 'lady' && !v.isDrivewayTric);
   separateVehicles(vehicleList, dt);
   // Enforce truck's physical body as immovable solid wall — NO clipping
   resolveTruckCollisions(vehicleList, dt);
