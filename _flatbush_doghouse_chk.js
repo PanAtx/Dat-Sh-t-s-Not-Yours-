@@ -27,9 +27,15 @@ const Voice = { say(){} };
 const p = { wx: 0, wy: 2.5 };
 
 // ---- extract the REAL leashdog case body (brace-counted) from updateCreatures ----
+// NOTE: there are TWO `case 'leashdog':{` in index.html - one in the spawner
+// (calls makeHighPolyDog/makeDogHouse, not stubbed here) and the one in
+// updateCreatures that does the off-screen recycling. We must anchor to the
+// updateCreatures definition so indexOf lands on the recycle case.
 function extractLeashDogCase(){
-  const start = src.indexOf("case 'leashdog':{");
-  if (start < 0) throw new Error('leashdog case not found');
+  const fnStart = src.indexOf('function updateCreatures(dt){');
+  if (fnStart < 0) throw new Error('updateCreatures not found');
+  const start = src.indexOf("case 'leashdog':{", fnStart);
+  if (start < 0) throw new Error('leashdog case not found in updateCreatures');
   let i = src.indexOf('{', start), depth = 0;
   for (; i < src.length; i++){
     if (src[i] === '{') depth++;
