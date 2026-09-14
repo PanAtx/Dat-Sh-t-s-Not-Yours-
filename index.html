@@ -550,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.43</div>
+    <div id="app-version" class="menu-version">v1.0.44</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.43';
+const APP_VERSION = '1.0.44';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7885,16 +7885,19 @@ function updateCreatures(dt){
         // prevents the leash from stretching across the screen when the dog is far
         // from its anchor and tries to lunge at the worker.
         if (c.wx - p.wx < -55 && !isFlatbushLevel()){
+          console.log('[leashdog] RECYCLING triggered');
           if (isManhattanLevel()){
             let targetX = p.wx + 44 + R(0, 10);
             let blockIdx = Math.floor(targetX / 96);
             let posInCycle = targetX % 96;
             if (posInCycle > 80){ targetX = (blockIdx + 1) * 96 + 10 + R(0, 60); }
             else if (posInCycle < 10 || posInCycle > 70){ targetX = blockIdx * 96 + 10 + R(0, 60); }
+            console.log('[leashdog] Manhattan recycle: new anchor at', targetX, ',', R(0.85, 1.05).toFixed(2));
             c.anchorX = targetX; c.anchorY = R(0.85, 1.05);
             c.homeX = c.anchorX + R(-0.4, 0.8);
             c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
             c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            console.log('[leashdog] After recycle: dog at', c.wx.toFixed(1), ',', c.wy.toFixed(1), 'anchor at', c.anchorX.toFixed(1), ',', c.anchorY.toFixed(1));
             if (c.anchorObj){
               if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
               c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
