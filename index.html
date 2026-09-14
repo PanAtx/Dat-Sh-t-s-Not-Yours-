@@ -550,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.45</div>
+    <div id="app-version" class="menu-version">v1.0.46</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.45';
+const APP_VERSION = '1.0.46';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7894,10 +7894,16 @@ function updateCreatures(dt){
             else if (posInCycle < 10 || posInCycle > 70){ targetX = blockIdx * 96 + 10 + R(0, 60); }
             console.log('[leashdog] Manhattan recycle: new anchor at', targetX, ',', R(0.85, 1.05).toFixed(2));
             c.anchorX = targetX; c.anchorY = R(0.85, 1.05);
+            // Update sidewalk bounds for the new block so the dog isn't clamped to its old block
+            let newBlockIdx = Math.floor(targetX / 96);
+            c.blockMinX = newBlockIdx * 96 + 6.0;
+            c.blockMaxX = newBlockIdx * 96 + BLOCK_W - 6.0;
             c.homeX = c.anchorX + R(-0.4, 0.8);
             c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
             c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            c.calmCd = 2.0; // Give the dog a moment to settle before it can get aggro again
             console.log('[leashdog] After recycle: dog at', c.wx.toFixed(1), ',', c.wy.toFixed(1), 'anchor at', c.anchorX.toFixed(1), ',', c.anchorY.toFixed(1));
+            console.log('[leashdog] After recycle: homeX=', c.homeX.toFixed(1), 'calmCd=', c.calmCd, 'blockMinX=', c.blockMinX.toFixed(1), 'blockMaxX=', c.blockMaxX.toFixed(1));
             if (c.anchorObj){
               if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
               c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
@@ -7910,6 +7916,7 @@ function updateCreatures(dt){
             c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
             c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
             c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            c.calmCd = 2.0; // Give the dog a moment to settle before it can get aggro again
             if (c.houseG) {
               c.houseG.position.set(c.anchorX, c.anchorY, GZ);
               if (c.houseG.parent === null) dynamicGroup.add(c.houseG);
@@ -7918,6 +7925,7 @@ function updateCreatures(dt){
         }
         if (dWorker < 6.5 && c.calmCd <= 0) c.agro = Math.max(c.agro || 0, 2.2);
         else c.agro = c.agro > 0 ? Math.max(0, c.agro - dt) : 0;
+        console.log('[leashdog] Pre-movement: dog at', c.wx.toFixed(1), 'agro=', c.agro.toFixed(1), 'calmCd=', c.calmCd.toFixed(1));
         // target: worker (clamped to the chain circle) while aggro, else its home spot
         let gx, gy;
         if (c.agro > 0 && c.calmCd <= 0){
@@ -7925,12 +7933,14 @@ function updateCreatures(dt){
           const ox = gx - c.anchorX, oy = gy - c.anchorY;
           const ol = Math.sqrt(ox * ox + oy * oy) || 1;
           if (ol > c.chainR){ gx = c.anchorX + (ox / ol) * c.chainR; gy = c.anchorY + (oy / ol) * c.chainR; }
+          console.log('[leashdog] Aggro target: worker at', gx.toFixed(1), gy.toFixed(1));
           c.barkCd = (c.barkCd || 0) - dt;
           if (c.barkCd <= 0 && dWorker < 9){
             c.bark = 0.9; c.barkCd = R(1.0, 1.7);
             Voice.say('WOOF! WOOF! WOOF!', 1.5, 1.0, c.wx, c.wy, null, 'dog');
           }
         } else { gx = c.homeX; gy = c.homeY; }
+        console.log('[leashdog] Target: gx=', gx.toFixed(1), 'gy=', gy.toFixed(1), 'homeX=', c.homeX.toFixed(1));
         // Manhattan: the dog is leashed to a curb-side fixture, so it stays ON the walk -
         // clamp the movement target (and the position below) to wy >= 0.85 so the dog
         // never steps onto the asphalt, but it can still lunge out to the curb line
