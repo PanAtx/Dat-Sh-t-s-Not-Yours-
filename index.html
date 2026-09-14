@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.40</div>
+    <div id="app-version" class="menu-version">v1.0.41</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.40';
+const APP_VERSION = '1.0.41';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7878,6 +7878,7 @@ function updateCreatures(dt){
         if (isManhattanLevel()) gy = Math.max(0.85, gy);
         const mvx = gx - c.wx, mvy = gy - c.wy;
         const ml = Math.sqrt(mvx * mvx + mvy * mvy);
+        let dVx = 0, dVy = 0;      // dog's velocity this frame (for the leash sway below)
         if (ml > 0.06){
           const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
           c.wx += (mvx / ml) * step;
@@ -7885,6 +7886,7 @@ function updateCreatures(dt){
           if (isManhattanLevel()) c.wy = Math.max(0.85, c.wy);
           c.phase += step * 8; // drives the shared dogParts trot cycle (legs animate)
           c.g.rotation.z = Math.atan2(mvy, mvx); // dog faces +X - point it along its travel
+          if (dt > 0){ dVx = (mvx / ml) * (step / dt); dVy = (mvy / ml) * (step / dt); }
         }
         // BITE: while the leash is taut against the worker (dWorker within the chain's
         // reach), the dog lunges and bites if the worker lingers in its mouth-range
@@ -7918,7 +7920,21 @@ function updateCreatures(dt){
           // to the collar (z 0.62 on the flat walk). Ground doghouses tie at the stake
           // top (z 0.62, about collar height), so the bar reads as level.
           const dogCollarZ = stepTopAt(c.wx, c.wy) + (0.62 - GZ);
-          tieLeashChain(c.chain, c.anchorX, c.anchorY, isManhattanLevel() ? 1.5 : 0.62, c.wx, c.wy, dogCollarZ);
+          // LEASH SWAY: a real lead swishes behind the running dog rather than staying
+          // glued to a straight fixture->collar line. A damped spring (c.chainLean)
+          // lags behind the dog's transverse motion, so the bar bows out to the side
+          // while it trots and eases back when it stops. The dog end is nudged along
+          // the leash axis by the lean (scaled to the segment length), so the bar
+          // still ends right at the collar at rest but visibly flexes in motion.
+          const lax = c.anchorX - c.wx, lay = c.anchorY - c.wy;
+          const ll = Math.sqrt(lax * lax + lay * lay) || 1;
+          const uax = lax / ll, uay = lay / ll;
+          const perpX = -uay, perpY = uax;        // unit vector perpendicular to the leash
+          const targetLean = clamp((dVx * perpX + dVy * perpY) * 0.12, -0.35, 0.35); // lag toward the dog's sideways speed
+          c.chainLean = (c.chainLean || 0) + (targetLean - (c.chainLean || 0)) * Math.min(1, dt * 6); // damped ease toward target
+          const dogSwayX = c.wx - uax * c.chainLean;
+          const dogSwayY = c.wy - uay * c.chainLean;
+          tieLeashChain(c.chain, c.anchorX, c.anchorY, isManhattanLevel() ? 1.5 : 0.62, dogSwayX, dogSwayY, dogCollarZ);
         }
         if (tx < -55 && !isFlatbushLevel()){
           // recycle the whole set-up ahead of the route so it keeps showing up.

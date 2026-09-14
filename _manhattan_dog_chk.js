@@ -334,9 +334,13 @@ check('spawnWorld (Manhattan): doghouse hidden, chain still tied to the anchor',
 check('spawnWorld (Manhattan): chain ties to the TOP of the fixture (post collar, z 1.5) and tilts to the dog collar (z 0.62)',
   manBlock.indexOf('tieLeashChain(ld.chain, ld.anchorX, ld.anchorY, 1.5, ld.wx, ld.wy, 0.62)') >= 0);
 check('AI case: per-frame chain ties at the dog COLLAR - Manhattan tilts from the post collar (z 1.5) down to the collar, ground ties at the stake top (z 0.62)',
-  /tieLeashChain\(c\.chain, c\.anchorX, c\.anchorY, isManhattanLevel\(\)\s*\?\s*1\.5\s*:\s*0\.62, c\.wx, c\.wy, dogCollarZ\)/.test(caseText));
+  /tieLeashChain\(c\.chain, c\.anchorX, c\.anchorY, isManhattanLevel\(\)\s*\?\s*1\.5\s*:\s*0\.62, dogSwayX, dogSwayY, dogCollarZ\)/.test(caseText));
 check('AI case: the dog collar z TRACKS THE GROUND via stepTopAt (0.62 on flat ground, follows a raised lip)',
   /const dogCollarZ = stepTopAt\(c\.wx, c\.wy\) \+ \(0\.62 - GZ\)/.test(caseText));
+check('AI case: the leash SWAYS - a damped chainLean spring nudges the dog end along the leash axis as the dog moves (bowing lead)',
+  /c\.chainLean = \(c\.chainLean \|\| 0\) \+ \(targetLean - \(c\.chainLean \|\| 0\)\) \* Math\.min\(1, dt \* 6\)/.test(caseText) &&
+  /const dogSwayX = c\.wx - uax \* c\.chainLean;/.test(caseText) &&
+  /const targetLean = clamp\(\(dVx \* perpX \+ dVy \* perpY\) \* 0\.12, -0\.35, 0\.35\)/.test(caseText));
 check('AI case: Manhattan target clamp (gy) and position clamp (c.wy) to >= 0.85',
   caseText.indexOf('if (isManhattanLevel()) gy = Math.max(0.85, gy);') >= 0 &&
   caseText.indexOf('if (isManhattanLevel()) c.wy = Math.max(0.85, c.wy);') >= 0);
