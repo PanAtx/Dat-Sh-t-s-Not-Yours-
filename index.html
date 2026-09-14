@@ -329,9 +329,29 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
   background:rgba(0,0,0,.30); padding:6px 14px; border:2px solid rgba(255,255,255,.35); border-radius:4px; }
 /* ===== Comic-strip speech bubbles (worker + NPC lines, ~2s each) ===== */
 .bubble { position:fixed; z-index:50; pointer-events:none; transform:translate(-50%,-110%);
-  background:#fffdf2; border:3px solid #14141a; border-radius:10px; padding:5px 8px 6px;
+  background:#fff9e6; border:3px solid #14141a; border-radius:10px; padding:5px 8px 6px;
   font-family:'Press Start 2P','Courier New',monospace; font-size:9px; line-height:1.6; letter-spacing:0;
-  color:#14141a; white-space:nowrap; box-shadow:4px 5px 0 rgba(0,0,0,.30); }
+  color:#14141a; white-space:nowrap; box-shadow:4px 5px 0 rgba(0,0,0,.30);
+  animation:bubblePop 0.25s cubic-bezier(.2,1.5,.4,1) forwards; }
+@keyframes bubblePop {
+  0% { transform:translate(-50%,-110%) scale(0); opacity:0; }
+  60% { transform:translate(-50%,-110%) scale(1.1); opacity:.8; }
+  100% { transform:translate(-50%,-110%) scale(1); opacity:1; }
+}
+/* Worker: reserved light-green */
+.bubble.bub-worker { background:#b8f0b8; }
+/* NPCs: distinct pastel colors, strictly no green */
+.bubble.bub-dog     { background:#ffd0a8; }   /* warm biscuit / peach */
+.bubble.bub-ped     { background:#c5e0f5; }   /* sky blue */
+.bubble.bub-lady    { background:#c5e0f5; }   /* sky blue */
+.bubble.bub-hooker  { background:#ffc0d8; }   /* soft rose / pink */
+.bubble.bub-skater  { background:#b0e8eb; }   /* pastel aqua */
+.bubble.bub-escooter{ background:#d8c5f2; }   /* pastel lavender */
+.bubble.bub-yeller  { background:#ffd68a; }   /* soft apricot */
+.bubble.bub-rat     { background:#d0d4da; }   /* silver gray */
+.bubble.bub-driver  { background:#ffb5a0; }   /* pastel coral */
+.bubble.bub-kid     { background:#ffe680; }   /* buttercup yellow */
+.bubble.bub-default { background:#fff5d0; }   /* cream (fallback) */
 .bubble::after { content:''; position:absolute; left:50%; bottom:-10px; transform:translateX(-50%);
   width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #14141a; }
 .pop-mongo    { color:#ffab45; text-shadow:2px 2px 0 rgba(0,0,0,.45), 0 0 22px rgba(255,160,60,.7); animation:popPunch 1.1s cubic-bezier(.2,1.5,.4,1) forwards; }
@@ -530,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.42</div>
+    <div id="app-version" class="menu-version">v1.0.43</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.42';
+const APP_VERSION = '1.0.43';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -1674,9 +1694,10 @@ const Voice = {
   busy: false, queue: [], last: {},
   _male: [], _female: [], _any: [],
   maleSel: 'auto', femaleSel: 'auto',   // player-picked voice names ('auto' = pick by gender)
-  // NOTE: (text, gap, pitch, bx, by, gender) — speaker coords stay 4th/5th so every
-  // pre-existing call site keeps working; the 6th arg (gender) is optional.
-  say(text, gap, pitch, bx, by, gender){
+  // NOTE: (text, gap, pitch, bx, by, gender, speaker) — speaker coords stay 4th/5th so every
+  // pre-existing call site keeps working; the 6th arg (gender) is optional; the 7th arg
+  // (speaker) declares who's talking for the comic speech bubble color + placement.
+  say(text, gap, pitch, bx, by, gender, speaker){
     if (!this.enabled) return;
     const now = performance.now();
     gap = gap || 1.4;
@@ -1690,7 +1711,7 @@ const Voice = {
       this.queue.length = 0;
       try { window.speechSynthesis.cancel(); } catch (e) {}
     }
-    this.queue.push({ text: text, pitch: pitch || 0.8, bx: bx, by: by, gender: gender || null });
+    this.queue.push({ text: text, pitch: pitch || 0.8, bx: bx, by: by, gender: gender || null, speaker: speaker || null });
     if (interrupt) setTimeout(() => this.pump(), 60); // delay dodges the Chrome cancel/speak race that can double-play a line
     else this.pump();
   },
@@ -1772,7 +1793,7 @@ const Voice = {
     this.busy = true;
     try {
       window.speechSynthesis.speak(u);
-      if (item.bx !== undefined) spawnBubble(item.text, item.bx, item.by); // comic bubble over the speaker
+      if (item.bx !== undefined) spawnBubble(item.text, item.bx, item.by, item.speaker); // comic bubble over the speaker
     } catch (e) { this.busy = false; }
   },
   cancel(){
@@ -2514,7 +2535,7 @@ function finishHopperCycle(){
   hopperCycling = false;
   addScore(HOPPER_CYCLE_BONUS, true);
   SFX.playHopperJingle();
-  Voice.say('Hopper full, compacting!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Hopper full, compacting!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
 }
 function updateHopperTrash(dt){
   if (!hopperTrash || hopperLumps.length === 0) return;
@@ -5197,7 +5218,7 @@ function updateFlyingCans(dt){
           'Ow! That hurt!',
           "I'm calling 3-1-1!"
         ];
-        Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender);
+        Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender, hitNPC.type);
         hitNPC.vcd = 3; // longer cooldown so they don't repeat immediately
       } else {
         // Spawn dust effect at landing spot
@@ -5241,7 +5262,7 @@ function updateFlyingCans(dt){
           const hitNPC = checkFlyingCanNpcHit(curX, curY);
           if (hitNPC){
             const npcVoices = ['Hey! Watch it!', 'Ow! That hurt!', "I'm calling 3-1-1!"];
-            Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender);
+            Voice.say(npcVoices[(Math.random() * npcVoices.length) | 0], 2.5, 1.1, hitNPC.wx, hitNPC.wy, hitNPC.gender, hitNPC.type);
             hitNPC.vcd = 3;
           }
         }
@@ -5398,7 +5419,7 @@ function speakBagType(bag){
     needle: "There's a needle sticking out!"
   }[bag && bag.type];
   if (!line) return;
-  Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER);
+  Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER, 'worker');
 }
 function pickUp(item){
   if (item.kind === 'litterbasket' && item.state === 'placed'){
@@ -5569,7 +5590,7 @@ function updateBonuses(dt){
       else if (b.type === 'cash') SFX.playMoneySound();
       else SFX.playKaChing();
       showPopup(b.type || 'mongo', b.val, (b.type === 'treasure' || b.type === 'mongo') ? (b.voice || '').replace(/[! ]+$/, '') : undefined);
-      Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3, b.wx, b.wy, WORKER_GENDER);
+      Voice.say(b.voice, 1.0, b.type === 'cash' ? 1.1 : 1.3, b.wx, b.wy, WORKER_GENDER, 'worker');
       if (b.g.parent) b.g.parent.remove(b.g);
       disposeObj(b.g);
       bonuses.splice(i, 1);
@@ -5617,7 +5638,7 @@ function hurtNPC(amount){
   const f = $('flash'); if (f){ f.style.opacity = 1; setTimeout(function(){ f.style.opacity = 0; }, 350); }
   const bar = $('hpbar'); if (bar){ bar.classList.add('hurt'); setTimeout(function(){ bar.classList.remove('hurt'); }, 320); }
   SFX.playHurtSound();
-  Voice.say('Ow! That one hurt!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Ow! That one hurt!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
   if (health <= 0) startDyingSequence();   // out of health: play the down sequence, THEN the write-up (game over on the 3rd)
 }
 // ==================== OUT-OF-HEALTH DOWN SEQUENCE (the "LODI" moment) ====================
@@ -5737,7 +5758,7 @@ function finishDying(){
   wparts.legL.rotation.set(0, 0, 0); wparts.legR.rotation.set(0, 0, 0);
   wparts.armL.rotation.set(0, 0, 0); wparts.armR.rotation.set(0, 0, 0);
   showWriteUpText(n);
-  Voice.say(n === 1 ? 'Ugh... that write-up is on my record now.' : 'TWO write-ups?! That means business!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+  Voice.say(n === 1 ? 'Ugh... that write-up is on my record now.' : 'TWO write-ups?! That means business!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
   state = 'play';
   updateHUD();
 }
@@ -6081,19 +6102,19 @@ function consumePowerup(b){
     p.immuneT = POWERUP_IMMUNE_DUR;                 // a few seconds of full immunity
     SFX.playRunItUpSound();
     announcePower('RUN IT UP!', 'pop-power-run');
-    Voice.say("Let's go! Run it up!", 2.5, 1.1, p.wx, p.wy, WORKER_GENDER);
+    Voice.say("Let's go! Run it up!", 2.5, 1.1, p.wx, p.wy, WORKER_GENDER, 'worker');
     spawnStars(b.wx, b.wy, 28);
   } else if (b.type === 'bec'){
     heal(POWERUP_HEAL_BEC);
     SFX.playPowerUpSound();
     announcePower('POWER UP!', 'pop-power');
-    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
     spawnStars(b.wx, b.wy, 16);
   } else {                                          // coffee
     heal(POWERUP_HEAL_COFFEE);
     SFX.playPowerUpSound();
     announcePower('POWER UP!', 'pop-power');
-    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('I needed that!', 2.5, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
     spawnStars(b.wx, b.wy, 16);
   }
 }
@@ -6204,7 +6225,7 @@ function autoDumpWhileImmune(){
   carry = prevCarry; carried = prevCarried;          // keep whatever you were already holding
   spawnStars(best.wx, best.wy, 12);
   SFX.playTossSound();
-  Voice.say('POW! Dumped it!', 1.8, 1.0, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('POW! Dumped it!', 1.8, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
 }
 function tryInteract(){
   if (state !== 'play' || p.stunT > 0) return;
@@ -6214,7 +6235,7 @@ function tryInteract(){
       // zone than the generous nearHopper() band the other bags/cans use.
       const heavy = !!(carried && carried.type === 'heavy');
       if (heavy ? nearHopperHeavy() : nearHopper()) return tossBag(carried);
-      Voice.say(heavy ? 'I need to be closer to the truck. This bag is too heavy!' : 'I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
+      Voice.say(heavy ? 'I need to be closer to the truck. This bag is too heavy!' : 'I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER, 'worker');
       return;
     }
     // Litter baskets need a much tighter zone — you have to be right at the
@@ -6222,7 +6243,7 @@ function tryInteract(){
     const near = (carry === 'litterBasket') ? nearHopperLitter() : nearHopper();
     if (near) return (carry === 'litterBasket') ? dumpLitterBasket() : dumpCan();
     // Carrying trash but standing too far from the rear scoop to dump it.
-    Voice.say('I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('I need to get closer to the truck!', 1.8, 0.8, p.wx, p.wy, WORKER_GENDER, 'worker');
     return;
   }
   if (carry === 'none'){
@@ -6258,7 +6279,7 @@ function tryInteract(){
     }
   }
   if (shooed){
-    Voice.say('Shoo! Get out of here!', 2.5, 0.85, p.wx, p.wy, WORKER_GENDER);
+    Voice.say('Shoo! Get out of here!', 2.5, 0.85, p.wx, p.wy, WORKER_GENDER, 'worker');
     SFX.playShooSound();
   }
 }
@@ -6281,16 +6302,16 @@ function collideStatic(dt){
       if (dx * dx + dy * dy > hz.r * hz.r) continue;
       hz.cd = 1.4;
       if (hz.type === 'poop'){
-        Voice.say('dog shit!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER);
+        Voice.say('dog shit!', 2.5, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
         p.poopSteps = 16; footDist = 0; // the worker leaves a brown footprint trail for a while
       } else if (hz.type === 'hit'){
         p.wx -= 0.7;
         hurtNPC(HP_HIT_HAZARD);
         doStun(0.8, 'hit');
-        Voice.say('OW! My shin!', 3, 0.9, p.wx, p.wy, WORKER_GENDER);
+        Voice.say('OW! My shin!', 3, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
       } else {
         doStun(0.8, 'trip');
-        if (hz.yellow) Voice.say('Yuck! Piss bottle!', 3, 0.9, p.wx, p.wy, WORKER_GENDER);
+        if (hz.yellow) Voice.say('Yuck! Piss bottle!', 3, 0.9, p.wx, p.wy, WORKER_GENDER, 'worker');
         if (hz.drop > 0 && carry !== 'none' && Math.random() < hz.drop) dropCarried();
       }
       return;
@@ -6347,19 +6368,19 @@ function collideCreatures(){
       p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
       if (c.vcd <= 0){
         c.vcd = 2.5;
-        if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy); }
+        if (c.type === 'dogwalker'){ c.bark = 2.2; Voice.say('WOOF! WOOF! WOOF!', 2.5, 1.0, c.wx, c.wy, null, 'dog'); }
         else if (c.type === 'jacker'){ /* says nothing - too busy jackhammering */ }
-        else if (c.type === 'hooker') Voice.say('Want a date?', 3, 1.2, c.wx, c.wy, c.gender);
-        else if (c.type === 'skater') Voice.say('Whoa! Like, watch it bro!', 3, 1.15, c.wx, c.wy, c.gender);
-        else if (c.type === 'escooter') Voice.say("I'm calling a lawyer!", 3, 1.0, c.wx, c.wy, c.gender);
-        else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9, c.wx, c.wy, c.gender);
-        else Voice.say('Hey! Watch it!', 4, 1.1, c.wx, c.wy, c.gender);
+        else if (c.type === 'hooker') Voice.say('Want a date?', 3, 1.2, c.wx, c.wy, c.gender, 'hooker');
+        else if (c.type === 'skater') Voice.say('Whoa! Like, watch it bro!', 3, 1.15, c.wx, c.wy, c.gender, 'skater');
+        else if (c.type === 'escooter') Voice.say("I'm calling a lawyer!", 3, 1.0, c.wx, c.wy, c.gender, 'escooter');
+        else if (c.type === 'yeller') Voice.say('Damn fentanyl addicts!', 4, 0.9, c.wx, c.wy, c.gender, 'yeller');
+        else Voice.say('Hey! Watch it!', 4, 1.1, c.wx, c.wy, c.gender, 'ped');
       }
       return;
     }
     if (c.type === 'rat'){
       c.flee = 1.6; c.dir = dx >= 0 ? -1 : 1;
-      Voice.say('Eeek!', 1.2, 1.5, c.wx, c.wy);
+      Voice.say('Eeek!', 1.2, 1.5, c.wx, c.wy, null, 'rat');
       if (carry !== 'none' && Math.random() < 0.45) dropCarried();
       doStun(0.5, 'trip');
     } else if (c.type === 'squirrel'){
@@ -6369,7 +6390,7 @@ function collideCreatures(){
     } else if (c.type === 'raccoon'){
       // The raccoon startles the worker - he screams "Rabies!" and trips over himself
       c.flee = 2.2; c.dir = dx >= 0 ? -1 : 1;
-      Voice.say('Rabies!', 1.0, 1.5, p.wx, p.wy, WORKER_GENDER);
+      Voice.say('Rabies!', 1.0, 1.5, p.wx, p.wy, WORKER_GENDER, 'worker');
       if (carry !== 'none' && Math.random() < 0.5) dropCarried();
       doStun(0.7, 'trip');
     } else {
@@ -6381,8 +6402,8 @@ function collideCreatures(){
       hurtNPC(HP_HIT_VEHICLE);   // get run over = lose health (absorbed if immune / i-framed)
       p.invuln = 1.6;
       doStun(1.2, 'hit');
-      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7, c.wx, c.wy, c.gender);
-      else Voice.say('Hey! Hurry up!', 5, 0.85, c.wx, c.wy, c.gender);
+      if (c.type === 'car' || c.type === 'moto') Voice.say('Watch the road!', 4, 0.7, c.wx, c.wy, c.gender, 'driver');
+      else Voice.say('Hey! Hurry up!', 5, 0.85, c.wx, c.wy, c.gender, 'ped');
     }
     return;
   }
@@ -6999,7 +7020,7 @@ function updateCreatures(dt){
         else if (tx < -58){ c.wx = p.wx + 42; c.wy = R(1, 4); }
         c.cd -= dt;
         if (state === 'play' && c.cd <= 0 && Math.abs(tx) < 5){
-          Voice.say('Hey! Hurry up!', 6, 1.1, c.wx, c.wy, c.gender);
+          Voice.say('Hey! Hurry up!', 6, 1.1, c.wx, c.wy, c.gender, 'ped');
           c.cd = 6;
         }
         break;
@@ -7077,7 +7098,7 @@ function updateCreatures(dt){
           // Worker gets close → take flight, flapping, with a yell
           c.flyT = 1.1; c.gz = 0.5;
           c.fleeAng = Math.atan2(c.wy - p.wy, c.wx - p.wx) + R(-1.8, 1.8); // every bird picks a DIFFERENT scatter direction
-          Voice.say('scram birds!', 2.2, 0.95, p.wx, p.wy, WORKER_GENDER);
+          Voice.say('scram birds!', 2.2, 0.95, p.wx, p.wy, WORKER_GENDER, 'worker');
         } else {
           // Pecking at seed on the sidewalk: hop-bob + slight body sway
           c.peck += dt * 7;
@@ -7132,8 +7153,8 @@ function updateCreatures(dt){
               p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());
               hurtNPC(HP_HIT_DRIVETRIC);
               doStun(0.7, 'hit');
-              Voice.say('OW!', 1.2, 1.1, p.wx, p.wy, WORKER_GENDER);
-              Voice.say('Stranger Danger!', 1.8, 1.25, c.wx, c.wy, c.gender);
+              Voice.say('OW!', 1.2, 1.1, p.wx, p.wy, WORKER_GENDER, 'worker');
+              Voice.say('Stranger Danger!', 1.8, 1.25, c.wx, c.wy, c.gender, 'kid');
             }
           } else {
             gx = c.homeX; gy = c.homeY; spd = DRIVETR_HOME_SP;
@@ -7755,7 +7776,7 @@ function updateCreatures(dt){
           c.shout -= dt;
           if (c.shout <= 0){
             const lines = ['Hey! Watch it out here!', 'Hey! Hurry up!', 'Whoa - watch the road!'];
-            Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3), c.wx, c.wy, c.gender);
+            Voice.say(lines[(Math.random() * lines.length) | 0], 2, R(0.9, 1.3), c.wx, c.wy, c.gender, c.type);
             c.shout = R(5, 9);
           }
         }
@@ -7859,6 +7880,39 @@ function updateCreatures(dt){
         // to its home spot instead of lunging again. (undefined -> 0, so a fresh dog
         // starts neutral just like before.)
         c.calmCd = c.calmCd > 0 ? Math.max(0, c.calmCd - dt) : 0;
+        // RECYCLE BEFORE MOVEMENT: if the dog is far behind the worker, recycle it
+        // to a new position ahead of the route BEFORE the dog tries to move. This
+        // prevents the leash from stretching across the screen when the dog is far
+        // from its anchor and tries to lunge at the worker.
+        if (c.wx - p.wx < -55 && !isFlatbushLevel()){
+          if (isManhattanLevel()){
+            let targetX = p.wx + 44 + R(0, 10);
+            let blockIdx = Math.floor(targetX / 96);
+            let posInCycle = targetX % 96;
+            if (posInCycle > 80){ targetX = (blockIdx + 1) * 96 + 10 + R(0, 60); }
+            else if (posInCycle < 10 || posInCycle > 70){ targetX = blockIdx * 96 + 10 + R(0, 60); }
+            c.anchorX = targetX; c.anchorY = R(0.85, 1.05);
+            c.homeX = c.anchorX + R(-0.4, 0.8);
+            c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
+            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            if (c.anchorObj){
+              if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
+              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+            } else {
+              c.anchorObj = makePostMesh();
+              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+              dynamicGroup.add(c.anchorObj);
+            }
+          } else {
+            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
+            c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
+            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            if (c.houseG) {
+              c.houseG.position.set(c.anchorX, c.anchorY, GZ);
+              if (c.houseG.parent === null) dynamicGroup.add(c.houseG);
+            }
+          }
+        }
         if (dWorker < 6.5 && c.calmCd <= 0) c.agro = Math.max(c.agro || 0, 2.2);
         else c.agro = c.agro > 0 ? Math.max(0, c.agro - dt) : 0;
         // target: worker (clamped to the chain circle) while aggro, else its home spot
@@ -7871,7 +7925,7 @@ function updateCreatures(dt){
           c.barkCd = (c.barkCd || 0) - dt;
           if (c.barkCd <= 0 && dWorker < 9){
             c.bark = 0.9; c.barkCd = R(1.0, 1.7);
-            Voice.say('WOOF! WOOF! WOOF!', 1.5, 1.0, c.wx, c.wy);
+            Voice.say('WOOF! WOOF! WOOF!', 1.5, 1.0, c.wx, c.wy, null, 'dog');
           }
         } else { gx = c.homeX; gy = c.homeY; }
         // Manhattan: the dog is leashed to a curb-side fixture, so it stays ON the walk -
@@ -7918,57 +7972,14 @@ function updateCreatures(dt){
           p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
           hurtNPC(HP_HIT_HAZARD);
           doStun(0.5, 'hit');
-          Voice.say('Ow! He bit me!', 1.4, 1.0, p.wx, p.wy, WORKER_GENDER);
-          Voice.say('GRRR! GRRR!', 1.2, 1.05, c.wx, c.wy);
+          Voice.say('Ow! He bit me!', 1.4, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
+          Voice.say('GRRR! GRRR!', 1.2, 1.05, c.wx, c.wy, null, 'dog');
           dropBloodSplatter(p.wx, p.wy);
           p.bloodSteps = 12;                          // bleed a red footprint trail for a while
           c.agro = 0; c.calmCd = 4.0;                 // the dog settles down and trots back to its spot
         }
-        if (tx < -55 && !isFlatbushLevel()){
-          // recycle the whole set-up ahead of the route so it keeps showing up.
-          // Flatbush is excluded: spawnWorld places exactly 3 doghouses on fixed
-          // driveways for the level, and the player should only ever encounter
-          // those 3 - they stay put instead of teleporting down the route.
-          if (isManhattanLevel()){
-            // Re-tie to a fresh visible curb-side fixture ahead of the route (a tree or
-            // fence post, reusing the anchor object), the doghouse stays hidden. The anchor
-            // lands back at the curb (y 0.85..1.05) - never on the street.
-            // Ensure the anchor lands on the sidewalk (not in corners or cross-streets):
-            // blocks are 80u wide with 16u gaps; safe zone is [blockX+10, blockX+70].
-            let targetX = p.wx + 44 + R(0, 10);
-            let blockIdx = Math.floor(targetX / 96);
-            let posInCycle = targetX % 96;
-            if (posInCycle > 80){ // In a cross-street gap - move to next block's safe zone
-              targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
-            } else if (posInCycle < 10 || posInCycle > 70){ // In a corner zone
-              targetX = blockIdx * 96 + 10 + R(0, 60);
-            }
-            c.anchorX = targetX; c.anchorY = R(0.85, 1.05);
-            c.homeX = c.anchorX + R(-0.4, 0.8);
-            c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
-            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
-            if (c.anchorObj){
-              if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
-              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
-            } else {
-              c.anchorObj = makePostMesh();
-              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
-              dynamicGroup.add(c.anchorObj);
-            }
-          } else {
-            // Other levels: random lawn position (original behavior)
-            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
-            c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
-            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
-            if (c.houseG) {
-              c.houseG.position.set(c.anchorX, c.anchorY, GZ);
-              if (c.houseG.parent === null) dynamicGroup.add(c.houseG);
-            }
-          }
-        }
-        // chain: fixture/stake -> dog, kept taut (done AFTER recycling so it ties to the
-        // updated anchor/dog position, not the old one — prevents the leash from stretching
-        // across the screen when the dog recycles off-screen)
+        // chain: fixture/stake -> dog, kept taut (done AFTER recycling and movement so it
+        // ties to the updated anchor/dog position, not the old one)
         if (c.chain){
           // The dog end of the chain attaches to the COLLAR, not the feet. The collar
           // sits 0.32u above the dog's feet, and the feet ride on whatever ground is
@@ -8079,12 +8090,47 @@ function worldToScreen(wx, wy, wz){
   if (!isFinite(_bubVec.x) || !isFinite(_bubVec.y) || _bubVec.z > 1 || _bubVec.z < -1) return null;
   return { x: (_bubVec.x * 0.5 + 0.5) * innerWidth, y: (-_bubVec.y * 0.5 + 0.5) * innerHeight };
 }
-function spawnBubble(text, wx, wy){
+const BUBBLE_LINE_STEP = 42;
+function bubbleBounds(sx, sy, text, line){
+  const estChars = Math.max(4, text.length);
+  const w = estChars * 10 + 20;
+  const h = 30;
+  return { x: sx - w * 0.5, y: sy - h - line * BUBBLE_LINE_STEP, w: w, h: h };
+}
+function rectsOverlap(a, b){
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function findFreeBubbleLine(sx, sy, text){
+  for (let line = 0; line < 4; line++){
+    const self = bubbleBounds(sx, sy, text, line);
+    let free = true;
+    for (const b of speechBubbles){
+      if (b.lockedX === null || b.lockedY === null) continue;
+      const other = bubbleBounds(b.lockedX, b.lockedY, b.text, b.offsetLine);
+      if (rectsOverlap(self, other)){ free = false; break; }
+    }
+    if (free) return line;
+  }
+  return 0;
+}
+function spawnBubble(text, wx, wy, speaker){
   const el = document.createElement('div');
-  el.className = 'bubble';
+  if (speaker === 'worker') el.className = 'bubble bub-worker';
+  else if (speaker === 'dog') el.className = 'bubble bub-dog';
+  else if (speaker === 'ped' || speaker === 'lady') el.className = 'bubble bub-ped';
+  else if (speaker === 'hooker') el.className = 'bubble bub-hooker';
+  else if (speaker === 'skater') el.className = 'bubble bub-skater';
+  else if (speaker === 'escooter') el.className = 'bubble bub-escooter';
+  else if (speaker === 'yeller') el.className = 'bubble bub-yeller';
+  else if (speaker === 'rat') el.className = 'bubble bub-rat';
+  else if (speaker === 'driver') el.className = 'bubble bub-driver';
+  else if (speaker === 'kid') el.className = 'bubble bub-kid';
+  else el.className = 'bubble bub-default';
   el.textContent = text;
   document.body.appendChild(el);
-  speechBubbles.push({ el: el, wx: wx, wy: wy, life: 1.9, max: 1.9 });
+  const s = worldToScreen(wx, wy, GZ + 2.35) || { x: innerWidth / 2, y: innerHeight * 0.3 };
+  const offsetLine = findFreeBubbleLine(s.x, s.y, text);
+  speechBubbles.push({ el: el, wx: wx, wy: wy, life: 1.9, max: 1.9, text: text, lockedX: s.x, lockedY: s.y, offsetLine: offsetLine, speaker: speaker });
 }
 function updateBubbles(dt){
   for (let i = speechBubbles.length - 1; i >= 0; i--){
@@ -8092,9 +8138,11 @@ function updateBubbles(dt){
     b.life -= dt;
     if (b.life <= 0){ b.el.remove(); speechBubbles.splice(i, 1); continue; }
     b.el.style.opacity = b.life > (b.max - 0.3) ? (b.max - b.life) / 0.3 : Math.min(1, b.life / 0.45);
-    const s = worldToScreen(b.wx, b.wy, GZ + 2.35) || { x: innerWidth / 2, y: innerHeight * 0.3 }; // never let a bubble sit off-screen
+    const s = worldToScreen(b.wx, b.wy, GZ + 2.35) || { x: innerWidth / 2, y: innerHeight * 0.3 };
+    b.lockedX = s.x;
+    b.lockedY = s.y;
     b.el.style.left = s.x + 'px';
-    b.el.style.top = s.y + 'px';
+    b.el.style.top = Math.max(12, s.y - b.offsetLine * BUBBLE_LINE_STEP) + 'px';
   }
 }
 // ==================== GAME FLOW ====================
@@ -8185,7 +8233,7 @@ function startRouteEnd(){
                pts: pts, pt: 0,
                bx: cabX, by: -4.5 + side * boxW * 0.45,  // deep INSIDE the body — past the side panel, fully clipped
                walkT: 0, driveT: 0 };
-  Voice.say('Route done! Clocking out — see ya tomorrow, city!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Route done! Clocking out — see ya tomorrow, city!', 1, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
 }
 function updateRouteEnd(dt){
   const g = worker.group;
@@ -8330,7 +8378,7 @@ function routeComplete(){
   state = 'dayend';
   SFX.playHopperJingle();
   const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
-  Voice.say('That\'s the ' + d.day + ' route, ' + d.borough + '. Clean sweep!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('That\'s the ' + d.day + ' route, ' + d.borough + '. Clean sweep!', 1, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
   if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   ['over', 'complete', 'week-complete', 'day-intro'].forEach(function(id){ $(id).classList.add('hidden'); });
   showDayStats();
@@ -8347,7 +8395,7 @@ function nextDay(){
 function showWeekComplete(){
   state = 'weekcomplete';
   SFX.playHopperJingle();
-  Voice.say('Whole week in the bag! Best shift I ever pulled!', 1, 1.0, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Whole week in the bag! Best shift I ever pulled!', 1, 1.0, p.wx, p.wy, WORKER_GENDER, 'worker');
   if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('week-score'), pad(weekScore));
   setTxt($('week-hi'), pad(hi));
@@ -8473,7 +8521,7 @@ function gameOver(reason){
   const title = $('over-title'), tag = $('over-tag');
   if (title) title.textContent = 'SUSPENDED BY DSNY';
   if (tag) tag.textContent = '3 WRITE-UPS - ' + d.day + ' - GAME OVER';
-  Voice.say('Three write-ups... I\'m done for good. Back to the top of the route!', 1, 0.7, p.wx, p.wy, WORKER_GENDER);
+  Voice.say('Three write-ups... I\'m done for good. Back to the top of the route!', 1, 0.7, p.wx, p.wy, WORKER_GENDER, 'worker');
   if (weekScore > hi){ hi = weekScore; try { localStorage.setItem('dsnysweep_hi', String(hi)); } catch (e) {} }
   setTxt($('finalscore'), pad(weekScore));
   setTxt($('hiscore2'), pad(hi));

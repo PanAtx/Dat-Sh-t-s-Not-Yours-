@@ -121,7 +121,7 @@ check('non-Flatbush leashdog still recycles ahead of the player (regression guar
 
 // ---- 4) The old Flatbush teleport branch is gone from updateCreatures ----
 check('updateCreatures no longer references flatbushDriveways', caseText.indexOf('flatbushDriveways') < 0);
-check('leashdog recycle guard now excludes Flatbush', /tx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)/.test(caseText));
+check('leashdog recycle guard now excludes Flatbush', /c\.wx\s*-\s*p\.wx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)/.test(caseText));
 
 // ---- 5) BITE: a leashed dog that the worker lingers in range of (dWorker < 0.85)
 // latches on: it damages (HP_HIT_HAZARD), stuns, knocks the worker back away from the
