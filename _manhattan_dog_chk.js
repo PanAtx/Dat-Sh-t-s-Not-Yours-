@@ -342,8 +342,10 @@ check('AI case: the leash SWAYS - a damped chainLean spring nudges the dog end a
   /const dogSwayX = c\.wx - uax \* c\.chainLean;/.test(caseText) &&
   /const targetLean = clamp\(\(dVx \* perpX \+ dVy \* perpY\) \* 0\.12, -0\.35, 0\.35\)/.test(caseText));
 check('AI case: Manhattan target clamp (gy) and position clamp (c.wy) to >= 0.85',
-  caseText.indexOf('if (isManhattanLevel()) gy = Math.max(0.85, gy);') >= 0 &&
-  caseText.indexOf('if (isManhattanLevel()) c.wy = Math.max(0.85, c.wy);') >= 0);
+  caseText.indexOf('if (isManhattanLevel()) gy = Math.max(0.85, gy);') >= 0 ||
+  (caseText.indexOf('if (isManhattanLevel()){') >= 0 &&
+   caseText.indexOf('gy = Math.max(0.85, gy);') >= 0 &&
+   caseText.indexOf('c.wy = Math.max(0.85, c.wy);') >= 0));
 check('AI case: bite trigger (dWorker < 0.85 + i-frame guards) is intact',
   /dWorker\s*<\s*0\.85\s*&&\s*p\.invuln\s*<=\s*0\s*&&\s*p\.immuneT\s*<=\s*0/.test(caseText));
 check('AI case: bite still deals damage + stun + blood splatter + bleeding trail',
@@ -356,6 +358,15 @@ check('AI case: a calmed dog does NOT re-aggro and does NOT target the worker',
   /if \(c\.agro\s*>\s*0\s*&&\s*c\.calmCd\s*<=\s*0\)\{/.test(caseText));
 check('AI case: Manhattan recycle re-anchors AT THE CURB (R(0.85, 1.05)) with a fence post',
   caseText.indexOf('c.anchorY = R(0.85, 1.05);') >= 0 && caseText.indexOf('c.anchorObj = makePostMesh();') >= 0);
+// After recycling, the chain must tie to the NEW anchor/dog positions (not the old ones)
+// to prevent the leash from stretching across the screen when the dog recycles off-screen.
+check('AI case: chain tie runs AFTER recycling (ties to updated anchor/dog position)',
+  (() => {
+    const recycleEnd = caseText.lastIndexOf('c.agro = 0;');
+    if (recycleEnd < 0) return false;
+    const afterRecycle = caseText.slice(recycleEnd);
+    return afterRecycle.indexOf('tieLeashChain') >= 0;
+  })());
 check('addHydrant now delegates to makeHydrantMesh (refactor)',
   (() => { const hz = src.slice(src.indexOf('function addHydrant(b, wx, wy){'), src.indexOf('function addManhole'));
     return hz.indexOf('makeHydrantMesh()') >= 0 && hz.indexOf('b.hazards.push') >= 0; })());

@@ -530,7 +530,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.41</div>
+    <div id="app-version" class="menu-version">v1.0.42</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -614,7 +614,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.41';
+const APP_VERSION = '1.0.42';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4824,12 +4824,15 @@ function spawnWorld(){
       // a sidewalk tree or a cast-iron fence post (the doghouse is hidden; there are no lawns).
       // The anchor object is spawned here so the chain visibly ties to it, and the
       // off-screen recycling in updateCreatures moves it along with the dog.
-      const mag = R(1.5, 2.5);
-      let side = Math.random() < 0.5 ? -1 : 1;
-      let ax = b.worldX + side * mag;
-      if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0) ax = b.worldX - side * mag;
-      ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+      // SIDEBWALK-ONLY: use only active gameplay blocks (2-7) with proper sidewalk margin.
+      // Sidewalk is centered in each block: x ∈ [blockX + 10, blockX + 70] (10u setback from corners).
+      const activeBlocks = LEVEL_BLOCKS.filter(b => b.garbage === true && b.x >= 96 && b.x <= 576);
+      const b = activeBlocks[(Math.random() * activeBlocks.length) | 0];
+      ld.anchorX = clamp(b.x + 10.0 + R(0, 60.0), b.x + 10.0, b.x + BLOCK_W - 10.0);
       ld.anchorY = R(0.85, 1.05);   // right at the curb (the curb strip is y ~0.25..0.75), up against the walk
+      // Store sidewalk bounds for movement clamping in updateCreatures
+      ld.blockMinX = b.x + 6.0;
+      ld.blockMaxX = b.x + BLOCK_W - 6.0;
       // The leash is tied to a visible fixture: a sidewalk tree or a fence post
       // (hydrants stay reserved for the curb hazards in makeBlockContents).
       if (Math.random() < 0.5){
@@ -7875,7 +7878,13 @@ function updateCreatures(dt){
         // clamp the movement target (and the position below) to wy >= 0.85 so the dog
         // never steps onto the asphalt, but it can still lunge out to the curb line
         // where the worker walks (the worker's route hugs the curb).
-        if (isManhattanLevel()) gy = Math.max(0.85, gy);
+        // Also clamp X to the sidewalk (not in corners or cross-streets).
+        if (isManhattanLevel()){
+          gy = Math.max(0.85, gy);
+          if (typeof c.blockMinX === 'number' && typeof c.blockMaxX === 'number'){
+            gx = clamp(gx, c.blockMinX, c.blockMaxX);
+          }
+        }
         const mvx = gx - c.wx, mvy = gy - c.wy;
         const ml = Math.sqrt(mvx * mvx + mvy * mvy);
         let dVx = 0, dVy = 0;      // dog's velocity this frame (for the leash sway below)
@@ -7883,7 +7892,12 @@ function updateCreatures(dt){
           const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
           c.wx += (mvx / ml) * step;
           c.wy += (mvy / ml) * step;
-          if (isManhattanLevel()) c.wy = Math.max(0.85, c.wy);
+          if (isManhattanLevel()){
+            c.wy = Math.max(0.85, c.wy);
+            if (typeof c.blockMinX === 'number' && typeof c.blockMaxX === 'number'){
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+            }
+          }
           c.phase += step * 8; // drives the shared dogParts trot cycle (legs animate)
           c.g.rotation.z = Math.atan2(mvy, mvx); // dog faces +X - point it along its travel
           if (dt > 0){ dVx = (mvx / ml) * (step / dt); dVy = (mvy / ml) * (step / dt); }
@@ -7910,7 +7924,51 @@ function updateCreatures(dt){
           p.bloodSteps = 12;                          // bleed a red footprint trail for a while
           c.agro = 0; c.calmCd = 4.0;                 // the dog settles down and trots back to its spot
         }
-        // chain: fixture/stake -> dog, kept taut
+        if (tx < -55 && !isFlatbushLevel()){
+          // recycle the whole set-up ahead of the route so it keeps showing up.
+          // Flatbush is excluded: spawnWorld places exactly 3 doghouses on fixed
+          // driveways for the level, and the player should only ever encounter
+          // those 3 - they stay put instead of teleporting down the route.
+          if (isManhattanLevel()){
+            // Re-tie to a fresh visible curb-side fixture ahead of the route (a tree or
+            // fence post, reusing the anchor object), the doghouse stays hidden. The anchor
+            // lands back at the curb (y 0.85..1.05) - never on the street.
+            // Ensure the anchor lands on the sidewalk (not in corners or cross-streets):
+            // blocks are 80u wide with 16u gaps; safe zone is [blockX+10, blockX+70].
+            let targetX = p.wx + 44 + R(0, 10);
+            let blockIdx = Math.floor(targetX / 96);
+            let posInCycle = targetX % 96;
+            if (posInCycle > 80){ // In a cross-street gap - move to next block's safe zone
+              targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
+            } else if (posInCycle < 10 || posInCycle > 70){ // In a corner zone
+              targetX = blockIdx * 96 + 10 + R(0, 60);
+            }
+            c.anchorX = targetX; c.anchorY = R(0.85, 1.05);
+            c.homeX = c.anchorX + R(-0.4, 0.8);
+            c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
+            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            if (c.anchorObj){
+              if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
+              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+            } else {
+              c.anchorObj = makePostMesh();
+              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+              dynamicGroup.add(c.anchorObj);
+            }
+          } else {
+            // Other levels: random lawn position (original behavior)
+            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
+            c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
+            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
+            if (c.houseG) {
+              c.houseG.position.set(c.anchorX, c.anchorY, GZ);
+              if (c.houseG.parent === null) dynamicGroup.add(c.houseG);
+            }
+          }
+        }
+        // chain: fixture/stake -> dog, kept taut (done AFTER recycling so it ties to the
+        // updated anchor/dog position, not the old one — prevents the leash from stretching
+        // across the screen when the dog recycles off-screen)
         if (c.chain){
           // The dog end of the chain attaches to the COLLAR, not the feet. The collar
           // sits 0.32u above the dog's feet, and the feet ride on whatever ground is
@@ -7935,38 +7993,6 @@ function updateCreatures(dt){
           const dogSwayX = c.wx - uax * c.chainLean;
           const dogSwayY = c.wy - uay * c.chainLean;
           tieLeashChain(c.chain, c.anchorX, c.anchorY, isManhattanLevel() ? 1.5 : 0.62, dogSwayX, dogSwayY, dogCollarZ);
-        }
-        if (tx < -55 && !isFlatbushLevel()){
-          // recycle the whole set-up ahead of the route so it keeps showing up.
-          // Flatbush is excluded: spawnWorld places exactly 3 doghouses on fixed
-          // driveways for the level, and the player should only ever encounter
-          // those 3 - they stay put instead of teleporting down the route.
-          if (isManhattanLevel()){
-            // Re-tie to a fresh visible curb-side fixture ahead of the route (a tree or
-            // fence post, reusing the anchor object), the doghouse stays hidden. The anchor
-            // lands back at the curb (y 0.85..1.05) - never on the street.
-            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(0.85, 1.05);
-            c.homeX = c.anchorX + R(-0.4, 0.8);
-            c.homeY = clamp(c.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
-            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
-            if (c.anchorObj){
-              if (c.anchorObj.parent === null) dynamicGroup.add(c.anchorObj);
-              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
-            } else {
-              c.anchorObj = makePostMesh();
-              c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
-              dynamicGroup.add(c.anchorObj);
-            }
-          } else {
-            // Other levels: random lawn position (original behavior)
-            c.anchorX = p.wx + 44 + R(0, 10); c.anchorY = R(7.4, 8.2);
-            c.homeX = c.anchorX + R(-0.4, 0.8); c.homeY = c.anchorY - R(0.9, 1.5);
-            c.wx = c.homeX; c.wy = c.homeY; c.agro = 0;
-            if (c.houseG) {
-              c.houseG.position.set(c.anchorX, c.anchorY, GZ);
-              if (c.houseG.parent === null) dynamicGroup.add(c.houseG);
-            }
-          }
         }
         break;
       }
