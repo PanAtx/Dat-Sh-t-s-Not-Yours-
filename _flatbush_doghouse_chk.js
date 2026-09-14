@@ -22,6 +22,10 @@ check('inline script(s) parse (' + scripts.length + ')', synOk);
 // ---- helpers (mirror index.html) ----
 const R = (a, b) => a + Math.random() * (b - a);
 const GZ = 0.3;
+// The extracted case body now reads the dog's collar height from stepTopAt (flat
+// ground -> GZ, so the collar sits at 0.62). new Function bodies resolve free vars
+// against the GLOBAL scope, so expose a flat-ground stepTopAt here.
+global.stepTopAt = () => GZ;
 const dynamicGroup = { add(){}, remove(){} };
 const Voice = { say(){} };
 const p = { wx: 0, wy: 2.5, invuln: 0, immuneT: 0, bloodSteps: 0 };
@@ -63,9 +67,13 @@ function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
   const VoiceRec = { say: function(line){ rec.lines.push(line); } };
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
+    'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, VoiceRec, flatbushDriveways,
-    state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD);
+    state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
+    () => false, () => 7.5, function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; },
+    function makePostMesh(){ return { position: { set(){} }, parent: null }; },
+    function tieLeashChain(){ /* no-op: this harness exercises recycling/bite, not chain geometry */ });
 }
 // Build a leashdog at a FIXED driveway spawn (mirrors spawnWorld's Flatbush placement).
 function makeFlatbushDog(anchorX, anchorY){

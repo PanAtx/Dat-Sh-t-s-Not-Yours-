@@ -22,6 +22,7 @@ function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, 
 function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const GZ = 0.3;
 
+eval(extract('makeHydrantMesh'));
 eval(extract('addHydrant'));
 
 let ok = true;

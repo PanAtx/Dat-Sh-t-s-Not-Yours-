@@ -36,9 +36,11 @@ const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
 const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
 const sum = c => Object.keys(c).reduce((a, k) => a + c[k], 0);
-// Monday: gated types (moto/rc) are absent, so the roster is the baseline minus them.
+// Monday (Manhattan Uptown): gated types (moto/rc) are absent, the skater + raccoon +
+// tric (street tricycle) drops apply, and the Manhattan boost (+1 escooter +1 bike) bumps those.
 const mon = {}; for (const k in BASE_NPC_COUNTS) mon[k] = GATED_NPC[k] ? 0 : BASE_NPC_COUNTS[k];
-check('level 1 (Monday) is the sparse baseline roster (gated types absent)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
+mon.escooter += 1; mon.bike += 1; mon.skater = 0; mon.raccoon = 0; mon.tric = 0;
+check('level 1 (Monday) is the baseline + Manhattan scooter/bike boost (gated types, skater + raccoon dropped)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
 check('the main crowd (ped + car) gains +1 every level',
   [2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k] + (l - 1))));
@@ -49,8 +51,10 @@ check('moto appears from Wednesday, ebike from Thursday, rc from Friday',
   npcCounts(2).moto === 0 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
   npcCounts(3).ebike === 0 && npcCounts(4).ebike === 1 && npcCounts(5).ebike === 2 &&
   npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
-check('non-gated, non-scaling types stay at their Monday count',
-  [2,3,4,5,6,7].every(l => Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]).every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
+check('non-gated, non-scaling types stay at their Monday count (per-day overrides aside)',
+  Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]
+    && !['escooter','bike','tric','yeller','hooker','skater','raccoon'].includes(k))
+    .every(k => [1,2,3,4,5,6,7].every(l => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
 check('total NPCs never decrease across the week (Flatbush drops its street tric, so Wed may plateau)', (function(){ let prev = -1; for (let l = 1; l <= 7; l++){ const n = sum(npcCounts(l)); if (n < prev) return false; prev = n; } return true; })());
 console.log('   roster: day1 (Mon) = ' + sum(npcCounts(1)) + ' NPCs   ->   day7 (Sun) = ' + sum(npcCounts(7)) + ' NPCs');
 

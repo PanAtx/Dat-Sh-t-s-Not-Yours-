@@ -261,8 +261,10 @@ const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
 const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
 check('Flatbush (day 3) has NO non-attacking street tricycle (npcCounts(3).tric === 0)', npcCounts(3).tric === 0);
+check('the Manhattan days (1, 6) ALSO have no street tricycle (npcCounts(d).tric === 0)',
+  npcCounts(1).tric === 0 && npcCounts(6).tric === 0);
 check('the street-tricycle baseline is otherwise intact (other days keep their base tric count)',
-  [1, 2, 4, 5, 6, 7].every(d => npcCounts(d).tric === BASE_NPC_COUNTS.tric));
+  [2, 4, 5, 7].every(d => npcCounts(d).tric === BASE_NPC_COUNTS.tric));
 check('findVehicleAhead ignores driveway tricycles', /!VEHICLE_TYPES\[other\.type\] \|\| other\.isDrivewayTric/.test(src));
 check('findClosingVehicle ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
 check('npcLaneFree ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
