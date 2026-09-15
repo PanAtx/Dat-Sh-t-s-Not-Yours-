@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.54</div>
+    <div id="app-version" class="menu-version">v1.0.55</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.54';
+const APP_VERSION = '1.0.55';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4484,8 +4484,8 @@ function makeCrazyGuy(){
   const buttR = SPH(0.1, buttM, 12, 10); buttR.scale.set(0.9, 1.1, 0.8); buttR.position.set(0.04, -0.08, 0.72); g.add(buttR);
   // Private parts: dark triangle, slightly blurred/soft
   const priv = BX(0.04, 0.04, 0.03, M(0x1a1a1a)); priv.position.set(0.04, 0, 0.78); priv.rotation.x = 0.4; g.add(priv);
-  // Shirt (covers torso, short sleeves)
-  const torso = BX(0.24, 0.62, 0.45, shirtM); torso.position.z = 1.15; g.add(torso);
+  // Shirt (covers torso, short sleeves) - shorter so butt shows
+  const torso = BX(0.24, 0.5, 0.45, shirtM); torso.position.z = 1.18; g.add(torso);
   // Short-sleeved arms
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.32, 1.32);
@@ -8182,16 +8182,14 @@ function updateCreatures(dt){
           // After attacking, turn around and run away (not far)
           const dx = c.wx - p.wx, dy = c.wy - p.wy;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          // Turn to face away from the worker
-          c.g.rotation.y = Math.atan2(dx, dy);
+          // Face the direction of movement (away from worker)
+          c.g.rotation.z = Math.atan2(dy, dx);
           // Run away fast
           const runSp = 1.8;
           c.wx += (dx / d) * runSp * dt;
           c.wy = clamp(c.wy + (dy / d) * runSp * dt, 1.2, 4.2);
           // Quick running animation
           animParts(c, runSp * dt * 3.5, 0.9);
-          // Hunched posture while running
-          c.g.rotation.x = -0.15;
         } else {
           // Slow idle shamble forward
           c.wx += c.sp * dt;
@@ -8199,13 +8197,14 @@ function updateCreatures(dt){
           // Erratic sway
           c.g.rotation.x = Math.sin(c.phase * 0.7) * 0.08;
           c.g.rotation.y = Math.sin(c.phase * 1.1) * 0.04;
+          c.g.rotation.z = 0; // face forward while idling
         }
         c.g.position.z = GZ;
         c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
         if (tx < -55){
           // Recycle ahead on the sidewalk
           c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.attackCd = 0; c.backOffT = 0;
-          c.g.rotation.x = 0; c.g.rotation.y = 0;
+          c.g.rotation.x = 0; c.g.rotation.y = 0; c.g.rotation.z = 0;
         }
         break;
       }
