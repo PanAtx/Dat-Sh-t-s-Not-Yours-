@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.96</div>
+    <div id="app-version" class="menu-version">v1.0.97</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.96';
+const APP_VERSION = '1.0.97';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7212,7 +7212,7 @@ function animCat(c, dphase){
   parts.leg2.rotation.x = -s * 0.8;
   parts.leg3.rotation.x = -s * 0.8;
   // Body bounces slightly
-  parts.body.position.y = 0.045 * 1.4 - Math.abs(Math.sin(c.phase)) * 0.005;
+  parts.body.position.y = 0.07 * 1.4 - Math.abs(Math.sin(c.phase)) * 0.005;
 }
 // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
 function animPedal(c, dphase){
