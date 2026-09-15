@@ -550,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.47</div>
+    <div id="app-version" class="menu-version">v1.0.48</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.47';
+const APP_VERSION = '1.0.48';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3743,11 +3743,152 @@ function addManhole(b, wx, wy){
   b.group.add(g);
   b.hazards.push({ wx: wx, wy: wy, r: 0.9, type: 'trip', drop: 0.5, cd: 0 });
 }
+// ==================== MANHATTAN STORE NAMES ====================
+const UPTOWN_STORE_NAMES = [
+  'THE BESPOKE MAYO APOTHECARY',
+  'ARTISANAL EMULSIONS: $38 MAYO',
+  'DECONSTRUCTED KEWPIE LAB',
+  'HEIRLOOM AIOLI & REGRET',
+  'ORGANIC EMULSION ATELIER',
+  'PRETENTIOUS BEAN: NO DECAF',
+  'SINGLE-ORIGIN GUILT COFFEE',
+  'DE-URBANIZED OAT LATTE BAR',
+  'COLD BREW & ATTITUDE',
+  'MICRO-ROASTED AIR & FOAM',
+  'TOXIC POSITIVITY NAILS',
+  'PASSIVE-AGGRESSIVE BROWS',
+  'ORGANIC LYMPH DRAINAGE OASIS',
+  'BOTOX & APOLOGIES MED SPA',
+  'EXFOLIATE YOUR GUILT SALON',
+  'VEGAN LABRADOODLE THERAPY',
+  'DOGGIE PSYCHOANALYSIS & CO.',
+  'THE SPOILED BICHON BOUTIQUE',
+  'GLUTEN-FREE PUPPY TARTARE',
+  'BARK & REIKI PET WELLNESS',
+  'UNWEARABLE: HAUTE COUTURE',
+  'VINTAGE HOLES: $900 JEANS',
+  'MOURNFUL LINEN SMOCKS',
+  'THE CASHMERE SWEAT LODGE',
+  'ANONYMOUS SCANDINAVIAN GRAY',
+  'INCONVENIENT RAW JUICERY',
+  'CONFLICT-FREE CHARCOAL WATER',
+  'CRYOTHERAPY & QUIET CRYING',
+  'SUSTAINABLE SILENCE YOGA',
+  'UNVACCINATED CRYSTAL CAFE',
+  'FERMENTED MOOD APOTHECARY',
+  'OVERTHOUGHT SOURDOUGH & CHAI'
+];
+
+const HARLEM_STORE_NAMES = [
+  'CHOPPED CHEESE BOTANICA',
+  'UNCLE CHOPPY\'S WE GOT IT ALL',
+  'PAPI\'S 24/7 BACON EGG & CHEESE',
+  'NO CREDIT DELI & LOTTO DREAMS',
+  'THE SMOKE, WEAVE & SUBWAY OASIS',
+  'LAST CALL DISCOUNT LIQUOR',
+  'BULLETPROOF HENNY PALACE',
+  'SIPPIN\' & PRAYIN\' WINES & SPIRITS',
+  'COLD 40s & WARM CONVERSATION',
+  'CONGRESSMAN\'S REMORSE LIQUORS',
+  'SISTER AMINA\'S PAIN-FREE BRAIDS (LIES)',
+  'QUEEN OF SHEBA TIGHT ASS BRAIDS',
+  'DON\'T MOVE YOUR HEAD SALON',
+  'EDGES RESTORATION CLINIC',
+  'FADE TO BLACK: 5-MIN CLIPPERS',
+  'HARLEM TAROT & UNCOMFORTABLE TRUTHS',
+  'SISTER FATIMA: I KNEW YOU\'D COME',
+  'CURSE REMOVAL & HOT COMB ENT.',
+  'PSYCHIC MAMA: CASH ONLY NO REFUNDS',
+  'LOVE SPELLS & ROACH SPRAY',
+  'HARLEM ISLAMIC PEACE & OILS CENTER',
+  'MADINA HALAL MEAT & PHONE CARDS',
+  'BROTHER MALIK\'S 1000 SCENTS & OILS',
+  'ALLAHU AKBAR ELECTRONICS & KUFIS',
+  'SISTER NIYAH\'S MODEST THREADS',
+  'AFRICAN PRIDE FABRICS & SHEA',
+  'DASHIKI DISCOUNTERS & DRUMS',
+  'SWEET POTATO REDEMPTION BAKERY',
+  'AUNTIE\'S GREENS & SIDE-EYE',
+  'FISH FRY FRIDAYS & LEGAL AID',
+  'STEP-N-STYLE GOLD TEETH & SUITS',
+  'CHURCH FAN & PEACH COBBLER DEPOT'
+];
+
+// Fisher-Yates shuffle — used to randomize store names each shift start.
+function shuffleStoreNames(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+
+// Generate a storefront sign texture from the store name.
+function makeStoreSignMaterial(storeName, isUptown){
+  if (typeof document === 'undefined' || !THREE.CanvasTexture){
+    return M(0x8a6a5a);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 80;
+  const ctx = canvas.getContext('2d');
+  let bgColor, textColor, borderColor;
+  if (isUptown){
+    const r = Math.random();
+    if (r < 0.17) { bgColor = 0x3a2a20; textColor = 0xf0e8d8; borderColor = 0xc8a878; }
+    else if (r < 0.33) { bgColor = 0x2a2a2a; textColor = 0xf8f8f8; borderColor = 0xc0c0c0; }
+    else if (r < 0.50) { bgColor = 0x4a4a3a; textColor = 0xf0f8e0; borderColor = 0xa0c090; }
+    else if (r < 0.67) { bgColor = 0x5a4a3a; textColor = 0xfaf0e0; borderColor = 0xd8b898; }
+    else if (r < 0.83) { bgColor = 0x1a1a1a; textColor = 0xffeedd; borderColor = 0xd4af37; }
+    else { bgColor = 0x6a5a4a; textColor = 0xf8f4e8; borderColor = 0xb8a080; }
+  } else {
+    const palettes = [
+      { bg: 0xc8102e, txt: 0xffffff, bd: 0xffdd00 },
+      { bg: 0xd4af37, txt: 0x1a1a1a, bd: 0x8a0000 },
+      { bg: 0x228b22, txt: 0xffffff, bd: 0xffdd00 },
+      { bg: 0x8a00ff, txt: 0xffffff, bd: 0xffdd00 },
+      { bg: 0xff6600, txt: 0xffffff, bd: 0xffffff },
+      { bg: 0x004488, txt: 0xffdd00, bd: 0xffdd00 }
+    ];
+    const p = palettes[(Math.random() * palettes.length) | 0];
+    bgColor = p.bg; textColor = p.txt; borderColor = p.bd;
+  }
+  const bgHex = '#' + bgColor.toString(16).padStart(6, '0');
+  const bdHex = '#' + borderColor.toString(16).padStart(6, '0');
+  const txtHex = '#' + textColor.toString(16).padStart(6, '0');
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, 1024, 80);
+  ctx.strokeStyle = bdHex;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 1016, 72);
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(6, 6, 1012, 20);
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(6, 54, 1012, 20);
+  let fontSize = 30;
+  ctx.font = 'bold ' + fontSize + 'px "Arial Black", Impact, sans-serif';
+  let tw = ctx.measureText(storeName).width;
+  while (tw > 990 && fontSize > 10){ fontSize--; ctx.font = 'bold ' + fontSize + 'px "Arial Black", Impact, sans-serif'; tw = ctx.measureText(storeName).width; }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillText(storeName, 512, 54);
+  ctx.fillStyle = txtHex;
+  ctx.fillText(storeName, 512, 52);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return new THREE.MeshLambertMaterial({
+    map: texture,
+    emissiveMap: texture,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.35
+  });
+}
 // ==================== MANHATTAN BROWNSTONE ROW HOUSES ====================
 // Brownstones are taller (4-5 stories), narrower, with no front yard.
 // They have high stoops (concrete steps) leading to the door.
 // The building comes right up to the sidewalk with no front yard.
-function makeBrownstone(){
+function makeBrownstone(storeOptions){
   const g = new THREE.Group();
   const cols = [0x7a4a3a, 0x8a6a5a, 0x6a5a4a, 0x9a7a6a, 0x7a5a4a, 0x6a4a3a];
   const col = cols[(Math.random() * cols.length) | 0];
@@ -3764,7 +3905,10 @@ function makeBrownstone(){
   cornice.position.z = 0.3 + h + 0.4;
   g.add(cornice);
   const winM = new THREE.MeshLambertMaterial({ color: 0x8cc0e8, emissive: 0x1a3a4f, emissiveIntensity: 0.4 });
-  for (let floor = 0; floor < 4; floor++){
+  // Storefronts: skip floors 0 and 1 (ground + second), only windows on floors 2-3
+  // Residential: all 4 floors have windows
+  const startFloor = (storeOptions && storeOptions.isStore) ? 2 : 0;
+  for (let floor = startFloor; floor < 4; floor++){
     const fy = 0.3 + 1.0 + floor * 1.2;
     for (let side = -1; side <= 1; side += 2){
       const winX = side * w * 0.25;
@@ -3776,19 +3920,71 @@ function makeBrownstone(){
       g.add(glass);
     }
   }
-  const stoop = makeBrownstoneStoop(w, d);
-  g.add(stoop);
-  const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
-  door.position.set(0, -d / 2 - 0.02, 0.3 + 1.7);
-  g.add(door);
-  const doorFrame = BX(0.9, 0.1, 1.7, M(0x2a1a0a));
-  doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + 1.7);
-  g.add(doorFrame);
-  const lampBulb = SPH(0.05, new THREE.MeshLambertMaterial({ color: 0xffffbb, emissive: 0xffff66, emissiveIntensity: 3.0 }));
-  lampBulb.position.set(0, -d / 2 - 0.04, 0.3 + 2.1);
-  g.add(lampBulb);
-  // Door step area data for stepTopAt()
-  g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
+  if (storeOptions && storeOptions.isStore){
+    // Storefront: ground floor is a commercial store
+    // Kick-plate / base below window
+    const kickplate = BX(w - 0.4, 0.4, 0.2, M(0x444444));
+    kickplate.position.set(0, -d / 2 - 0.2, 0.3 + 0.1);
+    g.add(kickplate);
+    // Large display window (narrower, no Z-fighting)
+    const winFrame = BX(3.6, 0.1, 1.4, M(0x222222));
+    winFrame.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+    g.add(winFrame);
+    const winGlass = BX(3.4, 0.04, 1.3, new THREE.MeshLambertMaterial({ color: 0x88bbdd, emissive: 0x223344, emissiveIntensity: 0.55 }));
+    winGlass.position.set(0, -d / 2 - 0.09, 0.3 + 1.15);
+    g.add(winGlass);
+    // Window divider
+    const divider = BX(0.08, 0.08, 1.35, M(0x222222));
+    divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+    g.add(divider);
+    // Storefront door (side entrance) — raised so top aligns with window
+    const doorX = storeOptions.isLeft ? -2.6 : 2.6;
+    const door = BX(0.75, 0.06, 1.65, M(0x3a2a1a));
+    door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.125);
+    g.add(door);
+    const doorGlass = BX(0.65, 0.02, 0.65, new THREE.MeshLambertMaterial({ color: 0x88bbdd, emissive: 0x112233, emissiveIntensity: 0.3 }));
+    doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.525);
+    g.add(doorGlass);
+    // Door handle
+    const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
+    handle.position.set(doorX + 0.25, -d / 2 - 0.07, 0.3 + 1.0);
+    g.add(handle);
+    // Sidewalk entrance mat/step
+    const mat = BX(1.0, 0.4, 0.04, M(0x555555));
+    mat.position.set(doorX, -d / 2 - 0.5, 0.31);
+    g.add(mat);
+    // Sign board above window (solid backing)
+    const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+    signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
+    g.add(signBoard);
+    // Store name sign — plane mesh facing outward (not a sprite that always faces camera)
+    const signMat = makeStoreSignMaterial(storeOptions.storeName, storeOptions.isUptown);
+    const signPlane = new THREE.Mesh(new THREE.PlaneGeometry(6.8, 0.48), signMat);
+    signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
+    signPlane.rotation.x = Math.PI / 2; // Face outward from building (-Y direction)
+    g.add(signPlane);
+    // Sign crown molding
+    const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+    signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
+    g.add(signCrown);
+    // Step data for collision
+    g.userData.step = { hw: 0.6, cy: -d / 2, hd: 0.4, top: 0.31 };
+  } else {
+    // Residential: stoop + door + lamp
+    const stoop = makeBrownstoneStoop(w, d);
+    g.add(stoop);
+    const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
+    door.position.set(0, -d / 2 - 0.02, 0.3 + 1.7);
+    g.add(door);
+    const doorFrame = BX(0.9, 0.1, 1.7, M(0x2a1a0a));
+    doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + 1.7);
+    g.add(doorFrame);
+    const lampBulb = SPH(0.05, new THREE.MeshLambertMaterial({ color: 0xffffbb, emissive: 0xffff66, emissiveIntensity: 3.0 }));
+    lampBulb.position.set(0, -d / 2 - 0.04, 0.3 + 2.1);
+    g.add(lampBulb);
+    // Door step area data for stepTopAt()
+    g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
+  }
   return g;
 }
 function makeBrownstoneStoop(w, d){
@@ -4693,12 +4889,17 @@ function makeCurbCan(wx, wy, house){
   dynamicGroup.add(g);
   return can;
 }
-function makeBlockContents(b, baseX, houseIdx){
+function makeBlockContents(b, baseX, houseIdx, storeOptions){
   while (b.group.children.length){ const c = b.group.children.pop(); disposeObj(c); }
   b.hazards = [];
   const borough = LEVEL_DAYS[level - 1].borough;
-  const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
-  const hg = makeBuilding();
+  let hg;
+  if (storeOptions && storeOptions.isStore){
+    hg = makeBrownstone(storeOptions);
+  } else {
+    const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
+    hg = makeBuilding();
+  }
   // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
   // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
   let HOUSE_Y = 10.5;
@@ -4801,6 +5002,21 @@ function makeBlockContents(b, baseX, houseIdx){
 }
 function spawnWorld(){
   const borough = LEVEL_DAYS[level - 1].borough;
+  const area = LEVEL_DAYS[level - 1].area;
+  // On Manhattan levels, pick the appropriate store name pool and shuffle it
+  let storePool = null;
+  let isUptown = false;
+  if (borough === 'MANHATTAN'){
+    if (area === 'UPTOWN'){
+      storePool = UPTOWN_STORE_NAMES;
+      isUptown = true;
+    } else {
+      storePool = HARLEM_STORE_NAMES;
+      isUptown = false;
+    }
+    storePool = shuffleStoreNames(storePool);
+  }
+  let storeIdx = 0;
   // Fixed route: 8 blocks of 10 houses each (Blocks 1 & 8 carry no curb garbage).
   // No block recycling — the whole route is laid out up front at absolute positions.
   for (const bl of LEVEL_BLOCKS){
@@ -4810,7 +5026,19 @@ function spawnWorld(){
       const b = { group: g, worldX: worldX, house: null, hazards: [], garbage: bl.garbage, blockX: bl.x, passed: false };
       g.position.x = worldX;
       dynamicGroup.add(g);
-      makeBlockContents(b, worldX, i);
+      // On Manhattan, the first and last house on each block is a storefront
+      let storeOptions = null;
+      if (borough === 'MANHATTAN' && (i === 0 || i === HOUSES_PER_BLOCK - 1)){
+        const storeName = storePool[storeIdx % storePool.length];
+        storeIdx++;
+        storeOptions = {
+          isStore: true,
+          storeName: storeName,
+          isUptown: isUptown,
+          isLeft: (i === 0)
+        };
+      }
+      makeBlockContents(b, worldX, i, storeOptions);
       blocks.push(b);
     }
   }
