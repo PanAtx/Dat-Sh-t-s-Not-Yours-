@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.68</div>
+    <div id="app-version" class="menu-version">v1.0.69</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.68';
+const APP_VERSION = '1.0.69';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4012,12 +4012,14 @@ function makeBrownstoneStoop(w, d){
   const stepW = 2.5;
   const steps = 4;
   
-  // Backings under each step (except bottom) - makes the stoop look solid, not floating
-  // Each backing is the same size as the step it supports, positioned slightly lower
+  // Backings under each step (except bottom) - extends from step down to ground level
+  // so all backing bottoms align, making the stoop look solid
   for (let i = 1; i < steps; i++){
     const backingY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
-    const backingZ = 0.3 + i * riserH + riserH / 2 - riserH / 2 - 0.005;  // slightly below the step
-    const backing = BX(stepW, treadD, riserH, concreteDark);
+    const backingHeight = i * riserH;  // taller backing for higher steps
+    const backingTopZ = 0.3 + i * riserH;  // top of backing is at bottom of this step
+    const backingZ = backingTopZ - backingHeight / 2 - 0.005;  // position so top is at step bottom
+    const backing = BX(stepW, treadD, backingHeight, concreteDark);
     backing.position.set(0, backingY, backingZ);
     stoop.add(backing);
   }
