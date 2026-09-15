@@ -23,7 +23,7 @@ const paS = html.indexOf('const PRELOAD_ASSETS');
 const paE = html.indexOf('const PRELOAD_TOTAL', paS);
 const paBlock = html.slice(paS, paE);
 const need = ['truck.fbx', 'car.glb', 'litterReduced2.glb', 'coffee_shop_cup.glb',
-  'sweet_bread_roll_game_ready__2k_pbr.glb', 'red_bull_energy_drink_can.glb', 'dsnylogo.jpg', 'explicit_logo.webp'];
+  'sweet_bread_roll_game_ready__2k_pbr.glb', 'red_bull_energy_drink_can.glb', 'dsnylogo3.jpg', 'explicit_logo.webp'];
 for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf("'" + u + "'") >= 0);
 
 // ---- (3) getModelUrl streaming support ----
@@ -53,7 +53,7 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
 (async () => {
   const SIZES = { 'truck.fbx': 17874592, 'sweet_bread_roll_game_ready__2k_pbr.glb': 3752076,
     'red_bull_energy_drink_can.glb': 2989592, 'litterReduced2.glb': 335980, 'car.glb': 186248,
-    'coffee_shop_cup.glb': 144300, 'dsnylogo.jpg': 1290338, 'explicit_logo.webp': 20448 };
+    'coffee_shop_cup.glb': 144300, 'dsnylogo3.jpg': 2619573, 'explicit_logo.webp': 20448 };
   const store = new Map();
   global.caches = { open: async () => ({
     match: async (u) => { const v = store.get(u); if (!v) return null; return new Response(v); },

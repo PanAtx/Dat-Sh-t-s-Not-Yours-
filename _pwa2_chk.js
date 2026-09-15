@@ -113,7 +113,7 @@ const SFX = new Function('return {' + sfxCode + '};')();
     { url: 'truck.fbx', size: 1, label: 'A' }, { url: 'car.glb', size: 1, label: 'B' },
     { url: 'litterReduced2.glb', size: 1, label: 'C' }, { url: 'coffee_shop_cup.glb', size: 1, label: 'D' },
     { url: 'sweet.glb', size: 1, label: 'E' }, { url: 'red_bull.glb', size: 1, label: 'F' },
-    { url: 'dsnylogo.jpg', size: 1, label: 'G' }, { url: 'explicit_logo.webp', size: 1, label: 'H' },
+    { url: 'dsnylogo3.jpg', size: 1, label: 'G' }, { url: 'explicit_logo.webp', size: 1, label: 'H' },
   ];
   const modelStore = new Map(); PA.forEach(a => modelStore.set(a.url, 1));
   const radioStore2 = new Map(); FILES.forEach(n => radioStore2.set('music/' + encodeURIComponent(n), 1));

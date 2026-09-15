@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Generates the PWA icon set for DSNYBoy from dsnylogo.jpg (1400x781, landscape).
+# Generates the PWA icon set for DSNYBoy from dsnylogo3.jpg (landscape).
 # Produces square PNGs on the game's theme background (#0a0d12):
 #   - "any" icons: the logo contained inside ~90% of the canvas (fill most of the tile)
 #   - "maskable" icons: the logo contained inside the safe zone (center ~55%) so the
@@ -9,7 +9,7 @@ import os
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(ROOT, 'dsnylogo.jpg')
+SRC = os.path.join(ROOT, 'dsnylogo3.jpg')
 BG = (10, 13, 18)          # #0a0d12 - matches the game background / theme_color
 
 logo = Image.open(SRC).convert('RGB')

@@ -549,8 +549,8 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 </div></div>
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
-    <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.50</div>
+    <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
+    <div id="app-version" class="menu-version">v1.0.51</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.50';
+const APP_VERSION = '1.0.51';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4696,19 +4696,80 @@ function makeRC(){
 }
 function makeBicycle(eBike){
   const g = new THREE.Group();
-  const rider = makePerson({ shirt: eBike ? 0x2fa05a : 0xcc3333, pants: pick(PANTS), hair: pick(HAIRS) });
-  g.add(rider.g);
+  // Bike frame
   const frame = M(eBike ? 0x2fa05a : 0x33557a);
   const wheelM = M(0x23262b);
+  // Wheels
   const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
   w1.position.set(0.45, 0, 0.35); w1.castShadow = true; g.add(w1);
   const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
   w2.position.set(-0.45, 0, 0.35); w2.castShadow = true; g.add(w2);
+  // Frame tubes
   const f1 = BX(0.9, 0.05, 0.05, frame); f1.position.set(0, 0, 0.5); g.add(f1);
   const f2 = BX(0.05, 0.05, 0.35, frame); f2.position.set(0.45, 0, 0.55); g.add(f2);
+  // Handlebars
   const bar = BX(0.05, 0.3, 0.3, frame); bar.position.set(0.45, 0, 0.6); g.add(bar);
+  // E-bike battery
   if (eBike){ const batt = BX(0.22, 0.16, 0.1, M(0x23262b)); batt.position.set(0, 0, 0.42); g.add(batt); }
-  g.userData.parts = { legL: rider.legL, legR: rider.legR, armL: rider.armL, armR: rider.armR };
+  // Seat
+  const seat = BX(0.08, 0.18, 0.14, M(0x23262b)); seat.position.set(-0.35, 0, 0.65); g.add(seat);
+  
+  // Rider (custom cycling pose, not makePerson)
+  const skin = M(pick(SKIN_TONES));
+  const shirtC = eBike ? 0x2fa05a : 0xcc3333;
+  const shirt = M(shirtC);
+  const pants = M(pick(PANTS));
+  const hairC = pick(HAIRS);
+  const hair = M(hairC);
+  const cyclist = {};
+  
+  // Torso sitting on seat, leaning forward
+  const torso = BX(0.18, 0.22, 0.24, shirt);
+  torso.position.set(-0.28, 0, 0.78);
+  torso.rotation.x = -0.3; // leaning forward
+  g.add(torso);
+  
+  // Head
+  const head = SP(0.09, skin);
+  head.position.set(-0.22, 0, 0.98);
+  g.add(head);
+  const hairTop = SP(0.095, hair);
+  hairTop.scale.set(1, 0.7, 1);
+  hairTop.position.set(-0.22, 0, 0.99);
+  g.add(hairTop);
+  
+  // Arms reaching forward to handlebars
+  [-1, 1].forEach(s => {
+    const ap = new THREE.Group();
+    ap.position.set(-0.28, s * 0.1, 0.82); // shoulder pivot
+    g.add(ap);
+    const arm = BX(0.38, 0.06, 0.06, shirt);
+    arm.position.set(0.19, 0, 0.0); // arm reaches forward to handlebars
+    ap.add(arm);
+    const hand = BX(0.06, 0.05, 0.05, skin);
+    hand.position.set(0.38, 0, 0.0); // hand at handlebar
+    ap.add(hand);
+    if (s === 1) cyclist.armL = ap; else cyclist.armR = ap;
+  });
+  
+  // Pedal crank at bottom bracket
+  const pedalPos = new THREE.Vector3(0, 0, 0.4);
+  
+  // Legs with pedaling motion (one up, one down)
+  [-1, 1].forEach(s => {
+    const lp = new THREE.Group();
+    lp.position.set(-0.28, s * 0.08, 0.68); // hip pivot
+    g.add(lp);
+    const leg = BX(0.16, 0.08, 0.1, pants);
+    leg.position.set(0.08, 0, -0.05);
+    lp.add(leg);
+    const shoe = BX(0.08, 0.07, 0.07, M(0x23262b));
+    shoe.position.set(0.16, 0, -0.08);
+    lp.add(shoe);
+    if (s === 1) cyclist.legL = lp; else cyclist.legR = lp;
+  });
+  
+  g.userData.parts = { legL: cyclist.legL, legR: cyclist.legR, armL: cyclist.armL, armR: cyclist.armR };
   return g;
 }
 function makeMoto(){
@@ -6915,6 +6976,17 @@ function animParts(c, dphase, amp){
     c.parts.armR.rotation.y = s * 0.8;
   }
 }
+// Pedaling animation: legs rotate in circles at the pedals
+function animPedal(c, dphase){
+  c.phase += dphase;
+  if (!c.parts) return;
+  // Pedaling: legs rotate around X axis (bending at hip/knee)
+  const s = Math.sin(c.phase);
+  const c2 = Math.cos(c.phase);
+  c.parts.legL.rotation.x = s * 0.6;
+  c.parts.legR.rotation.x = -s * 0.6;
+  // Arms stay fixed on handlebars (no sway)
+}
 // ==================== VEHICLE OBSTACLE DETECTION & COLLISION PREVENTION ====================
 function findVehicleAhead(vehicle, allCreatures){
   // Returns the closest vehicle/truck directly ahead within detection range
@@ -7692,7 +7764,7 @@ function updateCreatures(dt){
           c.wy += (c._baseWy - c.wy) * 3 * dt;
           c.wy += Math.sin(c.wx * 0.4 + (c.type === 'bike' ? 1.0 : 2.0)) * c._wobbleAmp;
         }
-        animParts(c, c.curSp * dt * 1.2);
+        animPedal(c, c.curSp * dt * 2.5);
         if (tx > 55){ c.wx = p.wx - 40; c._baseWy = clamp(R(-1.5, -0.3) + R(-0.3, 0.3), -2, 0); c.targetWy = c._baseWy; c.curSp = 0; }
         else if (tx < -58){ // Recycle vehicles that fall far behind the player
           c.wx = p.wx + 42;
@@ -9124,7 +9196,7 @@ const PRELOAD_ASSETS = [
   { url: 'litterReduced2.glb',                 size: 335980,   label: 'LITTER BASKET' },
   { url: 'car.glb',                            size: 186248,   label: 'CARS' },
   { url: 'coffee_shop_cup.glb',                size: 144300,   label: 'COFFEE CUP' },
-  { url: 'dsnylogo.jpg',                       size: 1290338,  label: 'TITLE ART' },
+  { url: 'dsnylogo3.jpg',                      size: 2619573,  label: 'TITLE ART' },
   { url: 'explicit_logo.webp',                 size: 20448,    label: 'TITLE ART' }
 ];
 const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
