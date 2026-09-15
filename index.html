@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.77</div>
+    <div id="app-version" class="menu-version">v1.0.78</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.77';
+const APP_VERSION = '1.0.78';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5377,11 +5377,11 @@ function spawnWorld(){
     for (let catIdx = 0; catIdx < 3; catIdx++){
       const bc = addCreature('cat');
       // Spawn on the sidewalk entrance mat/step at a corner store door
-      const b = blocks[(Math.random() * blocks.length) | 0];
-      // Corner stores are first/last house of block - place cat on their entrance mat
+      // Pick a random street block and place cat at first or last house door
+      const bl = LEVEL_BLOCKS[(Math.random() * LEVEL_BLOCKS.length) | 0];
       const cornerSide = Math.random() < 0.5 ? 0 : 1;
-      // First house door at b.worldX + 4, last house door at b.worldX + 9*8 + 4 = b.worldX + 76
-      bc.wx = cornerSide === 0 ? b.worldX + 4.0 : b.worldX + 76.0;
+      // First house door at bl.x + 4, last house door at bl.x + 9*8 + 4 = bl.x + 76
+      bc.wx = cornerSide === 0 ? bl.x + 4.0 : bl.x + 76.0;
       // Store entrance mat: building at y=8.7, mat at y = 8.7 + (-d/2 - 0.5) = 8.7 - 4.5 = 4.2
       bc.wy = 4.2;
       bc.g.position.set(bc.wx, bc.wy, GZ);
