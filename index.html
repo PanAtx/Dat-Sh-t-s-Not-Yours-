@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.93</div>
+    <div id="app-version" class="menu-version">v1.0.94</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.93';
+const APP_VERSION = '1.0.94';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4456,16 +4456,17 @@ function makeCat(){
 
   // SITTING POSE: Cat sits on hind legs, front legs tucked, hindquarters on ground
   // Body is lower and more compact when sitting, higher detail
+  // Cat sits upright on its butt with face up
 
-  // Main body - sitting, more detailed with connected parts
-  const body = SPH(0.075 * SCALE, fur, 16, 12); body.scale.set(1.3, 1.15, 0.85); body.position.set(-0.015 * SCALE, 0.045 * SCALE, 0.115 * SCALE); g.add(body);
+  // Main body - sitting upright, more detailed with connected parts
+  const body = SPH(0.075 * SCALE, fur, 16, 12); body.scale.set(1.3, 1.4, 0.85); body.position.set(-0.01 * SCALE, 0.07 * SCALE, 0.11 * SCALE); g.add(body);
   // Lighter belly
-  const belly = SPH(0.065 * SCALE, furL, 12, 8); belly.scale.set(1.1, 0.85, 0.6); belly.position.set(0.015 * SCALE, 0.035 * SCALE, 0.09 * SCALE); g.add(belly);
+  const belly = SPH(0.065 * SCALE, furL, 12, 8); belly.scale.set(1.1, 0.9, 0.6); belly.position.set(0.015 * SCALE, 0.06 * SCALE, 0.09 * SCALE); g.add(belly);
   // Chest
-  const chest = SPH(0.045 * SCALE, furL, 10, 8); chest.position.set(0.07 * SCALE, 0.04 * SCALE, 0.13 * SCALE); g.add(chest);
+  const chest = SPH(0.045 * SCALE, furL, 10, 8); chest.position.set(0.07 * SCALE, 0.07 * SCALE, 0.13 * SCALE); g.add(chest);
 
-  // Head on a pivot so it can look around and lick paws
-  const headPivot = new THREE.Group(); headPivot.position.set(0.135 * SCALE, 0.135 * SCALE, 0.145 * SCALE); g.add(headPivot);
+  // Head on a pivot so it can look around and lick paws - FACING UP AND FORWARD
+  const headPivot = new THREE.Group(); headPivot.position.set(0.13 * SCALE, 0.18 * SCALE, 0.145 * SCALE); g.add(headPivot);
   const head = SPH(0.055 * SCALE, fur, 14, 10); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
   // Cheeks (fluffy)
   [-1, 1].forEach(s => {
@@ -4482,7 +4483,7 @@ function makeCat(){
     innerEar.position.set(0.015 * SCALE, s * 0.05 * SCALE, 0.085 * SCALE);
     headPivot.add(innerEar);
   });
-  // Eyes - almond shaped, larger
+  // Eyes - almond shaped, larger - LOOKING FORWARD AND SLIGHTLY DOWN
   [-1, 1].forEach(s => {
     const eye = SPH(0.012 * SCALE, eyeM, 8, 6); eye.position.set(0.07 * SCALE, s * 0.022 * SCALE, 0.068 * SCALE); headPivot.add(eye);
     // Pupil
@@ -4506,21 +4507,21 @@ function makeCat(){
   // Front legs - tucked under body (sitting pose), connected to body
   const catLegs = {};
   // Front legs: shorter, tucked forward, thicker at top (attached to body)
-  [[0.055, 0.05], [0.055, -0.05]].forEach((p, idx) => {
+  [[0.05, 0.05], [0.05, -0.05]].forEach((p, idx) => {
     // Upper leg (connected to body)
     const upperLeg = CY(0.018 * SCALE, 0.012 * SCALE, 0.04 * SCALE, fur, 8);
-    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.035 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
     // Lower leg
     const leg = CY(0.01 * SCALE, 0.012 * SCALE, 0.045 * SCALE, fur, 8);
-    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
-    const paw = SPH(0.014 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.008 * SCALE, p[1] * SCALE); g.add(paw);
+    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.015 * SCALE, p[1] * SCALE); g.add(leg);
+    const paw = SPH(0.014 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + idx] = leg;
   });
   // Back legs: extended, hindquarters on ground, connected to body
-  [[-0.115, 0.055], [-0.115, -0.055]].forEach((p, idx) => {
+  [[-0.11, 0.055], [-0.11, -0.055]].forEach((p, idx) => {
     // Upper leg (connected to body)
     const upperLeg = CY(0.02 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8);
-    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.035 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
     // Lower leg
     const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.055 * SCALE, fur, 8);
     leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
@@ -4528,19 +4529,19 @@ function makeCat(){
     catLegs['leg' + (idx + 2)] = leg;
   });
 
-  // Tail - long, curled up and over the back (sitting pose)
-  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.17 * SCALE, 0.05 * SCALE, 0.135 * SCALE); g.add(tailPivot);
+  // Tail - long, curled on the ground, pointing upwards (sitting pose)
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.17 * SCALE, 0.01 * SCALE, 0.135 * SCALE); g.add(tailPivot);
   // Base of tail (connected to body)
   const tBase = CY(0.02 * SCALE, 0.014 * SCALE, 0.03 * SCALE, fur, 8);
   tBase.rotation.x = Math.PI / 2; tBase.position.set(0, 0.01 * SCALE, 0.015 * SCALE); tailPivot.add(tBase);
-  // Tail curves up and over
+  // Tail curves on the ground and points up
   const t1 = CY(0.014 * SCALE, 0.01 * SCALE, 0.05 * SCALE, fur, 8);
-  t1.rotation.x = 0.8; t1.position.set(-0.015 * SCALE, 0.035 * SCALE, 0.035 * SCALE); tailPivot.add(t1);
+  t1.rotation.x = 1.2; t1.position.set(-0.02 * SCALE, 0.005 * SCALE, 0.035 * SCALE); tailPivot.add(t1);
   const t2 = CY(0.01 * SCALE, 0.008 * SCALE, 0.04 * SCALE, fur, 8);
-  t2.rotation.x = 1.5; t2.position.set(0.01 * SCALE, 0.065 * SCALE, 0.045 * SCALE); tailPivot.add(t2);
+  t2.rotation.x = 1.8; t2.position.set(0.005 * SCALE, 0.015 * SCALE, 0.045 * SCALE); tailPivot.add(t2);
   const t3 = CY(0.008 * SCALE, 0.006 * SCALE, 0.035 * SCALE, fur, 8);
-  t3.rotation.x = 2.2; t3.position.set(0.045 * SCALE, 0.08 * SCALE, 0.04 * SCALE); tailPivot.add(t3);
-  const t4 = SPH(0.008 * SCALE, furD, 8, 6); t4.position.set(0.065 * SCALE, 0.075 * SCALE, 0.03 * SCALE); tailPivot.add(t4);
+  t3.rotation.x = 2.2; t3.position.set(0.035 * SCALE, 0.025 * SCALE, 0.04 * SCALE); tailPivot.add(t3);
+  const t4 = SPH(0.008 * SCALE, furD, 8, 6); t4.position.set(0.055 * SCALE, 0.03 * SCALE, 0.03 * SCALE); tailPivot.add(t4);
 
   // Store animation pivots
   g.userData.cat = {
@@ -7625,11 +7626,11 @@ function updateCreatures(dt){
           // Stand-up animation: first 0.3s, body rises from sitting pose
           if (c.stateT < 0.3){
             const standPct = c.stateT / 0.3;
-            const sitScale = 1.15;
+            const sitScale = 1.4;
             const standScale = 0.9;
             const currentScale = sitScale - (sitScale - standScale) * standPct;
             c.g.userData.cat.body.scale.y = currentScale;
-            c.g.userData.cat.body.position.y = 0.045 * 1.4 + (0 - 0.045 * 1.4) * standPct;
+            c.g.userData.cat.body.position.y = 0.07 * 1.4 + (0 - 0.07 * 1.4) * standPct;
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
           } else {
             c.wx += c.dir * catSpd * dt;
@@ -7655,11 +7656,11 @@ function updateCreatures(dt){
           // Stand-up animation: first 0.3s, body rises from sitting pose
           if (c.stateT < 0.3){
             const standPct = c.stateT / 0.3;
-            const sitScale = 1.15;
+            const sitScale = 1.4;
             const standScale = 0.9;
             const currentScale = sitScale - (sitScale - standScale) * standPct;
             c.g.userData.cat.body.scale.y = currentScale;
-            c.g.userData.cat.body.position.y = 0.045 * 1.4 + (0 - 0.045 * 1.4) * standPct;
+            c.g.userData.cat.body.position.y = 0.07 * 1.4 + (0 - 0.07 * 1.4) * standPct;
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
           } else {
             c.wx += c.dir * (c.sp + 2) * dt;
@@ -7674,8 +7675,8 @@ function updateCreatures(dt){
             c.wy = R(0.8, 2.5);
             c.g.rotation.x = 0;
             c.g.rotation.z = 0;
-            c.g.userData.cat.body.scale.y = 1.15;
-            c.g.userData.cat.body.position.y = 0.045 * 1.4;
+            c.g.userData.cat.body.scale.y = 1.4;
+            c.g.userData.cat.body.position.y = 0.07 * 1.4;
           }
         }
         break;
