@@ -17,6 +17,9 @@
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 button { -webkit-tap-highlight-color:transparent; outline:none; }
 html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; user-select:none; -webkit-user-select:none; touch-action:none; overscroll-behavior:none; -webkit-tap-highlight-color:transparent; }
+/* Hide all scrollbars */
+::-webkit-scrollbar { display:none; }
+* { scrollbar-width:none; }
 #game { position:fixed; inset:0; }
 #game canvas { display:block; }
 #haze { position:fixed; inset:0; z-index:5; pointer-events:none;
@@ -97,7 +100,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .panel { border:3px solid #2ee090; background:linear-gradient(180deg, #07130d, #040a07);
   padding:clamp(14px,2.8vh,34px) clamp(16px,4vw,48px); text-align:center;
   box-shadow:0 0 34px rgba(46,224,144,.4), inset 0 0 60px rgba(0,0,0,.65);
-  width:min(94vw,680px); max-width:94vw; max-height:calc(100vh - 24px); max-height:100%; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  width:min(94vw,680px); max-width:94vw; max-height:calc(100vh - 24px); max-height:100%; min-height:0; overflow:hidden; }
 .panel h1 { font-family:"Courier New", monospace; font-size:clamp(18px,4.4vw,34px); letter-spacing:5px; color:#2ee090; text-shadow:0 0 14px rgba(46,224,144,.8); }
 .title-text { font-family:"Arial Black", Impact, sans-serif; font-size:clamp(18px,4.4vw,36px); font-weight:bold; color:#ffffff; text-align:center; display:block; margin:0 auto clamp(6px,1.4vh,12px); line-height:1.1; letter-spacing:2px; }
 .panel h2 { font-family:"Courier New", monospace; font-size:clamp(16px,4vw,26px); letter-spacing:4px; color:#ff5252; text-shadow:0 0 14px rgba(255,82,82,.8); }
@@ -256,7 +259,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .menu-logo-wrap { position:relative; display:inline-block; line-height:0; overflow:hidden;
   border:3px solid #2ee090; border-radius:14px;
   box-shadow:0 0 28px rgba(46,224,144,.55), 0 0 60px rgba(46,224,144,.2), 0 0 50px rgba(0,0,0,.8); }
-.menu-logo-wrap .menu-logo-img { max-width:82vw; max-height:84vh; width:auto; height:auto; display:block; }
+.menu-logo-wrap .menu-logo-img { max-width:95vw; max-height:96vh; width:auto; height:auto; display:block; }
 /* "Parental Advisory: Explicit Lyrics" gag badge — pinned to the bottom-right
    corner of the logo frame. Small, readable, decorative; click-through so it never
    blocks the START SHIFT button / the docked radio widget. */
@@ -550,7 +553,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.51</div>
+    <div id="app-version" class="menu-version">v1.0.52</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +637,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.51';
+const APP_VERSION = '1.0.52';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4696,80 +4699,41 @@ function makeRC(){
 }
 function makeBicycle(eBike){
   const g = new THREE.Group();
-  // Bike frame
+  const rider = makePerson({ shirt: eBike ? 0x2fa05a : 0xcc3333, pants: pick(PANTS), hair: pick(HAIRS) });
+  rider.g.position.set(-0.1, 0, 0);
+  g.add(rider.g);
   const frame = M(eBike ? 0x2fa05a : 0x33557a);
   const wheelM = M(0x23262b);
-  // Wheels
-  const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
-  w1.position.set(0.45, 0, 0.35); w1.castShadow = true; g.add(w1);
-  const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 12), wheelM);
-  w2.position.set(-0.45, 0, 0.35); w2.castShadow = true; g.add(w2);
-  // Frame tubes
-  const f1 = BX(0.9, 0.05, 0.05, frame); f1.position.set(0, 0, 0.5); g.add(f1);
-  const f2 = BX(0.05, 0.05, 0.35, frame); f2.position.set(0.45, 0, 0.55); g.add(f2);
-  // Handlebars
-  const bar = BX(0.05, 0.3, 0.3, frame); bar.position.set(0.45, 0, 0.6); g.add(bar);
-  // E-bike battery
-  if (eBike){ const batt = BX(0.22, 0.16, 0.1, M(0x23262b)); batt.position.set(0, 0, 0.42); g.add(batt); }
-  // Seat
-  const seat = BX(0.08, 0.18, 0.14, M(0x23262b)); seat.position.set(-0.35, 0, 0.65); g.add(seat);
-  
-  // Rider (custom cycling pose, not makePerson)
-  const skin = M(pick(SKIN_TONES));
-  const shirtC = eBike ? 0x2fa05a : 0xcc3333;
-  const shirt = M(shirtC);
-  const pants = M(pick(PANTS));
-  const hairC = pick(HAIRS);
-  const hair = M(hairC);
-  const cyclist = {};
-  
-  // Torso sitting on seat, leaning forward
-  const torso = BX(0.18, 0.22, 0.24, shirt);
-  torso.position.set(-0.28, 0, 0.78);
-  torso.rotation.x = -0.3; // leaning forward
-  g.add(torso);
-  
-  // Head
-  const head = SP(0.09, skin);
-  head.position.set(-0.22, 0, 0.98);
-  g.add(head);
-  const hairTop = SP(0.095, hair);
-  hairTop.scale.set(1, 0.7, 1);
-  hairTop.position.set(-0.22, 0, 0.99);
-  g.add(hairTop);
-  
-  // Arms reaching forward to handlebars
+  // Wheels: torus rings, rotated to stand upright, raised to clear curb
+  const w1 = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 8, 16), wheelM);
+  w1.rotation.x = Math.PI / 2;
+  w1.position.set(0.55, 0, 0.45); w1.castShadow = true; g.add(w1);
+  const w2 = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 8, 16), wheelM);
+  w2.rotation.x = Math.PI / 2;
+  w2.position.set(-0.55, 0, 0.45); w2.castShadow = true; g.add(w2);
+  // Shorter frame
+  const f1 = BX(1.1, 0.05, 0.05, frame); f1.position.set(0, 0, 0.6); g.add(f1);
+  const f2 = BX(0.05, 0.05, 0.35, frame); f2.position.set(0.55, 0, 0.65); g.add(f2);
+  // Handlebars: horizontal bar with steer horns the rider can hold
+  const handlebar = BX(0.04, 0.32, 0.04, frame); handlebar.position.set(0.55, 0, 0.75); g.add(handlebar);
   [-1, 1].forEach(s => {
-    const ap = new THREE.Group();
-    ap.position.set(-0.28, s * 0.1, 0.82); // shoulder pivot
-    g.add(ap);
-    const arm = BX(0.38, 0.06, 0.06, shirt);
-    arm.position.set(0.19, 0, 0.0); // arm reaches forward to handlebars
-    ap.add(arm);
-    const hand = BX(0.06, 0.05, 0.05, skin);
-    hand.position.set(0.38, 0, 0.0); // hand at handlebar
-    ap.add(hand);
-    if (s === 1) cyclist.armL = ap; else cyclist.armR = ap;
+    const grip = BX(0.04, 0.08, 0.04, M(0x23262b));
+    grip.position.set(0.55, s * 0.2, 0.75);
+    g.add(grip);
   });
-  
-  // Pedal crank at bottom bracket
-  const pedalPos = new THREE.Vector3(0, 0, 0.4);
-  
-  // Legs with pedaling motion (one up, one down)
-  [-1, 1].forEach(s => {
-    const lp = new THREE.Group();
-    lp.position.set(-0.28, s * 0.08, 0.68); // hip pivot
-    g.add(lp);
-    const leg = BX(0.16, 0.08, 0.1, pants);
-    leg.position.set(0.08, 0, -0.05);
-    lp.add(leg);
-    const shoe = BX(0.08, 0.07, 0.07, M(0x23262b));
-    shoe.position.set(0.16, 0, -0.08);
-    lp.add(shoe);
-    if (s === 1) cyclist.legL = lp; else cyclist.legR = lp;
-  });
-  
-  g.userData.parts = { legL: cyclist.legL, legR: cyclist.legR, armL: cyclist.armL, armR: cyclist.armR };
+  // NYC Citi Bike white basket
+  const basketM = M(0xe8e8e8);
+  const basket = BX(0.3, 0.2, 0.15, basketM);
+  basket.rotation.y = Math.PI / 2;
+  basket.position.set(0.55, 0, 0.85);
+  g.add(basket);
+  if (eBike){ const batt = BX(0.22, 0.16, 0.1, M(0x23262b)); batt.position.set(0, 0, 0.52); g.add(batt); }
+  // Bend the knees and hold arms forward for cycling pose
+  rider.legL.rotation.x = -0.3;
+  rider.legR.rotation.x = 0.3;
+  rider.armL.rotation.x = -0.6;
+  rider.armR.rotation.x = -0.6;
+  g.userData.parts = { legL: rider.legL, legR: rider.legR, armL: rider.armL, armR: rider.armR };
   return g;
 }
 function makeMoto(){
@@ -6976,15 +6940,14 @@ function animParts(c, dphase, amp){
     c.parts.armR.rotation.y = s * 0.8;
   }
 }
-// Pedaling animation: legs rotate in circles at the pedals
+// Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
 function animPedal(c, dphase){
   c.phase += dphase;
   if (!c.parts) return;
   // Pedaling: legs rotate around X axis (bending at hip/knee)
   const s = Math.sin(c.phase);
-  const c2 = Math.cos(c.phase);
-  c.parts.legL.rotation.x = s * 0.6;
-  c.parts.legR.rotation.x = -s * 0.6;
+  c.parts.legL.rotation.x = -0.3 + s * 0.4;
+  c.parts.legR.rotation.x = 0.3 - s * 0.4;
   // Arms stay fixed on handlebars (no sway)
 }
 // ==================== VEHICLE OBSTACLE DETECTION & COLLISION PREVENTION ====================
