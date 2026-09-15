@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.53</div>
+    <div id="app-version" class="menu-version">v1.0.54</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.53';
+const APP_VERSION = '1.0.54';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4463,32 +4463,46 @@ function makeJacker(){
   return g;
 }
 function makeCrazyGuy(){
-  // Crazy homeless guy: trench coat, shirt, NO pants (bare legs), NO shoes (bare feet)
+  // Crazy homeless guy: shirt only, NO pants (bare legs), NO shoes (bare feet), exposed butt
   const g = new THREE.Group();
   const skin = M(pick(SKIN_TONES));
-  const coatM = M(0x5c5342);
-  const shirtM = M(0xa8a294);
-  const hairM = M(0x2a2118);
+  const shirtM = M(0x7a8a6a); // stained faded army green shirt
+  const hairM = M(0x3a352f);
+  // Legs (bare, no pants)
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.1, 0.8);
-    const thigh = CY(0.07, 0.06, 0.7, skin, 8); thigh.rotation.x = Math.PI / 2; thigh.position.z = -0.35; pv.add(thigh);
+    const thigh = CY(0.075, 0.06, 0.7, skin, 8); thigh.rotation.x = Math.PI / 2; thigh.position.z = -0.35; pv.add(thigh);
     const foot = BX(0.16, 0.1, 0.1, skin); foot.position.set(0.04, 0, -0.74); foot.rotation.x = -0.25; pv.add(foot);
     g.add(pv); return pv;
   };
   const legL = mkLeg(1), legR = mkLeg(-1);
+  // Hips with exposed butt
+  const hips = BX(0.24, 0.4, 0.35, shirtM); hips.position.z = 0.92; g.add(hips);
+  // Butt: two rounded halves visible below shirt hem
+  const buttM = M(pick(SKIN_TONES));
+  const buttL = SPH(0.1, buttM, 12, 10); buttL.scale.set(0.9, 1.1, 0.8); buttL.position.set(0.04, 0.08, 0.72); g.add(buttL);
+  const buttR = SPH(0.1, buttM, 12, 10); buttR.scale.set(0.9, 1.1, 0.8); buttR.position.set(0.04, -0.08, 0.72); g.add(buttR);
+  // Private parts: dark triangle, slightly blurred/soft
+  const priv = BX(0.04, 0.04, 0.03, M(0x1a1a1a)); priv.position.set(0.04, 0, 0.78); priv.rotation.x = 0.4; g.add(priv);
+  // Shirt (covers torso, short sleeves)
   const torso = BX(0.24, 0.62, 0.45, shirtM); torso.position.z = 1.15; g.add(torso);
-  const coat = BX(0.28, 0.95, 0.4, coatM); coat.position.z = 1.0; g.add(coat);
+  // Short-sleeved arms
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.32, 1.32);
-    const arm = BX(0.08, 0.12, 0.55, coatM); arm.position.z = -0.28; pv.add(arm);
-    const hand = BX(0.08, 0.08, 0.09, skin); hand.position.z = -0.62; pv.add(hand);
+    const arm = BX(0.08, 0.12, 0.35, skin); arm.position.z = -0.18; pv.add(arm);
+    const hand = BX(0.08, 0.08, 0.09, skin); hand.position.z = -0.42; pv.add(hand);
     g.add(pv); return pv;
   };
   const armL = mkArm(1), armR = mkArm(-1);
+  // Head
   const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.56; g.add(head);
+  // Stubble beard
   const stub = BX(0.16, 0.14, 0.02, M(0x3a352f)); stub.position.set(0.02, 0, 1.68); g.add(stub);
-  const hair = BX(0.27, 0.28, 0.22, hairM); hair.position.set(-0.02, 0.02, 1.58); g.add(hair);
-  const tuft = BX(0.18, 0.1, 0.06, hairM); tuft.position.set(0.1, 0.04, 1.7); tuft.rotation.z = 0.25; g.add(tuft);
+  // Scraggly wild hair on top (multiple tufts)
+  const hairBase = BX(0.27, 0.28, 0.18, hairM); hairBase.position.set(-0.02, 0.02, 1.52); g.add(hairBase);
+  const tuft1 = BX(0.12, 0.08, 0.06, hairM); tuft1.position.set(0.08, 0.04, 1.58); tuft1.rotation.z = 0.3; g.add(tuft1);
+  const tuft2 = BX(0.08, 0.06, 0.04, hairM); tuft2.position.set(-0.06, 0.05, 1.56); tuft2.rotation.z = -0.4; g.add(tuft2);
+  const tuft3 = BX(0.1, 0.05, 0.05, hairM); tuft3.position.set(0.02, 0.06, 1.62); tuft3.rotation.z = 0.15; g.add(tuft3);
   g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
   return g;
 }
@@ -8165,13 +8179,19 @@ function updateCreatures(dt){
         // Crazy homeless guy: slow idle walk, attacks on touch with 4s cooldown
         if (c.backOffT > 0){
           c.backOffT -= dt;
-          // Retreat away from the worker during back-off period
+          // After attacking, turn around and run away (not far)
           const dx = c.wx - p.wx, dy = c.wy - p.wy;
           const d = Math.sqrt(dx * dx + dy * dy) || 1;
-          c.wx += (dx / d) * 1.2 * dt;
-          c.wy = clamp(c.wy + (dy / d) * 1.2 * dt, 1.2, 4.2);
-          // Keep arms raised defensively
-          if (c.parts){ c.parts.armL.rotation.z = 1.2; c.parts.armR.rotation.z = -1.2; }
+          // Turn to face away from the worker
+          c.g.rotation.y = Math.atan2(dx, dy);
+          // Run away fast
+          const runSp = 1.8;
+          c.wx += (dx / d) * runSp * dt;
+          c.wy = clamp(c.wy + (dy / d) * runSp * dt, 1.2, 4.2);
+          // Quick running animation
+          animParts(c, runSp * dt * 3.5, 0.9);
+          // Hunched posture while running
+          c.g.rotation.x = -0.15;
         } else {
           // Slow idle shamble forward
           c.wx += c.sp * dt;
@@ -8179,13 +8199,13 @@ function updateCreatures(dt){
           // Erratic sway
           c.g.rotation.x = Math.sin(c.phase * 0.7) * 0.08;
           c.g.rotation.y = Math.sin(c.phase * 1.1) * 0.04;
-          if (c.parts){ c.parts.armL.rotation.z = 0; c.parts.armR.rotation.z = 0; }
         }
         c.g.position.z = GZ;
         c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
         if (tx < -55){
           // Recycle ahead on the sidewalk
           c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.attackCd = 0; c.backOffT = 0;
+          c.g.rotation.x = 0; c.g.rotation.y = 0;
         }
         break;
       }
