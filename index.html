@@ -354,6 +354,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 .bubble.bub-rat     { background:#d0d4da; }   /* silver gray */
 .bubble.bub-driver  { background:#ffb5a0; }   /* pastel coral */
 .bubble.bub-kid     { background:#ffe680; }   /* buttercup yellow */
+.bubble.bub-crazy   { background:#ffd2c2; }   /* unhinged reddish/peach */
 .bubble.bub-default { background:#fff5d0; }   /* cream (fallback) */
 .bubble::after { content:''; position:absolute; left:50%; bottom:-10px; transform:translateX(-50%);
   width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-top:10px solid #14141a; }
@@ -553,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.52</div>
+    <div id="app-version" class="menu-version">v1.0.53</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -637,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.52';
+const APP_VERSION = '1.0.53';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -780,7 +781,7 @@ function computeDayTotals(){
 // Every other type stays at its Monday count (the two Manhattan days, Uptown d1 +
 // Harlem d6, run +1 escooter and +1 bike - the city sidewalk is fuller);
 // the ambient critters (rats/raccoons/squirrels) are constant flavour.
-const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 1, moto: 1, rc: 1, jacker: 1 };
+const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 1, moto: 1, rc: 1, jacker: 1, crazy: 0 };
 const SCALING_NPC = { ped: true, car: true, moto: true, ebike: true, rc: true };   // +1 per day (the crowd/traffic that gets busier each level)
 const GATED_NPC = { moto: 3, ebike: 4, rc: 5 };    // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
 const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 };    // constant critters (kept for reference/tests)
@@ -807,6 +808,9 @@ function npcCounts(day){
       if (t === 'squirrel' && (day === 1 || day === 6)) base = 0;
       // Manhattan (Uptown d1, Harlem d6): a few more e-scooter + bicycle riders on the sidewalk.
       if ((t === 'escooter' || t === 'bike') && (day === 1 || day === 6)) base += 1;
+      // Crazy homeless guy: Manhattan-only aggressive NPC
+      if (t === 'crazy' && (day === 1 || day === 6)) base = 1;
+      else if (t === 'crazy') base = 0;
       c[t] = base;
     }
   }
@@ -4458,6 +4462,36 @@ function makeJacker(){
   g.userData.hammer = hammer;
   return g;
 }
+function makeCrazyGuy(){
+  // Crazy homeless guy: trench coat, shirt, NO pants (bare legs), NO shoes (bare feet)
+  const g = new THREE.Group();
+  const skin = M(pick(SKIN_TONES));
+  const coatM = M(0x5c5342);
+  const shirtM = M(0xa8a294);
+  const hairM = M(0x2a2118);
+  const mkLeg = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.1, 0.8);
+    const thigh = CY(0.07, 0.06, 0.7, skin, 8); thigh.rotation.x = Math.PI / 2; thigh.position.z = -0.35; pv.add(thigh);
+    const foot = BX(0.16, 0.1, 0.1, skin); foot.position.set(0.04, 0, -0.74); foot.rotation.x = -0.25; pv.add(foot);
+    g.add(pv); return pv;
+  };
+  const legL = mkLeg(1), legR = mkLeg(-1);
+  const torso = BX(0.24, 0.62, 0.45, shirtM); torso.position.z = 1.15; g.add(torso);
+  const coat = BX(0.28, 0.95, 0.4, coatM); coat.position.z = 1.0; g.add(coat);
+  const mkArm = side => {
+    const pv = new THREE.Group(); pv.position.set(0, side * 0.32, 1.32);
+    const arm = BX(0.08, 0.12, 0.55, coatM); arm.position.z = -0.28; pv.add(arm);
+    const hand = BX(0.08, 0.08, 0.09, skin); hand.position.z = -0.62; pv.add(hand);
+    g.add(pv); return pv;
+  };
+  const armL = mkArm(1), armR = mkArm(-1);
+  const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.56; g.add(head);
+  const stub = BX(0.16, 0.14, 0.02, M(0x3a352f)); stub.position.set(0.02, 0, 1.68); g.add(stub);
+  const hair = BX(0.27, 0.28, 0.22, hairM); hair.position.set(-0.02, 0.02, 1.58); g.add(hair);
+  const tuft = BX(0.18, 0.1, 0.06, hairM); tuft.position.set(0.1, 0.04, 1.7); tuft.rotation.z = 0.25; g.add(tuft);
+  g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  return g;
+}
 function makeHooker(){
   // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
   const g = new THREE.Group();
@@ -4852,6 +4886,7 @@ function addCreature(type){
     case 'jacker': c.wy = R(1.2, creatureMaxY()); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
                  c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
     case 'hooker': c.wy = R(1.2, creatureMaxY()); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
+    case 'crazy': c.wy = R(1.2, 4.2); c.sp = 0.4; c.attackCd = 0; c.backOffT = 0; c.data = makeCrazyGuy(); break;
     case 'skater': c.wy = R(4.3, creatureMaxY()); c.trickT = R(0.4, 1.4); c.flipT = 0; // curb edge, out of the main walking line
                  c.data = makeSkater(); c.board = c.data.userData.board; break;
     case 'escooter': c.wy = R(1.4, creatureMaxY()); c.sp = R(2.4, 3.4);
@@ -5221,6 +5256,13 @@ function spawnWorld(){
       c.wx = fpx + R(-0.55, 0.55); c.wy = fpy + R(-0.4, 0.4);
       c.g.position.set(c.wx, c.wy, GZ);
     }
+  }
+  // Crazy homeless guy: Manhattan-only aggressive NPC that attacks on touch
+  if (isManhattanLevel()){
+    const cg = addCreature('crazy');
+    cg.wx = p.wx + R(12, 28);
+    cg.wy = R(1.2, 4.2);
+    cg.g.position.set(cg.wx, cg.wy, GZ);
   }
   // Health / immunity pickups for this shift. Count scales with the level (route),
   // so the first route is sparse and later routes are more generous.
@@ -6616,9 +6658,36 @@ function collideCreatures(){
     else if (c.type === 'breaker') rad = 1.2;
     else if (c.type === 'yeller') rad = 0.95;
     else if (c.type === 'jacker') rad = 0.95;
-    else if (c.type === 'hooker' || c.type === 'skater') rad = 0.85;
+    else if (c.type === 'hooker' || c.type === 'skater' || c.type === 'crazy') rad = 0.85;
     else if (c.type === 'escooter') rad = 1.0;
     if (d2 > rad * rad) continue;
+    if (c.type === 'crazy'){
+      if (c.attackCd <= 0){
+        // Violent attack
+        hurtNPC(HP_HIT_HAZARD);
+        Voice.say('I need money!', 2.2, 1.25, c.wx, c.wy, 'male', 'crazy');
+        Voice.say('Get away from me!', 2.2, 0.95, p.wx, p.wy, WORKER_GENDER, 'worker');
+        dropBloodSplatter(p.wx, p.wy);
+        p.bloodSteps = 10;
+        spawnDustEffect(p.wx, p.wy);
+        spawnDustEffect(c.wx, c.wy);
+        c.attackCd = 4.0;
+        c.backOffT = 4.0;
+        doStun(0.6, 'hit');
+        const d = Math.sqrt(d2) || 0.001;
+        const nx = -dx / d, ny = -dy / d;
+        p.wx += nx * 1.2;
+        p.wy = clamp(p.wy + ny * 0.8, -9.4, workerMaxY());
+        return;
+      }
+      // Backing off — just push the worker out (like a solid person)
+      const d = Math.sqrt(d2) || 0.001;
+      const nx = -dx / d, ny = -dy / d;
+      const pen = rad - d;
+      p.wx += nx * (pen + 0.05);
+      p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+      return;
+    }
     if ((c.type === 'ped' || c.type === 'lady' || c.type === 'breaker' || c.type === 'yeller' || c.type === 'dogwalker' ||
         c.type === 'jacker' || c.type === 'hooker' || c.type === 'skater' || c.type === 'escooter')){
       // People are SOLID: push the worker out so they can't walk through, but NEVER stun
@@ -8092,6 +8161,34 @@ function updateCreatures(dt){
         if (tx < -55){ c.wx = p.wx + 42; c.wy = R(1.2, 4.2); }
         break;
       }
+      case 'crazy':{
+        // Crazy homeless guy: slow idle walk, attacks on touch with 4s cooldown
+        if (c.backOffT > 0){
+          c.backOffT -= dt;
+          // Retreat away from the worker during back-off period
+          const dx = c.wx - p.wx, dy = c.wy - p.wy;
+          const d = Math.sqrt(dx * dx + dy * dy) || 1;
+          c.wx += (dx / d) * 1.2 * dt;
+          c.wy = clamp(c.wy + (dy / d) * 1.2 * dt, 1.2, 4.2);
+          // Keep arms raised defensively
+          if (c.parts){ c.parts.armL.rotation.z = 1.2; c.parts.armR.rotation.z = -1.2; }
+        } else {
+          // Slow idle shamble forward
+          c.wx += c.sp * dt;
+          animParts(c, c.sp * dt * 2.5, 0.6);
+          // Erratic sway
+          c.g.rotation.x = Math.sin(c.phase * 0.7) * 0.08;
+          c.g.rotation.y = Math.sin(c.phase * 1.1) * 0.04;
+          if (c.parts){ c.parts.armL.rotation.z = 0; c.parts.armR.rotation.z = 0; }
+        }
+        c.g.position.z = GZ;
+        c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
+        if (tx < -55){
+          // Recycle ahead on the sidewalk
+          c.wx = p.wx + 42; c.wy = R(1.2, 4.2); c.attackCd = 0; c.backOffT = 0;
+        }
+        break;
+      }
       case 'skater':{
         // WORKING TRICKS IN PLACE, big enough to read from the camera:
         // crouch -> POP (the bright board flips a full 360 while he launches)
@@ -8403,6 +8500,7 @@ function spawnBubble(text, wx, wy, speaker){
   else if (speaker === 'rat') el.className = 'bubble bub-rat';
   else if (speaker === 'driver') el.className = 'bubble bub-driver';
   else if (speaker === 'kid') el.className = 'bubble bub-kid';
+  else if (speaker === 'crazy') el.className = 'bubble bub-crazy';
   else el.className = 'bubble bub-default';
   el.textContent = text;
   document.body.appendChild(el);
