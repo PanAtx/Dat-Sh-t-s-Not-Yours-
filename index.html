@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.56</div>
+    <div id="app-version" class="menu-version">v1.0.57</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.56';
+const APP_VERSION = '1.0.57';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4463,10 +4463,12 @@ function makeJacker(){
   return g;
 }
 function makeCrazyGuy(){
-  // Crazy homeless guy: NAKED, just skin. Blurred private parts patch. Scraggly hair.
+  // Crazy homeless guy: NAKED, just skin. Blurred private parts patch. Scraggly hair. Knife in hand.
   const g = new THREE.Group();
   const skin = M(pick(SKIN_TONES));
   const hairM = M(0x3a352f);
+  const steelM = MS(0x9aa3ab);
+  const handleM = M(0x4a3a2a);
   // Legs (bare)
   const mkLeg = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.1, 0.8);
@@ -4481,7 +4483,7 @@ function makeCrazyGuy(){
   // Private parts: blurred/soft skin patch (rounded, slightly darker)
   const privPatch = SPH(0.04, M(0xb08e76), 10, 8); privPatch.scale.set(0.8, 0.7, 0.6); privPatch.position.set(0.02, 0, 0.88); g.add(privPatch);
   const privBase = BX(0.035, 0.025, 0.02, M(0xb08e76)); privBase.position.set(0.02, 0, 0.9); privBase.rotation.x = 0.3; g.add(privBase);
-  // Short-sleeved arms
+  // Arms (naked)
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.32, 1.32);
     const arm = BX(0.08, 0.12, 0.35, skin); arm.position.z = -0.18; pv.add(arm);
@@ -4489,6 +4491,14 @@ function makeCrazyGuy(){
     g.add(pv); return pv;
   };
   const armL = mkArm(1), armR = mkArm(-1);
+  // Knife in right hand: wooden handle + steel blade
+  const knife = new THREE.Group();
+  const handle = BX(0.04, 0.04, 0.2, handleM); handle.position.z = 0; knife.add(handle);
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.25, 4), steelM);
+  blade.rotation.x = -Math.PI / 2; blade.position.z = -0.22; blade.castShadow = true; knife.add(blade);
+  knife.position.set(0, -0.32, 0.88);
+  knife.rotation.x = -0.3;
+  g.add(knife);
   // Head
   const head = BX(0.22, 0.26, 0.22, skin); head.position.z = 1.56; g.add(head);
   // Stubble beard
@@ -4499,6 +4509,7 @@ function makeCrazyGuy(){
   const tuft2 = BX(0.08, 0.06, 0.04, hairM); tuft2.position.set(-0.06, 0.05, 1.56); tuft2.rotation.z = -0.4; g.add(tuft2);
   const tuft3 = BX(0.1, 0.05, 0.05, hairM); tuft3.position.set(0.02, 0.06, 1.62); tuft3.rotation.z = 0.15; g.add(tuft3);
   g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+  g.userData.knife = knife;
   return g;
 }
 function makeHooker(){
@@ -4895,7 +4906,7 @@ function addCreature(type){
     case 'jacker': c.wy = R(1.2, creatureMaxY()); c.hamT = R(0, 6.28); c.gravCd = R(0.3, 0.8);
                  c.data = makeJacker(); c.hammer = c.data.userData.hammer; break;
     case 'hooker': c.wy = R(1.2, creatureMaxY()); c.swayT = R(0, 6.28); c.data = makeHooker(); break;
-    case 'crazy': c.wy = R(1.2, 4.2); c.sp = 0.4; c.attackCd = 0; c.backOffT = 0; c.data = makeCrazyGuy(); break;
+    case 'crazy': c.wy = R(1.2, 4.2); c.sp = 0.4; c.attackCd = 0; c.backOffT = 0; c.data = makeCrazyGuy(); c.knife = c.data.userData.knife; break;
     case 'skater': c.wy = R(4.3, creatureMaxY()); c.trickT = R(0.4, 1.4); c.flipT = 0; // curb edge, out of the main walking line
                  c.data = makeSkater(); c.board = c.data.userData.board; break;
     case 'escooter': c.wy = R(1.4, creatureMaxY()); c.sp = R(2.4, 3.4);
