@@ -41,6 +41,9 @@ check('skateboarder override only touches Manhattan (d1, d6) + Bed-Stuy (d7)',
 // Crazy homeless guy: spawned via specific spawn block on Manhattan days (not through npcCounts)
 check('crazy guy not in npcCounts (spawned separately on Manhattan)', npcCounts(1).crazy === 0 && npcCounts(6).crazy === 0);
 
+// Bodega cat: spawned via specific spawn block on Manhattan days (not through npcCounts)
+check('bodega cat not in npcCounts (spawned separately on Manhattan)', npcCounts(1).cat === 0 && npcCounts(6).cat === 0);
+
 // ---- Manhattan scooter/bike boost: +1 escooter and +1 bike on d1 (Uptown) + d6 (Harlem) ----
 [1, 6].forEach(d => check('day ' + d + ' (Manhattan) gets +1 escooter + +1 bike',
   npcCounts(d).escooter === BASE_NPC_COUNTS.escooter + 1 && npcCounts(d).bike === BASE_NPC_COUNTS.bike + 1));

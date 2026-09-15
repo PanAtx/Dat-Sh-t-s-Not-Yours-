@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.69</div>
+    <div id="app-version" class="menu-version">v1.0.70</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.69';
+const APP_VERSION = '1.0.70';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -781,7 +781,7 @@ function computeDayTotals(){
 // Every other type stays at its Monday count (the two Manhattan days, Uptown d1 +
 // Harlem d6, run +1 escooter and +1 bike - the city sidewalk is fuller);
 // the ambient critters (rats/raccoons/squirrels) are constant flavour.
-const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 1, moto: 1, rc: 1, jacker: 1, crazy: 0 };
+const BASE_NPC_COUNTS = { ped: 2, car: 1, escooter: 1, bike: 1, tric: 1, lady: 1, breaker: 1, yeller: 1, dogwalker: 1, hooker: 1, skater: 1, rat: 2, raccoon: 1, squirrel: 1, ebike: 1, moto: 1, rc: 1, jacker: 1, crazy: 0, cat: 0 };
 const SCALING_NPC = { ped: true, car: true, moto: true, ebike: true, rc: true };   // +1 per day (the crowd/traffic that gets busier each level)
 const GATED_NPC = { moto: 3, ebike: 4, rc: 5 };    // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
 const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 };    // constant critters (kept for reference/tests)
@@ -4418,6 +4418,74 @@ function makeDog(){
   g.userData.dog = { tailPivot: tailPivot, headPivot: headPivot, legFL: dogLegs.legFL, legFR: dogLegs.legFR, legHL: dogLegs.legHL, legHR: dogLegs.legHR, root: g };
   return g;
 }
+function makeCat(){
+  const g = new THREE.Group();
+  // Random cat color: black, orange, grey, white, tabby
+  const colorOptions = [
+    { body: 0x1a1a1a, belly: 0x2a2a2a, patch: 0x3a3a3a, name: 'black' },
+    { body: 0xd4813e, belly: 0xf5e6d0, patch: 0xc4722f, name: 'orange' },
+    { body: 0x8a8a8a, belly: 0xb0b0b0, patch: 0x7a7a7a, name: 'grey' },
+    { body: 0xf0f0f0, belly: 0xffffff, patch: 0xe0e0e0, name: 'white' },
+    { body: 0x8a6a3e, belly: 0xf0e0c8, patch: 0x7a5a2e, name: 'tabby' }
+  ];
+  const catColor = colorOptions[Math.floor(Math.random() * colorOptions.length)];
+  const fur = M(catColor.body), furL = M(catColor.belly), furD = M(catColor.patch);
+  const eyeM = M(0x4a8a3e); // green eyes
+  const noseM = M(0xd4a0a0); // pink nose
+
+  // Sleek body (ellipsoid)
+  const body = SPH(0.07, fur); body.scale.set(1.8, 0.9, 0.85); body.position.set(-0.02, 0, 0.11); g.add(body);
+  // Lighter belly
+  const belly = SPH(0.06, furL); belly.scale.set(1.5, 0.6, 0.6); belly.position.set(0.02, 0, 0.08); g.add(belly);
+
+  // Head on a pivot so it can look around
+  const headPivot = new THREE.Group(); headPivot.position.set(0.16, 0, 0.14); g.add(headPivot);
+  const head = SPH(0.05, fur); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03, 0, 0.03); headPivot.add(head);
+  // Ears - pointed and triangular
+  const earGeo = new THREE.ConeGeometry(0.025, 0.045, 4);
+  [-1, 1].forEach(s => {
+    const ear = new THREE.Mesh(earGeo, fur); ear.rotation.z = -s * 0.15; ear.rotation.x = -0.3;
+    ear.position.set(0.01, s * 0.04, 0.08); headPivot.add(ear);
+  });
+  // Eyes - almond shaped
+  [-1, 1].forEach(s => {
+    const eye = SPH(0.01, eyeM); eye.position.set(0.065, s * 0.02, 0.065); headPivot.add(eye);
+  });
+  // Nose
+  const nose = SPH(0.006, noseM); nose.position.set(0.085, 0, 0.06); headPivot.add(nose);
+  // Whiskers
+  const whiskerGeo = new THREE.CylinderGeometry(0.001, 0.001, 0.04, 4);
+  for (let w = -1; w <= 1; w++) {
+    for (let s = -1; s <= 1; s += 2) {
+      const whisker = new THREE.Mesh(whiskerGeo, M(0xaaaaaa));
+      whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.2 + w * 0.15);
+      whisker.position.set(0.09, s * 0.015 + w * 0.003, 0.05); headPivot.add(whisker);
+    }
+  }
+
+  // Legs - short and sturdy, on pivots for animation
+  const catLegs = {};
+  [[0.08, 0.07], [0.08, -0.07], [-0.14, 0.075], [-0.14, -0.075]].forEach((p, idx) => {
+    const leg = CY(0.015, 0.018, 0.08, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0], p[1], 0.05); g.add(leg);
+    const paw = SPH(0.018, furL); paw.position.set(p[0], p[1], 0.01); g.add(paw);
+    catLegs['leg' + idx] = leg;
+  });
+
+  // Tail - long and swishy on a pivot
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.22, 0, 0.13); g.add(tailPivot);
+  const t1 = CY(0.018, 0.012, 0.08, fur, 8); t1.rotation.x = Math.PI / 2; t1.position.set(-0.04, 0, 0.03); tailPivot.add(t1);
+  const t2 = CY(0.012, 0.008, 0.06, fur, 8); t2.rotation.x = Math.PI / 2; t2.position.set(-0.09, 0.02, 0.05); tailPivot.add(t2);
+  const t3 = SPH(0.01, furD); t3.position.set(-0.12, 0.03, 0.06); tailPivot.add(t3);
+
+  // Store animation pivots
+  g.userData.cat = {
+    headPivot: headPivot,
+    tailPivot: tailPivot,
+    leg0: catLegs.leg0, leg1: catLegs.leg1, leg2: catLegs.leg2, leg3: catLegs.leg3,
+    root: g
+  };
+  return g;
+}
 function makeDogWalker(){
   // same low-poly person as the other pedestrians, with a high-poly dog on a short leash
   const person = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) });
@@ -4897,6 +4965,7 @@ function addCreature(type){
     case 'ped':   c.wy = R(1, 4); c.sp = R(1.0, 2.2); c.data = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) }); break;
     case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
     case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
+    case 'cat':   c.wy = R(0.8, 2.0); c.sp = R(5, 7); c.dir = Math.random() < 0.5 ? -1 : 1; c.state = 'sitting'; c.stateT = 0; c.data = makeCat(); break;
     case 'raccoon': c.wy = R(1, creatureMaxY()); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, creatureMaxY()); c.data = makeRaccoon(); break;
     case 'squirrel': c.wy = R(1.5, 4.5); c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
     case 'pigeon': c.peck = R(0, 6.28); c.gz = 0; c.flyT = 0; c.fleeAng = 0;
@@ -5301,6 +5370,18 @@ function spawnWorld(){
     cg.wx = p.wx + R(-40, 50);
     cg.wy = R(1.2, 4.2);
     cg.g.position.set(cg.wx, cg.wy, GZ);
+  }
+  // Bodega cats: Manhattan-only, sit near corner stores, hiss and charge at the worker
+  if (isManhattanLevel()){
+    for (let catIdx = 0; catIdx < 3; catIdx++){
+      const bc = addCreature('cat');
+      // Spawn near a corner store (first or last house on a random block)
+      const b = blocks[(Math.random() * blocks.length) | 0];
+      const cornerSide = Math.random() < 0.5 ? 0 : 1; // 0 = first house, 1 = last house
+      bc.wx = b.worldX + (cornerSide === 0 ? 1.0 : HOUSES_PER_BLOCK * BW - 1.0);
+      bc.wy = R(0.8, 1.5); // near the store door
+      bc.g.position.set(bc.wx, bc.wy, GZ);
+    }
   }
   // Health / immunity pickups for this shift. Count scales with the level (route),
   // so the first route is sparse and later routes are more generous.
@@ -7415,6 +7496,63 @@ function updateCreatures(dt){
         c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
         if (tx > 58){ c.wx = p.wx - 35; c.dir = 1; }
         if (tx < -58) c.wx = p.wx + 42;
+        break;
+      }
+      case 'cat':{
+        // Bodega cat: sits near a corner store, hisses and charges at the worker when he gets close
+        c.stateT += dt;
+        if (c.state === 'sitting'){
+          // Cat sits and occasionally looks around
+          c.g.rotation.z = Math.sin(c.stateT * 1.5) * 0.1;
+          // If worker gets close, cat gets spooked and charges at him
+          if (state === 'play' && Math.abs(tx) < 4.0 && Math.abs(c.wy - p.wy) < 3.0){
+            c.state = 'chasing';
+            c.stateT = 0;
+            c.dir = tx > 0 ? 1 : -1; // face the worker
+            Voice.say('Hiss!', 0.8, 1.3, c.wx, c.wy, null, 'cat');
+          }
+        } else if (c.state === 'chasing'){
+          // Cat charges at the worker to scare him
+          const catSpd = c.sp + 3; // charge faster
+          c.wx += c.dir * catSpd * dt;
+          c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, 4.5); // steer toward worker
+          c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+          // Animate running
+          animParts(c, dt * 40);
+          // If cat reaches the worker, scare him
+          if (Math.abs(tx) < 1.2 && Math.abs(c.wy - p.wy) < 1.0){
+            doStun(0.6, 'trip');
+            if (carry !== 'none' && Math.random() < 0.45) dropCarried();
+            Voice.say('Yipes!', 1.0, 1.5, p.wx, p.wy, WORKER_GENDER, 'worker');
+            c.state = 'fleeing';
+            c.stateT = 2.0;
+          }
+          // If chasing too long without reaching, give up
+          if (c.stateT > 2.5){
+            c.state = 'fleeing';
+            c.stateT = 2.0;
+          }
+        } else if (c.state === 'fleeing'){
+          // Cat runs away down the street
+          c.dir = tx > 0 ? 1 : -1; // run away from worker
+          c.wx += c.dir * (c.sp + 2) * dt;
+          animParts(c, dt * 35);
+          c.stateT -= dt;
+          if (c.stateT <= 0){
+            // Cat calms down and sits again somewhere else
+            c.state = 'sitting';
+            c.stateT = 0;
+            c.wy = R(0.8, 2.5);
+            c.g.rotation.z = 0;
+          }
+        }
+        // Recycle cat when it's far off-screen
+        if (tx > 60 || tx < -60){
+          c.wx = p.wx + (Math.random() < 0.5 ? -40 : 45);
+          c.wy = R(0.8, 2.5);
+          c.state = 'sitting';
+          c.stateT = 0;
+        }
         break;
       }
       case 'raccoon':{
