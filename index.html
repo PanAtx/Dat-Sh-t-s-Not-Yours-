@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.65</div>
+    <div id="app-version" class="menu-version">v1.0.66</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.65';
+const APP_VERSION = '1.0.66';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4868,7 +4868,9 @@ function tieLeashChain(chain, ax, ay, az, dx, dy, dz){
   if (len > 1e-4) chain.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(cx2, cy2, dz2).normalize());
 }
 function addCreature(type){
-  const c = { type: type, wx: p.wx + R(-58, 58), wy: 6, vx: 1, phase: R(0, 6.28), cd: R(1, 4), flee: 0, data: null };
+  // Spawn NPCs away from the player (at least 20 units distance) so the worker starts alone
+  const spawnOffset = Math.random() < 0.5 ? R(-58, -20) : R(20, 58);
+  const c = { type: type, wx: p.wx + spawnOffset, wy: 6, vx: 1, phase: R(0, 6.28), cd: R(1, 4), flee: 0, data: null };
   // Gender of the voice used when this NPC speaks (male/female/neutral):
   //   ped=man, lady=woman, breaker=man, yeller=man, jacker/skater/escooter=men,
   //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
