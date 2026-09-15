@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.70</div>
+    <div id="app-version" class="menu-version">v1.0.71</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.70';
+const APP_VERSION = '1.0.71';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5375,11 +5375,11 @@ function spawnWorld(){
   if (isManhattanLevel()){
     for (let catIdx = 0; catIdx < 3; catIdx++){
       const bc = addCreature('cat');
-      // Spawn near a corner store (first or last house on a random block)
+      // Spawn right at a corner store front (not by the curb)
       const b = blocks[(Math.random() * blocks.length) | 0];
       const cornerSide = Math.random() < 0.5 ? 0 : 1; // 0 = first house, 1 = last house
       bc.wx = b.worldX + (cornerSide === 0 ? 1.0 : HOUSES_PER_BLOCK * BW - 1.0);
-      bc.wy = R(0.8, 1.5); // near the store door
+      bc.wy = R(1.3, 1.8); // just outside the store front, on the sidewalk
       bc.g.position.set(bc.wx, bc.wy, GZ);
     }
   }
@@ -7504,8 +7504,8 @@ function updateCreatures(dt){
         if (c.state === 'sitting'){
           // Cat sits and occasionally looks around
           c.g.rotation.z = Math.sin(c.stateT * 1.5) * 0.1;
-          // If worker gets close, cat gets spooked and charges at him
-          if (state === 'play' && Math.abs(tx) < 4.0 && Math.abs(c.wy - p.wy) < 3.0){
+          // If worker gets very close (almost touching), cat gets spooked and charges at him
+          if (state === 'play' && Math.abs(tx) < 1.8 && Math.abs(c.wy - p.wy) < 1.2){
             c.state = 'chasing';
             c.stateT = 0;
             c.dir = tx > 0 ? 1 : -1; // face the worker
