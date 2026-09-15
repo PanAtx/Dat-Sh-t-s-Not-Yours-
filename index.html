@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.87</div>
+    <div id="app-version" class="menu-version">v1.0.88</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.87';
+const APP_VERSION = '1.0.88';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4436,13 +4436,16 @@ function makeCat(){
   // Scale up the cat (larger, more imposing)
   const SCALE = 1.4;
 
-  // Sleek body (ellipsoid)
-  const body = SPH(0.07 * SCALE, fur); body.scale.set(1.8, 0.9, 0.85); body.position.set(-0.02 * SCALE, 0, 0.11 * SCALE); g.add(body);
+  // SITTING POSE: Cat sits on hind legs, front legs tucked, hindquarters on ground
+  // Body is lower and more compact when sitting
+
+  // Sleek body (ellipsoid) - sitting, so lower and more upright
+  const body = SPH(0.07 * SCALE, fur); body.scale.set(1.4, 1.1, 0.85); body.position.set(-0.02 * SCALE, 0.04 * SCALE, 0.11 * SCALE); g.add(body);
   // Lighter belly
-  const belly = SPH(0.06 * SCALE, furL); belly.scale.set(1.5, 0.6, 0.6); belly.position.set(0.02 * SCALE, 0, 0.08 * SCALE); g.add(belly);
+  const belly = SPH(0.06 * SCALE, furL); belly.scale.set(1.2, 0.8, 0.6); belly.position.set(0.02 * SCALE, 0.03 * SCALE, 0.08 * SCALE); g.add(belly);
 
   // Head on a pivot so it can look around and lick paws
-  const headPivot = new THREE.Group(); headPivot.position.set(0.16 * SCALE, 0, 0.14 * SCALE); g.add(headPivot);
+  const headPivot = new THREE.Group(); headPivot.position.set(0.14 * SCALE, 0.12 * SCALE, 0.14 * SCALE); g.add(headPivot);
   const head = SPH(0.05 * SCALE, fur); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
   // Ears - pointed and triangular (larger, more pointed)
   const earGeo = new THREE.ConeGeometry(0.025 * SCALE, 0.065 * SCALE, 4);
@@ -4466,16 +4469,23 @@ function makeCat(){
     }
   }
 
-  // Legs - short and sturdy, on pivots for animation
+  // Front legs - tucked under body (sitting pose)
   const catLegs = {};
-  [[0.08, 0.07], [0.08, -0.07], [-0.14, 0.075], [-0.14, -0.075]].forEach((p, idx) => {
-    const leg = CY(0.015 * SCALE, 0.018 * SCALE, 0.08 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, p[1] * SCALE, 0.05 * SCALE); g.add(leg);
-    const paw = SPH(0.018 * SCALE, furL); paw.position.set(p[0] * SCALE, p[1] * SCALE, 0.01 * SCALE); g.add(paw);
+  // Front legs: shorter, tucked forward
+  [[0.06, 0.05], [0.06, -0.05]].forEach((p, idx) => {
+    const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
+    const paw = SPH(0.014 * SCALE, furL); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + idx] = leg;
   });
+  // Back legs: extended, hindquarters on ground
+  [[-0.12, 0.06], [-0.12, -0.06]].forEach((p, idx) => {
+    const leg = CY(0.014 * SCALE, 0.016 * SCALE, 0.06 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
+    const paw = SPH(0.016 * SCALE, furL); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
+    catLegs['leg' + (idx + 2)] = leg;
+  });
 
-  // Tail - long and swishy on a pivot
-  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.22 * SCALE, 0, 0.13 * SCALE); g.add(tailPivot);
+  // Tail - long and swishy on a pivot (curls around when sitting)
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.18 * SCALE, 0.04 * SCALE, 0.13 * SCALE); g.add(tailPivot);
   const t1 = CY(0.018 * SCALE, 0.012 * SCALE, 0.08 * SCALE, fur, 8); t1.rotation.x = Math.PI / 2; t1.position.set(-0.04 * SCALE, 0, 0.03 * SCALE); tailPivot.add(t1);
   const t2 = CY(0.012 * SCALE, 0.008 * SCALE, 0.06 * SCALE, fur, 8); t2.rotation.x = Math.PI / 2; t2.position.set(-0.09 * SCALE, 0.02 * SCALE, 0.05 * SCALE); tailPivot.add(t2);
   const t3 = SPH(0.01 * SCALE, furD); t3.position.set(-0.12 * SCALE, 0.03 * SCALE, 0.06 * SCALE); tailPivot.add(t3);
