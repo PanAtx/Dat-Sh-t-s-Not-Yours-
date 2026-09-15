@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.88</div>
+    <div id="app-version" class="menu-version">v1.0.89</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.88';
+const APP_VERSION = '1.0.89';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4308,7 +4308,7 @@ function makePigeon(){
   g.userData.wingL = wingL; g.userData.wingR = wingR; // wings live on the group so makePigeon can return it like every other builder
   return g;
 }
-function makeRat(){
+function makeRat(pizza){
   const g = new THREE.Group();
   const fur = M(0x55504a), dark = M(0x3a3632), pink = M(0xc98a7a), eyeM = M(0x14100e);
   // sleek smooth body (ellipsoid) instead of boxes
@@ -4332,6 +4332,24 @@ function makeRat(){
     new THREE.Vector3(-0.5, 0.11, 0.07)
   ]);
   const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.015, 8), dark); tail.castShadow = true; g.add(tail);
+
+  // Pizza slice in mouth (if requested)
+  if (pizza) {
+    // Crust (wedge)
+    const crustMat = M(0xc49a4a);
+    const sliceMat = M(0xe89a3a);
+    const cheeseMat = M(0xf5d042);
+    // Crust edge
+    const crust = SPH(0.06, crustMat, 10, 8); crust.scale.set(1.2, 0.3, 0.6); crust.position.set(0.38, -0.01, 0.11); crust.rotation.z = -0.3; g.add(crust);
+    // Cheese/sauce layer
+    const cheese = SPH(0.055, cheeseMat, 10, 8); cheese.scale.set(1.1, 0.15, 0.5); cheese.position.set(0.365, 0.005, 0.115); cheese.rotation.z = -0.3; g.add(cheese);
+    // Pepperoni dots
+    const pepMat = M(0xb83a2a);
+    [0.01, -0.01].forEach((zOff, i) => {
+      const pep = SPH(0.006, pepMat, 6, 4); pep.position.set(0.36, 0.012, 0.115 + zOff); pep.scale.set(1.2, 0.3, 1.2); g.add(pep);
+    });
+  }
+
   return g;
 }
 function makeRaccoon(){
@@ -4437,58 +4455,92 @@ function makeCat(){
   const SCALE = 1.4;
 
   // SITTING POSE: Cat sits on hind legs, front legs tucked, hindquarters on ground
-  // Body is lower and more compact when sitting
+  // Body is lower and more compact when sitting, higher detail
 
-  // Sleek body (ellipsoid) - sitting, so lower and more upright
-  const body = SPH(0.07 * SCALE, fur); body.scale.set(1.4, 1.1, 0.85); body.position.set(-0.02 * SCALE, 0.04 * SCALE, 0.11 * SCALE); g.add(body);
+  // Main body - sitting, more detailed with connected parts
+  const body = SPH(0.075 * SCALE, fur, 16, 12); body.scale.set(1.3, 1.15, 0.85); body.position.set(-0.015 * SCALE, 0.045 * SCALE, 0.115 * SCALE); g.add(body);
   // Lighter belly
-  const belly = SPH(0.06 * SCALE, furL); belly.scale.set(1.2, 0.8, 0.6); belly.position.set(0.02 * SCALE, 0.03 * SCALE, 0.08 * SCALE); g.add(belly);
+  const belly = SPH(0.065 * SCALE, furL, 12, 8); belly.scale.set(1.1, 0.85, 0.6); belly.position.set(0.015 * SCALE, 0.035 * SCALE, 0.09 * SCALE); g.add(belly);
+  // Chest
+  const chest = SPH(0.045 * SCALE, furL, 10, 8); chest.position.set(0.07 * SCALE, 0.04 * SCALE, 0.13 * SCALE); g.add(chest);
 
   // Head on a pivot so it can look around and lick paws
-  const headPivot = new THREE.Group(); headPivot.position.set(0.14 * SCALE, 0.12 * SCALE, 0.14 * SCALE); g.add(headPivot);
-  const head = SPH(0.05 * SCALE, fur); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
+  const headPivot = new THREE.Group(); headPivot.position.set(0.135 * SCALE, 0.135 * SCALE, 0.145 * SCALE); g.add(headPivot);
+  const head = SPH(0.055 * SCALE, fur, 14, 10); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
+  // Cheeks (fluffy)
+  [-1, 1].forEach(s => {
+    const cheek = SPH(0.035 * SCALE, fur, 8, 6); cheek.position.set(0.05 * SCALE, 0, s * 0.045 * SCALE); cheek.scale.set(0.8, 0.6, 0.5); headPivot.add(cheek);
+  });
   // Ears - pointed and triangular (larger, more pointed)
-  const earGeo = new THREE.ConeGeometry(0.025 * SCALE, 0.065 * SCALE, 4);
+  const earGeo = new THREE.ConeGeometry(0.028 * SCALE, 0.07 * SCALE, 6);
   [-1, 1].forEach(s => {
-    const ear = new THREE.Mesh(earGeo, fur); ear.rotation.z = -s * 0.15; ear.rotation.x = -0.3;
-    ear.position.set(0.01 * SCALE, s * 0.05 * SCALE, 0.08 * SCALE); headPivot.add(ear);
+    const ear = new THREE.Mesh(earGeo, fur); ear.rotation.z = -s * 0.15; ear.rotation.x = -0.35;
+    ear.position.set(0.015 * SCALE, s * 0.055 * SCALE, 0.085 * SCALE); headPivot.add(ear);
+    // Inner ear
+    const innerEar = new THREE.Mesh(new THREE.ConeGeometry(0.015 * SCALE, 0.04 * SCALE, 4), furL);
+    innerEar.rotation.z = -s * 0.15; innerEar.rotation.x = -0.35;
+    innerEar.position.set(0.015 * SCALE, s * 0.05 * SCALE, 0.085 * SCALE);
+    headPivot.add(innerEar);
   });
-  // Eyes - almond shaped
+  // Eyes - almond shaped, larger
   [-1, 1].forEach(s => {
-    const eye = SPH(0.01 * SCALE, eyeM); eye.position.set(0.065 * SCALE, s * 0.02 * SCALE, 0.065 * SCALE); headPivot.add(eye);
+    const eye = SPH(0.012 * SCALE, eyeM, 8, 6); eye.position.set(0.07 * SCALE, s * 0.022 * SCALE, 0.068 * SCALE); headPivot.add(eye);
+    // Pupil
+    const pupil = SPH(0.005 * SCALE, M(0x111111), 6, 4); pupil.position.set(0.078 * SCALE, s * 0.022 * SCALE, 0.07 * SCALE); headPivot.add(pupil);
   });
-  // Nose
-  const nose = SPH(0.006 * SCALE, noseM); nose.position.set(0.085 * SCALE, 0, 0.06 * SCALE); headPivot.add(nose);
-  // Whiskers
-  const whiskerGeo = new THREE.CylinderGeometry(0.001 * SCALE, 0.001 * SCALE, 0.04 * SCALE, 4);
+  // Nose - triangular
+  const noseGeo = new THREE.ConeGeometry(0.008 * SCALE, 0.012 * SCALE, 4);
+  const nose = new THREE.Mesh(noseGeo, noseM); nose.rotation.x = Math.PI / 2; nose.position.set(0.09 * SCALE, 0, 0.062 * SCALE); headPivot.add(nose);
+  // Mouth line
+  const mouth = BX(0.003 * SCALE, 0.002 * SCALE, 0.015 * SCALE, furD); mouth.position.set(0.092 * SCALE, -0.008 * SCALE, 0.06 * SCALE); headPivot.add(mouth);
+  // Whiskers - longer and more curved
+  const whiskerGeo = new THREE.CylinderGeometry(0.0008 * SCALE, 0.0008 * SCALE, 0.05 * SCALE, 4);
   for (let w = -1; w <= 1; w++) {
     for (let s = -1; s <= 1; s += 2) {
-      const whisker = new THREE.Mesh(whiskerGeo, M(0xaaaaaa));
-      whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.2 + w * 0.15);
-      whisker.position.set(0.09 * SCALE, s * 0.015 * SCALE + w * 0.003 * SCALE, 0.05 * SCALE); headPivot.add(whisker);
+      const whisker = new THREE.Mesh(whiskerGeo, M(0xbbbbbb));
+      whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.25 + w * 0.18);
+      whisker.position.set(0.095 * SCALE, s * 0.018 * SCALE + w * 0.004 * SCALE, 0.05 * SCALE); headPivot.add(whisker);
     }
   }
 
-  // Front legs - tucked under body (sitting pose)
+  // Front legs - tucked under body (sitting pose), connected to body
   const catLegs = {};
-  // Front legs: shorter, tucked forward
-  [[0.06, 0.05], [0.06, -0.05]].forEach((p, idx) => {
-    const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
-    const paw = SPH(0.014 * SCALE, furL); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
+  // Front legs: shorter, tucked forward, thicker at top (attached to body)
+  [[0.055, 0.05], [0.055, -0.05]].forEach((p, idx) => {
+    // Upper leg (connected to body)
+    const upperLeg = CY(0.018 * SCALE, 0.012 * SCALE, 0.04 * SCALE, fur, 8);
+    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.035 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    // Lower leg
+    const leg = CY(0.01 * SCALE, 0.012 * SCALE, 0.045 * SCALE, fur, 8);
+    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
+    const paw = SPH(0.014 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.008 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + idx] = leg;
   });
-  // Back legs: extended, hindquarters on ground
-  [[-0.12, 0.06], [-0.12, -0.06]].forEach((p, idx) => {
-    const leg = CY(0.014 * SCALE, 0.016 * SCALE, 0.06 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
-    const paw = SPH(0.016 * SCALE, furL); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
+  // Back legs: extended, hindquarters on ground, connected to body
+  [[-0.115, 0.055], [-0.115, -0.055]].forEach((p, idx) => {
+    // Upper leg (connected to body)
+    const upperLeg = CY(0.02 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8);
+    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.035 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    // Lower leg
+    const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.055 * SCALE, fur, 8);
+    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
+    const paw = SPH(0.016 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.008 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + (idx + 2)] = leg;
   });
 
-  // Tail - long and swishy on a pivot (curls around when sitting)
-  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.18 * SCALE, 0.04 * SCALE, 0.13 * SCALE); g.add(tailPivot);
-  const t1 = CY(0.018 * SCALE, 0.012 * SCALE, 0.08 * SCALE, fur, 8); t1.rotation.x = Math.PI / 2; t1.position.set(-0.04 * SCALE, 0, 0.03 * SCALE); tailPivot.add(t1);
-  const t2 = CY(0.012 * SCALE, 0.008 * SCALE, 0.06 * SCALE, fur, 8); t2.rotation.x = Math.PI / 2; t2.position.set(-0.09 * SCALE, 0.02 * SCALE, 0.05 * SCALE); tailPivot.add(t2);
-  const t3 = SPH(0.01 * SCALE, furD); t3.position.set(-0.12 * SCALE, 0.03 * SCALE, 0.06 * SCALE); tailPivot.add(t3);
+  // Tail - long, curled up and over the back (sitting pose)
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.17 * SCALE, 0.05 * SCALE, 0.135 * SCALE); g.add(tailPivot);
+  // Base of tail (connected to body)
+  const tBase = CY(0.02 * SCALE, 0.014 * SCALE, 0.03 * SCALE, fur, 8);
+  tBase.rotation.x = Math.PI / 2; tBase.position.set(0, 0.01 * SCALE, 0.015 * SCALE); tailPivot.add(tBase);
+  // Tail curves up and over
+  const t1 = CY(0.014 * SCALE, 0.01 * SCALE, 0.05 * SCALE, fur, 8);
+  t1.rotation.x = 0.8; t1.position.set(-0.015 * SCALE, 0.035 * SCALE, 0.035 * SCALE); tailPivot.add(t1);
+  const t2 = CY(0.01 * SCALE, 0.008 * SCALE, 0.04 * SCALE, fur, 8);
+  t2.rotation.x = 1.5; t2.position.set(0.01 * SCALE, 0.065 * SCALE, 0.045 * SCALE); tailPivot.add(t2);
+  const t3 = CY(0.008 * SCALE, 0.006 * SCALE, 0.035 * SCALE, fur, 8);
+  t3.rotation.x = 2.2; t3.position.set(0.045 * SCALE, 0.08 * SCALE, 0.04 * SCALE); tailPivot.add(t3);
+  const t4 = SPH(0.008 * SCALE, furD, 8, 6); t4.position.set(0.065 * SCALE, 0.075 * SCALE, 0.03 * SCALE); tailPivot.add(t4);
 
   // Store animation pivots
   g.userData.cat = {
@@ -4977,7 +5029,7 @@ function addCreature(type){
   switch (type){
     case 'ped':   c.wy = R(1, 4); c.sp = R(1.0, 2.2); c.data = makePerson({ shirt: pick(SHIRTS), pants: pick(PANTS), hair: pick(HAIRS) }); break;
     case 'lady':  c.wy = R(1, 4); c.sp = R(1.2, 2.4); c.data = makePerson({ skirt: true, shirt: pick(DRESSES), hair: pick(HAIRS) }); break;
-    case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(); break;
+    case 'rat':   c.wy = R(0.6, 1.8); c.sp = R(4.5, 6); c.dir = Math.random() < 0.5 ? -1 : 1; c.data = makeRat(Math.random() < 0.25); break;
     case 'cat':   c.wy = R(0.8, 2.0); c.sp = R(5, 7); c.dir = Math.random() < 0.5 ? -1 : 1; c.state = 'sitting'; c.stateT = 0; c.data = makeCat(); break;
     case 'raccoon': c.wy = R(1, creatureMaxY()); c.sp = 3.2; c.t = 0; c.tx = c.wx + 5; c.ty = R(1, creatureMaxY()); c.data = makeRaccoon(); break;
     case 'squirrel': c.wy = R(1.5, 4.5); c.sp = R(4, 5.5); c.data = makeSquirrel(); break;
