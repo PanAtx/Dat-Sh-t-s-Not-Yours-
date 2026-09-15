@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.60</div>
+    <div id="app-version" class="menu-version">v1.0.61</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.60';
+const APP_VERSION = '1.0.61';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4480,9 +4480,11 @@ function makeCrazyGuy(){
   // Naked hips/torso (one piece)
   const hips = BX(0.24, 0.35, 0.35, skin); hips.position.z = 0.9; g.add(hips);
   const torso = BX(0.22, 0.58, 0.42, skin); torso.position.z = 1.2; g.add(torso);
-  // Private parts: blurred/soft skin patch (rounded, slightly darker)
-  const privPatch = SPH(0.04, M(0xb08e76), 10, 8); privPatch.scale.set(0.8, 0.7, 0.6); privPatch.position.set(0.02, 0, 0.88); g.add(privPatch);
-  const privBase = BX(0.035, 0.025, 0.02, M(0xb08e76)); privBase.position.set(0.02, 0, 0.9); privBase.rotation.x = 0.3; g.add(privBase);
+  // Butt cheeks: two rounded halves visible
+  const buttL = SPH(0.11, skin, 12, 10); buttL.scale.set(0.85, 1.1, 0.75); buttL.position.set(0.045, 0.07, 0.74); g.add(buttL);
+  const buttR = SPH(0.11, skin, 12, 10); buttR.scale.set(0.85, 1.1, 0.75); buttR.position.set(0.045, -0.07, 0.74); g.add(buttR);
+  // Penis: small cylinder between legs, slightly blurred/darker
+  const penis = CY(0.018, 0.015, 0.09, M(0xb08e76), 8); penis.rotation.x = Math.PI / 2 + 0.2; penis.position.set(0.04, 0, 0.86); g.add(penis);
   // Arms (naked)
   const mkArm = side => {
     const pv = new THREE.Group(); pv.position.set(0, side * 0.32, 1.32);
@@ -8206,18 +8208,18 @@ function updateCreatures(dt){
             // Decide new behavior: walk forward, turn left, turn right, stop, walk backward
             const behavior = Math.random();
             if (behavior < 0.35){
-              // Keep walking forward (faster than before)
-              c.crazySpeed = R(0.8, 1.5);
+              // Keep walking forward (much faster now)
+              c.crazySpeed = R(1.8, 3.5);
               c.crazyAngle = 0;
               c.crazyTimer = R(0.8, 2.5);
             } else if (behavior < 0.5){
               // Turn and walk left
-              c.crazySpeed = R(0.6, 1.2);
+              c.crazySpeed = R(1.5, 2.8);
               c.crazyAngle = Math.PI / 2;
               c.crazyTimer = R(0.5, 1.5);
             } else if (behavior < 0.65){
               // Turn and walk right
-              c.crazySpeed = R(0.6, 1.2);
+              c.crazySpeed = R(1.5, 2.8);
               c.crazyAngle = -Math.PI / 2;
               c.crazyTimer = R(0.5, 1.5);
             } else if (behavior < 0.8){
@@ -8226,7 +8228,7 @@ function updateCreatures(dt){
               c.crazyTimer = R(0.5, 1.5);
             } else {
               // Walk backward
-              c.crazySpeed = R(0.4, 0.8);
+              c.crazySpeed = R(1.0, 1.8);
               c.crazyAngle = Math.PI;
               c.crazyTimer = R(0.5, 1.2);
             }
