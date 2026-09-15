@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.62</div>
+    <div id="app-version" class="menu-version">v1.0.63</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.62';
+const APP_VERSION = '1.0.63';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8204,32 +8204,39 @@ function updateCreatures(dt){
           if (!c.crazyTimer){ c.crazyTimer = R(0.5, 2.0); }
           c.crazyTimer -= dt;
           if (c.crazyTimer <= 0){
-            // Decide new behavior: walk forward, turn left, turn right, stop, walk backward
+            // Decide new behavior: walk forward, turn left, turn right, stop, walk backward, stalk player
             const behavior = Math.random();
-            if (behavior < 0.35){
+            if (behavior < 0.30){
               // Keep walking forward (much faster now)
               c.crazySpeed = R(1.8, 3.5);
               c.crazyAngle = 0;
               c.crazyTimer = R(0.8, 2.5);
-            } else if (behavior < 0.5){
+            } else if (behavior < 0.42){
               // Turn and walk left
               c.crazySpeed = R(1.5, 2.8);
               c.crazyAngle = Math.PI / 2;
               c.crazyTimer = R(0.5, 1.5);
-            } else if (behavior < 0.65){
+            } else if (behavior < 0.54){
               // Turn and walk right
               c.crazySpeed = R(1.5, 2.8);
               c.crazyAngle = -Math.PI / 2;
               c.crazyTimer = R(0.5, 1.5);
-            } else if (behavior < 0.8){
+            } else if (behavior < 0.66){
               // Stop and stare
               c.crazySpeed = 0;
               c.crazyTimer = R(0.5, 1.5);
-            } else {
+            } else if (behavior < 0.80){
               // Walk backward
               c.crazySpeed = R(1.0, 1.8);
               c.crazyAngle = Math.PI;
               c.crazyTimer = R(0.5, 1.2);
+            } else {
+              // STALK: move toward the sanitation worker! (danger!)
+              const dx = p.wx - c.wx;
+              const dy = p.wy - c.wy;
+              c.crazyAngle = Math.atan2(dy, dx);
+              c.crazySpeed = R(2.0, 3.8); // faster when stalking
+              c.crazyTimer = R(1.0, 2.5);
             }
           }
           // Move in the current crazy direction
