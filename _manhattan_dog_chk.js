@@ -145,13 +145,14 @@ function runLeashDogCase(c, manhattan, rec){
   const VoiceRec = { say: function(line){ rec.lines.push(line); } };
   function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; }
   function makePostMesh(){ return { position: { set(){} }, parent: null }; }
+  const BLOCK_W = 80;             // mirrors index.html (10 houses x 8u)
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
-    'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
+    'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W',
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, VoiceRec, [],
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
-    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain);
+    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W);
 }
 
 // ---- 1) Street boundary: an aggro'd Manhattan dog NEVER steps onto the asphalt ----

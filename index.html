@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.97</div>
+    <div id="app-version" class="menu-version">v1.0.98</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.97';
+const APP_VERSION = '1.0.98';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4333,21 +4333,41 @@ function makeRat(pizza){
   ]);
   const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.015, 8), dark); tail.castShadow = true; g.add(tail);
 
-  // Pizza slice in mouth (if requested) - COMICALLY BIG
+  // Pizza slice in mouth (if requested) - COMICALLY BIG NYC slice with crust and toppings
   if (pizza) {
-    // Crust (wedge) - MUCH BIGGER
-    const crustMat = M(0xc49a4a);
-    const cheeseMat = M(0xf5d042);
-    const pepMat = M(0xb83a2a);
-    const sliceScale = 2.5;
-    // Crust edge
-    const crust = SPH(0.06 * sliceScale, crustMat, 10, 8); crust.scale.set(1.2, 0.3, 0.6); crust.position.set(0.38, -0.01, 0.11); crust.rotation.z = -0.3; g.add(crust);
-    // Cheese/sauce layer
-    const cheese = SPH(0.055 * sliceScale, cheeseMat, 10, 8); cheese.scale.set(1.1, 0.15, 0.5); cheese.position.set(0.365, 0.005, 0.115); cheese.rotation.z = -0.3; g.add(cheese);
-    // Pepperoni dots - BIGGER
-    [0.01, -0.01, 0.02, -0.02].forEach((zOff) => {
-      const pep = SPH(0.006 * sliceScale, pepMat, 6, 4); pep.position.set(0.36, 0.012, 0.115 + zOff); pep.scale.set(1.2, 0.3, 1.2); g.add(pep);
-    });
+    const sliceScale = 4.5;
+    // Crust - thick, golden, curved outer arc
+    // Create proper triangular pizza slice wedge using scaled primitives
+    const sliceW = 0.07, sliceL = 0.10, sliceH = 0.01;
+    // Slice base - crust wedge (triangular prism built from scaled cone)
+    const slice = new THREE.Mesh(
+      new THREE.ConeGeometry(sliceW/2, sliceL, 3),
+      M(0xc49a4a)
+    );
+    slice.rotation.z = Math.PI / 2; // point tip forward
+    slice.rotation.y = Math.PI / 2; // rotate to face rat
+    slice.scale.set(1, 1, sliceH / sliceW); // make it flat and thin
+    slice.position.set(0.38, 0.00, 0.10);
+    slice.rotation.x = -0.15; // slight downward tilt
+    g.add(slice);
+    // Cheese layer - slightly smaller, on top
+    const cheese = new THREE.Mesh(
+      new THREE.ConeGeometry(sliceW/2.2, sliceL*0.9, 3),
+      M(0xf5d042)
+    );
+    cheese.rotation.x = slice.rotation.x;
+    cheese.rotation.y = slice.rotation.y;
+    cheese.rotation.z = slice.rotation.z;
+    cheese.scale.set(1, 1, sliceH / sliceW * 0.6);
+    cheese.position.set(0.37, 0.004, 0.10);
+    g.add(cheese);
+    // Pepperoni dots
+    for (let i = 0; i < 3; i++) {
+      const pep = SPH(0.006, M(0xb83a2a), 6, 4);
+      pep.position.set(0.37 + (i - 1) * 0.015, 0.008, 0.10 + Math.sin(i) * 0.004);
+      pep.scale.set(1.3, 0.2, 1.3);
+      g.add(pep);
+    }
   }
 
   return g;
@@ -4448,8 +4468,8 @@ function makeCat(){
   ];
   const catColor = colorOptions[Math.floor(Math.random() * colorOptions.length)];
   const fur = M(catColor.body), furL = M(catColor.belly), furD = M(catColor.patch);
-  const eyeM = M(0x4a8a3e); // green eyes
-  const noseM = M(0xd4a0a0); // pink nose
+  const eyeM = M(0x4a8a3e);
+  const noseM = M(0xd4a0a0);
 
   // Scale up the cat (larger, more imposing)
   const SCALE = 1.4;
@@ -4458,90 +4478,123 @@ function makeCat(){
   // Body is lower and more compact when sitting, higher detail
   // Cat sits upright on its butt with face up
 
-  // Main body - sitting upright, more detailed with connected parts
-  const body = SPH(0.075 * SCALE, fur, 16, 12); body.scale.set(1.3, 1.4, 0.85); body.position.set(-0.01 * SCALE, 0.07 * SCALE, 0.11 * SCALE); g.add(body);
+  // Main body - compact, sits on hindquarters with rounded bottom
+  const body = SPH(0.065 * SCALE, fur, 16, 12); body.scale.set(1.1, 0.9, 1.0); body.position.set(0.005 * SCALE, 0.07 * SCALE, 0.06 * SCALE); g.add(body);
   // Lighter belly
-  const belly = SPH(0.065 * SCALE, furL, 12, 8); belly.scale.set(1.1, 0.9, 0.6); belly.position.set(0.015 * SCALE, 0.06 * SCALE, 0.09 * SCALE); g.add(belly);
-  // Chest
-  const chest = SPH(0.045 * SCALE, furL, 10, 8); chest.position.set(0.07 * SCALE, 0.07 * SCALE, 0.13 * SCALE); g.add(chest);
+  const belly = SPH(0.055 * SCALE, furL, 12, 8); belly.scale.set(1.0, 0.8, 0.5); belly.position.set(0.02 * SCALE, 0.065 * SCALE, 0.05 * SCALE); g.add(belly);
+  // Chest - rounded, slightly forward
+  const chest = SPH(0.04 * SCALE, furL, 12, 8); chest.scale.set(0.9, 0.85, 0.8); chest.position.set(0.055 * SCALE, 0.10 * SCALE, 0.08 * SCALE); g.add(chest);
 
-  // Head on a pivot so it can look around and lick paws - FACING UP AND FORWARD
-  const headPivot = new THREE.Group(); headPivot.position.set(0.13 * SCALE, 0.18 * SCALE, 0.145 * SCALE); g.add(headPivot);
-  const head = SPH(0.055 * SCALE, fur, 14, 10); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
+  // Head on a pivot so it can look around and lick paws
+  const headPivot = new THREE.Group(); headPivot.position.set(0.08 * SCALE, 0.17 * SCALE, 0.10 * SCALE); g.add(headPivot);
+  const head = SPH(0.04 * SCALE, fur, 14, 10); head.scale.set(1.05, 0.9, 0.9); headPivot.add(head);
   // Cheeks (fluffy)
   [-1, 1].forEach(s => {
-    const cheek = SPH(0.035 * SCALE, fur, 8, 6); cheek.position.set(0.05 * SCALE, 0, s * 0.045 * SCALE); cheek.scale.set(0.8, 0.6, 0.5); headPivot.add(cheek);
+    const cheek = SPH(0.025 * SCALE, fur, 10, 6); cheek.position.set(0.02 * SCALE, 0, s * 0.032 * SCALE); cheek.scale.set(0.8, 0.65, 0.5); headPivot.add(cheek);
   });
-  // Ears - pointed and triangular (larger, more pointed)
-  const earGeo = new THREE.ConeGeometry(0.028 * SCALE, 0.07 * SCALE, 6);
+  // Snout - slightly protruding
+  const snout = SPH(0.018 * SCALE, furL, 10, 6); snout.scale.set(1.2, 0.85, 0.7); snout.position.set(0.035 * SCALE, -0.005 * SCALE, 0); headPivot.add(snout);
+  // Ears - pointed and triangular
+  const earGeo = new THREE.ConeGeometry(0.018 * SCALE, 0.045 * SCALE, 8);
   [-1, 1].forEach(s => {
     const ear = new THREE.Mesh(earGeo, fur); ear.rotation.z = -s * 0.15; ear.rotation.x = -0.35;
     ear.position.set(0.015 * SCALE, s * 0.055 * SCALE, 0.085 * SCALE); headPivot.add(ear);
     // Inner ear
-    const innerEar = new THREE.Mesh(new THREE.ConeGeometry(0.015 * SCALE, 0.04 * SCALE, 4), furL);
+    const innerEar = new THREE.Mesh(new THREE.ConeGeometry(0.009 * SCALE, 0.028 * SCALE, 6), furL);
     innerEar.rotation.z = -s * 0.15; innerEar.rotation.x = -0.35;
     innerEar.position.set(0.015 * SCALE, s * 0.05 * SCALE, 0.085 * SCALE);
     headPivot.add(innerEar);
   });
-  // Eyes - almond shaped, larger - LOOKING FORWARD AND SLIGHTLY DOWN
+  // Eyes - almond shaped, alert and expressive
   [-1, 1].forEach(s => {
-    const eye = SPH(0.012 * SCALE, eyeM, 8, 6); eye.position.set(0.07 * SCALE, s * 0.022 * SCALE, 0.068 * SCALE); headPivot.add(eye);
-    // Pupil
-    const pupil = SPH(0.005 * SCALE, M(0x111111), 6, 4); pupil.position.set(0.078 * SCALE, s * 0.022 * SCALE, 0.07 * SCALE); headPivot.add(pupil);
+    const eye = SPH(0.010 * SCALE, M(0xffffff), 10, 6); eye.scale.set(0.9, 1.0, 0.7); eye.position.set(0.028 * SCALE, 0.012 * SCALE, s * 0.018 * SCALE); headPivot.add(eye);
+    const iris = SPH(0.007 * SCALE, eyeM, 8, 6); iris.position.set(0.032 * SCALE, 0.012 * SCALE, s * 0.018 * SCALE); headPivot.add(iris);
+    const pupil = SPH(0.003 * SCALE, M(0x111111), 6, 4); pupil.position.set(0.034 * SCALE, 0.012 * SCALE, s * 0.018 * SCALE); headPivot.add(pupil);
   });
-  // Nose - triangular
-  const noseGeo = new THREE.ConeGeometry(0.008 * SCALE, 0.012 * SCALE, 4);
-  const nose = new THREE.Mesh(noseGeo, noseM); nose.rotation.x = Math.PI / 2; nose.position.set(0.09 * SCALE, 0, 0.062 * SCALE); headPivot.add(nose);
+  // Nose - pink triangular button
+  const noseGeo = new THREE.ConeGeometry(0.008 * SCALE, 0.010 * SCALE, 4);
+  const nose = new THREE.Mesh(noseGeo, noseM); nose.rotation.x = Math.PI / 2; nose.position.set(0.050 * SCALE, -0.003 * SCALE, 0); headPivot.add(nose);
   // Mouth line
-  const mouth = BX(0.003 * SCALE, 0.002 * SCALE, 0.015 * SCALE, furD); mouth.position.set(0.092 * SCALE, -0.008 * SCALE, 0.06 * SCALE); headPivot.add(mouth);
+  const mouth = BX(0.002 * SCALE, 0.0015 * SCALE, 0.018 * SCALE, furD); mouth.position.set(0.052 * SCALE, -0.012 * SCALE, 0); headPivot.add(mouth);
   // Whiskers - longer and more curved
   const whiskerGeo = new THREE.CylinderGeometry(0.0008 * SCALE, 0.0008 * SCALE, 0.05 * SCALE, 4);
   for (let w = -1; w <= 1; w++) {
     for (let s = -1; s <= 1; s += 2) {
-      const whisker = new THREE.Mesh(whiskerGeo, M(0xbbbbbb));
-      whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.25 + w * 0.18);
-      whisker.position.set(0.095 * SCALE, s * 0.018 * SCALE + w * 0.004 * SCALE, 0.05 * SCALE); headPivot.add(whisker);
+      const whisker = new THREE.Mesh(whiskerGeo, M(0xcccccc));
+      whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.15 + w * 0.15);
+      whisker.position.set(0.050 * SCALE, -0.005 * SCALE + w * 0.003 * SCALE, s * 0.018 * SCALE); headPivot.add(whisker);
     }
   }
 
-  // Front legs - tucked under body (sitting pose), connected to body
+  // Front legs - on hip pivots so they can swing when running (like makeDog)
+  // Sitting pose: tucked forward, standing straight down to ground
   const catLegs = {};
-  // Front legs: shorter, tucked forward, thicker at top (attached to body)
-  [[0.05, 0.05], [0.05, -0.05]].forEach((p, idx) => {
-    // Upper leg (connected to body)
-    const upperLeg = CY(0.018 * SCALE, 0.012 * SCALE, 0.04 * SCALE, fur, 8);
-    upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
-    // Lower leg
-    const leg = CY(0.01 * SCALE, 0.012 * SCALE, 0.045 * SCALE, fur, 8);
-    leg.position.set(p[0] * SCALE, 0.015 * SCALE, p[1] * SCALE); g.add(leg);
-    const paw = SPH(0.014 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
-    catLegs['leg' + idx] = leg;
+  // Front leg pivots at the shoulders (top of torso)
+  const frontLegPivots = [[0.06, 0.035], [0.06, -0.035]];
+  frontLegPivots.forEach((p, idx) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(p[0] * SCALE, p[1] * SCALE, 0.11 * SCALE);
+    g.add(pivot);
+    // Upper leg (thigh) - attached to body at shoulder
+    const upperLeg = CY(0.014 * SCALE, 0.011 * SCALE, 0.035 * SCALE, fur, 10);
+    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(0, 0, -0.018 * SCALE); pivot.add(upperLeg);
+    // Lower leg (shin)
+    const leg = CY(0.009 * SCALE, 0.010 * SCALE, 0.038 * SCALE, fur, 10);
+    leg.rotation.x = Math.PI / 2; leg.position.set(0, 0, -0.055 * SCALE); pivot.add(leg);
+    // Paw on the ground
+    const paw = SPH(0.011 * SCALE, furL, 8, 6);
+    paw.position.set(0, 0, -0.075 * SCALE); pivot.add(paw);
+    catLegs['leg' + idx] = pivot;
   });
-  // Back legs: extended, hindquarters on ground, connected to body
-  [[-0.11, 0.055], [-0.11, -0.055]].forEach((p, idx) => {
-    // Upper leg (connected to body)
-    const upperLeg = CY(0.02 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8);
-    upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
-    // Lower leg
-    const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.055 * SCALE, fur, 8);
-    leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
-    const paw = SPH(0.016 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.008 * SCALE, p[1] * SCALE); g.add(paw);
-    catLegs['leg' + (idx + 2)] = leg;
+  // Back legs - on hip pivots at the rump (sitting pose: tucked back, butt on ground)
+  const backLegPivots = [[-0.06, 0.04], [-0.06, -0.04]];
+  backLegPivots.forEach((p, idx) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(p[0] * SCALE, p[1] * SCALE, 0.06 * SCALE);
+    g.add(pivot);
+    // Upper leg (thigh) - tucked back, connecting rump to knee
+    const upperLeg = CY(0.018 * SCALE, 0.013 * SCALE, 0.045 * SCALE, fur, 10);
+    upperLeg.rotation.x = Math.PI / 2 + 0.3; upperLeg.position.set(0.01 * SCALE, 0, -0.015 * SCALE); pivot.add(upperLeg);
+    // Lower leg (shin) - folded under body
+    const leg = CY(0.010 * SCALE, 0.011 * SCALE, 0.035 * SCALE, fur, 10);
+    leg.rotation.x = Math.PI / 2 + 0.8; leg.position.set(0.02 * SCALE, 0, -0.035 * SCALE); pivot.add(leg);
+    // Back paw - tucked under body
+    const paw = SPH(0.012 * SCALE, furL, 8, 6);
+    paw.position.set(0.025 * SCALE, 0, -0.045 * SCALE); pivot.add(paw);
+    catLegs['leg' + (idx + 2)] = pivot;
   });
 
-  // Tail - long, curled on the ground, pointing upwards (sitting pose)
-  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.17 * SCALE, 0.01 * SCALE, 0.135 * SCALE); g.add(tailPivot);
-  // Base of tail (connected to body)
-  const tBase = CY(0.02 * SCALE, 0.014 * SCALE, 0.03 * SCALE, fur, 8);
-  tBase.position.set(0, 0.01 * SCALE, 0.015 * SCALE); tailPivot.add(tBase);
-  // Tail curves on the ground and points up
-  const t1 = CY(0.014 * SCALE, 0.01 * SCALE, 0.05 * SCALE, fur, 8);
-  t1.rotation.x = 1.2; t1.position.set(-0.02 * SCALE, 0.005 * SCALE, 0.035 * SCALE); tailPivot.add(t1);
-  const t2 = CY(0.01 * SCALE, 0.008 * SCALE, 0.04 * SCALE, fur, 8);
-  t2.rotation.x = 1.8; t2.position.set(0.005 * SCALE, 0.015 * SCALE, 0.045 * SCALE); tailPivot.add(t2);
-  const t3 = CY(0.008 * SCALE, 0.006 * SCALE, 0.035 * SCALE, fur, 8);
-  t3.rotation.x = 2.2; t3.position.set(0.035 * SCALE, 0.025 * SCALE, 0.04 * SCALE); tailPivot.add(t3);
-  const t4 = SPH(0.008 * SCALE, furD, 8, 6); t4.position.set(0.055 * SCALE, 0.03 * SCALE, 0.03 * SCALE); tailPivot.add(t4);
+  // Tail - long, slender, expressive feline tail that swishes while sitting
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.05 * SCALE, 0.06 * SCALE, 0.05 * SCALE); g.add(tailPivot);
+  // Base (connected to hindquarters)
+  const tBase = CY(0.015 * SCALE, 0.011 * SCALE, 0.04 * SCALE, fur, 10);
+  tBase.rotation.x = Math.PI / 2 - 0.2;
+  tBase.position.set(-0.018 * SCALE, 0.01 * SCALE, 0.01 * SCALE);
+  tailPivot.add(tBase);
+  // Segment 1 - arches outward and up
+  const t1 = CY(0.012 * SCALE, 0.010 * SCALE, 0.045 * SCALE, fur, 10);
+  t1.rotation.x = Math.PI / 2 - 0.4;
+  t1.position.set(-0.032 * SCALE, 0.03 * SCALE, 0.03 * SCALE);
+  tailPivot.add(t1);
+  // Segment 2 - continues the arch
+  const t2 = CY(0.010 * SCALE, 0.009 * SCALE, 0.04 * SCALE, fur, 10);
+  t2.rotation.x = Math.PI / 2 - 0.55;
+  t2.position.set(-0.040 * SCALE, 0.055 * SCALE, 0.045 * SCALE);
+  tailPivot.add(t2);
+  // Segment 3 - begins the curl back down
+  const t3 = CY(0.009 * SCALE, 0.008 * SCALE, 0.035 * SCALE, fur, 8);
+  t3.rotation.x = Math.PI / 2 - 0.3;
+  t3.position.set(-0.038 * SCALE, 0.075 * SCALE, 0.05 * SCALE);
+  tailPivot.add(t3);
+  // Segment 4 - tip curls elegantly
+  const t4 = CY(0.007 * SCALE, 0.005 * SCALE, 0.03 * SCALE, fur, 8);
+  t4.rotation.x = Math.PI / 2 + 0.1;
+  t4.position.set(-0.032 * SCALE, 0.090 * SCALE, 0.048 * SCALE);
+  tailPivot.add(t4);
+  // Rounded tip
+  const tip = SPH(0.005 * SCALE, furD, 8, 6);
+  tip.position.set(-0.025 * SCALE, 0.100 * SCALE, 0.045 * SCALE);
+  tailPivot.add(tip);
 
   // Store animation pivots
   g.userData.cat = {
@@ -5432,26 +5485,40 @@ function spawnWorld(){
     }
   }
   // Crazy homeless guy: Manhattan-only aggressive NPC that attacks on touch
+  // Spawns in the MIDDLE of the level, not at the beginning or end
   if (isManhattanLevel()){
     const cg = addCreature('crazy');
-    cg.wx = p.wx + R(-40, 50);
+    cg.wx = p.wx + R(30, 80); // middle of the route
     cg.wy = R(1.2, 4.2);
     cg.g.position.set(cg.wx, cg.wy, GZ);
+  }
+  // Manhattan Pizza Rat: guaranteed NYC street rat carrying a giant slice of pizza
+  // on the sidewalk, scurrying along with his prize. Always on Manhattan levels.
+  if (isManhattanLevel()){
+    const pizzaRat = addCreature('rat');
+    // Remove the original rat model and replace with pizza-carrying version
+    dynamicGroup.remove(pizzaRat.g);
+    const pizzaModel = makeRat(true);
+    pizzaRat.g = pizzaModel;
+    dynamicGroup.add(pizzaRat.g);
+    // Spawn directly on the sidewalk (wy = 2.0-3.5), close to player path
+    pizzaRat.wy = R(2.0, 3.5);
+    pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
   }
   // Bodega cats: Manhattan-only, sit on the store sidewalk entrance mat/step at the door
   // No recycling - each cat stays at its original store entrance position for the whole level
   if (isManhattanLevel()){
     for (let catIdx = 0; catIdx < 4; catIdx++){
       const bc = addCreature('cat');
-      // Spawn on the sidewalk entrance mat/step at a corner store door
-      // Pick a random street block and place cat at first or last house door
+      // Spawn directly on the sidewalk (wy = 4.85) so players see them while walking
+      // Pick a random street block and place at first or last house door
       const bl = LEVEL_BLOCKS[(Math.random() * LEVEL_BLOCKS.length) | 0];
       const cornerSide = Math.random() < 0.5 ? 0 : 1;
-      // First house door at bl.x + 4, last house door at bl.x + 9*8 + 4 = bl.x + 76
-      // Move 6 units up (y=6.0, on front lawn) and 5 units right from current position
+      // First house door at bl.x + 3, last at bl.x + 76
       bc.wx = cornerSide === 0 ? bl.x + 3.0 : bl.x + 76.0;
-      bc.wy = 6.0;
+      bc.wy = 4.85; // sidewalk level (was 6.0 = inside the building wall)
       bc.g.position.set(bc.wx, bc.wy, GZ);
+      bc.g.rotation.z = 0; // face toward the street (right side) so player gets a clear view
     }
   }
   // Health / immunity pickups for this shift. Count scales with the level (route),
@@ -7203,16 +7270,28 @@ function animCat(c, dphase){
   c.phase += dphase;
   const parts = c.g.userData.cat;
   if (!parts) return;
-  // Galloping: all legs move together, alternating with body bounce
-  const s = Math.sin(c.phase) * 0.5;
-  // Front legs
-  parts.leg0.rotation.x = s * 0.8;
-  parts.leg1.rotation.x = s * 0.8;
-  // Back legs
-  parts.leg2.rotation.x = -s * 0.8;
-  parts.leg3.rotation.x = -s * 0.8;
-  // Body bounces slightly
-  parts.body.position.y = 0.07 * 1.4 - Math.abs(Math.sin(c.phase)) * 0.005;
+  // Galloping: legs swing in pairs like a dog trot (FL+HR vs FR+HL)
+  // Using rotation.y like makeDog's trot animation
+  const ds = Math.sin(c.phase) * 0.65;
+  // If facing -X (flipped 180 degrees), swap leg animations so the
+  // legs that are now at the front swing forward
+  if (c.dir < 0){
+    parts.leg2.rotation.y = ds;     // FL (now at front) swings forward
+    parts.leg3.rotation.y = -ds;    // FR (now at front) swings back
+    parts.leg0.rotation.y = -ds;    // HL (now at back) swings back
+    parts.leg1.rotation.y = ds;     // HR (now at back) swings forward
+  } else {
+    parts.leg0.rotation.y = ds;     // FL swings forward
+    parts.leg1.rotation.y = -ds;    // FR swings back
+    parts.leg2.rotation.y = -ds;    // HL swings back
+    parts.leg3.rotation.y = ds;     // HR swings forward
+  }
+  // Predatory low-head running posture: head pitches down into a streamlined
+  // low-to-the-ground sprint posture with dynamic bobbing (chin down, eyes forward)
+  parts.headPivot.rotation.y = -0.32 + Math.sin(c.phase * 2) * 0.08;
+  // Lower the head position slightly during the run to elongate the body silhouette
+  parts.headPivot.position.z = 0.10 - 0.008;
+  // Body height is controlled by the state machine (standing vs sitting), not here
 }
 // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
 function animPedal(c, dphase){
@@ -7587,50 +7666,73 @@ function updateCreatures(dt){
       case 'cat':{
         // Bodega cat: sits on store entrance mat, licks paws, hisses and charges at the worker when he gets close
         // No recycling - cat stays at its original store entrance position for the whole level
+        const parts = c.g.userData.cat;
         c.stateT += dt;
         if (c.state === 'sitting'){
-          // Cat sits and licks its paws (head nods down and up periodically)
-          if (!c.lickTimer){ c.lickTimer = R(2, 5); }
-          c.lickTimer -= dt;
-          if (c.lickTimer <= 0){
-            // Lick paw: nod head down for 0.8 seconds
+          // Cat sits upright on hind legs - body connected to legs on ground
+          parts.body.scale.y = 1.0;
+          parts.body.position.y = 0;  // Body at ground level, connected to legs
+          if (!c.sitTimer){ c.sitTimer = R(2.5, 5.0); }
+          c.sitTimer -= dt;
+          if (c.sitTimer <= 0){
+            // Start a new grooming/lick cycle - longer duration for smoother motion
             c.licking = true;
-            c.lickT = 0.8;
+            c.lickT = R(2.0, 3.0);
           }
           if (c.licking){
             c.lickT -= dt;
-            // Head nods down (positive rotation.x) and back up - much more pronounced
-            const lickPhase = Math.sin(c.lickT * Math.PI / 0.8);
-            c.g.rotation.x = lickPhase * 0.6;
+            // Smooth, gradual lick animation using normalized progress (0 to 1)
+            const lickProgress = 1.0 - (c.lickT / 2.5); // normalize to 0-1
+            // Lick paw: lift front-left paw up toward snout (leg0 rotation.y),
+            // pitch head down (headPivot.rotation.y) with rapid tongue lapping motion
+            const liftAmt = Math.sin(lickProgress * Math.PI); // smooth ramp up and down
+            parts.leg0.rotation.y = liftAmt * 0.45; // paw reaches up to snout
+            parts.headPivot.rotation.y = -0.25 - liftAmt * 0.10 + Math.sin(c.stateT * 8) * 0.04; // chin down to paw, rapid lapping
+            parts.headPivot.position.z = 0.10 - liftAmt * 0.005; // head slightly lower while licking
             if (c.lickT <= 0){
               c.licking = false;
-              c.g.rotation.x = 0;
-              c.lickTimer = R(2, 5);
+              // Smooth reset to neutral pose after lick
+              parts.leg0.rotation.y = 0;
+              parts.headPivot.rotation.y = 0;
+              parts.headPivot.position.z = 0.10;
+              c.sitTimer = R(2.5, 5.0); // wait before next lick
             }
           } else {
-            // Tail swishes while sitting
-            c.g.rotation.z = Math.sin(c.stateT * 1.5) * 0.1;
+            // Not licking - look left and right with tail swishing
+            parts.leg0.rotation.y = 0;
+            parts.headPivot.position.z = 0.10;
+            // Alternate between curious head turns left and right
+            parts.headPivot.rotation.z = Math.sin(c.stateT * 0.6) * 0.40;
+            // Occasional vertical head dip
+            parts.headPivot.rotation.y = Math.sin(c.stateT * 0.3) * 0.08;
+            // Wide, continuous tail swishing back and forth across the sidewalk
+            parts.tailPivot.rotation.z = Math.sin(c.stateT * 1.2) * 0.20;
           }
-          // If worker gets very close (almost touching), cat gets spooked and charges at him
+          // If worker gets very close, cat gets spooked and charges
           // (unless debugNoFlee is set for testing)
           if (state === 'play' && !c.debugNoFlee && Math.abs(tx) < 1.8 && Math.abs(c.wy - p.wy) < 1.2){
             c.state = 'chasing';
             c.stateT = 0;
-            c.dir = tx > 0 ? 1 : -1; // face the worker
-            c.g.rotation.x = 0; // stop licking
+            c.dir = tx > 0 ? 1 : -1;
+            // Restore upright alert posture when startled
+            parts.headPivot.rotation.y = 0;
+            parts.headPivot.rotation.z = 0;
+            parts.headPivot.position.z = 0.145 * SCALE;
+            parts.leg0.rotation.y = 0;
+            parts.tailPivot.rotation.z = 0;
             Voice.say('Hiss!', 0.8, 1.3, c.wx, c.wy, null, 'cat');
           }
         } else if (c.state === 'chasing'){
-          // Cat charges at the worker to scare him
-          const catSpd = c.sp + 3; // charge faster
+          // Cat charges at the worker to scare him - slower for better animation visibility
+          const catSpd = c.sp + 1.5;
           // Stand-up animation: first 0.3s, body rises from sitting pose
           if (c.stateT < 0.3){
             const standPct = c.stateT / 0.3;
-            const sitScale = 1.4;
+            const sitScale = 1.0;
             const standScale = 0.9;
             const currentScale = sitScale - (sitScale - standScale) * standPct;
-            c.g.userData.cat.body.scale.y = currentScale;
-            c.g.userData.cat.body.position.y = 0.07 * 1.4 + (0 - 0.07 * 1.4) * standPct;
+            parts.body.scale.y = currentScale;
+            parts.body.position.y = 0;  // Body stays at ground level
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
           } else {
             c.wx += c.dir * catSpd * dt;
@@ -7656,14 +7758,14 @@ function updateCreatures(dt){
           // Stand-up animation: first 0.3s, body rises from sitting pose
           if (c.stateT < 0.3){
             const standPct = c.stateT / 0.3;
-            const sitScale = 1.4;
+            const sitScale = 1.0;
             const standScale = 0.9;
             const currentScale = sitScale - (sitScale - standScale) * standPct;
-            c.g.userData.cat.body.scale.y = currentScale;
-            c.g.userData.cat.body.position.y = 0.07 * 1.4 + (0 - 0.07 * 1.4) * standPct;
+            parts.body.scale.y = currentScale;
+            parts.body.position.y = 0;  // Body stays at ground level
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
           } else {
-            c.wx += c.dir * (c.sp + 2) * dt;
+            c.wx += c.dir * (c.sp + 1.0) * dt;  // Slower for better animation visibility
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
             animCat(c, dt * 35);
           }
@@ -7673,10 +7775,18 @@ function updateCreatures(dt){
             c.state = 'sitting';
             c.stateT = 0;
             c.wy = R(0.8, 2.5);
-            c.g.rotation.x = 0;
+            // Reset all leg rotations and body scale for sitting
+            parts.leg0.rotation.y = 0;
+            parts.leg1.rotation.y = 0;
+            parts.leg2.rotation.y = 0;
+            parts.leg3.rotation.y = 0;
+            parts.body.scale.y = 1.0;
+            parts.body.position.y = 0;
+            parts.headPivot.rotation.x = 0;
+            parts.headPivot.rotation.y = 0;
+            parts.tailPivot.rotation.z = 0;
             c.g.rotation.z = 0;
-            c.g.userData.cat.body.scale.y = 1.4;
-            c.g.userData.cat.body.position.y = 0.07 * 1.4;
+            c.lickTimer = R(2, 5);
           }
         }
         break;
@@ -8531,29 +8641,33 @@ function updateCreatures(dt){
           // Erratic body sway
           c.g.rotation.x = Math.sin(c.phase * 0.7) * 0.08;
           c.g.rotation.y = Math.sin(c.phase * 1.1) * 0.04;
-          // Random crazy muttering - talks to himself constantly regardless of distance
+          // Random crazy muttering - only when on-screen (within camera view range)
           if (!c.mutterCd){ c.mutterCd = R(3, 8); }
           c.mutterCd -= dt;
           if (c.mutterCd <= 0){
             c.mutterCd = R(5, 10);
-            const phrases = [
-              'They\'re in the walls!',
-              'E = mc-squared... or was it cubed?',
-              'The pigeons control everything.',
-              'Seven! The answer is always seven!',
-              'π = 3. You can prove it. Just look.',
-              'I saw yesterday\'s future.',
-              'The numbers... they\'re singing.',
-              'x² + y² = z²... but only at night.',
-              'They\'re watching from the trash cans.',
-              'I\'m not crazy. The world is.',
-              '42. Always 42.',
-              'The wind knows things.',
-              'e to the iπ plus 1... equals nothing.',
-              'They\'ll come back in the rain.',
-              'Everything is connected by wires.'
-            ];
-            Voice.say(pick(phrases), 2.0, R(0.9, 1.15), c.wx, c.wy, 'male', 'crazy');
+            // Only show speech bubble if crazy guy is close enough to be on-screen
+            const distToPlayer = Math.sqrt((p.wx - c.wx) * (p.wx - c.wx) + (p.wy - c.wy) * (p.wy - c.wy));
+            if (distToPlayer < 15){
+              const phrases = [
+                'They\'re in the walls!',
+                'E = mc-squared... or was it cubed?',
+                'The pigeons control everything.',
+                'Seven! The answer is always seven!',
+                'π = 3. You can prove it. Just look.',
+                'I saw yesterday\'s future.',
+                'The numbers... they\'re singing.',
+                'x² + y² = z²... but only at night.',
+                'They\'re watching from the trash cans.',
+                'I\'m not crazy. The world is.',
+                '42. Always 42.',
+                'The wind knows things.',
+                'e to the iπ plus 1... equals nothing.',
+                'They\'ll come back in the rain.',
+                'Everything is connected by wires.'
+              ];
+              Voice.say(pick(phrases), 2.0, R(0.9, 1.15), c.wx, c.wy, 'male', 'crazy');
+            }
           }
         }
         c.g.position.z = GZ;
