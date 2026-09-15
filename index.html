@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.91</div>
+    <div id="app-version" class="menu-version">v1.0.92</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.91';
+const APP_VERSION = '1.0.92';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7198,6 +7198,17 @@ function animParts(c, dphase, amp){
     c.parts.armR.rotation.y = s * 0.8;
   }
 }
+function animCat(c, dphase){
+  c.phase += dphase;
+  const s = Math.sin(c.phase) * 0.6;
+  const parts = c.g.userData.cat;
+  if (parts){
+    parts.leg0.rotation.y = s;
+    parts.leg1.rotation.y = -s;
+    parts.leg2.rotation.y = -s * 0.8;
+    parts.leg3.rotation.y = s * 0.8;
+  }
+}
 // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
 function animPedal(c, dphase){
   c.phase += dphase;
@@ -7620,7 +7631,7 @@ function updateCreatures(dt){
             c.wx += c.dir * catSpd * dt;
             c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, 4.5);
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
-            animParts(c, dt * 40);
+            animCat(c, dt * 40);
           }
           c.stateT += dt;
           if (Math.abs(tx) < 1.2 && Math.abs(c.wy - p.wy) < 1.0){
@@ -7649,7 +7660,7 @@ function updateCreatures(dt){
           } else {
             c.wx += c.dir * (c.sp + 2) * dt;
             c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
-            animParts(c, dt * 35);
+            animCat(c, dt * 35);
           }
           c.stateT += dt;
           if (c.stateT > 2.3){
