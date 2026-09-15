@@ -38,14 +38,8 @@ DROPPED.forEach(d => check('no skateboarder on day ' + d + ' (npcCounts(' + d + 
 check('skateboarder override only touches Manhattan (d1, d6) + Bed-Stuy (d7)',
   DROPPED.every(d => npcCounts(d).skater === 0) && [2, 3, 4, 5].every(d => npcCounts(d).skater === BASE_NPC_COUNTS.skater));
 
-// Crazy homeless guy: Manhattan-only (Grammercy Park Day 1, Harlem Day 6)
-check('day 1 (Manhattan) gets 1 crazy homeless guy', npcCounts(1).crazy === 1);
-check('day 6 (Manhattan) gets 1 crazy homeless guy', npcCounts(6).crazy === 1);
-check('day 2 has no crazy homeless guy', npcCounts(2).crazy === 0);
-check('day 3 has no crazy homeless guy', npcCounts(3).crazy === 0);
-check('day 4 has no crazy homeless guy', npcCounts(4).crazy === 0);
-check('day 5 has no crazy homeless guy', npcCounts(5).crazy === 0);
-check('day 7 has no crazy homeless guy', npcCounts(7).crazy === 0);
+// Crazy homeless guy: spawned via specific spawn block on Manhattan days (not through npcCounts)
+check('crazy guy not in npcCounts (spawned separately on Manhattan)', npcCounts(1).crazy === 0 && npcCounts(6).crazy === 0);
 
 // ---- Manhattan scooter/bike boost: +1 escooter and +1 bike on d1 (Uptown) + d6 (Harlem) ----
 [1, 6].forEach(d => check('day ' + d + ' (Manhattan) gets +1 escooter + +1 bike',
