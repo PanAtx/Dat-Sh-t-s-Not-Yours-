@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.67</div>
+    <div id="app-version" class="menu-version">v1.0.68</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.67';
+const APP_VERSION = '1.0.68';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4012,10 +4012,15 @@ function makeBrownstoneStoop(w, d){
   const stepW = 2.5;
   const steps = 4;
   
-  // Backing/support under the stairs (makes the stoop look solid, not floating)
-  const backing = BX(stepW, steps * treadD, steps * riserH, concreteDark);
-  backing.position.set(0, -d / 2 - (steps * treadD + treadD) / 2 + treadD / 2, 0.3 + (steps * riserH) / 2);
-  stoop.add(backing);
+  // Backings under each step (except bottom) - makes the stoop look solid, not floating
+  // Each backing is the same size as the step it supports, positioned slightly lower
+  for (let i = 1; i < steps; i++){
+    const backingY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
+    const backingZ = 0.3 + i * riserH + riserH / 2 - riserH / 2 - 0.005;  // slightly below the step
+    const backing = BX(stepW, treadD, riserH, concreteDark);
+    backing.position.set(0, backingY, backingZ);
+    stoop.add(backing);
+  }
   
   // Steps going UP from sidewalk toward house
   // Each step extends further from the house (more negative Y)
