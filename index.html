@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.85</div>
+    <div id="app-version" class="menu-version">v1.0.86</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.85';
+const APP_VERSION = '1.0.86';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4433,49 +4433,52 @@ function makeCat(){
   const eyeM = M(0x4a8a3e); // green eyes
   const noseM = M(0xd4a0a0); // pink nose
 
-  // Sleek body (ellipsoid)
-  const body = SPH(0.07, fur); body.scale.set(1.8, 0.9, 0.85); body.position.set(-0.02, 0, 0.11); g.add(body);
-  // Lighter belly
-  const belly = SPH(0.06, furL); belly.scale.set(1.5, 0.6, 0.6); belly.position.set(0.02, 0, 0.08); g.add(belly);
+  // Scale up the cat (larger, more imposing)
+  const SCALE = 1.4;
 
-  // Head on a pivot so it can look around
-  const headPivot = new THREE.Group(); headPivot.position.set(0.16, 0, 0.14); g.add(headPivot);
-  const head = SPH(0.05, fur); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03, 0, 0.03); headPivot.add(head);
-  // Ears - pointed and triangular
-  const earGeo = new THREE.ConeGeometry(0.025, 0.045, 4);
+  // Sleek body (ellipsoid)
+  const body = SPH(0.07 * SCALE, fur); body.scale.set(1.8, 0.9, 0.85); body.position.set(-0.02 * SCALE, 0, 0.11 * SCALE); g.add(body);
+  // Lighter belly
+  const belly = SPH(0.06 * SCALE, furL); belly.scale.set(1.5, 0.6, 0.6); belly.position.set(0.02 * SCALE, 0, 0.08 * SCALE); g.add(belly);
+
+  // Head on a pivot so it can look around and lick paws
+  const headPivot = new THREE.Group(); headPivot.position.set(0.16 * SCALE, 0, 0.14 * SCALE); g.add(headPivot);
+  const head = SPH(0.05 * SCALE, fur); head.scale.set(1.0, 0.95, 0.9); head.position.set(0.03 * SCALE, 0, 0.03 * SCALE); headPivot.add(head);
+  // Ears - pointed and triangular (larger, more pointed)
+  const earGeo = new THREE.ConeGeometry(0.025 * SCALE, 0.065 * SCALE, 4);
   [-1, 1].forEach(s => {
     const ear = new THREE.Mesh(earGeo, fur); ear.rotation.z = -s * 0.15; ear.rotation.x = -0.3;
-    ear.position.set(0.01, s * 0.04, 0.08); headPivot.add(ear);
+    ear.position.set(0.01 * SCALE, s * 0.05 * SCALE, 0.08 * SCALE); headPivot.add(ear);
   });
   // Eyes - almond shaped
   [-1, 1].forEach(s => {
-    const eye = SPH(0.01, eyeM); eye.position.set(0.065, s * 0.02, 0.065); headPivot.add(eye);
+    const eye = SPH(0.01 * SCALE, eyeM); eye.position.set(0.065 * SCALE, s * 0.02 * SCALE, 0.065 * SCALE); headPivot.add(eye);
   });
   // Nose
-  const nose = SPH(0.006, noseM); nose.position.set(0.085, 0, 0.06); headPivot.add(nose);
+  const nose = SPH(0.006 * SCALE, noseM); nose.position.set(0.085 * SCALE, 0, 0.06 * SCALE); headPivot.add(nose);
   // Whiskers
-  const whiskerGeo = new THREE.CylinderGeometry(0.001, 0.001, 0.04, 4);
+  const whiskerGeo = new THREE.CylinderGeometry(0.001 * SCALE, 0.001 * SCALE, 0.04 * SCALE, 4);
   for (let w = -1; w <= 1; w++) {
     for (let s = -1; s <= 1; s += 2) {
       const whisker = new THREE.Mesh(whiskerGeo, M(0xaaaaaa));
       whisker.rotation.x = Math.PI / 2; whisker.rotation.z = s * (0.2 + w * 0.15);
-      whisker.position.set(0.09, s * 0.015 + w * 0.003, 0.05); headPivot.add(whisker);
+      whisker.position.set(0.09 * SCALE, s * 0.015 * SCALE + w * 0.003 * SCALE, 0.05 * SCALE); headPivot.add(whisker);
     }
   }
 
   // Legs - short and sturdy, on pivots for animation
   const catLegs = {};
   [[0.08, 0.07], [0.08, -0.07], [-0.14, 0.075], [-0.14, -0.075]].forEach((p, idx) => {
-    const leg = CY(0.015, 0.018, 0.08, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0], p[1], 0.05); g.add(leg);
-    const paw = SPH(0.018, furL); paw.position.set(p[0], p[1], 0.01); g.add(paw);
+    const leg = CY(0.015 * SCALE, 0.018 * SCALE, 0.08 * SCALE, fur, 8); leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, p[1] * SCALE, 0.05 * SCALE); g.add(leg);
+    const paw = SPH(0.018 * SCALE, furL); paw.position.set(p[0] * SCALE, p[1] * SCALE, 0.01 * SCALE); g.add(paw);
     catLegs['leg' + idx] = leg;
   });
 
   // Tail - long and swishy on a pivot
-  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.22, 0, 0.13); g.add(tailPivot);
-  const t1 = CY(0.018, 0.012, 0.08, fur, 8); t1.rotation.x = Math.PI / 2; t1.position.set(-0.04, 0, 0.03); tailPivot.add(t1);
-  const t2 = CY(0.012, 0.008, 0.06, fur, 8); t2.rotation.x = Math.PI / 2; t2.position.set(-0.09, 0.02, 0.05); tailPivot.add(t2);
-  const t3 = SPH(0.01, furD); t3.position.set(-0.12, 0.03, 0.06); tailPivot.add(t3);
+  const tailPivot = new THREE.Group(); tailPivot.position.set(-0.22 * SCALE, 0, 0.13 * SCALE); g.add(tailPivot);
+  const t1 = CY(0.018 * SCALE, 0.012 * SCALE, 0.08 * SCALE, fur, 8); t1.rotation.x = Math.PI / 2; t1.position.set(-0.04 * SCALE, 0, 0.03 * SCALE); tailPivot.add(t1);
+  const t2 = CY(0.012 * SCALE, 0.008 * SCALE, 0.06 * SCALE, fur, 8); t2.rotation.x = Math.PI / 2; t2.position.set(-0.09 * SCALE, 0.02 * SCALE, 0.05 * SCALE); tailPivot.add(t2);
+  const t3 = SPH(0.01 * SCALE, furD); t3.position.set(-0.12 * SCALE, 0.03 * SCALE, 0.06 * SCALE); tailPivot.add(t3);
 
   // Store animation pivots
   g.userData.cat = {
@@ -7508,18 +7511,39 @@ function updateCreatures(dt){
         break;
       }
       case 'cat':{
-        // Bodega cat: sits on store entrance mat, hisses and charges at the worker when he gets close
+        // Bodega cat: sits on store entrance mat, licks paws, hisses and charges at the worker when he gets close
         // No recycling - cat stays at its original store entrance position for the whole level
         c.stateT += dt;
         if (c.state === 'sitting'){
-          // Cat sits and occasionally looks around
-          c.g.rotation.z = Math.sin(c.stateT * 1.5) * 0.1;
+          // Cat sits and licks its paws (head nods down and up periodically)
+          if (!c.lickTimer){ c.lickTimer = R(2, 5); }
+          c.lickTimer -= dt;
+          if (c.lickTimer <= 0){
+            // Lick paw: nod head down for 0.8 seconds
+            c.licking = true;
+            c.lickT = 0.8;
+          }
+          if (c.licking){
+            c.lickT -= dt;
+            // Head nods down (positive rotation.x) and back up
+            const lickPhase = Math.sin(c.lickT * Math.PI / 0.8);
+            c.g.rotation.x = lickPhase * 0.4;
+            if (c.lickT <= 0){
+              c.licking = false;
+              c.g.rotation.x = 0;
+              c.lickTimer = R(2, 5);
+            }
+          } else {
+            // Tail swishes while sitting
+            c.g.rotation.z = Math.sin(c.stateT * 1.5) * 0.1;
+          }
           // If worker gets very close (almost touching), cat gets spooked and charges at him
           // (unless debugNoFlee is set for testing)
           if (state === 'play' && !c.debugNoFlee && Math.abs(tx) < 1.8 && Math.abs(c.wy - p.wy) < 1.2){
             c.state = 'chasing';
             c.stateT = 0;
             c.dir = tx > 0 ? 1 : -1; // face the worker
+            c.g.rotation.x = 0; // stop licking
             Voice.say('Hiss!', 0.8, 1.3, c.wx, c.wy, null, 'cat');
           }
         } else if (c.state === 'chasing'){
@@ -7554,6 +7578,7 @@ function updateCreatures(dt){
             c.state = 'sitting';
             c.stateT = 0;
             c.wy = R(0.8, 2.5);
+            c.g.rotation.x = 0;
             c.g.rotation.z = 0;
           }
         }
