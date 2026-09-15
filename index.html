@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.92</div>
+    <div id="app-version" class="menu-version">v1.0.93</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.92';
+const APP_VERSION = '1.0.93';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4333,20 +4333,20 @@ function makeRat(pizza){
   ]);
   const tail = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.015, 8), dark); tail.castShadow = true; g.add(tail);
 
-  // Pizza slice in mouth (if requested)
+  // Pizza slice in mouth (if requested) - COMICALLY BIG
   if (pizza) {
-    // Crust (wedge)
+    // Crust (wedge) - MUCH BIGGER
     const crustMat = M(0xc49a4a);
-    const sliceMat = M(0xe89a3a);
     const cheeseMat = M(0xf5d042);
-    // Crust edge
-    const crust = SPH(0.06, crustMat, 10, 8); crust.scale.set(1.2, 0.3, 0.6); crust.position.set(0.38, -0.01, 0.11); crust.rotation.z = -0.3; g.add(crust);
-    // Cheese/sauce layer
-    const cheese = SPH(0.055, cheeseMat, 10, 8); cheese.scale.set(1.1, 0.15, 0.5); cheese.position.set(0.365, 0.005, 0.115); cheese.rotation.z = -0.3; g.add(cheese);
-    // Pepperoni dots
     const pepMat = M(0xb83a2a);
-    [0.01, -0.01].forEach((zOff, i) => {
-      const pep = SPH(0.006, pepMat, 6, 4); pep.position.set(0.36, 0.012, 0.115 + zOff); pep.scale.set(1.2, 0.3, 1.2); g.add(pep);
+    const sliceScale = 2.5;
+    // Crust edge
+    const crust = SPH(0.06 * sliceScale, crustMat, 10, 8); crust.scale.set(1.2, 0.3, 0.6); crust.position.set(0.38, -0.01, 0.11); crust.rotation.z = -0.3; g.add(crust);
+    // Cheese/sauce layer
+    const cheese = SPH(0.055 * sliceScale, cheeseMat, 10, 8); cheese.scale.set(1.1, 0.15, 0.5); cheese.position.set(0.365, 0.005, 0.115); cheese.rotation.z = -0.3; g.add(cheese);
+    // Pepperoni dots - BIGGER
+    [0.01, -0.01, 0.02, -0.02].forEach((zOff) => {
+      const pep = SPH(0.006 * sliceScale, pepMat, 6, 4); pep.position.set(0.36, 0.012, 0.115 + zOff); pep.scale.set(1.2, 0.3, 1.2); g.add(pep);
     });
   }
 
@@ -7200,14 +7200,18 @@ function animParts(c, dphase, amp){
 }
 function animCat(c, dphase){
   c.phase += dphase;
-  const s = Math.sin(c.phase) * 0.6;
   const parts = c.g.userData.cat;
-  if (parts){
-    parts.leg0.rotation.y = s;
-    parts.leg1.rotation.y = -s;
-    parts.leg2.rotation.y = -s * 0.8;
-    parts.leg3.rotation.y = s * 0.8;
-  }
+  if (!parts) return;
+  // Galloping: all legs move together, alternating with body bounce
+  const s = Math.sin(c.phase) * 0.5;
+  // Front legs
+  parts.leg0.rotation.x = s * 0.8;
+  parts.leg1.rotation.x = s * 0.8;
+  // Back legs
+  parts.leg2.rotation.x = -s * 0.8;
+  parts.leg3.rotation.x = -s * 0.8;
+  // Body bounces slightly
+  parts.body.position.y = 0.045 * 1.4 - Math.abs(Math.sin(c.phase)) * 0.005;
 }
 // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
 function animPedal(c, dphase){
