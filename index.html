@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.89</div>
+    <div id="app-version" class="menu-version">v1.0.90</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.89';
+const APP_VERSION = '1.0.90';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7606,42 +7606,65 @@ function updateCreatures(dt){
         } else if (c.state === 'chasing'){
           // Cat charges at the worker to scare him
           const catSpd = c.sp + 3; // charge faster
-          c.wx += c.dir * catSpd * dt;
-          c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, 4.5); // steer toward worker
-          c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
-          // Animate running
-          animParts(c, dt * 40);
-          // If cat reaches the worker, scare him
+          // Stand-up animation: first 0.3s, body rises from sitting pose
+          if (c.stateT < 0.3){
+            const standPct = c.stateT / 0.3;
+            const sitScale = 1.15;
+            const standScale = 0.9;
+            const currentScale = sitScale - (sitScale - standScale) * standPct;
+            c.body.scale.y = currentScale;
+            c.body.position.y = 0.045 * 1.4 + (0 - 0.045 * 1.4) * standPct;
+            c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+          } else {
+            c.wx += c.dir * catSpd * dt;
+            c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, 4.5);
+            c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+            animParts(c, dt * 40);
+          }
+          c.stateT += dt;
           if (Math.abs(tx) < 1.2 && Math.abs(c.wy - p.wy) < 1.0){
             doStun(0.6, 'trip');
             if (carry !== 'none' && Math.random() < 0.45) dropCarried();
             Voice.say('Yipes!', 1.0, 1.5, p.wx, p.wy, WORKER_GENDER, 'worker');
             c.state = 'fleeing';
-            c.stateT = 2.0;
+            c.stateT = 0;
           }
-          // If chasing too long without reaching, give up
           if (c.stateT > 2.5){
             c.state = 'fleeing';
-            c.stateT = 2.0;
+            c.stateT = 0;
           }
         } else if (c.state === 'fleeing'){
           // Cat runs away down the street
-          c.dir = tx > 0 ? 1 : -1; // run away from worker
-          c.wx += c.dir * (c.sp + 2) * dt;
-          animParts(c, dt * 35);
-          c.stateT -= dt;
-          if (c.stateT <= 0){
-            // Cat calms down and sits again somewhere else (not on original store mat)
+          c.dir = tx > 0 ? 1 : -1;
+          // Stand-up animation: first 0.3s, body rises from sitting pose
+          if (c.stateT < 0.3){
+            const standPct = c.stateT / 0.3;
+            const sitScale = 1.15;
+            const standScale = 0.9;
+            const currentScale = sitScale - (sitScale - standScale) * standPct;
+            c.body.scale.y = currentScale;
+            c.body.position.y = 0.045 * 1.4 + (0 - 0.045 * 1.4) * standPct;
+            c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+          } else {
+            c.wx += c.dir * (c.sp + 2) * dt;
+            c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+            animParts(c, dt * 35);
+          }
+          c.stateT += dt;
+          if (c.stateT > 2.3){
+            // Cat calms down and sits again somewhere else
             c.state = 'sitting';
             c.stateT = 0;
             c.wy = R(0.8, 2.5);
             c.g.rotation.x = 0;
             c.g.rotation.z = 0;
+            c.body.scale.y = 1.15;
+            c.body.position.y = 0.045 * 1.4;
           }
         }
         break;
       }
-      case 'raccoon':{
+            case 'raccoon':{
         const sprintRac = npcRoadRules(c, dt); // scurry out of the way of closing traffic
         if (c.flee > 0){
           c.flee -= dt;
