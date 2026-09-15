@@ -506,7 +506,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="flash"></div>
 <div id="hud">
   <div id="tl" class="hudbox"><div class="hp"><div class="lbl">WORKER HEALTH</div><div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div></div><div class="dist"><div class="lbl">DISTANCE</div><div class="distbar" id="distbar"><div class="distfill" id="distfill"></div></div></div><div>SCORE $<span id="score">000000</span></div><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div>
-  <div id="route" class="hudbox">ROUTE 1 - MANHATTAN UPTOWN</div>
+  <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
   <div id="tr" class="hudbox"><div>SUPERVISOR WRITE-UPS</div><div id="pips"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div></div>
   <div class="hud-ver" id="hud-version">v1.0.1</div>
 </div>
@@ -550,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.49</div>
+    <div id="app-version" class="menu-version">v1.0.50</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -594,13 +594,13 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 </div></div>
 <div id="day-intro" class="modal hidden"><div class="panel">
   <div class="day" id="day-intro-day">MONDAY</div>
-  <div class="loc" id="day-intro-loc">MANHATTAN · UPTOWN</div>
+  <div class="loc" id="day-intro-loc">MANHATTAN · GRAMMERCY PARK</div>
   <div class="obj">CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED</div>
   <button id="btnBeginDay">START THE SHIFT</button>
 </div></div>
 <div id="day-stats" class="modal hidden"><div class="panel">
   <h2 id="day-stats-title">SHIFT REPORT</h2>
-  <div class="tag" id="day-stats-loc">MONDAY &middot; MANHATTAN / UPTOWN</div>
+  <div class="tag" id="day-stats-loc">MONDAY &middot; MANHATTAN / GRAMMERCY PARK</div>
   <div class="stats-grid" id="day-stats-grid"></div>
   <div class="score">DAY SCORE $<span id="day-stats-score">000000</span></div>
   <div class="score">WEEK TOTAL $<span id="day-stats-week">000000</span></div>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.49';
+const APP_VERSION = '1.0.50';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -731,7 +731,7 @@ let carry = 'none', carried = null, hopperAnim = 0;
 let hopperLoad = 0, hopperCycling = false, hopperCycleT = 0;
 let hopperTrash = null, hopperLumps = [];
 let routeIdx = 0, routeDist = 0;
-const ROUTES = ['ROUTE 1 - MANHATTAN UPTOWN', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
+const ROUTES = ['ROUTE 1 - MANHATTAN GRAMMERCY PARK', 'ROUTE 2 - BRONX DEPOT', 'ROUTE 3 - BROOKLYN DEPOT', 'ROUTE 4 - QUEENS YARD', 'ROUTE 5 - STATEN ISLAND'];
 let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10) || 0; } catch (e) {}
 
 // ==================== 7-DAY LEVEL SYSTEM (Monday→Sunday) ====================
@@ -739,7 +739,7 @@ let hi = 0; try { hi = parseInt(localStorage.getItem('dsnysweep_hi') || '0', 10)
 // every street hazard (people + vehicles) spawns each day, so Sunday is the busiest,
 // most dangerous shift of the week.
 const LEVEL_DAYS = [
-  { day: 'MONDAY',    borough: 'MANHATTAN',     area: 'UPTOWN' },
+  { day: 'MONDAY',    borough: 'MANHATTAN',     area: 'GRAMMERCY PARK' },
   { day: 'TUESDAY',   borough: 'THE BRONX',     area: 'BRONXDALE' },
   { day: 'WEDNESDAY', borough: 'BROOKLYN',      area: 'FLATBUSH' },
   { day: 'THURSDAY',  borough: 'QUEENS',        area: 'ASTORIA' },
@@ -800,6 +800,8 @@ function npcCounts(day){
       // Manhattan (Uptown d1, Harlem d6): no street tricycles - the city sidewalks have
       // no kid rides (the only tricycles in the game are the Flatbush driveway kids).
       if (t === 'tric' && (day === 1 || day === 6)) base = 0;
+      // No squirrels on Manhattan days - the big buildings don't have yard squirrels.
+      if (t === 'squirrel' && (day === 1 || day === 6)) base = 0;
       // Manhattan (Uptown d1, Harlem d6): a few more e-scooter + bicycle riders on the sidewalk.
       if ((t === 'escooter' || t === 'bike') && (day === 1 || day === 6)) base += 1;
       c[t] = base;
@@ -5014,7 +5016,7 @@ function spawnWorld(){
   let storePool = null;
   let isUptown = false;
   if (borough === 'MANHATTAN'){
-    if (area === 'UPTOWN'){
+    if (area === 'GRAMMERCY PARK'){
       storePool = UPTOWN_STORE_NAMES;
       isUptown = true;
     } else {
