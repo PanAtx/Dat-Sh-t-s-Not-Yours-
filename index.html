@@ -550,7 +550,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.48</div>
+    <div id="app-version" class="menu-version">v1.0.49</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -634,7 +634,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.48';
+const APP_VERSION = '1.0.49';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2695,14 +2695,21 @@ function makeCopper(kind){
     const pulley = CY(0.1, 0.1, 0.05, iron, 16); pulley.rotation.z = Math.PI / 2; pulley.position.set(L / 2 + 0.15, 0, R + 0.02); g.add(pulley);
     const jbox = BX(0.2, 0.14, 0.13, dark); jbox.position.set(0, 0, R + R * 0.85 + 0.02); g.add(jbox);
   }
-  else if (kind === 7){ // stainless steel faucet — a gooseneck tap on a flared base + cross handle
-    const steel = MS(0xc9cdd2), steelD = MS(0xa8adb5);
-    const base = CY(0.14, 0.18, 0.06, steel, 16); base.position.set(0, 0, 0.03); g.add(base);
-    const col = CY(0.035, 0.035, 0.42, steel, 12); col.position.set(0, 0, 0.24); g.add(col);
-    const spout = CY(0.032, 0.032, 0.2, steel, 10); spout.position.set(0, -0.1, 0.44); g.add(spout);
-    const tip = CY(0.025, 0.025, 0.06, steel, 8); tip.rotation.x = Math.PI / 2; tip.position.set(0, -0.2, 0.41); g.add(tip);
-    const cross = CY(0.05, 0.05, 0.03, steelD, 4); cross.rotation.x = Math.PI / 2; cross.position.set(0, 0, 0.48); g.add(cross);
-    const knob = SP(0.03, steelD); knob.position.set(0, 0, 0.5); g.add(knob);
+  else if (kind === 7){ // stainless steel faucet — a gooseneck tap lying on its side
+    const steel = MS(0xd8dce2), steelD = MS(0xb0b5bc);
+    // Base (flared foot) on the ground, column lies along X
+    const base = CY(0.12, 0.16, 0.08, steel, 14); base.position.set(0.3, 0, 0.04); g.add(base);
+    // Column (main pipe) lying horizontally
+    const col = CY(0.04, 0.04, 0.5, steel, 10); col.position.set(0, 0, 0.04); g.add(col);
+    // Gooseneck spout curving down
+    const spout1 = CY(0.03, 0.03, 0.15, steel, 8); spout1.position.set(-0.25, 0, 0.1); g.add(spout1);
+    const spout2 = CY(0.028, 0.028, 0.08, steel, 8); spout2.rotation.x = -Math.PI / 3; spout2.position.set(-0.25, 0.04, 0.16); g.add(spout2);
+    // Spout tip (aerator)
+    const tip = CY(0.02, 0.02, 0.04, steelD, 6); tip.position.set(-0.25, 0.07, 0.2); g.add(tip);
+    // Cross handle on top of the column
+    const handle = CY(0.04, 0.04, 0.03, steelD, 4); handle.position.set(0.15, 0, 0.07); g.add(handle);
+    // Handle knob
+    const knob = SP(0.025, steel); knob.position.set(0.15, 0, 0.09); g.add(knob);
   }
   else if (kind === 8){ // copper tubing — a loose coil of flexible copper line
     const copper = MS(0xc47a3a), copperL = MS(0xd18a48);
@@ -3045,8 +3052,8 @@ function makeTreasure(kind){
   }
   else if (kind === 21){ // 1964 Barbie — tall slender doll, long hair + a dress
     const skin = M(0xf3d1b5), hair = M(0xd8a24a), dress = M(0xe64980), shoe = M(0xc0306a);
-    const legL = BX(0.05, 0.52, 0.05, skin); legL.position.set(-0.05, 0, 0.55); g.add(legL);
-    const legR = BX(0.05, 0.52, 0.05, skin); legR.position.set(0.05, 0, 0.55); g.add(legR);
+    const legL = BX(0.05, 0.05, 0.6, skin); legL.position.set(-0.05, 0, 0.45); g.add(legL);
+    const legR = BX(0.05, 0.05, 0.6, skin); legR.position.set(0.05, 0, 0.45); g.add(legR);
     const shL = BX(0.06, 0.16, 0.07, shoe); shL.position.set(-0.05, 0.05, 0.09); g.add(shL);
     const shR = BX(0.06, 0.16, 0.07, shoe); shR.position.set(0.05, 0.05, 0.09); g.add(shR);
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.5, 14), dress); cone.rotation.x = Math.PI / 2; cone.position.z = 1.0; g.add(cone);
@@ -5174,9 +5181,9 @@ function spawnWorld(){
     }
   }
 
-  // pigeon flocks: TWO flocks, 1-3 birds each (random), each clustered on its own
-  // shared seed spot; every bird scatters on its own random heading when shooed
-  for (let fI = 0; fI < 2; fI++){
+  // pigeon flocks: more flocks on busy Manhattan sidewalks
+  const flockCount = (borough === 'MANHATTAN') ? 3 : 2;
+  for (let fI = 0; fI < flockCount; fI++){
     const flock = 1 + ((Math.random() * 3) | 0);
     const fpx = p.wx + R(-45, 55), fpy = R(1.5, 4.4);
     const fsd = makeSeedScatter();
