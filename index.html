@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.95</div>
+    <div id="app-version" class="menu-version">v1.0.96</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.95';
+const APP_VERSION = '1.0.96';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4510,10 +4510,10 @@ function makeCat(){
   [[0.05, 0.05], [0.05, -0.05]].forEach((p, idx) => {
     // Upper leg (connected to body)
     const upperLeg = CY(0.018 * SCALE, 0.012 * SCALE, 0.04 * SCALE, fur, 8);
-    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
     // Lower leg
     const leg = CY(0.01 * SCALE, 0.012 * SCALE, 0.045 * SCALE, fur, 8);
-    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.015 * SCALE, p[1] * SCALE); g.add(leg);
+    leg.position.set(p[0] * SCALE, 0.015 * SCALE, p[1] * SCALE); g.add(leg);
     const paw = SPH(0.014 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + idx] = leg;
   });
@@ -4521,10 +4521,10 @@ function makeCat(){
   [[-0.11, 0.055], [-0.11, -0.055]].forEach((p, idx) => {
     // Upper leg (connected to body)
     const upperLeg = CY(0.02 * SCALE, 0.014 * SCALE, 0.05 * SCALE, fur, 8);
-    upperLeg.rotation.x = Math.PI / 2; upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
+    upperLeg.position.set(p[0] * SCALE, 0.05 * SCALE, p[1] * SCALE); g.add(upperLeg);
     // Lower leg
     const leg = CY(0.012 * SCALE, 0.014 * SCALE, 0.055 * SCALE, fur, 8);
-    leg.rotation.x = Math.PI / 2; leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
+    leg.position.set(p[0] * SCALE, 0.01 * SCALE, p[1] * SCALE); g.add(leg);
     const paw = SPH(0.016 * SCALE, furL, 8, 6); paw.position.set(p[0] * SCALE, 0.008 * SCALE, p[1] * SCALE); g.add(paw);
     catLegs['leg' + (idx + 2)] = leg;
   });
@@ -4533,7 +4533,7 @@ function makeCat(){
   const tailPivot = new THREE.Group(); tailPivot.position.set(-0.17 * SCALE, 0.01 * SCALE, 0.135 * SCALE); g.add(tailPivot);
   // Base of tail (connected to body)
   const tBase = CY(0.02 * SCALE, 0.014 * SCALE, 0.03 * SCALE, fur, 8);
-  tBase.rotation.x = Math.PI / 2; tBase.position.set(0, 0.01 * SCALE, 0.015 * SCALE); tailPivot.add(tBase);
+  tBase.position.set(0, 0.01 * SCALE, 0.015 * SCALE); tailPivot.add(tBase);
   // Tail curves on the ground and points up
   const t1 = CY(0.014 * SCALE, 0.01 * SCALE, 0.05 * SCALE, fur, 8);
   t1.rotation.x = 1.2; t1.position.set(-0.02 * SCALE, 0.005 * SCALE, 0.035 * SCALE); tailPivot.add(t1);
