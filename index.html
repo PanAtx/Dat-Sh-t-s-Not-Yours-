@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.63</div>
+    <div id="app-version" class="menu-version">v1.0.64</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.63';
+const APP_VERSION = '1.0.64';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8252,10 +8252,10 @@ function updateCreatures(dt){
           // Erratic body sway
           c.g.rotation.x = Math.sin(c.phase * 0.7) * 0.08;
           c.g.rotation.y = Math.sin(c.phase * 1.1) * 0.04;
-          // Random crazy muttering when near the worker
+          // Random crazy muttering - talks to himself constantly regardless of distance
           if (!c.mutterCd){ c.mutterCd = R(3, 8); }
           c.mutterCd -= dt;
-          if (c.mutterCd <= 0 && Math.abs(c.wx - p.wx) < 12){
+          if (c.mutterCd <= 0){
             c.mutterCd = R(5, 10);
             const phrases = [
               'They\'re in the walls!',
