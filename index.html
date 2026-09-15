@@ -554,7 +554,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 <div id="menu" class="modal hidden"><div class="panel">
   <div class="menu-logo-wrap">
     <img class="menu-logo-img" src="dsnylogo3.jpg" alt="Dat Sh!t's Not Yours!">
-    <div id="app-version" class="menu-version">v1.0.81</div>
+    <div id="app-version" class="menu-version">v1.0.82</div>
     <div class="menu-bottom" id="menu-bottom">
       <button id="btnStart">START SHIFT</button>
       <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -638,7 +638,7 @@ html, body { width:100vw; height:100vh; overflow:hidden; background:#0a0d12; use
 // ==================== APP VERSION ====================
 // Bump this on every release (commit/push) so the main menu can show which build
 // the player is running. Keep it in sync with the "version" field in manifest.json.
-const APP_VERSION = '1.0.81';
+const APP_VERSION = '1.0.82';
 // ==================== HELPERS & CORE STATE ====================
 const $ = id => document.getElementById(id);
 // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5381,9 +5381,9 @@ function spawnWorld(){
       const bl = LEVEL_BLOCKS[(Math.random() * LEVEL_BLOCKS.length) | 0];
       const cornerSide = Math.random() < 0.5 ? 0 : 1;
       // First house door at bl.x + 4, last house door at bl.x + 9*8 + 4 = bl.x + 76
-      // Move 5 units left and 0.3 units up (closer to building edge)
-      bc.wx = cornerSide === 0 ? bl.x - 2.0 : bl.x + 70.0;
-      bc.wy = 4.5;
+      // Move 6 units up (y=6.0, on front lawn) and 3 units right from current position
+      bc.wx = cornerSide === 0 ? bl.x + 1.0 : bl.x + 74.0;
+      bc.wy = 6.0;
       bc.g.position.set(bc.wx, bc.wy, GZ);
       // DEBUG: Giant magenta glow so player can see the cat, and disable fleeing
       const glow = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.4 }));
