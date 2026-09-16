@@ -14,19 +14,20 @@ const check = (name, cond, detail) => {
   if (!cond) ok = false;
 };
 
-// ---- extract the Manhattan bodega-cat spawn block from spawnWorld ----
-const spIdx = src.indexOf('// Bodega cats: Manhattan-only.');
+// ---- extract the bodega-cat spawn block from spawnWorld (Manhattan + Bronx) ----
+const spIdx = src.indexOf('// Bodega cats: Manhattan + Bronx only.');
 if (spIdx < 0) { console.error('bodega cat spawn block not found'); process.exit(1); }
 const spEnd = src.indexOf('spawnPowerups(', spIdx);
 const spawnBlock = src.slice(spIdx, spEnd);
 
 // ---- 1) source: spawn count + placement ----
-check('exactly 4 cats per Manhattan level (loop runs i < 4)', /for \(let i = 0; i < 4; i\+\+\)/.test(spawnBlock));
+check('exactly 4 cats per Manhattan/Bronx level (loop runs i < 4)', /for \(let i = 0; i < 4; i\+\+\)/.test(spawnBlock));
 check('no per-block "easy visibility" debug loop remains', spawnBlock.indexOf('for easy visibility') < 0 && spawnBlock.indexOf('LEVEL_BLOCKS.length') < 0);
 check('cats spread over 4 DIFFERENT active shift blocks (indices 1-5)', /const active = \[1, 2, 3, 4, 5\]/.test(spawnBlock) && /const catBlocks = active\.slice\(0, 4\)/.test(spawnBlock));
 check('cats sit in front of the store door on the block (bl.x + 3.0)', /bc\.wx = bl\.x \+ 3\.0/.test(spawnBlock));
-check('cats sit on the sidewalk entrance mat (wy = 4.5)', /bc\.wy = 4\.5/.test(spawnBlock));
-check('Manhattan-only gate (isManhattanLevel) still applies', /if \(isManhattanLevel\(\)\)/.test(spawnBlock));
+check('cats sit on the sidewalk in front of the store (wy = 4.5)', /bc\.wy = 4\.5/.test(spawnBlock));
+check('Manhattan + Bronx gate (isManhattanLevel || isBronxLevel) applies', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\)\)/.test(spawnBlock));
+check('gate is NOT applied to other boroughs (no bare isManhattanLevel gate)', spawnBlock.indexOf('if (isManhattanLevel())') < 0);
 
 // ---- 2) source: coats wired through the spawn chain ----
 check('CAT_PALETTES defines all 4 coats (tuxedo/grey/orange/tabby)',

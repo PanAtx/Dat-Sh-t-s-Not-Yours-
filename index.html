@@ -10973,12 +10973,13 @@
           pizzaRat.wy = R(2.0, 3.5);
           pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
         }
-        // Bodega cats: Manhattan-only. Exactly 4 per level, each sitting on the
-        // sidewalk entrance mat in front of a different store on the block.
+        // Bodega cats: Manhattan + Bronx only. Exactly 4 per level, each sitting on
+        // the sidewalk in front of a different store on the block (both boroughs put
+        // a store on the first house of every block).
         // Each cat gets a different coat (tuxedo / grey / orange / tabby).
         // No recycling - each cat stays at its original store entrance position
         // for the whole level.
-        if (isManhattanLevel()) {
+        if (isManhattanLevel() || isBronxLevel()) {
           // Pick 4 different active shift blocks (2-7) to spread the cats along
           // the route, and assign the 4 coats in a shuffled order.
           const active = [1, 2, 3, 4, 5];
