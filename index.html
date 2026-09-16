@@ -8112,13 +8112,14 @@
           hd: treadD / 2,
           top: 0.3 + steps * riserH,
         };
-        // Building front wall collision (prevents worker walking through house)
-        // Worker can walk through the stoop area, but only up to the landing
-        // No front yard behind the stoop — sidewalk meets the stoop directly
+        // Building front wall collision (prevents worker walking through house).
+        // This marks the house's FRONT FACE (local y = -d/2). makeBlockContents turns it
+        // into a world-space stop line (y1 = HOUSE_Y - d/2). The worker collision clamps to
+        // that line (a body-width short), so he reaches the door but never clips the wall.
         g.userData.buildingFront = {
           hw: w / 2,
           cy: -d / 2,
-          hd: d / 2,
+          hd: 0, // thin stop line at the front face — NOT a depth that lets him walk inside
           stoopX: stoopX,
           stoopHw: stoopHw,
         };
@@ -13213,29 +13214,24 @@
             }
           }
         }
-        // === Building front wall collision: worker can't walk through houses.
-        // Can walk through the stoop/doorway area, but only up to the top of the stairs (landing). ===
-        const WR = 0.45; // worker collision radius
+        // === Building front wall collision: worker can't walk through the house.
+        // bf.y1 is the world y of the house's FRONT FACE. He's free to approach it — and to
+        // climb the stoop up to the door (stepTopAt lifts him onto the steps) — but once his
+        // center reaches the stop line (a body-width short of the wall) he's HELD there: a
+        // hard dead stop, no clipping into the masonry. Same stop line over the stoop/door
+        // and beside it. The clamp triggers at the SAME y it clamps to, so holding the stick
+        // into the wall is a stable stop instead of a creep-forward / snap-back flicker.
+        const WALL_STOP = 0.3; // keep the worker's center this far off the wall (body half-width ~0.28)
         for (let bi = 0; bi < blocks.length; bi++) {
           const b = blocks[bi];
           if (!b.buildingFront) continue;
           const bf = b.buildingFront;
-          // Check if worker is within the building front wall's x-range
+          const stopY = bf.y1 - WALL_STOP; // his center may never cross this line
+          // Not in this building's x-range, or still short of the stop line: free to move.
           if (p.wx < bf.x0 || p.wx > bf.x1) continue;
-          // Worker is in front of the wall, not trying to walk through
-          if (p.wy < bf.y1) continue;
-          // Check if worker is in the stoop/doorway area (allowed to walk up to the landing)
-          if (p.wx >= bf.stoopX0 && p.wx <= bf.stoopX1) {
-            // Worker is in the stoop area — check if they've reached the landing
-            // The landing is at y = bf.y1 + 0.15 (relative to the building front)
-            const landingY = bf.y1 + 0.15;
-            if (p.wy < landingY) continue; // Worker hasn't reached the landing yet
-            // Worker is past the landing — push them back to the landing
-            p.wy = landingY;
-            continue;
-          }
-          // Worker is trying to walk through the wall (not in the stoop area) — push them back
-          p.wy = bf.y1;
+          if (p.wy < stopY) continue;
+          // At the wall (stoop/door or plain face): hard stop right on the line.
+          p.wy = stopY;
         }
         // === Truck body collision: worker can't clip through the truck, but can walk freely
         // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
