@@ -2188,13 +2188,16 @@
       function creatureMaxY() {
         if (isManhattanLevel()) return 4.8;
         if (isFlatbushLevel()) return 5.0;
+        if (isBronxLevel()) return 4.8;
         return 7.5;
       }
       // Spawn y-range for curb items, bonuses, powerups: sidewalk only in Manhattan.
       // Flatbush: sidewalk only (no front-lawn spawning — porch and steps clip items).
+      // Bronx: sidewalk only (no front lawn).
       function spawnMaxY() {
         if (isManhattanLevel()) return 4.8;
         if (isFlatbushLevel()) return 5.0;
+        if (isBronxLevel()) return 4.8;
         return 7.0;
       }
       const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
@@ -2341,7 +2344,7 @@
         ebike: true,
         rc: true,
       }; // +1 per day (the crowd/traffic that gets busier each level)
-      const GATED_NPC = { moto: 3, ebike: 4, rc: 5 }; // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
+      const GATED_NPC = { moto: 3, ebike: 2, rc: 5 }; // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
       const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 }; // constant critters (kept for reference/tests)
       function npcCounts(day) {
         const extra = Math.max(0, (day || 1) - 1); // +0 on Monday ... +6 by Sunday
@@ -8225,6 +8228,10 @@
       function isFlatbushLevel() {
         if (!LEVEL_DAYS[level - 1]) return false;
         return LEVEL_DAYS[level - 1].borough === "BROOKLYN";
+      }
+      function isBronxLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
+        return LEVEL_DAYS[level - 1].borough === "THE BRONX";
       }
 
       // ==================== HOUSE TEMPLATE REGISTRY ====================
