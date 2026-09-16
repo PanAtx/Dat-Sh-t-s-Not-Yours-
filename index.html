@@ -8314,7 +8314,7 @@
       function addDogShit(b, wx, wy) {
         const g = makeDogShit();
         // If on the curb (wy < 0.8), lift it to the curb top so it's visible
-        const z = wy < 0.8 ? CURB_TOP_Z : GZ;
+        const z = wy < 0.8 ? GZ + CURB_LIFT : GZ;
         g.position.set(wx - b.worldX, wy, z);
         g.rotation.z = Math.random() * Math.PI * 2;
         b.group.add(g);
@@ -13092,7 +13092,7 @@
       function dropBloodSplatter(wx, wy) {
         const n = (3 + Math.random() * 2) | 0; // 3-4 smears
         // If on the curb (wy < 0.8), lift blood to curb top so it's visible
-        const baseZ = wy < 0.8 ? CURB_TOP_Z : GZ;
+        const baseZ = wy < 0.8 ? GZ + CURB_LIFT : GZ;
         for (let i = 0; i < n; i++) {
           const a = R(0, Math.PI * 2);
           const r = R(0, 0.35);
