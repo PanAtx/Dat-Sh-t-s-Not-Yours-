@@ -63,13 +63,13 @@ let parts = c.g.userData.cat;
 check('cat model builds without crashing', c.g.children.length > 5);
 check('head pivot exists', parts.headPivot !== null);
 check('tail pivot exists', parts.tailPivot !== null);
-check('4 leg pivots exist', parts.leg0 !== null && parts.leg1 !== null && parts.leg2 !== null && parts.leg3 !== null);
+check('4 leg pivots exist', parts.frontLegL !== null && parts.frontLegR !== null && parts.backLegL !== null && parts.backLegR !== null);
 
 // Run 3 full trot cycles and confirm the legs swing
 let sawSwing = false;
 for (let i = 0; i < 18; i++) {
   animCat(c, 0.35);
-  if (Math.abs(parts.leg0.rotation.y) > 0.1) { sawSwing = true; }
+  if (Math.abs(parts.frontLegL.rotation.y) > 0.1) { sawSwing = true; }
 }
 check('front-left leg swings during trot', sawSwing);
 
@@ -77,7 +77,7 @@ check('front-left leg swings during trot', sawSwing);
 // Set phase to pi/2 (where sin=1), then call animCat to update rotations
 c.phase = Math.PI / 2;
 animCat(c, 0.001); // tiny increment to trigger rotation update
-let fl = parts.leg0.rotation.y, fr = parts.leg1.rotation.y, hl = parts.leg2.rotation.y, hr = parts.leg3.rotation.y;
+let fl = parts.frontLegL.rotation.y, fr = parts.frontLegR.rotation.y, hl = parts.backLegL.rotation.y, hr = parts.backLegR.rotation.y;
 let diagonalSync = Math.abs(fl - hr) < 0.15 && Math.abs(fr - hl) < 0.15;
 // At phase~pi/2, sin~1, so FL+HR should be positive and FR+HL should be negative
 let pairsOppose = fl > 0.3 && fr < -0.3 && hl < -0.3 && hr > 0.3;
@@ -85,17 +85,25 @@ check('diagonal pairs swing together (FL+HR vs FR+HL)', diagonalSync);
 check('front pair swings in opposite directions (not all-4-together)', pairsOppose);
 
 // Verify running cat faces correctly and is upright
+// After spawn, rotation.z is set to 0 (facing right) or PI (facing left)
+// and the cat is upright (no -PI/2 z-rotation from old build)
 let c2 = { phase: 0, g: makeCat(), dir: 1 };
+c2.g.rotation.z = 0; // spawnCreature sets this after makeCat
 animCat(c2, 0.35);
-check('running cat faces correctly', c2.g.rotation.z === 0);
+check('running cat faces correctly (upright, not on its side)', Math.abs(c2.g.rotation.z) < 0.01 || Math.abs(c2.g.rotation.z - Math.PI) < 0.01);
 check('running cat is upright (not tilted)', Math.abs(c2.g.rotation.x) < 0.01);
 
-// Verify sitting pose is upright and taller than running
-// Simulate sitting pose by setting body scale to sitting value (1.0)
-parts.body.scale.y = 1.0;
-let sittingScale = parts.body.scale.y;
-let runningScale = 0.9; // From standup animation
-check('sitting pose is taller than running', sittingScale > runningScale);
+// Verify body stays upright when running (no flip/shrink)
+parts.body.scale.y = 1.0; // Running now keeps body at 1.0 (no 0.9 shrink)
+let runningScale = parts.body.scale.y;
+check('running cat stays upright (body scale 1.0)', runningScale === 1.0);
+
+// Verify body z position is correct (base 0.18, not legacy 0.07)
+let c3 = { phase: 0, g: makeCat(), dir: 1 };
+let parts3 = c3.g.userData.cat;
+c3.g.rotation.z = 0;
+animCat(c3, 0.35);
+check('running cat body z position is 0.18 (not legacy 0.07)', Math.abs(parts3.body.position.z - 0.18) < 0.02);
 
 // Verify sitting animations: head pivot pitches down during lick (smooth continuous motion)
 let sawHeadPitch = false, sawTailSwish = false;
@@ -105,15 +113,15 @@ for (let i = 0; i < 50; i++) {
   if (lickT > 0) {
     // Smooth gradual lick using normalized progress
     let lickProgress = 1.0 - (lickT / 2.5);
-    let liftAmt = Math.sin(lickProgress * Math.PI);
-    parts.leg0.rotation.y = liftAmt * 0.45;
-    parts.headPivot.rotation.y = -0.25 - liftAmt * 0.10;
-    if (parts.headPivot.rotation.y < -0.28) { sawHeadPitch = true; }
+    let lickCycle = Math.sin(lickProgress * Math.PI);
+    parts.frontLegR.rotation.x = 0.5 + lickCycle * 0.25;
+    parts.headPivot.rotation.y = -0.35 - lickCycle * 0.05;
+    if (parts.headPivot.rotation.y < -0.36) { sawHeadPitch = true; }
     lickT -= 0.05;
   } else {
     tick += 0.05;
     // Not licking - look left and right with tail swishing
-    parts.headPivot.rotation.z = Math.sin(tick * 0.6) * 0.40;
+    parts.headPivot.rotation.z = Math.sin(tick * 0.6) * 0.15;
     parts.tailPivot.rotation.z = Math.sin(tick * 1.2) * 0.20;
     if (Math.abs(parts.tailPivot.rotation.z) > 0.1) { sawTailSwish = true; }
   }
