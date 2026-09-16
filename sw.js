@@ -25,7 +25,7 @@
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
 var CACHE_NAME = 'dsnboy-shell-v1.0.98';
-var APP_VERSION = '1.0.17';
+var APP_VERSION = '1.0.98';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
