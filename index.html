@@ -9951,48 +9951,97 @@
         g.add(rider.g);
         const frame = M(eBike ? 0x2fa05a : 0x33557a);
         const wheelM = M(0x23262b);
+        const dark = M(0x23262b);
+        const hubM = M(0xb9c2cb);
+        // Axes: +X forward, Y lateral, Z up (ground z=0).
         // Wheels: torus rings, rotated to stand upright, raised to clear curb
-        const w1 = new THREE.Mesh(
-          new THREE.TorusGeometry(0.35, 0.03, 8, 16),
-          wheelM,
-        );
-        w1.rotation.x = Math.PI / 2;
-        w1.position.set(0.55, 0, 0.45);
-        w1.castShadow = true;
-        g.add(w1);
-        const w2 = new THREE.Mesh(
-          new THREE.TorusGeometry(0.35, 0.03, 8, 16),
-          wheelM,
-        );
-        w2.rotation.x = Math.PI / 2;
-        w2.position.set(-0.55, 0, 0.45);
-        w2.castShadow = true;
-        g.add(w2);
-        // Shorter frame
-        const f1 = BX(1.1, 0.05, 0.05, frame);
-        f1.position.set(0, 0, 0.6);
-        g.add(f1);
-        const f2 = BX(0.05, 0.05, 0.35, frame);
-        f2.position.set(0.55, 0, 0.65);
-        g.add(f2);
-        // Handlebars: horizontal bar with steer horns the rider can hold
-        const handlebar = BX(0.04, 0.32, 0.04, frame);
-        handlebar.position.set(0.55, 0, 0.75);
+        const mkWheel = (x) => {
+          const w = new THREE.Mesh(
+            new THREE.TorusGeometry(0.35, 0.03, 8, 16),
+            wheelM,
+          );
+          w.rotation.x = Math.PI / 2;
+          w.position.set(x, 0, 0.45);
+          w.castShadow = true;
+          g.add(w);
+          const hub = CY(0.05, 0.05, 0.1, hubM, 8);
+          hub.position.set(x, 0, 0.45);
+          g.add(hub);
+          return w;
+        };
+        mkWheel(0.55); // front wheel
+        mkWheel(-0.55); // rear wheel
+        // --- Standard DIAMOND frame: two adjacent triangles that share the
+        //     slanted SEAT TUBE. Front triangle = seat, pedals (bottom bracket),
+        //     handlebars (head tube). Rear triangle = seat, pedals, rear hub. ---
+        const R = [-0.55, 0.45]; // rear hub (x, z)
+        const F = [0.55, 0.45]; // front hub
+        const BB = [-0.02, 0.3]; // bottom bracket (cranks / pedals)
+        const S = [-0.16, 0.62]; // seat cluster (top of seat tube)
+        const HB = [0.34, 0.6]; // head-tube bottom
+        const HT = [0.4, 0.9]; // head-tube top (handlebar)
+        // Helper: a frame member (cylinder tube) drawn between two side-plane points
+        const tube = (a, b, r, mat) => {
+          const A = new THREE.Vector3(a[0], 0, a[1]);
+          const B = new THREE.Vector3(b[0], 0, b[1]);
+          const dir = B.clone().sub(A);
+          const len = dir.length();
+          const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), mat);
+          m.position.copy(A).add(B).multiplyScalar(0.5);
+          m.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            dir.clone().normalize(),
+          );
+          m.castShadow = true;
+          g.add(m);
+          return m;
+        };
+        // SEAT TUBE (the shared slanted central tube): pedals -> seat
+        tube(BB, S, 0.035, frame);
+        // FRONT triangle
+        tube(BB, HB, 0.035, frame); // down tube (pedals -> head)
+        tube(S, HT, 0.03, frame); // top tube (seat -> handlebars)
+        tube(HB, HT, 0.045, frame); // head tube (thicker stub)
+        // REAR triangle
+        tube(BB, R, 0.028, frame); // chain stay (pedals -> rear hub)
+        tube(S, R, 0.025, frame); // seat stay (seat -> rear hub)
+        // FRONT FORK: head tube -> front hub
+        tube(HT, F, 0.028, frame);
+        // Seatpost + saddle
+        tube(S, [-0.18, 0.7], 0.02, dark); // seatpost
+        const saddle = BX(0.2, 0.26, 0.09, dark);
+        saddle.position.set(-0.18, 0, 0.72);
+        g.add(saddle);
+        // Handlebars: lateral bar with grips (the rider's hands)
+        const handlebar = BX(0.04, 0.42, 0.04, frame);
+        handlebar.position.set(HT[0], 0, HT[1]);
         g.add(handlebar);
         [-1, 1].forEach((s) => {
-          const grip = BX(0.04, 0.08, 0.04, M(0x23262b));
-          grip.position.set(0.55, s * 0.2, 0.75);
+          const grip = BX(0.05, 0.1, 0.05, dark);
+          grip.position.set(HT[0], s * 0.22, HT[1]);
           g.add(grip);
         });
-        // NYC Citi Bike white basket
+        // Crankset + pedals at the bottom bracket
+        const chainring = CY(0.1, 0.1, 0.03, dark, 12);
+        chainring.position.set(BB[0], 0, BB[1]);
+        g.add(chainring);
+        [-1, 1].forEach((s) => {
+          const crank = CY(0.02, 0.02, 0.22, dark, 6); // rod along Y
+          crank.position.set(BB[0], s * 0.11, BB[1]);
+          g.add(crank);
+          const pedal = BX(0.09, 0.03, 0.08, M(0x111111));
+          pedal.position.set(BB[0], s * 0.22, BB[1]);
+          g.add(pedal);
+        });
+        // NYC Citi Bike white basket (mounted at the front, near the head tube)
         const basketM = M(0xe8e8e8);
-        const basket = BX(0.3, 0.2, 0.15, basketM);
-        basket.rotation.y = Math.PI / 2;
-        basket.position.set(0.55, 0, 0.85);
+        const basket = BX(0.28, 0.16, 0.3, basketM);
+        basket.position.set(0.5, 0, 0.75);
         g.add(basket);
         if (eBike) {
-          const batt = BX(0.22, 0.16, 0.1, M(0x23262b));
-          batt.position.set(0, 0, 0.52);
+          // battery pack tucked under the down tube
+          const batt = BX(0.2, 0.14, 0.16, M(0x23262b));
+          batt.position.set(0.16, 0, 0.44);
           g.add(batt);
         }
         // Bend the knees and hold arms forward for cycling pose
