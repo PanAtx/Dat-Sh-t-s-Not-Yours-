@@ -8031,9 +8031,10 @@
         const col = cols[(Math.random() * cols.length) | 0];
         // Mott Haven row house: fills the 8-unit block slot exactly so houses
         // connect side-to-side with no gaps (like real row houses).
+        // Raised higher so the front door sits above the top stoop step.
         const w = 8.0,
           d = 4.5,
-          h = 4.5;
+          h = 5.5;
         const body = BX(w, d, h, M(col));
         body.position.z = 0.3 + h / 2;
         g.add(body);
@@ -8064,8 +8065,8 @@
             g.add(rightGlass);
           }
         }
-        // Row house stoop: narrower than brownstone, centered on the right-side door
-        const stoop = makeRowHouseStoop(d);
+        // Row house stoop: taller with 6 steps
+        const stoop = makeRowHouseStoop(d, 6, 0.17, 0.3);
         stoop.position.x = w * 0.2;
         g.add(stoop);
         const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
@@ -8084,13 +8085,13 @@
         );
         lampBulb.position.set(w * 0.2, -d / 2 - 0.04, 0.3 + 2.1);
         g.add(lampBulb);
-        // Individual step collision data for the 4 stoop steps
+        // Individual step collision data for the 6 stoop steps
         // Non-overlapping boxes, each exactly the depth of one tread
         const stoopX = w * 0.2;
         const stoopHw = 1.0;
         const riserH = 0.17;
         const treadD = 0.3;
-        const steps = 4;
+        const steps = 6;
         g.userData.stairs = [];
         for (let i = 0; i < steps; i++) {
           const stepY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
@@ -10394,7 +10395,7 @@
         // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
         let HOUSE_Y = 10.5;
         if (isManhattanLevel()) HOUSE_Y = 8.7;
-        else if (isBronxLevel()) HOUSE_Y = 8.8; // Mott Haven: slight setback for stoop clearance
+        else if (isBronxLevel()) HOUSE_Y = 10.0; // Mott Haven: more setback for taller stoop
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
         // Shift house row right within the block to balance spacing (not flush with intersection).
         hg.position.x = 4.0;
