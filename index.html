@@ -10504,8 +10504,8 @@
         else if (hr < 0.68) addManhole(b, baseX + R(1.5, 6), R(-7.5, -3.5));
         // loose food wrappers on the street next to the sidewalk (litter dressing)
         if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
-        // random dog shit piles on the sidewalk (kept RARE; on the concrete only)
-        if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(1.2, 4.8));
+        // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
+        if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(0, 4.8));
         // sidewalk trees
         if (Math.random() < 0.5) {
           if (isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX") {
