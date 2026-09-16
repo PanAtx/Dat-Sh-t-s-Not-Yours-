@@ -8313,7 +8313,9 @@
       }
       function addDogShit(b, wx, wy) {
         const g = makeDogShit();
-        g.position.set(wx - b.worldX, wy, GZ);
+        // If on the curb (wy < 0.8), lift it to the curb top so it's visible
+        const z = wy < 0.8 ? CURB_TOP_Z : GZ;
+        g.position.set(wx - b.worldX, wy, z);
         g.rotation.z = Math.random() * Math.PI * 2;
         b.group.add(g);
         b.hazards.push({ wx: wx, wy: wy, r: 0.65, type: "poop", cd: 0 });
@@ -13089,6 +13091,8 @@
       // block. Reuses the footprints array/lifecycle so it fades on the same 7s schedule.
       function dropBloodSplatter(wx, wy) {
         const n = (3 + Math.random() * 2) | 0; // 3-4 smears
+        // If on the curb (wy < 0.8), lift blood to curb top so it's visible
+        const baseZ = wy < 0.8 ? CURB_TOP_Z : GZ;
         for (let i = 0; i < n; i++) {
           const a = R(0, Math.PI * 2);
           const r = R(0, 0.35);
@@ -13102,7 +13106,7 @@
             }),
           );
           g.rotation.z = R(0, Math.PI * 2);
-          g.position.set(wx + Math.cos(a) * r, wy + Math.sin(a) * r, GZ + 0.02);
+          g.position.set(wx + Math.cos(a) * r, wy + Math.sin(a) * r, baseZ + 0.02);
           dynamicGroup.add(g);
           footprints.push({ g: g, mat: g.material, life: 7, baseOp: 0.92 });
         }
