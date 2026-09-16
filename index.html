@@ -8111,6 +8111,15 @@
           hd: treadD / 2,
           top: 0.3 + steps * riserH,
         };
+        // Building front wall collision (prevents worker walking through house)
+        // Worker can walk through the stoop area (excluded from collision box)
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2,
+          hd: d / 2,
+          stoopX: stoopX,
+          stoopHw: stoopHw,
+        };
         return g;
       }
       function makeBrooklynRowHouse() {
@@ -10423,6 +10432,18 @@
               top: st.top,
             });
           }
+        }
+        // Store building front wall collision data (prevents walking through house)
+        if (hg.userData.buildingFront) {
+          const bf = hg.userData.buildingFront;
+          b.buildingFront = {
+            x0: houseX - bf.hw,
+            x1: houseX + bf.hw,
+            y0: HOUSE_Y + bf.cy - bf.hd,
+            y1: HOUSE_Y + bf.cy + bf.hd,
+            stoopX0: houseX + (bf.stoopX || 0) - (bf.stoopHw || 0),
+            stoopX1: houseX + (bf.stoopX || 0) + (bf.stoopHw || 0),
+          };
         }
         b.house = house;
         // Curb garbage ONLY on "garbage" blocks. Blocks 1 & 8 (and the route's edge blocks)
@@ -13180,6 +13201,26 @@
               p.poopSteps--;
             }
           }
+        }
+        // === Building front wall collision: worker can't walk through houses.
+        // Can walk through the stoop/doorway area (excluded from the collision box). ===
+        const WR = 0.45; // worker collision radius
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const b = blocks[bi];
+          if (!b.buildingFront) continue;
+          const bf = b.buildingFront;
+          // Check if worker is within the building front wall's x-range
+          if (p.wx < bf.x0 || p.wx > bf.x1) continue;
+          // Check if worker is in the stoop/doorway area (allowed to walk through)
+          if (p.wx >= bf.stoopX0 && p.wx <= bf.stoopX1) continue;
+          // Worker is in the building front wall area — check if they're trying to walk through it
+          if (p.wy < bf.y1) {
+            // Worker is in front of the wall, not trying to walk through
+            continue;
+          }
+          // Worker is trying to walk through the wall — push them back
+          const pen = p.wy - bf.y1;
+          p.wy = bf.y1;
         }
         // === Truck body collision: worker can't clip through the truck, but can walk freely
         // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
