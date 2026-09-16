@@ -8085,7 +8085,7 @@
         lampBulb.position.set(w * 0.2, -d / 2 - 0.04, 0.3 + 2.1);
         g.add(lampBulb);
         // Individual step collision data for the 4 stoop steps
-        // stoop is at x = w*0.2, stepW = 2.0 (hw = 1.0)
+        // Non-overlapping boxes, each exactly the depth of one tread
         const stoopX = w * 0.2;
         const stoopHw = 1.0;
         const riserH = 0.17;
@@ -8099,16 +8099,16 @@
             cx: stoopX,
             cy: stepY,
             hw: stoopHw,
-            hd: treadD + 0.15,
+            hd: treadD / 2,
             top: stepTop,
           });
         }
-        // Landing step data (top of the last step / door threshold)
+        // Landing step data (top of the last step, same position as top step)
         g.userData.step = {
           cx: stoopX,
           hw: stoopHw,
-          cy: -d / 2 - (steps - 1) * treadD + 0.1,
-          hd: 0.4,
+          cy: -d / 2 - 0.15,
+          hd: treadD / 2,
           top: 0.3 + steps * riserH,
         };
         return g;
