@@ -7967,12 +7967,12 @@
         return stoop;
       }
       // Row house stoop (narrower than brownstone, Bronx style)
-      function makeRowHouseStoop(d) {
+      function makeRowHouseStoop(d, steps, riserH, treadD) {
         const stoop = new THREE.Group();
-        const riserH = 0.17;
-        const treadD = 0.3;
+        if (steps == null) steps = 4;
+        if (riserH == null) riserH = 0.17;
+        if (treadD == null) treadD = 0.3;
         const stepW = 2.0; // narrower than brownstone (2.5)
-        const steps = 4;
         const concrete = M(0x777777);
         const concreteDark = M(0x555555);
 
