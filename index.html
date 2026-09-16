@@ -12825,7 +12825,7 @@
             ny = -dy / d; // push outward
           const pen = Math.sqrt(0.85) - d;
           p.wx += nx * (pen + 0.05);
-          p.wy = clamp(p.wy + ny * (pen + 0.05), 0.5, workerMaxY());
+          p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
         }
       }
       function collideCreatures() {
@@ -12893,7 +12893,7 @@
               const nx = -dx / d,
                 ny = -dy / d;
               p.wx += nx * 1.2;
-              p.wy = clamp(p.wy + ny * 0.8, 0.5, workerMaxY());
+              p.wy = clamp(p.wy + ny * 0.8, -9.4, workerMaxY());
               return;
             }
             // Backing off — just push the worker out (like a solid person)
@@ -12902,7 +12902,7 @@
               ny = -dy / d;
             const pen = rad - d;
             p.wx += nx * (pen + 0.05);
-            p.wy = clamp(p.wy + ny * (pen + 0.05), 0.5, workerMaxY());
+            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
             return;
           }
           if (
@@ -12923,7 +12923,7 @@
               ny = -dy / d; // from person toward worker
             const pen = rad - d; // push out to just touching (small gap)
             p.wx += nx * (pen + 0.05);
-            p.wy = clamp(p.wy + ny * (pen + 0.05), 0.5, workerMaxY());
+            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
             if (c.vcd <= 0) {
               c.vcd = 2.5;
               if (c.type === "dogwalker") {
@@ -13014,7 +13014,7 @@
             // vehicles: knockback + drop + stun + i-frames
             const nl = Math.sqrt(d2) || 1;
             p.wx -= (dx / nl) * 1.6;
-            p.wy = clamp(p.wy - (dy / nl) * 1.6, 0.5, workerMaxY());
+            p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, workerMaxY());
             dropCarried();
             hurtNPC(HP_HIT_VEHICLE); // get run over = lose health (absorbed if immune / i-framed)
             p.invuln = 1.6;
@@ -13177,7 +13177,7 @@
         const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
         const lat = l; // strafe component (continuous)
         p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * dt;
-        p.wy = clamp(p.wy + lat * LAT_SPEED * dt, 0.5, workerMaxY());
+        p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, workerMaxY());
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
         // and reaching Intersection 7 (the last one before Block 8) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
@@ -13246,7 +13246,7 @@
               const d = Math.sqrt(d2);
               const push = WR - d;
               p.wx += (dx / d) * push;
-              p.wy = clamp(p.wy + (dy / d) * push, 0.5, workerMaxY());
+              p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
             } else {
               // Degenerate (worker inside the box): eject toward the nearer side
               const dBot = Math.abs(p.wy - (tCy - tHalfW));
@@ -14182,7 +14182,7 @@
                     c.state = "backing"; // hit him once, then back off for ~4s
                     const nl = dtw || 1;
                     p.wx -= (dtwX / nl) * 0.9;
-                    p.wy = clamp(p.wy - (dtwY / nl) * 0.9, 0.5, workerMaxY());
+                    p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());
                     hurtNPC(HP_HIT_DRIVETRIC);
                     doStun(0.7, "hit");
                     Voice.say(
@@ -15353,7 +15353,7 @@
                 const bnx = dwx / bl,
                   bny = dwy / bl;
                 p.wx += bnx * 0.9; // knockback: shove the worker away from the dog
-                p.wy = clamp(p.wy + bny * 0.9, 0.5, workerMaxY());
+                p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
                 hurtNPC(HP_HIT_HAZARD);
                 doStun(0.5, "hit");
                 Voice.say(
@@ -15866,7 +15866,7 @@
           } else {
             const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
             p.wx += (dx / dist) * sp * dt;
-            p.wy = clamp(p.wy + (dy / dist) * sp * dt, 0.5, workerMaxY());
+            p.wy = clamp(p.wy + (dy / dist) * sp * dt, -9.4, workerMaxY());
             // face the direction of travel (same easing as normal walking)
             const target = Math.atan2(dy, dx);
             let diff = target - p.facing;
