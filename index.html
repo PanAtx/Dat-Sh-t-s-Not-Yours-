@@ -2270,7 +2270,7 @@
         { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 1; // which day a fresh week begins on (1 = Monday, Manhattan Uptown)
+      const START_LEVEL = 2; // which day a fresh week begins on (2 = Tuesday, The Bronx / Bronxdale). TEMP: set to 2 to develop level 2 — flip back to 1 to ship the full Mon..Sun week
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -7958,6 +7958,38 @@
 
         return stoop;
       }
+      // Row house stoop (narrower than brownstone, Bronx style)
+      function makeRowHouseStoop(d) {
+        const stoop = new THREE.Group();
+        const riserH = 0.17;
+        const treadD = 0.3;
+        const stepW = 2.0; // narrower than brownstone (2.5)
+        const steps = 4;
+        const concrete = M(0x777777);
+        const concreteDark = M(0x555555);
+
+        // Backings under each step (except bottom)
+        for (let i = 1; i < steps; i++) {
+          const backingY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
+          const backingHeight = i * riserH;
+          const backingTopZ = 0.3 + i * riserH;
+          const backingZ = backingTopZ - backingHeight / 2 - 0.005;
+          const backing = BX(stepW, treadD, backingHeight, concreteDark);
+          backing.position.set(0, backingY, backingZ);
+          stoop.add(backing);
+        }
+
+        // Steps
+        for (let i = 0; i < steps; i++) {
+          const stepY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
+          const stepZ = 0.3 + i * riserH + riserH / 2;
+          const step = BX(stepW, treadD, riserH, concrete);
+          step.position.set(0, stepY, stepZ);
+          stoop.add(step);
+        }
+
+        return stoop;
+      }
       function makeSidewalkTree() {
         const tree = new THREE.Group();
         // Tall trunk
@@ -7989,14 +8021,16 @@
         const g = new THREE.Group();
         const cols = [0x8a5a3a, 0x7a4a3a, 0x9a6a5a, 0x6a3a2a];
         const col = cols[(Math.random() * cols.length) | 0];
-        const w = 9.0,
+        // Mott Haven row house: fills the 8-unit block slot exactly so houses
+        // connect side-to-side with no gaps (like real row houses).
+        const w = 8.0,
           d = 4.5,
           h = 4.5;
         const body = BX(w, d, h, M(col));
         body.position.z = 0.3 + h / 2;
         g.add(body);
         const roof = BX(w - 0.5, d - 0.5, 0.25, M(0x2a2a2a));
-        roof.position.z = 0.3 + h + 0.125;
+        roof.position.z = 0.3 + h + 0.15;
         g.add(roof);
         const winM = new THREE.MeshLambertMaterial({
           color: 0x8cc0e8,
@@ -8005,18 +8039,43 @@
         });
         for (let floor = 0; floor < 3; floor++) {
           const fy = 0.3 + 1.0 + floor * 1.3;
-          for (let x = -1; x <= 1; x += 2) {
-            const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
-            frame.position.set(x * w * 0.22, -d / 2 + 0.03, fy);
-            g.add(frame);
-            const glass = BX(0.6, 0.04, 0.9, winM);
-            glass.position.set(x * w * 0.22, -d / 2 - 0.05, fy);
-            g.add(glass);
+          // Left window on every floor
+          const leftFrame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+          leftFrame.position.set(-w * 0.22, -d / 2 + 0.03, fy);
+          g.add(leftFrame);
+          const leftGlass = BX(0.6, 0.04, 0.9, winM);
+          leftGlass.position.set(-w * 0.22, -d / 2 - 0.08, fy);
+          g.add(leftGlass);
+          // Right window only on top floor (floors 0/1 blocked by stoop/door)
+          if (floor >= 2) {
+            const rightFrame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+            rightFrame.position.set(w * 0.22, -d / 2 + 0.03, fy);
+            g.add(rightFrame);
+            const rightGlass = BX(0.6, 0.04, 0.9, winM);
+            rightGlass.position.set(w * 0.22, -d / 2 - 0.08, fy);
+            g.add(rightGlass);
           }
         }
-        const door = BX(0.9, 0.1, 1.7, M(0x3a2a1a));
-        door.position.set(0, -d / 2 + 0.04, 0.3 + 1.5);
+        // Row house stoop: narrower than brownstone, centered on the right-side door
+        const stoop = makeRowHouseStoop(d);
+        stoop.position.x = w * 0.2;
+        g.add(stoop);
+        const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
+        door.position.set(w * 0.2, -d / 2 - 0.05, 0.3 + 1.7);
         g.add(door);
+        const doorFrame = BX(0.9, 0.1, 1.7, M(0x2a1a0a));
+        doorFrame.position.set(w * 0.2, -d / 2 + 0.01, 0.3 + 1.7);
+        g.add(doorFrame);
+        const lampBulb = SPH(
+          0.05,
+          new THREE.MeshLambertMaterial({
+            color: 0xffffbb,
+            emissive: 0xffff66,
+            emissiveIntensity: 3.0,
+          }),
+        );
+        lampBulb.position.set(w * 0.2, -d / 2 - 0.04, 0.3 + 2.1);
+        g.add(lampBulb);
         // Door step area data for stepTopAt()
         g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
         return g;
@@ -8177,7 +8236,7 @@
       // the borough's template and calls it.
       const HOUSE_TPLS = {
         MANHATTAN: makeBrownstone, // tall 4-story brick buildings, high stoops
-        "THE BRONX": makeBrownstone, // Manhattan-style (customize later for Bronx apartments)
+        "THE BRONX": makeBronxApartment, // dedicated 3-story Bronx apartment block (isolated from Manhattan brownstones)
         QUEENS: makeHouse, // small house with flowers (old template, customize later)
         "STATEN ISLAND": makeHouse, // small house with flowers (old template, customize later)
         BROOKLYN: makeBrooklynFlatbushHouse, // Queens-style houses for the Flatbush level (day 3)
