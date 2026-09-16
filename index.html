@@ -8953,16 +8953,26 @@
         };
         return g;
       }
-      function makeCat() {
+      // Coat color palettes for the bodega cats — a level's 4 cats each get a
+      // different one: black-and-white tuxedo, grey, orange, and brown tabby.
+      const CAT_PALETTES = {
+        tuxedo: { fur: 0x1c1c22, light: 0xf2f2f0, furD: 0x33333c, eye: 0x42963a }, // black & white, green eyes
+        grey: { fur: 0x8f9099, light: 0xd6d7db, furD: 0x6d6e76, eye: 0xb5892f }, // grey coat, gold eyes
+        orange: { fur: 0xd4813e, light: 0xf5e6d0, furD: 0xb87030, eye: 0x42963a }, // ginger (the original)
+        tabby: { fur: 0x8a6a48, light: 0xcfb99a, furD: 0x66492c, eye: 0x3f7d3a }, // brown tabby markings
+      };
+      function makeCat(paletteName) {
         const g = new THREE.Group();
         // Sleek cat based on raccoon's smooth ellipsoid anatomy, with feline ears,
-        // green eyes, whiskers, arched tail, and 4 articulated legs for walking.
-        const fur = M(0xd4813e),      // ginger tabby fur
-          light = M(0xf5e6d0),        // cream belly/cheeks/paws
-          furD = M(0xb87030),         // darker tabby markings
-          eyeM = M(0x42963a),         // green eyes
-          pupilM = M(0x111111),       // black pupils
-          noseM = M(0xeaa89f);        // pink nose
+        // whiskers, arched tail, and 4 articulated legs for walking.
+        // Coat comes from CAT_PALETTES (defaults to the original orange).
+        const pal = CAT_PALETTES[paletteName] || CAT_PALETTES.orange;
+        const fur = M(pal.fur), // main coat
+          light = M(pal.light), // belly/cheeks/paws
+          furD = M(pal.furD), // darker tabby markings
+          eyeM = M(pal.eye), // irises
+          pupilM = M(0x111111), // black pupils
+          noseM = M(0xeaa89f); // pink nose
 
         // Body: unified torso group (orange back fur top/dorsal, cream belly bottom/ventral)
         // Grouped so they move as one rigid unit — prevents inversion during animation.
@@ -9019,8 +9029,8 @@
           headPivot.add(earIn);
         });
 
-        // Whiskers: thin white lines
-        const whiskMat = M(0xf5e6d0);
+        // Whiskers: thin lines in the coat's light color
+        const whiskMat = M(pal.light);
         [-1, 0, 1].forEach((s) => {
           [-1, 1].forEach((side) => {
             const whisker = BX(0.05, 0.001, 0.001, whiskMat);
@@ -9081,6 +9091,7 @@
           headPivot: headPivot,
           tailPivot: tailPivot,
           body: body,
+          bodyGroup: bodyGroup,
           frontLegL: legPivots.frontLegL,
           frontLegR: legPivots.frontLegR,
           backLegL: legPivots.backLegL,
@@ -10096,7 +10107,7 @@
             new THREE.Vector3(cx2, cy2, dz2).normalize(),
           );
       }
-      function addCreature(type) {
+      function addCreature(type, opts) {
         // Spawn NPCs away from the player (at least 20 units distance) so the worker starts alone
         const spawnOffset = Math.random() < 0.5 ? R(-58, -20) : R(20, 58);
         const c = {
@@ -10109,6 +10120,8 @@
           flee: 0,
           data: null,
         };
+        // Optional per-spawn overrides (e.g. the bodega cats' coat palette)
+        if (opts) for (const k in opts) c[k] = opts[k];
         // Gender of the voice used when this NPC speaks (male/female/neutral):
         //   ped=man, lady=woman, breaker=man, yeller=man, jacker/skater/escooter=men,
         //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
@@ -10166,7 +10179,8 @@
             c.dir = Math.random() < 0.5 ? -1 : 1;
             c.state = "sitting";
             c.stateT = 0;
-            c.data = makeCat();
+            c.palette = c.palette || "orange"; // coat variant (spawnWorld assigns it)
+            c.data = makeCat(c.palette);
             break;
           case "raccoon":
             c.wy = R(1, creatureMaxY());
@@ -10824,15 +10838,34 @@
           pizzaRat.wy = R(2.0, 3.5);
           pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
         }
-        // Bodega cats: Manhattan-only, sit on the store sidewalk entrance mat/step at the door
-        // No recycling - each cat stays at its original store entrance position for the whole level
+        // Bodega cats: Manhattan-only. Exactly 4 per level, each sitting on the
+        // sidewalk entrance mat in front of a different store on the block.
+        // Each cat gets a different coat (tuxedo / grey / orange / tabby).
+        // No recycling - each cat stays at its original store entrance position
+        // for the whole level.
         if (isManhattanLevel()) {
-          // Place a cat at the first house door of EVERY block for easy visibility
-          for (let i = 0; i < LEVEL_BLOCKS.length; i++) {
-            const bl = LEVEL_BLOCKS[i];
-            const bc = addCreature("cat");
-            bc.wx = bl.x + 3.0;
-            bc.wy = 4.5;
+          // Pick 4 different active shift blocks (2-7) to spread the cats along
+          // the route, and assign the 4 coats in a shuffled order.
+          const active = [1, 2, 3, 4, 5];
+          for (let i = active.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = active[i];
+            active[i] = active[j];
+            active[j] = t;
+          }
+          const catBlocks = active.slice(0, 4);
+          const coats = Object.keys(CAT_PALETTES);
+          for (let i = coats.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = coats[i];
+            coats[i] = coats[j];
+            coats[j] = t;
+          }
+          for (let i = 0; i < 4; i++) {
+            const bl = LEVEL_BLOCKS[catBlocks[i]];
+            const bc = addCreature("cat", { palette: coats[i] });
+            bc.wx = bl.x + 3.0; // in front of the block's first store door
+            bc.wy = 4.5; // on the sidewalk entrance mat
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
@@ -13389,8 +13422,10 @@
         parts.headPivot.rotation.y = -0.32 + Math.sin(c.phase * 2) * 0.08;
         // Tail streams horizontally behind with aerodynamic sway during the run
         parts.tailPivot.rotation.x = 0.25 + Math.sin(c.phase) * 0.08;
-        // Subtle vertical body bounce matching the trot phase (minimal, matching sitting height)
-        parts.body.position.z = 0.18 + Math.abs(Math.sin(c.phase)) * 0.005;
+        // Bounce the WHOLE rigid torso (orange back fur + cream belly) together so the
+        // fur keeps hugging the body. (The fur mesh lives inside bodyGroup, which is
+        // already at z=0.18 — moving just the fur mesh double-offset it into an "exploded" gap.)
+        parts.bodyGroup.position.z = 0.18 + Math.abs(Math.sin(c.phase)) * 0.005;
       }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
@@ -13867,6 +13902,7 @@
                 // Cat sits upright on hind legs - body connected to legs on ground
                 parts.body.scale.y = 1.0;
                 parts.body.position.y = 0; // Body at ground level, connected to legs
+                parts.bodyGroup.position.z = 0.18; // Keep orange back fur low (hugging body) while sitting
                 if (!c.sitTimer) {
                   c.sitTimer = R(2.5, 5.0);
                 }
@@ -13916,10 +13952,8 @@
                   parts.tailPivot.rotation.z = Math.sin(c.stateT * 1.2) * 0.2;
                 }
                 // If worker gets very close, cat gets spooked and charges
-                // (unless debugNoFlee is set for testing)
                 if (
                   state === "play" &&
-                  !c.debugNoFlee &&
                   Math.abs(tx) < 1.8 &&
                   Math.abs(c.wy - p.wy) < 1.2
                 ) {
@@ -13970,20 +14004,23 @@
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
                 c.stateT += dt;
                 if (c.stateT > 2.3) {
-                  // Cat calms down and sits again somewhere else
+                  // Cat calms down and sits right where it stopped — it has NO
+                  // magical abilities: it never re-rolls its position or jumps
+                  // across the street. The run above moved it continuously, so
+                  // it just settles in place (c.wx / c.wy untouched).
                   c.state = "sitting";
                   c.stateT = 0;
-                  c.wy = R(0.8, 2.5);
                   // Reset all leg rotations and body scale for sitting
                   parts.frontLegR.rotation.x = 0.5;
                   parts.frontLegR.rotation.y = -0.15;
                   parts.body.scale.y = 1.0;
                   parts.body.position.y = 0;
+                  parts.bodyGroup.position.z = 0.18; // Settle torso back to rest height (fur down) when the cat stops
                   parts.headPivot.rotation.y = -0.35;
                   parts.headPivot.rotation.z = 0;
                   
                   parts.tailPivot.rotation.z = 0;
-                  c.lickTimer = R(2, 5);
+                  c.sitTimer = R(2.5, 5.0); // wait a beat before the next lick cycle
                 }
               }
               break;
