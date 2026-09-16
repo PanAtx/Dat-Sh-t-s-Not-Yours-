@@ -8688,47 +8688,99 @@
         tail.castShadow = true;
         g.add(tail);
 
-        // Pizza slice in mouth (if requested) - COMICALLY BIG NYC slice with crust and toppings
+        // Pizza slice in mouth (if requested) — the famous NYC PIZZA RAT:
+        // a COMICALLY BIG, SOLID triangular slice held at the mouth, perfectly
+        // FLAT (parallel to the road) so it drags low while the rat scurries and
+        // can never clip vertically into the sidewalk or street.
+        // Rat local axes: +X = forward (nose at x=0.42), +Y = lateral, +Z = up.
+        // The group origin sits ON the road surface (world z = GZ = 0.30, and the
+        // ground strips top out at exactly 0.30), so every slice part stays at
+        // local z >= 0.03 -> world >= 0.33, floating clear of the concrete.
+        // It is a REAL slice: one SOLID tan body (closed solid => nothing shows
+        // through to the sidewalk) with yellow-cheese + red-sauce insets on top,
+        // so from above you see a yellow centre -> red ring -> tan crust edge,
+        // with brown bits and pepperoni scattered across the cheese.
         if (pizza) {
-          const sliceScale = 4.5;
-          // Crust - thick, golden, curved outer arc
-          // Create proper triangular pizza slice wedge using scaled primitives
-          const sliceW = 0.07,
-            sliceL = 0.1,
-            sliceH = 0.01;
-          // Slice base - crust wedge (triangular prism built from scaled cone)
-          const slice = new THREE.Mesh(
-            new THREE.ConeGeometry(sliceW / 2, sliceL, 3),
-            M(0xc49a4a),
-          );
-          slice.rotation.z = Math.PI / 2; // point tip forward
-          slice.rotation.y = Math.PI / 2; // rotate to face rat
-          slice.scale.set(1, 1, sliceH / sliceW); // make it flat and thin
-          slice.position.set(0.38, 0.0, 0.1);
-          slice.rotation.x = -0.15; // slight downward tilt
-          g.add(slice);
-          // Cheese layer - slightly smaller, on top
-          const cheese = new THREE.Mesh(
-            new THREE.ConeGeometry(sliceW / 2.2, sliceL * 0.9, 3),
-            M(0xf5d042),
-          );
-          cheese.rotation.x = slice.rotation.x;
-          cheese.rotation.y = slice.rotation.y;
-          cheese.rotation.z = slice.rotation.z;
-          cheese.scale.set(1, 1, (sliceH / sliceW) * 0.6);
-          cheese.position.set(0.37, 0.004, 0.1);
-          g.add(cheese);
-          // Pepperoni dots
-          for (let i = 0; i < 3; i++) {
-            const pep = SPH(0.006, M(0xb83a2a), 6, 4);
-            pep.position.set(
-              0.37 + (i - 1) * 0.015,
-              0.008,
-              0.1 + Math.sin(i) * 0.004,
+          const tipX = 0.42; // tip starts right at the mouth (nose is at 0.42)
+          const sliceL = 0.42; // length — almost the rat's own body length
+          const sliceW = 0.17; // half-width at the crust edge
+          const zBase = 0.03; // slice bottom: 0.33 world, 3 cm above the 0.30 road top
+          // A flat triangular "wedge" of given footprint inset + vertical height,
+          // extruded straight UP (closed solid: bottom + top caps + 3 side walls)
+          // and seated at z = zBase + zOff. bevelEnabled:false keeps the caps flush.
+          const wedge = (inset, height, zOff, color) => {
+            const L2 = sliceL * inset,
+              W2 = sliceW * inset;
+            const s = new THREE.Shape();
+            s.moveTo(0, 0);
+            s.lineTo(L2, -W2);
+            s.lineTo(L2, W2);
+            s.closePath();
+            const mesh = new THREE.Mesh(
+              new THREE.ExtrudeGeometry(s, {
+                depth: height,
+                bevelEnabled: false,
+              }),
+              M(color),
             );
-            pep.scale.set(1.3, 0.2, 1.3);
+            mesh.position.set(tipX, 0, zBase + zOff);
+            mesh.castShadow = true;
+            g.add(mesh);
+            return mesh;
+          };
+          // SOLID tan base body — the full footprint, one closed solid, so the
+          // slice is opaque and you can never see through it to the sidewalk.
+          // Its top is the outermost tan "crust" ring seen from above.
+          wedge(1.0, 0.04, 0.0, 0xc49a4a); // tan crust/dough body
+          // Red sauce ring — inset cap slightly below the cheese top.
+          wedge(0.97, 0.012, 0.03, 0xc0392b); // red tomato sauce
+          // YELLOW melted cheese — fills the ENTIRE slice footprint (inset 1.0) so
+          // there's no gap to the crust edge. This is the top surface the toppings
+          // (brown bits + pepperoni) rest on.
+          wedge(1.0, 0.012, 0.034, 0xf1c243); // yellow melted cheese
+          // Crust — a raised, rounded rim along the far edge of the slice.
+          // Modeled as a thin box (the crust is the doughy rim, not the whole slice).
+          const crustThick = 0.03;
+          const crustHeight = 0.05;
+          const crustGeo = new THREE.BoxGeometry(crustThick, sliceW * 2, crustHeight);
+          const crust = new THREE.Mesh(crustGeo, M(0xc49a4a));
+          crust.position.set(tipX + sliceL + crustThick / 2, 0, zBase + 0.045);
+          crust.castShadow = true;
+          g.add(crust);
+          // Pepperoni — squashed BROWN discs resting on the white cheese top
+          const pepM = M(0x6b4423);
+          [
+            [0.14, 0.0],
+            [0.22, 0.045],
+            [0.22, -0.05],
+            [0.32, 0.0],
+            [0.36, 0.06],
+            [0.40, 0.0],
+          ].forEach((pp) => {
+            const pep = SPH(0.026, pepM, 8, 6);
+            pep.scale.set(1, 1, 0.35);
+            pep.position.set(tipX + pp[0], pp[1], zBase + 0.04);
             g.add(pep);
-          }
+          });
+          // Browned cheese "bits" — small BROWN specks scattered across the
+          // yellow cheese (the browned/charred bits of melted mozzarella).
+          const bitM = M(0xb5773a);
+          [
+            [0.1, 0.02],
+            [0.17, -0.02],
+            [0.25, 0.03],
+            [0.25, -0.03],
+            [0.3, 0.02],
+            [0.33, 0.01],
+            [0.38, -0.03],
+            [0.39, 0.04],
+            [0.39, -0.05],
+          ].forEach((pp) => {
+            const bit = SPH(0.013, bitM, 8, 6);
+            bit.scale.set(1, 1, 0.4);
+            bit.position.set(tipX + pp[0], pp[1], zBase + 0.046);
+            g.add(bit);
+          });
         }
 
         return g;
@@ -10825,9 +10877,10 @@
           cg.wy = R(1.2, 4.2);
           cg.g.position.set(cg.wx, cg.wy, GZ);
         }
-        // Manhattan Pizza Rat: guaranteed NYC street rat carrying a giant slice of pizza
-        // on the sidewalk, scurrying along with his prize. Always on Manhattan levels.
-        if (isManhattanLevel()) {
+        // Manhattan Pizza Rat: rare NYC street rat carrying a giant slice of pizza
+        // on the sidewalk, scurrying along with his prize. 25% chance on Manhattan levels
+        // (in the real world, most rats don't carry pizza).
+        if (isManhattanLevel() && Math.random() < 0.25) {
           const pizzaRat = addCreature("rat");
           // Remove the original rat model and replace with pizza-carrying version
           dynamicGroup.remove(pizzaRat.g);

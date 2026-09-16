@@ -25,6 +25,9 @@ function extractFn(name){
 const THREE = {
   Group: function() { this.children = []; this.rotation = { x: 0, y: 0, z: 0, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; this.position = { x: 0, y: 0, z: 0, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; this.scale = { x: 1, y: 1, z: 1, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; this.userData = {}; this.add = function(c) { this.children.push(c); }; },
   Mesh: function() { this.rotation = { x: 0, y: 0, z: 0, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; this.position = { x: 0, y: 0, z: 0, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; this.scale = { x: 1, y: 1, z: 1, set: function(x, y, z) { this.x = x; this.y = y; this.z = z; } }; },
+  Shape: function() { this.moveTo = () => {}; this.lineTo = () => {}; this.absarc = () => {}; this.closePath = () => {}; },
+  ExtrudeGeometry: function() {},
+  TorusGeometry: function() {},
   SphereGeometry: function() {},
   BoxGeometry: function() {},
   CylinderGeometry: function() {},
@@ -145,7 +148,8 @@ check('tail pivot swishes continuously while sitting', sawTailSwish);
 const makeRat = eval('(function(){' +
   'function THREE_Group(){this.children=[];this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.userData={};this.add=function(c){this.children.push(c);};}' +
   'function THREE_Mesh(){this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};}' +
-  'var THREE={Group:THREE_Group,Mesh:THREE_Mesh,SphereGeometry:THREE_Group,BoxGeometry:THREE_Group,CylinderGeometry:THREE_Group,ConeGeometry:THREE_Group,TubeGeometry:THREE_Group,CatmullRomCurve3:THREE_Group,Vector3:THREE_Group};' +
+  'function THREE_Shape(){this.moveTo=function(){};this.lineTo=function(){};this.absarc=function(){};this.closePath=function(){};}' +
+  'var THREE={Group:THREE_Group,Mesh:THREE_Mesh,SphereGeometry:THREE_Group,BoxGeometry:THREE_Group,CylinderGeometry:THREE_Group,ConeGeometry:THREE_Group,TubeGeometry:THREE_Group,CatmullRomCurve3:THREE_Group,Vector3:THREE_Group,Shape:THREE_Shape,ExtrudeGeometry:THREE_Group,TorusGeometry:THREE_Group};' +
   'function M(c){return{color:{getHex:function(){return c}}}}' +
   'function MS(c){return M(c)}' +
   'function SPH(r,m){var o=new THREE.Mesh();return o}' +
