@@ -8314,7 +8314,8 @@
       function addDogShit(b, wx, wy) {
         const g = makeDogShit();
         // If on the curb (wy < 0.8), lift it to the curb top so it's visible
-        const z = wy < 0.8 ? GZ + CURB_LIFT : GZ;
+        // Curb top is at z = 0.35, so lift by 0.34 above GZ
+        const z = wy < 0.8 ? GZ + 0.34 : GZ;
         g.position.set(wx - b.worldX, wy, z);
         g.rotation.z = Math.random() * Math.PI * 2;
         b.group.add(g);
@@ -13053,6 +13054,9 @@
         // Both are more opaque than a bare print so the trail reads clearly.
         const col = isBlood ? 0x990000 : 0x3a2410;
         const op = isBlood ? 0.92 : 0.85;
+        // If on the curb (wy < 0.8), lift footprints to curb top so they're visible
+        // Curb top is at z = 0.35, so lift by 0.34 above GZ
+        const footZ = p.wy < 0.8 ? GZ + 0.34 + 0.02 : GZ + 0.02;
         let g;
         if (isBlood) {
           // a small round drop of blood. The ground is the XY plane with Z = up, so a
@@ -13081,7 +13085,7 @@
         g.position.set(
           p.wx - fx * 0.35 - fy * off,
           p.wy - fy * 0.35 + fx * off,
-          GZ + 0.02,
+          footZ,
         );
         dynamicGroup.add(g);
         footprints.push({ g: g, mat: g.material, life: 7, baseOp: op });
@@ -13092,7 +13096,8 @@
       function dropBloodSplatter(wx, wy) {
         const n = (3 + Math.random() * 2) | 0; // 3-4 smears
         // If on the curb (wy < 0.8), lift blood to curb top so it's visible
-        const baseZ = wy < 0.8 ? GZ + CURB_LIFT : GZ;
+        // Curb top is at z = 0.35, so lift by 0.34 above GZ
+        const baseZ = wy < 0.8 ? GZ + 0.34 : GZ;
         for (let i = 0; i < n; i++) {
           const a = R(0, Math.PI * 2);
           const r = R(0, 0.35);
