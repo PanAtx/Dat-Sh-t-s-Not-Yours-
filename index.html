@@ -8112,7 +8112,8 @@
           top: 0.3 + steps * riserH,
         };
         // Building front wall collision (prevents worker walking through house)
-        // Worker can walk through the stoop area (excluded from collision box)
+        // Worker can walk through the stoop area, but only up to the landing
+        // No front yard behind the stoop — sidewalk meets the stoop directly
         g.userData.buildingFront = {
           hw: w / 2,
           cy: -d / 2,
