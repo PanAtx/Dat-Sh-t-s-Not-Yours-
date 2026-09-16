@@ -10401,9 +10401,10 @@
         // landing top instead of clipping into the 0.3..0.36 slab.
         const stLocal = hg.userData.step;
         const houseX = baseX + 4.0;
+        const stepCx = stLocal.cx || 0; // step offset from house center (0 for centered, 1.6 for Bronx stoop)
         house.step = {
-          x0: houseX - stLocal.hw,
-          x1: houseX + stLocal.hw,
+          x0: houseX + stepCx - stLocal.hw,
+          x1: houseX + stepCx + stLocal.hw,
           y0: HOUSE_Y + stLocal.cy - stLocal.hd,
           y1: HOUSE_Y + stLocal.cy + stLocal.hd,
           top: stLocal.top,
@@ -10413,9 +10414,10 @@
         if (hg.userData.stairs) {
           for (let s = 0; s < hg.userData.stairs.length; s++) {
             const st = hg.userData.stairs[s];
+            const stairCx = st.cx || 0;
             b.stairs.push({
-              x0: houseX - st.hw,
-              x1: houseX + st.hw,
+              x0: houseX + stairCx - st.hw,
+              x1: houseX + stairCx + st.hw,
               y0: HOUSE_Y + st.cy - st.hd,
               y1: HOUSE_Y + st.cy + st.hd,
               top: st.top,
