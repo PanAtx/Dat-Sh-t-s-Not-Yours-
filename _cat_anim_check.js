@@ -53,7 +53,15 @@ const GZ = 0;
 
 // Eval makeCat + animCat in the shim context (each in its own scope to avoid
 // variable name collisions with the outer script)
-const makeCat = eval('(function(){' + 'function THREE_Group(){this.children=[];this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.userData={};this.add=function(c){this.children.push(c);};}' + 'function THREE_Mesh(){this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};}' + 'var THREE={Group:THREE_Group,Mesh:THREE_Mesh,SphereGeometry:THREE_Group,BoxGeometry:THREE_Group,CylinderGeometry:THREE_Group,ConeGeometry:THREE_Group};' + 'function M(c){return{color:{getHex:function(){return c}}}}' + 'function MS(c){return M(c)}' + 'function SPH(r,m){var o=new THREE.Mesh();return o}' + 'function BX(w,h,d,m){var o=new THREE.Mesh();return o}' + 'function CY(rT,rB,h,m){var o=new THREE.Mesh();return o}' + 'function CONE(r,h,m){var o=new THREE.Mesh();return o}' + 'function pick(a){return a[0]}' + 'function R(a,b){return a}' + extractFn('makeCat') + 'return makeCat;})()');
+// Extract the CAT_PALETTES table so makeCat (which reads it) can run in Node
+const palettesSrc = (function () {
+  const i = src.indexOf('const CAT_PALETTES = {');
+  if (i < 0) throw new Error('CAT_PALETTES not found in index.html');
+  const e = src.indexOf('};', i);
+  return src.slice(i, e + 2);
+})();
+
+const makeCat = eval('(function(){' + 'function THREE_Group(){this.children=[];this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.userData={};this.add=function(c){this.children.push(c);};}' + 'function THREE_Mesh(){this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};}' + 'var THREE={Group:THREE_Group,Mesh:THREE_Mesh,SphereGeometry:THREE_Group,BoxGeometry:THREE_Group,CylinderGeometry:THREE_Group,ConeGeometry:THREE_Group};' + 'function M(c){return{color:{getHex:function(){return c}}}}' + 'function MS(c){return M(c)}' + 'function SPH(r,m){var o=new THREE.Mesh();return o}' + 'function BX(w,h,d,m){var o=new THREE.Mesh();return o}' + 'function CY(rT,rB,h,m){var o=new THREE.Mesh();return o}' + 'function CONE(r,h,m){var o=new THREE.Mesh();return o}' + 'function pick(a){return a[0]}' + 'function R(a,b){return a}' + palettesSrc + '\n' + extractFn('makeCat') + 'return makeCat;})()');
 
 const animCat = eval('(function(){' + 'function THREE_Group(){this.children=[];this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.userData={};this.add=function(c){this.children.push(c);};}' + 'function THREE_Mesh(){this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};}' + 'var THREE={Group:THREE_Group,Mesh:THREE_Mesh,SphereGeometry:THREE_Group,BoxGeometry:THREE_Group,CylinderGeometry:THREE_Group,ConeGeometry:THREE_Group};' + 'var SCALE=100;' + extractFn('animCat') + 'return animCat;})()');
 
@@ -103,7 +111,11 @@ let c3 = { phase: 0, g: makeCat(), dir: 1 };
 let parts3 = c3.g.userData.cat;
 c3.g.rotation.z = 0;
 animCat(c3, 0.35);
-check('running cat body z position is 0.18 (not legacy 0.07)', Math.abs(parts3.body.position.z - 0.18) < 0.02);
+// Measure the orange fur's TRUE height (bodyGroup + local body offset). The fur mesh
+// is nested inside bodyGroup, so a bare body.position.z check is what let the "exploded
+// view" bug slip through (local 0.18 inside a group at 0.18 = world 0.36).
+check('running cat body z position is 0.18 (not legacy 0.07)', Math.abs((parts3.bodyGroup.position.z + parts3.body.position.z) - 0.18) < 0.02);
+check('running cat orange fur stays hugging the belly (no exploded gap)', Math.abs(parts3.body.position.z) < 0.02);
 
 // Verify sitting animations: head pivot pitches down during lick (smooth continuous motion)
 let sawHeadPitch = false, sawTailSwish = false;

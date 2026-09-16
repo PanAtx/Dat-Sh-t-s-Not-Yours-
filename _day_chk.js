@@ -43,7 +43,7 @@ const mon = {}; for (const k in BASE_NPC_COUNTS) mon[k] = GATED_NPC[k] ? 0 : BAS
 mon.escooter += 1; mon.bike += 1; mon.skater = 0; mon.raccoon = 0; mon.tric = 0;
 mon.squirrel = 0;
 mon.crazy = 0;  // spawned separately, not via npcCounts
-mon.cat = 0;    // 3 bodega cats spawned separately on Manhattan days
+mon.cat = 0;    // 4 bodega cats spawned separately on Manhattan days
 check('level 1 (Monday) is the baseline + Manhattan scooter/bike boost (gated types, skater + raccoon dropped)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
 check('the main crowd (ped + car) gains +1 every level',
