@@ -13389,8 +13389,8 @@
         parts.headPivot.rotation.y = -0.32 + Math.sin(c.phase * 2) * 0.08;
         // Tail streams horizontally behind with aerodynamic sway during the run
         parts.tailPivot.rotation.x = 0.25 + Math.sin(c.phase) * 0.08;
-        // Subtle vertical body bounce matching the trot phase
-        parts.body.position.z = 0.18 + Math.abs(Math.sin(c.phase)) * 0.012;
+        // Subtle vertical body bounce matching the trot phase (minimal, matching sitting height)
+        parts.body.position.z = 0.18 + Math.abs(Math.sin(c.phase)) * 0.005;
       }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
