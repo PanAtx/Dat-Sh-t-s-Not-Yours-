@@ -10393,7 +10393,7 @@
         // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
         let HOUSE_Y = 10.5;
         if (isManhattanLevel()) HOUSE_Y = 8.7;
-        else if (isBronxLevel()) HOUSE_Y = 8.5; // Mott Haven: first stoop step meets sidewalk edge
+        else if (isBronxLevel()) HOUSE_Y = 8.6; // Mott Haven: slight setback for stoop clearance
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
         // Shift house row right within the block to balance spacing (not flush with intersection).
         hg.position.x = 4.0;
@@ -13203,7 +13203,7 @@
           }
         }
         // === Building front wall collision: worker can't walk through houses.
-        // Can walk through the stoop/doorway area (excluded from the collision box). ===
+        // Can walk through the stoop/doorway area, but only up to the top of the stairs (landing). ===
         const WR = 0.45; // worker collision radius
         for (let bi = 0; bi < blocks.length; bi++) {
           const b = blocks[bi];
@@ -13211,15 +13211,19 @@
           const bf = b.buildingFront;
           // Check if worker is within the building front wall's x-range
           if (p.wx < bf.x0 || p.wx > bf.x1) continue;
-          // Check if worker is in the stoop/doorway area (allowed to walk through)
-          if (p.wx >= bf.stoopX0 && p.wx <= bf.stoopX1) continue;
-          // Worker is in the building front wall area — check if they're trying to walk through it
-          if (p.wy < bf.y1) {
-            // Worker is in front of the wall, not trying to walk through
+          // Worker is in front of the wall, not trying to walk through
+          if (p.wy < bf.y1) continue;
+          // Check if worker is in the stoop/doorway area (allowed to walk up to the landing)
+          if (p.wx >= bf.stoopX0 && p.wx <= bf.stoopX1) {
+            // Worker is in the stoop area — check if they've reached the landing
+            // The landing is at y = bf.y1 + 0.15 (relative to the building front)
+            const landingY = bf.y1 + 0.15;
+            if (p.wy < landingY) continue; // Worker hasn't reached the landing yet
+            // Worker is past the landing — push them back to the landing
+            p.wy = landingY;
             continue;
           }
-          // Worker is trying to walk through the wall — push them back
-          const pen = p.wy - bf.y1;
+          // Worker is trying to walk through the wall (not in the stoop area) — push them back
           p.wy = bf.y1;
         }
         // === Truck body collision: worker can't clip through the truck, but can walk freely
