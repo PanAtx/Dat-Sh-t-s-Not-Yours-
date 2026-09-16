@@ -65,6 +65,7 @@ const c = {
   type: 'cat',
   wx: 50.0,
   wy: 4.5,
+  yMax: 4.5, // street cat — home line is the 4.5 sidewalk spawn line
   sp: 6.0, // within addCreature's R(5,7)
   dir: 1,
   state: 'sitting',
@@ -128,7 +129,7 @@ check('settled cat waits a beat before grooming again (sitTimer armed 2.5-5.0)',
 
 // ---- 4) regression: a far-away cat just sits and grooms, never moves ----
 const c3 = {
-  type: 'cat', wx: 90, wy: 4.5, sp: 6, dir: 1,
+  type: 'cat', wx: 90, wy: 4.5, sp: 6, dir: 1, yMax: 4.5,
   state: 'sitting', stateT: 0, phase: 0,
   g: makeGCat(),
 };
@@ -137,6 +138,28 @@ const x3 = c3.wx, y3 = c3.wy;
 for (let t = 0; t < 60 * 5; t++) runCatCase(c3, p3, dt);
 check('idle cat far from worker never moves (no wandering, no teleport)',
   c3.wx === x3 && c3.wy === y3, 'd=(' + (c3.wx - x3) + ',' + (c3.wy - y3) + ')');
+
+// ---- 5) Bronx mat cat: perched ON the entrance mat (wy 6.7) ----
+// Its chase ceiling is its own home line (6.7), so the first chase frame must
+// NOT snap it down to the 4.5 street line (that would be a 2.2-unit teleport).
+const c4 = {
+  type: 'cat', wx: 100, wy: 6.7, sp: 6, dir: 1, yMax: 6.7,
+  state: 'sitting', stateT: 0, phase: 0, g: makeGCat(),
+};
+const p4 = { wx: c4.wx - 1.4, wy: 5.6 }; // worker on the sidewalk below the mat cat
+let badMat = null, matChase = false;
+for (let t = 0; t < 60 * 8; t++) {
+  const x0 = c4.wx, y0 = c4.wy;
+  runCatCase(c4, p4, dt);
+  const jump = Math.hypot(c4.wx - x0, c4.wy - y0);
+  const budget = (c4.sp + 1.5 + 12) * dt * 1.05;
+  if (jump > budget && !badMat) badMat = 't=' + t + ' jump=' + jump.toFixed(4) + ' budget=' + budget.toFixed(4);
+  if (c4.state === 'chasing') matChase = true;
+}
+check('mat cat (wy 6.7) spooks + chases without snapping to the 4.5 street line',
+  matChase && badMat === null, badMat || 'chase frames continuous');
+check('mat cat never leaves the legal band (wy >= 0.5, never past its 6.7 home line)',
+  c4.wy >= 0.5, 'final wy=' + c4.wy.toFixed(3));
 
 console.log(ok ? '\nALL CAT-NO-TELEPORT CHECKS PASSED' : '\nCAT CHECKS FAILED');
 process.exit(ok ? 0 : 1);

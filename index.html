@@ -9016,11 +9016,14 @@
       }
       // Coat color palettes for the bodega cats — a level's 4 cats each get a
       // different one: black-and-white tuxedo, grey, orange, and brown tabby.
+      // The white & grey "mott" coat (Mott Haven's mouser) is Bronx-only: on Bronx
+      // levels it replaces the plain grey cat.
       const CAT_PALETTES = {
         tuxedo: { fur: 0x1c1c22, light: 0xf2f2f0, furD: 0x33333c, eye: 0x42963a }, // black & white, green eyes
         grey: { fur: 0x8f9099, light: 0xd6d7db, furD: 0x6d6e76, eye: 0xb5892f }, // grey coat, gold eyes
         orange: { fur: 0xd4813e, light: 0xf5e6d0, furD: 0xb87030, eye: 0x42963a }, // ginger (the original)
         tabby: { fur: 0x8a6a48, light: 0xcfb99a, furD: 0x66492c, eye: 0x3f7d3a }, // brown tabby markings
+        mott: { fur: 0xe9eaee, light: 0xfafafb, furD: 0x8f95a3, eye: 0x3f6ea8 }, // white & grey "Mott" (Bronx only), blue eyes
       };
       function makeCat(paletteName) {
         const g = new THREE.Group();
@@ -10290,6 +10293,7 @@
             c.state = "sitting";
             c.stateT = 0;
             c.palette = c.palette || "orange"; // coat variant (spawnWorld assigns it)
+            c.yMax = 4.5; // chase clamp ceiling = home line (spawnWorld raises it for Bronx mat cats)
             c.data = makeCat(c.palette);
             break;
           case "raccoon":
@@ -10973,12 +10977,16 @@
           pizzaRat.wy = R(2.0, 3.5);
           pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
         }
-        // Bodega cats: Manhattan + Bronx only. Exactly 4 per level, each sitting on
-        // the sidewalk in front of a different store on the block (both boroughs put
-        // a store on the first house of every block).
-        // Each cat gets a different coat (tuxedo / grey / orange / tabby).
-        // No recycling - each cat stays at its original store entrance position
-        // for the whole level.
+        // Bodega cats: Manhattan + Bronx only. Exactly 4 per level, each sitting in
+        // front of a different store on the block (both boroughs put a store on the
+        // first house of every block).
+        // In the Bronx, cats sometimes perch ON the store's entrance mat, right at
+        // the door; everyone else sits on the sidewalk in front of the storefront.
+        // Coats: Manhattan keeps its classic four (tuxedo / grey / orange / tabby);
+        // the Bronx swaps the plain grey for the white-and-grey "Mott" mouser
+        // (a Bronx-only coat).
+        // No recycling - each cat stays at its original store position for the
+        // whole level.
         if (isManhattanLevel() || isBronxLevel()) {
           // Pick 4 different active shift blocks (2-7) to spread the cats along
           // the route, and assign the 4 coats in a shuffled order.
@@ -10990,7 +10998,10 @@
             active[j] = t;
           }
           const catBlocks = active.slice(0, 4);
-          const coats = Object.keys(CAT_PALETTES);
+          // Bronx levels get the white & grey "mott" coat; Manhattan keeps its four.
+          const coats = isBronxLevel()
+            ? ["mott", "tuxedo", "orange", "tabby"]
+            : ["tuxedo", "grey", "orange", "tabby"];
           for (let i = coats.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = coats[i];
@@ -11000,8 +11011,17 @@
           for (let i = 0; i < 4; i++) {
             const bl = LEVEL_BLOCKS[catBlocks[i]];
             const bc = addCreature("cat", { palette: coats[i] });
-            bc.wx = bl.x + 3.0; // in front of the block's first store door
-            bc.wy = 4.5; // on the sidewalk entrance mat
+            if (isBronxLevel() && Math.random() < 0.5) {
+              // Bronx: perch ON the first store's entrance mat, right at the door.
+              // The first house's door is at local x -2.6 (world bl.x - 2.6) and the
+              // mat spans y 6.55..6.95, so the cat sits dead-center on the mat.
+              bc.wx = bl.x - 2.6;
+              bc.wy = 6.7;
+            } else {
+              bc.wx = bl.x + 3.0; // in front of the block's first store door
+              bc.wy = 4.5; // on the sidewalk in front of the storefront
+            }
+            bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling (mat cats: 6.7)
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
@@ -14134,7 +14154,7 @@
                 // Cat charges at the worker to scare him - slower for better animation visibility
                 const catSpd = c.sp + 1.5;
                 c.wx += c.dir * catSpd * dt;
-                c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, 4.5);
+                c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, c.yMax); // never past the cat's home line (4.5 street / 6.7 mat)
                 animCat(c, dt * 40);
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
                 c.stateT += dt;

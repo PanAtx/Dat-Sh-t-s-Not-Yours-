@@ -1,6 +1,8 @@
-// _cat_spawn_chk.js — verify the bodega cat spawn: exactly 4 cats, on 4
-// different active blocks in front of the store (bl.x + 3.0, wy 4.5), one
-// of each of the 4 coats (tuxedo / grey / orange / tabby), and that the old
+// _cat_spawn_chk.js — verify the bodega cat spawn (Manhattan + Bronx): exactly
+// 4 cats on 4 different active blocks, sitting on the sidewalk in front of the
+// store (bl.x + 3.0, wy 4.5) — or, in the Bronx, perched ON the store mat at the
+// door (bl.x - 2.6, wy 6.7) — one of each coat (tuxedo / grey / orange / tabby,
+// with the Bronx-only white & grey "mott" replacing plain grey), and that the old
 // debug cat modes are fully gone (per-block "easy visibility" loop, magenta
 // glow, debugNoFlee flag).
 
@@ -28,11 +30,21 @@ check('cats sit in front of the store door on the block (bl.x + 3.0)', /bc\.wx =
 check('cats sit on the sidewalk in front of the store (wy = 4.5)', /bc\.wy = 4\.5/.test(spawnBlock));
 check('Manhattan + Bronx gate (isManhattanLevel || isBronxLevel) applies', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\)\)/.test(spawnBlock));
 check('gate is NOT applied to other boroughs (no bare isManhattanLevel gate)', spawnBlock.indexOf('if (isManhattanLevel())') < 0);
+check('Bronx cats can perch ON the store mat at the door (bl.x - 2.6, wy 6.7)',
+  /isBronxLevel\(\) && Math\.random\(\) < 0\.5/.test(spawnBlock) &&
+  /bc\.wx = bl\.x - 2\.6/.test(spawnBlock) && /bc\.wy = 6\.7/.test(spawnBlock));
+check('every cat gets a chase ceiling (yMax) so mat cats never snap to the street',
+  /bc\.yMax = Math\.max\(4\.5, bc\.wy\)/.test(spawnBlock) &&
+  /c\.yMax = 4\.5/.test(src) &&
+  /clamp\(c\.wy \+ \(p\.wy - c\.wy\) \* dt \* 3, 0\.5, c\.yMax\)/.test(src));
 
 // ---- 2) source: coats wired through the spawn chain ----
-check('CAT_PALETTES defines all 4 coats (tuxedo/grey/orange/tabby)',
-  ['tuxedo', 'grey', 'orange', 'tabby'].every(k => spawnBlock.indexOf(k) >= 0 || (function () { const i = src.indexOf('const CAT_PALETTES = {'); return i >= 0 && src.slice(i, src.indexOf('};', i)).indexOf(k + ':') >= 0; })()));
-check('spawn shuffles and assigns one of each coat (Object.keys(CAT_PALETTES))', /const coats = Object\.keys\(CAT_PALETTES\)/.test(spawnBlock));
+check('CAT_PALETTES defines all coats (tuxedo/grey/orange/tabby + Bronx-only mott)',
+  ['tuxedo', 'grey', 'orange', 'tabby', 'mott'].every(k => spawnBlock.indexOf(k) >= 0 || (function () { const i = src.indexOf('const CAT_PALETTES = {'); return i >= 0 && src.slice(i, src.indexOf('};', i)).indexOf(k + ':') >= 0; })()));
+check('Bronx levels swap in the white & grey "mott" coat; Manhattan keeps its four',
+  /const coats = isBronxLevel\(\)/.test(spawnBlock) &&
+  /\["mott", "tuxedo", "orange", "tabby"\]/.test(spawnBlock) &&
+  /\["tuxedo", "grey", "orange", "tabby"\]/.test(spawnBlock));
 check('addCreature receives the palette (opts object)', /addCreature\("cat", \{ palette: coats\[i\] \}\)/.test(spawnBlock));
 check('addCreature(type, opts) merges per-spawn overrides into the creature', /function addCreature\(type, opts\)/.test(src) && /if \(opts\) for \(const k in opts\) c\[k\] = opts\[k\]/.test(src));
 check('case "cat" builds the model from c.palette', /c\.palette = c\.palette \|\| "orange"/.test(src) && /c\.data = makeCat\(c\.palette\)/.test(src));
@@ -76,7 +88,7 @@ const factory2 = new Function('M',
 const makeCatLive = factory2(function (c) { MATLOG.push(c); return { color: { getHex: () => c } }; });
 
 const names = Object.keys(CAT_PALETTES);
-check('4 coat palettes defined in index.html', names.length === 4, JSON.stringify(names));
+check('5 coat palettes defined in index.html (4 standard + Bronx-only mott)', names.length === 5, JSON.stringify(names));
 const furColors = [];
 let allBuild = true;
 for (const n of names) {
@@ -94,7 +106,7 @@ for (const n of names) {
     'fur=' + pal.fur.toString(16) + ' light=' + pal.light.toString(16) + ' furD=' + pal.furD.toString(16) + ' eye=' + pal.eye.toString(16));
   allBuild = allBuild && built && coatOk;
 }
-check('all 4 fur colors are visually distinct', new Set(furColors).size === 4, furColors.map(c => '0x' + c.toString(16)).join(', '));
+check('all 5 fur colors are visually distinct', new Set(furColors).size === 5, furColors.map(c => '0x' + c.toString(16)).join(', '));
 
 // Default (no arg) must still build the original orange cat
 MATLOG.length = 0;
