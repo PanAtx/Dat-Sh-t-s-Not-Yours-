@@ -2636,6 +2636,11 @@
           console.log("  -> Manhattan path: concrete lawns");
           groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front lawns as concrete (Manhattan has no grass)
           groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // park behind brownstones as concrete
+        } else if (isBronxLevel()) {
+          // Mott Haven: no lawns — concrete apron flush to the sidewalk, houses very close to the curb
+          console.log("  -> Bronx path: no lawns, concrete apron, houses near sidewalk");
+          groundStrip(GW, 1.0, 0.3, 5.5, 0x8d949c, GCX); // thin concrete apron (y 5.0..6.0)
+          groundStrip(GW, 14.0, 0.3, 12.5, 0x8d949c, GCX); // concrete behind houses (no park)
         } else {
           console.log("  -> Non-Manhattan path: green lawns");
           groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX); // front lawns (grass)
@@ -10354,6 +10359,7 @@
         // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
         let HOUSE_Y = 10.5;
         if (isManhattanLevel()) HOUSE_Y = 8.7;
+        else if (isBronxLevel()) HOUSE_Y = 7.0; // Mott Haven: houses very close to the sidewalk
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
         // Shift house row right within the block to balance spacing (not flush with intersection).
         hg.position.x = 4.0;
