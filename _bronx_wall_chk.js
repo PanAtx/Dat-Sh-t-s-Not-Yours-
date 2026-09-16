@@ -54,6 +54,60 @@ const checks = [
     'Bronx HOUSE_Y (9.5) and depth (4.5) => front face at 7.25',
     /else if \(isBronxLevel\(\)\) HOUSE_Y = 9\.5;/.test(html),
   ],
+  // --- Bronx storefront wiring ---
+  ['Bronx store name pool exists', /const BRONX_STORE_NAMES = \[/.test(html)],
+  [
+    'Bronx store pool has at least 16 names (8 blocks x 2)',
+    ((html.match(/const BRONX_STORE_NAMES = \[([\s\S]*?)\];/) || [])[1] || '')
+      .split('\n')
+      .filter((l) => l.trim().startsWith('"')).length >= 16,
+  ],
+  [
+    'makeBronxStore uses the Bronx row-house shell (w 8, d 4.5, h 5.5)',
+    /function makeBronxStore\(storeOptions\) \{[\s\S]*?const w = 8\.0,[\s\S]*?d = 4\.5,[\s\S]*?h = 5\.5;/.test(
+      html,
+    ),
+  ],
+  [
+    'makeBronxStore keeps the Manhattan storefront (door + mat + sign)',
+    /function makeBronxStore\(storeOptions\) \{[\s\S]*?const doorX = storeOptions\.isLeft \? -2\.6 : 2\.6;[\s\S]*?const mat = BX\(1\.0, 0\.4, 0\.04, M\(0x555555\)\);[\s\S]*?signPlane/.test(
+      html,
+    ),
+  ],
+  [
+    'store rule now covers MANHATTAN and THE BRONX only',
+    html.includes('(borough === "MANHATTAN" || borough === "THE BRONX")'),
+  ],
+  [
+    'Bronx storefront pool wired into spawnWorld',
+    /else if \(borough === "THE BRONX"\) \{[\s\S]*?shuffleStoreNames\(BRONX_STORE_NAMES\)/.test(
+      html,
+    ),
+  ],
+  [
+    'makeBlockContents builds Bronx stores with makeBronxStore',
+    /borough === "THE BRONX"[\s\S]*?makeBronxStore\(storeOptions\)[\s\S]*?makeBrownstone\(storeOptions\)/.test(
+      html,
+    ),
+  ],
+  [
+    'makeBronxStore has a thin buildingFront stop line',
+    /function makeBronxStore[\s\S]*?g\.userData\.buildingFront = \{[\s\S]*?hd: 0,[\s\S]*?\};/.test(
+      html,
+    ),
+  ],
+  [
+    'makeBronxStore stop line sits at the kick-plate face (0.4 proud of wall)',
+    /function makeBronxStore[\s\S]*?buildingFront = \{[\s\S]*?cy: -d \/ 2 - 0\.4,/.test(
+      html,
+    ),
+  ],
+  [
+    'makeBronxStore exposes the mat as a step under the door (top 0.33)',
+    /function makeBronxStore[\s\S]*?g\.userData\.step = \{[\s\S]*?cx: doorX,[\s\S]*?top: 0\.33,[\s\S]*?\};/.test(
+      html,
+    ),
+  ],
 ];
 let all = ok;
 for (const [name, pass] of checks) {
@@ -94,4 +148,44 @@ console.log(
     WALL_STOP +
     ')',
 );
+
+// --- Storefront simulation: stick held INTO a Bronx storefront must be a dead stop,
+// the worker must land ON the mat (lift to 0.33), and his body must clear the
+// kick-plate face (the nearest protruding storefront face) ---
+const kickFace = 9.5 - 4.5 / 2 - 0.4; // 6.85 — Bronx storefront kick-plate outer face
+let swy = 6.2; // start on the sidewalk, walking INTO the storefront
+const sstop = kickFace - WALL_STOP; // 6.55
+const sy = [];
+for (let i = 0; i < 240; i++) {
+  swy = Math.min(swy + LAT_SPEED * dt, 8.0);
+  if (swy >= sstop) swy = sstop;
+  sy.push(swy);
+}
+const sspread = Math.max(...sy.slice(-120)) - Math.min(...sy.slice(-120));
+// mat step region from makeBronxStore: cy = 9.5-2.25-0.5 = 6.75, hd 0.5 => 6.25..7.25
+const onMat = sstop >= 6.25 && sstop <= 7.25;
+// worst-case body half-width in front of the worker (0.28, facing sideways)
+const bodyFront = sstop + 0.28;
+const clears = bodyFront < kickFace - 1e-9;
+console.log(
+  (sspread < 1e-9 ? 'PASS' : 'FAIL') +
+    ' - 240-frame storefront walk-in: no bounce/flicker (spread ' +
+    sspread.toExponential(2) +
+    ')',
+);
+console.log(
+  (onMat ? 'PASS' : 'FAIL') +
+    ' - worker stop line (' +
+    sstop +
+    ') lands inside the mat step region (6.25..7.25) => feet lift to mat top 0.33',
+);
+console.log(
+  (clears ? 'PASS' : 'FAIL') +
+    ' - body front (' +
+    bodyFront +
+    ') stays clear of the kick-plate face (' +
+    kickFace +
+    ')',
+);
+if (sspread >= 1e-9 || !onMat || !clears) all = false;
 process.exit(all ? 0 : 1);

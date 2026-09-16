@@ -7693,6 +7693,31 @@
         "CHURCH FAN & PEACH COBBLER DEPOT",
       ];
 
+      // Bronx (Mott Haven) storefronts: bodegas, laundromats, and the neighborhood
+      // institutions you'd actually find on a South Bronx corner.
+      const BRONX_STORE_NAMES = [
+        "TITO'S COFFEE & LOTTERY DREAMS",
+        "ABUELA'S EMPANADAS & REGRETS",
+        "TWO CENTS LAUNDROMAT: HOT WATER LIES",
+        "MOTT HAVEN DOLLAR: EVERYTHING $1 (MOSTLY)",
+        "HERRING & HOPE DELI",
+        "SIPPIN' COFFEE, COUNTIN' COINS",
+        "BARBER: $8 & NO CLIPPER RAGE",
+        "ELECTRONICA: WE FIX & WE JUDGE",
+        "GOLDRING PAWN: WE BUY YOUR PAIN",
+        "TAQUERIA 24/7: EL CERRAR ES MENTIRA",
+        "PHARMA 99C: ASPIRIN & ADVICE",
+        "MALASADA DYNASTY: SUGAR IS KING",
+        "CIGARS & CARDS: PLOP, PLOP",
+        "CHURCH OF LAST CHANCE GROCERIES",
+        "SEORA CARMEN'S PANADERIA",
+        "PHONE REPAIR: SPANISH, ENGLISH, HUSTLE",
+        "SWEET & SOUR FALAFEL EMPIRE",
+        "BROTHER'S BAKERY & BIBLE STUDY",
+        "LA TIENDA: SI SE PUEDE",
+        "OLD MATT'S ODDS & ENDS",
+      ];
+
       // Fisher-Yates shuffle — used to randomize store names each shift start.
       function shuffleStoreNames(arr) {
         const a = arr.slice();
@@ -8122,6 +8147,136 @@
           hd: 0, // thin stop line at the front face — NOT a depth that lets him walk inside
           stoopX: stoopX,
           stoopHw: stoopHw,
+        };
+        return g;
+      }
+      // ==================== BRONX (MOTT HAVEN) STOREFRONT ====================
+      // Same 8 x 4.5 x 5.5 shell, brick palette, roof, and top-floor window height as
+      // the Bronx row house (makeBronxApartment) — but the ground floor is a
+      // Manhattan-style storefront: kick-plate base, display window, side door with
+      // glass + handle, entrance mat, and a canvas-painted name sign.
+      function makeBronxStore(storeOptions) {
+        const g = new THREE.Group();
+        const cols = [0x8a5a3a, 0x7a4a3a, 0x9a6a5a, 0x6a3a2a];
+        const col = cols[(Math.random() * cols.length) | 0];
+        const w = 8.0,
+          d = 4.5,
+          h = 5.5; // identical footprint/height to the Bronx row house
+        const body = BX(w, d, h, M(col));
+        body.position.z = 0.3 + h / 2;
+        g.add(body);
+        const roof = BX(w - 0.5, d - 0.5, 0.25, M(0x2a2a2a));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
+        const winM = new THREE.MeshLambertMaterial({
+          color: 0x8cc0e8,
+          emissive: 0x1a3a4f,
+          emissiveIntensity: 0.4,
+        });
+        // Top-floor windows (left + right) at the row-house floor height (z 3.9).
+        // The floor below stays plain brick above the sign band (like the row houses).
+        const fyTop = 0.3 + 1.0 + 2 * 1.3;
+        for (let side = -1; side <= 1; side += 2) {
+          const winX = side * w * 0.22;
+          const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+          frame.position.set(winX, -d / 2 + 0.03, fyTop);
+          g.add(frame);
+          const glass = BX(0.6, 0.04, 0.9, winM);
+          glass.position.set(winX, -d / 2 - 0.08, fyTop);
+          g.add(glass);
+        }
+        // ---- Manhattan-style storefront (ground floor) ----
+        // Kick-plate / base below window
+        const kickplate = BX(w - 0.4, 0.4, 0.2, M(0x444444));
+        kickplate.position.set(0, -d / 2 - 0.2, 0.3 + 0.1);
+        g.add(kickplate);
+        // Large display window (narrower, no Z-fighting)
+        const winFrame = BX(3.6, 0.1, 1.4, M(0x222222));
+        winFrame.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(winFrame);
+        const winGlass = BX(
+          3.4,
+          0.04,
+          1.3,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x223344,
+            emissiveIntensity: 0.55,
+          }),
+        );
+        winGlass.position.set(0, -d / 2 - 0.09, 0.3 + 1.15);
+        g.add(winGlass);
+        // Window divider
+        const divider = BX(0.08, 0.08, 1.35, M(0x222222));
+        divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(divider);
+        // Storefront door (side entrance) — first house's on the left, last house's on
+        // the right, so doors don't crowd the intersection gaps.
+        const doorX = storeOptions.isLeft ? -2.6 : 2.6;
+        const door = BX(0.75, 0.06, 1.65, M(0x3a2a1a));
+        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.125);
+        g.add(door);
+        const doorGlass = BX(
+          0.65,
+          0.02,
+          0.65,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x112233,
+            emissiveIntensity: 0.3,
+          }),
+        );
+        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.525);
+        g.add(doorGlass);
+        // Door handle
+        const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
+        handle.position.set(doorX + 0.25, -d / 2 - 0.07, 0.3 + 1.0);
+        g.add(handle);
+        // Sidewalk entrance mat/step
+        const mat = BX(1.0, 0.4, 0.04, M(0x555555));
+        mat.position.set(doorX, -d / 2 - 0.5, 0.31);
+        g.add(mat);
+        // Sign board above window (solid backing)
+        const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+        signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
+        g.add(signBoard);
+        // Store name sign — plane mesh facing outward (not a sprite that always faces camera)
+        const signMat = makeStoreSignMaterial(
+          storeOptions.storeName,
+          storeOptions.isUptown,
+        );
+        const signPlane = new THREE.Mesh(
+          new THREE.PlaneGeometry(6.8, 0.48),
+          signMat,
+        );
+        signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
+        signPlane.rotation.x = Math.PI / 2; // Face outward from building (-Y direction)
+        g.add(signPlane);
+        // Sign crown molding
+        const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+        signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
+        g.add(signCrown);
+        // Step data for collision: the entrance MAT, centered under the door (cx offset)
+        // and wide enough that the worker's stop line (see buildingFront) lands ON it —
+        // stepTopAt then puts his feet at the mat's top so he stands on it, not through it.
+        g.userData.step = {
+          cx: doorX,
+          hw: 0.6,
+          cy: -d / 2 - 0.5,
+          hd: 0.5,
+          top: 0.33,
+        };
+        // Building front wall collision. NOTE: the storefront's NEAREST face is the
+        // kick-plate outer face (0.4 out from the wall), not the wall itself — so the
+        // stop line sits at the kick-plate face. The generic collision then holds the
+        // worker a body-width short of it: his shins never clip the base, and he still
+        // reaches the entrance (mat) dead-on.
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2 - 0.4,
+          hd: 0, // thin stop line at the storefront's nearest face
+          stoopX: 0,
+          stoopHw: 0,
         };
         return g;
       }
@@ -10390,7 +10545,12 @@
         const borough = LEVEL_DAYS[level - 1].borough;
         let hg;
         if (storeOptions && storeOptions.isStore) {
-          hg = makeBrownstone(storeOptions);
+          // Bronx storefronts: Bronx row-house shell + Manhattan storefront design.
+          // Manhattan storefronts: the brownstone store.
+          hg =
+            borough === "THE BRONX"
+              ? makeBronxStore(storeOptions)
+              : makeBrownstone(storeOptions);
         } else {
           const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
           hg = makeBuilding();
@@ -10539,7 +10699,7 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
-        // On Manhattan levels, pick the appropriate store name pool and shuffle it
+        // On Manhattan + Bronx levels, pick the appropriate store name pool and shuffle it
         let storePool = null;
         let isUptown = false;
         if (borough === "MANHATTAN") {
@@ -10551,6 +10711,10 @@
             isUptown = false;
           }
           storePool = shuffleStoreNames(storePool);
+        } else if (borough === "THE BRONX") {
+          // Mott Haven corners: bodegas, laundromats, and the neighborhood
+          storePool = shuffleStoreNames(BRONX_STORE_NAMES);
+          isUptown = false; // bold, loud sign palettes
         }
         let storeIdx = 0;
         // Fixed route: 8 blocks of 10 houses each (Blocks 1 & 8 carry no curb garbage).
@@ -10570,10 +10734,10 @@
             };
             g.position.x = worldX;
             dynamicGroup.add(g);
-            // On Manhattan, the first and last house on each block is a storefront
+            // Manhattan + Bronx: the first and last house on each block is a storefront
             let storeOptions = null;
             if (
-              borough === "MANHATTAN" &&
+              (borough === "MANHATTAN" || borough === "THE BRONX") &&
               (i === 0 || i === HOUSES_PER_BLOCK - 1)
             ) {
               const storeName = storePool[storeIdx % storePool.length];
