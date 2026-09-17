@@ -2043,7 +2043,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.102</div>
+          <div id="app-version" class="menu-version">v1.0.103</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2167,7 +2167,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.102';
+      const APP_VERSION = '1.0.103';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2322,7 +2322,7 @@
         { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 2; // which day a fresh week begins on (2 = Tuesday, The Bronx / Bronxdale). TEMP: set to 2 to develop level 2 — flip back to 1 to ship the full Mon..Sun week
+      const START_LEVEL = 3; // which day a fresh week begins on (3 = Wednesday, Brooklyn / Flatbush). TEMP: set to 3 to develop level 3 — flip back to 1 to ship the full Mon..Sun week
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -7217,6 +7217,25 @@
           step.receiveShadow = true;
           g.add(step);
         }
+        // Solid backing under the two upper steps (top + second) so the stoop doesn't
+        // look like it's floating in the air. Each backing fills from the ground
+        // (z=0.3) up to the bottom of its step, like the Bronx stoop's backing.
+        // Slightly darker brick than the steps so the base reads as shadow.
+        const stepBackingMat = M(0x74482d); // a bit darker than the steps (0x8b5a3a)
+        for (let s = 0; s < 2; s++) {
+          const backingH = (2 - s) * stepH; // bottom of step s down to the ground
+          const backing = BX(stepW, stepD, backingH, stepBackingMat);
+          // Same x/y footprint as its step; top meets the step's bottom (−0.005 to
+          // avoid coplanar z-fighting, matching the Bronx/Brownstone backing).
+          backing.position.set(
+            0,
+            -d / 2 - porchD - (s + 0.5) * stepD,
+            0.3 + backingH / 2 - 0.005,
+          );
+          backing.castShadow = false;
+          backing.receiveShadow = true;
+          g.add(backing);
+        }
 
         // Elevated door on the porch (door bottom above porch level)
         const doorW = 0.9,
@@ -7287,17 +7306,23 @@
           hd: porchD / 2 + 0.4,
           top: 0.3 + porchH + 0.06,
         };
-        // Individual step collision data (for walking up the stairs)
+        // Individual step collision data (for walking up the stairs).
+        // FLATBUSH-SPECIFIC: the x-extent must match the VISUAL step width
+        // (stepW = porchW * 0.45), NOT the full porch width. An earlier version used
+        // porchW/2 + 0.3 here (a pattern copied from full-width porches), which made
+        // the collision ~2.5x wider than the brick steps, so the sanitation worker
+        // stood in mid-air on the sides of the stoop. Tightening hw to the real step
+        // width keeps him on the brick. Depth (hd = stepD+0.2) still overlaps between
+        // steps, so the ramp stays gap-free. Lives only in makeBrooklynFlatbushHouse,
+        // so no other level is touched.
         g.userData.stairs = [];
         for (let s = 0; s < 3; s++) {
           const stepY = -d / 2 - porchD - (s + 0.5) * stepD;
           const stepTop = 0.3 + (2 - s) * stepH + stepH;
-          // Make step collision boxes wide enough to cover the entire step area
-          // and overlap with adjacent steps and the porch to prevent gaps
           g.userData.stairs.push({
             cx: 0,
             cy: stepY,
-            hw: porchW / 2 + 0.3,
+            hw: stepW / 2 + 0.1, // visual step half-width + tiny margin; NOT the full porch
             hd: stepD + 0.2,
             top: stepTop,
           });
