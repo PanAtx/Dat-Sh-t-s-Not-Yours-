@@ -2029,7 +2029,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.100</div>
+          <div id="app-version" class="menu-version">v1.0.101</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2152,7 +2152,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.100';
+      const APP_VERSION = '1.0.101';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12701,6 +12701,7 @@
       const HP_HIT_HAZARD = 5; // a hard static hazard (e.g. hydrant) nicks you a little
       const HP_HIT_DRIVETRIC = 4; // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
       const HP_HIT_PANHANDLER = 1; // a panhandler's shove-and-stink does only very minor damage (the smell, not the elbow)
+      const HP_HIT_JACKER = 2; // bumping the jackhammer guy does minor damage (the buzz, not a beatdown)
       // ---- Flatbush driveway tricycles (kids who chase the worker up the driveway) ----
       const DRIVETR_CHAIN_R = 4.2; // leash radius around a kid's home spot (never reaches the street)
       const DRIVETR_AGGRO_DIST = 6.5; // worker distance that scares a parked kid into attacking
@@ -12968,6 +12969,9 @@
           "Failure to defer to a certified community leader",
           "Failure to satisfy the leader's funding request",
           "Community leader not afforded due deference",
+        ],
+        jacker: [
+          "Delaying city progress.",
         ],
         panhandler: [
           "Failure to provide care to citizen.",
@@ -14037,7 +14041,27 @@
                   "dog",
                 );
               } else if (c.type === "jacker") {
-                /* says nothing - too busy jackhammering */
+                // He's mid-jackhammer and has ZERO patience: a bump earns a
+                // full-volume line and a minor whack (he's working, not playing).
+                Voice.say(
+                  "Don't mess with city progress!",
+                  2.4,
+                  1.1,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "jacker",
+                );
+                Voice.say(
+                  "Don't mess with city progress!",
+                  2.4,
+                  0.95,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                );
+                hurtNPC(HP_HIT_JACKER, "jacker");
               } else if (c.type === "hooker")
                 Voice.say(
                   "Want a date?",

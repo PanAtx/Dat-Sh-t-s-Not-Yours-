@@ -5,6 +5,8 @@
 // 4) RUNTIME: runs the REAL updateCreatures "panhandler" case body with shims
 // 5) RUNTIME: runs the REAL collideCreatures panhandler branch (shove, both
 //    "Man, you stink!" lines, very minor damage, cooldown, knockback both ways)
+// 6) jacker (the jackhammer guy): collision line + minor damage +
+//    "Delaying city progress." write-up reason
 const fs = require("fs");
 const path = require("path");
 const html = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
@@ -300,6 +302,64 @@ check("bump: no second stink-dump while the cooldown runs", rec.hurt === 1);
 c2.stinkCd = 0;
 runBump(c2, p2, dx, dy, d2, rad, clamp, workerMaxY, Voice, hurtNPC, spawnDustEffect, doStun, HP_HIT_PANHANDLER, WORKER_GENDER);
 check("bump: stinks again once the cooldown lapses", rec.hurt === 2);
+
+console.log("[6] jacker (the jackhammer guy) collision");
+check(
+  "HP_HIT_JACKER is MINOR damage (2, above the stink's 1, far below a vehicle's 8)",
+  html.indexOf("const HP_HIT_JACKER = 2;") >= 0,
+);
+const jackerBranch = extractIfBlock('} else if (c.type === "jacker") {');
+check("jacker bump branch exists in the solid-guy collision block", !!jackerBranch);
+check(
+  "jacker says 'Don't mess with city progress!'",
+  jackerBranch && jackerBranch.indexOf("Don't mess with city progress!") >= 0,
+);
+check(
+  "jacker bump does minor damage tagged to the jacker",
+  jackerBranch && jackerBranch.indexOf('hurtNPC(HP_HIT_JACKER, "jacker")') >= 0,
+);
+check(
+  "write-up reason 'Delaying city progress.' is mapped to the jacker",
+  /jacker:\s*\[\s*"Delaying city progress\."/.test(html),
+);
+// RUNTIME: run the REAL branch body with shims (same harness style as [5])
+const recJ = { hurt: 0, dmg: 0, cause: null };
+const hurtJ = (a, cause) => {
+  recJ.hurt++;
+  recJ.dmg += a;
+  recJ.cause = cause;
+};
+const HP_HIT_JACKER = 2;
+const jBody = jackerBranch.replace(/^\}\s*else if/, "if");
+const runJacker = new Function(
+  "c",
+  "p",
+  "Voice",
+  "hurtNPC",
+  "HP_HIT_JACKER",
+  "WORKER_GENDER",
+  jBody,
+);
+voices.length = 0;
+const cj = { type: "jacker", wx: 55, wy: 3.5, gender: "male" };
+const pj = { wx: 55.8, wy: 3.5 };
+runJacker(cj, pj, Voice, hurtJ, HP_HIT_JACKER, "male");
+check(
+  "jacker bump: he says 'Don't mess with city progress!'",
+  voices.some((v) => v.t === "Don't mess with city progress!" && v.type === "jacker"),
+);
+check(
+  "jacker bump: the worker fires back the same line",
+  voices.some((v) => v.t === "Don't mess with city progress!" && v.type === "worker"),
+);
+check(
+  "jacker bump: MINOR damage (exactly 2 HP, not a vehicle hit)",
+  recJ.hurt === 1 && recJ.dmg === 2,
+);
+check(
+  "jacker bump: the offense is recorded as the jacker (feeds the write-up stamp)",
+  recJ.cause === "jacker",
+);
 
 console.log("");
 console.log(pass + " passed, " + fail + " failed");
