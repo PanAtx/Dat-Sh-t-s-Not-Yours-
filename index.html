@@ -8904,29 +8904,46 @@
           earIn.position.set(0.31, s * 0.088, 0.395);
           g.add(earIn);
         });
-        // four short dark legs
-        [
-          [0.14, 0.13],
-          [0.14, -0.13],
-          [-0.16, 0.14],
-          [-0.16, -0.14],
-        ].forEach((p) => {
+        // four short dark legs on hip/shoulder pivots so they can scurry
+        const legDefs = {
+          legFL: [0.14, 0.13],
+          legFR: [0.14, -0.13],
+          legHL: [-0.16, 0.14],
+          legHR: [-0.16, -0.14],
+        };
+        const racLegs = {};
+        Object.keys(legDefs).forEach((name) => {
+          const p = legDefs[name];
+          const pivot = new THREE.Group();
+          pivot.position.set(p[0], p[1], 0.13); // hip sits at the body's underside
           const leg = CY(0.032, 0.04, 0.12, dark, 10);
-          leg.rotation.x = Math.PI / 2;
-          leg.position.set(p[0], p[1], 0.07);
-          g.add(leg);
+          leg.rotation.x = Math.PI / 2; // hang down from the hip
+          leg.position.set(0, 0, -0.06);
+          pivot.add(leg);
+          g.add(pivot);
+          racLegs[name] = pivot;
         });
-        // bushy banded tail: tapered alternating segments arcing up behind
+        // bushy banded tail on a pivot so it can wag: tapered alternating segments arcing up behind
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.26, 0, 0.26);
+        g.add(tailPivot);
         const cols = [fur, dark, fur, dark, light];
-        let tx = -0.26,
-          tz = 0.26;
+        let tx = 0,
+          tz = 0;
         cols.forEach((col, i) => {
           const seg = SPH(0.055 - i * 0.006, col);
           seg.position.set(tx, 0, tz);
-          g.add(seg);
+          tailPivot.add(seg);
           tx -= 0.095;
           tz += 0.035;
         });
+        g.userData.raccoon = {
+          legFL: racLegs.legFL,
+          legFR: racLegs.legFR,
+          legHL: racLegs.legHL,
+          legHR: racLegs.legHR,
+          tailPivot: tailPivot,
+        };
         return g;
       }
       function makeSquirrel() {
@@ -13880,6 +13897,16 @@
           } else if (c.type === "squirrel") {
             c.flee = 1.8;
             c.dir = dx >= 0 ? -1 : 1;
+            // spooking the squirrel is an offense against the worker's dignity
+            Voice.say(
+              "Gimme that nut, squirrel!",
+              2.0,
+              1.0,
+              p.wx,
+              p.wy,
+              WORKER_GENDER,
+              "worker",
+            );
             if (carry !== "none" && Math.random() < 0.4) dropCarried();
             doStun(0.5, "trip");
           } else if (c.type === "raccoon") {
@@ -14310,6 +14337,20 @@
         // bushy tail flicks with a slower wave, head bobs with the stride
         parts.tailPivot.rotation.x = Math.sin(c.phase * 0.6) * 0.22;
         parts.headPivot.rotation.y = Math.sin(c.phase * 2) * 0.07;
+      }
+      function animRaccoon(c, dphase) {
+        c.phase = (c.phase || 0) + dphase;
+        const parts = c.g.userData.raccoon;
+        if (!parts) return;
+        // scurry trot: diagonal leg pairs (FL+HR vs FR+HL) swing fore-aft at the
+        // hip/shoulder pivots, same gait convention as the dog/cat trot
+        const s = Math.sin(c.phase) * 0.7;
+        parts.legFL.rotation.y = s;
+        parts.legHR.rotation.y = s;
+        parts.legFR.rotation.y = -s;
+        parts.legHL.rotation.y = -s;
+        // the bushy tail wags with a slower wave
+        parts.tailPivot.rotation.z = Math.sin(c.phase * 0.5) * 0.18;
       }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
@@ -14948,7 +14989,7 @@
                 );
                 c.g.rotation.z =
                   away >= 0 ? R(-0.25, 0.25) : Math.PI + R(-0.25, 0.25); // face the direction it scurries
-                animParts(c, dt * 25);
+                animRaccoon(c, dt * 7 * 5.5); // legs scurry at his sprint speed
               } else if (c.t > 0) {
                 c.t -= dt;
               } else {
@@ -14968,7 +15009,7 @@
                   c.tx = R(p.wx - 30, p.wx + 40);
                   c.ty = R(1, creatureMaxY());
                 }
-                animParts(c, dt * 12);
+                animRaccoon(c, dt * racSp * 5.5); // legs scurry at his actual walking speed
               }
               c.g.position.z = c.g.position.z; // keep
               break;
