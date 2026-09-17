@@ -117,7 +117,8 @@ function runLeashDogCase(c, lvl){
   global.c = c;
   global.isFlatbushLevel = () => !!lvl.flatbush;
   global.isManhattanLevel = () => !!lvl.manhattan;
-  global.isBronxLevel = () => !!lvl.bronx;
+  global.DOG_PALETTES = { yellow: { fur: 0xdbc480, ear: 0xc4a84e, nose: 0x14100e, tag: 0xc0c0c0 }, darkbrown: { fur: 0x4a2c18, ear: 0x3a2010, nose: 0x14100e, tag: 0xc0c0c0 }, husky: { fur: 0xe0e4e8, ear: 0x888888, nose: 0x14100e, tag: 0xc0c0c0 }, spotted: { fur: 0xf0f0f0, spot: 0x141414, ear: 0xe0e0e0, nose: 0x14100e, tag: 0xc0c0c0 } };
+global.isBronxLevel = () => !!lvl.bronx;
   rec.hurt=0; rec.dmg=0; rec.stun=0; rec.blood=0; rec.lines=[];
   vm.runInThisContext(wrap, { filename: 'leashdog-case' });
 }
