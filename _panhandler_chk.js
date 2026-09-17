@@ -106,7 +106,7 @@ check(
   ),
 );
 const addCase = html.slice(html.indexOf('case "panhandler":'), html.indexOf('case "skater":', html.indexOf('case "panhandler":')));
-check("panhandler moves on a slow hungry shuffle (0.6-0.9)", addCase.indexOf("c.sp = R(0.6, 0.9)") >= 0);
+check("panhandler moves on a fast hungry hustle (1.0-1.5)", addCase.indexOf("c.sp = R(1.0, 1.5)") >= 0);
 check("panhandler speaks as a man", addCase.indexOf('c.gender = "male"') >= 0);
 check("updateCreatures has a panhandler case", html.indexOf('case "panhandler": {') >= 0);
 const caseIdx = html.indexOf('case "panhandler": {');
