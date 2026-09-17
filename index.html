@@ -1125,6 +1125,20 @@
         height: auto;
         filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.85));
       }
+      /* "Rated M for Mongo" gag badge — mirrors the PA badge (bottom-right) but is
+   pinned to the bottom-LEFT corner of the logo frame. Small, click-through,
+   decorative; sized to sit in the corner like an Xbox/PlayStation M rating tag. */
+      .menu-m {
+        position: absolute;
+        bottom: 8px;
+        left: 8px;
+        z-index: 3;
+        pointer-events: none;
+        width: clamp(52px, 6.5vw, 80px);
+        max-width: 80px;
+        height: auto;
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.85));
+      }
       /* Build/version tag pinned to the TOP-LEFT of the logo frame (the PA badge owns the
    bottom-right, the START SHIFT bar owns the bottom). Small, dim, decorative -
    click-through so it never blocks the radio widget or START SHIFT. */
@@ -2029,7 +2043,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.101</div>
+          <div id="app-version" class="menu-version">v1.0.102</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2041,6 +2055,7 @@
             src="explicit_logo.webp"
             alt="Parental Advisory: Explicit Lyrics"
           />
+          <img class="menu-m" src="mmongo.jpg" alt="Rated M for Mongo" />
         </div> </div
     ></div>
     <!-- iOS Safari fullscreen nudge: hidden until the menu is shown on an iPhone/iPad
@@ -2152,7 +2167,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.101';
+      const APP_VERSION = '1.0.102';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3093,6 +3108,12 @@
           this.ensure();
           this.tone("square", 150, 55, 0.22, 0.5);
           this.noise(0.2, "bandpass", 700, 0.4);
+        },
+        playConeKnock() {
+          this.ensure();
+          this.tone("square", 200, 90, 0.12, 0.45); // body thud
+          this.noise(0.14, "bandpass", 1300, 0.5); // clack of plastic on concrete
+          this.tone("sine", 70, 45, 0.22, 0.5, 0.02); // low knock
         },
         playPickupSound() {
           this.ensure();
@@ -7443,6 +7464,142 @@
         g.position.set(wx - b.worldX, wy, GZ);
         b.group.add(g);
       }
+      // ==================== ROADWORK TRAFFIC CONE (knockable prop) ====================
+      // A black square base, a bright orange body, two reflective white stripes near the
+      // top and an orange tip. The base plate stays on the ground; the body (cone + stripes
+      // + tip) is a child group that pivots on the base center, so a knocked cone flops over
+      // with a wobble instead of sinking into the road. Cones are registered on their block
+      // (b.cones) and animated by updateConeProps().
+      const CONE_TOPPLE = 1.35; // radians (~77 deg): how far a knocked cone's body flops over
+      const CONE_KNOCK_R = 0.85; // world distance at which the worker's bump registers
+      function makeTrafficCone() {
+        const rc = new THREE.Group();
+        const cOrange = M(0xff5a1f); // bright traffic orange (matte body)
+        const cBase = M(0x202329); // dark charcoal square base
+        const cBaseHi = M(0x2d3138); // raised top plate for a bit of depth
+        const cWhite = MS(0xf4f7fa, {
+          side: THREE.DoubleSide,
+          metalness: 0.5,
+          roughness: 0.3,
+          emissive: 0xcfd9e6, // soft cool glow so the bands read as reflective vinyl
+          emissiveIntensity: 0.4,
+        });
+        // black square base + a slightly smaller raised plate on top (stays on the ground)
+        const rcBase = BX(0.54, 0.54, 0.12, cBase);
+        rcBase.position.set(0, 0, 0.06);
+        rc.add(rcBase);
+        const rcPlate = BX(0.44, 0.44, 0.03, cBaseHi);
+        rcPlate.position.set(0, 0, 0.125);
+        rc.add(rcPlate);
+        // the tip-able body: bright orange cone + two reflective stripes + orange tip
+        const body = new THREE.Group();
+        rc.add(body);
+        const RC_R = 0.21,
+          RC_H = 0.58,
+          RC_BZ = 0.09;
+        const rcCone = new THREE.Mesh(
+          new THREE.ConeGeometry(RC_R, RC_H, 24),
+          cOrange,
+        );
+        rcCone.rotation.x = Math.PI / 2;
+        rcCone.position.set(0, 0, RC_BZ + RC_H / 2);
+        rcCone.castShadow = true;
+        body.add(rcCone);
+        // two reflective white stripes wrapping the upper cone, sized to follow the taper
+        const rAt = (h) => RC_R * (1 - h / RC_H);
+        [0.36, 0.475].forEach((hC) => {
+          const th = 0.08;
+          const s = CY(
+            rAt(hC + th / 2) * 1.08, // top radius (follows the taper)
+            rAt(hC - th / 2) * 1.08, // bottom radius (follows the taper)
+            th,
+            cWhite,
+            24,
+          );
+          s.rotation.x = Math.PI / 2;
+          s.position.set(0, 0, RC_BZ + hC);
+          body.add(s);
+        });
+        // orange tip / collar at the apex
+        const rcTip = CY(0.045, 0.062, 0.07, cOrange, 18);
+        rcTip.rotation.x = Math.PI / 2;
+        rcTip.position.set(0, 0, RC_BZ + RC_H - 0.028);
+        body.add(rcTip);
+        rc.userData.body = body; // the part that topples when knocked
+        return rc;
+      }
+      // Ground-plane rotation axis for a cone whose body falls toward angle c.axisA.
+      function coneFallAxis(c) {
+        return new THREE.Vector3(-Math.sin(c.axisA), Math.cos(c.axisA), 0);
+      }
+      // Register one placed cone as a knockable prop on its block.
+      function registerCone(b, rc, wx, wy, preFallen) {
+        const c = {
+          g: rc,
+          body: rc.userData.body,
+          wx: wx,
+          wy: wy,
+          r: CONE_KNOCK_R,
+          state: preFallen ? "knocked" : "up",
+          axisA: Math.random() * Math.PI * 2, // re-aimed "away from the worker" on a live knock
+          tilt: 0,
+          tiltVel: 0,
+        };
+        if (preFallen) {
+          c.tilt = CONE_TOPPLE;
+          c.body.quaternion.setFromAxisAngle(coneFallAxis(c), c.tilt);
+        }
+        (b.cones = b.cones || []).push(c);
+        return c;
+      }
+      // Per-frame cone update: detect a worker bump (toppling an upright cone with a
+      // wobble) and integrate the spring for every cone that has been knocked.
+      function updateConeProps(dt) {
+        if (state !== "play") return;
+        const canKnock = p.invuln <= 0 && p.immuneT <= 0; // immune = walk right through
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (!b.cones || b.cones.length === 0) continue;
+          for (let j = 0; j < b.cones.length; j++) {
+            const c = b.cones[j];
+            if (c.state === "up" && canKnock) {
+              const dx = c.wx - p.wx,
+                dy = c.wy - p.wy;
+              if (dx * dx + dy * dy <= c.r * c.r) {
+                c.state = "knocked";
+                c.axisA = Math.atan2(dy, dx); // topples AWAY from the worker (he shoved it)
+                c.tiltVel += 12; // energetic kick in the fall direction
+                const d = Math.sqrt(dx * dx + dy * dy) || 0.001;
+                p.wx -= (dx / d) * 0.12; // gentle shove back so the bump feels physical
+                p.wy -= (dy / d) * 0.12;
+                SFX.playConeKnock();
+                if (Math.random() < 0.5)
+                  Voice.say(
+                    pick([
+                      "Hey! Watch the cones!",
+                      "Careful! That's a cone!",
+                      "Don't knock 'em over!",
+                    ]),
+                    2.2,
+                    0.9,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+              }
+            }
+            if (c.state === "knocked") {
+              c.tiltVel += (CONE_TOPPLE - c.tilt) * 64 * dt; // spring toward the flopped angle
+              c.tiltVel *= Math.exp(-5.8 * dt); // under-critical damping -> a little wobble
+              c.tilt += c.tiltVel * dt;
+              if (c.tilt < -0.3) c.tilt = -0.3;
+              if (c.tilt > 1.75) c.tilt = 1.75;
+              c.body.quaternion.setFromAxisAngle(coneFallAxis(c), c.tilt);
+            }
+          }
+        }
+      }
       function addPothole(b, wx, wy) {
         const g = new THREE.Group();
         const hole = new THREE.Mesh(
@@ -7459,20 +7616,24 @@
           chip.rotation.z = a;
           g.add(chip);
         }
-        const cone = new THREE.Mesh(
-          new THREE.ConeGeometry(0.16, 0.45, 8),
-          M(0xe8762a),
-        );
-        cone.rotation.x = Math.PI / 2;
-        cone.position.set(1.1, 0.4, 0.225);
-        cone.castShadow = true;
-        g.add(cone);
-        const band = new THREE.Mesh(
-          new THREE.TorusGeometry(0.11, 0.03, 6, 10),
-          M(0xf5f0e8),
-        );
-        band.position.set(1.1, 0.4, 0.1);
-        g.add(band);
+        // --- Roadwork traffic cone(s) beside the pothole: always one upright cone,
+        //     sometimes a second for a "roadwork pair", and occasionally one is already
+        //     knocked over by a previous worker. Each is a knockable prop — the running
+        //     worker can bump them over (see updateConeProps). ---
+        const coneSpots = [{ lx: 1.1, ly: 0.4, fallen: false }];
+        if (Math.random() < 0.4) {
+          coneSpots.push({ lx: R(0.5, 2.1), ly: R(-0.3, 0.9), fallen: false });
+        }
+        if (coneSpots.length === 2 && Math.random() < 0.4)
+          coneSpots[1].fallen = true;
+        else if (coneSpots.length === 1 && Math.random() < 0.12)
+          coneSpots[0].fallen = true;
+        for (const cs of coneSpots) {
+          const rc = makeTrafficCone();
+          rc.position.set(cs.lx, cs.ly, 0);
+          g.add(rc);
+          registerCone(b, rc, wx + cs.lx, wy + cs.ly, cs.fallen);
+        }
         g.position.set(wx - b.worldX, wy, GZ);
         b.group.add(g);
         b.hazards.push({
@@ -11121,6 +11282,7 @@
           disposeObj(c);
         }
         b.hazards = [];
+        b.cones = [];
         const borough = LEVEL_DAYS[level - 1].borough;
         let hg;
         if (storeOptions && storeOptions.isStore) {
@@ -18187,6 +18349,7 @@
           collideStatic(dt);
           collideLandedCans();
           collideCreatures();
+          updateConeProps(dt); // knockable traffic cones: bump detection + topple wobble
           updateHUD();
           updateBulbGlow(performance.now() / 1000); // porch light flicker (uses real time so flicker is consistent)
         } else if (state === "routeend") {
@@ -18272,6 +18435,7 @@
         { url: "coffee_shop_cup.glb", size: 144300, label: "COFFEE CUP" },
         { url: "dsnylogo3.jpg", size: 2619573, label: "TITLE ART" },
         { url: "explicit_logo.webp", size: 20448, label: "TITLE ART" },
+        { url: "mmongo.jpg", size: 87497, label: "M RATING" },
       ];
       const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
       let _preloading = false;

@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.101';
-var APP_VERSION = '1.0.101';
+var CACHE_NAME = 'dsnboy-shell-v1.0.102';
+var APP_VERSION = '1.0.102';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -34,6 +34,7 @@ var SHELL = [
   './index.html',
   './dsnylogo3.jpg',    // menu logo (also preloaded by the game gate)
   './explicit_logo.webp', // "Parental Advisory" gag badge on the logo
+  './mmongo.jpg', // "Rated M for Mongo" gag badge on the logo
   './manifest.json',    // PWA manifest (official title for "Add to Home Screen")
   './music/manifest.json', // radio track list (needed OFFLINE so the station can
                            // discover which tracks are in the radio cache)
