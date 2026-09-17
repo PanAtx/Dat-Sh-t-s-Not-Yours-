@@ -66,6 +66,9 @@ check('Bronx two-wheeler override only touches d2 (d1 + d3..d7 keep the plain ga
   [1, 3, 4, 5, 6, 7].every(d =>
     npcCounts(d).moto === (d >= GATED_NPC.moto ? BASE_NPC_COUNTS.moto + (d - GATED_NPC.moto) : 0) &&
     npcCounts(d).ebike === (d >= GATED_NPC.ebike ? BASE_NPC_COUNTS.ebike + (d - GATED_NPC.ebike) : 0)));
+// ---- Bronx (d2): no breakers on these streets ----
+check('Bronx (d2) has no breaker (npcCounts(2).breaker === 0)', npcCounts(2).breaker === 0, 'breaker=' + npcCounts(2).breaker);
+[1, 3, 4, 5, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
 
 console.log(ok ? '\nROSTER CHECKS PASSED' : '\nROSTER CHECKS FAILED');
 process.exit(ok ? 0 : 1);

@@ -2374,6 +2374,8 @@
             // Street tricycles too - the only tricycles on Flatbush are the 3 driveway kids.
             if (day === 3 && (t === "hooker" || t === "yeller" || t === "tric"))
               base = 0;
+            // Bronx (Mott Haven, d2): no breakers - no dance crews on these streets.
+            if (day === 2 && t === "breaker") base = 0;
             // No skateboarders on the Manhattan days (Uptown d1, Harlem d6) or Bed-Stuy (d7).
             if (t === "skater" && (day === 1 || day === 6 || day === 7))
               base = 0;
