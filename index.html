@@ -8073,20 +8073,20 @@
         });
         for (let floor = 0; floor < 3; floor++) {
           const fy = 0.3 + 1.0 + floor * 1.3;
-          // Left window on every floor
-          const leftFrame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
-          leftFrame.position.set(-w * 0.22, -d / 2 + 0.03, fy);
+          // Left window on every floor — larger and further apart for Bronx scale
+          const leftFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
+          leftFrame.position.set(-w * 0.35, -d / 2 + 0.03, fy);
           g.add(leftFrame);
-          const leftGlass = BX(0.6, 0.04, 0.9, winM);
-          leftGlass.position.set(-w * 0.22, -d / 2 - 0.08, fy);
+          const leftGlass = BX(0.9, 0.04, 1.1, winM);
+          leftGlass.position.set(-w * 0.35, -d / 2 - 0.08, fy);
           g.add(leftGlass);
           // Right window only on top floor (floors 0/1 blocked by stoop/door)
           if (floor >= 2) {
-            const rightFrame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
-            rightFrame.position.set(w * 0.22, -d / 2 + 0.03, fy);
+            const rightFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
+            rightFrame.position.set(w * 0.35, -d / 2 + 0.03, fy);
             g.add(rightFrame);
-            const rightGlass = BX(0.6, 0.04, 0.9, winM);
-            rightGlass.position.set(w * 0.22, -d / 2 - 0.08, fy);
+            const rightGlass = BX(0.9, 0.04, 1.1, winM);
+            rightGlass.position.set(w * 0.35, -d / 2 - 0.08, fy);
             g.add(rightGlass);
           }
         }
@@ -8094,11 +8094,11 @@
         const stoop = makeRowHouseStoop(d, 6, 0.17, 0.3);
         stoop.position.x = w * 0.2;
         g.add(stoop);
-        const door = BX(0.8, 0.08, 1.6, M(0x3a2010));
-        door.position.set(w * 0.2, -d / 2 - 0.05, 0.3 + 1.7);
+        const door = BX(1.0, 0.08, 2.0, M(0x3a2010));
+        door.position.set(w * 0.2, -d / 2 - 0.05, 0.3 + 1.9);
         g.add(door);
-        const doorFrame = BX(0.9, 0.1, 1.7, M(0x2a1a0a));
-        doorFrame.position.set(w * 0.2, -d / 2 + 0.01, 0.3 + 1.7);
+        const doorFrame = BX(1.1, 0.1, 2.1, M(0x2a1a0a));
+        doorFrame.position.set(w * 0.2, -d / 2 + 0.01, 0.3 + 1.9);
         g.add(doorFrame);
         const lampBulb = SPH(
           0.05,
@@ -8177,11 +8177,11 @@
         // The floor below stays plain brick above the sign band (like the row houses).
         const fyTop = 0.3 + 1.0 + 2 * 1.3;
         for (let side = -1; side <= 1; side += 2) {
-          const winX = side * w * 0.22;
-          const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
+          const winX = side * w * 0.30;
+          const frame = BX(0.8, 0.1, 1.0, M(0x1a1a1a));
           frame.position.set(winX, -d / 2 + 0.03, fyTop);
           g.add(frame);
-          const glass = BX(0.6, 0.04, 0.9, winM);
+          const glass = BX(0.7, 0.04, 0.9, winM);
           glass.position.set(winX, -d / 2 - 0.08, fyTop);
           g.add(glass);
         }
@@ -8213,20 +8213,20 @@
         // Storefront door (side entrance) — first house's on the left, last house's on
         // the right, so doors don't crowd the intersection gaps.
         const doorX = storeOptions.isLeft ? -2.6 : 2.6;
-        const door = BX(0.75, 0.06, 1.65, M(0x3a2a1a));
-        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.125);
+        const door = BX(0.75, 0.06, 1.85, M(0x3a2a1a));
+        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.225);
         g.add(door);
         const doorGlass = BX(
           0.65,
           0.02,
-          0.65,
+          0.85,
           new THREE.MeshLambertMaterial({
             color: 0x88bbdd,
             emissive: 0x112233,
             emissiveIntensity: 0.3,
           }),
         );
-        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.525);
+        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.725);
         g.add(doorGlass);
         // Door handle
         const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
@@ -10831,6 +10831,36 @@
           b.group.add(line);
         }
       }
+      // ==================== BRONX LEASHED-DOG HELPERS ====================
+      // Bronx spawns ONE leashed street dog per active (garbage) block. Each dog ties to a real
+      // sidewalk fixture — either a post at the curb (Manhattan-style) or a post at the foot of
+      // that block's stoop, so it can climb the steps up to the building wall and stop there
+      // (never enter), exactly like the sanitation worker. These helpers pick free blocks and
+      // locate a block's stoop for that placement.
+      const bronxDogBlocks = LEVEL_BLOCKS.filter(
+        (bl) => bl.garbage === true && bl.x >= 96 && bl.x <= 576,
+      );
+      // A house-level block entry (from the live `blocks` array) that has a stoop, for a given
+      // active-block x. Returns null if this block's houses are all storefronts (no steps).
+      function bronxStairHouse(blockX) {
+        for (let i = 0; i < blocks.length; i++) {
+          const hb = blocks[i];
+          if (hb.blockX === blockX && hb.stairs && hb.stairs.length) return hb;
+        }
+        return null;
+      }
+      // For recycling: a currently-free active block (one not already holding a living dog), so
+      // the route keeps ~1 dog per block even as dogs hop ahead off-screen.
+      function freeBronxDogBlock() {
+        const taken = new Set();
+        for (let i = 0; i < creatures.length; i++) {
+          const c = creatures[i];
+          if (c.type === "leashdog" && c.bronxBlock) taken.add(c.bronxBlock);
+        }
+        const free = bronxDogBlocks.filter((b) => !taken.has(b));
+        const pool = free.length ? free : bronxDogBlocks;
+        return pool[(Math.random() * pool.length) | 0];
+      }
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
@@ -10910,7 +10940,11 @@
             }
           }
         }
-        const dogCount = isFlatbushLevel() ? 3 : 1;
+        const dogCount = isFlatbushLevel()
+          ? 3
+          : isBronxLevel()
+            ? bronxDogBlocks.length // one leashed dog per active block
+            : 1;
         for (let d = 0; d < dogCount; d++) {
           const ld = addCreature("leashdog");
           {
@@ -11005,55 +11039,91 @@
                 ld.homeX - ld.anchorX,
               );
             } else if (isBronxLevel()) {
-              // Bronx-exclusive COPY of the Manhattan leashed-dog placement. The Bronx
-              // uses makeBronxLeashDog + tieBronxLeashChain and builds NO doghouse — the
-              // chain ties to a real sidewalk fixture (tree or fence post) at the curb,
-              // exactly like Manhattan. This block is a copy so it can be modified without
-              // touching Manhattan's placement above. SIDEBWALK-ONLY: active gameplay
-              // blocks only, with a proper sidewalk margin.
-              const activeBlocks = LEVEL_BLOCKS.filter(
-                (b) => b.garbage === true && b.x >= 96 && b.x <= 576,
-              );
-              const b = activeBlocks[(Math.random() * activeBlocks.length) | 0];
-              ld.anchorX = clamp(
-                b.x + 10.0 + R(0, 60.0),
-                b.x + 10.0,
-                b.x + BLOCK_W - 10.0,
-              );
-              ld.anchorY = R(0.85, 1.05); // right at the curb, up against the walk
-              ld.blockMinX = b.x + 6.0;
-              ld.blockMaxX = b.x + BLOCK_W - 6.0;
-              // The leash ties to a visible fixture: a sidewalk tree or a fence post
-              if (Math.random() < 0.5) {
-                ld.anchorObj = makeSidewalkTree();
-                ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ);
-              } else {
+              // Bronx: ONE leashed dog per active block. b is this block's assignment (the loop
+              // runs bronxDogBlocks.length times). The post ties to a real sidewalk fixture —
+              // either at the curb (Manhattan-style) or at the foot of this block's stoop, so the
+              // dog can climb the steps up to the building wall and stop there (never enter),
+              // exactly like the sanitation worker. anchorType drives that movement clamp in
+              // updateCreatures. No doghouse on the Bronx.
+              const b = bronxDogBlocks[d];
+              ld.bronxBlock = b;
+              const hb = bronxStairHouse(b.x);
+              const onStoop = hb && Math.random() < 0.5;
+              if (onStoop) {
+                // Post at the foot of the stoop, offset left or right so it sits on the sidewalk
+                // beside the steps rather than blocking them (real-world NYC: tied to a post next
+                // to the entrance, not in the doorway).
+                ld.anchorType = "stoop";
+                const stair = hb.stairs;
+                const stairX = (stair[0].x0 + stair[0].x1) / 2;
+                const postOffset = Math.random() < 0.5 ? -1.5 : 1.5; // left or right of the stoop
+                const stairFootY = stair[0].y0; // outer edge of the bottom step
+                const stairTopY = stair[stair.length - 1].y1; // inner edge, near the wall
+                ld.anchorX = clamp(stairX + postOffset, b.x + 10.0, b.x + BLOCK_W - 10.0);
+                ld.anchorY = clamp(stairFootY, 0.85, stairTopY);
+                ld.blockMinX = b.x + 6.0;
+                ld.blockMaxX = b.x + BLOCK_W - 6.0;
+                // Bronx uses posts only (no trees).
                 ld.anchorObj = makePostMesh();
                 ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
+                dynamicGroup.add(ld.anchorObj);
+                ld.homeX = ld.anchorX + R(-0.4, 0.8);
+                ld.homeY = clamp(
+                  ld.anchorY + R(0.6, 1.4),
+                  ld.anchorY,
+                  stairTopY,
+                );
+                ld.wx = ld.homeX;
+                ld.wy = ld.homeY;
+                // Ties HIGH: the fixture is vertical, so the chain connects to the TOP of the
+                // fixture (z 1.5) and tilts down to the dog's collar (z 0.62).
+                tieBronxLeashChain(
+                  ld.chain,
+                  ld.anchorX,
+                  ld.anchorY,
+                  1.5,
+                  ld.wx,
+                  ld.wy,
+                  0.62,
+                );
+                dynamicGroup.add(ld.chain);
+                ld.g.rotation.z = Math.atan2(
+                  ld.homeY - ld.anchorY,
+                  ld.homeX - ld.anchorX,
+                );
+              } else {
+                // Post at the curb: dog stays on the walk and lunges out to the street edge.
+                ld.anchorType = "curb";
+                ld.anchorX = clamp(
+                  b.x + 10.0 + R(0, 60.0),
+                  b.x + 10.0,
+                  b.x + BLOCK_W - 10.0,
+                );
+                ld.anchorY = R(0.85, 1.05); // right at the curb, up against the walk
+                ld.blockMinX = b.x + 6.0;
+                ld.blockMaxX = b.x + BLOCK_W - 6.0;
+                ld.anchorObj = makePostMesh();
+                ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
+                dynamicGroup.add(ld.anchorObj);
+                ld.homeX = ld.anchorX + R(-0.4, 0.8);
+                ld.homeY = clamp(ld.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
+                ld.wx = ld.homeX;
+                ld.wy = ld.homeY;
+                tieBronxLeashChain(
+                  ld.chain,
+                  ld.anchorX,
+                  ld.anchorY,
+                  1.5,
+                  ld.wx,
+                  ld.wy,
+                  0.62,
+                );
+                dynamicGroup.add(ld.chain);
+                ld.g.rotation.z = Math.atan2(
+                  ld.homeY - ld.anchorY,
+                  ld.homeX - ld.anchorX,
+                );
               }
-              dynamicGroup.add(ld.anchorObj);
-              // Home position on the walk, set back from the curb; the chain clamp keeps the
-              // dog at wy >= 0.85 so it never steps onto the street but can lunge to the curb.
-              ld.homeX = ld.anchorX + R(-0.4, 0.8);
-              ld.homeY = clamp(ld.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
-              ld.wx = ld.homeX;
-              ld.wy = ld.homeY;
-              // Ties HIGH: the fixture is vertical, so the chain connects to the TOP of the
-              // fixture (z 1.5) and tilts down to the dog's collar (z 0.62).
-              tieBronxLeashChain(
-                ld.chain,
-                ld.anchorX,
-                ld.anchorY,
-                1.5,
-                ld.wx,
-                ld.wy,
-                0.62,
-              );
-              dynamicGroup.add(ld.chain);
-              ld.g.rotation.z = Math.atan2(
-                ld.homeY - ld.anchorY,
-                ld.homeX - ld.anchorX,
-              );
             } else {
               // Original doghouse placement for other non-Manhattan levels
               // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
@@ -14201,6 +14271,22 @@
         }
         return top;
       }
+      // Bronx leashed dogs climb the stoop but stop at the building wall — the same stop line
+      // (a body-width off the front face, like the sanitation worker) so a dog never clips into
+      // the masonry. Returns Infinity when no building front is under wx (open sidewalk), so a
+      // curb-side dog is only ever limited by the sidewalk floor and the leash.
+      function dogStopY(wx) {
+        const WALL_STOP = 0.3;
+        let stop = Infinity;
+        for (let i = 0; i < blocks.length; i++) {
+          const bf = blocks[i].buildingFront;
+          if (bf && wx >= bf.x0 && wx <= bf.x1) {
+            const s = bf.y1 - WALL_STOP;
+            if (s < stop) stop = s;
+          }
+        }
+        return stop;
+      }
       function updateCreatures(dt) {
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
@@ -14213,6 +14299,8 @@
               const sprintPed = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
               c.wx += pedSp * dt;
+              // Bronx: keep pedestrians on the sidewalk (y >= 0.75), never on the street.
+              if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);
               animParts(c, pedSp * dt * 2.2);
               if (tx > 55) {
                 c.wx = p.wx - 38;
@@ -15586,38 +15674,97 @@
               // from its anchor and tries to lunge at the worker.
               if (c.wx - p.wx < -55 && !isFlatbushLevel()) {
                 if (isManhattanLevel() || isBronxLevel()) {
-                  let targetX = p.wx + 44 + R(0, 10);
-                  let blockIdx = Math.floor(targetX / 96);
-                  let posInCycle = targetX % 96;
-                  if (posInCycle > 80) {
-                    targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
-                  } else if (posInCycle < 10 || posInCycle > 70) {
-                    targetX = blockIdx * 96 + 10 + R(0, 60);
-                  }
-                  c.anchorX = targetX;
-                  c.anchorY = R(0.85, 1.05);
-                  // Update sidewalk bounds for the new block so the dog isn't clamped to its old block
-                  let newBlockIdx = Math.floor(targetX / 96);
-                  c.blockMinX = newBlockIdx * 96 + 6.0;
-                  c.blockMaxX = newBlockIdx * 96 + BLOCK_W - 6.0;
-                  c.homeX = c.anchorX + R(-0.4, 0.8);
-                  c.homeY = clamp(
-                    c.anchorY + R(0.6, 1.4),
-                    0.85,
-                    creatureMaxY(),
-                  );
-                  c.wx = c.homeX;
-                  c.wy = c.homeY;
-                  c.agro = 0;
-                  c.calmCd = 2.0; // Give the dog a moment to settle before it can get aggro again
-                  if (c.anchorObj) {
-                    if (c.anchorObj.parent === null)
+                  if (isBronxLevel()) {
+                    // Bronx: recycle to a free active block (one dog per block), curb post or
+                    // stoop-foot post. HomeY for a stoop climbs toward the wall stop, so it
+                    // isn't capped at the Manhattan sidewalk ceiling.
+                    const nb = freeBronxDogBlock();
+                    c.bronxBlock = nb;
+                    const hb = bronxStairHouse(nb.x);
+                    const onStoop = hb && Math.random() < 0.5;
+                    if (onStoop) {
+                      c.anchorType = "stoop";
+                      const stair = hb.stairs;
+                      c.anchorX = (stair[0].x0 + stair[0].x1) / 2;
+                      const stairTopY = stair[stair.length - 1].y1;
+                      c.anchorY = clamp(stair[0].y0, 0.85, stairTopY);
+                      c.homeY = clamp(
+                        c.anchorY + R(0.6, 1.4),
+                        c.anchorY,
+                        stairTopY,
+                      );
+                    } else {
+                      c.anchorType = "curb";
+                      c.anchorX = clamp(
+                        nb.x + 10.0 + R(0, 60.0),
+                        nb.x + 10.0,
+                        nb.x + BLOCK_W - 10.0,
+                      );
+                      c.anchorY = R(0.85, 1.05);
+                      c.homeY = clamp(
+                        c.anchorY + R(0.6, 1.4),
+                        0.85,
+                        creatureMaxY(),
+                      );
+                    }
+                    c.blockMinX = nb.x + 6.0;
+                    c.blockMaxX = nb.x + BLOCK_W - 6.0;
+                    c.homeX = c.anchorX + R(-0.4, 0.8);
+                    c.wx = c.homeX;
+                    c.wy = c.homeY;
+                    c.agro = 0;
+                    c.calmCd = 2.0; // Give the dog a moment to settle before it can get aggro again
+                    if (c.anchorObj) {
+                      if (c.anchorObj.parent === null)
+                        dynamicGroup.add(c.anchorObj);
+                      c.anchorObj.position.set(
+                        c.anchorX,
+                        c.anchorY,
+                        GZ + 0.05,
+                      );
+                    } else {
+                      c.anchorObj = makePostMesh();
+                      c.anchorObj.position.set(
+                        c.anchorX,
+                        c.anchorY,
+                        GZ + 0.05,
+                      );
                       dynamicGroup.add(c.anchorObj);
-                    c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+                    }
                   } else {
-                    c.anchorObj = makePostMesh();
-                    c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
-                    dynamicGroup.add(c.anchorObj);
+                    let targetX = p.wx + 44 + R(0, 10);
+                    let blockIdx = Math.floor(targetX / 96);
+                    let posInCycle = targetX % 96;
+                    if (posInCycle > 80) {
+                      targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
+                    } else if (posInCycle < 10 || posInCycle > 70) {
+                      targetX = blockIdx * 96 + 10 + R(0, 60);
+                    }
+                    c.anchorX = targetX;
+                    c.anchorY = R(0.85, 1.05);
+                    // Update sidewalk bounds for the new block so the dog isn't clamped to its old block
+                    let newBlockIdx = Math.floor(targetX / 96);
+                    c.blockMinX = newBlockIdx * 96 + 6.0;
+                    c.blockMaxX = newBlockIdx * 96 + BLOCK_W - 6.0;
+                    c.homeX = c.anchorX + R(-0.4, 0.8);
+                    c.homeY = clamp(
+                      c.anchorY + R(0.6, 1.4),
+                      0.85,
+                      creatureMaxY(),
+                    );
+                    c.wx = c.homeX;
+                    c.wy = c.homeY;
+                    c.agro = 0;
+                    c.calmCd = 2.0; // Give the dog a moment to settle before it can get aggro again
+                    if (c.anchorObj) {
+                      if (c.anchorObj.parent === null)
+                        dynamicGroup.add(c.anchorObj);
+                      c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+                    } else {
+                      c.anchorObj = makePostMesh();
+                      c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+                      dynamicGroup.add(c.anchorObj);
+                    }
                   }
                 } else {
                   c.anchorX = p.wx + 44 + R(0, 10);
@@ -15674,6 +15821,9 @@
               // Also clamp X to the sidewalk (not in corners or cross-streets).
               if (isManhattanLevel() || isBronxLevel()) {
                 gy = Math.max(0.85, gy);
+                // Bronx: climb the stoop but never enter the building — clamp the target to the
+                // same wall stop line the worker uses, so the dog halts at the door, not in it.
+                if (isBronxLevel()) gy = Math.min(gy, dogStopY(gx));
                 if (
                   typeof c.blockMinX === "number" &&
                   typeof c.blockMaxX === "number"
@@ -15692,6 +15842,8 @@
                 c.wy += (mvy / ml) * step;
                 if (isManhattanLevel() || isBronxLevel()) {
                   c.wy = Math.max(0.85, c.wy);
+                  // Bronx: same wall stop line — the dog climbs the stoop but can't enter.
+                  if (isBronxLevel()) c.wy = Math.min(c.wy, dogStopY(c.wx));
                   if (
                     typeof c.blockMinX === "number" &&
                     typeof c.blockMaxX === "number"

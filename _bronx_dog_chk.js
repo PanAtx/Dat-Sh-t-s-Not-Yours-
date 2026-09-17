@@ -1,8 +1,10 @@
 // _bronx_dog_chk.js — verify the Bronx-exclusive leashed-dog feature against the
 // REAL leashdog AI case extracted from index.html, for all three boroughs:
-//   - Bronx uses a COPY of Manhattan (makeBronxLeashDog + tieBronxLeashChain),
-//     placed on a real sidewalk fixture with NO doghouse, routed through the SAME
-//     leashdog AI as Manhattan (sidewalk clamp, bite, off-screen recycle-to-post).
+//   - Bronx spawns ONE leashed dog per active block (bronxDogBlocks.length), each tied to a
+//     real sidewalk fixture — a post at the curb OR at the foot of that block's stoop (NO
+//     doghouse). It climbs the steps toward the building wall and stops there (never enters),
+//     clamped by the same building-wall stop line as the worker; off-screen it recycles to a
+//     free active block. Routed through the leashdog AI (sidewalk clamp, bite) like Manhattan.
 //   - Manhattan unchanged; Flatbush unchanged.
 const fs = require('fs');
 const path = require('path');
@@ -76,6 +78,12 @@ check('AI case routes Bronx through the Manhattan path', /if \(c\.wx - p\.wx < -
 check('AI case clamps Bronx movement target to wy>=0.85', /isManhattanLevel\(\) \|\| isBronxLevel\(\)\)\s*\{\s*gy = Math\.max\(0\.85, gy\)/.test(caseText));
 check('AI case ties Bronx chain HIGH (z 1.5) like Manhattan', /isManhattanLevel\(\) \|\| isBronxLevel\(\) \?\s*1\.5\s*:\s*0\.62/.test(caseText));
 
+// ---- BRONX: one dog per active block + curb/stoop placement + wall-stop climb ----
+check('Bronx spawns ONE leashed dog per active block', /dogCount\s*=\s*isFlatbushLevel\(\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(spawnWorld));
+check('Bronx placement offers a stoop anchor (bronxStairHouse + anchorType "stoop")', bronxPlace.body.indexOf('bronxStairHouse') >= 0 && bronxPlace.body.indexOf('"stoop"') >= 0);
+check('Bronx placement offers a curb anchor (anchorType "curb")', bronxPlace.body.indexOf('"curb"') >= 0);
+check('Bronx movement clamps the dog to the building wall stop line (dogStopY)', /if \(isBronxLevel\(\)\) gy = Math\.min\(gy, dogStopY\(gx\)\)/.test(caseText));
+
 // ---- harness: run the real case with toggleable levels (global scope) ----
 const GZ = 0.3;
 global.stepTopAt = () => GZ;
@@ -93,6 +101,11 @@ global.makeHydrantMesh = function(){ return { position:{set(){}}, parent:null };
 global.makePostMesh = function(){ return { position:{set(){}}, parent:null }; };
 global.tieLeashChain = function(){ /* geometry not exercised here */ };
 global.flatbushDriveways = [];
+// ---- BRONX harness globals for per-block / stoop / wall-stop behavior ----
+global.bronxDogBlocks = [ { x: 360, garbage: true } ];
+global.bronxStairHouse = () => null; // no stoop in these tests → curb placement
+global.freeBronxDogBlock = () => global.bronxDogBlocks[0]; // free block ahead of player
+global.dogStopY = () => Infinity; // default: open sidewalk (only the stoop test overrides)
 global.hurtNPC = (amt) => { rec.hurt = (rec.hurt||0)+1; rec.dmg = (rec.dmg||0)+(amt||0); };
 global.doStun = () => { rec.stun = (rec.stun||0)+1; };
 global.dropBloodSplatter = () => { rec.blood = (rec.blood||0)+1; };
@@ -186,6 +199,22 @@ function makeDog(anchorX, anchorY, withHouse){
     if (!(c.wy >= 0.85 - 1e-9)){ brOk=false; det='wy='+c.wy; break; }
   }
   check('BRONX: movement clamps wy to walk surface (>=0.85, like Manhattan)', brOk, det);
+}
+{
+  // A stoop dog whose home is ABOVE the wall-stop line must be pulled down to it — it climbs
+  // toward the door but never enters the building. dogStopY stub overridden to a wall line.
+  global.dogStopY = () => 6.95;
+  let brOk = true, det = '';
+  for (let t = 0; t < 120; t++) {
+    const c = makeDog(100, 8.5, false); // home well above the stop line
+    c.anchorType = 'stoop';
+    c.blockMinX = 96 + 6; c.blockMaxX = 96 + 96 - 6;
+    p.wx = 100; p.wy = 2.5;
+    runLeashDogCase(c, { bronx: true, manhattan: false, flatbush: false });
+    if (!(c.wy > 0.85 - 1e-9 && c.wy <= 6.95 + 1e-9)) { brOk = false; det = 'wy=' + c.wy; break; }
+  }
+  check('BRONX: stoop dog halts AT the wall-stop line (climbs but never enters)', brOk, det);
+  global.dogStopY = () => Infinity; // restore default
 }
 {
   const c = makeDog(100, 1.0, false);
