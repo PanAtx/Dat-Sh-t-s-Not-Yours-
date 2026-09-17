@@ -7,6 +7,7 @@
      * index.html  -> the <div id="app-version"> menu fallback text
      * manifest.json -> "version"
      * sw.js       -> the page-shell cache name (dsnboy-shell-v<version>)
+   * sw.js       -> the var APP_VERSION informational copy
 
    The SW shell cache name is what makes a push a PWA update: a new version
    means a new shell cache, so installed clients re-fetch the shell on their
@@ -53,12 +54,17 @@ function syncPoints(v) {
   if (!/var\s+CACHE_NAME\s*=\s*'dsnboy-shell-v[^']*'/.test(sw)) {
     throw new Error('CACHE_NAME not found in sw.js');
   }
+  if (!/var\s+APP_VERSION\s*=\s*'[^']*'/.test(sw)) {
+    throw new Error('APP_VERSION not found in sw.js');
+  }
 
   const setHtml = h =>
     h.replace(/const\s+APP_VERSION\s*=\s*'[^']*'/, "const APP_VERSION = '" + v + "'")
      .replace(/(id="app-version"[^>]*>)v[\w.]+(<\/div>)/, '$1v' + v + '$2');
   const setManifest = m => m.replace(/"version"\s*:\s*"[^"]*"/, '"version": "' + v + '"');
-  const setSw = s => s.replace(/var\s+CACHE_NAME\s*=\s*'[^']*';?/, "var CACHE_NAME = 'dsnboy-shell-v" + v + "';");
+  const setSw = s =>
+    s.replace(/var\s+CACHE_NAME\s*=\s*'[^']*';?/, "var CACHE_NAME = 'dsnboy-shell-v" + v + "';")
+     .replace(/var\s+APP_VERSION\s*=\s*'[^']*';?/, "var APP_VERSION = '" + v + "';");
 
   changes.push(['index.html', html, setHtml(html)]);
   changes.push(['manifest.json', manifest, setManifest(manifest)]);
