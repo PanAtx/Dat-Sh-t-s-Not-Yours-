@@ -1439,6 +1439,9 @@
       .bubble.bub-crazy {
         background: #ffd2c2;
       } /* unhinged reddish/peach */
+      .bubble.bub-dealer {
+        background: #e8b8e8;
+      } /* dealer's soft orchid */
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
@@ -2335,6 +2338,7 @@
         rc: 1,
         jacker: 1,
         crazy: 0,
+        dealer: 0, // Bronx-only: exactly 2 per level, spawned separately on stoops
         cat: 0,
       };
       const SCALING_NPC = {
@@ -9427,6 +9431,144 @@
         g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
         return g;
       }
+      // ==================== BRONX STOOP DRUG DEALER ====================
+      // Burly corner dealer who guards a weed/fentanyl stash on his stoop.
+      // He is STATIC (never leaves the step): shifts his weight, sweeps his
+      // head left/right suspiciously (locking onto the worker when he gets
+      // close) and throws a haymaker when the worker enters his corner.
+      // The head sits on its own pivot (userData.head) and the right arm on a
+      // punch pivot (userData.punchArm) so the AI can animate both.
+      function makeDealer() {
+        const g = new THREE.Group();
+        const skin = M(pick(SKIN_TONES));
+        const hoodie = M(0x1d2026);
+        const teeM = M(0xd8d6cd);
+        const jeans = M(0x3a414d);
+        const shoeM = M(0x17181b);
+        const bandM = M(0x8f1d14);
+        const beardM = M(0x241c15);
+        const gold = MS(0xd9a818);
+        // Chunky legs (feet rest at local z 0, like the other walkers)
+        const mkLeg = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.21, 0.75);
+          const leg = BX(0.2, 0.21, 0.7, jeans);
+          leg.position.z = -0.35;
+          pv.add(leg);
+          const boot = BX(0.32, 0.24, 0.14, shoeM);
+          boot.position.set(0.07, 0, -0.68);
+          pv.add(boot);
+          g.add(pv);
+          return pv;
+        };
+        const legL = mkLeg(1),
+          legR = mkLeg(-1);
+        // Burly torso — wider and deeper than a normal pedestrian
+        const torso = BX(0.48, 0.7, 0.82, hoodie);
+        torso.position.z = 1.3;
+        g.add(torso);
+        // White tee peeking out at the open hoodie
+        const teePanel = BX(0.05, 0.42, 0.36, teeM);
+        teePanel.position.set(0.245, 0, 1.36);
+        g.add(teePanel);
+        // Hood bunched at the back of the neck
+        const hood = BX(0.18, 0.52, 0.32, hoodie);
+        hood.position.set(-0.28, 0, 1.5);
+        g.add(hood);
+        // Gold chain + pendant
+        const chain = BX(0.02, 0.3, 0.07, gold);
+        chain.position.set(0.255, 0, 1.52);
+        g.add(chain);
+        const pendant = SPH(0.05, gold, 10, 8);
+        pendant.position.set(0.27, 0, 1.36);
+        g.add(pendant);
+        // Arms (right arm = the puncher)
+        const mkArm = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.42, 1.56);
+          const sleeve = BX(0.16, 0.18, 0.3, hoodie);
+          sleeve.position.set(0.03, 0, -0.12);
+          pv.add(sleeve);
+          const fore = BX(0.14, 0.16, 0.26, skin);
+          fore.position.set(0.05, 0, -0.42);
+          pv.add(fore);
+          const hand = BX(0.15, 0.15, 0.16, skin);
+          hand.position.set(0.06, 0, -0.62);
+          pv.add(hand);
+          g.add(pv);
+          return pv;
+        };
+        const armL = mkArm(1),
+          armR = mkArm(-1);
+        // Head on a pivot so the AI can sweep it left/right
+        const headPivot = new THREE.Group();
+        headPivot.position.z = 1.72;
+        g.add(headPivot);
+        const neck = BX(0.13, 0.13, 0.14, skin);
+        neck.position.z = 0.06;
+        headPivot.add(neck);
+        const head = BX(0.22, 0.24, 0.24, skin);
+        head.position.z = 0.2;
+        headPivot.add(head);
+        const nose = BX(0.04, 0.08, 0.08, skin);
+        nose.position.set(0.12, 0.03, 0.14);
+        headPivot.add(nose);
+        const beard = BX(0.06, 0.2, 0.14, beardM);
+        beard.position.set(0.1, 0, 0.1);
+        headPivot.add(beard);
+        const bandana = BX(0.23, 0.26, 0.08, bandM);
+        bandana.position.z = 0.33;
+        headPivot.add(bandana);
+        const knot = BX(0.1, 0.1, 0.1, bandM);
+        knot.position.set(-0.15, 0.08, 0.3);
+        headPivot.add(knot);
+        g.userData.head = headPivot;
+        g.userData.punchArm = armR;
+        g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+        return g;
+      }
+      // The open stash: a little table with a bag of weed, a bag of white
+      // pills, loose pills and a wad of bills — out in the open on the stoop
+      // right beside the dealer. Group origin = ground level beneath the table.
+      function makeDealerStash() {
+        const g = new THREE.Group();
+        const wood = M(0x4a3624);
+        const legL = BX(0.06, 0.06, 0.26, wood);
+        legL.position.set(0.34, 0, 0.13);
+        g.add(legL);
+        const legR = BX(0.06, 0.06, 0.26, wood);
+        legR.position.set(-0.34, 0, 0.13);
+        g.add(legR);
+        const top = BX(0.8, 0.52, 0.06, wood);
+        top.position.z = 0.29;
+        g.add(top);
+        // Green bag of weed (squashed sphere) + twist tie
+        const weed = SPH(0.14, M(0x3e7a1e), 12, 10);
+        weed.scale.set(1, 1, 0.72);
+        weed.position.set(0.16, 0.1, 0.43);
+        g.add(weed);
+        const tie = CY(0.02, 0.02, 0.05, M(0x2c5a14), 8);
+        tie.position.set(0.16, 0.1, 0.55);
+        g.add(tie);
+        // Bag of white pills (fentanyl), propped on the table
+        const pillBag = BX(0.18, 0.12, 0.03, M(0xf0efe9));
+        pillBag.position.set(-0.22, 0.06, 0.38);
+        pillBag.rotation.z = 0.12;
+        g.add(pillBag);
+        // Loose pills spilled on the table
+        const pillM = M(0xf7f6f0);
+        for (let i = 0; i < 3; i++) {
+          const pill = CY(0.024, 0.024, 0.01, pillM, 8);
+          pill.position.set(-0.05 + i * 0.08, -0.13 + i * 0.04, 0.335);
+          g.add(pill);
+        }
+        // Wad of bills
+        const cash = BX(0.14, 0.06, 0.03, M(0x6f9a4a));
+        cash.position.set(0.24, -0.18, 0.35);
+        cash.rotation.z = -0.3;
+        g.add(cash);
+        return g;
+      }
       function makeHooker() {
         // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
         const g = new THREE.Group();
@@ -10607,6 +10749,15 @@
             c.data = makeCrazyGuy();
             c.knife = c.data.userData.knife;
             break;
+          case "dealer":
+            c.sp = 0; // static: guards his stoop corner, never wanders
+            c.attackCd = 0;
+            c.punchT = 0;
+            c.headT = R(0, 6.28);
+            c.talkCd = R(2, 6);
+            c.data = makeDealer();
+            c.gender = "male";
+            break;
           case "skater":
             c.wy = R(4.3, creatureMaxY());
             c.trickT = R(0.4, 1.4);
@@ -10679,6 +10830,7 @@
         // hooker stands facing the street)
         if (type === "jacker") c.g.rotation.z = JACKER_FACE_SE;
         if (type === "hooker") c.g.rotation.z = -Math.PI / 2;
+        if (type === "dealer") c.g.rotation.z = -Math.PI / 2; // on his stoop, facing the street
         c.g.position.set(c.wx, c.wy, GZ);
         dynamicGroup.add(c.g);
         if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
@@ -11279,6 +11431,41 @@
           cg.wx = p.wx + R(30, 80); // middle of the route
           cg.wy = R(1.2, 4.2);
           cg.g.position.set(cg.wx, cg.wy, GZ);
+        }
+        // Bronx drug dealers: exactly TWO burly dealers per Bronx level, each
+        // guarding a weed/fentanyl stash on a DIFFERENT active block's stoop
+        // (two dealers never share a block). They stand on the bottom stoop
+        // step, watch the street, and punch the worker if he comes close.
+        if (isBronxLevel()) {
+          // Active shift blocks for a Bronx level are indices 1..5 (x 96..480).
+          // Shuffle and take the first two -> always on separate blocks.
+          const dealerBlockIdx = [1, 2, 3, 4, 5];
+          for (let dI = dealerBlockIdx.length - 1; dI > 0; dI--) {
+            const j = (Math.random() * (dI + 1)) | 0;
+            const t = dealerBlockIdx[dI];
+            dealerBlockIdx[dI] = dealerBlockIdx[j];
+            dealerBlockIdx[j] = t;
+          }
+          for (let dI = 0; dI < 2; dI++) {
+            const bl = LEVEL_BLOCKS[dealerBlockIdx[dI]];
+            // Residential houses are index 1..8 (0 and 9 are storefronts);
+            // every one of them has a Bronx row-house stoop.
+            const houseI = 1 + ((Math.random() * 8) | 0);
+            const houseX = bl.x + houseI * 8 + 4.0; // BW=8, house centers at +4
+            const stoopX = houseX + 1.6; // stoop center (w*0.2 = 1.6)
+            const side = Math.random() < 0.5 ? 1 : -1; // left/right of the stoop
+            const dl = addCreature("dealer");
+            dl.wx = stoopX + side * 0.45;
+            dl.wy = 5.6; // bottom step spans y 5.45..5.75 (HOUSE_Y 9.5)
+            dl.baseZ = 0.47; // bottom step top = 0.3 + 1*0.17
+            dl.head = dl.g.userData.head;
+            dl.punchArm = dl.g.userData.punchArm;
+            dl.g.position.set(dl.wx, dl.wy, dl.baseZ);
+            // Stash table beside him on the stoop (origin at the step top)
+            const stash = makeDealerStash();
+            stash.position.set(stoopX - side * 0.6, 5.62, dl.baseZ);
+            dynamicGroup.add(stash);
+          }
         }
         // Manhattan Pizza Rat: rare NYC street rat carrying a giant slice of pizza
         // on the sidewalk, scurrying along with his prize. 25% chance on Manhattan levels
@@ -13366,6 +13553,7 @@
             c.type === "crazy"
           )
             rad = 0.85;
+          else if (c.type === "dealer") rad = 1.0; // burly dealer blocks his stoop
           else if (c.type === "escooter") rad = 1.0;
           if (d2 > rad * rad) continue;
           if (c.type === "crazy") {
@@ -15661,6 +15849,113 @@
               c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
               break;
             }
+            case "dealer": {
+              // Bronx stoop dealer: never leaves his corner. He shifts his
+              // weight, sweeps his head left/right suspiciously (locking onto
+              // the worker when he gets close), pitches his stash when the
+              // worker is near, and throws a haymaker to protect it when the
+              // worker enters his corner radius (3.5s cooldown).
+              c.headT += dt;
+              c.talkCd = c.talkCd > 0 ? c.talkCd - dt : 0;
+              c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
+              const dx = p.wx - c.wx;
+              const dy = p.wy - c.wy;
+              const dW = Math.sqrt(dx * dx + dy * dy);
+              // Head: paranoid left/right scan, or a hard lock onto the worker
+              // when he's close. The body faces the street (local +X = world
+              // -Y), so a world offset (dx,dy) maps to local (-dy,dx).
+              const sweep = Math.sin(c.headT * 2.1) * 1.05; // ±60° suspicious scan
+              const lockYaw = Math.atan2(dx, -dy);
+              const headTarget = dW < 9 ? lockYaw : sweep;
+              if (c.head) {
+                c.head.rotation.z +=
+                  (headTarget - c.head.rotation.z) * Math.min(1, dt * 7);
+              }
+              // Subtle weight-shift sway (he stays facing the street)
+              c.g.rotation.z = -Math.PI / 2 + Math.sin(c.headT * 0.6) * 0.05;
+              c.g.position.z =
+                (c.baseZ || GZ) + Math.abs(Math.sin(c.headT * 1.4)) * 0.015;
+              // PUNCH: worker inside the corner radius -> haymaker + damage
+              if (
+                state === "play" &&
+                c.attackCd <= 0 &&
+                dW < 2.2 &&
+                p.invuln <= 0 &&
+                p.immuneT <= 0
+              ) {
+                c.attackCd = 3.5;
+                c.punchT = 0.45;
+                c.talkCd = R(6, 11); // don't pitch weed on the same breath
+                Voice.say(
+                  pick([
+                    "Stay away from my stash!",
+                    "I know you undercover!",
+                    "You messing with me?!",
+                  ]),
+                  2.4,
+                  R(0.9, 1.1),
+                  c.wx,
+                  c.wy,
+                  "male",
+                  "dealer",
+                );
+                Voice.say(
+                  "Ow! Damn drug dealers!",
+                  2.4,
+                  0.95,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                );
+                hurtNPC(HP_HIT_HAZARD);
+                doStun(0.6, "hit");
+                dropBloodSplatter(p.wx, p.wy);
+                p.bloodSteps = 10;
+                spawnDustEffect(p.wx, p.wy);
+                // Knock the worker back away from the dealer
+                const kd = dW || 0.001;
+                p.wx += (dx / kd) * 1.2;
+                p.wy = clamp(p.wy + (dy / kd) * 0.9, -9.4, workerMaxY());
+              }
+              // Punch arm: extend forward (local +X) and back, with a lean
+              if (c.punchArm) {
+                if (c.punchT > 0) {
+                  c.punchT -= dt;
+                  const t = 1 - Math.max(0, c.punchT) / 0.45; // 0..1
+                  const ext = Math.sin(t * Math.PI); // 0 -> 1 -> 0
+                  c.punchArm.rotation.y = -ext * 1.45;
+                  c.punchArm.rotation.x = ext * 0.2;
+                  c.g.rotation.x = ext * 0.22;
+                } else {
+                  c.punchArm.rotation.y = 0;
+                  c.punchArm.rotation.x = 0;
+                  c.g.rotation.x = 0;
+                }
+              } else {
+                c.g.rotation.x = 0;
+              }
+              // Sales pitch while the worker walks by (on-screen range)
+              if (state === "play" && dW < 11 && c.talkCd <= 0) {
+                c.talkCd = R(6, 11);
+                Voice.say(
+                  pick([
+                    "Get yo weed here!",
+                    "Weed half price today",
+                    "You look like you smoke!",
+                    "Don't play with me",
+                    "If you see the police, warn a brother!",
+                  ]),
+                  2.0,
+                  R(0.85, 1.05),
+                  c.wx,
+                  c.wy,
+                  "male",
+                  "dealer",
+                );
+              }
+              break;
+            }
             case "skater": {
               // WORKING TRICKS IN PLACE, big enough to read from the camera:
               // crouch -> POP (the bright board flips a full 360 while he launches)
@@ -16236,6 +16531,7 @@
         else if (speaker === "driver") el.className = "bubble bub-driver";
         else if (speaker === "kid") el.className = "bubble bub-kid";
         else if (speaker === "crazy") el.className = "bubble bub-crazy";
+        else if (speaker === "dealer") el.className = "bubble bub-dealer";
         else el.className = "bubble bub-default";
         el.textContent = text;
         document.body.appendChild(el);
