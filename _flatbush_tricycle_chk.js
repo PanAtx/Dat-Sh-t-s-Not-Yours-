@@ -125,7 +125,7 @@ function runApproach(){
   check('kid NEVER crosses into the street (wy >= 0.8 every frame)', r.minWy >= 0.8, 'minWy=' + r.minWy.toFixed(3));
   check('kid stays within leash of its home spot (driveway only)', r.maxLeash <= r.c.chainR + 0.05, 'maxLeash=' + r.maxLeash.toFixed(3));
   check('bump damage is MINOR (lighter than a vehicle run-over)', HP_HIT_DRIVETRIC < 8, HP_HIT_DRIVETRIC + ' < 8');
-  check('kid bump cites the "leader" write-up offense (tricycle kid = community leader)', src.indexOf('hurtNPC(HP_HIT_DRIVETRIC, "leader")') >= 0);
+  check('kid bump cites the "tric" write-up offense (minor on a tricycle)', src.indexOf('hurtNPC(HP_HIT_DRIVETRIC, "tric")') >= 0);
 }
 
 // ---- 2b) Worker leaves -> kid returns home and parks (idle) ----

@@ -1588,7 +1588,7 @@
         text-shadow:
           5px 5px 0 rgba(50, 0, 0, 0.92),
           0 0 30px rgba(255, 80, 80, 0.85);
-        animation: writeUpSlam 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        animation: writeUpSlam 5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; // long hold so the offense line under the seal is readable
       }
       /* the offense line stamped under the seal: what the worker was written up FOR */
       .pop-writeup .writeup-reason {
@@ -1605,17 +1605,18 @@
           transform: translateX(-50%) scale(2.6) rotate(-8deg);
           opacity: 0;
         }
-        14% {
+        12% {
           transform: translateX(-50%) scale(1) rotate(2deg);
           opacity: 1;
         }
-        24% {
+        22% {
           transform: translateX(-50%) scale(1.07) rotate(-2deg);
         }
-        34% {
+        30% {
           transform: translateX(-50%) scale(1) rotate(0);
         }
-        80% {
+        86% {
+          transform: translateX(-50%) scale(1) rotate(0);
           opacity: 1;
         }
         100% {
@@ -12643,40 +12644,66 @@
         updateHUD();
       }
       // ==================== WRITTEN-UP REASONS (the supervisor's woke offense file) ====================
-      // Every LODI gets stamped with a REASON — the thing that actually put the worker
-      // down. HR in this era never names the party at fault: the worker is always out
-      // of line, the motorist had right of way, the dog's boundaries were violated,
-      // and the stoop dealer is a "community leader" who was due full respect at all times.
+      // Every LODI gets stamped with a REASON — the specific NPC that actually put the
+      // worker down. HR in this era never names the party at fault: the worker is always
+      // out of line, the car had right of way, the bike lane was violated, the dog's
+      // boundaries were crossed, and the stoop dealer / crazy guy / tricycle kid are each
+      // a "community institution" who was due full respect at all times.
       const WRITEUP_REASONS = {
-        // anything on wheels: cars, motos, e-bikes, bikes, scooters
-        vehicle: [
-          "Failed to give right of way",
-          "Failure to yield — the motorist was not afforded priority",
+        // --- the street machines: each one keeps its own lane ---
+        car: [
+          "Failure to give right of way",
+          "The motorist was not afforded priority",
+          "Failure to yield — a vehicle was approaching",
+        ],
+        bike: [
+          "Failure to give access to bike lane",
           "Cyclist's lane rights not respected",
           "Failure to acknowledge the bike lane",
         ],
-        // leashed-dog bites (regular and mean pitbull)
+        ebike: [
+          "Failure to yield to an e-bike operator",
+          "The e-bike's right to the lane was not honored",
+        ],
+        moto: [
+          "Failure to yield to a licensed motorcyclist",
+          "The biker was due the full road",
+        ],
+        escooter: [
+          "Failure to acknowledge a registered scooterist",
+          "The scooter's right of way was not honored",
+        ],
+        rc: [
+          "Failure to respect a registered remote-controlled vehicle",
+          "The little RC car had right of way",
+        ],
+        // --- the dogs: worker safety guidelines (canine edition) ---
         dog: [
-          "Failed to practice safety guidelines",
+          "Failure to practice safety guidelines around dogs",
           "Unsafe approach to a protected canine",
           "Failure to respect the dog's boundaries",
         ],
-        // the general public: any civilian the worker bumped on the route
-        public: [
-          "Failed to respect the public",
-          "Unprofessional conduct toward a constituent",
-          "The pedestrian's right to the sidewalk was not honored",
+        pitbull: [
+          "Failure to respect a protected large breed",
+          "The pitbull's right to its patch was not honored",
         ],
-        // the bad folks: the stoop dealer, the crazy guy, the tricycle kid
-        leader: [
-          "Failed to give respect to community leaders",
-          "Disruption of a sanctioned street enterprise",
+        // --- the bad folks: each one a local institution ---
+        dealer: [
+          "Failure to respect a licensed community enterprise",
+          "Disruption of a sanctioned stoop operation",
           "Failure to uphold neighborhood diplomacy",
+        ],
+        crazy: [
+          "Failure to defer to a certified community leader",
+          "Failure to satisfy the leader's funding request",
           "Community leader not afforded due deference",
         ],
-        // the street itself: the hydrant and friends
+        tric: [
+          "Failure to yield to a minor on a tricycle",
+          "The kid's right to the driveway was not honored",
+        ],
+        // --- the street itself: the hydrant and friends ---
         hazard: [
-          "Failure to complete an established route",
           "Failure to respect municipal property",
           "The fire hydrant's right of way was violated",
         ],
@@ -12706,7 +12733,7 @@
         document.body.appendChild(el);
         setTimeout(function () {
           if (el.parentNode) el.parentNode.removeChild(el);
-        }, 2300);
+        }, 5200); // hold long enough that the stamped offense under the seal can actually be READ
       }
       // Big animated "Power Up!" / "Run It Up!" callout — reuses the .popup base CSS class
       // (the same mechanism showPopup uses for MONGO!/STREET CASH!) with dedicated
@@ -13622,7 +13649,7 @@
           if (c.type === "crazy") {
             if (c.attackCd <= 0) {
               // Violent attack
-              hurtNPC(HP_HIT_HAZARD, "leader");
+              hurtNPC(HP_HIT_HAZARD, "crazy");
               Voice.say(
                 "I need money!",
                 2.2,
@@ -13775,7 +13802,7 @@
             p.wx -= (dx / nl) * 1.6;
             p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, workerMaxY());
             dropCarried();
-            hurtNPC(HP_HIT_VEHICLE, "vehicle"); // get run over = lose health (absorbed if immune / i-framed)
+            hurtNPC(HP_HIT_VEHICLE, c.type); // get run over = lose health; cause IS the NPC (car/bike/ebike/moto/tric/dealer...) for the write-up stamp
             p.invuln = 1.6;
             doStun(1.2, "hit");
             if (c.type === "car" || c.type === "moto")
@@ -14969,7 +14996,7 @@
                     const nl = dtw || 1;
                     p.wx -= (dtwX / nl) * 0.9;
                     p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());
-                    hurtNPC(HP_HIT_DRIVETRIC, "leader");
+                    hurtNPC(HP_HIT_DRIVETRIC, "tric");
                     doStun(0.7, "hit");
                     Voice.say(
                       "OW!",
@@ -15971,7 +15998,7 @@
                   WORKER_GENDER,
                   "worker",
                 );
-                hurtNPC(HP_HIT_HAZARD, "leader");
+                hurtNPC(HP_HIT_HAZARD, "dealer");
                 doStun(0.6, "hit");
                 dropBloodSplatter(p.wx, p.wy);
                 p.bloodSteps = 10;
@@ -16325,7 +16352,7 @@
                 p.wx += bnx * 0.9; // knockback: shove the worker away from the dog
                 p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
                 if (c.dogSize === 'large') {
-                  hurtNPC(8, "dog"); // large mean pitbull bites deep — more damage than a regular dog
+                  hurtNPC(8, "pitbull"); // large mean pitbull bites deep — more damage than a regular dog
                   Voice.say(
                     "Ow! I almost lost a finger!",
                     1.4,

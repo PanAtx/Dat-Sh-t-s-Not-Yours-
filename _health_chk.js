@@ -286,19 +286,22 @@ const stampReason = function(cause){
   const r = stamp && stamp.children ? stamp.children.filter(function(c){ return c.className === 'writeup-reason'; }).pop() : null;
   return r ? r.textContent : null;
 };
-['vehicle', 'dog', 'public', 'leader', 'hazard', 'route'].forEach(function(cause){
+['car', 'bike', 'ebike', 'moto', 'escooter', 'rc', 'dog', 'pitbull', 'dealer', 'crazy', 'tric', 'hazard', 'route'].forEach(function(cause){
   const r = stampReason(cause);
   check('LODI from a "' + cause + '" hit -> stamp cites a real "' + cause + '" offense: "' + r + '"', !!(r && WRITEUP_REASONS[cause].indexOf(r) >= 0));
 });
-check('the offense file keeps the canonical lines (right of way / safety guidelines / respect the public / community leaders / route)',
-  WRITEUP_REASONS.vehicle.indexOf('Failed to give right of way') >= 0 &&
-  WRITEUP_REASONS.dog.indexOf('Failed to practice safety guidelines') >= 0 &&
-  WRITEUP_REASONS.public.indexOf('Failed to respect the public') >= 0 &&
-  WRITEUP_REASONS.leader.indexOf('Failed to give respect to community leaders') >= 0 &&
-  WRITEUP_REASONS.hazard.indexOf('Failure to complete an established route') >= 0);
-check('hurtNPC records the offense cause it was called with', (function(){ reset(); hurtNPC(HP_HIT_HAZARD, 'leader'); return lastHitCause === 'leader'; })());
-check('hurtNPC with no cause falls back to the route KPI', (function(){ reset(); lastHitCause = 'leader'; hurtNPC(HP_HIT_HAZARD); return lastHitCause === 'route'; })());
-check('an i-framed hit does NOT change the recorded offense', (function(){ reset(); lastHitCause = 'leader'; p.invuln = 1.0; hurtNPC(HP_HIT_VEHICLE, 'dog'); return lastHitCause === 'leader'; })());
+check('the offense file keeps the canonical lines (right of way / bike lane / safety guidelines / community enterprise / leader / municipal property / route)',
+  WRITEUP_REASONS.car.indexOf('Failure to give right of way') >= 0 &&
+  WRITEUP_REASONS.bike.indexOf('Failure to give access to bike lane') >= 0 &&
+  WRITEUP_REASONS.dog.indexOf('Failure to practice safety guidelines around dogs') >= 0 &&
+  WRITEUP_REASONS.dealer.indexOf('Failure to respect a licensed community enterprise') >= 0 &&
+  WRITEUP_REASONS.crazy.indexOf('Failure to defer to a certified community leader') >= 0 &&
+  WRITEUP_REASONS.tric.indexOf('Failure to yield to a minor on a tricycle') >= 0 &&
+  WRITEUP_REASONS.hazard.indexOf('Failure to respect municipal property') >= 0 &&
+  WRITEUP_REASONS.route.indexOf('Failure to complete an established route') >= 0);
+check('hurtNPC records the offense cause it was called with', (function(){ reset(); hurtNPC(HP_HIT_HAZARD, 'dealer'); return lastHitCause === 'dealer'; })());
+check('hurtNPC with no cause falls back to the route KPI', (function(){ reset(); lastHitCause = 'dealer'; hurtNPC(HP_HIT_HAZARD); return lastHitCause === 'route'; })());
+check('an i-framed hit does NOT change the recorded offense', (function(){ reset(); lastHitCause = 'dealer'; p.invuln = 1.0; hurtNPC(HP_HIT_VEHICLE, 'dog'); return lastHitCause === 'dealer'; })());
 
 // ===== 7) coffee restores a little health + POWER UP! + "I needed that!" =====
 reset();

@@ -304,7 +304,7 @@ function makeDog(anchorX, anchorY, withHouse){
 }
 
 // ---- LARGE mean pitbull (Bronx leashdogs, 30%): 8 dmg + "Ow! I almost lost a finger!" ----
-check('AI bite has the large-dog branch (8 dmg + finger line, "dog" offense)', /c\.dogSize === 'large'/.test(caseText) && caseText.indexOf('hurtNPC(8, "dog")') >= 0 && caseText.indexOf('Ow! I almost lost a finger!') >= 0);
+check('AI bite has the large-dog branch (8 dmg + finger line, "pitbull" offense)', /c\.dogSize === 'large'/.test(caseText) && caseText.indexOf('hurtNPC(8, "pitbull")') >= 0 && caseText.indexOf('Ow! I almost lost a finger!') >= 0);
 check('hydrant "hit" hazard no longer references undefined c (dog dmg lives in the leashdog bite, not collideStatic)', extractFn('collideStatic').indexOf('c.dogSize') < 0);
 {
   const c = makeDog(100, 1.0, false);
