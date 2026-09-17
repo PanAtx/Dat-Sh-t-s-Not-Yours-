@@ -2356,6 +2356,12 @@
               day >= GATED_NPC[t]
                 ? BASE_NPC_COUNTS[t] + (day - GATED_NPC[t])
                 : 0;
+            // Bronx (Mott Haven, d2): the street runs real two-wheeled traffic from the
+            // start of the week — the kid's tricycle is swapped for one moto + one e-bike.
+            // E-bike is already gated in from d2; moto's normal gate day is d3, but the
+            // Bronx doesn't wait for it.
+            if (day === 2 && (t === "moto" || t === "ebike"))
+              c[t] = Math.max(c[t], 1);
           } else {
             let base = BASE_NPC_COUNTS[t] + (SCALING_NPC[t] ? extra : 0);
             // Raccoons only appear on Queens (Tue/Wed/Thu) and Staten Island levels, not Manhattan or Brooklyn
@@ -2371,9 +2377,10 @@
             // No skateboarders on the Manhattan days (Uptown d1, Harlem d6) or Bed-Stuy (d7).
             if (t === "skater" && (day === 1 || day === 6 || day === 7))
               base = 0;
-            // Manhattan (Uptown d1, Harlem d6): no street tricycles - the city sidewalks have
-            // no kid rides (the only tricycles in the game are the Flatbush driveway kids).
-            if (t === "tric" && (day === 1 || day === 6)) base = 0;
+            // Manhattan (Uptown d1, Harlem d6) AND the Bronx (Mott Haven, d2): no street
+            // tricycles - the city sidewalks have no kid rides (the only tricycles in the
+            // game are the Flatbush driveway kids).
+            if (t === "tric" && (day === 1 || day === 2 || day === 6)) base = 0;
             // No squirrels on Manhattan days - the big buildings don't have yard squirrels.
             if (t === "squirrel" && (day === 1 || day === 6)) base = 0;
             // Manhattan (Uptown d1, Harlem d6): a few more e-scooter + bicycle riders on the sidewalk.
@@ -8957,7 +8964,7 @@
         g.scale.setScalar(0.7); // smaller squirrel — scales about its base so it stays grounded
         return g;
       }
-      function makeDog() {
+      function makeDog(dogSize = 'medium') {
         const g = new THREE.Group();
         const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468]);
         const fur = M(furC),
@@ -9693,7 +9700,7 @@
         g.userData.wheelR = wheelR;
         return g;
       }
-      function makeHighPolyDog() {
+      function makeHighPolyDog(dogSize = 'medium', dogCoat = null) {
         // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
         // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
         // animation block drives it (trotting legs, wagging tail, barking head).
@@ -9800,10 +9807,13 @@
         // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
         // animation block drives it (trotting legs, wagging tail, barking head).
         const g = new THREE.Group();
-        const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+        // Large mean pitbull: coat from DOG_PALETTES (yellow / dark brown / husky / spotted),
+        // full palette like the bodega cats. Regular medium dogs keep the brown/tan pick.
+        const pal = dogSize === 'large' ? DOG_PALETTES[dogCoat] : null;
+        const furC = pal ? pal.fur : pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
         const fur = M(furC),
-          furD = M(0x241c14),
-          furL = M(0xc7ab87),
+          furD = M(pal ? pal.furD : 0x241c14),
+          furL = M(pal ? pal.light : 0xc7ab87),
           eyeM = M(0x14100e);
         const body = SPH(0.1, fur, 18, 14);
         body.scale.set(2.4, 1.1, 1.3);
@@ -9882,6 +9892,8 @@
         const t2 = SPH(0.045, furL, 12, 10);
         t2.position.set(-0.14, 0, 0.13);
         tailPivot.add(t2);
+        // Scale the large pitbull up (the regular medium dog stays 1:1)
+        if (dogSize === 'large') g.scale.set(1.35, 1.4, 1.35);
         g.userData.dog = {
           tailPivot: tailPivot,
           headPivot: headPivot,
@@ -11095,16 +11107,23 @@
               const hb = bronxStairHouse(b.x);
               const onStoop = hb && Math.random() < 0.5;
               if (onStoop) {
-                // Post at the foot of the stoop, offset left or right so it sits on the sidewalk
-                // beside the steps rather than blocking them (real-world NYC: tied to a post next
-                // to the entrance, not in the doorway).
+                // Post on the sidewalk at the foot of the stoop, offset to the LEFT or
+                // RIGHT of the steps (outside their x-range) so it never blocks the
+                // stoop (real-world NYC: tied to a post beside the entrance, not in the
+                // doorway). The dog's home stays on the SAME side as the post, so the
+                // dog rests beside the steps — never in the middle of the stoop.
                 ld.anchorType = "stoop";
                 const stair = hb.stairs;
                 const stairX = (stair[0].x0 + stair[0].x1) / 2;
-                const postOffset = Math.random() < 0.5 ? -1.5 : 1.5; // left or right of the stoop
+                const stairHw = (stair[0].x1 - stair[0].x0) / 2; // half-width of the steps
+                const side = Math.random() < 0.5 ? -1 : 1; // left or right of the stoop
                 const stairFootY = stair[0].y0; // outer edge of the bottom step
                 const stairTopY = stair[stair.length - 1].y1; // inner edge, near the wall
-                ld.anchorX = clamp(stairX + postOffset, b.x + 10.0, b.x + BLOCK_W - 10.0);
+                ld.anchorX = clamp(
+                  stairX + side * (stairHw + 0.7),
+                  b.x + 1.0,
+                  b.x + BLOCK_W - 1.0,
+                );
                 ld.anchorY = clamp(stairFootY, 0.85, stairTopY);
                 ld.blockMinX = b.x + 6.0;
                 ld.blockMaxX = b.x + BLOCK_W - 6.0;
@@ -11112,7 +11131,7 @@
                 ld.anchorObj = makePostMesh();
                 ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
                 dynamicGroup.add(ld.anchorObj);
-                ld.homeX = ld.anchorX + R(-0.4, 0.8);
+                ld.homeX = ld.anchorX + side * R(0.3, 0.9); // same side as the post
                 ld.homeY = clamp(
                   ld.anchorY + R(0.6, 1.4),
                   ld.anchorY,
@@ -13267,7 +13286,7 @@
               footDist = 0; // the worker leaves a brown footprint trail for a while
             } else if (hz.type === "hit") {
               p.wx -= 0.7;
-              if (c.dogSize === 'large') { hurtNPC(8); Voice.say("Ow! I almost lost a finger!", 1.4, 1.0, p.wx, p.wy, WORKER_GENDER, "worker"); } else { hurtNPC(HP_HIT_HAZARD); Voice.say("Ow! He bit me!", 1.4, 1.0, p.wx, p.wy, WORKER_GENDER, "worker"); }
+              hurtNPC(HP_HIT_HAZARD);
               doStun(0.8, "hit");
               Voice.say(
                 "OW! My shin!",
@@ -14089,10 +14108,12 @@
         if (wy > tYMin && wy < tYMax) return false; // never steer into the DSNY truck's lane
         return true;
       }
-      function npcRoadRules(c, dt) {
+      function npcRoadRules(c, dt, maxWy) {
         // Run for every NPC each frame. Steers the NPC out of a closing vehicle's lane
         // (c.yieldLane) and/or flags a sprint boost (c.sprintT) to outrun it.
+        // maxWy (optional): highest y the escape lane may reach — keep walkers off stoops.
         // Returns the minimum forward speed the NPC should use this frame (or null).
+        const top = maxWy !== undefined ? maxWy : 7.8;
         if (c.sprintT > 0) c.sprintT -= dt;
         if (c.yieldLane !== undefined) {
           c.wy += (c.yieldLane - c.wy) * Math.min(1, 5.5 * dt); // move left/right to the escape lane
@@ -14108,7 +14129,7 @@
           const steps = [away * 1.5, -away * 1.5, away * 3.0, -away * 3.0];
           for (let i = 0; i < steps.length; i++) {
             const cand = c.wy + steps[i];
-            if (cand < -8.6 || cand > 7.8) continue; // stay on street + sidewalk
+            if (cand < -8.6 || cand > top) continue; // stay on street + sidewalk (off stoops)
             if (npcLaneFree(cand, c.wx, creatures, c)) {
               c.yieldLane = cand;
               break;
@@ -14341,11 +14362,17 @@
             case "ped":
             case "lady":
             case "dogwalker": {
-              const sprintPed = npcRoadRules(c, dt); // yield to closing traffic: steer aside or sprint
+              // Walkers stay on the street, curb and sidewalk — they never step up onto a
+              // stoop. On the stoop boroughs (Manhattan/Bronx) the sidewalk ends at y 5.0,
+              // before the first stair (Manhattan stoops start ~5.25, Bronx stoops ~5.45),
+              // so escape steering (npcRoadRules) is capped there too.
+              const pedTop = isManhattanLevel() || isBronxLevel() ? 5.0 : 7.8;
+              const sprintPed = npcRoadRules(c, dt, pedTop); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
               c.wx += pedSp * dt;
               // Bronx: keep pedestrians on the sidewalk (y >= 0.75), never on the street.
               if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);
+              c.wy = Math.min(c.wy, pedTop); // never wander up onto a stoop
               animParts(c, pedSp * dt * 2.2);
               if (tx > 55) {
                 c.wx = p.wx - 38;
@@ -15730,7 +15757,17 @@
                     if (onStoop) {
                       c.anchorType = "stoop";
                       const stair = hb.stairs;
-                      c.anchorX = (stair[0].x0 + stair[0].x1) / 2;
+                      const stairX = (stair[0].x0 + stair[0].x1) / 2;
+                      const stairHw = (stair[0].x1 - stair[0].x0) / 2; // half-width of the steps
+                      c._side = Math.random() < 0.5 ? -1 : 1; // left or right of the stoop
+                      // Post on the sidewalk OUTSIDE the steps' x-range (never blocking the
+                      // stoop); the dog's home stays on the same side so it rests beside the
+                      // steps, not in the middle of them.
+                      c.anchorX = clamp(
+                        stairX + c._side * (stairHw + 0.7),
+                        nb.x + 1.0,
+                        nb.x + BLOCK_W - 1.0,
+                      );
                       const stairTopY = stair[stair.length - 1].y1;
                       c.anchorY = clamp(stair[0].y0, 0.85, stairTopY);
                       c.homeY = clamp(
@@ -15738,6 +15775,7 @@
                         c.anchorY,
                         stairTopY,
                       );
+                      c.homeX = c.anchorX + c._side * R(0.3, 0.9); // same side as the post
                     } else {
                       c.anchorType = "curb";
                       c.anchorX = clamp(
@@ -15754,7 +15792,9 @@
                     }
                     c.blockMinX = nb.x + 6.0;
                     c.blockMaxX = nb.x + BLOCK_W - 6.0;
-                    c.homeX = c.anchorX + R(-0.4, 0.8);
+                    // The stoop branch already set homeX on the post's side (beside the steps);
+                    // the curb branch uses the old free pick.
+                    if (c.anchorType !== "stoop") c.homeX = c.anchorX + R(-0.4, 0.8);
                     c.wx = c.homeX;
                     c.wy = c.homeY;
                     c.agro = 0;
@@ -15924,17 +15964,30 @@
                   bny = dwy / bl;
                 p.wx += bnx * 0.9; // knockback: shove the worker away from the dog
                 p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
-                hurtNPC(HP_HIT_HAZARD);
+                if (c.dogSize === 'large') {
+                  hurtNPC(8); // large mean pitbull bites deep — more damage than a regular dog
+                  Voice.say(
+                    "Ow! I almost lost a finger!",
+                    1.4,
+                    1.0,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                } else {
+                  hurtNPC(HP_HIT_HAZARD);
+                  Voice.say(
+                    "Ow! He bit me!",
+                    1.4,
+                    1.0,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                }
                 doStun(0.5, "hit");
-                Voice.say(
-                  "Ow! He bit me!",
-                  1.4,
-                  1.0,
-                  p.wx,
-                  p.wy,
-                  WORKER_GENDER,
-                  "worker",
-                );
                 Voice.say("GRRR! GRRR!", 1.2, 1.05, c.wx, c.wy, null, "dog");
                 dropBloodSplatter(p.wx, p.wy);
                 p.bloodSteps = 12; // bleed a red footprint trail for a while

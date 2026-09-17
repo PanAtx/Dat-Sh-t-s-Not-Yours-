@@ -56,9 +56,16 @@ check('Manhattan boost only touches escooter + bike (+ tric drop) - no other typ
       ? (d >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (d - GATED_NPC[k]) : 0)
       : BASE_NPC_COUNTS[k] + (SCALING_NPC[k] ? d - 1 : 0) + (k === 'raccoon' && (d === 1 || d === 6) ? -1 : 0)
         + (k === 'skater' ? -1 : 0)))));
-// ---- Street tricycles: dropped on Flatbush (d3, driveway kids only) AND the two Manhattan days (d1, d6) ----
-[1, 3, 6].forEach(d => check('day ' + d + ' has no street tricycle (npcCounts(' + d + ').tric === 0)', npcCounts(d).tric === 0));
-[2, 4, 5, 7].forEach(d => check('day ' + d + ' keeps the baseline street tricycle', npcCounts(d).tric === BASE_NPC_COUNTS.tric));
+// ---- Street tricycles: dropped on Flatbush (d3, driveway kids only), the Bronx (d2), AND the two Manhattan days (d1, d6) ----
+[1, 2, 3, 6].forEach(d => check('day ' + d + ' has no street tricycle (npcCounts(' + d + ').tric === 0)', npcCounts(d).tric === 0));
+[4, 5, 7].forEach(d => check('day ' + d + ' keeps the baseline street tricycle', npcCounts(d).tric === BASE_NPC_COUNTS.tric));
+// ---- Bronx (d2): the kid's tricycle is swapped for real two-wheelers — 1 moto + 1 e-bike ----
+check('Bronx (d2) spawns 1 moto + 1 e-bike (two-wheeled traffic instead of the tricycle)',
+  npcCounts(2).moto === 1 && npcCounts(2).ebike === 1, 'moto=' + npcCounts(2).moto + ' ebike=' + npcCounts(2).ebike);
+check('Bronx two-wheeler override only touches d2 (d1 + d3..d7 keep the plain gated ramp)',
+  [1, 3, 4, 5, 6, 7].every(d =>
+    npcCounts(d).moto === (d >= GATED_NPC.moto ? BASE_NPC_COUNTS.moto + (d - GATED_NPC.moto) : 0) &&
+    npcCounts(d).ebike === (d >= GATED_NPC.ebike ? BASE_NPC_COUNTS.ebike + (d - GATED_NPC.ebike) : 0)));
 
 console.log(ok ? '\nROSTER CHECKS PASSED' : '\nROSTER CHECKS FAILED');
 process.exit(ok ? 0 : 1);

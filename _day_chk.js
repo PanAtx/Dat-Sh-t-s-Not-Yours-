@@ -48,12 +48,16 @@ check('level 1 (Monday) is the baseline + Manhattan scooter/bike boost (gated ty
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
 check('the main crowd (ped + car) gains +1 every level',
   [2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k] + (l - 1))));
-check('gated types are absent before their day, then 1 + (day - gateDay) after',
+check('gated types are absent before their day, then 1 + (day - gateDay) after (Bronx d2 exception: moto + ebike present)',
   [1,2,3,4,5,6,7].every(l => Object.keys(GATED_NPC).every(k =>
-    npcCounts(l)[k] === (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0))));
-check('moto appears from Wednesday, ebike from Thursday, rc from Friday',
-  npcCounts(2).moto === 0 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
-  npcCounts(3).ebike === 0 && npcCounts(4).ebike === 1 && npcCounts(5).ebike === 2 &&
+    npcCounts(l)[k] === ((l === 2 && (k === 'moto' || k === 'ebike'))
+      ? 1
+      : (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0)))));
+check('Bronx (d2): no street tricycle, but 1 moto + 1 e-bike on the street',
+  npcCounts(2).tric === 0 && npcCounts(2).moto === 1 && npcCounts(2).ebike === 1);
+check('moto: 1 on Bronx d2, normal ramp from Wednesday (d3=1, d4=2); ebike ramp from d2 (d3=2, d4=3); rc from Friday',
+  npcCounts(2).moto === 1 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
+  npcCounts(2).ebike === 1 && npcCounts(3).ebike === 2 && npcCounts(4).ebike === 3 &&
   npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
 check('non-gated, non-scaling types stay at their Monday count (per-day overrides aside)',
   Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]

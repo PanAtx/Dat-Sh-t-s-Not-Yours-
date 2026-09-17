@@ -36,9 +36,9 @@ const p = { wx: 0, wy: 2.5, invuln: 0, immuneT: 0, bloodSteps: 0 };
 // updateCreatures that does the off-screen recycling. We must anchor to the
 // updateCreatures definition so indexOf lands on the recycle case.
 function extractLeashDogCase(){
-  const fnStart = src.indexOf('function updateCreatures(dt){');
+  const fnStart = src.indexOf('function updateCreatures(dt) {');
   if (fnStart < 0) throw new Error('updateCreatures not found');
-  const start = src.indexOf("case 'leashdog':{", fnStart);
+  const start = src.indexOf('case "leashdog": {', fnStart);
   if (start < 0) throw new Error('leashdog case not found in updateCreatures');
   let i = src.indexOf('{', start), depth = 0;
   for (; i < src.length; i++){
@@ -68,12 +68,14 @@ function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
+    'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, VoiceRec, flatbushDriveways,
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
     () => false, () => 7.5, function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; },
     function makePostMesh(){ return { position: { set(){} }, parent: null }; },
-    function tieLeashChain(){ /* no-op: this harness exercises recycling/bite, not chain geometry */ });
+    function tieLeashChain(){ /* no-op: this harness exercises recycling/bite, not chain geometry */ },
+    () => false, () => Infinity);
 }
 // Build a leashdog at a FIXED driveway spawn (mirrors spawnWorld's Flatbush placement).
 function makeFlatbushDog(anchorX, anchorY){
@@ -93,7 +95,7 @@ function makeFlatbushDog(anchorX, anchorY){
 }
 
 // ---- 1) Flatbush: exactly 3 dogs spawn ----
-check('Flatbush spawns 3 leashdogs (dogCount)', /dogCount\s*=\s*isFlatbushLevel\(\)\s*\?\s*3\s*:\s*1/.test(src));
+check('Flatbush spawns 3 leashdogs (dogCount)', /dogCount\s*=\s*isFlatbushLevel\(\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(src));
 
 // ---- 2) Flatbush: off-screen dog does NOT get teleported (stays on its driveway) ----
 let flatbushOk = true; let detail = '';

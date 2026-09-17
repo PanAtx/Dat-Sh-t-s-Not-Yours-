@@ -80,9 +80,9 @@ check('tree fixture: brown trunk + leafy green canopy',
 
 // ---- extract the REAL leashdog case body (brace-counted) from updateCreatures ----
 function extractLeashDogCase(){
-  const fnStart = src.indexOf('function updateCreatures(dt){');
+  const fnStart = src.indexOf('function updateCreatures(dt) {');
   if (fnStart < 0) throw new Error('updateCreatures not found');
-  const start = src.indexOf("case 'leashdog':{", fnStart);
+  const start = src.indexOf('case "leashdog": {', fnStart);
   if (start < 0) throw new Error('leashdog case not found in updateCreatures');
   let i = src.indexOf('{', start), depth = 0;
   for (; i < src.length; i++){
@@ -149,10 +149,12 @@ function runLeashDogCase(c, manhattan, rec){
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W',
+    'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, VoiceRec, [],
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
-    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W);
+    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W,
+    () => false, () => Infinity);
 }
 
 // ---- 1) Street boundary: an aggro'd Manhattan dog NEVER steps onto the asphalt ----
@@ -202,6 +204,7 @@ function runLeashDogCase(c, manhattan, rec){
     const fn2 = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
       'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
       'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
+      'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
       'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
     let bites = 0, blood = 0;
     const lines = [];
@@ -209,7 +212,8 @@ function runLeashDogCase(c, manhattan, rec){
       fn2(d, pp, 0.016, R, GZ, dynamicGroup, () => false, { say(l){ lines.push(l); } }, [],
         'play', (v, lo, hi) => Math.min(hi, Math.max(lo, v)), () => 5.0,
         (a) => { bites++; }, () => {}, () => { blood++; }, 'male', 5,
-        () => true, () => 4.8, () => ({ position: { set(){} }, parent: null }), () => ({ position: { set(){} }, parent: null }), tieLeashChain);
+        () => true, () => 4.8, () => ({ position: { set(){} }, parent: null }), () => ({ position: { set(){} }, parent: null }), tieLeashChain,
+        () => false, () => Infinity);
     }
     return bites === 0 && blood === 0 && pp.bloodSteps === 0 && lines.indexOf('Ow! He bit me!') < 0;
   })());
@@ -321,7 +325,7 @@ function runLeashDogCase(c, manhattan, rec){
 }
 
 // ---- 5) Source-level checks on the real placement + AI code ----
-const manBlock = src.slice(src.indexOf('if (isManhattanLevel()){', src.indexOf('const dogCount = isFlatbushLevel() ? 3 : 1;')),
+const manBlock = src.slice(src.indexOf('if (isManhattanLevel()) {', src.indexOf('const dogCount = isFlatbushLevel()')),
                             src.indexOf('} else if (isFlatbushLevel()) {'));
 check('spawnWorld (Manhattan): anchor is a real fixture - tree OR fence post',
   manBlock.indexOf('makeSidewalkTree()') >= 0 && manBlock.indexOf('makePostMesh()') >= 0);
@@ -331,32 +335,33 @@ check('spawnWorld (Manhattan): fixture placed AT THE CURB (y 0.85..1.05) at the 
 check('spawnWorld (Manhattan): home is set INWARD on the walk from the curb anchor (0.85..creatureMaxY)',
   manBlock.indexOf('clamp(ld.anchorY + R(0.6, 1.4), 0.85, creatureMaxY())') >= 0);
 check('spawnWorld (Manhattan): doghouse hidden, chain still tied to the anchor',
-  manBlock.indexOf('ld.houseG.visible = false') >= 0 && manBlock.indexOf('tieLeashChain(ld.chain, ld.anchorX, ld.anchorY, 1.5') >= 0);
+  manBlock.indexOf('ld.houseG.visible = false') >= 0 && /tieLeashChain\(\s*ld\.chain,\s*ld\.anchorX,\s*ld\.anchorY,\s*1\.5/.test(manBlock));
 check('spawnWorld (Manhattan): chain ties to the TOP of the fixture (post collar, z 1.5) and tilts to the dog collar (z 0.62)',
-  manBlock.indexOf('tieLeashChain(ld.chain, ld.anchorX, ld.anchorY, 1.5, ld.wx, ld.wy, 0.62)') >= 0);
-check('AI case: per-frame chain ties at the dog COLLAR - Manhattan tilts from the post collar (z 1.5) down to the collar, ground ties at the stake top (z 0.62)',
-  /tieLeashChain\(c\.chain, c\.anchorX, c\.anchorY, isManhattanLevel\(\)\s*\?\s*1\.5\s*:\s*0\.62, dogSwayX, dogSwayY, dogCollarZ\)/.test(caseText));
+  /tieLeashChain\(\s*ld\.chain,\s*ld\.anchorX,\s*ld\.anchorY,\s*1\.5,\s*ld\.wx,\s*ld\.wy,\s*0\.62/.test(manBlock));
+check('AI case: per-frame chain ties at the dog COLLAR - Manhattan/Bronx tilts from the post collar (z 1.5) down to the collar, ground ties at the stake top (z 0.62)',
+  /tieLeashChain\(\s*c\.chain,\s*c\.anchorX,\s*c\.anchorY,\s*(?:isManhattanLevel\(\)\s*\|\|\s*isBronxLevel\(\)|isManhattanLevel\(\))\s*\?\s*1\.5\s*:\s*0\.62,\s*dogSwayX,\s*dogSwayY,\s*dogCollarZ\s*,?\s*\)/.test(caseText));
 check('AI case: the dog collar z TRACKS THE GROUND via stepTopAt (0.62 on flat ground, follows a raised lip)',
   /const dogCollarZ = stepTopAt\(c\.wx, c\.wy\) \+ \(0\.62 - GZ\)/.test(caseText));
 check('AI case: the leash SWAYS - a damped chainLean spring nudges the dog end along the leash axis as the dog moves (bowing lead)',
-  /c\.chainLean = \(c\.chainLean \|\| 0\) \+ \(targetLean - \(c\.chainLean \|\| 0\)\) \* Math\.min\(1, dt \* 6\)/.test(caseText) &&
+  /c\.chainLean\s*=\s*\(c\.chainLean\s*\|\|\s*0\)\s*\+\s*\(targetLean\s*-\s*\(c\.chainLean\s*\|\|\s*0\)\)\s*\*\s*Math\.min\(1,\s*dt\s*\*\s*6\)/.test(caseText) &&
   /const dogSwayX = c\.wx - uax \* c\.chainLean;/.test(caseText) &&
-  /const targetLean = clamp\(\(dVx \* perpX \+ dVy \* perpY\) \* 0\.12, -0\.35, 0\.35\)/.test(caseText));
-check('AI case: Manhattan target clamp (gy) and position clamp (c.wy) to >= 0.85',
-  caseText.indexOf('if (isManhattanLevel()) gy = Math.max(0.85, gy);') >= 0 ||
-  (caseText.indexOf('if (isManhattanLevel()){') >= 0 &&
-   caseText.indexOf('gy = Math.max(0.85, gy);') >= 0 &&
-   caseText.indexOf('c.wy = Math.max(0.85, c.wy);') >= 0));
+  /const targetLean\s*=\s*clamp\(\s*\(dVx\s*\*\s*perpX\s*\+\s*dVy\s*\*\s*perpY\)\s*\*\s*0\.12,\s*-0\.35,\s*0\.35/.test(caseText));
+check('AI case: Manhattan/Bronx target clamp (gy) and position clamp (c.wy) to >= 0.85',
+  (caseText.indexOf('if (isManhattanLevel()) gy = Math.max(0.85, gy);') >= 0 ||
+   caseText.indexOf('if (isManhattanLevel()) {') >= 0 ||
+   caseText.indexOf('if (isManhattanLevel() || isBronxLevel())') >= 0) &&
+  caseText.indexOf('gy = Math.max(0.85, gy);') >= 0 &&
+  caseText.indexOf('c.wy = Math.max(0.85, c.wy);') >= 0);
 check('AI case: bite trigger (dWorker < 0.85 + i-frame guards) is intact',
   /dWorker\s*<\s*0\.85\s*&&\s*p\.invuln\s*<=\s*0\s*&&\s*p\.immuneT\s*<=\s*0/.test(caseText));
-check('AI case: bite still deals damage + stun + blood splatter + bleeding trail',
-  caseText.indexOf('hurtNPC(HP_HIT_HAZARD);') >= 0 && caseText.indexOf("doStun(0.5, 'hit');") >= 0 &&
+check('AI case: bite still deals damage + stun + blood splatter + bleeding trail (large pitbull = hurtNPC(8), regular = HP_HIT_HAZARD)',
+  caseText.indexOf('hurtNPC(HP_HIT_HAZARD);') >= 0 && caseText.indexOf('hurtNPC(8);') >= 0 && caseText.indexOf('doStun(0.5, "hit");') >= 0 &&
   caseText.indexOf('dropBloodSplatter(p.wx, p.wy);') >= 0 && caseText.indexOf('p.bloodSteps = 12;') >= 0);
 check('AI case: a bite resets aggression and fires the ~4s calm-down (c.calmCd)',
   /c\.calmCd\s*=\s*4\.0/.test(caseText) && /c\.calmCd\s*=\s*c\.calmCd\s*>\s*0\s*\?\s*Math\.max\(0,\s*c\.calmCd\s*-\s*dt\)\s*:\s*0/.test(caseText));
 check('AI case: a calmed dog does NOT re-aggro and does NOT target the worker',
   /if \(dWorker\s*<\s*6\.5\s*&&\s*c\.calmCd\s*<=\s*0\)\s*c\.agro\s*=\s*Math\.max/.test(caseText) &&
-  /if \(c\.agro\s*>\s*0\s*&&\s*c\.calmCd\s*<=\s*0\)\{/.test(caseText));
+  /if \(c\.agro\s*>\s*0\s*&&\s*c\.calmCd\s*<=\s*0\)\s*\{/.test(caseText));
 check('AI case: Manhattan recycle re-anchors AT THE CURB (R(0.85, 1.05)) with a fence post',
   caseText.indexOf('c.anchorY = R(0.85, 1.05);') >= 0 && caseText.indexOf('c.anchorObj = makePostMesh();') >= 0);
 // After recycling, the chain must tie to the NEW anchor/dog positions (not the old ones)
@@ -369,7 +374,7 @@ check('AI case: chain tie runs AFTER recycling (ties to updated anchor/dog posit
     return afterRecycle.indexOf('tieLeashChain') >= 0;
   })());
 check('addHydrant now delegates to makeHydrantMesh (refactor)',
-  (() => { const hz = src.slice(src.indexOf('function addHydrant(b, wx, wy){'), src.indexOf('function addManhole'));
+  (() => { const hz = src.slice(src.indexOf('function addHydrant(b, wx, wy) {'), src.indexOf('function addManhole'));
     return hz.indexOf('makeHydrantMesh()') >= 0 && hz.indexOf('b.hazards.push') >= 0; })());
 
 console.log(ok ? '\nMANHATTAN DOG CHECKS PASSED' : '\nMANHATTAN DOG CHECKS FAILED');
