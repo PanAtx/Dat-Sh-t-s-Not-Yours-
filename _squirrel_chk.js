@@ -42,7 +42,7 @@ const shim = 'var THREE = { Group: TGroup, Mesh: TMesh, SphereGeometry: function
   'function TGroup(){this.children=[];this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;},setScalar:function(s){this.x=s;this.y=s;this.z=s;}};this.userData={};this.add=function(c){this.children.push(c);};}' +
   'function TMesh(){this.rotation={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};this.scale={x:1,y:1,z:1,set:function(x,y,z){this.x=x;this.y=y;this.z=z;}};}' +
   'function M(c){return{color:{getHex:function(){return c}}}}' +
-  'function SPH(r,m){var o=new TMesh();o.material=m;return o}' +
+  'function SPH(r,m){var o=new TMesh();o.material=m;o.r=r;return o}' +
   'function CY(r1,r2,h,m,s){var o=new TMesh();o.material=m;return o}';
 
 const makeSquirrel = eval('(function(){' + shim + extractFn('makeSquirrel') + 'return makeSquirrel;})()');
@@ -57,6 +57,7 @@ check('four little legs exposed (front + back pair)', legNames.every((n) => part
 check('each leg has a limb + a foot mesh', legNames.every((n) => parts && parts[n].children.length === 2));
 check('tail and head ride on pivots', !!(parts && parts.tailPivot && parts.headPivot));
 check('carries a high-poly acorn (nut + cap + stem) between the front paws', parts && parts.acorn && parts.acorn.children.length === 3, 'acorn=' + (parts && parts.acorn ? parts.acorn.children.length + ' parts' : 'MISSING'));
+check('acorn is COMICALLY big (nut r >= 0.08 — the old size was 0.034)', parts && parts.acorn && parts.acorn.children[0].r >= 0.08, 'nutR=' + (parts && parts.acorn ? parts.acorn.children[0].r : 'n/a'));
 check('acorn sits in front of the chest, level between the paws', parts && parts.acorn && parts.acorn.position.x > 0.09 && parts.acorn.position.y === 0, 'pos=' + (parts && parts.acorn ? JSON.stringify([parts.acorn.position.x, parts.acorn.position.y, parts.acorn.position.z]) : 'n/a'));
 check('tail plume kept (3 banded segments)', parts && parts.tailPivot.children.length === 3, 'segs=' + (parts ? parts.tailPivot.children.length : 0));
 check('head assembly kept (head, muzzle, nose, 2 eyes, 2 ears, 2 ear in-sides)', parts && parts.headPivot.children.length === 9, 'children=' + (parts ? parts.headPivot.children.length : 0));

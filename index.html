@@ -8994,10 +8994,10 @@
         // axis) swings the leg fore-aft, the same gait convention as the dog/cat trot
         const legs = {};
         [
-          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.15, 0.024],
-          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.15, 0.024],
-          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.17, 0.03],
-          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.17, 0.03],
+          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.13, 0.024],
+          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.13, 0.024],
+          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.15, 0.03],
+          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.15, 0.03],
         ].forEach(([name, lx, ly, lz, r1, r2, len, footR]) => {
           const pivot = new THREE.Group();
           pivot.position.set(lx, ly, lz);
@@ -9012,19 +9012,19 @@
           g.add(pivot);
           legs[name] = pivot;
         });
-        // a high-poly acorn cradled between the front paws — he hauls one while he scurries
+        // a COMICALLY BIG acorn cradled between the front paws — bigger than his head, clearly stolen
         const acorn = new THREE.Group();
-        acorn.position.set(0.115, 0, 0.235);
-        const nut = SPH(0.034, M(0xc79b5f), 28, 20); // smooth light-tan nut
+        acorn.position.set(0.13, 0, 0.24);
+        const nut = SPH(0.085, M(0xc79b5f), 28, 20); // smooth light-tan nut
         nut.scale.set(0.85, 0.78, 1.05);
         acorn.add(nut);
-        const cap = SPH(0.037, M(0x5d3f22), 28, 20); // dark cross-hatched cap riding on top
+        const cap = SPH(0.095, M(0x5d3f22), 28, 20); // dark cross-hatched cap riding on top
         cap.scale.set(0.9, 0.85, 0.7);
-        cap.position.z = 0.016;
+        cap.position.z = 0.042;
         acorn.add(cap);
-        const stem = CY(0.005, 0.007, 0.022, M(0x3c2814), 12); // little nub
+        const stem = CY(0.012, 0.016, 0.05, M(0x3c2814), 12); // little nub
         stem.rotation.x = Math.PI / 2; // point it along the up axis, like the limbs
-        stem.position.z = 0.04;
+        stem.position.z = 0.108;
         acorn.add(stem);
         g.add(acorn);
         g.userData.squirrel = {
@@ -10693,7 +10693,9 @@
             break;
           case "squirrel":
             c.wy = R(1.5, 4.5);
-            c.sp = R(4, 5.5);
+            c.sp = R(2.4, 3.4); // calmer scurry — the old 4-5.5 read as a full sprint
+            c.dir = Math.random() < 0.5 ? -1 : 1; // darts this way or that
+            c.pauseIn = R(1.5, 5); // stagger the squad so they don't all freeze in unison
             c.data = makeSquirrel();
             break;
           case "pigeon":
@@ -12143,6 +12145,7 @@
         if (state !== "play" && state !== "dying") return complaints;
         complaints++;
         SFX.playComplaintSound();
+        updateHUD(); // the SUPERVISOR WRITE-UPS tally (top right) lights up the new pip INSTANTLY
         const f = $("flash");
         f.style.opacity = 1;
         setTimeout(() => {
@@ -14952,15 +14955,31 @@
               // scurrying keeps its legs running: animate the cycle at the speed it's actually moving
               if (c.flee > 0) {
                 c.flee -= dt;
-                c.wx += (c.dir || 1) * 10 * dt; // bolt away from the worker that spooked it
-                animSquirrel(c, dt * 10 * 5.5);
+                c.wx += (c.dir || 1) * 8.5 * dt; // bolt away from the worker that spooked it
+                animSquirrel(c, dt * 8.5 * 5.5);
+              } else if ((c.pauseT || 0) > 0) {
+                // REAL squirrel rhythm: a freeze mid-street for a couple of seconds — the slow
+                // idle shuffle keeps the tail flicking and the head scanning while it stands
+                // still — then it darts off the OTHER way, like it changed its mind mid-thought.
+                c.pauseT -= dt;
+                animSquirrel(c, dt * 1.4);
+                if (c.pauseT <= 0) c.dir = -(c.dir || 1); // take off in a DIFFERENT direction
               } else {
-                c.wx += c.sp * dt;
+                c.wx += (c.dir || 1) * c.sp * dt;
                 animSquirrel(c, dt * c.sp * 5.5);
+                c.pauseIn = (c.pauseIn == null ? R(2.5, 5.5) : c.pauseIn) - dt; // run until the next freeze
+                if (c.pauseIn <= 0) c.pauseT = R(2, 3); // stand still 2-3 seconds before the next dash
               }
               c.wy = 4.0 + Math.sin(c.wx * 0.5) * 1.0;
               c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
-              if (tx > 55) c.wx = p.wx - 38;
+              if (tx > 55) {
+                c.wx = p.wx - 38;
+                c.dir = 1;
+              } // fell behind the worker — re-join the street behind him
+              if (tx < -55) {
+                c.wx = p.wx + 30;
+                c.dir = -1;
+              } // ran past him — re-join a little ahead, coming back
               break;
             }
             case "pigeon": {
