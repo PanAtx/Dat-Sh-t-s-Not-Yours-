@@ -9753,6 +9753,108 @@
         };
         return g;
       }
+      // Bronx-exclusive COPY of makeHighPolyDog. The Bronx uses its own leashed-dog
+      // model so it can be modified without ever touching Manhattan's makeHighPolyDog.
+      // Geometry is identical for now; the Bronx builds NO doghouse — the chain ties
+      // to a sidewalk fixture instead (see spawnWorld + tieBronxLeashChain).
+      function makeBronxLeashDog() {
+        // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
+        // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
+        // animation block drives it (trotting legs, wagging tail, barking head).
+        const g = new THREE.Group();
+        const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+        const fur = M(furC),
+          furD = M(0x241c14),
+          furL = M(0xc7ab87),
+          eyeM = M(0x14100e);
+        const body = SPH(0.1, fur, 18, 14);
+        body.scale.set(2.4, 1.1, 1.3);
+        body.position.set(-0.05, 0, 0.2);
+        g.add(body);
+        const belly = SPH(0.085, furL, 14, 10);
+        belly.scale.set(1.9, 0.8, 0.9);
+        belly.position.set(-0.05, 0, 0.12);
+        g.add(belly);
+        const chest = SPH(0.08, furL, 14, 10);
+        chest.scale.set(1, 0.9, 1);
+        chest.position.set(0.16, 0, 0.2);
+        g.add(chest);
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0.26, 0, 0.24);
+        g.add(headPivot);
+        const head = SPH(0.08, fur, 16, 12);
+        head.scale.set(1.2, 1.05, 1);
+        head.position.set(0.06, 0, 0.07);
+        headPivot.add(head);
+        const muzzle = SPH(0.045, furL, 12, 10);
+        muzzle.scale.set(1.35, 0.85, 0.8);
+        muzzle.position.set(0.15, 0, 0.04);
+        headPivot.add(muzzle);
+        const nose = SPH(0.018, furD, 10, 8);
+        nose.position.set(0.21, 0, 0.045);
+        headPivot.add(nose);
+        [-1, 1].forEach((s) => {
+          const eye = SPH(0.014, eyeM, 8, 6);
+          eye.position.set(0.08, s * 0.045, 0.13);
+          headPivot.add(eye);
+          const ear = SPH(0.04, furD, 10, 8);
+          ear.scale.set(0.7, 1.0, 0.5);
+          ear.position.set(0.0, s * 0.075, 0.11);
+          headPivot.add(ear);
+        });
+        // red collar with a little brass tag
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(0.09, 0.015, 8, 16),
+          M(0xb02020),
+        );
+        collar.rotation.y = Math.PI / 2;
+        collar.position.set(0.02, 0, 0.08);
+        headPivot.add(collar);
+        const tag = SPH(0.02, MS(0xd8b23a), 8, 6);
+        tag.position.set(0.0, 0, -0.02);
+        headPivot.add(tag);
+        // four legs on hip pivots (trotting gait driven by the shared dogParts block)
+        const dogLegs = {};
+        [
+          ["legFL", 0.19, 0.1],
+          ["legFR", 0.19, -0.1],
+          ["legHL", -0.21, 0.11],
+          ["legHR", -0.21, -0.11],
+        ].forEach((lg) => {
+          const pivot = new THREE.Group();
+          pivot.position.set(lg[1], lg[2], 0.18);
+          g.add(pivot);
+          const leg = CY(0.028, 0.036, 0.17, fur, 10);
+          leg.rotation.x = Math.PI / 2;
+          leg.position.z = -0.085;
+          pivot.add(leg);
+          const paw = SPH(0.034, furD, 10, 8);
+          paw.scale.set(1.25, 0.75, 0.85);
+          paw.position.set(0.012, 0, -0.15);
+          pivot.add(paw);
+          dogLegs[lg[0]] = pivot;
+        });
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.3, 0, 0.26);
+        g.add(tailPivot);
+        const t1 = SPH(0.055, fur, 12, 10);
+        t1.scale.set(1.1, 0.85, 0.95);
+        t1.position.set(-0.07, 0, 0.06);
+        tailPivot.add(t1);
+        const t2 = SPH(0.045, furL, 12, 10);
+        t2.position.set(-0.14, 0, 0.13);
+        tailPivot.add(t2);
+        g.userData.dog = {
+          tailPivot: tailPivot,
+          headPivot: headPivot,
+          legFL: dogLegs.legFL,
+          legFR: dogLegs.legFR,
+          legHL: dogLegs.legHL,
+          legHR: dogLegs.legHR,
+          root: g,
+        };
+        return g;
+      }
       function makeDogHouse() {
         // LOW-poly doghouse for the front lawn (deliberately chunky next to the
         // high-poly dog). The chain stake sits at the group origin - that's where
@@ -10220,6 +10322,28 @@
             new THREE.Vector3(cx2, cy2, dz2).normalize(),
           );
       }
+      // Bronx-exclusive COPY of tieLeashChain. Same rigid 3D chain orientation; kept
+      // separate so the Bronx chain geometry can be modified without affecting Manhattan.
+      function tieBronxLeashChain(chain, ax, ay, az, dx, dy, dz) {
+        // Orient the thin leash bar (BoxGeometry(1, 0.02, 0.02), local +X = its length) as a
+        // RIGID 3D segment from the dog end (dx, dy, dz) to the anchor end (ax, ay, az).
+        // On Manhattan the anchor sits HIGH at the post/tree collar (z 1.5) while the dog's
+        // collar is at z 0.62, so the bar must TILT in 3D -- a flat bar rotated about Z alone
+        // would leave the dog end floating ~0.9u above the collar. setFromUnitVectors maps the
+        // bar's local +X onto the (anchor - dog) direction, landing one end on the fixture
+        // tie-off and the other on the dog's collar.
+        const cx2 = ax - dx,
+          cy2 = ay - dy,
+          dz2 = az - dz;
+        const len = Math.sqrt(cx2 * cx2 + cy2 * cy2 + dz2 * dz2);
+        chain.scale.x = Math.max(0.02, len);
+        chain.position.set(dx + cx2 / 2, dy + cy2 / 2, (az + dz) / 2);
+        if (len > 1e-4)
+          chain.quaternion.setFromUnitVectors(
+            new THREE.Vector3(1, 0, 0),
+            new THREE.Vector3(cx2, cy2, dz2).normalize(),
+          );
+      }
       function addCreature(type, opts) {
         // Spawn NPCs away from the player (at least 20 units distance) so the worker starts alone
         const spawnOffset = Math.random() < 0.5 ? R(-58, -20) : R(20, 58);
@@ -10449,11 +10573,18 @@
             c.wheelR = c.data.userData.wheelR;
             break;
           case "leashdog": {
-            // dog + doghouse + chain: the anchor is the stake at the doghouse (front
-            // lawn, in front of a house). spawnWorld re-places it right after.
-            const dg = makeHighPolyDog();
+            // Bronx-exclusive copy of the Manhattan leashed-dog model. The Bronx builds
+            // NO doghouse — the chain ties to a sidewalk fixture (see spawnWorld). Other
+            // levels keep the shared makeHighPolyDog + makeDogHouse path.
+            let dg;
+            if (isBronxLevel()) {
+              dg = makeBronxLeashDog();
+              c.houseG = null; // no doghouse on the Bronx
+            } else {
+              dg = makeHighPolyDog();
+              c.houseG = makeDogHouse();
+            }
             c.data = dg;
-            c.houseG = makeDogHouse();
             c.chain = new THREE.Mesh(
               new THREE.BoxGeometry(1, 0.02, 0.02),
               M(0x111111),
@@ -10864,6 +10995,56 @@
                 ld.anchorX,
                 ld.anchorY,
                 0.62,
+                ld.wx,
+                ld.wy,
+                0.62,
+              );
+              dynamicGroup.add(ld.chain);
+              ld.g.rotation.z = Math.atan2(
+                ld.homeY - ld.anchorY,
+                ld.homeX - ld.anchorX,
+              );
+            } else if (isBronxLevel()) {
+              // Bronx-exclusive COPY of the Manhattan leashed-dog placement. The Bronx
+              // uses makeBronxLeashDog + tieBronxLeashChain and builds NO doghouse — the
+              // chain ties to a real sidewalk fixture (tree or fence post) at the curb,
+              // exactly like Manhattan. This block is a copy so it can be modified without
+              // touching Manhattan's placement above. SIDEBWALK-ONLY: active gameplay
+              // blocks only, with a proper sidewalk margin.
+              const activeBlocks = LEVEL_BLOCKS.filter(
+                (b) => b.garbage === true && b.x >= 96 && b.x <= 576,
+              );
+              const b = activeBlocks[(Math.random() * activeBlocks.length) | 0];
+              ld.anchorX = clamp(
+                b.x + 10.0 + R(0, 60.0),
+                b.x + 10.0,
+                b.x + BLOCK_W - 10.0,
+              );
+              ld.anchorY = R(0.85, 1.05); // right at the curb, up against the walk
+              ld.blockMinX = b.x + 6.0;
+              ld.blockMaxX = b.x + BLOCK_W - 6.0;
+              // The leash ties to a visible fixture: a sidewalk tree or a fence post
+              if (Math.random() < 0.5) {
+                ld.anchorObj = makeSidewalkTree();
+                ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ);
+              } else {
+                ld.anchorObj = makePostMesh();
+                ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
+              }
+              dynamicGroup.add(ld.anchorObj);
+              // Home position on the walk, set back from the curb; the chain clamp keeps the
+              // dog at wy >= 0.85 so it never steps onto the street but can lunge to the curb.
+              ld.homeX = ld.anchorX + R(-0.4, 0.8);
+              ld.homeY = clamp(ld.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
+              ld.wx = ld.homeX;
+              ld.wy = ld.homeY;
+              // Ties HIGH: the fixture is vertical, so the chain connects to the TOP of the
+              // fixture (z 1.5) and tilts down to the dog's collar (z 0.62).
+              tieBronxLeashChain(
+                ld.chain,
+                ld.anchorX,
+                ld.anchorY,
+                1.5,
                 ld.wx,
                 ld.wy,
                 0.62,
@@ -15404,7 +15585,7 @@
               // prevents the leash from stretching across the screen when the dog is far
               // from its anchor and tries to lunge at the worker.
               if (c.wx - p.wx < -55 && !isFlatbushLevel()) {
-                if (isManhattanLevel()) {
+                if (isManhattanLevel() || isBronxLevel()) {
                   let targetX = p.wx + 44 + R(0, 10);
                   let blockIdx = Math.floor(targetX / 96);
                   let posInCycle = targetX % 96;
@@ -15491,7 +15672,7 @@
               // never steps onto the asphalt, but it can still lunge out to the curb line
               // where the worker walks (the worker's route hugs the curb).
               // Also clamp X to the sidewalk (not in corners or cross-streets).
-              if (isManhattanLevel()) {
+              if (isManhattanLevel() || isBronxLevel()) {
                 gy = Math.max(0.85, gy);
                 if (
                   typeof c.blockMinX === "number" &&
@@ -15509,7 +15690,7 @@
                 const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
                 c.wx += (mvx / ml) * step;
                 c.wy += (mvy / ml) * step;
-                if (isManhattanLevel()) {
+                if (isManhattanLevel() || isBronxLevel()) {
                   c.wy = Math.max(0.85, c.wy);
                   if (
                     typeof c.blockMinX === "number" &&
@@ -15601,7 +15782,7 @@
                   c.chain,
                   c.anchorX,
                   c.anchorY,
-                  isManhattanLevel() ? 1.5 : 0.62,
+                  isManhattanLevel() || isBronxLevel() ? 1.5 : 0.62,
                   dogSwayX,
                   dogSwayY,
                   dogCollarZ,
