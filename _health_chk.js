@@ -107,6 +107,17 @@ global.document = {
   createElement: function(tag){ const el = { tagName: tag, className: '', textContent: '', parentNode: null, style: {}, children: [], appendChild: function(c){ this.children.push(c); c.parentNode = this; return c; } }; popups.push(el); return el; },
   body: { appendChild: function(el){ el.parentNode = { removeChild: function(){} }; } }
 };
+// Controllable timers: the 3rd write-up defers the suspended screen behind a
+// "read the stamp" hold, so the harness flushes them explicitly instead of waiting.
+const pendingTimers = [];
+global.setTimeout = function(fn, ms){
+  pendingTimers.push({ fn: fn, ms: ms });
+  return pendingTimers.length;
+};
+function flushTimers(){
+  const q = pendingTimers.splice(0, pendingTimers.length);
+  for (let i = 0; i < q.length; i++) q[i].fn();
+}
 const sfx = [];
 const SFX = {
   playHurtSound(){ sfx.push('hurt'); },
@@ -173,7 +184,7 @@ const reset = function(){
   health = 100; maxHealth = 100; state = 'play';
   p.invuln = 0; p.immuneT = 0; p.stunT = 0; p.wx = 88; p.wy = 2.5;
   powerups.length = 0; starParticles.length = 0;
-  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0; lastHitCause = 'route';
+  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0; lastHitCause = 'route'; pendingTimers.length = 0;
 };
 const lastPopup = function(){ return popups.length ? popups[popups.length - 1] : null; };
 
@@ -273,8 +284,15 @@ check('LODI #2 -> the "WRITTEN UP!" callout showed 2/3', popups.some(e => e.clas
 
 state = 'dying'; dying = { t: 99 }; health = 0;
 finishDying();
-check('LODI #3 -> THREE write-ups -> GAME OVER (reason "writeup")', complaints === 3 && gameOverCalls.length === 1 && gameOverCalls[gameOverCalls.length - 1] === 'writeup');
+check('LODI #3 -> THREE write-ups logged', complaints === 3);
+const third = (function(){ const s = popups.filter(function(e){ return e.className.indexOf('pop-writeup') >= 0; }); return s.length ? s[s.length - 1] : null; })();
+check('LODI #3 -> the "WRITTEN UP! 3/3" stamp showed (regression: it used to be skipped)', !!third && third.textContent.indexOf('3/3') >= 0);
+check('LODI #3 -> the offense line is stamped under the 3/3 seal', !!third && third.children.some(function(c){ return c.className === 'writeup-reason' && c.textContent.length > 0; }));
+check('LODI #3 -> suspended screen held back (NO game over yet)', gameOverCalls.length === 0);
 check('write-up SFX rang', sfx.indexOf('complaint') >= 0);
+flushTimers();
+check('LODI #3 -> after the read time, GAME OVER fires (reason "writeup")', gameOverCalls.length === 1 && gameOverCalls[gameOverCalls.length - 1] === 'writeup');
+check('the "womp womp" sad trombone rang with the suspended screen', sfx.indexOf('trombone') >= 0);
 
 // ===== 6c) the write-up stamp cites the OFFENSE — the reason matches what put him down =====
 const stampReason = function(cause){

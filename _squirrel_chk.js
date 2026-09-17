@@ -56,6 +56,8 @@ const legNames = ['legFL', 'legFR', 'legHL', 'legHR'];
 check('four little legs exposed (front + back pair)', legNames.every((n) => parts && parts[n] && parts[n].children.length >= 2), 'legs=' + legNames.map((n) => (parts && parts[n] ? n + ':' + parts[n].children.length : n + ':MISSING')).join(' '));
 check('each leg has a limb + a foot mesh', legNames.every((n) => parts && parts[n].children.length === 2));
 check('tail and head ride on pivots', !!(parts && parts.tailPivot && parts.headPivot));
+check('carries a high-poly acorn (nut + cap + stem) between the front paws', parts && parts.acorn && parts.acorn.children.length === 3, 'acorn=' + (parts && parts.acorn ? parts.acorn.children.length + ' parts' : 'MISSING'));
+check('acorn sits in front of the chest, level between the paws', parts && parts.acorn && parts.acorn.position.x > 0.09 && parts.acorn.position.y === 0, 'pos=' + (parts && parts.acorn ? JSON.stringify([parts.acorn.position.x, parts.acorn.position.y, parts.acorn.position.z]) : 'n/a'));
 check('tail plume kept (3 banded segments)', parts && parts.tailPivot.children.length === 3, 'segs=' + (parts ? parts.tailPivot.children.length : 0));
 check('head assembly kept (head, muzzle, nose, 2 eyes, 2 ears, 2 ear in-sides)', parts && parts.headPivot.children.length === 9, 'children=' + (parts ? parts.headPivot.children.length : 0));
 
@@ -69,6 +71,7 @@ check('dark ash-grey coat in use (0x5f646b)', usedColors.has(0x5f646b), 'colors=
 check('old light-grey coat gone (0x8b8f96)', !usedColors.has(0x8b8f96));
 check('old light-grey accent gone (0xb7bac0)', !usedColors.has(0xb7bac0));
 check('leg/foot material is the dark tone (0x27292e)', usedColors.has(0x27292e));
+check('acorn colors in use (nut 0xc79b5f, cap 0x5d3f22, stem 0x3c2814)', usedColors.has(0xc79b5f) && usedColors.has(0x5d3f22) && usedColors.has(0x3c2814));
 
 // --- animation: diagonal-pair trot, tail flick, head bob --------------------
 const c = { phase: 0, g: makeSquirrel() };

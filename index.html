@@ -8994,10 +8994,10 @@
         // axis) swings the leg fore-aft, the same gait convention as the dog/cat trot
         const legs = {};
         [
-          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.17, 0.024],
-          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.17, 0.024],
-          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.19, 0.03],
-          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.19, 0.03],
+          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.15, 0.024],
+          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.15, 0.024],
+          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.17, 0.03],
+          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.17, 0.03],
         ].forEach(([name, lx, ly, lz, r1, r2, len, footR]) => {
           const pivot = new THREE.Group();
           pivot.position.set(lx, ly, lz);
@@ -9012,6 +9012,21 @@
           g.add(pivot);
           legs[name] = pivot;
         });
+        // a high-poly acorn cradled between the front paws — he hauls one while he scurries
+        const acorn = new THREE.Group();
+        acorn.position.set(0.115, 0, 0.235);
+        const nut = SPH(0.034, M(0xc79b5f), 28, 20); // smooth light-tan nut
+        nut.scale.set(0.85, 0.78, 1.05);
+        acorn.add(nut);
+        const cap = SPH(0.037, M(0x5d3f22), 28, 20); // dark cross-hatched cap riding on top
+        cap.scale.set(0.9, 0.85, 0.7);
+        cap.position.z = 0.016;
+        acorn.add(cap);
+        const stem = CY(0.005, 0.007, 0.022, M(0x3c2814), 12); // little nub
+        stem.rotation.x = Math.PI / 2; // point it along the up axis, like the limbs
+        stem.position.z = 0.04;
+        acorn.add(stem);
+        g.add(acorn);
         g.userData.squirrel = {
           legFL: legs.legFL,
           legFR: legs.legFR,
@@ -9019,6 +9034,7 @@
           legHR: legs.legHR,
           tailPivot,
           headPivot,
+          acorn,
         };
         g.scale.setScalar(0.7); // smaller squirrel — scales about its base so it stays grounded
         return g;
@@ -12571,6 +12587,7 @@
         showDownText(); // the big animated "LODI" callout (a few seconds)
       }
       function updateDying(dt) {
+        if (!dying) return; // suspension-hold window: the 3/3 stamp is on screen, game-over pending
         dying.t += dt;
         const t = dying.t;
         // The street keeps living around the downed worker: traffic, NPCs and particles
@@ -12656,7 +12673,17 @@
       function finishDying() {
         dying = null;
         const n = addWriteUp();
-        if (n >= 3) return gameOver("writeup");
+        if (n >= 3) {
+          // third strike: the WRITTEN UP! 3/3 stamp slams in first, with the offense
+          // line under the seal, and only after a beat to actually READ it does the
+          // suspended screen come up — with the "womp womp" trombone the moment it does.
+          showWriteUpText(n);
+          setTimeout(function () {
+            SFX.playSadTrombone(); // the "womp womp" as the suspended screen appears
+            gameOver("writeup");
+          }, 3000);
+          return;
+        }
         health = maxHealth;
         p.stunT = 0;
         p.shake = 0;
@@ -17247,7 +17274,7 @@
       }
       function gameOver(reason) {
         state = "over";
-        if (reason === "writeup") SFX.playGameOver(); // the sad-trombone down jingle already rang at the LODI
+        // (the "womp womp" sad trombone rang from finishDying() the instant this suspended screen came up)
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         const title = $("over-title"),
           tag = $("over-tag");
