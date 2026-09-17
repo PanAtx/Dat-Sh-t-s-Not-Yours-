@@ -1952,7 +1952,7 @@
       >
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
       <div id="tr" class="hudbox"
-        ><div>SUPERVISOR WRITE-UPS</div
+        ><div>COMPLAINTS ISSUED</div
         ><div id="pips"
           ><span class="pip"></span><span class="pip"></span
           ><span class="pip"></span></div
@@ -8929,11 +8929,11 @@
         chest.scale.set(0.95, 0.85, 1.25);
         chest.position.set(0.045, 0, 0.25);
         g.add(chest);
-        // oversized haunches that the big back legs come out of
+        // slim, flat haunches the back legs come out of (the old oversized balls read as fat)
         [-1, 1].forEach((s) => {
-          const haunch = SPH(0.055, fur, 20, 14);
-          haunch.scale.set(1.15, 0.9, 1.25);
-          haunch.position.set(-0.11, s * 0.075, 0.2);
+          const haunch = SPH(0.04, fur, 20, 14);
+          haunch.scale.set(1.05, 0.6, 0.95);
+          haunch.position.set(-0.115, s * 0.08, 0.19);
           g.add(haunch);
         });
         // head on a pivot so it can bob with the stride
@@ -8994,10 +8994,10 @@
         // axis) swings the leg fore-aft, the same gait convention as the dog/cat trot
         const legs = {};
         [
-          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.13, 0.024],
-          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.13, 0.024],
-          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.15, 0.03],
-          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.15, 0.03],
+          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.13, 0.019],
+          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.13, 0.019],
+          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.15, 0.024],
+          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.15, 0.024],
         ].forEach(([name, lx, ly, lz, r1, r2, len, footR]) => {
           const pivot = new THREE.Group();
           pivot.position.set(lx, ly, lz);
@@ -9006,7 +9006,7 @@
           limb.position.set(0, 0, -len / 2);
           pivot.add(limb);
           const foot = SPH(footR, dark, 14, 10);
-          foot.scale.set(1.3, 0.85, 0.6);
+          foot.scale.set(0.95, 0.8, 0.6);
           foot.position.set(0.012, 0, -len);
           pivot.add(foot);
           g.add(pivot);
@@ -12145,7 +12145,7 @@
         if (state !== "play" && state !== "dying") return complaints;
         complaints++;
         SFX.playComplaintSound();
-        updateHUD(); // the SUPERVISOR WRITE-UPS tally (top right) lights up the new pip INSTANTLY
+        updateHUD(); // the COMPLAINTS ISSUED tally (top right) lights up the new pip INSTANTLY
         const f = $("flash");
         f.style.opacity = 1;
         setTimeout(() => {
@@ -14971,7 +14971,13 @@
                 if (c.pauseIn <= 0) c.pauseT = R(2, 3); // stand still 2-3 seconds before the next dash
               }
               c.wy = 4.0 + Math.sin(c.wx * 0.5) * 1.0;
-              c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
+              // the hop is stride-locked: while it RUNS the body bounces with the gait; when it
+              // FREEZES the hop eases back to 0 so the squirrel settles onto the ground — it
+              // must never hang in mid-air while it stands still
+              const hopSp = c.flee > 0 ? 8.5 : c.pauseT > 0 ? 0 : c.sp;
+              const hopT = hopSp > 0 ? Math.max(0, Math.sin(c.phase)) * 0.3 : 0;
+              c.hop = hopT > 0 ? hopT : (c.hop || 0) * Math.max(0, 1 - dt * 10);
+              c.g.position.z = GZ + c.hop;
               if (tx > 55) {
                 c.wx = p.wx - 38;
                 c.dir = 1;

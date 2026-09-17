@@ -58,6 +58,10 @@ check('each leg has a limb + a foot mesh', legNames.every((n) => parts && parts[
 check('tail and head ride on pivots', !!(parts && parts.tailPivot && parts.headPivot));
 check('carries a high-poly acorn (nut + cap + stem) between the front paws', parts && parts.acorn && parts.acorn.children.length === 3, 'acorn=' + (parts && parts.acorn ? parts.acorn.children.length + ' parts' : 'MISSING'));
 check('acorn is COMICALLY big (nut r >= 0.08 — the old size was 0.034)', parts && parts.acorn && parts.acorn.children[0].r >= 0.08, 'nutR=' + (parts && parts.acorn ? parts.acorn.children[0].r : 'n/a'));
+const haunches = (g.children || []).filter((o) => o.material && o.material.color && o.material.color.getHex() === 0x5f646b && o.r <= 0.05);
+check('thighs are slimmer & flatter (2 haunches, r <= 0.045, y-scale <= 0.65 — no fat balls)', haunches.length === 2 && haunches.every((h) => h.r <= 0.045 && h.scale.y <= 0.65), 'haunches=' + haunches.length + (haunches[0] ? ' r=' + haunches[0].r + ' sy=' + haunches[0].scale.y : ''));
+const feet = ['legFL', 'legFR', 'legHL', 'legHR'].map((n) => (parts && parts[n] ? parts[n].children[1] : null));
+check('feet are shorter & smaller (4 feet, r <= 0.024, x-scale <= 1.0)', feet.length === 4 && feet.every((f) => f && f.r <= 0.024 && f.scale.x <= 1.0), 'feet=' + feet.length + (feet[0] ? ' r=' + feet[0].r + ' sx=' + feet[0].scale.x : ''));
 check('acorn sits in front of the chest, level between the paws', parts && parts.acorn && parts.acorn.position.x > 0.09 && parts.acorn.position.y === 0, 'pos=' + (parts && parts.acorn ? JSON.stringify([parts.acorn.position.x, parts.acorn.position.y, parts.acorn.position.z]) : 'n/a'));
 check('tail plume kept (3 banded segments)', parts && parts.tailPivot.children.length === 3, 'segs=' + (parts ? parts.tailPivot.children.length : 0));
 check('head assembly kept (head, muzzle, nose, 2 eyes, 2 ears, 2 ear in-sides)', parts && parts.headPivot.children.length === 9, 'children=' + (parts ? parts.headPivot.children.length : 0));
