@@ -8915,70 +8915,111 @@
       }
       function makeSquirrel() {
         const g = new THREE.Group();
-        const fur = M(0x8b8f96),
-          furL = M(0xb7bac0),
-          dark = M(0x3a3d42),
+        const fur = M(0x5f646b), // dark ash-grey coat (was too light a grey)
+          furL = M(0x9298a1), // mid grey for chest + tail banding
+          dark = M(0x27292e), // legs, feet, ear insides, nose
           eyeM = M(0x14100e); // grey squirrel (was reddish-brown)
-        // upright sitting pose: egg body, head on top, big plume tail behind
-        const body = SPH(0.09, fur);
+        // high-poly upright scurry pose: smooth egg body, big haunches, head and
+        // bushy tail on pivots, four little legs on pivots so they can swing
+        const body = SPH(0.09, fur, 32, 24);
         body.scale.set(1.25, 1.05, 1.65);
         body.position.set(-0.03, 0, 0.25);
         g.add(body);
-        const chest = SPH(0.065, furL);
+        const chest = SPH(0.065, furL, 24, 18);
         chest.scale.set(0.95, 0.85, 1.25);
         chest.position.set(0.045, 0, 0.25);
         g.add(chest);
-        const head = SPH(0.075, fur);
+        // oversized haunches that the big back legs come out of
+        [-1, 1].forEach((s) => {
+          const haunch = SPH(0.055, fur, 20, 14);
+          haunch.scale.set(1.15, 0.9, 1.25);
+          haunch.position.set(-0.11, s * 0.075, 0.2);
+          g.add(haunch);
+        });
+        // head on a pivot so it can bob with the stride
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0.05, 0, 0.44);
+        g.add(headPivot);
+        const head = SPH(0.075, fur, 28, 20);
         head.scale.set(1.15, 1.05, 1.0);
-        head.position.set(0.1, 0, 0.48);
-        g.add(head);
+        head.position.set(0.05, 0, 0.04);
+        headPivot.add(head);
         const muz = new THREE.Mesh(
-          new THREE.ConeGeometry(0.032, 0.09, 10),
+          new THREE.ConeGeometry(0.032, 0.09, 16),
           fur,
         );
         muz.rotation.z = -Math.PI / 2;
-        muz.position.set(0.2, 0, 0.45);
+        muz.position.set(0.15, 0, 0.01);
         muz.castShadow = true;
-        g.add(muz);
-        const nose = SPH(0.012, dark);
-        nose.position.set(0.245, 0, 0.45);
-        g.add(nose);
+        headPivot.add(muz);
+        const nose = SPH(0.012, dark, 12, 10);
+        nose.position.set(0.195, 0, 0.01);
+        headPivot.add(nose);
         [-1, 1].forEach((s) => {
-          const eye = SPH(0.014, eyeM);
-          eye.position.set(0.155, s * 0.04, 0.51);
-          g.add(eye);
-          // pointy ears
+          const eye = SPH(0.014, eyeM, 16, 12);
+          eye.position.set(0.105, s * 0.04, 0.07);
+          headPivot.add(eye);
+          // pointy ears with darker insides
           const ear = new THREE.Mesh(
-            new THREE.ConeGeometry(0.028, 0.09, 8),
+            new THREE.ConeGeometry(0.028, 0.09, 12),
             fur,
           );
-          ear.position.set(0.07, s * 0.055, 0.58);
+          ear.position.set(0.02, s * 0.055, 0.14);
           ear.castShadow = true;
-          g.add(ear);
+          headPivot.add(ear);
+          const earIn = new THREE.Mesh(
+            new THREE.ConeGeometry(0.016, 0.055, 10),
+            dark,
+          );
+          earIn.position.set(0.02, s * 0.052, 0.15);
+          headPivot.add(earIn);
         });
-        // fluffy tail plume curling up behind
-        const t1 = SPH(0.08, furL);
+        // bushy tail plume on a pivot, curling up behind (so it can flick)
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.1, 0, 0.22);
+        g.add(tailPivot);
+        const t1 = SPH(0.08, furL, 24, 16);
         t1.scale.set(1.1, 0.75, 0.9);
-        t1.position.set(-0.17, 0, 0.18);
-        g.add(t1);
-        const t2 = SPH(0.1, fur);
+        t1.position.set(-0.07, 0, -0.04);
+        tailPivot.add(t1);
+        const t2 = SPH(0.1, fur, 28, 18);
         t2.scale.set(0.95, 0.7, 1.05);
-        t2.position.set(-0.25, 0, 0.34);
-        g.add(t2);
-        const t3 = SPH(0.07, furL);
+        t2.position.set(-0.15, 0, 0.12);
+        tailPivot.add(t2);
+        const t3 = SPH(0.07, furL, 22, 14);
         t3.scale.set(0.85, 0.6, 0.9);
-        t3.position.set(-0.24, 0, 0.52);
-        g.add(t3);
-        // little feet
+        t3.position.set(-0.14, 0, 0.3);
+        tailPivot.add(t3);
+        // four little legs on pivots — rotating the pivot around Y (the lateral
+        // axis) swings the leg fore-aft, the same gait convention as the dog/cat trot
+        const legs = {};
         [
-          [0.05, 0.07],
-          [0.05, -0.07],
-        ].forEach((p) => {
-          const foot = SPH(0.028, fur);
-          foot.scale.set(1.1, 0.6, 0.8);
-          foot.position.set(p[0], p[1], 0.03);
-          g.add(foot);
+          ["legFL", 0.07, 0.075, 0.19, 0.012, 0.017, 0.17, 0.024],
+          ["legFR", 0.07, -0.075, 0.19, 0.012, 0.017, 0.17, 0.024],
+          ["legHL", -0.15, 0.095, 0.21, 0.016, 0.023, 0.19, 0.03],
+          ["legHR", -0.15, -0.095, 0.21, 0.016, 0.023, 0.19, 0.03],
+        ].forEach(([name, lx, ly, lz, r1, r2, len, footR]) => {
+          const pivot = new THREE.Group();
+          pivot.position.set(lx, ly, lz);
+          const limb = CY(r1, r2, len, dark, 12);
+          limb.rotation.x = Math.PI / 2; // stand the limb up (axis along Z)
+          limb.position.set(0, 0, -len / 2);
+          pivot.add(limb);
+          const foot = SPH(footR, dark, 14, 10);
+          foot.scale.set(1.3, 0.85, 0.6);
+          foot.position.set(0.012, 0, -len);
+          pivot.add(foot);
+          g.add(pivot);
+          legs[name] = pivot;
         });
+        g.userData.squirrel = {
+          legFL: legs.legFL,
+          legFR: legs.legFR,
+          legHL: legs.legHL,
+          legHR: legs.legHR,
+          tailPivot,
+          headPivot,
+        };
         g.scale.setScalar(0.7); // smaller squirrel — scales about its base so it stays grounded
         return g;
       }
@@ -14203,6 +14244,21 @@
         // already at z=0.18 — moving just the fur mesh double-offset it into an "exploded" gap.)
         parts.bodyGroup.position.z = 0.18 + Math.abs(Math.sin(c.phase)) * 0.005;
       }
+      function animSquirrel(c, dphase) {
+        c.phase = (c.phase || 0) + dphase;
+        const parts = c.g.userData.squirrel;
+        if (!parts) return;
+        // Scurry trot: diagonal leg pairs (FL+HR vs FR+HL) swing fore-aft at the
+        // hip/shoulder pivots, same gait convention as the dog/cat trot
+        const s = Math.sin(c.phase) * 0.75;
+        parts.legFL.rotation.y = s;
+        parts.legHR.rotation.y = s;
+        parts.legFR.rotation.y = -s;
+        parts.legHL.rotation.y = -s;
+        // bushy tail flicks with a slower wave, head bobs with the stride
+        parts.tailPivot.rotation.x = Math.sin(c.phase * 0.6) * 0.22;
+        parts.headPivot.rotation.y = Math.sin(c.phase * 2) * 0.07;
+      }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
         c.phase += dphase;
@@ -14866,7 +14922,15 @@
               break;
             }
             case "squirrel": {
-              c.wx += c.sp * dt;
+              // scurrying keeps its legs running: animate the cycle at the speed it's actually moving
+              if (c.flee > 0) {
+                c.flee -= dt;
+                c.wx += (c.dir || 1) * 10 * dt; // bolt away from the worker that spooked it
+                animSquirrel(c, dt * 10 * 5.5);
+              } else {
+                c.wx += c.sp * dt;
+                animSquirrel(c, dt * c.sp * 5.5);
+              }
               c.wy = 4.0 + Math.sin(c.wx * 0.5) * 1.0;
               c.g.position.z = GZ + Math.max(0, Math.sin(c.wx * 2.2)) * 0.3;
               if (tx > 55) c.wx = p.wx - 38;
