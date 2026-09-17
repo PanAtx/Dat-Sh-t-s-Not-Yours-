@@ -8071,15 +8071,39 @@
           emissive: 0x1a3a4f,
           emissiveIntensity: 0.4,
         });
+        // Wrought-iron window security bars: thin vertical bars with horizontal supports
+        function addWindowBars(g, x, y, z, winW, winH) {
+          const barMat = M(0x111111);
+          const barW = 0.04;
+          // Vertical bars spaced across the window
+          const numBars = 5;
+          const barSpacing = winW / (numBars + 1);
+          for (let i = 1; i <= numBars; i++) {
+            const bar = BX(barW, 0.06, winH, barMat);
+            bar.position.set(x - winW / 2 + i * barSpacing, y, z);
+            g.add(bar);
+          }
+          // Two horizontal support bars (top and bottom)
+          const topBar = BX(winW, 0.06, 0.04, barMat);
+          topBar.position.set(x, y, z + winH / 2 - 0.05);
+          g.add(topBar);
+          const bottomBar = BX(winW, 0.06, 0.04, barMat);
+          bottomBar.position.set(x, y, z - winH / 2 + 0.05);
+          g.add(bottomBar);
+        }
+
         for (let floor = 0; floor < 3; floor++) {
           const fy = 0.3 + 1.0 + floor * 1.3;
-          // Left window on every floor — larger and further apart for Bronx scale
+          // Skip the middle floor (floor 1) — no windows there (bad neighborhood)
+          if (floor === 1) continue;
+          // Left window on floors 0 and 2 — larger and further apart for Bronx scale
           const leftFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
           leftFrame.position.set(-w * 0.35, -d / 2 + 0.03, fy);
           g.add(leftFrame);
           const leftGlass = BX(0.9, 0.04, 1.1, winM);
           leftGlass.position.set(-w * 0.35, -d / 2 - 0.08, fy);
           g.add(leftGlass);
+          addWindowBars(g, -w * 0.35, -d / 2 - 0.12, fy, 0.9, 1.1);
           // Right window only on top floor (floors 0/1 blocked by stoop/door)
           if (floor >= 2) {
             const rightFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
@@ -8088,6 +8112,7 @@
             const rightGlass = BX(0.9, 0.04, 1.1, winM);
             rightGlass.position.set(w * 0.35, -d / 2 - 0.08, fy);
             g.add(rightGlass);
+            addWindowBars(g, w * 0.35, -d / 2 - 0.12, fy, 0.9, 1.1);
           }
         }
         // Row house stoop: taller with 6 steps
@@ -9003,7 +9028,11 @@
         const t2 = SPH(0.04, fur);
         t2.position.set(-0.12, 0, 0.12);
         tailPivot.add(t2);
-        g.userData.dog = {
+        // Scale the dog based on size (large pitbulls are bigger)
+      if (dogSize === 'large') {
+        g.scale.set(1.35, 1.4, 1.35);
+      }
+      g.userData.dog = {
           tailPivot: tailPivot,
           headPivot: headPivot,
           legFL: dogLegs.legFL,
@@ -9024,6 +9053,15 @@
         orange: { fur: 0xd4813e, light: 0xf5e6d0, furD: 0xb87030, eye: 0x42963a }, // ginger (the original)
         tabby: { fur: 0x8a6a48, light: 0xcfb99a, furD: 0x66492c, eye: 0x3f7d3a }, // brown tabby markings
         mott: { fur: 0xe9eaee, light: 0xfafafb, furD: 0x8f95a3, eye: 0x3f6ea8 }, // white & grey "Mott" (Bronx only), blue eyes
+      };
+      // Bronx leashdog coat palettes for the large mean pitbulls. These are distinct from
+      // the brown/tan coats of the regular medium-sized dogs (those still use furC pick).
+      // Yellow, dark brown, husky (white/grey), and white-with-black-spots.
+      const DOG_PALETTES = {
+        yellow: { fur: 0xdcb45e, light: 0xf5e6c0, furD: 0xb89040 }, // golden yellow lab-like
+        darkbrown: { fur: 0x4a3020, light: 0x8a6a50, furD: 0x2a1810 }, // dark chocolate brown
+        husky: { fur: 0xdcdce2, light: 0xfafafc, furD: 0x8f95a3 }, // white & grey husky coat
+        spotted: { fur: 0xf2f0ec, light: 0xfaf8f4, furD: 0x222226 }, // white base with black spots
       };
       function makeCat(paletteName) {
         const g = new THREE.Group();
@@ -9660,7 +9698,7 @@
         // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
         // animation block drives it (trotting legs, wagging tail, barking head).
         const g = new THREE.Group();
-        const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+        const furC = dogSize === 'large' ? DOG_PALETTES[dogCoat].fur : pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
         const fur = M(furC),
           furD = M(0x241c14),
           furL = M(0xc7ab87),
@@ -9757,7 +9795,7 @@
       // model so it can be modified without ever touching Manhattan's makeHighPolyDog.
       // Geometry is identical for now; the Bronx builds NO doghouse — the chain ties
       // to a sidewalk fixture instead (see spawnWorld + tieBronxLeashChain).
-      function makeBronxLeashDog() {
+      function makeBronxLeashDog(dogSize, dogCoat) {
         // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
         // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
         // animation block drives it (trotting legs, wagging tail, barking head).
@@ -10578,7 +10616,14 @@
             // levels keep the shared makeHighPolyDog + makeDogHouse path.
             let dg;
             if (isBronxLevel()) {
-              dg = makeBronxLeashDog();
+              // 30% chance of a large mean pitbull with diverse coat
+            c.dogSize = Math.random() < 0.3 ? 'large' : 'medium';
+            c.dogCoat = null;
+            if (c.dogSize === 'large') {
+              const coats = Object.keys(DOG_PALETTES);
+              c.dogCoat = coats[(Math.random() * coats.length) | 0];
+            }
+            dg = makeBronxLeashDog(c.dogSize, c.dogCoat);
               c.houseG = null; // no doghouse on the Bronx
             } else {
               dg = makeHighPolyDog();
@@ -13222,7 +13267,7 @@
               footDist = 0; // the worker leaves a brown footprint trail for a while
             } else if (hz.type === "hit") {
               p.wx -= 0.7;
-              hurtNPC(HP_HIT_HAZARD);
+              if (c.dogSize === 'large') { hurtNPC(8); Voice.say("Ow! I almost lost a finger!", 1.4, 1.0, p.wx, p.wy, WORKER_GENDER, "worker"); } else { hurtNPC(HP_HIT_HAZARD); Voice.say("Ow! He bit me!", 1.4, 1.0, p.wx, p.wy, WORKER_GENDER, "worker"); }
               doStun(0.8, "hit");
               Voice.say(
                 "OW! My shin!",

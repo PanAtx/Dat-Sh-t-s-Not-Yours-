@@ -37,7 +37,7 @@ function braceOpen(base, rel){
 const origDog = extractFn('makeHighPolyDog');
 const bronxDog = extractFn('makeBronxLeashDog');
 check('makeBronxLeashDog exists', !!bronxDog);
-check('makeBronxLeashDog is a faithful rename of makeHighPolyDog', bronxDog.replace('function makeBronxLeashDog(','function makeHighPolyDog(') === origDog, 'match=' + (bronxDog.replace('function makeBronxLeashDog(','function makeHighPolyDog(') === origDog));
+check('makeBronxLeashDog accepts dogSize and dogCoat parameters', bronxDog.indexOf('function makeBronxLeashDog(dogSize, dogCoat)') >= 0);
 const origChain = extractFn('tieLeashChain');
 const bronxChain = extractFn('tieBronxLeashChain');
 check('tieBronxLeashChain is a faithful rename of tieLeashChain', bronxChain.replace('function tieBronxLeashChain(','function tieLeashChain(') === origChain);
@@ -50,7 +50,7 @@ const addCase = (() => {
   for (; i < src.length; i++){ if (src[i]==='{') d++; else if (src[i]==='}'){ d--; if (d===0) break; } }
   return src.slice(s, i+1);
 })();
-check('addCreature leashdog: Bronx uses makeBronxLeashDog', addCase.indexOf('if (isBronxLevel())') >= 0 && addCase.indexOf('makeBronxLeashDog()') >= 0);
+check('addCreature leashdog: Bronx uses makeBronxLeashDog with size/coat params', addCase.indexOf('if (isBronxLevel())') >= 0 && addCase.indexOf('makeBronxLeashDog(c.dogSize, c.dogCoat)') >= 0);
 check('addCreature leashdog: Bronx sets houseG = null (no doghouse)', addCase.indexOf('c.houseG = null; // no doghouse on the Bronx') >= 0);
 const bronxBuild = braceOpen(addCaseStart, addCase.indexOf('if (isBronxLevel())'));
 check('addCreature leashdog: Bronx true-branch uses makeBronxLeashDog and NOT makeDogHouse', bronxBuild.body.indexOf('makeBronxLeashDog') >= 0 && bronxBuild.body.indexOf('makeDogHouse') < 0, 'hasModel=' + (bronxBuild.body.indexOf('makeBronxLeashDog')>=0) + ' hasHouse=' + (bronxBuild.body.indexOf('makeDogHouse')>=0));
