@@ -53,6 +53,7 @@ const MONSTER_SCORE_STEP = getNumConst('MONSTER_SCORE_STEP');
 // ---- mutable game state (the extracted functions close over these) ----
 let health = 100, maxHealth = 100;
 let state = 'play';
+let lastHitCause = 'route'; // the offense that put the worker down (hurtNPC records it; the write-up stamp cites it)
 const p = { wx: 88, wy: 2.5, stunT: 0, invuln: 0, immuneT: 0 };
 const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);
 const powerups = [];
@@ -103,7 +104,7 @@ function $(id){
 const popups = [];
 global.document = {
   querySelectorAll: function(){ return []; },
-  createElement: function(tag){ const el = { tagName: tag, className: '', textContent: '', parentNode: null, style: {} }; popups.push(el); return el; },
+  createElement: function(tag){ const el = { tagName: tag, className: '', textContent: '', parentNode: null, style: {}, children: [], appendChild: function(c){ this.children.push(c); c.parentNode = this; return c; } }; popups.push(el); return el; },
   body: { appendChild: function(el){ el.parentNode = { removeChild: function(){} }; } }
 };
 const sfx = [];
@@ -151,6 +152,20 @@ eval(extractFn('updatePowerups'));
 eval(extractFn('spawnStars'));
 eval(extractFn('updateStarParticles'));
 
+// ---- the write-up OFFENSE FILE: run the REAL reason table + picker from index.html ----
+// (direct eval at MODULE top level: re-declare the const as var so the binding leaks
+//  into this scope, and declare writeupReason in the SAME eval so it closes over that
+//  table — exactly how the eval(extractFn(...)) lines above work)
+const _wrIdx = src.indexOf('const WRITEUP_REASONS = {');
+if (_wrIdx < 0) throw new Error('WRITEUP_REASONS not found in index.html');
+const _wrBrace = src.indexOf('{', _wrIdx);
+let _wrDepth = 0, _wrI = _wrBrace;
+for (; _wrI < src.length; _wrI++){
+  if (src[_wrI] === '{') _wrDepth++;
+  else if (src[_wrI] === '}'){ _wrDepth--; if (_wrDepth === 0) break; }
+}
+eval('var WRITEUP_REASONS = ' + src.slice(_wrIdx + 'const '.length, _wrI + 1) + ';\n' + extractFn('writeupReason'));
+
 // ---- assertion helper ----
 let ok = true;
 const check = function(label, cond){ console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
@@ -158,7 +173,7 @@ const reset = function(){
   health = 100; maxHealth = 100; state = 'play';
   p.invuln = 0; p.immuneT = 0; p.stunT = 0; p.wx = 88; p.wy = 2.5;
   powerups.length = 0; starParticles.length = 0;
-  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0;
+  sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0; lastHitCause = 'route';
 };
 const lastPopup = function(){ return popups.length ? popups[popups.length - 1] : null; };
 
@@ -260,6 +275,30 @@ state = 'dying'; dying = { t: 99 }; health = 0;
 finishDying();
 check('LODI #3 -> THREE write-ups -> GAME OVER (reason "writeup")', complaints === 3 && gameOverCalls.length === 1 && gameOverCalls[gameOverCalls.length - 1] === 'writeup');
 check('write-up SFX rang', sfx.indexOf('complaint') >= 0);
+
+// ===== 6c) the write-up stamp cites the OFFENSE — the reason matches what put him down =====
+const stampReason = function(cause){
+  reset();
+  lastHitCause = cause; // simulate: this offense is what finally took the worker down
+  state = 'dying'; dying = { t: 99 }; health = 0;
+  finishDying();
+  const stamp = popups.filter(function(e){ return e.className.indexOf('pop-writeup') >= 0; }).pop();
+  const r = stamp && stamp.children ? stamp.children.filter(function(c){ return c.className === 'writeup-reason'; }).pop() : null;
+  return r ? r.textContent : null;
+};
+['vehicle', 'dog', 'public', 'leader', 'hazard', 'route'].forEach(function(cause){
+  const r = stampReason(cause);
+  check('LODI from a "' + cause + '" hit -> stamp cites a real "' + cause + '" offense: "' + r + '"', !!(r && WRITEUP_REASONS[cause].indexOf(r) >= 0));
+});
+check('the offense file keeps the canonical lines (right of way / safety guidelines / respect the public / community leaders / route)',
+  WRITEUP_REASONS.vehicle.indexOf('Failed to give right of way') >= 0 &&
+  WRITEUP_REASONS.dog.indexOf('Failed to practice safety guidelines') >= 0 &&
+  WRITEUP_REASONS.public.indexOf('Failed to respect the public') >= 0 &&
+  WRITEUP_REASONS.leader.indexOf('Failed to give respect to community leaders') >= 0 &&
+  WRITEUP_REASONS.hazard.indexOf('Failure to complete an established route') >= 0);
+check('hurtNPC records the offense cause it was called with', (function(){ reset(); hurtNPC(HP_HIT_HAZARD, 'leader'); return lastHitCause === 'leader'; })());
+check('hurtNPC with no cause falls back to the route KPI', (function(){ reset(); lastHitCause = 'leader'; hurtNPC(HP_HIT_HAZARD); return lastHitCause === 'route'; })());
+check('an i-framed hit does NOT change the recorded offense', (function(){ reset(); lastHitCause = 'leader'; p.invuln = 1.0; hurtNPC(HP_HIT_VEHICLE, 'dog'); return lastHitCause === 'leader'; })());
 
 // ===== 7) coffee restores a little health + POWER UP! + "I needed that!" =====
 reset();

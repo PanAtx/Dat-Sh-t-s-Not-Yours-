@@ -40,9 +40,9 @@ const DRIVETR_LATERAL = 1.0;
 
 // ---- extract the REAL 'tric' case body (brace-counted) from updateCreatures ----
 function extractTricCase(){
-  const fnStart = src.indexOf('function updateCreatures(dt){');
+  const fnStart = src.indexOf('function updateCreatures(dt) {');
   if (fnStart < 0) throw new Error('updateCreatures not found');
-  const start = src.indexOf("case 'tric':{", fnStart);
+  const start = src.indexOf('case "tric": {', fnStart);
   if (start < 0) throw new Error("case 'tric' not found in updateCreatures");
   let i = src.indexOf('{', start), depth = 0;
   for (; i < src.length; i++){
@@ -125,6 +125,7 @@ function runApproach(){
   check('kid NEVER crosses into the street (wy >= 0.8 every frame)', r.minWy >= 0.8, 'minWy=' + r.minWy.toFixed(3));
   check('kid stays within leash of its home spot (driveway only)', r.maxLeash <= r.c.chainR + 0.05, 'maxLeash=' + r.maxLeash.toFixed(3));
   check('bump damage is MINOR (lighter than a vehicle run-over)', HP_HIT_DRIVETRIC < 8, HP_HIT_DRIVETRIC + ' < 8');
+  check('kid bump cites the "leader" write-up offense (tricycle kid = community leader)', src.indexOf('hurtNPC(HP_HIT_DRIVETRIC, "leader")') >= 0);
 }
 
 // ---- 2b) Worker leaves -> kid returns home and parks (idle) ----

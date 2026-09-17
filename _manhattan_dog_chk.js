@@ -354,8 +354,8 @@ check('AI case: Manhattan/Bronx target clamp (gy) and position clamp (c.wy) to >
   caseText.indexOf('c.wy = Math.max(0.85, c.wy);') >= 0);
 check('AI case: bite trigger (dWorker < 0.85 + i-frame guards) is intact',
   /dWorker\s*<\s*0\.85\s*&&\s*p\.invuln\s*<=\s*0\s*&&\s*p\.immuneT\s*<=\s*0/.test(caseText));
-check('AI case: bite still deals damage + stun + blood splatter + bleeding trail (large pitbull = hurtNPC(8), regular = HP_HIT_HAZARD)',
-  caseText.indexOf('hurtNPC(HP_HIT_HAZARD);') >= 0 && caseText.indexOf('hurtNPC(8);') >= 0 && caseText.indexOf('doStun(0.5, "hit");') >= 0 &&
+check('AI case: bite still deals damage + stun + blood splatter + bleeding trail (large pitbull = hurtNPC(8, "dog"), regular = hurtNPC(HP_HIT_HAZARD, "dog"))',
+  caseText.indexOf('hurtNPC(HP_HIT_HAZARD, "dog")') >= 0 && caseText.indexOf('hurtNPC(8, "dog")') >= 0 && caseText.indexOf('doStun(0.5, "hit");') >= 0 &&
   caseText.indexOf('dropBloodSplatter(p.wx, p.wy);') >= 0 && caseText.indexOf('p.bloodSteps = 12;') >= 0);
 check('AI case: a bite resets aggression and fires the ~4s calm-down (c.calmCd)',
   /c\.calmCd\s*=\s*4\.0/.test(caseText) && /c\.calmCd\s*=\s*c\.calmCd\s*>\s*0\s*\?\s*Math\.max\(0,\s*c\.calmCd\s*-\s*dt\)\s*:\s*0/.test(caseText));

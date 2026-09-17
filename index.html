@@ -1590,6 +1590,16 @@
           0 0 30px rgba(255, 80, 80, 0.85);
         animation: writeUpSlam 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
       }
+      /* the offense line stamped under the seal: what the worker was written up FOR */
+      .pop-writeup .writeup-reason {
+        display: block;
+        margin-top: 14px;
+        font-size: min(3.4vw, 24px);
+        letter-spacing: 2px;
+        white-space: normal;
+        max-width: 86vw;
+        text-shadow: 3px 3px 0 rgba(50, 0, 0, 0.92);
+      }
       @keyframes writeUpSlam {
         0% {
           transform: translateX(-50%) scale(2.6) rotate(-8deg);
@@ -2228,6 +2238,7 @@
       let paused = false; // true = a live shift is frozen (PAUSE overlay up); only meaningful when state === 'play'
       let health = 100,
         maxHealth = 100; // worker health pool: NPCs drain it; power-ups restore it; 0 -> worker down (write-up); 3 write-ups -> game over
+      let lastHitCause = "route"; // what last put the worker down (see WRITEUP_REASONS) — the supervisor stamps the WRITTEN UP! callout with this offense
       let p = {
         wx: 0,
         wy: 2.5,
@@ -12446,10 +12457,11 @@
       function heal(amount) {
         health = Math.min(maxHealth, health + (amount || 0));
       }
-      function hurtNPC(amount) {
+      function hurtNPC(amount, cause) {
         if (state !== "play") return;
         if (p.invuln > 0 || p.immuneT > 0) return; // i-frames / Monster immunity absorb the hit
         health = Math.max(0, health - (amount || 0));
+        lastHitCause = cause || "route"; // log the offense: the WRITTEN UP! stamp cites it when he comes to
         const f = $("flash");
         if (f) {
           f.style.opacity = 1;
@@ -12630,8 +12642,55 @@
         state = "play";
         updateHUD();
       }
+      // ==================== WRITTEN-UP REASONS (the supervisor's woke offense file) ====================
+      // Every LODI gets stamped with a REASON — the thing that actually put the worker
+      // down. HR in this era never names the party at fault: the worker is always out
+      // of line, the motorist had right of way, the dog's boundaries were violated,
+      // and the stoop dealer is a "community leader" who was due full respect at all times.
+      const WRITEUP_REASONS = {
+        // anything on wheels: cars, motos, e-bikes, bikes, scooters
+        vehicle: [
+          "Failed to give right of way",
+          "Failure to yield — the motorist was not afforded priority",
+          "Cyclist's lane rights not respected",
+          "Failure to acknowledge the bike lane",
+        ],
+        // leashed-dog bites (regular and mean pitbull)
+        dog: [
+          "Failed to practice safety guidelines",
+          "Unsafe approach to a protected canine",
+          "Failure to respect the dog's boundaries",
+        ],
+        // the general public: any civilian the worker bumped on the route
+        public: [
+          "Failed to respect the public",
+          "Unprofessional conduct toward a constituent",
+          "The pedestrian's right to the sidewalk was not honored",
+        ],
+        // the bad folks: the stoop dealer, the crazy guy, the tricycle kid
+        leader: [
+          "Failed to give respect to community leaders",
+          "Disruption of a sanctioned street enterprise",
+          "Failure to uphold neighborhood diplomacy",
+          "Community leader not afforded due deference",
+        ],
+        // the street itself: the hydrant and friends
+        hazard: [
+          "Failure to complete an established route",
+          "Failure to respect municipal property",
+          "The fire hydrant's right of way was violated",
+        ],
+        // the catch-all, for when HR can't be bothered to be specific
+        route: ["Failure to complete an established route"],
+      };
+      // Pick one offense line at random from the cause's list (HR has opinions).
+      function writeupReason(cause) {
+        const lines = WRITEUP_REASONS[cause] || WRITEUP_REASONS.route;
+        return lines[(Math.random() * lines.length) | 0];
+      }
       // The red "WRITTEN UP!" stamp callout — reuses the .popup base CSS the way the
       // "LODI" / "POWER UP!" callouts do (big centered text, animated, auto-removed).
+      // Under the seal: the offense the worker was written up FOR (lastHitCause).
       function showWriteUpText(n) {
         if (typeof document === "undefined") return; // not in the browser (test harness)
         document.querySelectorAll(".popup").forEach(function (elm) {
@@ -12640,6 +12699,10 @@
         const el = document.createElement("div");
         el.className = "popup pop-writeup";
         el.textContent = "WRITTEN UP! " + n + "/3";
+        const r = document.createElement("div"); // the offense, stamped under the red seal
+        r.className = "writeup-reason";
+        r.textContent = writeupReason(lastHitCause);
+        el.appendChild(r);
         document.body.appendChild(el);
         setTimeout(function () {
           if (el.parentNode) el.parentNode.removeChild(el);
@@ -13475,7 +13538,7 @@
               footDist = 0; // the worker leaves a brown footprint trail for a while
             } else if (hz.type === "hit") {
               p.wx -= 0.7;
-              hurtNPC(HP_HIT_HAZARD);
+              hurtNPC(HP_HIT_HAZARD, "hazard");
               doStun(0.8, "hit");
               Voice.say(
                 "OW! My shin!",
@@ -13559,7 +13622,7 @@
           if (c.type === "crazy") {
             if (c.attackCd <= 0) {
               // Violent attack
-              hurtNPC(HP_HIT_HAZARD);
+              hurtNPC(HP_HIT_HAZARD, "leader");
               Voice.say(
                 "I need money!",
                 2.2,
@@ -13712,7 +13775,7 @@
             p.wx -= (dx / nl) * 1.6;
             p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, workerMaxY());
             dropCarried();
-            hurtNPC(HP_HIT_VEHICLE); // get run over = lose health (absorbed if immune / i-framed)
+            hurtNPC(HP_HIT_VEHICLE, "vehicle"); // get run over = lose health (absorbed if immune / i-framed)
             p.invuln = 1.6;
             doStun(1.2, "hit");
             if (c.type === "car" || c.type === "moto")
@@ -14906,7 +14969,7 @@
                     const nl = dtw || 1;
                     p.wx -= (dtwX / nl) * 0.9;
                     p.wy = clamp(p.wy - (dtwY / nl) * 0.9, -9.4, workerMaxY());
-                    hurtNPC(HP_HIT_DRIVETRIC);
+                    hurtNPC(HP_HIT_DRIVETRIC, "leader");
                     doStun(0.7, "hit");
                     Voice.say(
                       "OW!",
@@ -15908,7 +15971,7 @@
                   WORKER_GENDER,
                   "worker",
                 );
-                hurtNPC(HP_HIT_HAZARD);
+                hurtNPC(HP_HIT_HAZARD, "leader");
                 doStun(0.6, "hit");
                 dropBloodSplatter(p.wx, p.wy);
                 p.bloodSteps = 10;
@@ -16262,7 +16325,7 @@
                 p.wx += bnx * 0.9; // knockback: shove the worker away from the dog
                 p.wy = clamp(p.wy + bny * 0.9, -9.4, workerMaxY());
                 if (c.dogSize === 'large') {
-                  hurtNPC(8); // large mean pitbull bites deep — more damage than a regular dog
+                  hurtNPC(8, "dog"); // large mean pitbull bites deep — more damage than a regular dog
                   Voice.say(
                     "Ow! I almost lost a finger!",
                     1.4,
@@ -16273,7 +16336,7 @@
                     "worker",
                   );
                 } else {
-                  hurtNPC(HP_HIT_HAZARD);
+                  hurtNPC(HP_HIT_HAZARD, "dog");
                   Voice.say(
                     "Ow! He bit me!",
                     1.4,

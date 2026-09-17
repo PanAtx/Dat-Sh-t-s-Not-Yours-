@@ -126,6 +126,10 @@ const caseIdx = html.indexOf('case "dealer": {');
 const caseEnd = html.indexOf("case \"skater\": {", caseIdx);
 const caseText = html.slice(caseIdx, caseEnd);
 check("dealer case is well-formed before the skater case", caseIdx >= 0 && caseEnd > caseIdx);
+check(
+  "dealer punch cites the 'leader' write-up offense (community leader, not a hazard)",
+  caseText.indexOf('hurtNPC(HP_HIT_HAZARD, "leader")') >= 0,
+);
 
 const group = () => ({ position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 } });
 function makeC() {
@@ -150,9 +154,10 @@ function makeP(x, y) {
 const voices = [];
 const rec = { hurt: 0, dmg: 0, stun: 0, blood: 0, dust: 0 };
 const Voice = { say: (t) => voices.push(t) };
-const hurtNPC = (a) => {
+const hurtNPC = (a, cause) => {
   rec.hurt++;
   rec.dmg += a;
+  rec.cause = cause;
 };
 const doStun = () => rec.stun++;
 const dropBloodSplatter = () => rec.blood++;
@@ -232,6 +237,7 @@ const dist1 = Math.hypot(p.wx - c.wx, p.wy - c.wy);
 check("worker is knocked BACK away from the dealer", dist1 > dist0 + 0.5);
 check("punch arm extended during the swing (rotation.y < 0)", c.punchArm.rotation.y < 0);
 check("punch cooldown set to 3.5s", c.attackCd > 3.4 && c.attackCd <= 3.5);
+check("punch records the 'leader' offense cause for the write-up", rec.cause === 'leader');
 
 // (d) no double punch while the cooldown runs
 p = makeP(100.5, 4.2);

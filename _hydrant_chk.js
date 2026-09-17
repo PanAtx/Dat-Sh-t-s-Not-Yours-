@@ -6,12 +6,16 @@ global.THREE = require(path.join(__dirname, '_three128.js'));
 
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (works for indented source; the old line-startsAt version was stale)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 
 function M(c, opt){ return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {})); }
@@ -36,6 +40,7 @@ built = added[0] || null;
 
 check('addHydrant builds a Group without throwing' + (threw ? '  [' + threw.message + ']' : ''), !threw && built && Array.isArray(built.children));
 check('hydrant registers a hazard on the block', b.hazards.length === 1 && b.hazards[0].type === 'hit');
+check('hitting the hydrant cites the "hazard" write-up offense', src.indexOf('hurtNPC(HP_HIT_HAZARD, "hazard")') >= 0);
 check('hydrant rests ON the curb (GZ+0.05) and offset by worldX', built && Math.abs(built.position.z - (GZ + 0.05)) < 1e-6 && Math.abs(built.position.x - (12 - 10)) < 1e-6);
 
 // collect the distinct materials used across the whole model
