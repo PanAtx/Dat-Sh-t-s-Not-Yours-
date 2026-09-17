@@ -1458,6 +1458,9 @@
       .bubble.bub-dealer {
         background: #e8b8e8;
       } /* dealer's soft orchid */
+      .bubble.bub-panhandler {
+        background: #c9d6a5;
+      } /* panhandler's sickly olive — you can almost smell it */
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
@@ -2367,6 +2370,7 @@
         jacker: 1,
         crazy: 0,
         dealer: 0, // Bronx-only: exactly 2 per level, spawned separately on stoops
+        panhandler: 0, // Bronx-only: exactly 2 per level, in front of the corner store
         cat: 0,
       };
       const SCALING_NPC = {
@@ -9671,6 +9675,118 @@
         g.add(cash);
         return g;
       }
+      // ==================== BRONX CORNER-STORE PANHANDLER ====================
+      // Thin, hungry, smelly panhandler who hangs around the corner store.
+      // Gaunt build (narrower torso + limbs than a normal pedestrian or the
+      // dealer), hunched forward, one arm extended begging with a red cup in
+      // the hand, sunken eyes and matted hair. A few faint translucent green
+      // wisps drift above his head — the smell (the AI bobs them). Legs/arms
+      // are on pivots (userData.parts) so the animParts shuffle works, and the
+      // begging-arm pose is re-applied every frame in updateCreatures (like the
+      // yeller's arms) so the cup stays out.
+      function makePanhandler() {
+        const g = new THREE.Group();
+        const skin = M(pick(SKIN_TONES));
+        const shirt = M(0x6d6146); // grubby olive-tan, threadbare
+        const pants = M(0x4c463a); // dusty brown, too big for him
+        const shoeM = M(0x241f1a);
+        const hairM = M(0x3a2f22); // matted dark
+        const eyeM = M(0x14100e); // sunken, hungry
+        // Scrawny legs (feet rest at local z 0, like the other walkers)
+        const mkLeg = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.19, 0.78);
+          const leg = BX(0.12, 0.15, 0.74, pants);
+          leg.position.z = -0.37;
+          pv.add(leg);
+          const shoe = BX(0.2, 0.14, 0.12, shoeM);
+          shoe.position.set(0.06, 0, -0.7);
+          pv.add(shoe);
+          g.add(pv);
+          return pv;
+        };
+        const legL = mkLeg(1),
+          legR = mkLeg(-1);
+        // Thin torso — gaunt vs a normal pedestrian (0.2 x 0.58) and way under
+        // the burly dealer (0.48 x 0.7); leans forward at the hips (the hunch)
+        const torso = BX(0.3, 0.64, 0.76, shirt);
+        torso.position.z = 1.26;
+        torso.rotation.y = 0.22;
+        g.add(torso);
+        // Worn patch on the front of the shirt
+        const patch = BX(0.04, 0.3, 0.28, M(0x57503c));
+        patch.position.set(0.15, 0.05, 1.3);
+        g.add(patch);
+        // Arms (right arm = the begger, cup in the hand)
+        const mkArm = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.3, 1.42);
+          const sleeve = BX(0.09, 0.11, 0.24, shirt);
+          sleeve.position.z = -0.12;
+          pv.add(sleeve);
+          const fore = BX(0.08, 0.1, 0.22, skin);
+          fore.position.z = -0.34;
+          pv.add(fore);
+          const hand = BX(0.09, 0.09, 0.12, skin);
+          hand.position.z = -0.52;
+          pv.add(hand);
+          g.add(pv);
+          return pv;
+        };
+        const armL = mkArm(1),
+          armR = mkArm(-1);
+        // Red solo cup cupped in the begging hand, tilted up for donations
+        const cup = BX(0.15, 0.15, 0.18, M(0x8a2b22));
+        cup.position.set(0, 0.03, -0.66);
+        cup.rotation.x = 0.35;
+        armR.add(cup);
+        // Gaunt head on a pivot, hunched forward (chin toward the chest)
+        const headPivot = new THREE.Group();
+        headPivot.position.z = 1.62;
+        headPivot.rotation.y = 0.55;
+        g.add(headPivot);
+        const neck = BX(0.1, 0.1, 0.12, skin);
+        neck.position.z = 0.05;
+        headPivot.add(neck);
+        const head = BX(0.2, 0.26, 0.26, skin);
+        head.position.z = 0.2;
+        headPivot.add(head);
+        const nose = BX(0.04, 0.09, 0.08, skin); // pointy, hungry nose
+        nose.position.set(0.12, -0.02, 0.16);
+        headPivot.add(nose);
+        const eyeL = BX(0.02, 0.05, 0.04, eyeM);
+        eyeL.position.set(0.1, 0.05, 0.06);
+        headPivot.add(eyeL);
+        const eyeR = BX(0.02, 0.05, 0.04, eyeM);
+        eyeR.position.set(0.1, -0.05, 0.06);
+        headPivot.add(eyeR);
+        const hair = BX(0.22, 0.2, 0.16, hairM); // matted, no hope of a comb
+        hair.position.z = 0.12;
+        headPivot.add(hair);
+        const tuft = BX(0.05, 0.08, 0.08, hairM);
+        tuft.position.set(-0.08, 0.1, 0.2);
+        headPivot.add(tuft);
+        // The stink: faint translucent green wisps above the head (the AI bobs
+        // them — each carries its base (bx, bz) in userData)
+        const stinkM = M(0x8fa05a, { transparent: true, opacity: 0.32 });
+        const stink = [];
+        const wisp = (bx, bz, r) => {
+          const w = SP(r, stinkM);
+          w.position.set(bx, 0, bz);
+          w.userData.bx = bx;
+          w.userData.bz = bz;
+          g.add(w);
+          stink.push(w);
+        };
+        wisp(0.28, 2.05, 0.07);
+        wisp(0.44, 2.24, 0.09);
+        wisp(0.6, 2.4, 0.07);
+        g.userData.head = headPivot;
+        g.userData.cupArm = armR;
+        g.userData.stink = stink;
+        g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+        return g;
+      }
       function makeHooker() {
         // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
         const g = new THREE.Group();
@@ -10862,6 +10978,19 @@
             c.data = makeDealer();
             c.gender = "male";
             break;
+          case "panhandler":
+            // Bronx corner-store panhandler: thin, hungry, smelly. Shuffles
+            // around the storefront begging passersby (the sanitation worker
+            // especially). Spawn block sets homeX/homeY/wanderR.
+            c.sp = R(0.6, 0.9); // a hungry shuffle (pedestrians are 1.0-2.2)
+            c.mode = "wander";
+            c.mark = null;
+            c.asked = false;
+            c.decideCd = R(1, 3);
+            c.stinkCd = 0;
+            c.data = makePanhandler();
+            c.gender = "male";
+            break;
           case "skater":
             c.wy = R(4.3, creatureMaxY());
             c.trickT = R(0.4, 1.4);
@@ -11569,6 +11698,36 @@
             const stash = makeDealerStash();
             stash.position.set(stoopX - side * 0.6, 5.62, dl.baseZ);
             dynamicGroup.add(stash);
+          }
+        }
+        // Bronx panhandlers: exactly TWO per level, loitering in front of the
+        // corner store on two DIFFERENT active blocks (two never share a
+        // block). Thin, hungry and smelly — they shuffle around the storefront
+        // begging passersby, especially the sanitation worker, for money, a
+        // drink, or drugs. The stores are the end houses of each block (index
+        // 0 and 9), so they never end up on a dealer's stoop (houses 1..8).
+        if (isBronxLevel()) {
+          const phBlockIdx = [1, 2, 3, 4, 5];
+          for (let phS = phBlockIdx.length - 1; phS > 0; phS--) {
+            const j = (Math.random() * (phS + 1)) | 0;
+            const t = phBlockIdx[phS];
+            phBlockIdx[phS] = phBlockIdx[j];
+            phBlockIdx[j] = t;
+          }
+          for (let phI = 0; phI < 2; phI++) {
+            const bl = LEVEL_BLOCKS[phBlockIdx[phI]];
+            const storeI = Math.random() < 0.5 ? 0 : 9; // the block's store
+            const storeX = bl.x + storeI * 8 + 4.0; // BW=8, house centers at +4
+            const ph = addCreature("panhandler");
+            ph.homeX = storeX + (storeI === 0 ? 1 : -1) * R(0.5, 1.5);
+            ph.homeY = R(3.6, 4.6); // on the sidewalk, in front of the storefront
+            ph.wanderR = R(4.5, 6.5); // never leaves his corner
+            ph.wx = ph.homeX;
+            ph.wy = ph.homeY;
+            ph.tgtX = ph.homeX;
+            ph.tgtY = ph.homeY;
+            ph.g.position.set(ph.wx, ph.wy, GZ);
+            ph.g.rotation.z = Math.random() < 0.5 ? 0 : Math.PI;
           }
         }
         // Manhattan Pizza Rat: rare NYC street rat carrying a giant slice of pizza
@@ -12541,6 +12700,7 @@
       const HP_HIT_VEHICLE = 8; // a vehicle run-over hurts (kept light so it feels fair)
       const HP_HIT_HAZARD = 5; // a hard static hazard (e.g. hydrant) nicks you a little
       const HP_HIT_DRIVETRIC = 4; // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
+      const HP_HIT_PANHANDLER = 1; // a panhandler's shove-and-stink does only very minor damage (the smell, not the elbow)
       // ---- Flatbush driveway tricycles (kids who chase the worker up the driveway) ----
       const DRIVETR_CHAIN_R = 4.2; // leash radius around a kid's home spot (never reaches the street)
       const DRIVETR_AGGRO_DIST = 6.5; // worker distance that scares a parked kid into attacking
@@ -12757,8 +12917,9 @@
       // Every LODI gets stamped with a REASON — the specific NPC that actually put the
       // worker down. HR in this era never names the party at fault: the worker is always
       // out of line, the car had right of way, the bike lane was violated, the dog's
-      // boundaries were crossed, and the stoop dealer / crazy guy / tricycle kid are each
-      // a "community institution" who was due full respect at all times.
+      // boundaries were crossed, the stoop dealer / crazy guy / tricycle kid are each
+      // a "community institution" who was due full respect at all times, and the
+      // corner-store panhandler was a citizen who was due care.
       const WRITEUP_REASONS = {
         // --- the street machines: each one keeps its own lane ---
         car: [
@@ -12807,6 +12968,9 @@
           "Failure to defer to a certified community leader",
           "Failure to satisfy the leader's funding request",
           "Community leader not afforded due deference",
+        ],
+        panhandler: [
+          "Failure to provide care to citizen.",
         ],
         tric: [
           "Failure to yield to a minor on a tricycle",
@@ -13754,6 +13918,7 @@
           )
             rad = 0.85;
           else if (c.type === "dealer") rad = 1.0; // burly dealer blocks his stoop
+          else if (c.type === "panhandler") rad = 0.85; // thin, but his stink has reach
           else if (c.type === "escooter") rad = 1.0;
           if (d2 > rad * rad) continue;
           if (c.type === "crazy") {
@@ -13799,6 +13964,44 @@
             const pen = rad - d;
             p.wx += nx * (pen + 0.05);
             p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+            return;
+          }
+          if (c.type === "panhandler") {
+            // He pushes back with a full shove and vents a cloud of stink;
+            // the worker gets shoved away and takes a whiff (very minor
+            // damage from the smell). Neither of them is impressed.
+            if (c.stinkCd <= 0) {
+              Voice.say(
+                "Man, you stink!",
+                2.4,
+                1.1,
+                c.wx,
+                c.wy,
+                c.gender,
+                "panhandler",
+              );
+              Voice.say(
+                "Man, you stink!",
+                2.4,
+                0.95,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+              hurtNPC(HP_HIT_PANHANDLER, "panhandler");
+              spawnDustEffect(c.wx, c.wy);
+              doStun(0.4, "trip"); // the shove trips him up a touch
+              c.stinkCd = 3.0; // he can't shove-vent that often
+            }
+            // Push back both ways: the worker is shoved away, and so is he
+            const d = Math.sqrt(d2) || 0.001;
+            const nx = -dx / d,
+              ny = -dy / d; // from the panhandler toward the worker
+            p.wx += nx * 1.0;
+            p.wy = clamp(p.wy + ny * 0.8, -9.4, workerMaxY());
+            c.wx -= nx * 0.5;
+            c.wy = clamp(c.wy - ny * 0.5, 1.0, 4.7);
             return;
           }
           if (
@@ -16254,6 +16457,134 @@
               }
               break;
             }
+            case "panhandler": {
+              // Bronx corner-store panhandler: thin, hungry, stinking. He
+              // shuffles around his storefront, begs whoever gets close (the
+              // sanitation worker is his favorite mark), and if the worker
+              // bumps into him the shove + "Man, you stink!" exchange is
+              // handled in collideCreatures.
+              c.decideCd -= dt;
+              c.stinkCd = c.stinkCd > 0 ? c.stinkCd - dt : 0;
+              // ---- decide the next move: bother someone, or wander his corner ----
+              if (c.decideCd <= 0) {
+                const dW = Math.sqrt(
+                  (p.wx - c.wx) * (p.wx - c.wx) + (p.wy - c.wy) * (p.wy - c.wy),
+                );
+                let mark = null;
+                if (state === "play" && dW < 9 && (dW < 4 || Math.random() < 0.6)) {
+                  mark = "worker"; // he likes begging the sanitation worker best
+                } else {
+                  // otherwise pester the nearest passerby on his corner (if any)
+                  let best = 49; // within 7 units
+                  for (let tI = 0; tI < creatures.length; tI++) {
+                    const o = creatures[tI];
+                    if (o === c) continue;
+                    if (
+                      o.type !== "ped" &&
+                      o.type !== "lady" &&
+                      o.type !== "yeller" &&
+                      o.type !== "hooker" &&
+                      o.type !== "dogwalker"
+                    )
+                      continue;
+                    const dd =
+                      (o.wx - c.wx) * (o.wx - c.wx) + (o.wy - c.wy) * (o.wy - c.wy);
+                    if (dd < best) {
+                      best = dd;
+                      mark = o;
+                    }
+                  }
+                }
+                if (mark) {
+                  c.mode = "bother";
+                  c.mark = mark;
+                  c.asked = false;
+                  c.decideCd = R(2.5, 5.5);
+                } else {
+                  c.mode = "wander";
+                  c.mark = null;
+                  const a = R(0, 6.28),
+                    r = R(0.5, c.wanderR || 5);
+                  c.tgtX = c.homeX + Math.cos(a) * r;
+                  c.tgtY = clamp(c.homeY + Math.sin(a) * r, 1.0, 4.7);
+                  c.decideCd = R(2.0, 5.0);
+                }
+              }
+              // ---- resolve the target point (a mark may keep moving) ----
+              let tpx = c.tgtX,
+                tpy = c.tgtY;
+              if (c.mode === "bother") {
+                if (c.mark === "worker") {
+                  tpx = p.wx;
+                  tpy = p.wy;
+                } else if (c.mark && c.mark.wx !== undefined) {
+                  tpx = c.mark.wx;
+                  tpy = c.mark.wy;
+                } else {
+                  c.mode = "wander";
+                  c.mark = null;
+                }
+              }
+              const pdx = tpx - c.wx,
+                pdy = tpy - c.wy;
+              const pd = Math.sqrt(pdx * pdx + pdy * pdy);
+              const reached = c.mode === "bother" ? pd < 3.2 : pd < 0.6;
+              if (!reached && pd > 0.001) {
+                const sp = c.sp || 0.7;
+                c.wx += (pdx / pd) * sp * dt;
+                c.wy = clamp(c.wy + (pdy / pd) * sp * dt, 1.0, 4.7);
+                c.g.rotation.z = Math.atan2(pdy, pdx);
+                animParts(c, sp * dt * 2.6, 0.55);
+              } else {
+                animParts(c, dt * 1.1, 0.22); // standing: shuffles in place, cup out
+                if (c.mode === "bother" && pd > 0.001)
+                  c.g.rotation.z = Math.atan2(pdy, pdx); // face his mark
+              }
+              // ---- the beg: get in his mark's face and say one of his lines ----
+              if (c.mode === "bother" && !c.asked && reached && state === "play") {
+                c.asked = true;
+                c.decideCd = R(3, 6); // done begging this mark — back to wandering
+                Voice.say(
+                  pick([
+                    "I need money",
+                    "You got the time?",
+                    "I need a drink.",
+                    "Got any drugs?",
+                    "I'm hungry, can I have $50?",
+                  ]),
+                  2.4,
+                  R(0.95, 1.15),
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "panhandler",
+                );
+              }
+              // Begging arm: re-apply the extended cup pose every frame (like the
+              // yeller's arms) with a slight pleading shake so the shamble
+              // animation can't drop it
+              if (c.parts) {
+                c.parts.armR.rotation.y = -1.05 + Math.sin(c.phase * 1.7) * 0.09;
+                c.parts.armR.rotation.x = -0.2 + Math.sin(c.phase * 3.3) * 0.05;
+                c.parts.armL.rotation.y = -0.3;
+              }
+              // The stink drifts up and wavers above his head
+              const stink = c.g.userData.stink;
+              if (stink) {
+                for (let sI = 0; sI < stink.length; sI++) {
+                  stink[sI].position.z =
+                    stink[sI].userData.bz +
+                    Math.sin(c.phase * 0.7 + sI * 2.1) * 0.08;
+                  stink[sI].position.x =
+                    stink[sI].userData.bx +
+                    Math.sin(c.phase * 0.5 + sI * 1.3) * 0.05;
+                }
+              }
+              // Hungry sway (he's hunched forward over his cup)
+              c.g.rotation.x = Math.sin(c.phase * 0.9) * 0.05;
+              c.g.position.z = GZ;
+              break;
+            }
             case "skater": {
               // WORKING TRICKS IN PLACE, big enough to read from the camera:
               // crouch -> POP (the bright board flips a full 360 while he launches)
@@ -16830,6 +17161,8 @@
         else if (speaker === "kid") el.className = "bubble bub-kid";
         else if (speaker === "crazy") el.className = "bubble bub-crazy";
         else if (speaker === "dealer") el.className = "bubble bub-dealer";
+        else if (speaker === "panhandler")
+          el.className = "bubble bub-panhandler";
         else el.className = "bubble bub-default";
         el.textContent = text;
         document.body.appendChild(el);
