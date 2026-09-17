@@ -100,5 +100,66 @@ check('gait is diagonal-pair (FL+HR in phase, FR+HL antiphase)', !diagonalBroken
 check('tail flicks during the run', sawTailFlick);
 check('head bobs with the stride', sawHeadBob);
 
+// --- behavior: drive the REAL case "squirrel" block through a full pause cycle ------
+function extractCase(label) {
+  const idx = src.indexOf(label);
+  if (idx < 0) throw new Error('case block not found: ' + label);
+  const b = src.indexOf('{', idx);
+  let d = 0,
+    i = b;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') d++;
+    else if (src[i] === '}') {
+      d--;
+      if (!d) {
+        i++;
+        break;
+      }
+    }
+  }
+  return src.slice(idx, i);
+}
+const sqCase = extractCase('case "squirrel": {');
+const stepSquirrel = eval(
+  '(function(){' +
+    shim +
+    'function R(a,b){return a + (b-a)*0.5;}' +
+    'var GZ = 0, p = { wx: 0 }, tx = 0, c = null;' +
+    extractFn('animSquirrel') +
+    'return function(dt, cc, txv){ c = cc; tx = txv; p.wx = txv; ' +
+    '(function(){ switch("squirrel") { ' +
+    sqCase +
+    ' } })(); return c; };})()'
+);
+const DT = 1 / 60;
+const sqC = { phase: 0, g: makeSquirrel(), sp: 3, dir: 1, flee: 0, pauseT: 0, pauseIn: 0.2, wx: 0, wy: 0, hop: 0, settle: 0 };
+const sqParts = sqC.g.userData.squirrel;
+for (let i = 0; i < 200 && !(sqC.pauseT > 0); i++) stepSquirrel(DT, sqC, 10);
+check('pause cycle: freeze arms itself (2-3s hold)', sqC.pauseT > 0 && (sqC.pauseDur || 0) >= 2 && (sqC.pauseDur || 0) <= 3, 'pauseT=' + sqC.pauseT + ' dur=' + sqC.pauseDur);
+sqC.hop = 0.22; // stopped mid-hop — the freeze must bring it back to the ground
+let sawSquash = false,
+  minAcornZ = Infinity,
+  maxGlance = 0,
+  midZ = null,
+  guard = 0;
+while (sqC.pauseT > 0 && guard++ < 600) {
+  stepSquirrel(DT, sqC, -10); // worker is BEHIND the squirrel (tx < 0) -> look-back glance
+  if ((sqC.settle || 0) > 0.2 && sqC.g.scale.z < 0.95) sawSquash = true;
+  minAcornZ = Math.min(minAcornZ, sqParts.acorn.position.z);
+  maxGlance = Math.max(maxGlance, Math.abs(sqParts.headPivot.rotation.z));
+  if (midZ === null && sqC.pauseT > 0 && sqC.pauseT < (sqC.pauseDur || 2.5) / 2) midZ = sqC.g.position.z; // mid-hold: must be grounded
+}
+check('freeze lasts the full 2-3 seconds', sqC.pauseT <= 0 && sqC.pauseDur >= 2 && sqC.pauseDur <= 3, 'dur=' + sqC.pauseDur);
+check('settle squash-and-stretch plays while it lands (body squishes below 0.95)', sawSquash);
+check('rests ON the ground during the hold (no float)', midZ !== null && midZ < 0.01, 'midZ=' + midZ);
+check('acorn is set down on the street during the hold (z <= 0.15)', minAcornZ <= 0.15, 'minZ=' + minAcornZ.toFixed(3));
+check('head glances back at the worker during the hold (> 1.5 rad)', maxGlance > 1.5, 'glance=' + maxGlance.toFixed(2));
+check('darts off in the OTHER direction after the pause', sqC.dir === -1, 'dir=' + sqC.dir);
+check('model flips to face the new travel direction (rotation.z = PI)', sqC.g.rotation.z === Math.PI, 'rotZ=' + sqC.g.rotation.z);
+check('acorn is reclaimed between the paws after the pause', sqParts.acorn.position.z === 0.24 && sqParts.acorn.position.x === 0.13, 'pos=[' + sqParts.acorn.position.x + ',' + sqParts.acorn.position.z + ']');
+check('head is reset forward after the pause', sqParts.headPivot.rotation.z === 0, 'rotZ=' + sqParts.headPivot.rotation.z);
+stepSquirrel(DT, sqC, -10); // one step of the fresh dash — running state must stay clean
+check('running state keeps the acorn cradled and the head forward', sqParts.acorn.position.z === 0.24 && sqParts.headPivot.rotation.z === 0 && sqC.g.scale.z === 1);
+
 console.log(ok ? '\nSQUIRREL CHECKS PASSED' : '\nSQUIRREL CHECKS FAILED');
 process.exit(ok ? 0 : 1);

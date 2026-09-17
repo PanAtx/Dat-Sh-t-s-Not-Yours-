@@ -98,7 +98,18 @@ const litterBaskets = [];
 // ---- DOM / SFX / Voice / gameOver fakes ----
 const domEls = {};
 function $(id){
-  if (!domEls[id]) domEls[id] = { id: id, style: {}, classList: { add(){}, remove(){}, toggle(){} } };
+  if (!domEls[id])
+    domEls[id] = {
+      id: id,
+      style: {},
+      classList: {
+        _set: new Set(),
+        add(c) { this._set.add(c); },
+        remove(c) { this._set.delete(c); },
+        toggle() {},
+        contains(c) { return this._set.has(c); }
+      }
+    };
   return domEls[id];
 }
 const popups = [];
@@ -271,6 +282,7 @@ reset();
 state = 'dying'; dying = { t: 99 }; health = 0;
 finishDying();
 check('LODI #1 -> one write-up logged', complaints === 1);
+check('LODI #1 -> the COMPLAINTS ISSUED box slams with the ink-stamp class', typeof $("tr").classList.contains === 'function' && $("tr").classList.contains('complaint-stamp'));
 check('LODI #1 -> NO game over (shift continues)', gameOverCalls.length === 0);
 check('LODI #1 -> worker back to full health', health === maxHealth);
 check('LODI #1 -> state back to "play"', state === 'play');

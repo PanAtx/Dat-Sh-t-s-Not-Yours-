@@ -331,6 +331,22 @@
         background: #ff3b3b;
         box-shadow: 0 0 10px #ff3b3b;
       }
+      #tr.complaint-stamp {
+        animation: complaintStamp 0.55s cubic-bezier(0.2, 1.5, 0.4, 1);
+      }
+      @keyframes complaintStamp {
+        0% {
+          transform: scale(1.45) rotate(-3deg);
+          text-shadow: 0 0 14px rgba(255, 59, 59, 0.95);
+        }
+        55% {
+          transform: scale(0.94) rotate(1.5deg);
+          text-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
+        }
+        100% {
+          transform: scale(1) rotate(0deg);
+        }
+      }
       #flash {
         position: fixed;
         inset: 0;
@@ -12146,6 +12162,12 @@
         complaints++;
         SFX.playComplaintSound();
         updateHUD(); // the COMPLAINTS ISSUED tally (top right) lights up the new pip INSTANTLY
+        const trBox = $("tr"); // the COMPLAINTS ISSUED box slams down like an ink stamp
+        if (trBox && trBox.classList) {
+          trBox.classList.remove("complaint-stamp");
+          void trBox.offsetWidth; // force a reflow so back-to-back write-ups replay the stamp
+          trBox.classList.add("complaint-stamp");
+        }
         const f = $("flash");
         f.style.opacity = 1;
         setTimeout(() => {
@@ -14953,22 +14975,50 @@
             }
             case "squirrel": {
               // scurrying keeps its legs running: animate the cycle at the speed it's actually moving
+              const sqParts = c.g.userData.squirrel;
               if (c.flee > 0) {
                 c.flee -= dt;
                 c.wx += (c.dir || 1) * 8.5 * dt; // bolt away from the worker that spooked it
                 animSquirrel(c, dt * 8.5 * 5.5);
+                c.settle = 0;
+                c.g.scale.set(1, 1, 1);
+                sqParts.acorn.position.set(0.13, 0, 0.24); // cradled while bolting
+                sqParts.headPivot.rotation.z = 0; // head back forward
               } else if ((c.pauseT || 0) > 0) {
-                // REAL squirrel rhythm: a freeze mid-street for a couple of seconds — the slow
-                // idle shuffle keeps the tail flicking and the head scanning while it stands
-                // still — then it darts off the OTHER way, like it changed its mind mid-thought.
+                // REAL squirrel rhythm: a freeze mid-street — it sets the big acorn down, glances
+                // at the worker, then darts off the OTHER way, like it changed its mind mid-thought.
                 c.pauseT -= dt;
                 animSquirrel(c, dt * 1.4);
-                if (c.pauseT <= 0) c.dir = -(c.dir || 1); // take off in a DIFFERENT direction
+                // settle squash-and-stretch: as the body drops to the ground after the freeze,
+                // squish it and let it spring back — grounds the stop, no hovering
+                if ((c.hop || 0) > 0.005) c.settle = 1;
+                c.settle = Math.max(0, (c.settle || 0) - dt * 7);
+                const squash = c.settle || 0;
+                c.g.scale.set(1 + squash * 0.05, 1 + squash * 0.05, 1 - squash * 0.08);
+                // the tell: acorn lowered to the street + a glance at the worker, held for the pause
+                const tell = Math.max(0, Math.min(1, ((c.pauseDur || 2.5) - c.pauseT) / 0.6) * (c.pauseT <= 0.5 ? c.pauseT / 0.5 : 1));
+                sqParts.acorn.position.z = 0.24 - tell * 0.12; // cradle (0.24) -> street (0.12)
+                sqParts.acorn.position.x = 0.13 + tell * 0.05; // set down just ahead of the paws
+                sqParts.headPivot.rotation.z = (tx < 0 ? 2.4 : 0.5) * tell; // glance at the worker — behind or ahead
+                if (c.pauseT <= 0) {
+                  c.dir = -(c.dir || 1); // take off in a DIFFERENT direction
+                  c.settle = 0;
+                  c.g.scale.set(1, 1, 1); // release the settle squash
+                  sqParts.acorn.position.set(0.13, 0, 0.24); // reclaim the acorn between the paws
+                  sqParts.headPivot.rotation.z = 0; // head forward again
+                }
               } else {
                 c.wx += (c.dir || 1) * c.sp * dt;
                 animSquirrel(c, dt * c.sp * 5.5);
                 c.pauseIn = (c.pauseIn == null ? R(2.5, 5.5) : c.pauseIn) - dt; // run until the next freeze
-                if (c.pauseIn <= 0) c.pauseT = R(2, 3); // stand still 2-3 seconds before the next dash
+                if (c.pauseIn <= 0) {
+                  c.pauseT = R(2, 3); // stand still 2-3 seconds before the next dash
+                  c.pauseDur = c.pauseT;
+                }
+                c.settle = 0;
+                c.g.scale.set(1, 1, 1);
+                sqParts.acorn.position.set(0.13, 0, 0.24);
+                sqParts.headPivot.rotation.z = 0;
               }
               c.wy = 4.0 + Math.sin(c.wx * 0.5) * 1.0;
               // the hop is stride-locked: while it RUNS the body bounces with the gait; when it
@@ -14978,6 +15028,7 @@
               const hopT = hopSp > 0 ? Math.max(0, Math.sin(c.phase)) * 0.3 : 0;
               c.hop = hopT > 0 ? hopT : (c.hop || 0) * Math.max(0, 1 - dt * 10);
               c.g.position.z = GZ + c.hop;
+              c.g.rotation.z = (c.dir || 1) >= 0 ? 0 : Math.PI; // face the travel direction (rat convention)
               if (tx > 55) {
                 c.wx = p.wx - 38;
                 c.dir = 1;
