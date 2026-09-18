@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.111</div>
+          <div id="app-version" class="menu-version">v1.0.112</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.111';
+      const APP_VERSION = '1.0.112';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2704,6 +2704,51 @@
           console.log("  -> Bronx path: no lawns, concrete apron, houses near sidewalk");
           groundStrip(GW, 1.0, 0.3, 5.5, 0x8d949c, GCX); // thin concrete apron (y 5.0..6.0)
           groundStrip(GW, 14.0, 0.3, 12.5, 0x8d949c, GCX); // concrete behind houses (no park)
+        } else if (
+          LEVEL_DAYS[level - 1] &&
+          LEVEL_DAYS[level - 1].borough === "BROOKLYN" &&
+          LEVEL_DAYS[level - 1].area === "FLATBUSH"
+        ) {
+          // Flatbush: green front lawns (residential houses) + a concrete back park (no
+          // grass behind). The corner stores get their own poured-concrete aprons (below)
+          // overlaid on the green, so houses keep grass but storefronts sit on concrete.
+          // The intersection corners too: the full-width grass strip must NOT poke
+          // through the cross-street gaps as a green patch beside the corner stores —
+          // each intersection's front-lawn band is capped with the same concrete.
+          console.log(
+            "  -> Flatbush path: green house lawns + concrete corners/back park + store aprons",
+          );
+          groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX); // front lawns (grass)
+          groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // back park as concrete (no grass)
+          // Corner-store aprons: a concrete pad in front of each storefront, centered on
+          // the store's anchored x (left store hugs the block start, right store hugs the
+          // block end). Slightly thicker (0.35) than the 0.3 grass slab so the pad's top
+          // clears the lawn and reads as poured concrete instead of z-fighting it.
+          const apron = 0x8d949c;
+          const halfStore = FLATBUSH_STORE_W / 2;
+          for (const bl of LEVEL_BLOCKS) {
+            // Left corner store (house 0): center at block start + halfStore.
+            groundStrip(FLATBUSH_STORE_W, 3.5, 0.35, 6.75, apron, bl.x + halfStore);
+            // Right corner store (last house): center at its cell's anchored x.
+            groundStrip(
+              FLATBUSH_STORE_W,
+              3.5,
+              0.35,
+              6.75,
+              apron,
+              bl.x + (HOUSES_PER_BLOCK - 1) * BW + (BW - halfStore),
+            );
+          }
+          // Intersection corner patches: the grass strip above runs the FULL route width,
+          // so a green patch kept poking through each cross-street gap right beside the
+          // corner stores. Cap every intersection's front-lawn band (y 5.0..8.5) with the
+          // same poured concrete: 0.35 thick, so its top (z 0.325) clears the 0.3 grass
+          // slab but stays BELOW the cross-street asphalt (z 0.335) and curb bands (0.34)
+          // — only the two corner slivers next to the stores read as concrete, and the
+          // house front lawns in between stay green.
+          for (const xInt of LEVEL_XS) {
+            groundStrip(IW, 3.5, 0.35, 6.75, apron, xInt + IW / 2);
+          }
         } else {
           console.log("  -> Non-Manhattan path: green lawns");
           groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX); // front lawns (grass)
@@ -7952,6 +7997,45 @@
         "OLD MATT'S ODDS & ENDS",
       ];
 
+      // Flatbush (Borough of Brooklyn) corner stores — a Jewish-neighborhood
+      // storefront: bagels, kosher delis, produce, hats, thrift, kids, a kosher
+      // chop-stick place, dry cleaners, bakeries, a West Indian mini-market, and
+      // the laundromat. ~32 names, randomly used like the Manhattan/Bronx pools.
+      const FLATBUSH_STORE_NAMES = [
+        "SCHMOURN & SCREAM: BAGELS 24/7",
+        "THE LOX & THE PROSPECT: BAGEL COUNTER",
+        "GOLDEN BAGER & REGRET: FRESH SCHMOURN",
+        "BAGEL BROTHERS: BAKE & BRAG",
+        "HERRING & A HUG: KOSHER DELI",
+        "THE KOSHER WANDERER'S DELI",
+        "SCHMALTY'S CHOPPED CHEESE & CONFESSIONS",
+        "BLOCH'S DELI: WE KNOW YOUR MAMA",
+        "MAMA'S VEGETABLES: ASK ABOUT THE EYES",
+        "KOSHER KALE & SIDE-EYE: PRODUCE",
+        "FRESH & A LITTLE FERAL: PRODUCE STAND",
+        "THE FIDELITY FEDORA: HATS & HALOAH",
+        "SCHMECKLE'S HATS: NO HEADS WERE HARMED",
+        "THE KIPPUR & THE KNUCKLE: HEADWEAR",
+        "BLOOM & BUST: TWO-CENT THRIFTS",
+        "THE REDEEMED DOLLAR: EVERYTHING MUST GO",
+        "LAST CHANCE: BARGAINS & BRIBES",
+        "SCHWARTZ & SON: CLEARANCE OF CONSCIENCE",
+        "THE TINY TALLIS: KIDS & KIPPOTS",
+        "SMALL MIRRORS: CHILDREN'S CLOTHING",
+        "THE JERKY TUMMY KIDS: 2-16 YRS",
+        "DRAGON & DELICATESSEN: KOSHER CHINESE",
+        "THE CHOPSTICK & THE CHOPPED: KOSHER CHINESE",
+        "WOK & WISDOM: KOSHER WONTONS",
+        "THE TAILOR & THE TORN: DRY CLEANING",
+        "STEAM & PLEAD: DRY CLEANERS",
+        "THE FOLD & THE FALLEN: ALTERATIONS",
+        "THE HALLAH & THE HAMMOCK: BAKERY",
+        "THE SCHMUR & THE SUGAR: KOSHER BREAD",
+        "MAMA AUNTIE'S MINI-MARKET: DUKA & DUCUNDA",
+        "THE JERUSALEM & THE JAMAICA: MINI-MART",
+        "THE LAUNDRY & THE LAMENT: WASH & FOLD",
+      ];
+
       // Fisher-Yates shuffle — used to randomize store names each shift start.
       function shuffleStoreNames(arr) {
         const a = arr.slice();
@@ -8534,6 +8618,145 @@
           hw: w / 2,
           cy: -d / 2 - 0.4,
           hd: 0, // thin stop line at the storefront's nearest face
+          stoopX: 0,
+          stoopHw: 0,
+        };
+        return g;
+      }
+      // ==================== FLATBUSH (BROOKLYN) STOREFRONT ====================
+      // A Flatbush corner store is NARROWER than a full 8u house cell: it's the 8u cell
+      // minus half of a full driveway (a driveway is 3.0 wide, so 3.0 / 2 = 1.5), which
+      // leaves 6.5u — wide enough to fill the corner but not so wide that it spills into
+      // the half-driveway that separates this house from its neighbor.
+      const FLATBUSH_STORE_W = 6.5;
+      // Flatbush two-story shell (the makeBrooklynFlatbushHouse palette) with a
+      // Manhattan-style ground-floor storefront: kick-plate, display window, side
+      // door with glass + handle, entrance mat, and a canvas-painted name sign.
+      function makeFlatbushStore(storeOptions) {
+        const g = new THREE.Group();
+        const cols = [
+          0x8a5a3b,
+          0xb08954,
+          0x7a3b34,
+          0x5d6b75,
+          0x9c7a4d,
+          0x6b5a7e,
+          0x98683f,
+          0x4a6a5a,
+        ];
+        const col = cols[(Math.random() * cols.length) | 0];
+        const w = FLATBUSH_STORE_W, // 6.5u: narrower than the 8u cell so it clears the corner driveway
+          d = 4.8,
+          h = 5.4; // Flatbush two-story height
+        const body = BX(w, d, h, M(col));
+        body.position.z = 0.3 + h / 2;
+        body.receiveShadow = false;
+        g.add(body);
+        const roof = BX(w + 0.3, d + 0.3, 0.3, M(0x2e2a26));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
+        const winM = new THREE.MeshLambertMaterial({
+          color: 0x9fd0e8,
+          emissive: 0x24434f,
+          emissiveIntensity: 0.7,
+        });
+        // Two floors of residential windows above the sign band (Flatbush two-story feel).
+        for (let floor = 0; floor < 2; floor++) {
+          const fy = 0.3 + 3.1 + floor * 1.6;
+          for (let side = -1; side <= 1; side += 2) {
+            const winX = side * w * 0.27;
+            const frame = BX(0.86, 0.11, 0.86, M(0xffffff));
+            frame.position.set(winX, -d / 2 + 0.01, fy);
+            g.add(frame);
+            const glass = BX(0.78, 0.06, 0.78, winM);
+            glass.position.set(winX, -d / 2 - 0.01, fy);
+            g.add(glass);
+          }
+        }
+        // ---- Manhattan-style storefront (ground floor) ----
+        // Kick-plate / base below window
+        const kickplate = BX(w - 0.4, 0.4, 0.2, M(0x444444));
+        kickplate.position.set(0, -d / 2 - 0.2, 0.3 + 0.1);
+        g.add(kickplate);
+        // Large display window (narrower, no Z-fighting)
+        const winFrame = BX(3.6, 0.1, 1.4, M(0x222222));
+        winFrame.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(winFrame);
+        const winGlass = BX(
+          3.4,
+          0.04,
+          1.3,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x223344,
+            emissiveIntensity: 0.55,
+          }),
+        );
+        winGlass.position.set(0, -d / 2 - 0.09, 0.3 + 1.15);
+        g.add(winGlass);
+        // Window divider
+        const divider = BX(0.08, 0.08, 1.35, M(0x222222));
+        divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(divider);
+        // Storefront door (side entrance) — first house's on the left, last house's on
+        // the right, so doors don't crowd the intersection gaps.
+        const doorX = storeOptions.isLeft ? -2.6 : 2.6;
+        const door = BX(0.75, 0.06, 1.85, M(0x3a2a1a));
+        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.225);
+        g.add(door);
+        const doorGlass = BX(
+          0.65,
+          0.02,
+          0.85,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x112233,
+            emissiveIntensity: 0.3,
+          }),
+        );
+        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.725);
+        g.add(doorGlass);
+        // Door handle
+        const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
+        handle.position.set(doorX + 0.25, -d / 2 - 0.07, 0.3 + 1.0);
+        g.add(handle);
+        // Sidewalk entrance mat/step
+        const mat = BX(1.0, 0.4, 0.04, M(0x555555));
+        mat.position.set(doorX, -d / 2 - 0.5, 0.31);
+        g.add(mat);
+        // Sign board above window (solid backing)
+        const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+        signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
+        g.add(signBoard);
+        // Store name sign — plane mesh facing outward (not a sprite that always faces camera)
+        const signMat = makeStoreSignMaterial(
+          storeOptions.storeName,
+          storeOptions.isUptown,
+        );
+        const signPlane = new THREE.Mesh(
+          new THREE.PlaneGeometry(6.8, 0.48),
+          signMat,
+        );
+        signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
+        signPlane.rotation.x = Math.PI / 2; // Face outward from building (-Y direction)
+        g.add(signPlane);
+        // Sign crown molding
+        const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+        signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
+        g.add(signCrown);
+        // Step data for collision: the entrance MAT, centered under the door (cx offset).
+        g.userData.step = {
+          cx: doorX,
+          hw: 0.6,
+          cy: -d / 2 - 0.5,
+          hd: 0.5,
+          top: 0.33,
+        };
+        // Building front wall collision (kick-plate face = the storefront's nearest face).
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2 - 0.4,
+          hd: 0,
           stoopX: 0,
           stoopHw: 0,
         };
@@ -11436,14 +11659,26 @@
         b.hazards = [];
         b.cones = [];
         const borough = LEVEL_DAYS[level - 1].borough;
+        // Is this house one of the two Flatbush corner stores? Bed-Stuy is also
+        // BROOKLYN but has no stores, so gate on the FLATBUSH area (not the borough).
+        const isFlatbushStore =
+          !!storeOptions &&
+          storeOptions.isStore &&
+          borough === "BROOKLYN" &&
+          LEVEL_DAYS[level - 1].area === "FLATBUSH";
         let hg;
         if (storeOptions && storeOptions.isStore) {
           // Bronx storefronts: Bronx row-house shell + Manhattan storefront design.
+          // Flatbush storefronts: Flatbush two-story shell + Manhattan storefront design.
           // Manhattan storefronts: the brownstone store.
-          hg =
-            borough === "THE BRONX"
-              ? makeBronxStore(storeOptions)
-              : makeBrownstone(storeOptions);
+          const storeArea = LEVEL_DAYS[level - 1].area;
+          if (borough === "THE BRONX") hg = makeBronxStore(storeOptions);
+          else if (
+            borough === "BROOKLYN" &&
+            storeArea === "FLATBUSH"
+          )
+            hg = makeFlatbushStore(storeOptions);
+          else hg = makeBrownstone(storeOptions);
         } else {
           const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
           hg = makeBuilding();
@@ -11456,6 +11691,14 @@
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
         // Shift house row right within the block to balance spacing (not flush with intersection).
         hg.position.x = 4.0;
+        // Flatbush corner stores are narrower than a full 8u cell (see FLATBUSH_STORE_W) and
+        // are anchored to the block's OUTER edge so they never spill into the half-driveway
+        // between this house and its neighbor. House 0 (isLeft) hugs the left corner; the last
+        // house of the block hugs the right corner.
+        if (isFlatbushStore) {
+          const halfW = FLATBUSH_STORE_W / 2;
+          hg.position.x = storeOptions.isLeft ? halfW : BW - halfW;
+        }
         hg.position.y = HOUSE_Y;
         b.group.add(hg);
         const house = {
@@ -11468,7 +11711,7 @@
         // stepTopAt() reads this every frame so yard NPCs (and the worker) that cross it stand ON the
         // landing top instead of clipping into the 0.3..0.36 slab.
         const stLocal = hg.userData.step;
-        const houseX = baseX + 4.0;
+        const houseX = baseX + hg.position.x; // regular houses stay at x=4.0; Flatbush corner stores track their anchored x
         const stepCx = stLocal.cx || 0; // step offset from house center (0 for centered, 1.6 for Bronx stoop)
         house.step = {
           x0: houseX + stepCx - stLocal.hw,
@@ -11640,6 +11883,12 @@
           // Mott Haven corners: bodegas, laundromats, and the neighborhood
           storePool = shuffleStoreNames(BRONX_STORE_NAMES);
           isUptown = false; // bold, loud sign palettes
+        } else if (borough === "BROOKLYN" && area === "FLATBUSH") {
+          // Flatbush corners: Jewish-neighborhood storefronts (bagels, kosher delis,
+          // produce, hats, thrift, kids, kosher chop-stick, dry cleaners, bakeries,
+          // a West Indian mini-market, the laundromat). Flatbush ONLY — not Bed-Stuy.
+          storePool = shuffleStoreNames(FLATBUSH_STORE_NAMES);
+          isUptown = false; // bold, loud sign palettes
         }
         let storeIdx = 0;
         // Fixed route: 8 blocks of 10 houses each (Blocks 1 & 8 carry no curb garbage).
@@ -11659,10 +11908,14 @@
             };
             g.position.x = worldX;
             dynamicGroup.add(g);
-            // Manhattan + Bronx: the first and last house on each block is a storefront
+            // Manhattan + Bronx + Flatbush: the first and last house on each block
+            // is a storefront (Flatbush gated by area so Bed-Stuy stays plain).
             let storeOptions = null;
+            const isFlatbush = borough === "BROOKLYN" && area === "FLATBUSH";
             if (
-              (borough === "MANHATTAN" || borough === "THE BRONX") &&
+              (borough === "MANHATTAN" ||
+                borough === "THE BRONX" ||
+                isFlatbush) &&
               (i === 0 || i === HOUSES_PER_BLOCK - 1)
             ) {
               const storeName = storePool[storeIdx % storePool.length];

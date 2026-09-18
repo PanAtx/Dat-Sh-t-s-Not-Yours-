@@ -43,6 +43,13 @@ global.window = {};
 // --- constants the builders need ---
 const BW = 8, HOUSES_PER_BLOCK = 10, BLOCK_W = BW * HOUSES_PER_BLOCK, IW = 16;
 const CROSS_W = 9, CROSS_H = 30, CROSS_CY = 1.0, CROSS_R = 3;
+const FLATBUSH_STORE_W = 6.5;
+// Drive the FLATBUSH ground path (the level in development): green house lawns,
+// concrete store aprons, concrete intersection corner patches, concrete back park.
+const LEVEL_DAYS = [{ day: "WEDNESDAY", borough: "BROOKLYN", area: "FLATBUSH" }];
+const level = 1;
+const isManhattanLevel = () => false;
+const isBronxLevel = () => false;
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true }, { x: 288, garbage: true },
   { x: 384, garbage: true }, { x: 480, garbage: true }, { x: 576, garbage: true }, { x: 672, garbage: false },
@@ -67,10 +74,12 @@ function check(name, cond, extra){ console.log((cond ? 'PASS  ' : 'FAIL  ') + na
 // Evaluate the real function bodies with their dependencies injected, and hand back
 // the ones we want to drive.
 const factory = new Function('THREE', 'document', 'LEVEL_BLOCKS', 'LEVEL_XS', 'IW', 'BLOCK_W', 'CROSS_W', 'CROSS_H', 'CROSS_CY', 'CROSS_R', 'groundGroup',
+  'BW', 'HOUSES_PER_BLOCK', 'FLATBUSH_STORE_W', 'LEVEL_DAYS', 'level', 'isManhattanLevel', 'isBronxLevel',
   code + '\n;return { buildGround, addCrosswalk, addCrosswalkAcross, buildIntersections, groundStrip, roundedRectShape, crossStreetShape };');
 let api = null;
 try {
-  api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, CROSS_W, CROSS_H, CROSS_CY, CROSS_R, groundGroup);
+  api = factory(THREE, global.document, LEVEL_BLOCKS, LEVEL_XS, IW, BLOCK_W, CROSS_W, CROSS_H, CROSS_CY, CROSS_R, groundGroup,
+    BW, HOUSES_PER_BLOCK, FLATBUSH_STORE_W, LEVEL_DAYS, level, isManhattanLevel, isBronxLevel);
   api.buildGround();
   check('buildGround() runs without throwing', true);
 } catch (e) {
@@ -100,8 +109,27 @@ if (groups.length === 8){
   const g0 = groups[0];
   check('intersection has 6 curb strips + road + 2 far bases + 4 flares + 4 return bands + route cw (8+8) + perp cw (6+6)', g0.children.length === 45, 'children=' + g0.children.length);
 }
+
+// --- Flatbush ground (LEVEL_DAYS drives the FLATBUSH branch): the front-lawn band (y 5.0..8.5) ---
+// House front lawns stay green; the corner stores AND the intersection corners get concrete caps.
+const cap = (m) => m && m.geometry && m.geometry.h === 3.5 && Math.abs(m.position.y - 6.75) < 1e-6;
+check('Flatbush front lawn strip is green (house lawns stay green)',
+  groundGroup.children.some((m) => cap(m) && m.geometry.d === 0.3 && m.material && m.material.color === 0x4d7a3a));
+const concrete = (m) => cap(m) && m.geometry.d === 0.35 && m.material && m.material.color === 0x8d949c;
+let storeAprons = 0,
+  cornerPatches = 0;
+for (const m of groundGroup.children) {
+  if (!concrete(m)) continue;
+  if (m.geometry.w === FLATBUSH_STORE_W) storeAprons++; // 6.5u pad per corner store
+  else if (m.geometry.w === IW) cornerPatches++; // 16u intersection cap
+}
+check('16 corner-store aprons (8 blocks x 2) on concrete', storeAprons === 16, 'count=' + storeAprons);
+check('8 intersection corner patches capped with concrete (no green patch by the corner stores)', cornerPatches === 8, 'count=' + cornerPatches);
+// z-order: concrete caps (0.35 slab, top 0.325) clear the grass (0.3) but stay below
+// the cross-street asphalt plane (0.335) so the street still reads in the middle.
+check('concrete corner caps sit above grass and below cross-street asphalt', 0.3 < 0.325 && 0.325 < 0.335);
 // No dark stripe: cross-street asphalt must be the SAME color as the main road.
-check('cross-street asphalt matches main-road color (no dark stripe)', src.includes('0x3a4046, side: THREE.DoubleSide'));
+check('cross-street asphalt matches main-road color (no dark stripe)', /color:\s*0x3a4046,\s*side:\s*THREE\.DoubleSide/.test(src));
 check('cross-street no longer uses the darker 0x2f353c', !src.includes('0x2f353c'));
 // No continuous line left running through the intersection gaps.
 check('no full-length road-edge line through the intersections', !/BoxGeometry\(GW,\s*0\.2/.test(src) && !src.includes('edgeR'));

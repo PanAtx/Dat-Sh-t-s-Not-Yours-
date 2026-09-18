@@ -75,8 +75,10 @@ const checks = [
     ),
   ],
   [
-    'store rule now covers MANHATTAN and THE BRONX only',
-    html.includes('(borough === "MANHATTAN" || borough === "THE BRONX")'),
+    'store rule covers MANHATTAN, THE BRONX, and (area-gated) Flatbush',
+    html.includes('borough === "MANHATTAN"') &&
+      html.includes('borough === "THE BRONX"') &&
+      html.includes('area === "FLATBUSH"'),
   ],
   [
     'Bronx storefront pool wired into spawnWorld',
