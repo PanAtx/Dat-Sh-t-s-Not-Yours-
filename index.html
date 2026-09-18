@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.109</div>
+          <div id="app-version" class="menu-version">v1.0.110</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.109';
+      const APP_VERSION = '1.0.110';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11205,7 +11205,8 @@
             c.data = makeBicycle(true);
             break;
           case "moto":
-            c.wy = R(-6.5, -3.5);
+            c._passSide = Math.random() < 0.5 ? -0.9 : -8.5; // my street side (curb or outer)
+            c.wy = c._passSide; // spawn ON my side — never the middle
             c.sp = R(6, 8); // SLOWED (was R(12,14)) — gentler street traffic
             c.curSp = 0;
             c.targetWy = c.wy;
@@ -11214,7 +11215,8 @@
             c.data = makeMoto();
             break;
           case "car":
-            c.wy = R(-3, -7.5);
+            c._passSide = Math.random() < 0.5 ? -0.9 : -8.5; // my street side (curb or outer)
+            c.wy = c._passSide; // spawn ON my side — never the middle
             c.sp = R(5, 7); // SLOWED (was R(10,13)) — gentler street traffic
             c.sway = R(0, 6.28);
             c.curSp = 0;
@@ -16381,7 +16383,7 @@
                   spBe = c.sp * 1.5; // accelerate!
                   const toOuter = c._escapeTarget - c.wy;
                   c.wy +=
-                    Math.sign(toOuter) * Math.min(Math.abs(toOuter), 6 * dt); // strong lateral move
+                    Math.sign(toOuter) * Math.min(Math.abs(toOuter), 3 * dt); // gentle lateral move
                   // Once in road lane, target front-of-truck clearance
                   if (c.wy <= -4.0) {
                     const escapeForward = truck.wx + 12.0; // pass well clear of cab
@@ -16434,6 +16436,13 @@
               break;
             }
             case "car": {
+              // A car lives on ONE side of the street (curb or outer) for its whole trip.
+              // Assigning it once means the car never cruises the middle, never piles up
+              // behind the DSNY truck, and never lurches sideways to squeeze past — it
+              // simply drives along on its side and glides by the truck on that same side.
+              if (c._passSide === undefined) {
+                c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+              }
               // Check for obstacles ahead (truck + other vehicles)
               let obstacle = findVehicleAhead(c, creatures);
               // NO CRAWLING: a car always moves at least at the worker's walk pace (8.5).
@@ -16612,26 +16621,33 @@
               if (c.detourTimer !== undefined) {
                 c.wy += (c.detourY - c.wy) * 3 * dt;
               } else {
-                c.wy += (c.targetWy - c.wy) * 2 * dt; // smooth lane targeting
+                c.wy += (c._passSide - c.wy) * 2 * dt; // cruise on my stable side — never the middle
                 c.wy += Math.sin(c.wx * 0.15 + c.sway) * 0.02;
               }
               if (tx > 58) {
                 c.wx = p.wx - 38;
                 c.curSp = 0;
                 c.detourTimer = undefined;
-                c.targetWy = clamp(R(-3.5, -6.5), -8.5, -1.5);
-                if (!c._homeLane) c._homeLane = c.targetWy;
+                c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE; // fresh side this trip
+                c.wy = c.targetWy = c._passSide; // respawn ON my side — never the middle
+                if (!c._homeLane) c._homeLane = c._passSide;
               } else if (tx < -58) {
                 // Recycle vehicles that fall far behind the player
                 c.wx = p.wx + 42;
                 c.curSp = 0;
                 c.detourTimer = undefined;
-                c.targetWy = clamp(R(-3.5, -6.5), -8.5, -1.5);
-                if (!c._homeLane) c._homeLane = c.targetWy;
+                c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+                c.wy = c.targetWy = c._passSide;
+                if (!c._homeLane) c._homeLane = c._passSide;
               }
               break;
             }
             case "moto": {
+              // A moto also lives on ONE side of the street (curb or outer) for its trip,
+              // so it never cruises the middle or piles up behind the truck.
+              if (c._passSide === undefined) {
+                c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+              }
               let obstacleM = findVehicleAhead(c, creatures);
               let desiredSpM = c.sp;
               const sprintM = npcRoadRules(c, dt); // a car is closing on us — move over or sprint (never just wait)
@@ -16695,8 +16711,10 @@
                       desiredSpM = c.sp;
                     }
                   } else {
-                    // Past the cab: return home lane smoothly (the truck is behind us now)
-                    if (!c._homeLane) c._homeLane = -5.0;
+                    // Past the cab: resume MY stable side (the truck is behind us now)
+                    if (c._passSide === undefined)
+                      c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+                    if (!c._homeLane) c._homeLane = c._passSide;
                     c.targetWy += (c._homeLane - c.targetWy) * 1.5 * dt;
                     desiredSpM = c.sp;
                   }
@@ -16743,7 +16761,7 @@
                 if (c._escapeModeM) {
                   desiredSpM = c.sp * 1.4; // accelerate to clear the front
                   c._homeLane = c._escapeTargetM; // agree with the home-targeting below
-                  c.wy += (c._escapeTargetM - c.wy) * Math.min(1, 8 * dt); // strong lateral move
+                  c.wy += (c._escapeTargetM - c.wy) * Math.min(1, 3 * dt); // smooth lateral move (no snap)
                   if (c.wx > truck.wx + (truck.cabOff || 6.0)) {
                     c._escapeModeM = false;
                     c._homeLane = null; // resume normal cruising lane
@@ -16759,10 +16777,12 @@
               if (c.detourTimer !== undefined) {
                 c.wy += (c.detourY - c.wy) * 3.5 * dt;
               } else {
-                // Smooth lane targeting using targetWy — no per-frame random jumps
-                if (!c._homeLane && c.wy < -6) c._homeLane = -5;
-                const homeWY = c._homeLane !== undefined ? c._homeLane : -5;
-                c.wy += (homeWY - c.wy) * 2 * dt;
+                // Cruise on MY stable side (curb or outer) — never the middle, so I never
+                // pile up behind the DSNY truck and then lurch sideways to squeeze past.
+                if (c._passSide === undefined) {
+                  c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+                }
+                c.wy += (c._passSide - c.wy) * 2 * dt;
                 c.wy += Math.sin(c.wx * 0.3) * 0.08; // tiny wobble for realism
               }
               animParts(c, c.curSp * dt * 0.8, 0.2);
