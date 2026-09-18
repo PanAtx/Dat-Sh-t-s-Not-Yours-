@@ -1475,6 +1475,9 @@
       .bubble.bub-panhandler {
         background: #c9d6a5;
       } /* panhandler's sickly olive — you can almost smell it */
+      .bubble.bub-scholar {
+        background: #f4e9cf;
+      } /* the scholar's warm parchment */
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
@@ -2043,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.103</div>
+          <div id="app-version" class="menu-version">v1.0.105</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2167,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.103';
+      const APP_VERSION = '1.0.105';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2225,7 +2228,7 @@
       const PLAYER_START_X = 88; // spawn in the middle of Intersection 1, facing Block 2
       const ROUTE_FINISH_X = 656; // reaching Intersection 7 completes the route
       const ROUTE_END_X = 768; // far edge of the route (Intersection 8)
-      const RUN_SPEED = 8.5; // traffic + follow-truck baseline (cars never crawl below this)
+      const RUN_SPEED = 4; // SLOWED traffic floor (was 8.5) — also sets CAR_MIN_SP, so cars no longer "never crawl below the worker's walk pace"
       const PLAYER_SPEED = 10; // worker forward speed while W / UP / stick is held (no input = stands still)
       const LAT_SPEED = 6.5; // worker strafe speed (A/D / stick horizontal)
       // In Manhattan the worker is limited to the sidewalk (y < 5.0); no front lawn or stoops.
@@ -2386,16 +2389,16 @@
         crazy: 0,
         dealer: 0, // Bronx-only: exactly 2 per level, spawned separately on stoops
         panhandler: 0, // Bronx-only: exactly 2 per level, in front of the corner store
+        scholar: 0, // Flatbush-only: an observant Orthodox Jewish scholar strolling the sidewalk
         cat: 0,
       };
       const SCALING_NPC = {
-        ped: true,
-        car: true,
         moto: true,
         ebike: true,
         rc: true,
-      }; // +1 per day (the crowd/traffic that gets busier each level)
-      const GATED_NPC = { moto: 3, ebike: 2, rc: 5 }; // appear only from that day (Wed/Thu/Fri): 0 before, then 1 on that day, +1 each day after
+      }; // +1 per day (the crowd/traffic that gets busier each level). Cars + peds stay at their light
+      // baseline all week (deliberately calmer street - not part of the daily ramp).
+      const GATED_NPC = { moto: 3, ebike: 3, rc: 5 }; // appear only from that day: 0 before, then 1 on that day, +1 each day after (ebike gated from Thu = lighter Flatbush two-wheeler traffic)
       const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 }; // constant critters (kept for reference/tests)
       function npcCounts(day) {
         const extra = Math.max(0, (day || 1) - 1); // +0 on Monday ... +6 by Sunday
@@ -9973,6 +9976,104 @@
         g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
         return g;
       }
+      function makeScholar() {
+        // Brooklyn / Flatbush only: an observant Orthodox Jewish man. Black hat,
+        // black coat, white shirt, black pants, black shoes, a white beard with
+        // side payot, and a Talmud tucked under his arm. Caucasian skin only -
+        // the random SKIN_TONES spread does not apply to him.
+        const g = new THREE.Group();
+        const skin = M(0xf4d7b8); // fixed Caucasian (fair) complexion
+        const coatM = M(0x141414); // long black coat
+        const shirtM = M(0xf2f0e9); // white shirt
+        const pantsM = M(0x1a1a1c); // black pants
+        const shoeM = M(0x0c0c0e); // black shoes
+        const hatM = M(0x101012); // black hat
+        const beardM = M(0xececec); // white beard
+        const bookCover = M(0x274a72); // the Talmud cover
+        const pagesM = M(0xf2eede); // cream pages
+        // Legs (black pants + black shoes), feet rest at local z 0
+        const mkLeg = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.13, 0.78);
+          const leg = BX(0.14, 0.15, 0.72, pantsM);
+          leg.position.z = -0.36;
+          pv.add(leg);
+          const shoe = BX(0.2, 0.14, 0.13, shoeM);
+          shoe.position.set(0.06, 0, -0.7);
+          pv.add(shoe);
+          g.add(pv);
+          return pv;
+        };
+        const legL = mkLeg(1),
+          legR = mkLeg(-1);
+        // Long black coat over the torso
+        const torso = BX(0.34, 0.68, 0.8, coatM);
+        torso.position.z = 1.28;
+        g.add(torso);
+        // White shirt peeking out at the open collar / chest
+        const shirtPanel = BX(0.06, 0.44, 0.4, shirtM);
+        shirtPanel.position.set(0.17, 0, 1.3);
+        g.add(shirtPanel);
+        // Arms in the black coat (left arm cradles the Talmud)
+        const mkArm = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(0, side * 0.31, 1.5);
+          const sleeve = BX(0.13, 0.15, 0.3, coatM);
+          sleeve.position.z = -0.15;
+          pv.add(sleeve);
+          const fore = BX(0.11, 0.13, 0.26, coatM);
+          fore.position.z = -0.42;
+          pv.add(fore);
+          const hand = BX(0.1, 0.1, 0.12, skin);
+          hand.position.z = -0.6;
+          pv.add(hand);
+          g.add(pv);
+          return pv;
+        };
+        const armL = mkArm(1),
+          armR = mkArm(-1);
+        // The Talmud: a thick book tucked vertically under his left arm
+        const book = BX(0.36, 0.12, 0.52, bookCover);
+        book.position.set(0.04, -0.27, 1.12);
+        g.add(book);
+        const pages = BX(0.4, 0.08, 0.48, pagesM);
+        pages.position.set(0.05, -0.27, 1.12);
+        g.add(pages);
+        // Head on a pivot (Caucasian skin, white beard with side payot, black hat)
+        const headPivot = new THREE.Group();
+        headPivot.position.z = 1.6;
+        g.add(headPivot);
+        const neck = BX(0.1, 0.1, 0.12, skin);
+        neck.position.z = 0.05;
+        headPivot.add(neck);
+        const head = BX(0.2, 0.24, 0.26, skin);
+        head.position.z = 0.2;
+        headPivot.add(head);
+        const nose = BX(0.04, 0.08, 0.07, skin);
+        nose.position.set(0.11, 0.0, 0.15);
+        headPivot.add(nose);
+        // White beard: chin + cheeks, with the two side payot
+        const beard = BX(0.16, 0.26, 0.2, beardM);
+        beard.position.set(0.12, -0.02, -0.02);
+        headPivot.add(beard);
+        [-1, 1].forEach((s) => {
+          const payot = BX(0.06, 0.12, 0.1, beardM);
+          payot.position.set(0.03, s * 0.15, 0.05);
+          headPivot.add(payot);
+        });
+        // Black hat: a flat brim (the rim) + a crown on top of the head.
+        // Up is +Z, so the brim is a wide flat disc (big x + y, thin z) that
+        // clearly reads as a hat rim, with a taller crown sitting on it.
+        const brim = BX(0.44, 0.44, 0.06, hatM);
+        brim.position.z = 0.36;
+        headPivot.add(brim);
+        const crown = BX(0.3, 0.3, 0.32, hatM);
+        crown.position.z = 0.5;
+        headPivot.add(crown);
+        g.userData.head = headPivot;
+        g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+        return g;
+      }
       function makeHooker() {
         // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
         const g = new THREE.Group();
@@ -10987,6 +11088,7 @@
           case "ped":
             c.wy = R(1, 4);
             c.sp = R(1.0, 2.2);
+            c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makePerson({
               shirt: pick(SHIRTS),
               pants: pick(PANTS),
@@ -10996,6 +11098,7 @@
           case "lady":
             c.wy = R(1, 4);
             c.sp = R(1.2, 2.4);
+            c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makePerson({
               skirt: true,
               shirt: pick(DRESSES),
@@ -11055,6 +11158,7 @@
           case "dogwalker":
             c.wy = R(1.0, creatureMaxY());
             c.sp = R(0.9, 1.8);
+            c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makeDogWalker();
             break;
           case "rc":
@@ -11070,7 +11174,7 @@
             break;
           case "bike":
             c.wy = R(-2.4, -0.3);
-            c.sp = R(8, 9.5);
+            c.sp = R(4, 5.5); // SLOWED (was R(8,9.5)) — gentler street traffic
             c.curSp = 0;
             c.targetWy = c.wy;
             c._naturalLane = c.wy > -1.2 ? 0.5 : -8.5;
@@ -11080,7 +11184,7 @@
             break;
           case "ebike":
             c.wy = R(-2.4, -0.3);
-            c.sp = R(10, 12);
+            c.sp = R(5.5, 7); // SLOWED (was R(10,12)) — gentler street traffic
             c.curSp = 0;
             c.targetWy = c.wy;
             // Assign lateral spread target based on initial Y to prevent bunching
@@ -11091,7 +11195,7 @@
             break;
           case "moto":
             c.wy = R(-6.5, -3.5);
-            c.sp = R(12, 14);
+            c.sp = R(6, 8); // SLOWED (was R(12,14)) — gentler street traffic
             c.curSp = 0;
             c.targetWy = c.wy;
             c.boxW = 0.35;
@@ -11100,7 +11204,7 @@
             break;
           case "car":
             c.wy = R(-3, -7.5);
-            c.sp = R(10, 13);
+            c.sp = R(5, 7); // SLOWED (was R(10,13)) — gentler street traffic
             c.sway = R(0, 6.28);
             c.curSp = 0;
             c.targetWy = c.wy;
@@ -11175,6 +11279,16 @@
             c.decideCd = R(1, 3);
             c.stinkCd = 0;
             c.data = makePanhandler();
+            c.gender = "male";
+            break;
+          case "scholar":
+            // Brooklyn/Flatbush: an observant Orthodox Jewish scholar strolling the
+            // sidewalk with a Talmud under his arm. Flatbush-only (see spawnWorld);
+            // his bump exchange is handled in collideCreatures.
+            c.wy = R(1.2, 4.2);
+            c.sp = R(0.7, 1.0); // a slow, dignified stroll
+            c.sayCd = R(0, 1);
+            c.data = makeScholar();
             c.gender = "male";
             break;
           case "skater":
@@ -11842,6 +11956,18 @@
             c.wx = fpx + R(-0.55, 0.55);
             c.wy = fpy + R(-0.4, 0.4);
             c.g.position.set(c.wx, c.wy, GZ);
+          }
+        }
+        // Brooklyn / Flatbush: an observant Orthodox Jewish scholar strolling the
+        // sidewalk with a Talmud under his arm. Flatbush ONLY (no other level).
+        // Bumping him offends him - see the collideCreatures bump exchange and the
+        // "Failure to respect observant citizen" write-up.
+        if (isFlatbushLevel()) {
+          for (let sI = 0; sI < 2; sI++) {
+            const sc = addCreature("scholar");
+            sc.wx = p.wx + R(15, 90); // spread along the Flatbush route
+            sc.wy = R(1.2, 4.2); // on the sidewalk, off the stoops/porches
+            sc.g.position.set(sc.wx, sc.wy, GZ);
           }
         }
         // Crazy homeless guy: Manhattan-only aggressive NPC that attacks on touch
@@ -12889,6 +13015,20 @@
       const HP_HIT_DRIVETRIC = 4; // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
       const HP_HIT_PANHANDLER = 1; // a panhandler's shove-and-stink does only very minor damage (the smell, not the elbow)
       const HP_HIT_JACKER = 2; // bumping the jackhammer guy does minor damage (the buzz, not a beatdown)
+      const HP_HIT_SCHOLAR = 2; // bumping the Flatbush scholar offends him - a light bump (respect the observant citizen)
+      const HP_HIT_BUMPER = 1; // a casual arcade bump with a walking civilian (ped, dogwalker, hooker, skater...) - very minor, just a nick
+      // The scholar's "wise sayings": Yiddish proverbs he drops on the worker the moment they bump (see collideCreatures).
+      const SCHOLAR_SAYINGS = [
+        "Hak mir nisht keyn tshaynik",
+        "A klug tsu der kolir",
+        "Red tsum lomp",
+        "Men tor nisht vern tsu zat",
+        "A shvester fun a bokser",
+        "Tsufil iz ungezunt",
+        "Zol vaksn tsibeles in zayn boykh",
+        "Der mentsh trakht un got lakht",
+        "Shvarts un finster",
+      ];
       // ---- Flatbush driveway tricycles (kids who chase the worker up the driveway) ----
       const DRIVETR_CHAIN_R = 4.2; // leash radius around a kid's home spot (never reaches the street)
       const DRIVETR_AGGRO_DIST = 6.5; // worker distance that scares a parked kid into attacking
@@ -12905,7 +13045,7 @@
       function heal(amount) {
         health = Math.min(maxHealth, health + (amount || 0));
       }
-      function hurtNPC(amount, cause) {
+      function hurtNPC(amount, cause, noYelp) {
         if (state !== "play") return;
         if (p.invuln > 0 || p.immuneT > 0) return; // i-frames / Monster immunity absorb the hit
         health = Math.max(0, health - (amount || 0));
@@ -12925,15 +13065,17 @@
           }, 320);
         }
         SFX.playHurtSound();
-        Voice.say(
-          "Ow! That one hurt!",
-          2.5,
-          0.9,
-          p.wx,
-          p.wy,
-          WORKER_GENDER,
-          "worker",
-        );
+        if (!noYelp) {
+          Voice.say(
+            "Ow! That one hurt!",
+            2.5,
+            0.9,
+            p.wx,
+            p.wy,
+            WORKER_GENDER,
+            "worker",
+          );
+        }
         if (health <= 0) startDyingSequence(); // out of health: play the down sequence, THEN the write-up (game over on the 3rd)
       }
       // ==================== OUT-OF-HEALTH DOWN SEQUENCE (the "LODI" moment) ====================
@@ -13163,9 +13305,48 @@
         panhandler: [
           "Failure to provide care to citizen.",
         ],
+        scholar: [
+          "Failure to respect observant citizen",
+        ],
         tric: [
           "Failure to yield to a minor on a tricycle",
           "The kid's right to the driveway was not honored",
+        ],
+        // --- the sidewalk crowd: every one of them just trying to get to work ---
+        ped: [
+          "Pestering a pedestrian",
+          "Failure to respect a pedestrian's sidewalk sovereignty",
+          "Unsanctioned contact with a walking citizen",
+        ],
+        lady: [
+          "Failure to tip-toe past a lady",
+          "Failure to afford a lady her space",
+          "Unwanted contact with a female citizen",
+        ],
+        dogwalker: [
+          "Pestering the pets",
+          "Failure to respect a canine and its handler",
+          "Disturbing the peace of a walking dog",
+        ],
+        hooker: [
+          "Conducting non-city business while on city time",
+          "Failure to respect a licensed sidewalk enterprise",
+          "Obstructing a citizen's evening plans",
+        ],
+        skater: [
+          "Failure to yield to a wheeled citizen",
+          "Obstructing a skateboarder mid-grind",
+          "Failure to respect a gravity-dependent citizen",
+        ],
+        yeller: [
+          "Piling on an already agitated citizen",
+          "Failure to de-escalate a loud pedestrian",
+          "Escalating a verbal incident without provocation",
+        ],
+        breaker: [
+          "Obstructing a dance crew mid-set",
+          "Failure to respect a breakdancer's flow",
+          "Disrupting a sanctioned sidewalk dance operation",
         ],
         // --- the street itself: the hydrant and friends ---
         hazard: [
@@ -14110,6 +14291,7 @@
             rad = 0.85;
           else if (c.type === "dealer") rad = 1.0; // burly dealer blocks his stoop
           else if (c.type === "panhandler") rad = 0.85; // thin, but his stink has reach
+          else if (c.type === "scholar") rad = 0.85; // a solid, walking person
           else if (c.type === "escooter") rad = 1.0;
           if (d2 > rad * rad) continue;
           if (c.type === "crazy") {
@@ -14195,6 +14377,43 @@
             c.wy = clamp(c.wy - ny * 0.5, 1.0, 4.7);
             return;
           }
+          if (c.type === "scholar") {
+            // The observant scholar: bumping him offends him. He drops a "wise"
+            // Yiddish saying, the worker apologizes, and he nicks the worker a
+            // little. Cooldown so the sayings don't spam every single bump.
+            if (c.sayCd <= 0) {
+              Voice.say(
+                pick(SCHOLAR_SAYINGS),
+                2.6,
+                R(0.95, 1.1),
+                c.wx,
+                c.wy,
+                c.gender,
+                "scholar",
+              );
+              Voice.say(
+                "Sorry, I didn't see you!",
+                2.6,
+                0.95,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+              hurtNPC(HP_HIT_SCHOLAR, "scholar", true); // he isn't hurt - just politely takes the shove, no "Ow!"
+              spawnDustEffect(c.wx, c.wy);
+              c.sayCd = 2.5; // he doesn't quote a Talmud every single bump
+            }
+            // He's a solid person: push the worker back out so they can't clip
+            // through him (no stun - a solid-person bump, like the others).
+            const d = Math.sqrt(d2) || 0.001;
+            const nx = -dx / d,
+              ny = -dy / d; // from the scholar toward the worker
+            const pen = rad - d;
+            p.wx += nx * (pen + 0.05);
+            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+            return;
+          }
           if (
             c.type === "ped" ||
             c.type === "lady" ||
@@ -14206,30 +14425,15 @@
             c.type === "skater" ||
             c.type === "escooter"
           ) {
-            // People are SOLID: push the worker out so they can't walk through, but NEVER stun
-            // (a stun here caused an infinite stun-lock loop when the worker was stuck against them)
-            const d = Math.sqrt(d2) || 0.001;
-            const nx = -dx / d,
-              ny = -dy / d; // from person toward worker
-            const pen = rad - d; // push out to just touching (small gap)
-            p.wx += nx * (pen + 0.05);
-            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+            // ARCADE BUMP: touching a walking civilian is a very minor offense. No more
+            // shoving the worker out of the way - the crowd is a damage aura, not a wall.
+            // Each NPC nicks the worker a touch (very minor), fires a snarky line, and gets
+            // tagged for the WRITTEN UP! stamp. (The raccoon/squirrel/rat keep their old
+            // flee-and-trip behavior below - they don't deal damage.)
             if (c.vcd <= 0) {
               c.vcd = 2.5;
-              if (c.type === "dogwalker") {
-                c.bark = 2.2;
-                Voice.say(
-                  "WOOF! WOOF! WOOF!",
-                  2.5,
-                  1.0,
-                  c.wx,
-                  c.wy,
-                  null,
-                  "dog",
-                );
-              } else if (c.type === "jacker") {
-                // He's mid-jackhammer and has ZERO patience: a bump earns a
-                // full-volume line and a minor whack (he's working, not playing).
+              if (c.type === "jacker") {
+                // He keeps his own damage action: a mid-jackhammer bump earns a whack.
                 Voice.say(
                   "Don't mess with city progress!",
                   2.4,
@@ -14249,56 +14453,103 @@
                   "worker",
                 );
                 hurtNPC(HP_HIT_JACKER, "jacker");
-              } else if (c.type === "hooker")
-                Voice.say(
-                  "Want a date?",
-                  3,
-                  1.2,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "hooker",
-                );
-              else if (c.type === "skater")
-                Voice.say(
-                  "Whoa! Like, watch it bro!",
-                  3,
-                  1.15,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "skater",
-                );
-              else if (c.type === "escooter")
-                Voice.say(
-                  "I'm calling a lawyer!",
-                  3,
-                  1.0,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "escooter",
-                );
-              else if (c.type === "yeller")
-                Voice.say(
-                  "Damn fentanyl addicts!",
-                  4,
-                  0.9,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "yeller",
-                );
-              else
-                Voice.say(
-                  "Hey! Watch it!",
-                  4,
-                  1.1,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "ped",
-                );
+              } else {
+                // A very minor arcade bump, tagged to the NPC for the write-up stamp.
+                hurtNPC(HP_HIT_BUMPER, c.type);
+                if (c.type === "dogwalker") {
+                  c.bark = 2.2;
+                  Voice.say(
+                    "WOOF! WOOF! WOOF!",
+                    2.5,
+                    1.0,
+                    c.wx,
+                    c.wy,
+                    null,
+                    "dog",
+                  );
+                } else if (c.type === "hooker")
+                  Voice.say(
+                    "Conducting business, hon.",
+                    3,
+                    1.2,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "hooker",
+                  );
+                else if (c.type === "skater")
+                  Voice.say(
+                    "Whoa! Like, watch it, bro!",
+                    3,
+                    1.15,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "skater",
+                  );
+                else if (c.type === "escooter")
+                  Voice.say(
+                    "I'm calling a lawyer!",
+                    3,
+                    1.0,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "escooter",
+                  );
+                else if (c.type === "yeller")
+                  Voice.say(
+                    "Damn fentanyl addicts!",
+                    4,
+                    0.9,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "yeller",
+                  );
+                else if (c.type === "breaker")
+                  Voice.say(
+                    "Dude! I was mid-set!",
+                    3,
+                    1.05,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                else if (c.type === "lady")
+                  Voice.say(
+                    "Excuse me, sir!",
+                    3,
+                    1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "lady",
+                  );
+                else
+                  Voice.say(
+                    "Hey! Watch it!",
+                    4,
+                    1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+              }
+              // BOUNCE-BACK FEEDBACK: the worker hops backward and trips a touch so the
+              // player can SEE they just got bumped (and took a nick) — the same shove
+              // feel as the panhandler / crazy / vehicle hits. This is a discrete
+              // one-shot reaction tied to the damage cooldown, NOT a continuous solid
+              // wall: the worker can still weave through the crowd, but every hurtful
+              // touch now has a visible physical consequence.
+              const d = Math.sqrt(d2) || 0.001;
+              const nx = -dx / d,
+                ny = -dy / d; // from the NPC toward the worker
+              p.wx += nx * 1.0;
+              p.wy = clamp(p.wy + ny * 0.8, -9.4, workerMaxY());
+              doStun(0.4, "trip");
             }
             return;
           }
@@ -15202,6 +15453,24 @@
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
           const tx = c.wx - p.wx;
           switch (c.type) {
+            case "scholar": {
+              // Brooklyn/Flatbush: the observant scholar's slow, dignified stroll down
+              // the sidewalk (Talmud under his arm). He never stops, never argues -
+              // the bump exchange is handled in collideCreatures. He stays on the
+              // walkable sidewalk, off the stoops/porches.
+              c.wx += c.sp * dt;
+              c.wy = clamp(c.wy, 1.2, 4.4);
+              animParts(c, c.sp * dt * 2.2);
+              c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+              if (tx > 55) {
+                c.wx = p.wx - 38;
+                c.wy = R(1.2, 4.2);
+              } else if (tx < -58) {
+                c.wx = p.wx + 42;
+                c.wy = R(1.2, 4.2);
+              }
+              break;
+            }
             case "ped":
             case "lady":
             case "dogwalker": {
@@ -15212,17 +15481,21 @@
               const pedTop = isManhattanLevel() || isBronxLevel() ? 5.0 : 7.8;
               const sprintPed = npcRoadRules(c, dt, pedTop); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
-              c.wx += pedSp * dt;
+              if (c.dir === undefined) c.dir = 1; // BI-DIRECTIONAL: each walker cruises his own way (like the e-scooter riders)
+              c.wx += c.dir * pedSp * dt;
               // Bronx: keep pedestrians on the sidewalk (y >= 0.75), never on the street.
               if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);
               c.wy = Math.min(c.wy, pedTop); // never wander up onto a stoop
               animParts(c, pedSp * dt * 2.2);
+              if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the direction of travel
               if (tx > 55) {
                 c.wx = p.wx - 38;
                 c.wy = R(1, 4);
+                c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
               } else if (tx < -58) {
                 c.wx = p.wx + 42;
                 c.wy = R(1, 4);
+                c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
               }
               c.cd -= dt;
               if (state === "play" && c.cd <= 0 && Math.abs(tx) < 5) {
@@ -17374,6 +17647,7 @@
         else if (speaker === "dealer") el.className = "bubble bub-dealer";
         else if (speaker === "panhandler")
           el.className = "bubble bub-panhandler";
+        else if (speaker === "scholar") el.className = "bubble bub-scholar";
         else el.className = "bubble bub-default";
         el.textContent = text;
         document.body.appendChild(el);

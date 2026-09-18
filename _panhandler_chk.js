@@ -308,7 +308,8 @@ check(
   "HP_HIT_JACKER is MINOR damage (2, above the stink's 1, far below a vehicle's 8)",
   html.indexOf("const HP_HIT_JACKER = 2;") >= 0,
 );
-const jackerBranch = extractIfBlock('} else if (c.type === "jacker") {');
+// (arcade pass) the jacker now leads its own sub-branch: `if (c.type === "jacker") {`
+const jackerBranch = extractIfBlock('if (c.type === "jacker") {');
 check("jacker bump branch exists in the solid-guy collision block", !!jackerBranch);
 check(
   "jacker says 'Don't mess with city progress!'",

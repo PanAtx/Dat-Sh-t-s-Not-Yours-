@@ -46,8 +46,8 @@ mon.crazy = 0;  // spawned separately, not via npcCounts
 mon.cat = 0;    // 4 bodega cats spawned separately on Manhattan days
 check('level 1 (Monday) is the baseline + Manhattan scooter/bike boost (gated types, skater + raccoon dropped)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
-check('the main crowd (ped + car) gains +1 every level',
-  [2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k] + (l - 1))));
+check('the main crowd (ped + car) stays at its light baseline all week (no daily ramp - calmer street)',
+  [1,2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
 check('gated types are absent before their day, then 1 + (day - gateDay) after (Bronx d2 exception: moto + ebike present)',
   [1,2,3,4,5,6,7].every(l => Object.keys(GATED_NPC).every(k =>
     npcCounts(l)[k] === ((l === 2 && (k === 'moto' || k === 'ebike'))
@@ -55,15 +55,15 @@ check('gated types are absent before their day, then 1 + (day - gateDay) after (
       : (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0)))));
 check('Bronx (d2): no street tricycle, but 1 moto + 1 e-bike on the street',
   npcCounts(2).tric === 0 && npcCounts(2).moto === 1 && npcCounts(2).ebike === 1);
-check('moto: 1 on Bronx d2, normal ramp from Wednesday (d3=1, d4=2); ebike ramp from d2 (d3=2, d4=3); rc from Friday',
+check('moto: 1 on Bronx d2, ramp from Wednesday (d3=1, d4=2); ebike ramp from Wednesday (d3=1, d4=2); rc from Friday',
   npcCounts(2).moto === 1 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
-  npcCounts(2).ebike === 1 && npcCounts(3).ebike === 2 && npcCounts(4).ebike === 3 &&
+  npcCounts(2).ebike === 1 && npcCounts(3).ebike === 1 && npcCounts(4).ebike === 2 &&
   npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
 check('non-gated, non-scaling types stay at their Monday count (per-day overrides aside)',
   Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]
     && !['escooter','bike','tric','yeller','hooker','skater','raccoon','crazy','squirrel','breaker'].includes(k))
     .every(k => [1,2,3,4,5,6,7].every(l => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
-check('total NPCs never decrease across the week (Flatbush drops its street tric, so Wed may plateau)', (function(){ let prev = -1; for (let l = 1; l <= 7; l++){ const n = sum(npcCounts(l)); if (n < prev) return false; prev = n; } return true; })());
+check('calmer, lighter street: the week still trends busier by Sunday, but at a light level (was ~39, now <= 30)', sum(npcCounts(7)) > sum(npcCounts(1)) && sum(npcCounts(7)) <= 30);
 console.log('   roster: day1 (Mon) = ' + sum(npcCounts(1)) + ' NPCs   ->   day7 (Sun) = ' + sum(npcCounts(7)) + ' NPCs');
 
 // ---------- 3) recordDayGot bumps only the requested counter ----------
