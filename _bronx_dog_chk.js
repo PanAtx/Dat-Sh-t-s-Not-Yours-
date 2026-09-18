@@ -99,7 +99,7 @@ check('npcRoadRules accepts a maxWy escape-lane cap', extractFn('npcRoadRules').
   let pi = src.indexOf('{', pedCaseStart), pd = 0;
   for (; pi < src.length; pi++) { if (src[pi] === '{') pd++; else if (src[pi] === '}') { pd--; if (pd === 0) break; } }
   const pedCase = src.slice(pedCaseStart, pi + 1);
-  check('PED: escape steering is capped at the sidewalk end (Manhattan/Bronx: y 5.0)', pedCase.indexOf('isManhattanLevel() || isBronxLevel() ? 5.0 : 7.8') >= 0 && pedCase.indexOf('npcRoadRules(c, dt, pedTop)') >= 0);
+  check('PED: escape steering is capped OFF the front lawn (y <= 5.0 on every borough)', /const pedTop\s*=\s*([0-9.]+)\s*;/.test(pedCase) && parseFloat((pedCase.match(/const pedTop\s*=\s*([0-9.]+)\s*;/) || [0, 5])[1]) <= 5.0 && pedCase.indexOf('npcRoadRules(c, dt, pedTop)') >= 0);
   check('PED: hard clamp keeps walkers off the stoop (wy <= pedTop)', pedCase.indexOf('c.wy = Math.min(c.wy, pedTop)') >= 0);
   check('PED: Bronx floor clamp unchanged (wy >= 0.75)', pedCase.indexOf('if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);') >= 0);
 }

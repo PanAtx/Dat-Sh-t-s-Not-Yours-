@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.110</div>
+          <div id="app-version" class="menu-version">v1.0.111</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.110';
+      const APP_VERSION = '1.0.111';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15315,29 +15315,43 @@
           if (o === c || !AVOID_TYPES[o.type]) continue;
           consider(o, 0.55);
         }
-        if (!best) return; // nothing in the way -> hold our line (no lateral movement)
-        const clear = bestR + WALKER_R + 0.55; // comfortable gap — widened so pairs part cleanly
-        const up = best.wy + clear,
-          down = best.wy - clear;
-        const upOk = up <= yMax,
-          downOk = down >= yMin;
-        if (!upOk && !downOk) return; // spans the whole band -> hold (rare; sidewalks are wide)
-        // Stable per-NPC "lean": two same-lane walkers would otherwise both pick the SAME
-        // clear side and clip straight through each other. A per-NPC lean (up or down)
-        // breaks the tie, and when only one side is in-band it nudges the target so
-        // opposing walkers diverge to slightly different lines instead of stacking.
-        if (c._avoidDir === undefined) c._avoidDir = Math.random() < 0.5 ? 1 : -1;
-        const bias = c._avoidDir;
-        let target;
-        if (upOk && downOk) {
-          const na = Math.abs(up - c.wy),
-            nd = Math.abs(down - c.wy);
-          if (Math.abs(na - nd) > 0.05) target = na < nd ? up : down; // clearly nearer side
-          else target = bias === 1 ? up : down; // near-tie: our stable lean decides
-        } else {
-          target = upOk ? up + bias * 0.6 : down - bias * 0.6; // one side only: lean spreads us
+        // Pick the clear side to slip around the obstacle. (target stays null when there is
+        // nothing to dodge, or the obstacle spans the whole band, in which case we hold.)
+        let target = null;
+        if (best) {
+          const clear = bestR + WALKER_R + 0.55; // comfortable gap — widened so pairs part cleanly
+          const up = best.wy + clear,
+            down = best.wy - clear;
+          const upOk = up <= yMax,
+            downOk = down >= yMin;
+          if (upOk || downOk) {
+            // Stable per-NPC "lean": two same-lane walkers would otherwise both pick the SAME
+            // clear side and clip straight through each other. A per-NPC lean (up or down)
+            // breaks the tie, and when only one side is in-band it nudges the target so
+            // opposing walkers diverge to slightly different lines instead of stacking.
+            if (c._avoidDir === undefined) c._avoidDir = Math.random() < 0.5 ? 1 : -1;
+            const bias = c._avoidDir;
+            if (upOk && downOk) {
+              const na = Math.abs(up - c.wy),
+                nd = Math.abs(down - c.wy);
+              if (Math.abs(na - nd) > 0.05) target = na < nd ? up : down; // clearly nearer side
+              else target = bias === 1 ? up : down; // near-tie: our stable lean decides
+            } else {
+              target = upOk ? up + bias * 0.6 : down - bias * 0.6; // one side only: lean spreads us
+            }
+          }
+          // else: obstacle spans the whole band -> hold (rare; sidewalks are wide)
         }
-        c.wy += (target - c.wy) * Math.min(1, 8.0 * dt); // snappier separation, still smooth
+        // SMOOTH the lateral sidestep instead of the old gap-proportional lunge (8*dt). That
+        // raw lunge is what made the scholar "jerk": the instant the clear side flipped (a
+        // closer obstacle taking over, or passing one and a new one appearing) the lateral
+        // velocity snapped hard to the opposite side. Here a bounded, low-pass-filtered lateral
+        // VELOCITY eases in and out, so a same-lane sidestep reads as one relaxed step aside.
+        let desiredV = target === null ? 0 : (target - c.wy) * 3.0; // proportional desire to clear it
+        if (target !== null) desiredV = Math.max(-2.0, Math.min(2.0, desiredV)); // brisk stroll, never a lunge
+        if (c._avoidVel === undefined) c._avoidVel = 0; // per-NPC smoothed lateral velocity
+        c._avoidVel += (desiredV - c._avoidVel) * Math.min(1, 6.0 * dt); // ease the velocity (kills the snap)
+        c.wy += c._avoidVel * dt;
       }
       // ==================== TRUCK PASS LANES + ROAD BAND ====================
       // The asphalt strip runs y -9.5..0.5 (sidewalk starts at 0.5). A car / moto is a
@@ -15615,10 +15629,10 @@
             case "lady":
             case "dogwalker": {
               // Walkers stay on the street, curb and sidewalk — they never step up onto a
-              // stoop. On the stoop boroughs (Manhattan/Bronx) the sidewalk ends at y 5.0,
-              // before the first stair (Manhattan stoops start ~5.25, Bronx stoops ~5.45),
-              // so escape steering (npcRoadRules) is capped there too.
-              const pedTop = isManhattanLevel() || isBronxLevel() ? 5.0 : 7.8;
+              // stoop, and they are NOT allowed on the front lawn either. Every borough's
+              // lawn/grass band starts at y 5.0, so the walkable cap is a flat 4.8 (a hair
+              // under the lawn edge) on every level — this also caps the escape steering.
+              const pedTop = 4.8; // sidewalk-only on every borough: never on the front lawn (y 5.0+)
               const pedFloor = isBronxLevel() ? 0.75 : 0.8; // lower edge: never off the curb onto the road
               const sprintPed = npcRoadRules(c, dt, pedTop); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
