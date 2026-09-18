@@ -1,4 +1,5 @@
-// _soccer_chk.js — verify the Flatbush street-soccer feature (index.html):
+// _soccer_chk.js — verify the Flatbush soccer-kids feature (index.html). The kids
+// play on the NEAR SIDEWALK (wy 1.6..4.2) — never on the asphalt:
 //   1) wiring: constants, addCreature case, kid/ball models, Flatbush-only spawn
 //      of 3 kids on 3 DISTINCT in-route blocks, AVOID_TYPES, write-ups.
 //   2) the REAL case "soccer" body from updateCreatures: the kid runs the WHOLE
@@ -57,7 +58,7 @@ check('makeSoccerBall builds a ball resting on the ground (center at 0.22)', /fu
 check('ball mesh is added to the world in addCreature\'s common tail', src.indexOf('if (c.ballG) dynamicGroup.add(c.ballG);') >= 0);
 // spawn: Flatbush only, 3 distinct garbage blocks, full-block patrol band
 const spawnSrc = (function () {
-  const i = src.indexOf('Flatbush street soccer: THREE small kids');
+  const i = src.indexOf('Flatbush soccer kids: THREE small kids');
   if (i < 0) return '';
   let j = src.indexOf('if (isFlatbushLevel()) {', i);
   let k = src.indexOf('{', j), d = 0;
@@ -67,7 +68,7 @@ const spawnSrc = (function () {
 check('soccer spawn is Flatbush-only (isFlatbushLevel gate)', spawnSrc.indexOf('if (isFlatbushLevel()) {') >= 0);
 check('soccer spawn picks 3 DISTINCT in-route (garbage) blocks', spawnSrc.indexOf('LEVEL_BLOCKS.filter(b => b.garbage)') >= 0 && spawnSrc.indexOf('pickedBlocks.length < 3') >= 0 && spawnSrc.indexOf('pickedBlocks.indexOf(sb) < 0') >= 0);
 check('soccer kids patrol the WHOLE block (minX/maxX = block edge ± SOCCER_MARGIN)', spawnSrc.indexOf('sk.minX = sb.x + SOCCER_MARGIN') >= 0 && spawnSrc.indexOf('sk.maxX = sb.x + BLOCK_W - SOCCER_MARGIN') >= 0);
-check('soccer kids start on the street (wy between -2.5 and -6.5)', spawnSrc.indexOf('sk.wy = R(-2.5, -6.5)') >= 0);
+check('soccer kids start on the NEAR SIDEWALK (wy 1.6..4.2 — never on the asphalt)', spawnSrc.indexOf('sk.wy = R(1.6, 4.2)') >= 0);
 check('soccer blocks are IN-ROUTE garbage blocks (6 of the 8 blocks carry garbage)', (function () {
   const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
   if (!m) return false;
@@ -168,8 +169,8 @@ const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun'
 // scenario A: worker bonks the ball (kid 2.5u behind it — outside the kid's own radius)
 (function () {
   const { rec, hurtNPC, doStun, Voice } = makeRecorder();
-  const c = { type: 'soccer', wx: 2.5, wy: -3, gender: 'male', ballCd: 0, ball: { wx: 0.4, wy: -3 } };
-  const p = { wx: 0, wy: -3 };
+  const c = { type: 'soccer', wx: 2.5, wy: 3, gender: 'male', ballCd: 0, ball: { wx: 0.4, wy: 3 } };
+  const p = { wx: 0, wy: 3 };
   runBallBlock(c, p, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL);
   check('A: ball bonk deals the MINOR whack (2) tagged "soccer"', rec.hits.length === 1 && rec.hits[0].amt === 2 && rec.hits[0].cause === 'soccer', JSON.stringify(rec.hits));
   check('A: worker says "Hey dont do that!" (burst) and the kid says "GOAAAAL!"', rec.lines.some(l => l.text === 'Hey dont do that!' && l.speaker === 'worker' && l.style === 'burst') && rec.lines.some(l => l.text === 'GOAAAAL!' && l.speaker === 'kid'), JSON.stringify(rec.lines));
@@ -181,8 +182,8 @@ const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun'
 // scenario B: worker touches the kid (ball far away)
 (function () {
   const { rec, hurtNPC, doStun, Voice } = makeRecorder();
-  const c = { type: 'soccer', wx: 0.5, wy: -3, gender: 'male', kidCd: 0, ballCd: 0, ball: { wx: 20, wy: -3 } };
-  const p = { wx: 0, wy: -3 };
+  const c = { type: 'soccer', wx: 0.5, wy: 3, gender: 'male', kidCd: 0, ballCd: 0, ball: { wx: 20, wy: 3 } };
+  const p = { wx: 0, wy: 3 };
   const dx = c.wx - p.wx, dy = c.wy - p.wy, d2 = dx * dx + dy * dy;
   runKidBlock(c, p, dx, dy, d2, hurtNPC, doStun, Voice, WORKER_GENDER, pick, SOCKER_LINES, HP_HIT_SOCKER, clamp, workerMaxY);
   check('B: kid bump deals the light hit (3) tagged "soccer"', rec.hits.length === 1 && rec.hits[0].amt === 3 && rec.hits[0].cause === 'soccer', JSON.stringify(rec.hits));

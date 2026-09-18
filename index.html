@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.114</div>
+          <div id="app-version" class="menu-version">v1.0.115</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.114';
+      const APP_VERSION = '1.0.115';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9147,7 +9147,7 @@
         };
         return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
       }
-      // Flatbush street soccer: a SMALL kid — a makePerson scaled to 60% (the ball
+      // Flatbush soccer kid: a SMALL kid — a makePerson scaled to 60% (the ball
       // keeps full street scale, so the kid reads as a child chasing a ball).
       function makeSoccerKid() {
         const kp = makePerson({
@@ -9159,7 +9159,7 @@
         return kp;
       }
       // A little white soccer ball with dark patches, resting radius 0.22
-      // (centre at 0.22 above the ground so it sits ON the asphalt).
+      // (centre at 0.22 above the ground so it sits ON the sidewalk).
       function makeSoccerBall() {
         const g = new THREE.Group();
         const ball = SPH(0.22, M(0xf5f5f0));
@@ -12354,12 +12354,14 @@
             dt.g.rotation.z = -Math.PI / 2; // parked, nose toward the street (-Y)
           }
         }
-        // Flatbush street soccer: THREE small kids, each chasing a soccer ball up and
-        // down their block — set up before the level starts, one kid per randomly
-        // picked IN-ROUTE block (blocks 2-7, the garbage blocks). The kid runs the
-        // WHOLE block back and forth, does NOT care about obstacles in its way
-        // (no npcRoadRules, no walk-around, no off-screen recycling), and other NPCs
-        // route around it (AVOID_TYPES.soccer). See case "soccer" in updateCreatures.
+        // Flatbush soccer kids: THREE small kids on the NEAR SIDEWALK, each chasing
+        // a soccer ball up and down their block — set up before the level starts, one
+        // kid per randomly picked IN-ROUTE block (blocks 2-7, the garbage blocks). The
+        // kid runs the WHOLE block back and forth on the sidewalk/front-lawn side
+        // (NEVER on the asphalt — that's the worker's street), does NOT care about
+        // obstacles in its way (no npcRoadRules, no walk-around, no off-screen
+        // recycling), and other NPCs route around it (AVOID_TYPES.soccer). See case
+        // "soccer" in updateCreatures.
         if (isFlatbushLevel()) {
           const soccerBlocks = LEVEL_BLOCKS.filter(b => b.garbage);
           const pickedBlocks = [];
@@ -12373,7 +12375,7 @@
             const sb = pickedBlocks[si];
             const sk = addCreature("soccer");
             sk.wx = sb.x + R(SOCCER_MARGIN + 4, BLOCK_W - SOCCER_MARGIN - 4);
-            sk.wy = R(-2.5, -6.5); // on the asphalt, mid-street (the worker's lane)
+            sk.wy = R(1.6, 4.2); // on the NEAR SIDEWALK (band wy 0.5..5.0) — the sidewalk/front-lawn side, NEVER on the asphalt
             sk.dir = Math.random() < 0.5 ? -1 : 1;
             sk.minX = sb.x + SOCCER_MARGIN; // patrol the WHOLE block, edge to edge
             sk.maxX = sb.x + BLOCK_W - SOCCER_MARGIN;
@@ -13500,7 +13502,7 @@
       const DRIVETR_HIT_DIST = 1.3; // contact distance at which the tricycle bumps the worker
       const DRIVETR_HIT_CD = 1.6; // per-kid cooldown between bumps (keeps the hits from spamming)
       const DRIVETR_BACKOFF_T = 4.0; // seconds the kid backs off to its home spot after a bump before it can re-lunge
-      // ---- Flatbush street soccer (small kids chasing a ball up and down the block) ----
+      // ---- Flatbush soccer kids (small kids chasing a ball up and down the block) ----
       const HP_HIT_SOCKER = 3; // a soccer kid's "MOMMY!" charge — a light bump (heavier than the stink, lighter than a driveway lunge)
       const HP_HIT_SOCCERBALL = 2; // a soccer ball bonked out of the worker's path — a minor whack
       const SOCKER_LINES = [
@@ -13510,7 +13512,7 @@
       ]; // what a kid screams the moment the worker touches them
       const SOCCER_LEAD = 1.3; // resting ball position: just ahead of the kid's running foot
       const SOCCER_KICK_AHEAD = 3.4; // where a kick sends the ball (the kid chases it back down)
-      const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the asphalt
+      const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the sidewalk
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
@@ -13787,7 +13789,7 @@
           "The kid's right to the driveway was not honored",
         ],
         soccer: [
-          "Failure to yield to street soccer",
+          "Failure to yield to a soccer kid",
           "The kid's right to the full block was not honored",
           "Failure to respect a sacred soccer ball",
         ],
@@ -14815,7 +14817,7 @@
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
           if (d2 > rad * rad) continue;
           if (c.type === "soccer") {
-            // ===== Flatbush street soccer (kid contact) =====
+            // ===== Flatbush soccer kid (kid contact) =====
             // The worker touches the kid: the kid fires a panic line and the
             // worker gets bounced back and takes a light hit. (The ball's own bonk
             // exchange is handled up front, before the generic radius gate, because
@@ -16544,7 +16546,7 @@
                 c.kickT = R(1.2, 2.6);
                 c.ball.wx = c.wx + c.dir * SOCCER_KICK_AHEAD; // the ball leaps ahead
                 c.ball.wy = c.wy;
-                c.ball.vz = SOCCER_KICK_VZ; // +z lob — it bounces on the asphalt
+                c.ball.vz = SOCCER_KICK_VZ; // +z lob — it bounces on the sidewalk
               }
               // --- the ball: its own little physics (eases back to the kid + bounces)
               {
@@ -16557,7 +16559,7 @@
                 b.z += b.vz * dt;
                 if (b.z <= 0 && b.vz < 0) {
                   b.z = 0;
-                  b.vz = Math.abs(b.vz) * 0.55; // damped bounce on the asphalt
+                  b.vz = Math.abs(b.vz) * 0.55; // damped bounce on the sidewalk
                   if (b.vz < 0.5) b.vz = 0; // settles
                 }
                 c.ballG.position.set(b.wx, b.wy, GZ + b.z);
