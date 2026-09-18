@@ -1408,10 +1408,14 @@
         border: 3px solid #14141a;
         border-radius: 10px;
         padding: 5px 8px 6px;
-        font-family: "Press Start 2P", "Courier New", monospace;
-        font-size: 9px;
-        line-height: 1.6;
-        letter-spacing: 0;
+        /* Comic-book lettering: "Bangers" is a genuine Marvel/Action-Comics-style
+           display face (bold, slanted, all-caps) — deliberately NOT the hated
+           Comic Sans. Falls back to a heavy sans if the webfont is unavailable. */
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: 16px;
+        line-height: 1.1;
+        letter-spacing: 1px;
+        text-transform: uppercase;
         color: #14141a;
         white-space: nowrap;
         box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.3);
@@ -1492,6 +1496,45 @@
         border-left: 7px solid transparent;
         border-right: 7px solid transparent;
         border-top: 10px solid #14141a;
+      }
+      /* ===== POW! bursts — the worker's "OW!" hit lines =====
+         When the worker takes a hit, his "OW!" lines (driveway-tricycle lunge,
+         hydrant shin-bonk, soccer bonk...) render as a jagged comic-book burst:
+         Bangers lettering, punchy red star, thick black drop-shadow outline, and
+         no speech tail (a burst is the hit itself). */
+      .bubble.bub-burst {
+        background: #ff3b4a;
+        color: #fff;
+        border: none;
+        padding: 12px 20px 13px;
+        font-size: 19px;
+        letter-spacing: 1.5px;
+        box-shadow: none;
+        clip-path: polygon(
+          50% 0, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
+          100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
+          50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
+          0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%
+        );
+        filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45));
+        animation: burstPop 0.22s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
+      }
+      .bubble.bub-burst::after {
+        display: none; /* a burst has no speech tail */
+      }
+      @keyframes burstPop {
+        0% {
+          transform: translate(-50%, -110%) scale(0.2) rotate(-12deg);
+          opacity: 0;
+        }
+        60% {
+          transform: translate(-50%, -110%) scale(1.15) rotate(3deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(-50%, -110%) scale(1) rotate(-2deg);
+          opacity: 1;
+        }
       }
       .pop-mongo {
         color: #ffab45;
@@ -1578,6 +1621,36 @@
           transform: translateX(-50%) scale(1) rotate(0);
           opacity: 0;
         }
+      }
+      /* ===== Comic starburst bonus finds (MONGO! / STREET CASH! / TREASURE!) =====
+         The reward word slams in on a jagged starburst — Bangers lettering, a
+         solid comic color per reward, thick black drop-shadow outline. The find's
+         name + payout keep their plates below the star (unchanged). */
+      .popup .pop-star {
+        display: inline-block;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        letter-spacing: 4px;
+        padding: 14px 46px 18px;
+        color: #fff;
+        text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4);
+        clip-path: polygon(
+          50% 0, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
+          100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
+          50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
+          0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%
+        );
+        filter: drop-shadow(4px 5px 0 rgba(0, 0, 0, 0.5));
+      }
+      .popup.pop-mongo .pop-star {
+        background: #ff7a1a; /* mango-orange mongo */
+      }
+      .popup.pop-cash .pop-star {
+        background: #1fb95d; /* street-cash green */
+      }
+      .popup.pop-treasure .pop-star {
+        background: #f2b705; /* treasure gold (dark ink so it reads on the gold) */
+        color: #402d00;
+        text-shadow: 2px 2px 0 rgba(255, 255, 255, 0.45);
       }
       /* "LODI" — the worker's out-of-health down-callout: slams in the instant he goes
    down (sad trombone + dizzy spin + fall onto the sidewalk), holds a few seconds,
@@ -1966,6 +2039,10 @@
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
       rel="stylesheet"
     />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bangers&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="game"></div>
@@ -2046,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.112</div>
+          <div id="app-version" class="menu-version">v1.0.114</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.112';
+      const APP_VERSION = '1.0.114';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2361,12 +2438,14 @@
         }
       }
       // Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
-      // The main crowd (pedestrians + cars) AND the day-gated vehicles (moto/ebike/rc, see GATED_NPC)
-      // grow busier as the week goes on, so the street ramps up clearly without exploding:
-      //   Mon 17 -> Tue 19 -> Wed 19 -> Thu 26 -> Fri 30 -> Sat 36 -> Sun 39.
-      // Every other type stays at its Monday count (the two Manhattan days, Uptown d1 +
-      // Harlem d6, run +1 escooter and +1 bike - the city sidewalk is fuller);
-      // the ambient critters (rats/raccoons/squirrels) are constant flavour.
+      // TRAFFIC CAP (tame the street, by design): npcCounts() clamps every level's road
+      // traffic DOWN to the Flatbush (d3) mix — 1 car / 1 moto / 1 e-bike / 1 bike /
+      // 1 e-scooter / 0 rc / 0 street tricycle — so NO level feels busier than Flatbush
+      // while the week is tuned level by level. It's a CEILING (never a floor), so quiet
+      // days (d1's 0 moto/ebike) are left alone. The old daily ramp (moto/ebike/rc via
+      // GATED_NPC + the Manhattan +1 escooter/bike) is still computed underneath; delete
+      // the TRAFFIC_CAP block in npcCounts() to restore it. Pedestrians + critters (the
+      // street "actors") are NOT road traffic and keep their per-day rules.
       const BASE_NPC_COUNTS = {
         ped: 2,
         car: 1,
@@ -2446,6 +2525,25 @@
             if (t === "crazy") base = 0;
             c[t] = base;
           }
+        }
+        // ---- TRAFFIC CAP: tame the street so no level is busier than Flatbush (d3). ----
+        // The per-day rules above (daily ramp, Bronx two-wheelers, Manhattan +1
+        // escooter/bike) are left INTACT underneath - this just clamps the road
+        // vehicles DOWN to the Flatbush baseline. It's a CEILING, never a floor:
+        //   * a day that already has LESS (d1: 0 moto/ebike) is left alone, and
+        //   * a day that has MORE (Queens d4 .. Bed-Stuy d7) is reduced to it.
+        // Re-increase specific days here (or delete this block) as each level is tuned.
+        const TRAFFIC_CAP = {
+          car: 1,
+          moto: 1,
+          ebike: 1,
+          bike: 1,
+          escooter: 1,
+          rc: 0,
+          tric: 0,
+        };
+        for (const t in TRAFFIC_CAP) {
+          if (c[t] > TRAFFIC_CAP[t]) c[t] = TRAFFIC_CAP[t];
         }
         return c;
       }
@@ -2572,7 +2670,7 @@
         }[kind] || { text: "BONUS!", cls: "pop-mongo" };
         const el = document.createElement("div");
         el.className = "popup " + cfg.cls;
-        let html = cfg.text;
+        let html = '<span class="pop-star">' + cfg.text + "</span>"; // comic starburst behind the reward word
         if ((kind === "treasure" || kind === "mongo") && name)
           html += '<span class="pop-name">' + name + "</span>"; // read the find on screen too
         if (money) html += '<span class="pop-sub">' + money + "</span>";
@@ -3800,13 +3898,13 @@
       const WORKER_GENDER = "male"; // kept: many call sites pass it as the gender arg
       const Voice = {
         last: {},
-        say(text, gap, pitch, bx, by, gender, speaker) {
+        say(text, gap, pitch, bx, by, gender, speaker, style) {
           gap = gap || 1.4;
           const now = performance.now();
           if (this.last[text] && now - this.last[text] < gap * 1000) return;
           this.last[text] = now;
           if (bx !== undefined)
-            spawnBubble(text, bx, by, speaker); // comic bubble over the speaker
+            spawnBubble(text, bx, by, speaker, style); // comic bubble over the speaker (style "burst" = POW! burst)
         },
         // No audio to cancel anymore; kept so existing call sites (Voice.cancel()) work.
         cancel() {},
@@ -9049,6 +9147,34 @@
         };
         return { g: g, legL: legL, legR: legR, armL: armL, armR: armR };
       }
+      // Flatbush street soccer: a SMALL kid — a makePerson scaled to 60% (the ball
+      // keeps full street scale, so the kid reads as a child chasing a ball).
+      function makeSoccerKid() {
+        const kp = makePerson({
+          shirt: pick(SHIRTS),
+          pants: pick(PANTS),
+          hair: pick(HAIRS),
+        });
+        kp.g.scale.set(0.6, 0.6, 0.6); // kid-sized
+        return kp;
+      }
+      // A little white soccer ball with dark patches, resting radius 0.22
+      // (centre at 0.22 above the ground so it sits ON the asphalt).
+      function makeSoccerBall() {
+        const g = new THREE.Group();
+        const ball = SPH(0.22, M(0xf5f5f0));
+        ball.position.z = 0.22;
+        ball.castShadow = true;
+        g.add(ball);
+        const patchM = M(0x1c1e24);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + 0.4;
+          const patch = BX(0.08, 0.08, 0.03, patchM);
+          patch.position.set(Math.cos(a) * 0.18, Math.sin(a) * 0.18, 0.23);
+          g.add(patch);
+        }
+        return g;
+      }
       // Seed scatter pile pigeons peck at (one pile per flock)
       function makeSeedScatter() {
         const sg = new THREE.Group();
@@ -10201,7 +10327,7 @@
       }
       function makeScholar() {
         // Brooklyn / Flatbush only: an observant Orthodox Jewish man. Black hat,
-        // black coat, white shirt, black pants, black shoes, a white beard with
+        // black coat, white shirt, black pants, black shoes, a grey beard with
         // side payot, and a Talmud tucked under his arm. Caucasian skin only -
         // the random SKIN_TONES spread does not apply to him.
         const g = new THREE.Group();
@@ -10211,7 +10337,7 @@
         const pantsM = M(0x1a1a1c); // black pants
         const shoeM = M(0x0c0c0e); // black shoes
         const hatM = M(0x101012); // black hat
-        const beardM = M(0xececec); // white beard
+        const beardM = M(0x8f8f8f); // grey beard (reads clearly against the near-white shirt)
         const bookCover = M(0x274a72); // the Talmud cover
         const pagesM = M(0xf2eede); // cream pages
         // Legs (black pants + black shoes), feet rest at local z 0
@@ -10255,14 +10381,16 @@
         };
         const armL = mkArm(1),
           armR = mkArm(-1);
-        // The Talmud: a thick book tucked vertically under his left arm
+        // The Talmud: a thick book tucked vertically under his left arm.
+        // Sits 0.025 ABOVE the coat's bottom face (z 0.88) so no page face is
+        // co-planar with the coat - co-planar faces = depth-buffer flicker.
         const book = BX(0.36, 0.12, 0.52, bookCover);
-        book.position.set(0.04, -0.27, 1.12);
+        book.position.set(0.04, -0.27, 1.145);
         g.add(book);
         const pages = BX(0.4, 0.08, 0.48, pagesM);
-        pages.position.set(0.05, -0.27, 1.12);
+        pages.position.set(0.05, -0.27, 1.145);
         g.add(pages);
-        // Head on a pivot (Caucasian skin, white beard with side payot, black hat)
+        // Head on a pivot (Caucasian skin, grey beard with side payot, black hat)
         const headPivot = new THREE.Group();
         headPivot.position.z = 1.6;
         g.add(headPivot);
@@ -10275,9 +10403,12 @@
         const nose = BX(0.04, 0.08, 0.07, skin);
         nose.position.set(0.11, 0.0, 0.15);
         headPivot.add(nose);
-        // White beard: chin + cheeks, with the two side payot
+        // Grey beard: chin + cheeks, with the two side payot.
+        // Offset OUT (x) and UP (z) so no beard face is co-planar with the
+        // shirt front (x 0.20), the coat top (z 1.68), or the payot -
+        // co-planar faces = the depth-buffer flicker on his chest.
         const beard = BX(0.16, 0.26, 0.2, beardM);
-        beard.position.set(0.12, -0.02, -0.02);
+        beard.position.set(0.15, -0.02, 0.005);
         headPivot.add(beard);
         [-1, 1].forEach((s) => {
           const payot = BX(0.06, 0.12, 0.1, beardM);
@@ -10288,7 +10419,7 @@
         // Up is +Z, so the brim is a wide flat disc (big x + y, thin z) that
         // clearly reads as a hat rim, with a taller crown sitting on it.
         const brim = BX(0.44, 0.44, 0.06, hatM);
-        brim.position.z = 0.36;
+        brim.position.z = 0.38; // 0.01 above the head's top face (1.93), clear of the crown base (1.94) - no co-planar flicker
         headPivot.add(brim);
         const crown = BX(0.3, 0.3, 0.32, hatM);
         crown.position.z = 0.5;
@@ -11314,6 +11445,7 @@
           type === "bike" ||
           type === "ebike" ||
           type === "tric" ||
+          type === "soccer" ||
           type === "rc"
         )
           c.gender = MIXED();
@@ -11352,7 +11484,7 @@
             c.state = "sitting";
             c.stateT = 0;
             c.palette = c.palette || "orange"; // coat variant (spawnWorld assigns it)
-            c.yMax = 4.5; // chase clamp ceiling = home line (spawnWorld raises it for Bronx mat cats)
+            c.yMax = 4.5; // chase clamp ceiling = home line (spawnWorld raises it for mat cats)
             c.data = makeCat(c.palette);
             break;
           case "raccoon":
@@ -11388,6 +11520,17 @@
             c.boxW = 0.38;
             c.boxL = 0.7;
             c.data = makeTricycle();
+            break;
+          case "soccer":
+            // Flatbush street-soccer kid: a small chaser with a soccer ball (see the
+            // case "soccer" body in updateCreatures + the Flatbush spawn in spawnWorld).
+            // No boxW — the kid is NOT a vehicle: traffic, separation and truck-collision
+            // all skip it, and it ignores obstacles in its own path.
+            c.sp = R(3.4, 4.4); // a kid's running pace (faster than a walk, not a pro)
+            c.dir = 1;
+            c.data = makeSoccerKid();
+            c.ball = { wx: 0, wy: 0, z: 0, vz: 0 }; // world-space ball state (case "soccer" owns it)
+            c.ballG = makeSoccerBall(); // the ball mesh (added to the world in the common tail)
             break;
           case "dogwalker":
             c.wy = R(1.0, creatureMaxY());
@@ -11523,6 +11666,7 @@
             // his bump exchange is handled in collideCreatures.
             c.wy = R(1.2, 4.2);
             c.sp = R(0.7, 1.0); // a slow, dignified stroll
+            c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: eastbound or westbound — each scholar walks his own way (like the pedestrian walkers)
             c.sayCd = R(0, 1);
             c.data = makeScholar();
             c.gender = "male";
@@ -11603,6 +11747,7 @@
         c.g.position.set(c.wx, c.wy, GZ);
         dynamicGroup.add(c.g);
         if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
+        if (c.ballG) dynamicGroup.add(c.ballG); // the soccer ball is a world object (the chaser's group is c.g)
         creatures.push(c);
         return c; // callers (e.g. the pigeon-flock spawner) reposition the creature right after
       }
@@ -12209,6 +12354,39 @@
             dt.g.rotation.z = -Math.PI / 2; // parked, nose toward the street (-Y)
           }
         }
+        // Flatbush street soccer: THREE small kids, each chasing a soccer ball up and
+        // down their block — set up before the level starts, one kid per randomly
+        // picked IN-ROUTE block (blocks 2-7, the garbage blocks). The kid runs the
+        // WHOLE block back and forth, does NOT care about obstacles in its way
+        // (no npcRoadRules, no walk-around, no off-screen recycling), and other NPCs
+        // route around it (AVOID_TYPES.soccer). See case "soccer" in updateCreatures.
+        if (isFlatbushLevel()) {
+          const soccerBlocks = LEVEL_BLOCKS.filter(b => b.garbage);
+          const pickedBlocks = [];
+          let soccerTries = 0;
+          while (pickedBlocks.length < 3 && soccerTries < 64) {
+            soccerTries++; // pick 3 DISTINCT blocks (retry until we have them)
+            const sb = soccerBlocks[(Math.random() * soccerBlocks.length) | 0];
+            if (pickedBlocks.indexOf(sb) < 0) pickedBlocks.push(sb);
+          }
+          for (let si = 0; si < pickedBlocks.length; si++) {
+            const sb = pickedBlocks[si];
+            const sk = addCreature("soccer");
+            sk.wx = sb.x + R(SOCCER_MARGIN + 4, BLOCK_W - SOCCER_MARGIN - 4);
+            sk.wy = R(-2.5, -6.5); // on the asphalt, mid-street (the worker's lane)
+            sk.dir = Math.random() < 0.5 ? -1 : 1;
+            sk.minX = sb.x + SOCCER_MARGIN; // patrol the WHOLE block, edge to edge
+            sk.maxX = sb.x + BLOCK_W - SOCCER_MARGIN;
+            sk.kickT = R(0.4, 1.6); // stagger the first kick
+            sk.kickBoost = 0;
+            sk.kidCd = 0; // per-kid cooldowns for the worker's bump/ball exchanges
+            sk.ballCd = 0;
+            sk.ball.wx = sk.wx + sk.dir * SOCCER_LEAD; // the ball starts ahead of the kid
+            sk.ball.wy = sk.wy;
+            sk.ballG.position.set(sk.ball.wx, sk.ball.wy, GZ);
+            sk.g.rotation.z = sk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+          }
+        }
 
         // pigeon flocks: more flocks on busy Manhattan sidewalks
         const flockCount = borough === "MANHATTAN" ? 3 : 2;
@@ -12325,17 +12503,20 @@
           pizzaRat.wy = R(2.0, 3.5);
           pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
         }
-        // Bodega cats: Manhattan + Bronx only. Exactly 4 per level, each sitting in
-        // front of a different store on the block (both boroughs put a store on the
+        // Bodega cats: Manhattan + Bronx + Flatbush only. Exactly 4 per level, each
+        // in front of a different store on the block (all three put a store on the
         // first house of every block).
         // In the Bronx, cats sometimes perch ON the store's entrance mat, right at
-        // the door; everyone else sits on the sidewalk in front of the storefront.
-        // Coats: Manhattan keeps its classic four (tuxedo / grey / orange / tabby);
-        // the Bronx swaps the plain grey for the white-and-grey "Mott" mouser
-        // (a Bronx-only coat).
+        // the door; Manhattan cats sit on the sidewalk in front of the storefront.
+        // Flatbush cats do the same Bronx-style mat perch, on the left corner
+        // store's mat (bl.x + 0.65, wy 7.6).
+        // Coats: Manhattan + Flatbush keep the classic four (tuxedo / grey / orange
+        // / tabby); the Bronx swaps the plain grey for the white-and-grey "Mott"
+        // mouser (a Bronx-only coat).
         // No recycling - each cat stays at its original store position for the
         // whole level.
-        if (isManhattanLevel() || isBronxLevel()) {
+        const isFlatbushArea = borough === "BROOKLYN" && area === "FLATBUSH";
+        if (isManhattanLevel() || isBronxLevel() || isFlatbushArea) {
           // Pick 4 different active shift blocks (2-7) to spread the cats along
           // the route, and assign the 4 coats in a shuffled order.
           const active = [1, 2, 3, 4, 5];
@@ -12346,7 +12527,8 @@
             active[j] = t;
           }
           const catBlocks = active.slice(0, 4);
-          // Bronx levels get the white & grey "mott" coat; Manhattan keeps its four.
+          // Bronx levels get the white & grey "mott" coat; Manhattan + Flatbush
+          // keep their four.
           const coats = isBronxLevel()
             ? ["mott", "tuxedo", "orange", "tabby"]
             : ["tuxedo", "grey", "orange", "tabby"];
@@ -12359,17 +12541,26 @@
           for (let i = 0; i < 4; i++) {
             const bl = LEVEL_BLOCKS[catBlocks[i]];
             const bc = addCreature("cat", { palette: coats[i] });
-            if (isBronxLevel() && Math.random() < 0.5) {
-              // Bronx: perch ON the first store's entrance mat, right at the door.
-              // The first house's door is at local x -2.6 (world bl.x - 2.6) and the
-              // mat spans y 6.55..6.95, so the cat sits dead-center on the mat.
-              bc.wx = bl.x - 2.6;
-              bc.wy = 6.7;
+            if ((isBronxLevel() || isFlatbushArea) && Math.random() < 0.5) {
+              if (isBronxLevel()) {
+                // Bronx: perch ON the first store's entrance mat, right at the door.
+                // The first house's door is at local x -2.6 (world bl.x - 2.6) and the
+                // mat spans y 6.55..6.95, so the cat sits dead-center on the mat.
+                bc.wx = bl.x - 2.6;
+                bc.wy = 6.7;
+              } else {
+                // Flatbush: perch ON the left corner store's mat. The store is
+                // anchored at bl.x + 3.25 (6.5u wide) with its door at local x -2.6,
+                // so the mat center sits at bl.x + 0.65; mat offset cy -2.9 under
+                // HOUSE_Y 10.5 puts it at wy 7.6, dead-center on the mat.
+                bc.wx = bl.x + 0.65;
+                bc.wy = 7.6;
+              }
             } else {
               bc.wx = bl.x + 3.0; // in front of the block's first store door
               bc.wy = 4.5; // on the sidewalk in front of the storefront
             }
-            bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling (mat cats: 6.7)
+            bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling (mat cats: their mat's wy)
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
@@ -13277,6 +13468,9 @@
       const POWERUP_HEAL_COFFEE = 25; // coffee restores a little health
       const POWERUP_HEAL_BEC = 40; // the full sandwich restores more
       const POWERUP_IMMUNE_DUR = 12; // Monster: seconds of full immunity (a long, satisfying rush)
+      const RUN_IT_UP_SPEED_MULT = 1.3; // "RUN IT UP!": a bit faster — applied to the worker's
+                                        // walk/strafe speed ONLY while immune (p.immuneT > 0), so
+                                        // normal walking stays exactly PLAYER_SPEED / LAT_SPEED
       const MONSTER_SCORE_STEP = 5000; // a new Monster can spawns every this much score, near the player
       const HP_HIT_VEHICLE = 8; // a vehicle run-over hurts (kept light so it feels fair)
       const HP_HIT_HAZARD = 5; // a hard static hazard (e.g. hydrant) nicks you a little
@@ -13306,6 +13500,18 @@
       const DRIVETR_HIT_DIST = 1.3; // contact distance at which the tricycle bumps the worker
       const DRIVETR_HIT_CD = 1.6; // per-kid cooldown between bumps (keeps the hits from spamming)
       const DRIVETR_BACKOFF_T = 4.0; // seconds the kid backs off to its home spot after a bump before it can re-lunge
+      // ---- Flatbush street soccer (small kids chasing a ball up and down the block) ----
+      const HP_HIT_SOCKER = 3; // a soccer kid's "MOMMY!" charge — a light bump (heavier than the stink, lighter than a driveway lunge)
+      const HP_HIT_SOCCERBALL = 2; // a soccer ball bonked out of the worker's path — a minor whack
+      const SOCKER_LINES = [
+        "Don't touch me!",
+        "Mommy!",
+        "Bad man!",
+      ]; // what a kid screams the moment the worker touches them
+      const SOCCER_LEAD = 1.3; // resting ball position: just ahead of the kid's running foot
+      const SOCCER_KICK_AHEAD = 3.4; // where a kick sends the ball (the kid chases it back down)
+      const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the asphalt
+      const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
       // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
@@ -13579,6 +13785,11 @@
         tric: [
           "Failure to yield to a minor on a tricycle",
           "The kid's right to the driveway was not honored",
+        ],
+        soccer: [
+          "Failure to yield to street soccer",
+          "The kid's right to the full block was not honored",
+          "Failure to respect a sacred soccer ball",
         ],
         // --- the sidewalk crowd: every one of them just trying to get to work ---
         ped: [
@@ -14535,6 +14746,45 @@
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
+          // Flatbush street-soccer ball: the worker can bonk the ball even when the
+          // kid is still a few units away (the kid kicks it ahead and chases it), so
+          // the ball gets its own range check BEFORE the generic kid-radius gate.
+          if (c.type === "soccer" && c.ball) {
+            const bdx = c.ball.wx - p.wx,
+              bdy = c.ball.wy - p.wy;
+            const b2 = bdx * bdx + bdy * bdy;
+            if (b2 <= 1.0 * 1.0) {
+              if (c.ballCd <= 0) {
+                c.ballCd = 2.5; // one bonk per encounter (keeps it from spamming)
+                hurtNPC(HP_HIT_SOCCERBALL, "soccer");
+                doStun(0.5, "hit");
+                Voice.say(
+                  "Hey dont do that!",
+                  2.2,
+                  0.95,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                  "burst",
+                );
+                Voice.say(
+                  "GOAAAAL!",
+                  1.8,
+                  1.3,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "kid",
+                );
+              }
+              // solid: the worker bounces back off the ball
+              const bd = Math.sqrt(b2) || 0.001;
+              p.wx -= (bdx / bd) * 0.7;
+              p.wy = clamp(p.wy - (bdy / bd) * 0.7, -9.4, workerMaxY());
+              return;
+            }
+          }
           const dx = c.wx - p.wx,
             dy = c.wy - p.wy;
           const d2 = dx * dx + dy * dy;
@@ -14561,7 +14811,35 @@
           else if (c.type === "panhandler") rad = 0.85; // thin, but his stink has reach
           else if (c.type === "scholar") rad = 0.85; // a solid, walking person
           else if (c.type === "escooter") rad = 1.0;
+          else if (c.type === "soccer")
+            rad = 0.9; // a small kid (its ball is checked separately in the branch)
           if (d2 > rad * rad) continue;
+          if (c.type === "soccer") {
+            // ===== Flatbush street soccer (kid contact) =====
+            // The worker touches the kid: the kid fires a panic line and the
+            // worker gets bounced back and takes a light hit. (The ball's own bonk
+            // exchange is handled up front, before the generic radius gate, because
+            // the ball can be a few units ahead of the kid.)
+            if (c.kidCd <= 0) {
+              c.kidCd = 2.5;
+              hurtNPC(HP_HIT_SOCKER, "soccer");
+              doStun(0.6, "hit");
+              Voice.say(
+                pick(SOCKER_LINES),
+                1.8,
+                1.25,
+                c.wx,
+                c.wy,
+                c.gender,
+                "kid",
+              );
+            }
+            // solid: the worker bounces back off the kid
+            const d = Math.sqrt(d2) || 0.001;
+            p.wx -= (dx / d) * 1.1;
+            p.wy = clamp(p.wy - (dy / d) * 1.1, -9.4, workerMaxY());
+            return;
+          }
           if (c.type === "crazy") {
             if (c.attackCd <= 0) {
               // Violent attack
@@ -15019,10 +15297,14 @@
           while (diff < -Math.PI) diff += 2 * Math.PI;
           p.facing += diff * Math.min(1, dt * 40);
         }
-        const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1); // backing up is a touch slower
+        // "RUN IT UP!" (Monster invincibility): while p.immuneT is still active the worker
+        // runs a bit faster. The boost is gated on immuneT, so the moment the buff ends the
+        // usual walk pace (PLAYER_SPEED forward, LAT_SPEED strafe) is back exactly as-is.
+        const immuneBoost = p.immuneT > 0 ? RUN_IT_UP_SPEED_MULT : 1;
+        const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost; // backing up is a touch slower
         const lat = l; // strafe component (continuous)
-        p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * dt;
-        p.wy = clamp(p.wy + lat * LAT_SPEED * dt, -9.4, workerMaxY());
+        p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * dt;
+        p.wy = clamp(p.wy + lat * LAT_SPEED * immuneBoost * dt, -9.4, workerMaxY());
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
         // and reaching Intersection 7 (the last one before Block 8) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
@@ -15519,6 +15801,7 @@
         // movable obstacles a walker slips around (vehicles are excluded — those are
         ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, // handled by
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
+        soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
       };
       const AVOID_AHEAD = 6.0; // how far ahead (world units) a walker looks for an obstacle
       function npcWalkAroundObstacles(c, dt, yMin, yMax) {
@@ -15860,7 +16143,11 @@
               // the sidewalk (Talmud under his arm). He never stops, never argues -
               // the bump exchange is handled in collideCreatures. He stays on the
               // walkable sidewalk, off the stoops/porches.
-              c.wx += c.sp * dt;
+              // BI-DIRECTIONAL: each scholar walks his OWN way — eastbound or
+              // westbound (c.dir is picked at spawn, re-rolled on recycle) — just
+              // like the pedestrian walkers, instead of everyone drifting east.
+              c.wx += c.dir * c.sp * dt;
+              if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the direction of travel
               // He too slips around the solid things on his lane (Flatbush hydrants,
               // sidewalk trees, curb bags) — never clipping through them, always staying
               // on the walkable sidewalk (his 1.2..4.4 band), off the stoops/porches.
@@ -15872,9 +16159,11 @@
               if (tx > 55) {
                 c.wx = p.wx - 38;
                 c.wy = R(1.2, 4.2);
+                c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
               } else if (tx < -58) {
                 c.wx = p.wx + 42;
                 c.wy = R(1.2, 4.2);
+                c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
               }
               break;
             }
@@ -16239,6 +16528,57 @@
               }
               c.g.position.z = GZ + (c.gz || 0);
               break;
+            }
+            case "soccer": {
+              // ===== Flatbush street-soccer kid =====
+              // A small kid runs up and down the WHOLE block, chasing and kicking a
+              // soccer ball. It does NOT care about obstacles in its way — no
+              // npcRoadRules, no walk-around, no off-screen recycling: a fixed fixture
+              // of its block (like the driveway tricycles). Other NPCs route around
+              // it via AVOID_TYPES.soccer.
+              c.kidCd = Math.max(0, (c.kidCd || 0) - dt);
+              c.ballCd = Math.max(0, (c.ballCd || 0) - dt);
+              // --- the kick: every few seconds the kid booms the ball ahead and chases it
+              c.kickT = (c.kickT || 0) - dt;
+              if (c.kickT <= 0) {
+                c.kickT = R(1.2, 2.6);
+                c.ball.wx = c.wx + c.dir * SOCCER_KICK_AHEAD; // the ball leaps ahead
+                c.ball.wy = c.wy;
+                c.ball.vz = SOCCER_KICK_VZ; // +z lob — it bounces on the asphalt
+              }
+              // --- the ball: its own little physics (eases back to the kid + bounces)
+              {
+                const b = c.ball;
+                const leadX = c.wx + c.dir * SOCCER_LEAD;
+                const ease = Math.min(1, dt * 3.2); // the kid chases the ball back down
+                b.wx += (leadX - b.wx) * ease;
+                b.wy += (c.wy - b.wy) * ease;
+                b.vz -= 12 * dt; // gravity
+                b.z += b.vz * dt;
+                if (b.z <= 0 && b.vz < 0) {
+                  b.z = 0;
+                  b.vz = Math.abs(b.vz) * 0.55; // damped bounce on the asphalt
+                  if (b.vz < 0.5) b.vz = 0; // settles
+                }
+                c.ballG.position.set(b.wx, b.wy, GZ + b.z);
+                c.ballG.rotation.z -= c.dir * dt * 7; // the ball rolls (patch pattern spins)
+              }
+              // --- the run: full-block patrol, flip at the cross-street edges
+              c.wx += c.dir * c.sp * dt;
+              if (c.dir > 0 && c.wx >= c.maxX) {
+                c.wx = c.maxX;
+                c.dir = -1;
+              } else if (c.dir < 0 && c.wx <= c.minX) {
+                c.wx = c.minX;
+                c.dir = 1;
+              }
+              // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
+              animParts(c, c.sp * dt * 3.4);
+              if (c.parts && c.parts.upper)
+                c.parts.upper.position.z =
+                  0.62 + Math.abs(Math.sin(c.phase)) * 0.05;
+              if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              break; // a fixed fixture: never recycles off-screen
             }
             case "tric": {
               // ===== Flatbush driveway tricycle (isDrivewayTric) =====
@@ -18093,25 +18433,34 @@
         }
         return 0;
       }
-      function spawnBubble(text, wx, wy, speaker) {
+      function spawnBubble(text, wx, wy, speaker, style) {
         const el = document.createElement("div");
-        if (speaker === "worker") el.className = "bubble bub-worker";
-        else if (speaker === "dog") el.className = "bubble bub-dog";
+        let cls = "bubble";
+        if (speaker === "worker") cls = "bubble bub-worker";
+        else if (speaker === "dog") cls = "bubble bub-dog";
         else if (speaker === "ped" || speaker === "lady")
-          el.className = "bubble bub-ped";
-        else if (speaker === "hooker") el.className = "bubble bub-hooker";
-        else if (speaker === "skater") el.className = "bubble bub-skater";
-        else if (speaker === "escooter") el.className = "bubble bub-escooter";
-        else if (speaker === "yeller") el.className = "bubble bub-yeller";
-        else if (speaker === "rat") el.className = "bubble bub-rat";
-        else if (speaker === "driver") el.className = "bubble bub-driver";
-        else if (speaker === "kid") el.className = "bubble bub-kid";
-        else if (speaker === "crazy") el.className = "bubble bub-crazy";
-        else if (speaker === "dealer") el.className = "bubble bub-dealer";
-        else if (speaker === "panhandler")
-          el.className = "bubble bub-panhandler";
-        else if (speaker === "scholar") el.className = "bubble bub-scholar";
-        else el.className = "bubble bub-default";
+          cls = "bubble bub-ped";
+        else if (speaker === "hooker") cls = "bubble bub-hooker";
+        else if (speaker === "skater") cls = "bubble bub-skater";
+        else if (speaker === "escooter") cls = "bubble bub-escooter";
+        else if (speaker === "yeller") cls = "bubble bub-yeller";
+        else if (speaker === "rat") cls = "bubble bub-rat";
+        else if (speaker === "driver") cls = "bubble bub-driver";
+        else if (speaker === "kid") cls = "bubble bub-kid";
+        else if (speaker === "crazy") cls = "bubble bub-crazy";
+        else if (speaker === "dealer") cls = "bubble bub-dealer";
+        else if (speaker === "panhandler") cls = "bubble bub-panhandler";
+        else if (speaker === "scholar") cls = "bubble bub-scholar";
+        else cls = "bubble bub-default";
+        // POW! burst: the worker's "OW!" hit lines (driveway-tricycle lunge,
+        // hydrant shin-bonk, pitbull bite...) and anything explicitly flagged
+        // with style "burst" get the jagged comic burst instead of the plain bubble.
+        if (
+          style === "burst" ||
+          (speaker === "worker" && /^ow/i.test(String(text).trim()))
+        )
+          cls += " bub-burst";
+        el.className = cls;
         el.textContent = text;
         document.body.appendChild(el);
         const s = worldToScreen(wx, wy, GZ + 2.35) || {

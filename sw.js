@@ -2,7 +2,7 @@
    DSNYBoy service worker - page-shell offline cache
    ----------------------------------------------------------------------------
    What it owns: the PAGE SHELL - index.html, three.js, the model loader libs,
-   the title art, and the pixel font. Everything the game needs to BOOT (the
+   the title art, and the pixel + comic fonts. Everything the game needs to BOOT (the
    "Please Wait" screen, the logo, the menu) before a single 3D asset is
    requested. Once the shell is cached, the game opens instantly - and offline.
 
@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.112';
-var APP_VERSION = '1.0.112';
+var CACHE_NAME = 'dsnboy-shell-v1.0.114';
+var APP_VERSION = '1.0.114';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -51,7 +51,8 @@ var SHELL = [
   './GLTFLoader.js',
   './DRACOLoader.js',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
-  'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap'
+  'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap',
+  'https://fonts.googleapis.com/css2?family=Bangers&display=swap' // comic speech-bubble font
 ];
 
 // Request types the SW may cache; anything else (e.g. the 3D models, the radio

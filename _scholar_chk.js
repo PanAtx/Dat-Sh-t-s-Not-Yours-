@@ -96,7 +96,7 @@ check("black coat", /coatM = M\(0x1[0-9a-f]{5}\)/.test(s));
 check("white shirt", /shirtM = M\(0xf[0-9a-f]{5}\)/.test(s));
 check("black pants", /pantsM = M\(0x[01][0-9a-f]{5}\)/.test(s));
 check("black shoes", /shoeM = M\(0x0[0-9a-f]{5}\)/.test(s));
-check("white beard + side payot", /beardM = M\(0xe[0-9a-f]{5}\)/.test(s) && /payot/.test(s));
+check("grey beard + side payot (mid-grey, distinct from the near-white shirt)", /beardM = M\(0x[789a][0-9a-f]{5}\)/.test(s) && /payot/.test(s));
 check(
   "a Talmud book under the arm (cover + cream pages)",
   /bookCover/.test(s) && /pagesM/.test(s) && /book/.test(s) && /pages/.test(s),
@@ -142,20 +142,29 @@ check("scholar speaks as a man (male)", schCase.indexOf('c.gender = "male"') >= 
 check("scholar has a slow, dignified stroll (sp ~0.7-1.0)", schCase.indexOf("c.sp = R(0.7, 1.0)") >= 0);
 check('updateCreatures has a "scholar" case', html.indexOf('case "scholar": {') >= 0);
 check(
-  "scholar update case walks + animates (and keeps to the sidewalk)",
+  "scholar is BI-DIRECTIONAL at spawn (c.dir = random ±1, walks his own way)",
+  schCase.indexOf("c.dir = Math.random() < 0.5 ? -1 : 1") >= 0,
+);
+check(
+  "scholar update case walks in EITHER direction + animates (and keeps to the sidewalk)",
   (function () {
     const uc = html.slice(
       html.indexOf('case "scholar": {'),
       html.indexOf('case "ped":', html.indexOf('case "scholar": {')),
     );
-    return uc.indexOf("c.wx += c.sp * dt") >= 0 && uc.indexOf("animParts(") >= 0;
+    return (
+      uc.indexOf("c.wx += c.dir * c.sp * dt") >= 0 &&
+      uc.indexOf("c.dir >= 0 ? 0 : Math.PI") >= 0 &&
+      (uc.match(/c\.dir = Math\.random\(\) < 0\.5 \? -1 : 1; \/\/ re-pick a direction on recycle/g) || []).length === 2 &&
+      uc.indexOf("animParts(") >= 0
+    );
   })(),
 );
 check("collideCreatures gives the scholar a solid radius", /c\.type === "scholar"\) rad = 0\.85;/.test(html));
 check("bubble CSS for the scholar speaker", /bub-scholar \{/.test(html));
 check(
   "spawnBubble maps the scholar speaker",
-  /speaker === "scholar"\) el\.className = "bubble bub-scholar";/.test(html),
+  /speaker === "scholar"\) cls = "bubble bub-scholar";/.test(html),
 );
 console.log("[4] wise sayings + damage + write-up");
 check(

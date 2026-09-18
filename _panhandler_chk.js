@@ -140,7 +140,7 @@ check("write-up entry exists for the panhandler cause", /panhandler:\s*\[/.test(
 check("bubble CSS for the panhandler speaker", /bub-panhandler \{/.test(html));
 check(
   "spawnBubble maps the panhandler speaker",
-  /speaker === "panhandler"\)\s*el\.className = "bubble bub-panhandler";/.test(html),
+  /speaker === "panhandler"\) cls = "bubble bub-panhandler";/.test(html),
 );
 // The real write-up stamp for this cause
 const wrS = html.indexOf("const WRITEUP_REASONS = {");

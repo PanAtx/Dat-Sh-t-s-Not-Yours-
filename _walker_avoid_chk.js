@@ -67,7 +67,7 @@ check('ped case keeps the hard stoop clamp (wy <= pedTop)', pedCase.indexOf('c.w
 check('ped case keeps the Bronx floor clamp (wy >= 0.75)', pedCase.indexOf('if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);') >= 0);
 const schCase = caseBlock('scholar');
 check('scholar also routes around obstacles', schCase.indexOf('npcWalkAroundObstacles(') >= 0);
-check('scholar still walks + animates (c.wx += c.sp * dt / animParts)', schCase.indexOf('c.wx += c.sp * dt') >= 0 && schCase.indexOf('animParts(') >= 0);
+check('scholar still walks (in either direction) + animates (c.wx += c.dir * c.sp * dt / animParts)', schCase.indexOf('c.wx += c.dir * c.sp * dt') >= 0 && schCase.indexOf('animParts(') >= 0);
 
 console.log('[3] the obstacle set a walker should route around');
 const avoidSrc = extractFn('npcWalkAroundObstacles');

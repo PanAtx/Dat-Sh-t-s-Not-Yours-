@@ -36,29 +36,27 @@ const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
 const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
 const sum = c => Object.keys(c).reduce((a, k) => a + c[k], 0);
-// Monday (Manhattan Uptown): gated types (moto/rc) are absent, the skater + raccoon +
-// tric (street tricycle) drops apply, and the Manhattan boost (+1 escooter +1 bike) bumps those.
+// Monday (Manhattan Uptown): gated types (moto/ebike/rc) are absent, the skater + raccoon +
+// tric (street tricycle) drops apply, and the Manhattan +1 escooter/+1 bike boost is capped
+// back down to the Flatbush baseline (1 each) by the TRAFFIC_CAP ceiling.
 // Also +1 crazy homeless guy on Manhattan days.
 const mon = {}; for (const k in BASE_NPC_COUNTS) mon[k] = GATED_NPC[k] ? 0 : BASE_NPC_COUNTS[k];
-mon.escooter += 1; mon.bike += 1; mon.skater = 0; mon.raccoon = 0; mon.tric = 0;
+mon.skater = 0; mon.raccoon = 0; mon.tric = 0;
 mon.squirrel = 0;
 mon.crazy = 0;  // spawned separately, not via npcCounts
 mon.cat = 0;    // 4 bodega cats spawned separately on Manhattan days
-check('level 1 (Monday) is the baseline + Manhattan scooter/bike boost (gated types, skater + raccoon dropped)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
+check('level 1 (Monday) is the baseline with the Manhattan drops (skater/raccoon/tric/squirrel) + Flatbush traffic cap (escooter/bike back to 1)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
 check('the main crowd (ped + car) stays at its light baseline all week (no daily ramp - calmer street)',
   [1,2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
-check('gated types are absent before their day, then 1 + (day - gateDay) after (Bronx d2 exception: moto + ebike present)',
-  [1,2,3,4,5,6,7].every(l => Object.keys(GATED_NPC).every(k =>
-    npcCounts(l)[k] === ((l === 2 && (k === 'moto' || k === 'ebike'))
-      ? 1
-      : (l >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (l - GATED_NPC[k]) : 0)))));
+check('traffic cap: no level runs more than 1 moto / 1 e-bike (Flatbush level) and no level has any rc',
+  [1,2,3,4,5,6,7].every(l => npcCounts(l).moto <= 1 && npcCounts(l).ebike <= 1 && npcCounts(l).rc === 0) &&
+  npcCounts(1).moto === 0 && npcCounts(1).ebike === 0 &&
+  [2,3,4,5,6,7].every(l => npcCounts(l).moto === 1 && npcCounts(l).ebike === 1));
 check('Bronx (d2): no street tricycle, but 1 moto + 1 e-bike on the street',
   npcCounts(2).tric === 0 && npcCounts(2).moto === 1 && npcCounts(2).ebike === 1);
-check('moto: 1 on Bronx d2, ramp from Wednesday (d3=1, d4=2); ebike ramp from Wednesday (d3=1, d4=2); rc from Friday',
-  npcCounts(2).moto === 1 && npcCounts(3).moto === 1 && npcCounts(4).moto === 2 &&
-  npcCounts(2).ebike === 1 && npcCounts(3).ebike === 1 && npcCounts(4).ebike === 2 &&
-  npcCounts(4).rc === 0 && npcCounts(5).rc === 1 && npcCounts(6).rc === 2);
+check('old weekly traffic ramp is flattened: d4-d7 used to run 2-5 moto + 2-5 ebike + 1-3 rc, now the flat Flatbush baseline (1 moto, 1 ebike, 0 rc)',
+  [4,5,6,7].every(l => npcCounts(l).moto === 1 && npcCounts(l).ebike === 1 && npcCounts(l).rc === 0));
 check('non-gated, non-scaling types stay at their Monday count (per-day overrides aside)',
   Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]
     && !['escooter','bike','tric','yeller','hooker','skater','raccoon','crazy','squirrel','breaker'].includes(k))

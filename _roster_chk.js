@@ -44,28 +44,35 @@ check('crazy guy not in npcCounts (spawned separately on Manhattan)', npcCounts(
 // Bodega cat: spawned via specific spawn block on Manhattan days (not through npcCounts)
 check('bodega cat not in npcCounts (spawned separately on Manhattan)', npcCounts(1).cat === 0 && npcCounts(6).cat === 0);
 
-// ---- Manhattan scooter/bike boost: +1 escooter and +1 bike on d1 (Uptown) + d6 (Harlem) ----
-[1, 6].forEach(d => check('day ' + d + ' (Manhattan) gets +1 escooter + +1 bike',
-  npcCounts(d).escooter === BASE_NPC_COUNTS.escooter + 1 && npcCounts(d).bike === BASE_NPC_COUNTS.bike + 1));
+// ---- FLAT TRAFFIC BASELINE: every level is capped at the Flatbush (d3) vehicle mix ----
+// The cap is a CEILING (never a floor): quiet days keep less, busy days are reduced down.
+const FLAT = { car: 1, bike: 1, escooter: 1, moto: 1, ebike: 1, rc: 0, tric: 0 };
+check('no level runs more road traffic than Flatbush (car/moto/ebike/bike/escooter <= 1, rc/tric = 0)',
+  [1, 2, 3, 4, 5, 6, 7].every(d => Object.keys(FLAT).every(k => npcCounts(d)[k] <= FLAT[k])));
+check('cap never ADDS traffic: d1 (Manhattan Uptown) keeps its quieter 0 moto/ebike',
+  npcCounts(1).moto === 0 && npcCounts(1).ebike === 0);
+[2, 3, 4, 5, 6, 7].forEach(d => check('day ' + d + ' runs the full Flatbush vehicle mix (1 car/bike/escooter/moto/ebike, 0 rc/tric)',
+  ['car', 'bike', 'escooter', 'moto', 'ebike'].every(k => npcCounts(d)[k] === FLAT[k]) && npcCounts(d).rc === 0 && npcCounts(d).tric === 0));
+[1, 6].forEach(d => check('day ' + d + ' (Manhattan) escooter/bike boost is capped back to the Flatbush baseline (1)',
+  npcCounts(d).escooter === 1 && npcCounts(d).bike === 1));
 [2, 3, 4, 5, 7].forEach(d => check('day ' + d + ' keeps baseline escooter/bike counts',
   npcCounts(d).escooter === BASE_NPC_COUNTS.escooter && npcCounts(d).bike === BASE_NPC_COUNTS.bike));
-check('Manhattan boost only touches escooter + bike (+ tric drop) - no other type moved on d1/d6',
+check('traffic cap only touches the vehicle types - no other type moved on d1/d6',
   [1, 6].every(d => Object.keys(BASE_NPC_COUNTS)
-    .filter(k => k !== 'escooter' && k !== 'bike' && k !== 'tric' && k !== 'crazy' && k !== 'squirrel')
+    .filter(k => !['car', 'bike', 'escooter', 'moto', 'ebike', 'rc', 'tric', 'crazy', 'squirrel'].includes(k))
     .every(k => npcCounts(d)[k] === (GATED_NPC[k]
       ? (d >= GATED_NPC[k] ? BASE_NPC_COUNTS[k] + (d - GATED_NPC[k]) : 0)
       : BASE_NPC_COUNTS[k] + (SCALING_NPC[k] ? d - 1 : 0) + (k === 'raccoon' && (d === 1 || d === 6) ? -1 : 0)
         + (k === 'skater' ? -1 : 0)))));
-// ---- Street tricycles: dropped on Flatbush (d3, driveway kids only), the Bronx (d2), AND the two Manhattan days (d1, d6) ----
-[1, 2, 3, 6].forEach(d => check('day ' + d + ' has no street tricycle (npcCounts(' + d + ').tric === 0)', npcCounts(d).tric === 0));
-[4, 5, 7].forEach(d => check('day ' + d + ' keeps the baseline street tricycle', npcCounts(d).tric === BASE_NPC_COUNTS.tric));
+// ---- Street tricycles: the Flatbush cap drops them on EVERY level (the only tricycles left
+// in the game are the 3 Flatbush driveway kids, spawned separately in spawnWorld) ----
+[1, 2, 3, 4, 5, 6, 7].forEach(d => check('day ' + d + ' has no street tricycle (npcCounts(' + d + ').tric === 0)', npcCounts(d).tric === 0));
 // ---- Bronx (d2): the kid's tricycle is swapped for real two-wheelers — 1 moto + 1 e-bike ----
 check('Bronx (d2) spawns 1 moto + 1 e-bike (two-wheeled traffic instead of the tricycle)',
   npcCounts(2).moto === 1 && npcCounts(2).ebike === 1, 'moto=' + npcCounts(2).moto + ' ebike=' + npcCounts(2).ebike);
-check('Bronx two-wheeler override only touches d2 (d1 + d3..d7 keep the plain gated ramp)',
-  [1, 3, 4, 5, 6, 7].every(d =>
-    npcCounts(d).moto === (d >= GATED_NPC.moto ? BASE_NPC_COUNTS.moto + (d - GATED_NPC.moto) : 0) &&
-    npcCounts(d).ebike === (d >= GATED_NPC.ebike ? BASE_NPC_COUNTS.ebike + (d - GATED_NPC.ebike) : 0)));
+check('Bronx two-wheeler override only touches d2 (d1 stays at 0; d3-d7 sit at the flat Flatbush baseline of 1)',
+  npcCounts(1).moto === 0 && npcCounts(1).ebike === 0 &&
+  [3, 4, 5, 6, 7].every(d => npcCounts(d).moto === 1 && npcCounts(d).ebike === 1));
 // ---- Bronx (d2): no breakers on these streets ----
 check('Bronx (d2) has no breaker (npcCounts(2).breaker === 0)', npcCounts(2).breaker === 0, 'breaker=' + npcCounts(2).breaker);
 [1, 3, 4, 5, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
