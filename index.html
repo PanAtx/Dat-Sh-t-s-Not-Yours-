@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.108</div>
+          <div id="app-version" class="menu-version">v1.0.109</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.108';
+      const APP_VERSION = '1.0.109';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15315,23 +15315,27 @@
         }
         if (!best) return; // nothing in the way -> hold our line (no lateral movement)
         const clear = bestR + WALKER_R + 0.55; // comfortable gap — widened so pairs part cleanly
-        const cands = [];
-        if (best.wy + clear <= yMax) cands.push(best.wy + clear); // round on the upper side
-        if (best.wy - clear >= yMin) cands.push(best.wy - clear); // or the lower side
-        if (!cands.length) return; // spans the whole band -> hold (rare; sidewalks are wide)
-        // Stable per-NPC side bias: two walkers sharing a lane would otherwise both pick
-        // the SAME "nearest clear side" and clip straight through each other, so break
-        // near-ties with a per-NPC preference and let opposing walkers diverge to opposite
-        // sides instead of stacking onto one.
+        const up = best.wy + clear,
+          down = best.wy - clear;
+        const upOk = up <= yMax,
+          downOk = down >= yMin;
+        if (!upOk && !downOk) return; // spans the whole band -> hold (rare; sidewalks are wide)
+        // Stable per-NPC "lean": two same-lane walkers would otherwise both pick the SAME
+        // clear side and clip straight through each other. A per-NPC lean (up or down)
+        // breaks the tie, and when only one side is in-band it nudges the target so
+        // opposing walkers diverge to slightly different lines instead of stacking.
         if (c._avoidDir === undefined) c._avoidDir = Math.random() < 0.5 ? 1 : -1;
         const bias = c._avoidDir;
-        cands.sort((a, b) => {
-          const na = Math.abs(a - c.wy),
-            nb = Math.abs(b - c.wy);
-          if (Math.abs(na - nb) > 0.05) return na - nb; // a clearly nearer side wins
-          return ((a > c.wy ? 1 : -1) === bias) ? -1 : 1; // near-tie: favor our side
-        });
-        c.wy += (cands[0] - c.wy) * Math.min(1, 8.0 * dt); // snappier separation, still smooth
+        let target;
+        if (upOk && downOk) {
+          const na = Math.abs(up - c.wy),
+            nd = Math.abs(down - c.wy);
+          if (Math.abs(na - nd) > 0.05) target = na < nd ? up : down; // clearly nearer side
+          else target = bias === 1 ? up : down; // near-tie: our stable lean decides
+        } else {
+          target = upOk ? up + bias * 0.6 : down - bias * 0.6; // one side only: lean spreads us
+        }
+        c.wy += (target - c.wy) * Math.min(1, 8.0 * dt); // snappier separation, still smooth
       }
       // ==================== TRUCK PASS LANES + ROAD BAND ====================
       // The asphalt strip runs y -9.5..0.5 (sidewalk starts at 0.5). A car / moto is a
