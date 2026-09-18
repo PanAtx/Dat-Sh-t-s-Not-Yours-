@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.107</div>
+          <div id="app-version" class="menu-version">v1.0.108</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.107';
+      const APP_VERSION = '1.0.108';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15314,13 +15314,24 @@
           consider(o, 0.55);
         }
         if (!best) return; // nothing in the way -> hold our line (no lateral movement)
-        const clear = bestR + WALKER_R + 0.3; // comfortable gap around the obstacle
+        const clear = bestR + WALKER_R + 0.55; // comfortable gap — widened so pairs part cleanly
         const cands = [];
         if (best.wy + clear <= yMax) cands.push(best.wy + clear); // round on the upper side
         if (best.wy - clear >= yMin) cands.push(best.wy - clear); // or the lower side
         if (!cands.length) return; // spans the whole band -> hold (rare; sidewalks are wide)
-        cands.sort((a, b) => Math.abs(a - c.wy) - Math.abs(b - c.wy)); // nearest clear side
-        c.wy += (cands[0] - c.wy) * Math.min(1, 6.0 * dt); // snappy step around, not a teleport
+        // Stable per-NPC side bias: two walkers sharing a lane would otherwise both pick
+        // the SAME "nearest clear side" and clip straight through each other, so break
+        // near-ties with a per-NPC preference and let opposing walkers diverge to opposite
+        // sides instead of stacking onto one.
+        if (c._avoidDir === undefined) c._avoidDir = Math.random() < 0.5 ? 1 : -1;
+        const bias = c._avoidDir;
+        cands.sort((a, b) => {
+          const na = Math.abs(a - c.wy),
+            nb = Math.abs(b - c.wy);
+          if (Math.abs(na - nb) > 0.05) return na - nb; // a clearly nearer side wins
+          return ((a > c.wy ? 1 : -1) === bias) ? -1 : 1; // near-tie: favor our side
+        });
+        c.wy += (cands[0] - c.wy) * Math.min(1, 8.0 * dt); // snappier separation, still smooth
       }
       // ==================== TRUCK PASS LANES + ROAD BAND ====================
       // The asphalt strip runs y -9.5..0.5 (sidewalk starts at 0.5). A car / moto is a
@@ -15339,13 +15350,18 @@
       function clampRoadVehicles(list) {
         for (let i = 0; i < list.length; i++) clampRoadVehicle(list[i]);
       }
-      // Pick the clearest pass lane for a vehicle working around the DSNY truck: its own
-      // side first (curb if it's on the curb half, outer road otherwise), the OTHER side if
-      // that's the open one — and, never a dead stop, always a lane. Both lanes sit on the
-      // asphalt, so a passing vehicle can't be nudged onto the sidewalk. This is what lets
-      // the motorbike (and car) slip around the truck on either side instead of queueing.
+      // Pick the pass lane for a vehicle working around the DSNY truck. Each vehicle is
+      // assigned a STABLE side (curb OR outer) once, so the same car/bike never flips
+      // sides frame-to-frame (that reads as jerkiness). Roughly half the traffic takes
+      // the curb lane and half the outer lane, so BOTH sides are used to clear the truck
+      // instead of everyone piling onto whichever half they happen to be cruising on.
+      // Both lanes sit on the asphalt, so a passing vehicle can't be nudged onto the
+      // sidewalk. This is what lets the motorbike (and car) slip around on either side.
       function choosePassLane(v, all) {
-        const own = v.wy > -4.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+        if (v._passSide === undefined) {
+          v._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+        }
+        const own = v._passSide;
         const other = own === CURB_PASS_LANE ? OUTER_PASS_LANE : CURB_PASS_LANE;
         if (isLaneClear(own, v.wx, v.boxW, all)) return own;
         if (isLaneClear(other, v.wx, v.boxW, all)) return other;
