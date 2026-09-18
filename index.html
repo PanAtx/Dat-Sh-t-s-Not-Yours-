@@ -2046,7 +2046,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.105</div>
+          <div id="app-version" class="menu-version">v1.0.107</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2170,7 +2170,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.105';
+      const APP_VERSION = '1.0.107';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2229,7 +2229,7 @@
       const ROUTE_FINISH_X = 656; // reaching Intersection 7 completes the route
       const ROUTE_END_X = 768; // far edge of the route (Intersection 8)
       const RUN_SPEED = 4; // SLOWED traffic floor (was 8.5) — also sets CAR_MIN_SP, so cars no longer "never crawl below the worker's walk pace"
-      const PLAYER_SPEED = 10; // worker forward speed while W / UP / stick is held (no input = stands still)
+      const PLAYER_SPEED = 8.5; // worker forward speed while W / UP / stick is held (no input = stands still) — eased back from 10 so the worker feels grounded, not flighty
       const LAT_SPEED = 6.5; // worker strafe speed (A/D / stick horizontal)
       // In Manhattan the worker is limited to the sidewalk (y < 5.0); no front lawn or stoops.
       function workerMaxY() {
@@ -11043,6 +11043,17 @@
             new THREE.Vector3(cx2, cy2, dz2).normalize(),
           );
       }
+      // NYC street pace: a real spread of speeds, not one speed. A mix of strollers,
+      // a normal walk, a brisk power-walk, and a genuine hurry (late for the bus / a
+      // meeting). The fast end is what turns the sidewalk into a real obstacle course
+      // for the worker — no more "everyone walks at the same Kansas pace."
+      function npcPace() {
+        const r = Math.random();
+        if (r < 0.2) return R(0.6, 1.0); // slow stroll (elderly, on the phone, checking a map)
+        if (r < 0.6) return R(1.2, 2.2); // a normal city walk
+        if (r < 0.88) return R(2.6, 3.8); // brisk / power-walking
+        return R(4.6, 6.0); // in a HURRY — dashing past you
+      }
       function addCreature(type, opts) {
         // Spawn NPCs away from the player (at least 20 units distance) so the worker starts alone
         const spawnOffset = Math.random() < 0.5 ? R(-58, -20) : R(20, 58);
@@ -11087,7 +11098,7 @@
         switch (type) {
           case "ped":
             c.wy = R(1, 4);
-            c.sp = R(1.0, 2.2);
+            c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
             c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makePerson({
               shirt: pick(SHIRTS),
@@ -11097,7 +11108,7 @@
             break;
           case "lady":
             c.wy = R(1, 4);
-            c.sp = R(1.2, 2.4);
+            c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
             c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makePerson({
               skirt: true,
@@ -11157,7 +11168,7 @@
             break;
           case "dogwalker":
             c.wy = R(1.0, creatureMaxY());
-            c.sp = R(0.9, 1.8);
+            c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
             c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
             c.data = makeDogWalker();
             break;
@@ -11550,18 +11561,20 @@
         if (Math.random() < 0.65) addWrapper(b, baseX + R(1, 6), R(-2.5, -0.7));
         // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
         if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(0, 4.8));
-        // sidewalk trees
+        // sidewalk trees (registered in b.trees so NPC walkers route around them —
+        // they're a solid obstacle, not a walkable hazard like a pothole or a bottle)
         if (Math.random() < 0.5) {
-          if (isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX") {
-            // Manhattan, Flatbush, and Bronx: trees are on the sidewalk near the curb
-            const t = makeSidewalkTree();
-            t.position.set(R(1, 6), R(0.8, 1.8), 0);
-            b.group.add(t);
-          } else {
-            const t = makeTree();
-            t.position.set(R(1, 6), R(6, 7.5), 0);
-            b.group.add(t);
-          }
+          const isSidewalkTree =
+            isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX";
+          const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
+          // Manhattan, Flatbush, and Bronx: trees are on the sidewalk near the curb.
+          // The other boroughs plant them out in the front-lawn grass.
+          const tx = R(1, 6),
+            ty = isSidewalkTree ? R(0.8, 1.8) : R(6, 7.5);
+          t.position.set(tx, ty, 0);
+          b.group.add(t);
+          if (!b.trees) b.trees = [];
+          b.trees.push({ wx: baseX + tx, wy: ty });
         }
         // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
         if (borough === "BROOKLYN" && houseIdx < HOUSES_PER_BLOCK - 1) {
@@ -15238,6 +15251,106 @@
         c._sprintBoost = vSp * 1.15 + 1.0;
         return c._sprintBoost;
       }
+      // ==================== NPC OBSTACLE AVOIDANCE ====================
+      // NYC walkers don't clip through things. Each frame they look a few metres ahead
+      // along their own lane and, when a SOLID object is in the way — a hydrant, a
+      // sidewalk tree, a curb bag/can, a litter basket, or another pedestrian/animal —
+      // they slip around it onto the nearest clear side, always staying on the walkable
+      // band (never off the curb onto the road, never up onto a stoop/building). This
+      // only runs when a vehicle-escape (npcRoadRules, c.yieldLane) is NOT in progress,
+      // so the two steering systems never fight over c.wy.
+      const WALKER_R = 0.5; // half-width of a pedestrian used for avoidance clearance
+      const AVOID_TYPES = {
+        // movable obstacles a walker slips around (vehicles are excluded — those are
+        ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, // handled by
+        dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
+      };
+      const AVOID_AHEAD = 6.0; // how far ahead (world units) a walker looks for an obstacle
+      function npcWalkAroundObstacles(c, dt, yMin, yMax) {
+        const dir = c.dir || 1;
+        const loX = c.wx + (dir > 0 ? 0.5 : -AVOID_AHEAD); // ahead window (both directions)
+        const hiX = c.wx + (dir > 0 ? AVOID_AHEAD : -0.5);
+        let best = null,
+          bestD = 1e9,
+          bestR = 0;
+        const consider = (o, r) => {
+          if (o.wx < loX || o.wx > hiX) return; // must be ahead of us, in the look-ahead
+          if (Math.abs(o.wy - c.wy) >= r + WALKER_R) return; // must be in our lane band
+          const d = dir > 0 ? o.wx - c.wx : c.wx - o.wx; // how far ahead
+          if (d < 0 || d >= bestD) return;
+          bestD = d;
+          best = o;
+          bestR = r;
+        };
+        // Solid things on the sidewalk: hydrants, trees, curb bags, cans.
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          const hz = b.hazards;
+          if (hz)
+            for (let j = 0; j < hz.length; j++)
+              if (hz[j].type === "hit") consider(hz[j], 0.75); // hydrants
+          if (b.trees)
+            for (let j = 0; j < b.trees.length; j++) consider(b.trees[j], 0.6); // trees
+          const hse = b.house;
+          if (hse) {
+            for (const bag of hse.bags)
+              if (bag.state === "curb") consider(bag, 0.55); // curb bags
+            if (
+              hse.can &&
+              (hse.can.state === "curb" || hse.can.state === "droppedEmpty")
+            )
+              consider(hse.can, 0.6); // cans
+          }
+        }
+        // Litter baskets — solid bins on the sidewalk corners (skip ones in flight).
+        for (let i = 0; i < litterBaskets.length; i++) {
+          const lb = litterBaskets[i];
+          if (lb.state === "placed") consider(lb, 0.7);
+        }
+        // Other pedestrians / street animals moving around on the same sidewalk.
+        for (let i = 0; i < creatures.length; i++) {
+          const o = creatures[i];
+          if (o === c || !AVOID_TYPES[o.type]) continue;
+          consider(o, 0.55);
+        }
+        if (!best) return; // nothing in the way -> hold our line (no lateral movement)
+        const clear = bestR + WALKER_R + 0.3; // comfortable gap around the obstacle
+        const cands = [];
+        if (best.wy + clear <= yMax) cands.push(best.wy + clear); // round on the upper side
+        if (best.wy - clear >= yMin) cands.push(best.wy - clear); // or the lower side
+        if (!cands.length) return; // spans the whole band -> hold (rare; sidewalks are wide)
+        cands.sort((a, b) => Math.abs(a - c.wy) - Math.abs(b - c.wy)); // nearest clear side
+        c.wy += (cands[0] - c.wy) * Math.min(1, 6.0 * dt); // snappy step around, not a teleport
+      }
+      // ==================== TRUCK PASS LANES + ROAD BAND ====================
+      // The asphalt strip runs y -9.5..0.5 (sidewalk starts at 0.5). A car / moto is a
+      // vehicle that must stay on the asphalt — its CENTER may never reach the sidewalk.
+      // We keep a small inset so the body still reads as "hugging the curb", not "on it".
+      const ROAD_MIN_Y = -9.4; // far road edge
+      const ROAD_MAX_Y = 0.3; // curb line, inset off the 0.5 sidewalk edge
+      const CURB_PASS_LANE = -0.9; // curb-side pass lane: clear of the truck's inner edge, on the road
+      const OUTER_PASS_LANE = -8.5; // outer-road pass lane: clear of the truck's outer edge
+      function clampRoadVehicle(v) {
+        // A car/moto is a vehicle that must stay on the asphalt — never the sidewalk.
+        if (v.type !== "car" && v.type !== "moto") return;
+        if (v.wy > ROAD_MAX_Y) v.wy = ROAD_MAX_Y;
+        else if (v.wy < ROAD_MIN_Y) v.wy = ROAD_MIN_Y;
+      }
+      function clampRoadVehicles(list) {
+        for (let i = 0; i < list.length; i++) clampRoadVehicle(list[i]);
+      }
+      // Pick the clearest pass lane for a vehicle working around the DSNY truck: its own
+      // side first (curb if it's on the curb half, outer road otherwise), the OTHER side if
+      // that's the open one — and, never a dead stop, always a lane. Both lanes sit on the
+      // asphalt, so a passing vehicle can't be nudged onto the sidewalk. This is what lets
+      // the motorbike (and car) slip around the truck on either side instead of queueing.
+      function choosePassLane(v, all) {
+        const own = v.wy > -4.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
+        const other = own === CURB_PASS_LANE ? OUTER_PASS_LANE : CURB_PASS_LANE;
+        if (isLaneClear(own, v.wx, v.boxW, all)) return own;
+        if (isLaneClear(other, v.wx, v.boxW, all)) return other;
+        return own; // both occupied — still commit to a lane and push through
+      }
       // ==================== VEHICLE COLLISION SEPARATION ====================
       function separateVehicles(vehicles, dt) {
         // Gently push vehicles apart if their bounding boxes overlap — smoothed by dt
@@ -15459,6 +15572,11 @@
               // the bump exchange is handled in collideCreatures. He stays on the
               // walkable sidewalk, off the stoops/porches.
               c.wx += c.sp * dt;
+              // He too slips around the solid things on his lane (Flatbush hydrants,
+              // sidewalk trees, curb bags) — never clipping through them, always staying
+              // on the walkable sidewalk (his 1.2..4.4 band), off the stoops/porches.
+              if (typeof npcWalkAroundObstacles === "function")
+                npcWalkAroundObstacles(c, dt, 1.2, 4.4);
               c.wy = clamp(c.wy, 1.2, 4.4);
               animParts(c, c.sp * dt * 2.2);
               c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
@@ -15479,10 +15597,19 @@
               // before the first stair (Manhattan stoops start ~5.25, Bronx stoops ~5.45),
               // so escape steering (npcRoadRules) is capped there too.
               const pedTop = isManhattanLevel() || isBronxLevel() ? 5.0 : 7.8;
+              const pedFloor = isBronxLevel() ? 0.75 : 0.8; // lower edge: never off the curb onto the road
               const sprintPed = npcRoadRules(c, dt, pedTop); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
               if (c.dir === undefined) c.dir = 1; // BI-DIRECTIONAL: each walker cruises his own way (like the e-scooter riders)
               c.wx += c.dir * pedSp * dt;
+              // NYC walkers route around the solid things on their lane (hydrants, trees,
+              // curb garbage, litter baskets, other pedestrians/animals) instead of clipping
+              // through them — but only when no vehicle-escape is in progress (that owns c.wy).
+              if (
+                c.yieldLane === undefined &&
+                typeof npcWalkAroundObstacles === "function"
+              )
+                npcWalkAroundObstacles(c, dt, pedFloor, pedTop);
               // Bronx: keep pedestrians on the sidewalk (y >= 0.75), never on the street.
               if (isBronxLevel()) c.wy = Math.max(c.wy, 0.75);
               c.wy = Math.min(c.wy, pedTop); // never wander up onto a stoop
@@ -16325,10 +16452,8 @@
                 //    of the truck's real 3D side at the 5%-smaller 1.19 half-width)
                 // Passing on YOUR side means no car ever crosses the truck's lane, and both
                 // sides flow instead of queueing behind a single pass lane.
-                const OUTER_PASS_LANE = -9.0;
-                const CURB_PASS_LANE = -0.9;
                 const inPassLane = c.wy <= -8.3 || c.wy >= -1.0; // fully clear of the truck's Y
-                const sideLane = c.wy > -4.5 ? CURB_PASS_LANE : OUTER_PASS_LANE; // pass on my side
+                const sideLane = choosePassLane(c, creatures); // clearest side (curb OR outer) — pass on either side, never queue
 
                 // Check if car is in the truck's Y-zone — MUST NOT enter hopper area
                 const inTruckYZone = overlapsTruckY && nearHopperSide;
@@ -16489,6 +16614,7 @@
             case "moto": {
               let obstacleM = findVehicleAhead(c, creatures);
               let desiredSpM = c.sp;
+              const sprintM = npcRoadRules(c, dt); // a car is closing on us — move over or sprint (never just wait)
 
               // === CRITICAL: Direct hopper proximity check ===
               const tYMin2 = -4.5 - truck.boxW;
@@ -16513,8 +16639,8 @@
               if (obstacleM) {
                 const isTruckObstacle = obstacleM.isTruck;
                 const distToObstacleM = obstacleM.dist;
-                // Pass on MY side: curb lane if I'm on the curb half, outer road otherwise.
-                const sideLaneM = c.wy > -4.5 ? -0.9 : -9.0;
+                // Pass on the clearest side — curb lane OR outer road. Never dead-stop behind the truck.
+                const sideLaneM = choosePassLane(c, creatures);
                 const inPassLaneM = c.wy <= -7.2 || c.wy >= -1.8; // clear of the truck's Y on either side
 
                 const inTruckYZoneM = overlapsMotoTruckY && nearHopperSideM;
@@ -16579,6 +16705,32 @@
                 c.detourTimer -= dt;
                 if (c.detourTimer <= 0) c.detourTimer = undefined;
               }
+              // === NEVER SIT BEHIND THE HOPPER: after a beat, cut to the open side and
+              // accelerate clear of the front of the truck (mirrors the bike's escape). ===
+              {
+                const dHopperM = truck.wx - truck.boxL - c.wx;
+                if (dHopperM > 0 && dHopperM < 10.0) {
+                  if (!c._stuckTimerM) c._stuckTimerM = 0;
+                  if (c.wx < truck.wx - truck.boxL + 2.0 && !c._escapeModeM) c._stuckTimerM += dt;
+                  if (c._stuckTimerM > 0.8 && !c._escapeModeM) {
+                    c._escapeModeM = true;
+                    c._escapeTargetM = choosePassLane(c, creatures);
+                  }
+                } else if (c.wx > truck.wx + (truck.cabOff || 6.0)) {
+                  c._stuckTimerM = 0;
+                  c._escapeModeM = false;
+                }
+                if (c._escapeModeM) {
+                  desiredSpM = c.sp * 1.4; // accelerate to clear the front
+                  c._homeLane = c._escapeTargetM; // agree with the home-targeting below
+                  c.wy += (c._escapeTargetM - c.wy) * Math.min(1, 8 * dt); // strong lateral move
+                  if (c.wx > truck.wx + (truck.cabOff || 6.0)) {
+                    c._escapeModeM = false;
+                    c._homeLane = null; // resume normal cruising lane
+                  }
+                }
+              }
+              desiredSpM = Math.max(desiredSpM, sprintM || 0); // never crawl in front of a closing car
               const accelM = 10 * dt;
               c.curSp += (desiredSpM - c.curSp) * accelM;
               // Safety clamp
@@ -17512,6 +17664,10 @@
         separateVehicles(vehicleList, dt);
         // Enforce truck's physical body as immovable solid wall — NO clipping
         resolveTruckCollisions(vehicleList, dt);
+        // FINAL WORD: cars & motos are vehicles that belong on the asphalt. Whatever the
+        // separation / truck-ejection pushed them to, hold their centre on the road so a car
+        // can NEVER drift onto the sidewalk (which starts at y = 0.5).
+        clampRoadVehicles(vehicleList);
       }
       // ==================== HUD ====================
       const hudCache = {};
