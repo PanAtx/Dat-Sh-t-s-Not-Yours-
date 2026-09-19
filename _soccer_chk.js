@@ -1,15 +1,17 @@
 // _soccer_chk.js — verify the Flatbush SOCCER TEAM feature (index.html). 3 small
 // kids in DIFFERENT shirts on ONE garbage block's NEAR SIDEWALK (wy 1.6..4.2,
-// never on the asphalt) play with ONE shared ball:
+// never on the asphalt) really PLAY soccer with ONE shared ball:
 //   1) wiring: constants, the addCreature case (distinct shirts, no boxW), the
 //      REAL ball (12 pentagons at icosahedron vertices — not a dalmatian), the
-//      team spawn (3 kids, 1 ball on the leader, chalk field), AVOID_TYPES,
-//      write-ups.
+//      team spawn (3 kids, 1 ball on the leader, chalk field + book-goal mouths),
+//      AVOID_TYPES, write-ups.
 //   2) the REAL case "soccer" body from updateCreatures, SIMULATED with the real
-//      team state: the owner patrols the WHOLE block with the ball ALWAYS in
-//      front of him; kicks rotate the ball (to a mate / long up the block for a
-//      DIFFERENT kid to retrieve / at the worker when he's close); ownership
-//      rotates; nobody leaves the sidewalk band or the block.
+//      team state: the owner dribbles and SHOOTS goal-to-goal at the book goal
+//      he's running toward, passes to the most-advanced mate, or boots the ball
+//      at the worker when he's close; a ball into the goal mouth = GOOOOAL! +
+//      celebration + kickoff by the scorer; the receiver SPRINTS for loose
+//      balls; nobody stops, nobody sidesteps a bottle or a tree, nobody leaves
+//      the block.
 //   3) the REAL collideCreatures branches: bonking the BALL = minor whack +
 //      "Hey dont do that!" + "GOAAAAL!" + the worker DEFLECTS it loose;
 //      touching a KID = light hit + a panic line; both bounce the worker back.
@@ -35,6 +37,8 @@ const HP_HIT_DRIVETRIC = 4, HP_HIT_VEHICLE = 8, HP_HIT_PANHANDLER = 1;
 const SOCKER_LINES = ["Don't touch me!", 'Mommy!', 'Bad man!'];
 const SOCCER_LEAD = 1.3, SOCCER_PICKUP = 1.3, SOCCER_WORKER_RANGE = 9;
 const SOCCER_KICK_VZ = 3.2, SOCCER_WORKER_KICK_CD = 3.5, SOCCER_MARGIN = 5;
+const SOCCER_SHOT_VZ = 4.4, SOCCER_SHOT_RANGE = 22, SOCCER_PASS_MIN = 6;
+const SOCCER_GOAL_R = 1.1, SOCCER_GOAL_YR = 1.6, SOCCER_CELEBRATE = 1.6;
 const BLOCK_W = 80; // mirrors index.html (10 houses x 8u)
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const workerMaxY = () => 8.0; // Flatbush cap (mirrors index.html)
@@ -50,6 +54,10 @@ check('team constants exist (lead 1.3 / pickup 1.3 / worker range 9 / lob 3.2 / 
   src.indexOf('const SOCCER_LEAD = 1.3;') >= 0 && src.indexOf('const SOCCER_PICKUP = 1.3;') >= 0 &&
   src.indexOf('const SOCCER_WORKER_RANGE = 9;') >= 0 && src.indexOf('const SOCCER_KICK_VZ = 3.2;') >= 0 &&
   src.indexOf('const SOCCER_WORKER_KICK_CD = 3.5;') >= 0 && src.indexOf('const SOCCER_MARGIN = 5;') >= 0);
+check('goal-play constants exist (shot range 22 / shot lob 4.4 / pass min 6 / mouth 1.1 x 1.6 / celebrate 1.6s)',
+  src.indexOf('const SOCCER_SHOT_RANGE = 22;') >= 0 && src.indexOf('const SOCCER_SHOT_VZ = 4.4;') >= 0 &&
+  src.indexOf('const SOCCER_PASS_MIN = 6;') >= 0 && src.indexOf('const SOCCER_GOAL_R = 1.1;') >= 0 &&
+  src.indexOf('const SOCCER_GOAL_YR = 1.6;') >= 0 && src.indexOf('const SOCCER_CELEBRATE = 1.6;') >= 0);
 check('shared-team state is declared (soccerShirtQueue + soccerTeam)',
   src.indexOf('let soccerShirtQueue = []') >= 0 && src.indexOf('let soccerTeam = null') >= 0);
 check('the old single-kick constant is gone (no SOCCER_KICK_AHEAD left)', src.indexOf('SOCCER_KICK_AHEAD') < 0);
@@ -100,6 +108,12 @@ check('3 kids are spread along the block on the NEAR SIDEWALK (wy 1.6..4.2)', sp
 check('the team patrols the WHOLE block (minX/maxX = block edge ± SOCCER_MARGIN)', spawnSrc.indexOf('sMinX = sb.x + SOCCER_MARGIN') >= 0 && spawnSrc.indexOf('sMaxX = sb.x + BLOCK_W - SOCCER_MARGIN') >= 0);
 check('ONE shared ball: the leader carries c.ball/c.ballG, added to the world ONCE', spawnSrc.indexOf('sLeader.ball = sBall') >= 0 && spawnSrc.indexOf('sLeader.ballG = sBallG') >= 0 && spawnSrc.indexOf('dynamicGroup.add(sBallG)') >= 0);
 check('soccerTeam is built (kids/leader/ball/owner/receiver + cooldowns)', spawnSrc.indexOf('soccerTeam = {') >= 0 && spawnSrc.indexOf('owner: sKids[1]') >= 0 && spawnSrc.indexOf('receiver: null') >= 0 && spawnSrc.indexOf('workerKickCd: 0') >= 0);
+check('the team state knows BOTH book-goal mouths (goalL/goalR just past the patrol ends)',
+  spawnSrc.indexOf('goalL: { x: sMinX - 1.4, y: 3.0 }') >= 0 && spawnSrc.indexOf('goalR: { x: sMaxX + 1.4, y: 3.0 }') >= 0);
+check('celebration state is declared (celebrateT / score / lastKicker / scorer)',
+  spawnSrc.indexOf('celebrateT: 0') >= 0 && spawnSrc.indexOf('score: 0') >= 0 && spawnSrc.indexOf('lastKicker: null') >= 0 && spawnSrc.indexOf('scorer: null') >= 0);
+check('the spawn says it: they really play soccer and NEVER stop (run right through the junk)',
+  spawnSrc.indexOf('really playing soccer') >= 0 && spawnSrc.indexOf('NEVER stop') >= 0 && spawnSrc.indexOf('run right through') >= 0);
 check('the chalk field is on their block (center circle + center line + book goals)', spawnSrc.indexOf('THREE.RingGeometry(1.1, 1.35, 40)') >= 0 && spawnSrc.indexOf('THREE.BoxGeometry(0.1, 3.2, 0.02)') >= 0 && spawnSrc.indexOf('sBookCols') >= 0 && spawnSrc.indexOf('groundGroup.add(sCircle)') >= 0);
 check('soccer blocks are IN-ROUTE garbage blocks (6 of the 8 blocks carry garbage)', (function () {
   const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
@@ -122,14 +136,22 @@ function extractCase() {
 }
 const soccerCase = extractCase();
 check('only the LEADER simulates the team (the other 2 kids\' ticks no-op)', soccerCase.indexOf('soccerTeam.leader !== c') >= 0);
+check('GOAL? ball into a book-goal mouth is checked BEFORE pickup (inMouth + z gate)', soccerCase.indexOf('inMouth(B.wx, B.wy)') >= 0 && soccerCase.indexOf('B.z < 1.0') >= 0 && soccerCase.indexOf('!T.owner') >= 0);
+check('a goal arms the celebration + score + scorer (lastKicker)', soccerCase.indexOf('T.celebrateT = SOCCER_CELEBRATE') >= 0 && soccerCase.indexOf('T.score = (T.score || 0) + 1;') >= 0 && soccerCase.indexOf('T.scorer = T.lastKicker') >= 0);
+check('the "GOOOOAL!" bubble is spoken by a kid', soccerCase.indexOf('Voice.say("GOOOOAL!"') >= 0 && soccerCase.indexOf('"kid"') >= 0);
+check('kickoff: the kids regroup at center and the SCORER kicks off', soccerCase.indexOf('T.midX + (i - 1) * 6') >= 0 && soccerCase.indexOf('T.owner = T.scorer') >= 0 && soccerCase.indexOf('B.wx = T.midX') >= 0);
 check('loose-ball pickup: closest kid within SOCCER_PICKUP, ball low, grabCd respected', soccerCase.indexOf('SOCCER_PICKUP') >= 0 && soccerCase.indexOf('B.z < 0.8') >= 0 && soccerCase.indexOf('T.grabCd <= 0') >= 0);
-check('kick at the worker when he\'s close (SOCCER_WORKER_RANGE, target = p.wx/p.wy)', soccerCase.indexOf('SOCCER_WORKER_RANGE') >= 0 && soccerCase.indexOf('tx = p.wx') >= 0 && soccerCase.indexOf('ty = p.wy') >= 0);
+check('kick priority 1: the worker when he\'s close (SOCCER_WORKER_RANGE, target = p.wx/p.wy)', soccerCase.indexOf('SOCCER_WORKER_RANGE') >= 0 && soccerCase.indexOf('tx = p.wx') >= 0 && soccerCase.indexOf('ty = p.wy') >= 0);
 check('kick cooldown for worker-aimed kicks (no spam)', soccerCase.indexOf('SOCCER_WORKER_KICK_CD') >= 0 && soccerCase.indexOf('T.workerKickCd') >= 0);
-check('pass to a teammate / long kick up the block (a DIFFERENT kid retrieves)', soccerCase.indexOf('tx = mate.wx') >= 0 && soccerCase.indexOf('o.dir * R(12, 24)') >= 0 && soccerCase.indexOf('T.receiver = rec') >= 0);
+check('kick priority 2: GOAL-TO-GOAL shot at the book goal he\'s facing (SOCCER_SHOT_RANGE, hard SOCCER_SHOT_VZ lob)', soccerCase.indexOf('goalAhead = o.dir > 0 ? T.goalR : T.goalL') >= 0 && soccerCase.indexOf('Math.abs(goalAhead.x - o.wx) < SOCCER_SHOT_RANGE') >= 0 && soccerCase.indexOf('tx = goalAhead.x') >= 0 && soccerCase.indexOf('vz = SOCCER_SHOT_VZ') >= 0);
+check('in shot range the owner\'s kick wait is cut (no dawdling at the goal)', soccerCase.indexOf('Math.min(T.ownerKickT || 1, 0.35)') >= 0);
+check('kick priority 3: pass to the most-advanced mate (SOCCER_PASS_MIN), else a long clear', soccerCase.indexOf('bestAdv = SOCCER_PASS_MIN') >= 0 && soccerCase.indexOf('tx = bestMate.wx') >= 0 && soccerCase.indexOf('o.dir * R(12, 24)') >= 0);
+check('every kick goes loose and a DIFFERENT kid sprints for it (T.receiver = rec)', soccerCase.indexOf('T.receiver = rec') >= 0 && soccerCase.indexOf('T.lastKicker = o') >= 0);
 check('the ball is ALWAYS in front of the carrying kid (hard clamp at SOCCER_LEAD)', soccerCase.indexOf('(B.wx - T.owner.wx) * T.owner.dir < 0.5') >= 0 && soccerCase.indexOf('B.wx = T.owner.wx + T.owner.dir * SOCCER_LEAD') >= 0);
 check('ball has gravity + damped bounce (vz -= 12*dt, bounce * 0.55)', soccerCase.indexOf('B.vz -= 12 * dt') >= 0 && soccerCase.indexOf('B.vz = Math.abs(B.vz) * 0.55') >= 0);
-check('kids stay clamped to the block (minX/maxX flips)', soccerCase.indexOf('k.wx >= T.maxX') >= 0 && soccerCase.indexOf('k.wx <= T.minX') >= 0 && soccerCase.indexOf('k.dir = -1') >= 0 && soccerCase.indexOf('k.dir = 1') >= 0);
-check('the receiver SPRINTS to the ball (1.25x) and the idle kids block the worker', soccerCase.indexOf('sp * 1.25 * dt') >= 0 && soccerCase.indexOf('block the worker') >= 0);
+check('kids stay clamped to the block (hiX/loX flips)', soccerCase.indexOf('k.wx >= hiX') >= 0 && soccerCase.indexOf('k.wx <= loX') >= 0 && soccerCase.indexOf('k.dir = -1') >= 0 && soccerCase.indexOf('k.dir = 1') >= 0);
+check('the receiver SPRINTS 2D (1.6x) and the mates jog in — nobody idles', soccerCase.indexOf('k.sp * 1.6 * dt') >= 0 && soccerCase.indexOf('k.sp * 0.95 * dt') >= 0 && soccerCase.indexOf('k.sp * 1.15 * dt') >= 0);
+check('the case references NO obstacle system (bottles/cans/trees are not in their path)', soccerCase.indexOf('npcWalkAroundObstacles') < 0 && soccerCase.indexOf('hazards') < 0 && soccerCase.indexOf('b.trees') < 0 && soccerCase.indexOf('c.stop') < 0 && soccerCase.indexOf('yieldLane') < 0);
 check('no off-screen recycling (a fixed fixture of the block)', soccerCase.indexOf('break; // a fixed fixture: never recycles off-screen') >= 0);
 function makeTeam() {
   const mkKid = (wx) => ({
@@ -142,98 +164,153 @@ function makeTeam() {
   return {
     kids: kids, leader: kids[0], ball: ball, ballG: ballG,
     minX: 90, maxX: 150, midX: 120,
+    goalL: { x: 88.6, y: 3.0 }, goalR: { x: 151.4, y: 3.0 }, // book-goal mouths at the block ends
     owner: kids[1], receiver: null, ownerKickT: 0.6, workerKickCd: 0, grabCd: 0,
+    celebrateT: 0, score: 0, lastKicker: null, scorer: null,
   };
 }
 const animParts = (c, dp) => { c.phase += dp; };
+const voiceCalls = [];
+const Voice = { say(text, gap, pitch, bx, by, gender, speaker, style) { voiceCalls.push({ text: text, speaker: speaker, style: style }); } };
 const runCase = new Function(
   'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam',
   'SOCCER_LEAD', 'SOCCER_PICKUP', 'SOCCER_WORKER_RANGE', 'SOCCER_KICK_VZ', 'SOCCER_WORKER_KICK_CD',
-  'animParts',
+  'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
+  'Voice', 'animParts',
   'switch (c.type) {' + soccerCase + '}',
 );
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks yet)
-let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, bandBad = 0;
+const step = (pw) =>
+  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, Voice, animParts);
+let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0;
 let lastOwner = T.owner;
 try {
   for (let t = 0; t < 6000; t++) {
-    runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
-    for (const k of T.kids) if (k.wx < T.minX - 1e-9 || k.wx > T.maxX + 1e-9) { simOk = false; simDetail = 'kid out of band at t=' + t + ' wx=' + k.wx.toFixed(2); break; }
-    if (T.ball.wy < 0.5 || T.ball.wy > 5.2) bandBad++;
+    step(p);
+    for (const k of T.kids) {
+      // the RECEIVER may chase a ball past the block end; the other kids stay inside
+      if (k === T.receiver) {
+        if (k.wx < T.minX - 2.0 || k.wx > T.maxX + 2.0) { simOk = false; simDetail = 'receiver out of reach band at t=' + t + ' wx=' + k.wx.toFixed(2); }
+      } else if (k.wx < T.minX - 1e-9 || k.wx > T.maxX + 1e-9) { simOk = false; simDetail = 'kid out of band at t=' + t + ' wx=' + k.wx.toFixed(2); }
+      if (k.wy < 1.4 || k.wy > 4.4) { simOk = false; simDetail = 'kid wy off the sidewalk at t=' + t + ' wy=' + k.wy.toFixed(2); }
+    }
+    if (T.ball.wy < 0.5 || T.ball.wy > 5.2) ballBandBad++;
     if (T.owner && (T.ball.wx - T.owner.wx) * T.owner.dir < -0.05) behind++;
     if (T.owner !== lastOwner) { if (lastOwner !== null) ownerChanges++; lastOwner = T.owner; }
     if (T.receiver !== null && T.owner === null) sawReceiver = true;
   }
 } catch (e) { simOk = false; simDetail = e.message; }
-check('the team stays INSIDE its block for 6000 frames (~96s)', simOk, simDetail);
-check('the ball stays on the walkable sidewalk band (wy ~0.5..5.0)', simOk && bandBad === 0, 'off-band frames=' + bandBad);
+check('the team stays INSIDE its block for 6000 frames (~96s) (receiver may chase a ball past the end)', simOk, simDetail);
+check('the ball stays on the walkable band (wy ~0.5..5.0)', simOk && ballBandBad === 0, 'off-band frames=' + ballBandBad);
 check('the ball is NEVER behind the carrying kid (always in front when moving)', simOk && behind === 0, 'behind frames=' + behind);
 check('the ball keeps changing hands (ownership rotates between the kids)', simOk && ownerChanges >= 3, 'owner changes=' + ownerChanges);
 check('kicks send the ball loose for a DIFFERENT kid to chase (receiver assigned)', simOk && sawReceiver, 'saw receiver=' + sawReceiver);
-// scenario W: worker in range -> the ball is kicked AT him
+check('they actually SCORE: a ball drops into a book goal (T.score >= 1)', simOk && T.score >= 1, 'score=' + T.score);
+check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCalls.some(l => l.text === 'GOOOOAL!' && l.speaker === 'kid'), 'calls=' + voiceCalls.length);
+// scenario W: worker in range (AND in shot range) -> the worker kick wins
 (function () {
   T = makeTeam();
-  const o = T.owner;
-  p.wx = o.wx + 5; p.wy = 3; // within SOCCER_WORKER_RANGE (5 < 9)
+  const o = T.owner; // kids[1]
+  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 22)
+  p.wx = o.wx + 6; p.wy = 3; // within SOCCER_WORKER_RANGE (6 < 9) — closer than the goal
   T.workerKickCd = 0;
   T.ownerKickT = 0.01; // force the kick this frame
   const kicker = T.owner;
-  runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
-  check('W: worker in range -> ball is kicked AT him (target = p.wx/p.wy)', T.ball.tx === p.wx && T.ball.ty === p.wy, 'target=(' + T.ball.tx + ',' + T.ball.ty + ') worker=(' + p.wx + ',' + p.wy + ')');
+  step(p);
+  check('W: worker in range -> ball is kicked AT him (target = p.wx/p.wy), not the goal', T.ball.tx === p.wx && T.ball.ty === p.wy && T.ball.tx !== T.goalR.x, 'target=(' + T.ball.tx + ',' + T.ball.ty + ') worker=(' + p.wx + ',' + p.wy + ')');
   check('W: kick goes loose, a DIFFERENT kid is assigned to retrieve, cd armed', T.owner === null && T.receiver !== null && T.receiver !== kicker && T.workerKickCd === SOCCER_WORKER_KICK_CD, 'recIdx=' + T.kids.indexOf(T.receiver) + ' kickerIdx=' + T.kids.indexOf(kicker) + ' cd=' + T.workerKickCd);
 })();
-// scenario L: mates close + worker far -> long kick up the block
+// scenario L: no mate advanced + no shot range -> long kick up the block
 (function () {
   T = makeTeam();
   const o = T.owner; // at 120, dir 1
   const oX = o.wx;
-  for (const k of T.kids) if (k !== o) k.wx = o.wx + 2; // mates within 9u
+  for (const k of T.kids) if (k !== o) k.wx = o.wx + 2; // both mates close (no one advanced)
   p.wx = 999; p.wy = 3;
   T.workerKickCd = 0;
   T.ownerKickT = 0.01;
-  runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
+  step(p);
   check('L: long kick up the block (12u ahead in the run direction)', T.ball.tx === oX + o.dir * 12 && T.ball.ty === o.wy, 'tx=' + T.ball.tx + ' ownerX=' + oX + ' dir=' + o.dir);
   check('L: a DIFFERENT kid sprints for the long ball', T.owner === null && T.receiver !== null && T.receiver !== o, 'recIdx=' + T.kids.indexOf(T.receiver));
 })();
-// scenario P: a mate >9u away gets the PASS
+// scenario P: a mate more advanced toward the goal gets the PASS
 (function () {
   T = makeTeam();
-  const o = T.owner; // at 120; mates at 100 and 140 (both >9u away)
-  const mate0 = T.kids[0];
-  const mateX = mate0.wx;
+  const o = T.owner; // at 120; mates at 100 and 140
+  const advanced = T.kids[2]; // at 140 — most advanced toward goalR
+  const mateX = advanced.wx; // capture BEFORE the tick (the mate drifts after the pass)
   p.wx = 999; p.wy = 3;
-  T.workerKickCd = SOCCER_WORKER_KICK_CD; // ensure only the mate branch can fire
+  T.workerKickCd = SOCCER_WORKER_KICK_CD;
   T.ownerKickT = 0.01;
-  const origRandom = Math.random;
-  Math.random = () => 0.1; // < 0.55 -> pass branch; mates[0] = kids[0]
-  let passOk = true, err = '';
-  try {
-    runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
-  } catch (e) { passOk = false; err = e.message; }
-  Math.random = origRandom;
-  check('P: a mate >9u away gets the PASS (target = mate.wx)', passOk && T.ball.tx === mateX && T.ball.ty === o.wy, 'tx=' + T.ball.tx + ' mate0.wx=' + mateX);
-  check('P: the passed mate is the receiver (a DIFFERENT kid goes to get it and kick it back)', passOk && T.receiver === mate0, 'recIdx=' + T.kids.indexOf(T.receiver));
+  step(p);
+  check('P: the PASS goes to the most-advanced mate (target = 140, not the goal)', T.ball.tx === mateX && T.ball.ty === o.wy, 'tx=' + T.ball.tx + ' mateX=' + mateX + ' goalR=' + T.goalR.x);
+  check('P: the passed mate is the receiver (a DIFFERENT kid goes to get it)', T.receiver === advanced, 'recIdx=' + T.kids.indexOf(T.receiver));
 })();
 // scenario S: a DIFFERENT kid retrieves the loose ball and takes ownership
 (function () {
   T = makeTeam();
   const o = T.owner;
-  for (const k of T.kids) if (k !== o) k.wx = o.wx + 2;
+  for (const k of T.kids) if (k !== o) k.wx = o.wx + 2; // both mates at 122
   p.wx = 999; p.wy = 3;
   T.workerKickCd = SOCCER_WORKER_KICK_CD;
   T.ownerKickT = 0.01;
-  const origRandom = Math.random;
-  Math.random = () => 0.9; // > 0.55 -> long kick
-  runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
-  Math.random = origRandom;
+  step(p);
   check('S: the receiver (a DIFFERENT kid) sprints for the loose ball', T.receiver !== null && T.receiver !== o, 'recIdx=' + T.kids.indexOf(T.receiver));
   let grabbed = false;
   for (let t = 0; t < 400 && !grabbed; t++) {
-    runCase(T.leader, 0.016, R, 0.3, 'play', p, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, animParts);
+    step(p);
     if (T.owner && T.owner !== o) grabbed = true;
   }
   check('S: a DIFFERENT kid grabs the loose ball and ownership transfers', grabbed, 'new owner idx=' + (T.owner ? T.kids.indexOf(T.owner) : -1));
+})();
+// scenario G: shot into the book goal -> GOOOOAL! -> celebration -> kickoff by the scorer
+(function () {
+  T = makeTeam();
+  const o = T.owner; // kids[1]
+  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 22)
+  T.lastKicker = null; T.score = 0; T.scorer = null;
+  p.wx = 999; p.wy = 3;
+  T.workerKickCd = 0;
+  T.ownerKickT = 0.01;
+  voiceCalls.length = 0;
+  step(p);
+  check('G: in shot range the owner SHOOTS the book goal (tx=goalR.x, hard lob — a gravity tick already damped it)', T.ball.tx === T.goalR.x && T.ball.ty === T.goalR.y && T.ball.vz > SOCCER_KICK_VZ && Math.abs(T.ball.vz - SOCCER_SHOT_VZ) <= 12 * 0.016 + 0.001, 'tx=' + T.ball.tx + ' ty=' + T.ball.ty + ' vz=' + T.ball.vz);
+  let scored = false;
+  for (let t = 0; t < 400 && !scored; t++) {
+    step(p);
+    if (T.celebrateT > 0) scored = true;
+  }
+  check('G: the ball drops into the mouth = GOOOOAL! (celebration armed, score +1, scorer = kicker)', scored && T.score === 1 && T.scorer === o, 'score=' + T.score + ' scorerIdx=' + (T.scorer ? T.kids.indexOf(T.scorer) : -1) + ' kickerIdx=' + T.kids.indexOf(o));
+  check('G: the ball rests in the "net" (at the goal mouth)', scored && T.ball.wx === T.goalR.x && T.ball.wy === T.goalR.y, 'ball=(' + T.ball.wx + ',' + T.ball.wy + ') goal=(' + T.goalR.x + ',' + T.goalR.y + ')');
+  check('G: the "GOOOOAL!" bubble is spoken by a kid', voiceCalls.some(l => l.text === 'GOOOOAL!' && l.speaker === 'kid'), JSON.stringify(voiceCalls.slice(0, 3)));
+  let restarted = false;
+  for (let t = 0; t < 300 && !restarted; t++) {
+    step(p);
+    if (T.celebrateT <= 0 && T.owner === T.scorer) restarted = true;
+  }
+  check('G: after the hops the SCORER kicks off from the center spot', restarted && T.ball.tx === T.midX && T.ball.ty === 3.0 && T.owner === T.scorer, 'tx=' + T.ball.tx + ' owner=' + (T.owner ? T.kids.indexOf(T.owner) : -1));
+})();
+// scenario E: kids NEVER stop and plow straight through sidewalk junk
+(function () {
+  T = makeTeam();
+  const o = T.owner;
+  o.wx = 118; o.dir = 1;
+  T.kids[0].wx = 100; T.kids[2].wx = 126;
+  p.wx = 999; p.wy = 3;
+  T.workerKickCd = 0;
+  // a hydrant sits right at x=130 on the walk — the kids don't even know it's there
+  global.blocks = [{ hazards: [{ wx: 130, wy: 3, r: 0.75, type: 'hit' }], house: { bags: [], can: null } }];
+  let crossed = false, stillFrames = 0;
+  for (let t = 0; t < 200; t++) {
+    const before = T.kids.map(k => k.wx).join(',');
+    step(p);
+    if (T.kids.some(k => k.wx > 130)) crossed = true;
+    const after = T.kids.map(k => k.wx).join(',');
+    if (T.celebrateT <= 0 && before === after) stillFrames++;
+  }
+  check('E: the kids RUN THROUGH the hydrant (sidewalk junk is not in their path)', crossed, 'maxKidX=' + Math.max.apply(null, T.kids.map(k => k.wx)).toFixed(2));
+  check('E: nobody comes to a full stop (kids with endless energy)', stillFrames === 0, 'still frames=' + stillFrames);
 })();
 
 console.log('[4] collideCreatures — the REAL bump exchanges');

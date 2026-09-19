@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.118</div>
+          <div id="app-version" class="menu-version">v1.0.119</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.118';
+      const APP_VERSION = '1.0.119';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11546,8 +11546,8 @@
             // Flatbush soccer TEAM kid (see the team spawn in spawnWorld + the
             // case "soccer" body in updateCreatures): one of 3 small kids sharing
             // ONE ball on one block. No boxW — the kid is NOT a vehicle: traffic,
-            // separation and truck-collision all skip it, and it ignores obstacles
-            // in its own path (the crowd routes around it, AVOID_TYPES.soccer).
+            // separation and truck-collision all skip it, and it never stops for
+            // obstacles in its path (the crowd routes around it, AVOID_TYPES.soccer).
             // The ONE shared ball is attached by the spawner onto the LEADER kid
             // (c.ball/c.ballG), so it's added to the world exactly once.
             c.sp = R(3.4, 4.4); // a kid's running pace (faster than a walk, not a pro)
@@ -12382,14 +12382,18 @@
           }
         }
         // Flatbush soccer team: THREE small kids in DIFFERENT colored shirts on the
-        // NEAR SIDEWALK of ONE garbage block, playing with ONE shared ball up and down
-        // their block — they pass it to each other, kick it down the block for a
-        // DIFFERENT kid to run get and kick back, and (when the worker is close)
-        // kick it right at him / jog to block his path. A MAJOR problem for the
-        // worker. Set up before the level starts; they do NOT care about obstacles in
-        // their way (no npcRoadRules, no walk-around, no off-screen recycling), and
-        // other NPCs route around them (AVOID_TYPES.soccer). The LEADER kid carries
-        // the shared ball (c.ball/c.ballG); see case "soccer" in updateCreatures.
+        // NEAR SIDEWALK of ONE garbage block, really playing soccer on the chalk
+        // field — the owner dribbles and SHOOTS at the book goal he's running
+        // toward (goal-to-goal), passes to the most-advanced mate, and (when the
+        // worker is close) boots the ball right at him. The nearest mate sprints
+        // for the ball and carries on the attack; a ball into the book-goal mouth
+        // = GOOOOAL! — victory hops, then the scorer kicks off from the center.
+        // A MAJOR problem for the worker. Set up before the level starts; they
+        // NEVER stop and they do NOT sidestep a bottle, can or sidewalk tree —
+        // they run right through (no npcRoadRules, no walk-around, no off-screen
+        // recycling), and other NPCs route around them (AVOID_TYPES.soccer). The
+        // LEADER kid carries the shared ball (c.ball/c.ballG); see case "soccer"
+        // in updateCreatures.
         if (isFlatbushLevel()) {
           const soccerBlocks = LEVEL_BLOCKS.filter(b => b.garbage);
           if (soccerBlocks.length) {
@@ -12440,11 +12444,17 @@
               minX: sMinX,
               maxX: sMaxX,
               midX: (sMinX + sMaxX) / 2,
+              goalL: { x: sMinX - 1.4, y: 3.0 }, // the book goal mouth at the left end
+              goalR: { x: sMaxX + 1.4, y: 3.0 }, // the book goal mouth at the right end
               owner: sKids[1], // start with the middle kid in possession
               receiver: null,
               ownerKickT: R(0.8, 1.8), // stagger the first kick
               workerKickCd: 0,
               grabCd: 0,
+              celebrateT: 0, // victory-hop timer (GOOOOAL!)
+              score: 0, // goals banked on this block
+              lastKicker: null, // who put the ball on (the scorer when it drops in)
+              scorer: null,
             };
             // the chalk field on their block: a center circle + center line + a little
             // goal of stacked books at each end (pure sidewalk decor)
@@ -13603,12 +13613,18 @@
       ]; // what a kid screams the moment the worker touches them
       const SOCCER_LEAD = 1.3; // the ball ALWAYS rides this far AHEAD of the kid carrying it
       const SOCCER_PICKUP = 1.3; // a loose ball this close to a kid gets picked up (new owner)
-      const SOCCER_WORKER_RANGE = 9; // this close, the kids kick it AT the worker / block his path
+      const SOCCER_WORKER_RANGE = 9; // this close, the kids kick the ball AT the worker
       const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the sidewalk
+      const SOCCER_SHOT_VZ = 4.4; // the HARDER lob on a goal shot — it sails into the book-goal mouth
+      const SOCCER_SHOT_RANGE = 22; // this close to the goal ahead, the owner SHOOTS (goal-to-goal play)
+      const SOCCER_PASS_MIN = 6; // only pass to a mate at least this much more advanced toward the goal
+      const SOCCER_GOAL_R = 1.1; // ball this close (x) to a book-goal mouth = GOOOOAL!
+      const SOCCER_GOAL_YR = 1.6; // the goal mouth's half-height (the book stacks at 1.9/4.1 frame it)
+      const SOCCER_CELEBRATE = 1.6; // seconds of victory hops after a goal, before the kickoff
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors (one per kid)
-      let soccerTeam = null; // the shared team: { kids, leader, ball, ballG, minX, maxX, midX, owner, receiver, ... }
+      let soccerTeam = null; // the shared team: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
       // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
@@ -16642,14 +16658,16 @@
             case "soccer": {
               // ===== Flatbush soccer TEAM (3 kids + ONE shared ball on one block) =====
               // The LEADER kid's tick simulates the WHOLE team (the other two kids'
-              // ticks break out early). The owner patrols the block with the ball
-              // ALWAYS in front of him; every few seconds he kicks it — to a
-              // teammate, long up the block for a DIFFERENT kid to run get and kick
-              // back, or right at the worker when he's close. The non-owner kids jog
-              // up and down the block (blocking the worker's path when he's near).
-              // They do NOT care about obstacles in their way — a fixed fixture of
-              // their block (like the driveway tricycles); other NPCs route around
-              // them via AVOID_TYPES.soccer.
+              // ticks break out early). The trio really PLAYS soccer on the chalk
+              // field: the owner dribbles and SHOOTS at the book goal he's running
+              // toward (goal-to-goal), passes to the most-advanced mate, and — when
+              // the worker is close — boots the ball right at him. The mate nearest
+              // the landing point sprints for it and carries on the attack. A ball
+              // into the book-goal mouth = GOOOOAL! — victory hops, then everyone
+              // regroups and the scorer kicks off from the center spot. They're
+              // KIDS with endless energy: they NEVER stop and never sidestep a
+              // bottle, can or sidewalk tree — they run right through; other NPCs
+              // route around them (AVOID_TYPES.soccer).
               if (!soccerTeam || soccerTeam.leader !== c) break; // only the leader simulates
               const T = soccerTeam,
                 B = T.ball;
@@ -16657,68 +16675,141 @@
               T.grabCd = Math.max(0, T.grabCd - dt);
               T.workerKickCd = Math.max(0, T.workerKickCd - dt);
               for (const k of T.kids) k.kidCd = Math.max(0, (k.kidCd || 0) - dt);
-              // --- pickup: the closest kid to a LOW loose ball takes the ball ---
-              if (!T.owner && T.grabCd <= 0 && B.z < 0.8) {
-                let best = null,
-                  bd = SOCCER_PICKUP;
-                for (const k of T.kids) {
-                  const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
-                  if (d < bd) {
-                    bd = d;
-                    best = k;
-                  }
+              // is a point inside a book-goal mouth? (the stacks at y 1.9/4.1 frame it)
+              const inMouth = (x, y) =>
+                (Math.abs(x - T.goalL.x) < SOCCER_GOAL_R &&
+                  Math.abs(y - T.goalL.y) < SOCCER_GOAL_YR) ||
+                (Math.abs(x - T.goalR.x) < SOCCER_GOAL_R &&
+                  Math.abs(y - T.goalR.y) < SOCCER_GOAL_YR);
+              if (T.celebrateT > 0) {
+                // GOOOOAL! — the kids hop in place, then everyone regroups for kickoff
+                T.celebrateT -= dt;
+                if (T.celebrateT <= 0) {
+                  T.scorer = T.scorer || T.kids[1];
+                  T.kids.forEach((k, i) => {
+                    k.wx = T.midX + (i - 1) * 6; // regroup around the center spot
+                    k.wy = 3.0;
+                  });
+                  T.scorer.wx = T.midX;
+                  T.scorer.wy = 3.0;
+                  T.owner = T.scorer; // the scorer puts it back in play
+                  T.receiver = null;
+                  T.grabCd = 0.4;
+                  T.ownerKickT = R(0.8, 1.6);
+                  B.wx = T.midX;
+                  B.wy = 3.0; // center spot for the kickoff
+                  B.tx = T.midX;
+                  B.ty = 3.0;
+                  B.z = 0.2;
+                  B.vz = 1.4; // a little toss for the kickoff
                 }
-                if (best) {
-                  T.owner = best;
-                  T.ownerKickT = R(1.0, 2.2);
+              } else {
+                // --- GOAL? a ball into the mouth counts BEFORE anyone can re-grab it ---
+                if (!T.owner && B.z < 1.0 && inMouth(B.wx, B.wy)) {
+                  const g =
+                    Math.abs(B.wx - T.goalL.x) <= Math.abs(B.wx - T.goalR.x)
+                      ? T.goalL
+                      : T.goalR;
+                  T.celebrateT = SOCCER_CELEBRATE;
+                  T.score = (T.score || 0) + 1;
+                  T.scorer = T.lastKicker || T.receiver || T.kids[0];
+                  T.receiver = null;
+                  B.wx = g.x;
+                  B.wy = g.y; // rests in the "net" between the book stacks
+                  B.tx = g.x;
+                  B.ty = g.y;
+                  B.vz = 0;
+                  B.z = 0.18;
+                  if (state === "play")
+                    Voice.say("GOOOOAL!", 1.5, 1.1, B.wx, B.wy, "male", "kid");
                 }
-              }
-              // --- the owner kicks (at the worker / to a mate / long up the block) ---
-              if (T.owner) {
-                T.ownerKickT = (T.ownerKickT || 1) - dt;
-                if (T.ownerKickT <= 0) {
-                  const o = T.owner;
-                  T.ownerKickT = R(1.6, 3.0);
-                  let tx, ty;
-                  if (
-                    state === "play" &&
-                    T.workerKickCd <= 0 &&
-                    Math.hypot(p.wx - o.wx, p.wy - o.wy) < SOCCER_WORKER_RANGE
-                  ) {
-                    tx = p.wx;
-                    ty = p.wy; // KICK THE BALL AT THE WORKER
-                    T.workerKickCd = SOCCER_WORKER_KICK_CD;
-                    o.dir = p.wx >= o.wx ? 1 : -1;
-                  } else {
-                    const mates = T.kids.filter((k) => k !== o);
-                    const mate = mates[(Math.random() * mates.length) | 0];
-                    if (Math.abs(mate.wx - o.wx) > 9) {
-                      tx = mate.wx;
-                      ty = o.wy; // pass to a teammate elsewhere on the block
-                    } else {
-                      tx = o.wx + o.dir * R(12, 24); // long kick up the block
-                      tx = tx < T.minX ? T.minX + 1 : tx > T.maxX ? T.maxX - 1 : tx;
-                      ty = o.wy;
-                    }
-                  }
-                  B.tx = tx;
-                  B.ty = ty;
-                  B.vz = SOCCER_KICK_VZ;
-                  B.z = Math.max(B.z, 0.15);
-                  T.owner = null;
-                  T.grabCd = 0.7; // a beat before anyone can re-grab it
-                  // a DIFFERENT kid sprints to get it (the mate nearest the target)
-                  let rec = null,
-                    rd = 1e9;
+                // --- pickup: the closest kid to a LOW loose ball takes the ball ---
+                if (!T.owner && T.grabCd <= 0 && B.z < 0.8) {
+                  let best = null,
+                    bd = SOCCER_PICKUP;
                   for (const k of T.kids) {
-                    if (k === o) continue;
-                    const d = Math.hypot(B.tx - k.wx, B.ty - k.wy);
-                    if (d < rd) {
-                      rd = d;
-                      rec = k;
+                    const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                    if (d < bd) {
+                      bd = d;
+                      best = k;
                     }
                   }
-                  T.receiver = rec;
+                  if (best) {
+                    T.owner = best;
+                    T.ownerKickT = R(1.0, 2.2);
+                  }
+                }
+                // --- the owner kicks: worker > goal shot > advanced pass > long clear ---
+                if (T.owner) {
+                  const o = T.owner;
+                  // in shot range of the goal he's facing: no dawdling — cut the wait
+                  if (
+                    Math.abs((o.dir > 0 ? T.goalR : T.goalL).x - o.wx) <
+                    SOCCER_SHOT_RANGE
+                  )
+                    T.ownerKickT = Math.min(T.ownerKickT || 1, 0.35);
+                  T.ownerKickT = (T.ownerKickT || 1) - dt;
+                  if (T.ownerKickT <= 0) {
+                    T.ownerKickT = R(0.8, 1.6);
+                    T.lastKicker = o;
+                    const goalAhead = o.dir > 0 ? T.goalR : T.goalL; // the goal he's running toward
+                    let tx,
+                      ty,
+                      vz = SOCCER_KICK_VZ;
+                    if (
+                      state === "play" &&
+                      T.workerKickCd <= 0 &&
+                      Math.hypot(p.wx - o.wx, p.wy - o.wy) < SOCCER_WORKER_RANGE
+                    ) {
+                      tx = p.wx;
+                      ty = p.wy; // KICK THE BALL AT THE WORKER
+                      T.workerKickCd = SOCCER_WORKER_KICK_CD;
+                      o.dir = p.wx >= o.wx ? 1 : -1;
+                    } else if (Math.abs(goalAhead.x - o.wx) < SOCCER_SHOT_RANGE) {
+                      tx = goalAhead.x;
+                      ty = goalAhead.y; // GOAL-TO-GOAL SHOT at the book goal
+                      vz = SOCCER_SHOT_VZ; // hard lob — it sails into the mouth
+                    } else {
+                      // pass to the most-advanced mate; otherwise a long kick up the block
+                      const mates = T.kids.filter((k) => k !== o);
+                      let bestMate = null,
+                        bestAdv = SOCCER_PASS_MIN;
+                      for (const m of mates) {
+                        const adv =
+                          Math.abs(o.wx - goalAhead.x) - Math.abs(m.wx - goalAhead.x);
+                        if (adv > bestAdv) {
+                          bestAdv = adv;
+                          bestMate = m;
+                        }
+                      }
+                      if (bestMate) {
+                        tx = bestMate.wx;
+                        ty = o.wy; // pass to the mate who's more advanced toward the goal
+                      } else {
+                        tx = o.wx + o.dir * R(12, 24); // long kick up the block
+                        tx = tx < T.minX ? T.minX + 1 : tx > T.maxX ? T.maxX - 1 : tx;
+                        ty = o.wy;
+                      }
+                    }
+                    B.tx = tx;
+                    B.ty = ty;
+                    B.vz = vz;
+                    B.z = Math.max(B.z, 0.15);
+                    T.owner = null;
+                    T.grabCd = 0.7; // a beat before anyone can re-grab it
+                    // a DIFFERENT kid sprints to the landing point (closest mate)
+                    let rec = null,
+                      rd = 1e9;
+                    for (const k of T.kids) {
+                      if (k === o) continue;
+                      const d = Math.hypot(B.tx - k.wx, B.ty - k.wy);
+                      if (d < rd) {
+                        rd = d;
+                        rec = k;
+                      }
+                    }
+                    T.receiver = rec;
+                  }
                 }
               }
               // --- the ball: ease to its target (or ahead of the owner) + hop ---
@@ -16727,7 +16818,7 @@
                 const ease = Math.min(1, dt * 4.5);
                 B.wx += (leadX - B.wx) * ease;
                 B.wy += (T.owner.wy - B.wy) * ease;
-              } else {
+              } else if (T.celebrateT <= 0) {
                 const ease = Math.min(1, dt * 2.6);
                 B.wx += (B.tx - B.wx) * ease;
                 B.wy += (B.ty - B.wy) * ease;
@@ -16742,32 +16833,54 @@
               T.ballG.position.set(B.wx, B.wy, GZ + B.z);
               T.ballG.rotation.z -=
                 (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 7; // the ball rolls
-              // --- the kids: owner patrols, receiver sprints, the rest jog ---
+              // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
               for (const k of T.kids) {
-                let sp = k.sp;
-                if (k === T.owner) {
-                  k.wx += k.dir * sp * dt;
-                } else if (!T.owner && T.receiver === k) {
+                if (T.celebrateT > 0) {
+                  // victory hops while the "GOOOOAL!" bubble lands
+                  animParts(k, dt * 16);
+                  if (k.parts && k.parts.upper)
+                    k.parts.upper.position.z =
+                      0.62 + Math.abs(Math.sin(k.phase)) * 0.24;
+                } else if (k === T.owner) {
+                  // dribble at full pace, the ball rolling just ahead of him
+                  k.wx += k.dir * k.sp * 1.15 * dt;
+                } else if (!T.owner && T.receiver === k && !inMouth(B.wx, B.wy)) {
+                  // sprint the loose ball in x AND y — a kid chases it wherever it lies
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  if (Math.abs(B.wx - k.wx) > 1.4)
-                    k.wx += k.dir * sp * 1.25 * dt; // sprint to the loose ball
+                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0)
+                    k.wx += k.dir * k.sp * 1.6 * dt;
+                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 3.0);
+                } else if (!T.owner) {
+                  // mate: jog in toward the action (positioning) — kids keep moving
+                  k.dir = B.wx >= k.wx ? 1 : -1;
+                  k.wx += k.dir * k.sp * 0.95 * dt;
+                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 1.2);
                 } else {
-                  if (
-                    state === "play" &&
-                    Math.hypot(p.wx - k.wx, p.wy - k.wy) < SOCCER_WORKER_RANGE
-                  )
-                    k.dir = p.wx >= k.wx ? 1 : -1; // block the worker's path
-                  k.wx += k.dir * sp * 0.85 * dt;
+                  // mate of the owner: keep running, stay in the play
+                  k.wx += k.dir * k.sp * 0.9 * dt;
                 }
-                if (k.dir > 0 && k.wx >= T.maxX) {
-                  k.wx = T.maxX;
+                // the walkable band — but the RECEIVER may chase the ball past it
+                // (a kid chasing a stray ball does not care about the paint)
+                let loX = T.minX,
+                  hiX = T.maxX,
+                  loY = 1.5,
+                  hiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  loX = Math.min(loX, B.wx - 0.4, B.tx - 0.4);
+                  hiX = Math.max(hiX, B.wx + 0.4, B.tx + 0.4);
+                  loY = Math.min(loY, B.wy - 0.4, B.ty - 0.4);
+                  hiY = Math.max(hiY, B.wy + 0.4, B.ty + 0.4);
+                }
+                k.wy = Math.max(loY, Math.min(hiY, k.wy));
+                if (k.dir > 0 && k.wx >= hiX) {
+                  k.wx = hiX;
                   k.dir = -1;
-                } else if (k.dir < 0 && k.wx <= T.minX) {
-                  k.wx = T.minX;
+                } else if (k.dir < 0 && k.wx <= loX) {
+                  k.wx = loX;
                   k.dir = 1;
                 }
                 // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
-                animParts(k, sp * dt * 3.4);
+                animParts(k, k.sp * dt * 3.4);
                 if (k.parts && k.parts.upper)
                   k.parts.upper.position.z =
                     0.62 + Math.abs(Math.sin(k.phase)) * 0.05;
