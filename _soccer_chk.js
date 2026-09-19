@@ -38,6 +38,7 @@ const SOCKER_LINES = ["Don't touch me!", 'Mommy!', 'Bad man!'];
 const SOCCER_LEAD = 1.3, SOCCER_PICKUP = 1.3, SOCCER_WORKER_RANGE = 9;
 const SOCCER_KICK_VZ = 3.2, SOCCER_WORKER_KICK_CD = 3.5, SOCCER_MARGIN = 5;
 const SOCCER_SHOT_VZ = 4.4, SOCCER_SHOT_RANGE = 12, SOCCER_ROLL_SP = 8, SOCCER_PASS_MIN = 6;
+const SOCCER_ROLL_ACCEL = 30, SOCCER_BALL_R = 0.22; // mirror index.html (kick acceleration + ball radius for the speed-based spin)
 const SOCCER_GOAL_R = 1.1, SOCCER_GOAL_YR = 1.2, SOCCER_CELEBRATE = 1.6;
 const BLOCK_W = 80; // mirrors index.html (10 houses x 8u)
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -129,6 +130,24 @@ check('soccer blocks are IN-ROUTE garbage blocks (6 of the 8 blocks carry garbag
 })());
 check('AVOID_TYPES includes soccer (the crowd routes around the team)', /AVOID_TYPES = \{[\s\S]*?soccer:\s*1/.test(src));
 check('WRITEUP_REASONS has a soccer entry (the supervisor\'s offense file)', /soccer:\s*\[[\s\S]*?"Failure to respect a sacred soccer ball"[\s\S]*?\]/.test(src));
+// Flatbush stoop: the worker's ground height (stepTopAt) must use the stoop's REAL footprint
+const brownstoneSrc = (function () {
+  const i = src.indexOf('function makeBrownstone(storeOptions) {');
+  if (i < 0) return '';
+  let k = src.indexOf('{', i),
+    d = 0;
+  for (; k < src.length; k++) {
+    if (src[k] === '{') d++;
+    else if (src[k] === '}') {
+      d--;
+      if (d === 0) break;
+    }
+  }
+  return src.slice(i, k + 1);
+})();
+check('Flatbush stoop collision = the REAL 4-step stoop (per-step regions, 2.5u wide) — a bonked worker can no longer stand on a phantom-wide band and float',
+  brownstoneSrc.indexOf('g.userData.stairs') >= 0 && brownstoneSrc.indexOf('hw: 1.25') >= 0 && brownstoneSrc.indexOf('top: 0.3 + (sI + 1) * 0.17') >= 0 && brownstoneSrc.indexOf('w * 0.35') < 0);
+check('the Flatbush driveway center line is the sidewalk dark-gray (0x79818a), not white', src.indexOf('BX(0.15, 7.0, 0.005, M(0x79818a))') >= 0 && src.indexOf('BX(0.15, 7.0, 0.005, M(0xffffff))') < 0);
 
 console.log('[3] case "soccer" in updateCreatures — the REAL team AI, simulated');
 function extractCase() {
@@ -162,6 +181,10 @@ check('kick priority 3: pass to the most-advanced mate (SOCCER_PASS_MIN), else a
 check('every kick goes loose and a DIFFERENT kid sprints for it (T.receiver = rec)', soccerCase.indexOf('T.receiver = rec') >= 0 && soccerCase.indexOf('T.lastKicker = o') >= 0);
 check('the ball is ALWAYS in front of the carrying kid (hard clamp at SOCCER_LEAD)', soccerCase.indexOf('(B.wx - T.owner.wx) * T.owner.dir < 0.5') >= 0 && soccerCase.indexOf('B.wx = T.owner.wx + T.owner.dir * SOCCER_LEAD') >= 0);
 check('ball has gravity + damped bounce (vz -= 12*dt, bounce * 0.55)', soccerCase.indexOf('B.vz -= 12 * dt') >= 0 && soccerCase.indexOf('B.vz = Math.abs(B.vz) * 0.55') >= 0);
+check('a kick is SMOOTH: the ball ACCELERATES to rolling speed (SOCCER_ROLL_ACCEL) and brakes to rest at its target — no one-frame jump to full speed',
+  soccerCase.indexOf('SOCCER_ROLL_ACCEL') >= 0 && soccerCase.indexOf('stopDist') >= 0 && soccerCase.indexOf('B.z = Math.max(B.z, 0.15)') < 0);
+check('the roll spin is SPEED-based (rotation rate = ground speed / ball radius — a fast kick spins fast, a still ball does not spin)',
+  soccerCase.indexOf('T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt') >= 0 && soccerCase.indexOf('* dt * 8') < 0);
 check('kids stay clamped to the block (hiX/loX flips)', soccerCase.indexOf('k.wx >= hiX') >= 0 && soccerCase.indexOf('k.wx <= loX') >= 0 && soccerCase.indexOf('k.dir = -1') >= 0 && soccerCase.indexOf('k.dir = 1') >= 0);
 check('the receiver SPRINTS 2D (1.6x) and the mates jog in — nobody idles', soccerCase.indexOf('k.sp * 1.6 * dt') >= 0 && soccerCase.indexOf('k.sp * 0.95 * dt') >= 0 && soccerCase.indexOf('k.sp * 1.15 * dt') >= 0);
 check('the case references NO obstacle system (bottles/cans/trees are not in their path)', soccerCase.indexOf('npcWalkAroundObstacles') < 0 && soccerCase.indexOf('hazards') < 0 && soccerCase.indexOf('b.trees') < 0 && soccerCase.indexOf('c.stop') < 0 && soccerCase.indexOf('yieldLane') < 0);
@@ -172,7 +195,7 @@ function makeTeam() {
     parts: { upper: { position: { z: 0.62 } } }, g: { rotation: { z: 0 } },
   });
   const kids = [mkKid(100), mkKid(120), mkKid(140)];
-  const ball = { wx: 120, wy: 3, z: 0, vz: 0, tx: 120, ty: 3 };
+  const ball = { wx: 120, wy: 3, z: 0, vz: 0, vx: 0, vy: 0, tx: 120, ty: 3 };
   const ballG = { position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } }, rotation: { z: 0 }, userData: { core: { rotation: { y: 0 } } } };
   return {
     kids: kids, leader: kids[0], ball: ball, ballG: ballG,
@@ -189,13 +212,14 @@ const runCase = new Function(
   'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam',
   'SOCCER_LEAD', 'SOCCER_PICKUP', 'SOCCER_WORKER_RANGE', 'SOCCER_KICK_VZ', 'SOCCER_WORKER_KICK_CD',
   'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_ROLL_SP', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
+  'SOCCER_ROLL_ACCEL', 'SOCCER_BALL_R', 'clamp',
   'Voice', 'animParts',
   'switch (c.type) {' + soccerCase + '}',
 );
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks yet)
 const step = (pw) =>
-  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, Voice, animParts);
+  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
 let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0, nanFrames = 0;
 let lastOwner = T.owner;
 try {
@@ -234,9 +258,11 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
   T.workerKickCd = 0;
   T.ownerKickT = 0.01; // force the kick this frame
   const kicker = T.owner;
+  const b0x = T.ball.wx; // the ball's spot the moment before the kick
   step(p);
   check('W: worker in range -> ball is kicked AT him (target = p.wx/p.wy), not the goal', T.ball.tx === p.wx && T.ball.ty === p.wy && T.ball.tx !== T.goalR.x, 'target=(' + T.ball.tx + ',' + T.ball.ty + ') worker=(' + p.wx + ',' + p.wy + ')');
   check('W: kick goes loose, a DIFFERENT kid is assigned to retrieve, cd armed', T.owner === null && T.receiver !== null && T.receiver !== kicker && T.workerKickCd === SOCCER_WORKER_KICK_CD, 'recIdx=' + T.kids.indexOf(T.receiver) + ' kickerIdx=' + T.kids.indexOf(kicker) + ' cd=' + T.workerKickCd);
+  check('W: the kick is a SMOOTH acceleration — first-frame travel is a fraction of full rolling speed (no forward jump)', Math.abs(T.ball.wx - b0x) < 0.05, 'first frame ' + Math.abs(T.ball.wx - b0x).toFixed(4) + 'u vs ' + (SOCCER_ROLL_SP * 0.016).toFixed(3) + 'u at full speed');
 })();
 // scenario L: no mate advanced + no shot range -> long kick up the block
 (function () {

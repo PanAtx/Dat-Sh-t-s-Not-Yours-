@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.122</div>
+          <div id="app-version" class="menu-version">v1.0.123</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.122';
+      const APP_VERSION = '1.0.123';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8367,8 +8367,27 @@
           );
           lampBulb.position.set(0, -d / 2 - 0.04, 0.3 + 2.1);
           g.add(lampBulb);
-          // Door step area data for stepTopAt()
-          g.userData.step = { hw: w * 0.35, cy: -d / 2, hd: 0.4, top: 0.68 };
+          // Stoop collision data for stepTopAt() — the stoop's EXACT footprint
+          // (makeBrownstoneStoop: 4 steps, 2.5u wide, tread 0.3, riser 0.17 on the 0.3
+          // plinth), one region per step so the worker's feet land ON each step.
+          // The old single flat band was w*0.35 (2.8) half-width = 5.6u wide — 3x the
+          // real 2.5u stoop — so a bonked worker who bounced just past the stoop's edge
+          // stood on phantom step-top and floated in the air.
+          g.userData.stairs = [];
+          for (let sI = 0; sI < 4; sI++) {
+            g.userData.stairs.push({
+              hw: 1.25, // stepW / 2 (2.5u — the real step width)
+              cy: -d / 2 - (3 - sI) * 0.3 - 0.15, // the step's Y centre, matching makeBrownstoneStoop
+              hd: 0.15,
+              top: 0.3 + (sI + 1) * 0.17, // each step's true top (0.47 / 0.64 / 0.81 / 0.98)
+            });
+          }
+          g.userData.step = {
+            hw: 1.25,
+            cy: -d / 2 - 0.15,
+            hd: 0.15,
+            top: 0.98, // top step (keeps the flat-region path valid; stairs carry the rest)
+          };
         }
         return g;
       }
@@ -12008,8 +12027,8 @@
           drv.castShadow = false;
           drv.receiveShadow = true;
           b.group.add(drv);
-          // White center line on the driveway
-          const line = BX(0.15, 7.0, 0.005, M(0xffffff));
+          // Dark-gray center line on the driveway — the same color as the sidewalk joint lines
+          const line = BX(0.15, 7.0, 0.005, M(0x79818a));
           line.position.set(8.0, 9.0, GZ + 0.045);
           b.group.add(line);
         }
@@ -12436,6 +12455,8 @@
               wy: 3.0,
               z: 0,
               vz: 0,
+              vx: 0,
+              vy: 0, // horizontal velocity — the kick ACCELERATES the ball (no jump) and the roll spin reads its speed
               tx: (sMinX + sMaxX) / 2,
               ty: 3.0,
             };
@@ -13627,7 +13648,9 @@
       const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the sidewalk
       const SOCCER_SHOT_VZ = 4.4; // the HARDER lob on a goal shot — it sails into the book-goal mouth
       const SOCCER_SHOT_RANGE = 12; // this close to the goal ahead, the owner SHOOTS (goal-to-goal play) — the block is only 20u wide, so this is a real shot, not every kick
-      const SOCCER_ROLL_SP = 8; // the loose ball's constant rolling speed (u/s) — a struck ball, not a blink
+      const SOCCER_ROLL_SP = 8; // the loose ball's top rolling speed (u/s) — a struck ball, not a blink
+      const SOCCER_ROLL_ACCEL = 30; // u/s^2 — how fast a kicked ball RAMPs up to rolling speed (a foot accelerates the ball over a tenth of a second — it never JUMPS from a dribble crawl to full speed in one frame)
+      const SOCCER_BALL_R = 0.22; // the ball's radius — spin rate = ground speed / R (no-slip rolling: a fast kick spins fast, a dribble spins slow, a still ball does not spin)
       const SOCCER_PASS_MIN = 6; // only pass to a mate at least this much more advanced toward the goal
       const SOCCER_GOAL_R = 1.1; // ball this close (x) to a book-goal mouth = GOOOOAL!
       const SOCCER_GOAL_YR = 1.2; // the goal mouth's half-height (the book stacks at 1.9/4.1 frame it)
@@ -16734,6 +16757,8 @@
                   B.tx = g.x;
                   B.ty = g.y;
                   B.vz = 0;
+                  B.vx = 0;
+                  B.vy = 0; // the ball comes to rest in the "net"
                   B.z = 0.18;
                   if (state === "play")
                     Voice.say("GOOOOAL!", 1.5, 1.1, B.wx, B.wy, "male", "kid");
@@ -16752,6 +16777,8 @@
                   if (best) {
                     T.owner = best;
                     T.ownerKickT = R(1.0, 2.2);
+                    B.vx = 0;
+                    B.vy = 0; // the owner takes the ball — the dribble ease (not old kick momentum) drives it from here
                   }
                 }
                 // --- the owner kicks: worker > goal shot > advanced pass > long clear ---
@@ -16812,8 +16839,7 @@
                     }
                     B.tx = tx;
                     B.ty = ty;
-                    B.vz = vz;
-                    B.z = Math.max(B.z, 0.15);
+                    B.vz = vz; // the launch arc starts from the ground (the parabola lifts it — no z-pop, no forward jump)
                     T.owner = null;
                     T.grabCd = 0.7; // a beat before anyone can re-grab it
                     // a DIFFERENT kid sprints to the landing point (closest mate)
@@ -16831,24 +16857,51 @@
                   }
                 }
               }
-              // --- the ball: ease to the owner's lead point, or ROLL at a
-              // constant speed toward its target + hop ---
+              // --- the ball: ease to the owner's lead point, or ROLL toward its target + hop ---
+              const bpx = B.wx,
+                bpy = B.wy; // pre-motion position: the real ground speed this frame (drives the spin)
+              B.vx = B.vx || 0;
+              B.vy = B.vy || 0;
               if (T.owner) {
                 const leadX = T.owner.wx + T.owner.dir * SOCCER_LEAD;
                 const ease = Math.min(1, dt * 4.5);
                 B.wx += (leadX - B.wx) * ease;
                 B.wy += (T.owner.wy - B.wy) * ease;
               } else if (T.celebrateT <= 0) {
-                // constant-speed roll: exponential easing zips a long kick at
-                // 40+ u/s (it looks like a blink/teleport) then crawls the last
-                // inch — a struck ball travels at one believable speed.
+                // A kicked ball ACCELERATES up to its rolling speed (a foot imparts speed
+                // over a tenth of a second — it never JUMPS from a dribble crawl to full
+                // speed in one frame) and eases off so it comes to rest exactly at its
+                // target (no crawl, no overshoot).
                 const bdx = B.tx - B.wx,
                   bdy = B.ty - B.wy,
                   bdist = Math.hypot(bdx, bdy);
                 if (bdist > 0.02) {
-                  const stepLen = Math.min(bdist, SOCCER_ROLL_SP * dt);
-                  B.wx += (bdx / bdist) * stepLen;
-                  B.wy += (bdy / bdist) * stepLen;
+                  const wantX = (bdx / bdist) * SOCCER_ROLL_SP;
+                  const wantY = (bdy / bdist) * SOCCER_ROLL_SP;
+                  B.vx +=
+                    clamp(
+                      wantX - B.vx,
+                      -SOCCER_ROLL_ACCEL * dt,
+                      SOCCER_ROLL_ACCEL * dt,
+                    );
+                  B.vy +=
+                    clamp(
+                      wantY - B.vy,
+                      -SOCCER_ROLL_ACCEL * dt,
+                      SOCCER_ROLL_ACCEL * dt,
+                    );
+                  const sp = Math.hypot(B.vx, B.vy);
+                  const stopDist = (sp * sp) / (2 * SOCCER_ROLL_ACCEL); // braking distance at current speed
+                  if (stopDist > bdist && sp > 0.01) {
+                    const f = Math.sqrt(bdist / stopDist); // scale speed to rest AT the target
+                    B.vx *= f;
+                    B.vy *= f;
+                  }
+                  B.wx += B.vx * dt;
+                  B.wy += B.vy * dt;
+                } else {
+                  B.vx = 0;
+                  B.vy = 0; // arrived — resting
                 }
               }
               B.vz -= 12 * dt; // gravity
@@ -16859,8 +16912,22 @@
                 if (B.vz < 0.5) B.vz = 0; // settles
               }
               T.ballG.position.set(B.wx, B.wy, GZ + B.z);
-              T.ballG.userData.core.rotation.y +=
-                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 8; // the ball ROLLS — spin the CORE about the ball's OWN centre (the outer group is the contact point — spinning it would orbit the ball into the sidewalk)
+              // the ball ROLLS — spin rate = ground speed / radius (no-slip rolling):
+              // a hard kick spins fast, a dribble spins slow, a still ball doesn't spin.
+              // Spin the CORE about the ball's OWN centre (the outer group is the contact
+              // point — spinning it would orbit the ball into the sidewalk).
+              {
+                let svx = B.vx,
+                  svy = B.vy;
+                if (T.owner) {
+                  svx = (B.wx - bpx) / Math.max(dt, 0.001); // being dribbled: real speed = this frame's follow motion
+                  svy = (B.wy - bpy) / Math.max(dt, 0.001);
+                } else if (T.celebrateT > 0) {
+                  svx = 0;
+                  svy = 0; // resting in the net during the celebration
+                }
+                T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt;
+              }
               // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
               for (const k of T.kids) {
                 if (T.celebrateT > 0) {
