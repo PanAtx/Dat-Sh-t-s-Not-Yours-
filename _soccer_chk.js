@@ -37,8 +37,8 @@ const HP_HIT_DRIVETRIC = 4, HP_HIT_VEHICLE = 8, HP_HIT_PANHANDLER = 1;
 const SOCKER_LINES = ["Don't touch me!", 'Mommy!', 'Bad man!'];
 const SOCCER_LEAD = 1.3, SOCCER_PICKUP = 1.3, SOCCER_WORKER_RANGE = 9;
 const SOCCER_KICK_VZ = 3.2, SOCCER_WORKER_KICK_CD = 3.5, SOCCER_MARGIN = 5;
-const SOCCER_SHOT_VZ = 4.4, SOCCER_SHOT_RANGE = 22, SOCCER_PASS_MIN = 6;
-const SOCCER_GOAL_R = 1.1, SOCCER_GOAL_YR = 1.6, SOCCER_CELEBRATE = 1.6;
+const SOCCER_SHOT_VZ = 4.4, SOCCER_SHOT_RANGE = 12, SOCCER_ROLL_SP = 8, SOCCER_PASS_MIN = 6;
+const SOCCER_GOAL_R = 1.1, SOCCER_GOAL_YR = 1.2, SOCCER_CELEBRATE = 1.6;
 const BLOCK_W = 80; // mirrors index.html (10 houses x 8u)
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const workerMaxY = () => 8.0; // Flatbush cap (mirrors index.html)
@@ -54,10 +54,10 @@ check('team constants exist (lead 1.3 / pickup 1.3 / worker range 9 / lob 3.2 / 
   src.indexOf('const SOCCER_LEAD = 1.3;') >= 0 && src.indexOf('const SOCCER_PICKUP = 1.3;') >= 0 &&
   src.indexOf('const SOCCER_WORKER_RANGE = 9;') >= 0 && src.indexOf('const SOCCER_KICK_VZ = 3.2;') >= 0 &&
   src.indexOf('const SOCCER_WORKER_KICK_CD = 3.5;') >= 0 && src.indexOf('const SOCCER_MARGIN = 5;') >= 0);
-check('goal-play constants exist (shot range 22 / shot lob 4.4 / pass min 6 / mouth 1.1 x 1.6 / celebrate 1.6s)',
-  src.indexOf('const SOCCER_SHOT_RANGE = 22;') >= 0 && src.indexOf('const SOCCER_SHOT_VZ = 4.4;') >= 0 &&
+check('goal-play constants exist (shot range 12 / roll speed 8 / shot lob 4.4 / pass min 6 / mouth 1.1 x 1.2 / celebrate 1.6s)',
+  src.indexOf('const SOCCER_SHOT_RANGE = 12;') >= 0 && src.indexOf('const SOCCER_ROLL_SP = 8;') >= 0 && src.indexOf('const SOCCER_SHOT_VZ = 4.4;') >= 0 &&
   src.indexOf('const SOCCER_PASS_MIN = 6;') >= 0 && src.indexOf('const SOCCER_GOAL_R = 1.1;') >= 0 &&
-  src.indexOf('const SOCCER_GOAL_YR = 1.6;') >= 0 && src.indexOf('const SOCCER_CELEBRATE = 1.6;') >= 0);
+  src.indexOf('const SOCCER_GOAL_YR = 1.2;') >= 0 && src.indexOf('const SOCCER_CELEBRATE = 1.6;') >= 0);
 check('shared-team state is declared (soccerShirtQueue + soccerTeam)',
   src.indexOf('let soccerShirtQueue = []') >= 0 && src.indexOf('let soccerTeam = null') >= 0);
 check('the old single-kick constant is gone (no SOCCER_KICK_AHEAD left)', src.indexOf('SOCCER_KICK_AHEAD') < 0);
@@ -90,7 +90,9 @@ check('ball is a white sphere resting on the ground (center at 0.22)', ballFn.in
 check('ball has 12 black pentagons (icosahedron vertices — a real soccer ball, not a dalmatian)',
   ballFn.indexOf('PHI = (1 + Math.sqrt(5)) / 2') >= 0 &&
   (ballFn.match(/\[[^\[\]]+,\s*[^\[\]]+,\s*[^\[\]]+\]/g) || []).length >= 12 &&
-  ballFn.indexOf('THREE.ShapeGeometry') >= 0 && ballFn.indexOf('pent.lookAt') >= 0);
+  ballFn.indexOf('THREE.ShapeGeometry') >= 0 && ballFn.indexOf('pent.quaternion.setFromUnitVectors') >= 0);
+check('pentagons center on the ball (position.z += R) — black spots ALL around the sphere, not buried in its bottom',
+  ballFn.indexOf('pent.position.z += R') >= 0);
 check('the old 6-patch dalmatian is gone', ballFn.indexOf('BX(0.08, 0.08, 0.03, patchM)') < 0);
 // spawn: Flatbush only, ONE garbage block, 3 distinct shirts, chalk field
 const spawnSrc = (function () {
@@ -139,7 +141,7 @@ check('only the LEADER simulates the team (the other 2 kids\' ticks no-op)', soc
 check('GOAL? ball into a book-goal mouth is checked BEFORE pickup (inMouth + z gate)', soccerCase.indexOf('inMouth(B.wx, B.wy)') >= 0 && soccerCase.indexOf('B.z < 1.0') >= 0 && soccerCase.indexOf('!T.owner') >= 0);
 check('a goal arms the celebration + score + scorer (lastKicker)', soccerCase.indexOf('T.celebrateT = SOCCER_CELEBRATE') >= 0 && soccerCase.indexOf('T.score = (T.score || 0) + 1;') >= 0 && soccerCase.indexOf('T.scorer = T.lastKicker') >= 0);
 check('the "GOOOOAL!" bubble is spoken by a kid', soccerCase.indexOf('Voice.say("GOOOOAL!"') >= 0 && soccerCase.indexOf('"kid"') >= 0);
-check('kickoff: the kids regroup at center and the SCORER kicks off', soccerCase.indexOf('T.midX + (i - 1) * 6') >= 0 && soccerCase.indexOf('T.owner = T.scorer') >= 0 && soccerCase.indexOf('B.wx = T.midX') >= 0);
+check('kickoff: the ball restarts at the center spot and the NEAREST kid jogs over to pick it up (NO kid teleports after a goal)', soccerCase.indexOf('B.wx = T.midX') >= 0 && soccerCase.indexOf('B.wy = 3.0') >= 0 && soccerCase.indexOf('T.owner = null') >= 0 && soccerCase.indexOf('T.midX + (i - 1) * 6') < 0);
 check('loose-ball pickup: closest kid within SOCCER_PICKUP, ball low, grabCd respected', soccerCase.indexOf('SOCCER_PICKUP') >= 0 && soccerCase.indexOf('B.z < 0.8') >= 0 && soccerCase.indexOf('T.grabCd <= 0') >= 0);
 check('kick priority 1: the worker when he\'s close (SOCCER_WORKER_RANGE, target = p.wx/p.wy)', soccerCase.indexOf('SOCCER_WORKER_RANGE') >= 0 && soccerCase.indexOf('tx = p.wx') >= 0 && soccerCase.indexOf('ty = p.wy') >= 0);
 check('kick cooldown for worker-aimed kicks (no spam)', soccerCase.indexOf('SOCCER_WORKER_KICK_CD') >= 0 && soccerCase.indexOf('T.workerKickCd') >= 0);
@@ -175,26 +177,29 @@ const Voice = { say(text, gap, pitch, bx, by, gender, speaker, style) { voiceCal
 const runCase = new Function(
   'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam',
   'SOCCER_LEAD', 'SOCCER_PICKUP', 'SOCCER_WORKER_RANGE', 'SOCCER_KICK_VZ', 'SOCCER_WORKER_KICK_CD',
-  'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
+  'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_ROLL_SP', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
   'Voice', 'animParts',
   'switch (c.type) {' + soccerCase + '}',
 );
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks yet)
 const step = (pw) =>
-  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, Voice, animParts);
-let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0;
+  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, Voice, animParts);
+let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0, nanFrames = 0;
 let lastOwner = T.owner;
 try {
   for (let t = 0; t < 6000; t++) {
     step(p);
     for (const k of T.kids) {
+      // a NaN position paints the mesh at nothing — the kid "disappears". Never allow it.
+      if (!isFinite(k.wx) || !isFinite(k.wy)) { simOk = false; simDetail = 'kid position not finite at t=' + t + ' wx=' + k.wx + ' wy=' + k.wy; nanFrames++; }
       // the RECEIVER may chase a ball past the block end; the other kids stay inside
       if (k === T.receiver) {
         if (k.wx < T.minX - 2.0 || k.wx > T.maxX + 2.0) { simOk = false; simDetail = 'receiver out of reach band at t=' + t + ' wx=' + k.wx.toFixed(2); }
       } else if (k.wx < T.minX - 1e-9 || k.wx > T.maxX + 1e-9) { simOk = false; simDetail = 'kid out of band at t=' + t + ' wx=' + k.wx.toFixed(2); }
       if (k.wy < 1.4 || k.wy > 4.4) { simOk = false; simDetail = 'kid wy off the sidewalk at t=' + t + ' wy=' + k.wy.toFixed(2); }
     }
+    if (!isFinite(T.ball.wx) || !isFinite(T.ball.wy) || !isFinite(T.ball.z)) { simOk = false; simDetail = 'ball position not finite at t=' + t; nanFrames++; }
     if (T.ball.wy < 0.5 || T.ball.wy > 5.2) ballBandBad++;
     if (T.owner && (T.ball.wx - T.owner.wx) * T.owner.dir < -0.05) behind++;
     if (T.owner !== lastOwner) { if (lastOwner !== null) ownerChanges++; lastOwner = T.owner; }
@@ -202,6 +207,7 @@ try {
   }
 } catch (e) { simOk = false; simDetail = e.message; }
 check('the team stays INSIDE its block for 6000 frames (~96s) (receiver may chase a ball past the end)', simOk, simDetail);
+check('no kid/ball position ever goes NaN (a NaN mesh position = the kid "disappears")', simOk && nanFrames === 0, 'nan frames=' + nanFrames);
 check('the ball stays on the walkable band (wy ~0.5..5.0)', simOk && ballBandBad === 0, 'off-band frames=' + ballBandBad);
 check('the ball is NEVER behind the carrying kid (always in front when moving)', simOk && behind === 0, 'behind frames=' + behind);
 check('the ball keeps changing hands (ownership rotates between the kids)', simOk && ownerChanges >= 3, 'owner changes=' + ownerChanges);
@@ -212,7 +218,7 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
 (function () {
   T = makeTeam();
   const o = T.owner; // kids[1]
-  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 22)
+  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 12)
   p.wx = o.wx + 6; p.wy = 3; // within SOCCER_WORKER_RANGE (6 < 9) — closer than the goal
   T.workerKickCd = 0;
   T.ownerKickT = 0.01; // force the kick this frame
@@ -268,7 +274,9 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
 (function () {
   T = makeTeam();
   const o = T.owner; // kids[1]
-  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 22)
+  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR (11.4 < 12)
+  T.ball.wx = 141.3; T.ball.wy = 3; // the ball is at the dribble lead point, in front of the kicker (as in real play)
+  T.kids[0].wx = 100; T.kids[2].wx = 130; // mates are spread out (nobody stands on the kicker at the moment of the shot)
   T.lastKicker = null; T.score = 0; T.scorer = null;
   p.wx = 999; p.wy = 3;
   T.workerKickCd = 0;
@@ -285,11 +293,11 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
   check('G: the ball rests in the "net" (at the goal mouth)', scored && T.ball.wx === T.goalR.x && T.ball.wy === T.goalR.y, 'ball=(' + T.ball.wx + ',' + T.ball.wy + ') goal=(' + T.goalR.x + ',' + T.goalR.y + ')');
   check('G: the "GOOOOAL!" bubble is spoken by a kid', voiceCalls.some(l => l.text === 'GOOOOAL!' && l.speaker === 'kid'), JSON.stringify(voiceCalls.slice(0, 3)));
   let restarted = false;
-  for (let t = 0; t < 300 && !restarted; t++) {
+  for (let t = 0; t < 600 && !restarted; t++) {
     step(p);
-    if (T.celebrateT <= 0 && T.owner === T.scorer) restarted = true;
+    if (T.celebrateT <= 0 && T.owner !== null) restarted = true;
   }
-  check('G: after the hops the SCORER kicks off from the center spot', restarted && T.ball.tx === T.midX && T.ball.ty === 3.0 && T.owner === T.scorer, 'tx=' + T.ball.tx + ' owner=' + (T.owner ? T.kids.indexOf(T.owner) : -1));
+  check('G: after the hops the ball is restarted at the center spot and a kid JOGS over to pick it up (no teleports)', restarted && T.ball.tx === T.midX && T.ball.ty === 3.0 && T.owner !== null, 'tx=' + T.ball.tx + ' owner=' + (T.owner ? T.kids.indexOf(T.owner) : -1));
 })();
 // scenario E: kids NEVER stop and plow straight through sidewalk junk
 (function () {

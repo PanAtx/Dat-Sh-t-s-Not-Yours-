@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.119</div>
+          <div id="app-version" class="menu-version">v1.0.120</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.119';
+      const APP_VERSION = '1.0.120';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9191,7 +9191,8 @@
           const dir = new THREE.Vector3(v[0], v[1], v[2]).normalize();
           const pent = new THREE.Mesh(pentGeo, patchM);
           pent.position.copy(dir.clone().multiplyScalar(R * 0.99));
-          pent.lookAt(dir.clone().multiplyScalar(R * 2));
+          pent.position.z += R; // patches center on the BALL (the sphere sits at z=R in group space) — black spots ALL around, not just the bottom
+          pent.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir); // face OUTWARD, exactly
           g.add(pent);
         }
         return g;
@@ -12418,6 +12419,7 @@
               sk.kidCd = 0; // per-kid cooldowns for the worker's bump/ball exchanges
               sk.ballCd = 0;
               sk.g.rotation.z = sk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              sk.g.position.set(sk.wx, sk.wy, GZ); // the mesh starts at its real spot (the spawn moved it off the default)
               sKids.push(sk);
             }
             // ONE shared ball — attached to the LEADER kid (so the ball-bonk branch
@@ -13616,10 +13618,11 @@
       const SOCCER_WORKER_RANGE = 9; // this close, the kids kick the ball AT the worker
       const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the sidewalk
       const SOCCER_SHOT_VZ = 4.4; // the HARDER lob on a goal shot — it sails into the book-goal mouth
-      const SOCCER_SHOT_RANGE = 22; // this close to the goal ahead, the owner SHOOTS (goal-to-goal play)
+      const SOCCER_SHOT_RANGE = 12; // this close to the goal ahead, the owner SHOOTS (goal-to-goal play) — the block is only 20u wide, so this is a real shot, not every kick
+      const SOCCER_ROLL_SP = 8; // the loose ball's constant rolling speed (u/s) — a struck ball, not a blink
       const SOCCER_PASS_MIN = 6; // only pass to a mate at least this much more advanced toward the goal
       const SOCCER_GOAL_R = 1.1; // ball this close (x) to a book-goal mouth = GOOOOAL!
-      const SOCCER_GOAL_YR = 1.6; // the goal mouth's half-height (the book stacks at 1.9/4.1 frame it)
+      const SOCCER_GOAL_YR = 1.2; // the goal mouth's half-height (the book stacks at 1.9/4.1 frame it)
       const SOCCER_CELEBRATE = 1.6; // seconds of victory hops after a goal, before the kickoff
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
@@ -16682,20 +16685,17 @@
                 (Math.abs(x - T.goalR.x) < SOCCER_GOAL_R &&
                   Math.abs(y - T.goalR.y) < SOCCER_GOAL_YR);
               if (T.celebrateT > 0) {
-                // GOOOOAL! — the kids hop in place, then everyone regroups for kickoff
+                // GOOOOAL! — the kids hop in place where they are (NO post-goal
+                // teleports: snapping 3 kids + the ball to the center every goal
+                // read as "they disappeared"). When the hops end, the ball
+                // restarts at the center spot (the kickoff) and the NEAREST kid
+                // jogs over, picks it up and puts it back in play.
                 T.celebrateT -= dt;
                 if (T.celebrateT <= 0) {
                   T.scorer = T.scorer || T.kids[1];
-                  T.kids.forEach((k, i) => {
-                    k.wx = T.midX + (i - 1) * 6; // regroup around the center spot
-                    k.wy = 3.0;
-                  });
-                  T.scorer.wx = T.midX;
-                  T.scorer.wy = 3.0;
-                  T.owner = T.scorer; // the scorer puts it back in play
+                  T.owner = null;
                   T.receiver = null;
                   T.grabCd = 0.4;
-                  T.ownerKickT = R(0.8, 1.6);
                   B.wx = T.midX;
                   B.wy = 3.0; // center spot for the kickoff
                   B.tx = T.midX;
@@ -16812,16 +16812,25 @@
                   }
                 }
               }
-              // --- the ball: ease to its target (or ahead of the owner) + hop ---
+              // --- the ball: ease to the owner's lead point, or ROLL at a
+              // constant speed toward its target + hop ---
               if (T.owner) {
                 const leadX = T.owner.wx + T.owner.dir * SOCCER_LEAD;
                 const ease = Math.min(1, dt * 4.5);
                 B.wx += (leadX - B.wx) * ease;
                 B.wy += (T.owner.wy - B.wy) * ease;
               } else if (T.celebrateT <= 0) {
-                const ease = Math.min(1, dt * 2.6);
-                B.wx += (B.tx - B.wx) * ease;
-                B.wy += (B.ty - B.wy) * ease;
+                // constant-speed roll: exponential easing zips a long kick at
+                // 40+ u/s (it looks like a blink/teleport) then crawls the last
+                // inch — a struck ball travels at one believable speed.
+                const bdx = B.tx - B.wx,
+                  bdy = B.ty - B.wy,
+                  bdist = Math.hypot(bdx, bdy);
+                if (bdist > 0.02) {
+                  const stepLen = Math.min(bdist, SOCCER_ROLL_SP * dt);
+                  B.wx += (bdx / bdist) * stepLen;
+                  B.wy += (bdy / bdist) * stepLen;
+                }
               }
               B.vz -= 12 * dt; // gravity
               B.z += B.vz * dt;
@@ -16831,8 +16840,8 @@
                 if (B.vz < 0.5) B.vz = 0; // settles
               }
               T.ballG.position.set(B.wx, B.wy, GZ + B.z);
-              T.ballG.rotation.z -=
-                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 7; // the ball rolls
+              T.ballG.rotation.y +=
+                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 8; // the ball ROLLS — spin about the horizontal axis, like a real kicked ball
               // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
               for (const k of T.kids) {
                 if (T.celebrateT > 0) {
