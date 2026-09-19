@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.121</div>
+          <div id="app-version" class="menu-version">v1.0.122</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.121';
+      const APP_VERSION = '1.0.122';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12464,6 +12464,7 @@
               score: 0, // goals banked on this block
               lastKicker: null, // who put the ball on (the scorer when it drops in)
               scorer: null,
+              kickoffDir: 0, // 0 = no kickoff pending; ±1 = the direction the next pickup must kick (a small boot toward the OTHER goal)
             };
             // the chalk field on their block: a center circle + center line + a little
             // goal of stacked books at each end (pure sidewalk decor)
@@ -16673,8 +16674,9 @@
               // toward (goal-to-goal), passes to the most-advanced mate, and — when
               // the worker is close — boots the ball right at him. The mate nearest
               // the landing point sprints for it and carries on the attack. A ball
-              // into the book-goal mouth = GOOOOAL! — victory hops, then everyone
-              // regroups and the scorer kicks off from the center spot. They're
+              // into the book-goal mouth = GOOOOAL! — victory hops, then the
+              // nearest kid runs to the ball in the net and kicks it a small
+              // distance toward the other goal (the kickoff). They're
               // KIDS with endless energy: they NEVER stop and never sidestep a
               // bottle, can or sidewalk tree — they run right through; other NPCs
               // route around them (AVOID_TYPES.soccer).
@@ -16694,25 +16696,31 @@
               if (T.celebrateT > 0) {
                 // GOOOOAL! — the kids hop in place where they are (NO post-goal
                 // teleports: snapping 3 kids + the ball to the center every goal
-                // read as "they disappeared"). When the hops end, the ball
-                // restarts at the center spot (the kickoff) and the NEAREST kid
-                // jogs over, picks it up and puts it back in play.
+                // read as "they disappeared"). The ball STAYS in the net — when
+                // the hops end, the NEAREST kid runs to it, picks it up and kicks
+                // it a small distance toward the OTHER goal (the kickoff: the ball
+                // is put back in play by a KID'S KICK, it never kicks itself).
                 T.celebrateT -= dt;
                 if (T.celebrateT <= 0) {
                   T.scorer = T.scorer || T.kids[1];
                   T.owner = null;
                   T.receiver = null;
                   T.grabCd = 0.4;
-                  B.wx = T.midX;
-                  B.wy = 3.0; // center spot for the kickoff
-                  B.tx = T.midX;
-                  B.ty = 3.0;
-                  B.z = 0.2;
-                  B.vz = 1.4; // a little toss for the kickoff
+                  T.kickoffDir = B.wx >= T.midX ? -1 : 1; // toward the OTHER goal
+                  let nk = null,
+                    nd = 1e9;
+                  for (const k of T.kids) {
+                    const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                    if (d < nd) {
+                      nd = d;
+                      nk = k;
+                    }
+                  }
+                  T.receiver = nk; // the nearest kid RUNS to the ball in the net
                 }
               } else {
                 // --- GOAL? a ball into the mouth counts BEFORE anyone can re-grab it ---
-                if (!T.owner && B.z < 1.0 && inMouth(B.wx, B.wy)) {
+                if (!T.owner && !T.kickoffDir && B.z < 1.0 && inMouth(B.wx, B.wy)) {
                   const g =
                     Math.abs(B.wx - T.goalL.x) <= Math.abs(B.wx - T.goalR.x)
                       ? T.goalL
@@ -16763,7 +16771,11 @@
                     let tx,
                       ty,
                       vz = SOCCER_KICK_VZ;
-                    if (
+                    if (T.kickoffDir) {
+                      tx = o.wx + T.kickoffDir * R(3.0, 5.0); // KICKOFF: a small boot toward the OTHER goal (the ball goes back in play by a KID'S KICK)
+                      ty = o.wy;
+                      T.kickoffDir = 0; // kickoff done — normal play resumes
+                    } else if (
                       state === "play" &&
                       T.workerKickCd <= 0 &&
                       Math.hypot(p.wx - o.wx, p.wy - o.wy) < SOCCER_WORKER_RANGE
@@ -16860,7 +16872,7 @@
                 } else if (k === T.owner) {
                   // dribble at full pace, the ball rolling just ahead of him
                   k.wx += k.dir * k.sp * 1.15 * dt;
-                } else if (!T.owner && T.receiver === k && !inMouth(B.wx, B.wy)) {
+                } else if (!T.owner && T.receiver === k && (!inMouth(B.wx, B.wy) || T.kickoffDir)) {
                   // sprint the loose ball in x AND y — a kid chases it wherever it lies
                   k.dir = B.wx >= k.wx ? 1 : -1;
                   if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0)

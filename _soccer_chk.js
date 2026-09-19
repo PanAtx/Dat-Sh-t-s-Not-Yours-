@@ -145,7 +145,14 @@ check('only the LEADER simulates the team (the other 2 kids\' ticks no-op)', soc
 check('GOAL? ball into a book-goal mouth is checked BEFORE pickup (inMouth + z gate)', soccerCase.indexOf('inMouth(B.wx, B.wy)') >= 0 && soccerCase.indexOf('B.z < 1.0') >= 0 && soccerCase.indexOf('!T.owner') >= 0);
 check('a goal arms the celebration + score + scorer (lastKicker)', soccerCase.indexOf('T.celebrateT = SOCCER_CELEBRATE') >= 0 && soccerCase.indexOf('T.score = (T.score || 0) + 1;') >= 0 && soccerCase.indexOf('T.scorer = T.lastKicker') >= 0);
 check('the "GOOOOAL!" bubble is spoken by a kid', soccerCase.indexOf('Voice.say("GOOOOAL!"') >= 0 && soccerCase.indexOf('"kid"') >= 0);
-check('kickoff: the ball restarts at the center spot and the NEAREST kid jogs over to pick it up (NO kid teleports after a goal)', soccerCase.indexOf('B.wx = T.midX') >= 0 && soccerCase.indexOf('B.wy = 3.0') >= 0 && soccerCase.indexOf('T.owner = null') >= 0 && soccerCase.indexOf('T.midX + (i - 1) * 6') < 0);
+check('kickoff: the ball STAYS in the net — the nearest kid runs to it and kicks it a small distance toward the OTHER goal (the ball never kicks itself)',
+  soccerCase.indexOf('T.kickoffDir = B.wx >= T.midX ? -1 : 1') >= 0 &&
+  soccerCase.indexOf('o.wx + T.kickoffDir * R(3.0, 5.0)') >= 0 &&
+  soccerCase.indexOf('B.wx = T.midX') < 0 && soccerCase.indexOf('B.vz = 1.4') < 0);
+check('no double goal: a ball resting in the net during the kickoff restart does not re-score',
+  soccerCase.indexOf('!T.owner && !T.kickoffDir && B.z < 1.0 && inMouth(B.wx, B.wy))') >= 0);
+check('the receiver may SPRINT for a ball resting in the net (kickoff restart)',
+  soccerCase.indexOf('!inMouth(B.wx, B.wy) || T.kickoffDir') >= 0);
 check('loose-ball pickup: closest kid within SOCCER_PICKUP, ball low, grabCd respected', soccerCase.indexOf('SOCCER_PICKUP') >= 0 && soccerCase.indexOf('B.z < 0.8') >= 0 && soccerCase.indexOf('T.grabCd <= 0') >= 0);
 check('kick priority 1: the worker when he\'s close (SOCCER_WORKER_RANGE, target = p.wx/p.wy)', soccerCase.indexOf('SOCCER_WORKER_RANGE') >= 0 && soccerCase.indexOf('tx = p.wx') >= 0 && soccerCase.indexOf('ty = p.wy') >= 0);
 check('kick cooldown for worker-aimed kicks (no spam)', soccerCase.indexOf('SOCCER_WORKER_KICK_CD') >= 0 && soccerCase.indexOf('T.workerKickCd') >= 0);
@@ -171,7 +178,7 @@ function makeTeam() {
     kids: kids, leader: kids[0], ball: ball, ballG: ballG,
     minX: 90, maxX: 150, midX: 120,
     goalL: { x: 88.6, y: 3.0 }, goalR: { x: 151.4, y: 3.0 }, // book-goal mouths at the block ends
-    owner: kids[1], receiver: null, ownerKickT: 0.6, workerKickCd: 0, grabCd: 0,
+    owner: kids[1], receiver: null, ownerKickT: 0.6, workerKickCd: 0, grabCd: 0, kickoffDir: 0,
     celebrateT: 0, score: 0, lastKicker: null, scorer: null,
   };
 }
@@ -296,12 +303,21 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
   check('G: the ball drops into the mouth = GOOOOAL! (celebration armed, score +1, scorer = kicker)', scored && T.score === 1 && T.scorer === o, 'score=' + T.score + ' scorerIdx=' + (T.scorer ? T.kids.indexOf(T.scorer) : -1) + ' kickerIdx=' + T.kids.indexOf(o));
   check('G: the ball rests in the "net" (at the goal mouth)', scored && T.ball.wx === T.goalR.x && T.ball.wy === T.goalR.y, 'ball=(' + T.ball.wx + ',' + T.ball.wy + ') goal=(' + T.goalR.x + ',' + T.goalR.y + ')');
   check('G: the "GOOOOAL!" bubble is spoken by a kid', voiceCalls.some(l => l.text === 'GOOOOAL!' && l.speaker === 'kid'), JSON.stringify(voiceCalls.slice(0, 3)));
-  let restarted = false;
-  for (let t = 0; t < 600 && !restarted; t++) {
+  let picked = false, selfMoved = false, kicked = false;
+  for (let t = 0; t < 600 && !kicked; t++) {
+    const bx = T.ball.wx; // position before this step
     step(p);
-    if (T.celebrateT <= 0 && T.owner !== null) restarted = true;
+    if (!picked) {
+      if (T.owner === null && Math.abs(T.ball.wx - bx) > 0.001) selfMoved = true; // the ball moved while LOOSE (no owner) = it kicked itself (the old center-spot teleport)
+      if (T.owner !== null) picked = true; // a kid reached it (any ball motion on that frame is the owner's dribble)
+    } else if (T.owner === null && Math.abs(T.ball.wx - T.goalR.x) > 0.5) {
+      kicked = true; // the ball left the net BY A KID'S KICK
+    }
   }
-  check('G: after the hops the ball is restarted at the center spot and a kid JOGS over to pick it up (no teleports)', restarted && T.ball.tx === T.midX && T.ball.ty === 3.0 && T.owner !== null, 'tx=' + T.ball.tx + ' owner=' + (T.owner ? T.kids.indexOf(T.owner) : -1));
+  check('G: after the hops the ball STAYS in the net — it never kicks itself / teleports to the center spot', !selfMoved, 'ball=' + T.ball.wx.toFixed(2));
+  check('G: a kid RUNS to the ball and KICKS it a small distance toward the OTHER goal (kickoffDir cleared)',
+    kicked && picked && T.kickoffDir === 0 && T.ball.tx < T.goalR.x - 1 && T.ball.tx > T.goalR.x - 6,
+    'tx=' + T.ball.wx.toFixed(2) + ' target=' + T.ball.tx.toFixed(2) + ' kickoffDir=' + T.kickoffDir);
 })();
 // scenario E: kids NEVER stop and plow straight through sidewalk junk
 (function () {
