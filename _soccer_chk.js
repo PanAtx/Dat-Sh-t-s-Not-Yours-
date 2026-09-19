@@ -1,6 +1,6 @@
-// _soccer_chk.js — verify the Flatbush SOCCER TEAM feature (index.html). 3 small
-// kids in DIFFERENT shirts on ONE garbage block's NEAR SIDEWALK (wy 1.6..4.2,
-// never on the asphalt) really PLAY soccer with ONE shared ball:
+// _soccer_chk.js — verify the Flatbush SOCCER TEAMS feature (index.html). 3 small
+// kids in DIFFERENT shirts on EVERY block's NEAR SIDEWALK (wy 1.6..4.2, never on
+// the asphalt) really PLAY soccer with ONE shared ball per team:
 //   1) wiring: constants, the addCreature case (distinct shirts, no boxW), the
 //      REAL ball (12 pentagons at icosahedron vertices — not a dalmatian), the
 //      team spawn (3 kids, 1 ball on the leader, chalk field + book-goal mouths),
@@ -59,8 +59,8 @@ check('goal-play constants exist (shot range 12 / roll speed 8 / shot lob 4.4 / 
   src.indexOf('const SOCCER_SHOT_RANGE = 12;') >= 0 && src.indexOf('const SOCCER_ROLL_SP = 8;') >= 0 && src.indexOf('const SOCCER_SHOT_VZ = 4.4;') >= 0 &&
   src.indexOf('const SOCCER_PASS_MIN = 6;') >= 0 && src.indexOf('const SOCCER_GOAL_R = 1.1;') >= 0 &&
   src.indexOf('const SOCCER_GOAL_YR = 1.2;') >= 0 && src.indexOf('const SOCCER_CELEBRATE = 1.6;') >= 0);
-check('shared-team state is declared (soccerShirtQueue + soccerTeam)',
-  src.indexOf('let soccerShirtQueue = []') >= 0 && src.indexOf('let soccerTeam = null') >= 0);
+check('team state is declared (soccerShirtQueue + soccerTeams)',
+  src.indexOf('let soccerShirtQueue = []') >= 0 && src.indexOf('let soccerTeams = []') >= 0);
 check('the old single-kick constant is gone (no SOCCER_KICK_AHEAD left)', src.indexOf('SOCCER_KICK_AHEAD') < 0);
 
 console.log('[2] wiring: models, team spawn, chalk field, avoidance, write-ups');
@@ -99,9 +99,9 @@ check('pentagons + sphere live in a CORE group centered on the ball centre (expo
 check('the roll spins the CORE (the ball centre), NOT the outer contact-point group (orbiting it dips the ball into the sidewalk)',
   src.indexOf('T.ballG.userData.core.rotation.y +=') >= 0 && src.indexOf('T.ballG.rotation.y +=') < 0);
 check('the old 6-patch dalmatian is gone', ballFn.indexOf('BX(0.08, 0.08, 0.03, patchM)') < 0);
-// spawn: Flatbush only, ONE garbage block, 3 distinct shirts, chalk field
+// spawn: Flatbush only, EVERY block gets a team, 3 distinct shirts, chalk field
 const spawnSrc = (function () {
-  const i = src.indexOf('Flatbush soccer team: THREE small kids');
+  const i = src.indexOf('Flatbush soccer TEAMS: THREE small kids');
   if (i < 0) return '';
   let j = src.indexOf('if (isFlatbushLevel()) {', i);
   let k = src.indexOf('{', j), d = 0;
@@ -109,12 +109,12 @@ const spawnSrc = (function () {
   return src.slice(i, k + 1);
 })();
 check('soccer spawn is Flatbush-only (isFlatbushLevel gate)', spawnSrc.indexOf('if (isFlatbushLevel()) {') >= 0);
-check('the team plays on ONE garbage block (not 3 blocks anymore)', spawnSrc.indexOf('LEVEL_BLOCKS.filter(b => b.garbage)') >= 0 && spawnSrc.indexOf('soccerBlocks[(Math.random() * soccerBlocks.length) | 0]') >= 0);
-check('3 kids get 3 DISTINCT shirt colors (the team look)', spawnSrc.indexOf('sShirts.length < 3') >= 0 && spawnSrc.indexOf('sShirts.indexOf(sCol) < 0') >= 0 && spawnSrc.indexOf('soccerShirtQueue = sShirts.slice()') >= 0);
+check('EVERY block of the level gets its own team (one trio per block, old single-block pick is gone)', spawnSrc.indexOf('for (const sb of LEVEL_BLOCKS) {') >= 0 && spawnSrc.indexOf('LEVEL_BLOCKS.filter(b => b.garbage)') < 0);
+check('3 kids get 3 DISTINCT shirt colors (the team look)', spawnSrc.indexOf('sShirts.length < 3') >= 0 && spawnSrc.indexOf('sShirts.indexOf(sCol) < 0') >= 0 && spawnSrc.indexOf('soccerShirtQueue = soccerShirtQueue.concat(sShirts)') >= 0);
 check('3 kids are spread along the block on the NEAR SIDEWALK (wy 1.6..4.2)', spawnSrc.indexOf('sMinX + ((sMaxX - sMinX) * (si + 0.5)) / 3') >= 0 && spawnSrc.indexOf('sk.wy = R(1.6, 4.2)') >= 0);
 check('the team patrols the WHOLE block (minX/maxX = block edge ± SOCCER_MARGIN)', spawnSrc.indexOf('sMinX = sb.x + SOCCER_MARGIN') >= 0 && spawnSrc.indexOf('sMaxX = sb.x + BLOCK_W - SOCCER_MARGIN') >= 0);
 check('ONE shared ball: the leader carries c.ball/c.ballG, added to the world ONCE', spawnSrc.indexOf('sLeader.ball = sBall') >= 0 && spawnSrc.indexOf('sLeader.ballG = sBallG') >= 0 && spawnSrc.indexOf('dynamicGroup.add(sBallG)') >= 0);
-check('soccerTeam is built (kids/leader/ball/owner/receiver + cooldowns)', spawnSrc.indexOf('soccerTeam = {') >= 0 && spawnSrc.indexOf('owner: sKids[1]') >= 0 && spawnSrc.indexOf('receiver: null') >= 0 && spawnSrc.indexOf('workerKickCd: 0') >= 0);
+check('each team is built (kids/leader/ball/owner/receiver + cooldowns), kids know their team, and it is pushed to soccerTeams', spawnSrc.indexOf('const sTeam = {') >= 0 && spawnSrc.indexOf('owner: sKids[1]') >= 0 && spawnSrc.indexOf('receiver: null') >= 0 && spawnSrc.indexOf('workerKickCd: 0') >= 0 && spawnSrc.indexOf('sk.team = sTeam') >= 0 && spawnSrc.indexOf('soccerTeams.push(sTeam)') >= 0);
 check('the team state knows BOTH book-goal mouths (goalL/goalR just past the patrol ends)',
   spawnSrc.indexOf('goalL: { x: sMinX - 1.4, y: 3.0 }') >= 0 && spawnSrc.indexOf('goalR: { x: sMaxX + 1.4, y: 3.0 }') >= 0);
 check('celebration state is declared (celebrateT / score / lastKicker / scorer)',
@@ -160,7 +160,7 @@ function extractCase() {
   return src.slice(start, i + 1);
 }
 const soccerCase = extractCase();
-check('only the LEADER simulates the team (the other 2 kids\' ticks no-op)', soccerCase.indexOf('soccerTeam.leader !== c') >= 0);
+check('only the LEADER simulates its team (the other 2 kids\' ticks no-op)', soccerCase.indexOf('c.team.leader !== c') >= 0);
 check('GOAL? ball into a book-goal mouth is checked BEFORE pickup (inMouth + z gate)', soccerCase.indexOf('inMouth(B.wx, B.wy)') >= 0 && soccerCase.indexOf('B.z < 1.0') >= 0 && soccerCase.indexOf('!T.owner') >= 0);
 check('a goal arms the celebration + score + scorer (lastKicker)', soccerCase.indexOf('T.celebrateT = SOCCER_CELEBRATE') >= 0 && soccerCase.indexOf('T.score = (T.score || 0) + 1;') >= 0 && soccerCase.indexOf('T.scorer = T.lastKicker') >= 0);
 check('the "GOOOOAL!" bubble is spoken by a kid', soccerCase.indexOf('Voice.say("GOOOOAL!"') >= 0 && soccerCase.indexOf('"kid"') >= 0);
@@ -197,13 +197,15 @@ function makeTeam() {
   const kids = [mkKid(100), mkKid(120), mkKid(140)];
   const ball = { wx: 120, wy: 3, z: 0, vz: 0, vx: 0, vy: 0, tx: 120, ty: 3 };
   const ballG = { position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } }, rotation: { z: 0 }, userData: { core: { rotation: { y: 0 } } } };
-  return {
+  const team = {
     kids: kids, leader: kids[0], ball: ball, ballG: ballG,
     minX: 90, maxX: 150, midX: 120,
     goalL: { x: 88.6, y: 3.0 }, goalR: { x: 151.4, y: 3.0 }, // book-goal mouths at the block ends
     owner: kids[1], receiver: null, ownerKickT: 0.6, workerKickCd: 0, grabCd: 0, kickoffDir: 0,
     celebrateT: 0, score: 0, lastKicker: null, scorer: null,
   };
+  for (const k of kids) k.team = team; // the case body simulates via c.team
+  return team;
 }
 const animParts = (c, dp) => { c.phase += dp; };
 const voiceCalls = [];
@@ -382,7 +384,7 @@ function extractIfBlock(openLine) {
 const ballBlock = extractIfBlock('if (c.type === "soccer" && c.ball) {');
 check('ball bonk: minor whack tagged "soccer" + stun', ballBlock.indexOf('hurtNPC(HP_HIT_SOCCERBALL, "soccer")') >= 0 && ballBlock.indexOf('doStun(0.5, "hit")') >= 0);
 check('ball bonk: worker "Hey dont do that!" (burst) + kid "GOAAAAL!"', ballBlock.indexOf('"Hey dont do that!"') >= 0 && ballBlock.indexOf('"GOAAAAL!"') >= 0);
-check('ball bonk: the worker DEFLECTS the ball loose (owner released, grabCd, new target + receiver)', ballBlock.indexOf('soccerTeam.owner = null') >= 0 && ballBlock.indexOf('soccerTeam.grabCd = 0.8') >= 0 && ballBlock.indexOf('defBall.tx = R(soccerTeam.minX + 2, soccerTeam.maxX - 2)') >= 0 && ballBlock.indexOf('soccerTeam.receiver =') >= 0);
+check('ball bonk: the worker DEFLECTS the ball loose (owner released, grabCd, new target + receiver)', ballBlock.indexOf('c.team.owner = null') >= 0 && ballBlock.indexOf('c.team.grabCd = 0.8') >= 0 && ballBlock.indexOf('defBall.tx = R(c.team.minX + 2, c.team.maxX - 2)') >= 0 && ballBlock.indexOf('c.team.receiver =') >= 0);
 check('ball bonk has a cooldown (no spam)', ballBlock.indexOf('c.ballCd = 2.5') >= 0 && ballBlock.indexOf('c.ballCd <= 0') >= 0);
 // (b) the kid contact
 const kidBlock = extractIfBlock('if (c.type === "soccer") {');
@@ -398,7 +400,7 @@ function makeRecorder() {
   const Voice = { say: (...a) => rec.lines.push({ text: a[0], speaker: a[6], style: a[7] }) };
   return { rec: rec, hurtNPC: hurtNPC, doStun: doStun, Voice: Voice };
 }
-const runBallBlock = new Function('c', 'p', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'clamp', 'workerMaxY', 'HP_HIT_SOCCERBALL', 'soccerTeam', 'R', ballBlock);
+const runBallBlock = new Function('c', 'p', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'clamp', 'workerMaxY', 'HP_HIT_SOCCERBALL', 'R', ballBlock);
 const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'pick', 'SOCKER_LINES', 'HP_HIT_SOCKER', 'clamp', 'workerMaxY', kidBlock);
 // scenario A: worker bonks the ball (kid 2.5u behind it — outside the kid's own radius)
 (function () {
@@ -408,15 +410,15 @@ const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun'
     owner: { wx: 3, wy: 3 }, grabCd: 0, minX: 5, maxX: 40,
     ball: B, kids: [{ wx: 3 }, { wx: 10 }, { wx: 20 }], receiver: null,
   };
-  const c = { type: 'soccer', wx: 2.5, wy: 3, gender: 'male', ballCd: 0, ball: B };
+  const c = { type: 'soccer', wx: 2.5, wy: 3, gender: 'male', ballCd: 0, ball: B, team: Tt };
   const pw = { wx: 0, wy: 3 };
-  runBallBlock(c, pw, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL, Tt, R);
+  runBallBlock(c, pw, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL, R);
   check('A: ball bonk deals the MINOR whack (2) tagged "soccer"', rec.hits.length === 1 && rec.hits[0].amt === 2 && rec.hits[0].cause === 'soccer', JSON.stringify(rec.hits));
   check('A: worker "Hey dont do that!" (burst) + kid "GOAAAAL!"', rec.lines.some(l => l.text === 'Hey dont do that!' && l.speaker === 'worker' && l.style === 'burst') && rec.lines.some(l => l.text === 'GOAAAAL!' && l.speaker === 'kid'), JSON.stringify(rec.lines));
   check('A: worker bounces back off the ball', pw.wx < 0, 'p.wx=' + pw.wx.toFixed(3));
   check('A: the bonk DEFLECTS the ball — owner released, receiver assigned, target on the sidewalk band', Tt.owner === null && Tt.grabCd === 0.8 && Tt.receiver !== null && B.tx >= 5 && B.tx <= 40 && B.ty >= 1.6 && B.ty <= 4.2 && B.vz >= 1.8, 'tx=' + B.tx + ' ty=' + B.ty + ' vz=' + B.vz + ' recIdx=' + Tt.kids.indexOf(Tt.receiver));
   rec.hits.length = 0;
-  runBallBlock(c, pw, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL, Tt, R);
+  runBallBlock(c, pw, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL, R);
   check('A: ball bonk cooldown blocks an instant second whack', rec.hits.length === 0, JSON.stringify(rec.hits));
 })();
 // scenario B: worker touches the kid (ball far away)

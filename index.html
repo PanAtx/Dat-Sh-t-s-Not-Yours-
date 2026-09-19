@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.123</div>
+          <div id="app-version" class="menu-version">v1.0.124</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.123';
+      const APP_VERSION = '1.0.124';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4890,7 +4890,9 @@
           //    Measured from truck.fbx: street-height body reach ≈ 2.25 (outer box ≈ 2.93).
           let tMaxX = 0,
             tMinX = 0,
-            tStreet = 0;
+            tStreet = 0,
+            tTop = 0,
+            tUpperHalf = 0;
           const _v = new THREE.Vector3();
           g.traverse((o) => {
             if (!o.isMesh || !o.geometry || !o.geometry.attributes.position)
@@ -4900,9 +4902,13 @@
               _v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
               if (_v.x > tMaxX) tMaxX = _v.x;
               if (_v.x < tMinX) tMinX = _v.x;
+              if (_v.z > tTop) tTop = _v.z;
               if (_v.z < 1.6) {
                 const ay = Math.abs(_v.y);
                 if (ay > tStreet) tStreet = ay;
+              } else if (_v.z > 1.2) {
+                const uy = Math.abs(_v.y);
+                if (uy > tUpperHalf) tUpperHalf = uy;
               }
             }
           });
@@ -4913,6 +4919,49 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
+          // === rear hazard lights (the three amber circles above the hopper) ===
+          // The truck's texture paints three orange hazard circles on the rear.
+          // Overlay three real glowing lenses on them and blink the classic
+          // DSNY pattern: 1s both outer lights, 1s the middle light, 1s all
+          // dark — then repeat forever (driven in updateTruck via hazLights).
+          const hazX = tMinX - 0.05; // just off the rear face (-X is the back)
+          const hazZ = tTop - 0.3; // up top, above the hopper
+          const hazY = Math.min(0.9, Math.max(0.5, (tUpperHalf || 2.2) - 0.3));
+          const hazLights = [];
+          for (const hy of [-hazY, 0, hazY]) {
+            const coreMat = new THREE.MeshLambertMaterial({
+              color: 0xff8c1e,
+              emissive: 0xff6a00,
+              emissiveIntensity: 0,
+            });
+            const core = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.15, 0.15, 0.07, 18),
+              coreMat,
+            );
+            core.rotation.z = Math.PI / 2; // lens axis along the truck's X
+            core.position.set(hazX, hy, hazZ);
+            g.add(core);
+            const haloMat = new THREE.MeshBasicMaterial({
+              color: 0xff9a3d,
+              transparent: true,
+              opacity: 0,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            });
+            const halo = new THREE.Mesh(
+              new THREE.CircleGeometry(0.34, 20),
+              haloMat,
+            );
+            halo.rotation.y = -Math.PI / 2; // face the rear (-X)
+            halo.position.set(hazX - 0.02, hy, hazZ);
+            g.add(halo);
+            hazLights.push({
+              coreMat: coreMat,
+              haloMat: haloMat,
+              halo: halo,
+              phase: hy === 0 ? "mid" : "side",
+            });
+          }
           worldGroup.add(g);
           return {
             g: g,
@@ -4922,6 +4971,7 @@
             hopperOff: hopperOff,
             hopperY: hopperY,
             hopperZ: hopperZ,
+            hazLights: hazLights,
             cabOff: boxL + 1.6,
             wx: -28,
             hidden: 0,
@@ -12408,8 +12458,8 @@
             dt.g.rotation.z = -Math.PI / 2; // parked, nose toward the street (-Y)
           }
         }
-        // Flatbush soccer team: THREE small kids in DIFFERENT colored shirts on the
-        // NEAR SIDEWALK of ONE garbage block, really playing soccer on the chalk
+        // Flatbush soccer TEAMS: THREE small kids in DIFFERENT colored shirts on
+        // the NEAR SIDEWALK of EVERY block, really playing soccer on the chalk
         // field — the owner dribbles and SHOOTS at the book goal he's running
         // toward (goal-to-goal), passes to the most-advanced mate, and (when the
         // worker is close) boots the ball right at him. The nearest mate sprints
@@ -12418,13 +12468,12 @@
         // A MAJOR problem for the worker. Set up before the level starts; they
         // NEVER stop and they do NOT sidestep a bottle, can or sidewalk tree —
         // they run right through (no npcRoadRules, no walk-around, no off-screen
-        // recycling), and other NPCs route around them (AVOID_TYPES.soccer). The
-        // LEADER kid carries the shared ball (c.ball/c.ballG); see case "soccer"
-        // in updateCreatures.
+        // recycling), and other NPCs route around them (AVOID_TYPES.soccer). Each
+        // team's LEADER kid carries that team's shared ball (c.ball/c.ballG); see
+        // case "soccer" in updateCreatures (the leader simulates its whole team
+        // via c.team).
         if (isFlatbushLevel()) {
-          const soccerBlocks = LEVEL_BLOCKS.filter(b => b.garbage);
-          if (soccerBlocks.length) {
-            const sb = soccerBlocks[(Math.random() * soccerBlocks.length) | 0];
+          for (const sb of LEVEL_BLOCKS) {
             const sMinX = sb.x + SOCCER_MARGIN; // patrol the WHOLE block, edge to edge
             const sMaxX = sb.x + BLOCK_W - SOCCER_MARGIN;
             // three DISTINCT shirt colors — they're a little TEAM
@@ -12433,7 +12482,7 @@
               const sCol = pick(SHIRTS);
               if (sShirts.indexOf(sCol) < 0) sShirts.push(sCol);
             }
-            soccerShirtQueue = sShirts.slice(); // addCreature's "soccer" case consumes one per kid
+            soccerShirtQueue = soccerShirtQueue.concat(sShirts); // addCreature's "soccer" case consumes one per kid
             const sKids = [];
             for (let si = 0; si < 3; si++) {
               const sk = addCreature("soccer");
@@ -12466,7 +12515,7 @@
             sLeader.ball = sBall;
             sLeader.ballG = sBallG;
             dynamicGroup.add(sBallG); // the shared ball is a world object — added ONCE
-            soccerTeam = {
+            const sTeam = {
               kids: sKids,
               leader: sLeader,
               ball: sBall,
@@ -12487,6 +12536,8 @@
               scorer: null,
               kickoffDir: 0, // 0 = no kickoff pending; ±1 = the direction the next pickup must kick (a small boot toward the OTHER goal)
             };
+            for (const sk of sKids) sk.team = sTeam; // each kid knows its own team (the leader's tick simulates via c.team)
+            soccerTeams.push(sTeam);
             // the chalk field on their block: a center circle + center line + a little
             // goal of stacked books at each end (pure sidewalk decor)
             const sChalk = new THREE.MeshLambertMaterial({
@@ -12496,13 +12547,21 @@
             });
             const sCircle = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 40), sChalk);
             sCircle.rotation.x = -Math.PI / 2;
-            sCircle.position.set(soccerTeam.midX, 2.9, 0.33);
+            sCircle.position.set(sTeam.midX, 2.9, 0.33);
             groundGroup.add(sCircle);
             const sLine = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 0.02), sChalk);
-            sLine.position.set(soccerTeam.midX, 2.9, 0.32);
+            sLine.position.set(sTeam.midX, 2.9, 0.32);
             groundGroup.add(sLine);
             const sBookCols = [0xb3392e, 0x2e5f8a, 0xc9972e, 0x3e7d3a];
-            for (const sGx of [soccerTeam.minX - 1.4, soccerTeam.maxX + 1.4]) {
+            // per-book x/y stagger: no two books in a stack share a side face, so the
+            // goal's colored boxes never z-fight (same rule as the worker's belt fix)
+            const sStagger = [
+              [0, 0],
+              [0.035, 0.045],
+              [-0.03, -0.04],
+              [0.05, -0.02],
+            ];
+            for (const sGx of [sTeam.minX - 1.4, sTeam.maxX + 1.4]) {
               for (const sGy of [1.9, 4.1]) {
                 let sBz = 0.3;
                 for (let sBi = 0; sBi < 4; sBi++) {
@@ -12512,7 +12571,7 @@
                       color: sBookCols[(sBi + (sGy > 3 ? 2 : 0)) % 4],
                     }),
                   );
-                  sBook.position.set(sGx + R(-0.12, 0.12), sGy, sBz + 0.08);
+                  sBook.position.set(sGx + sStagger[sBi][0], sGy + sStagger[sBi][1], sBz + 0.08);
                   sBook.castShadow = true;
                   sBz += 0.16;
                   groundGroup.add(sBook);
@@ -13657,8 +13716,8 @@
       const SOCCER_CELEBRATE = 1.6; // seconds of victory hops after a goal, before the kickoff
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
-      let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors (one per kid)
-      let soccerTeam = null; // the shared team: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
+      let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
+      let soccerTeams = []; // one team per Flatbush block: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
       // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
@@ -14926,16 +14985,15 @@
                 );
                 // the worker's bonk DEFLECTS the ball — it goes loose and a
                 // DIFFERENT kid sprints to get it back
-                if (soccerTeam) {
-                  soccerTeam.owner = null;
-                  soccerTeam.grabCd = 0.8;
-                  const defBall = soccerTeam.ball;
+                if (c.team) {
+                  c.team.owner = null;
+                  c.team.grabCd = 0.8;
+                  const defBall = c.team.ball;
                   defBall.z = Math.max(defBall.z, 0.2);
                   defBall.vz = Math.max(defBall.vz, 1.8);
-                  defBall.tx = R(soccerTeam.minX + 2, soccerTeam.maxX - 2);
+                  defBall.tx = R(c.team.minX + 2, c.team.maxX - 2);
                   defBall.ty = R(1.6, 4.2);
-                  soccerTeam.receiver =
-                    soccerTeam.kids[(Math.random() * 3) | 0];
+                  c.team.receiver = c.team.kids[(Math.random() * 3) | 0];
                 }
               }
               // solid: the worker bounces back off the ball
@@ -15653,6 +15711,21 @@
         truck.g.visible = true;
         // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
         truck.g.position.set(truck.wx, -4.5, GZ);
+        // The rear hazard lights blink in the DSNY pattern: 1s BOTH outer
+        // lights, 1s the MIDDLE light, 1s all dark — then repeat forever.
+        // The glow is an emissive core + additive halo (built in buildTruck).
+        if (truck.hazLights) {
+          const hz = (performance.now() * 0.001) % 3;
+          const sideOn = hz < 1,
+            midOn = hz >= 1 && hz < 2;
+          for (let i = 0; i < truck.hazLights.length; i++) {
+            const L = truck.hazLights[i];
+            const on = L.phase === "mid" ? midOn : sideOn;
+            L.coreMat.emissiveIntensity = on ? 1.7 : 0;
+            L.haloMat.opacity = on ? 0.8 : 0;
+            L.halo.visible = on;
+          }
+        }
         if (truck.bladePush) truck.bladePush(0);
         // Hopper trash pile follows the truck and runs its shrink/fade cycle.
         updateHopperTrash(dt);
@@ -16703,8 +16776,8 @@
               // KIDS with endless energy: they NEVER stop and never sidestep a
               // bottle, can or sidewalk tree — they run right through; other NPCs
               // route around them (AVOID_TYPES.soccer).
-              if (!soccerTeam || soccerTeam.leader !== c) break; // only the leader simulates
-              const T = soccerTeam,
+              if (!c.team || c.team.leader !== c) break; // only the leader simulates its own team
+              const T = c.team,
                 B = T.ball;
               c.ballCd = Math.max(0, (c.ballCd || 0) - dt); // ball-bonk cooldown (the leader owns c.ball)
               T.grabCd = Math.max(0, T.grabCd - dt);
