@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.125</div>
+          <div id="app-version" class="menu-version">v1.0.126</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.125';
+      const APP_VERSION = '1.0.126';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4913,23 +4913,23 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
-          // === rear hazard lights (the three amber circles painted on the rear) ===
-          // Placed EXACTLY on the graphic: measured from the FBX's emissive texture
-          // mapped onto the rear face (see _measure_haz.js, `node _measure_haz.js circles`).
-          // The rear panel (face at x = -4.01, normal ≈ [-0.989, -0.133, 0.063]) paints a
-          // row of THREE orange circles (each Ø ≈ 0.19) across its top:
-          //   (y = -0.819, z = 4.012)  (y = -0.530, z = 3.995)  (y = -0.238, z = 3.978)
-          // Lenses sit 0.02 proud of the face so they never z-fight the texture, sized to
-          // the painted circles, and blink the classic DSNY pattern: 1s both outer lights,
-          // 1s the middle light, 1s all dark — then repeat forever (driven in updateTruck
-          // via hazLights).
-          const hazX = -4.03; // 0.02 off the painted rear face (x = -4.01)
-          const hazR = 0.085; // core lens radius (painted circles are Ø 0.19)
-          const hazHaloR = 0.14; // additive halo, a touch larger than the painted circle
+          // === rear hazard lights (the three circles painted on the rear) ===
+          // Placed EXACTLY on the graphic: measured by raycasting the FBX's emissive
+          // texture on the VISIBLE outer rear face (see _measure_haz.js,
+          // `node _measure_haz.js circles` + `sample`). The top strip of the rear panel
+          // paints, left to right: a big orange circle, a medium orange circle, a white
+          // circle, then two reds. The three hazard lenses cover the left trio, each
+          // sitting 0.02 proud of the (slightly curved) local surface so they are visible
+          // and never z-fight the texture, sized to the painted circles, and blink the
+          // classic DSNY pattern: 1s both outer lights, 1s the middle light, 1s all dark
+          // — then repeat forever (driven in updateTruck via hazLights).
+          //   big orange:  (y=-0.799, z=4.004) Ø0.164, surface x=-3.92
+          //   med orange:  (y=-0.477, z=3.973) Ø0.116, surface x=-3.966
+          //   white circle:(y=0.091, z=4.047)  Ø0.119, surface x=-4.014
           const hazSpots = [
-            { y: -0.819, z: 4.012, phase: 'side' },
-            { y: -0.53, z: 3.995, phase: 'mid' },
-            { y: -0.238, z: 3.978, phase: 'side' },
+            { x: -3.94, y: -0.799, z: 4.004, r: 0.078, haloR: 0.11, phase: 'side' },
+            { x: -3.986, y: -0.477, z: 3.973, r: 0.054, haloR: 0.078, phase: 'mid' },
+            { x: -4.034, y: 0.091, z: 4.047, r: 0.055, haloR: 0.08, phase: 'side' },
           ];
           const hazLights = [];
           for (const s of hazSpots) {
@@ -4938,9 +4938,9 @@
               emissive: 0xff6a00,
               emissiveIntensity: 0,
             });
-            const core = new THREE.Mesh(new THREE.CylinderGeometry(hazR, hazR, 0.05, 18), coreMat);
+            const core = new THREE.Mesh(new THREE.CylinderGeometry(s.r, s.r, 0.05, 18), coreMat);
             core.rotation.z = Math.PI / 2; // lens axis along the truck's X
-            core.position.set(hazX, s.y, s.z);
+            core.position.set(s.x, s.y, s.z);
             g.add(core);
             const haloMat = new THREE.MeshBasicMaterial({
               color: 0xff9a3d,
@@ -4949,9 +4949,9 @@
               blending: THREE.AdditiveBlending,
               depthWrite: false,
             });
-            const halo = new THREE.Mesh(new THREE.CircleGeometry(hazHaloR, 20), haloMat);
+            const halo = new THREE.Mesh(new THREE.CircleGeometry(s.haloR, 20), haloMat);
             halo.rotation.y = -Math.PI / 2; // face the rear (-X)
-            halo.position.set(hazX - 0.02, s.y, s.z);
+            halo.position.set(s.x - 0.02, s.y, s.z);
             g.add(halo);
             hazLights.push({ coreMat: coreMat, haloMat: haloMat, halo: halo, phase: s.phase });
           }
