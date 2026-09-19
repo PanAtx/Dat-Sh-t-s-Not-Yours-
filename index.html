@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.115</div>
+          <div id="app-version" class="menu-version">v1.0.117</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.115';
+      const APP_VERSION = '1.0.117';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9149,29 +9149,50 @@
       }
       // Flatbush soccer kid: a SMALL kid — a makePerson scaled to 60% (the ball
       // keeps full street scale, so the kid reads as a child chasing a ball).
-      function makeSoccerKid() {
+      // Each team kid gets a DISTINCT shirt color (spawnWorld queues them via
+      // soccerShirtQueue) so the trio reads as little teammates.
+      function makeSoccerKid(shirt) {
         const kp = makePerson({
-          shirt: pick(SHIRTS),
+          shirt: shirt || pick(SHIRTS),
           pants: pick(PANTS),
           hair: pick(HAIRS),
         });
         kp.g.scale.set(0.6, 0.6, 0.6); // kid-sized
         return kp;
       }
-      // A little white soccer ball with dark patches, resting radius 0.22
-      // (centre at 0.22 above the ground so it sits ON the sidewalk).
+      // A little REAL soccer ball, resting radius 0.22 (centre at 0.22 above the
+      // ground so it sits ON the sidewalk). Classic pattern: a white sphere with
+      // 12 black pentagons, one at each vertex of an icosahedron.
       function makeSoccerBall() {
         const g = new THREE.Group();
-        const ball = SPH(0.22, M(0xf5f5f0));
-        ball.position.z = 0.22;
+        const R = 0.22;
+        const ball = SPH(R, M(0xf5f5f0));
+        ball.position.z = R;
         ball.castShadow = true;
         g.add(ball);
+        const PHI = (1 + Math.sqrt(5)) / 2;
+        const verts = [
+          [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0],
+          [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
+          [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1],
+        ];
         const patchM = M(0x1c1e24);
-        for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * Math.PI * 2 + 0.4;
-          const patch = BX(0.08, 0.08, 0.03, patchM);
-          patch.position.set(Math.cos(a) * 0.18, Math.sin(a) * 0.18, 0.23);
-          g.add(patch);
+        const shape = new THREE.Shape();
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+          const px = Math.cos(a) * 0.09,
+            py = Math.sin(a) * 0.09;
+          if (i === 0) shape.moveTo(px, py);
+          else shape.lineTo(px, py);
+        }
+        shape.closePath();
+        const pentGeo = new THREE.ShapeGeometry(shape);
+        for (const v of verts) {
+          const dir = new THREE.Vector3(v[0], v[1], v[2]).normalize();
+          const pent = new THREE.Mesh(pentGeo, patchM);
+          pent.position.copy(dir.clone().multiplyScalar(R * 0.99));
+          pent.lookAt(dir.clone().multiplyScalar(R * 2));
+          g.add(pent);
         }
         return g;
       }
@@ -11522,15 +11543,21 @@
             c.data = makeTricycle();
             break;
           case "soccer":
-            // Flatbush street-soccer kid: a small chaser with a soccer ball (see the
-            // case "soccer" body in updateCreatures + the Flatbush spawn in spawnWorld).
-            // No boxW — the kid is NOT a vehicle: traffic, separation and truck-collision
-            // all skip it, and it ignores obstacles in its own path.
+            // Flatbush soccer TEAM kid (see the team spawn in spawnWorld + the
+            // case "soccer" body in updateCreatures): one of 3 small kids sharing
+            // ONE ball on one block. No boxW — the kid is NOT a vehicle: traffic,
+            // separation and truck-collision all skip it, and it ignores obstacles
+            // in its own path (the crowd routes around it, AVOID_TYPES.soccer).
+            // The ONE shared ball is attached by the spawner onto the LEADER kid
+            // (c.ball/c.ballG), so it's added to the world exactly once.
             c.sp = R(3.4, 4.4); // a kid's running pace (faster than a walk, not a pro)
             c.dir = 1;
-            c.data = makeSoccerKid();
-            c.ball = { wx: 0, wy: 0, z: 0, vz: 0 }; // world-space ball state (case "soccer" owns it)
-            c.ballG = makeSoccerBall(); // the ball mesh (added to the world in the common tail)
+            {
+              const soccerShirt = soccerShirtQueue.length
+                ? soccerShirtQueue.shift()
+                : null;
+              c.data = makeSoccerKid(soccerShirt); // distinct shirt per kid (the team look)
+            }
             break;
           case "dogwalker":
             c.wy = R(1.0, creatureMaxY());
@@ -11747,7 +11774,7 @@
         c.g.position.set(c.wx, c.wy, GZ);
         dynamicGroup.add(c.g);
         if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
-        if (c.ballG) dynamicGroup.add(c.ballG); // the soccer ball is a world object (the chaser's group is c.g)
+        if (c.ballG) dynamicGroup.add(c.ballG); // a creature's own ball mesh (the soccer team's shared ball is added by its spawner)
         creatures.push(c);
         return c; // callers (e.g. the pigeon-flock spawner) reposition the creature right after
       }
@@ -12354,39 +12381,103 @@
             dt.g.rotation.z = -Math.PI / 2; // parked, nose toward the street (-Y)
           }
         }
-        // Flatbush soccer kids: THREE small kids on the NEAR SIDEWALK, each chasing
-        // a soccer ball up and down their block — set up before the level starts, one
-        // kid per randomly picked IN-ROUTE block (blocks 2-7, the garbage blocks). The
-        // kid runs the WHOLE block back and forth on the sidewalk/front-lawn side
-        // (NEVER on the asphalt — that's the worker's street), does NOT care about
-        // obstacles in its way (no npcRoadRules, no walk-around, no off-screen
-        // recycling), and other NPCs route around it (AVOID_TYPES.soccer). See case
-        // "soccer" in updateCreatures.
+        // Flatbush soccer team: THREE small kids in DIFFERENT colored shirts on the
+        // NEAR SIDEWALK of ONE garbage block, playing with ONE shared ball up and down
+        // their block — they pass it to each other, kick it down the block for a
+        // DIFFERENT kid to run get and kick back, and (when the worker is close)
+        // kick it right at him / jog to block his path. A MAJOR problem for the
+        // worker. Set up before the level starts; they do NOT care about obstacles in
+        // their way (no npcRoadRules, no walk-around, no off-screen recycling), and
+        // other NPCs route around them (AVOID_TYPES.soccer). The LEADER kid carries
+        // the shared ball (c.ball/c.ballG); see case "soccer" in updateCreatures.
         if (isFlatbushLevel()) {
           const soccerBlocks = LEVEL_BLOCKS.filter(b => b.garbage);
-          const pickedBlocks = [];
-          let soccerTries = 0;
-          while (pickedBlocks.length < 3 && soccerTries < 64) {
-            soccerTries++; // pick 3 DISTINCT blocks (retry until we have them)
+          if (soccerBlocks.length) {
             const sb = soccerBlocks[(Math.random() * soccerBlocks.length) | 0];
-            if (pickedBlocks.indexOf(sb) < 0) pickedBlocks.push(sb);
-          }
-          for (let si = 0; si < pickedBlocks.length; si++) {
-            const sb = pickedBlocks[si];
-            const sk = addCreature("soccer");
-            sk.wx = sb.x + R(SOCCER_MARGIN + 4, BLOCK_W - SOCCER_MARGIN - 4);
-            sk.wy = R(1.6, 4.2); // on the NEAR SIDEWALK (band wy 0.5..5.0) — the sidewalk/front-lawn side, NEVER on the asphalt
-            sk.dir = Math.random() < 0.5 ? -1 : 1;
-            sk.minX = sb.x + SOCCER_MARGIN; // patrol the WHOLE block, edge to edge
-            sk.maxX = sb.x + BLOCK_W - SOCCER_MARGIN;
-            sk.kickT = R(0.4, 1.6); // stagger the first kick
-            sk.kickBoost = 0;
-            sk.kidCd = 0; // per-kid cooldowns for the worker's bump/ball exchanges
-            sk.ballCd = 0;
-            sk.ball.wx = sk.wx + sk.dir * SOCCER_LEAD; // the ball starts ahead of the kid
-            sk.ball.wy = sk.wy;
-            sk.ballG.position.set(sk.ball.wx, sk.ball.wy, GZ);
-            sk.g.rotation.z = sk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+            const sMinX = sb.x + SOCCER_MARGIN; // patrol the WHOLE block, edge to edge
+            const sMaxX = sb.x + BLOCK_W - SOCCER_MARGIN;
+            // three DISTINCT shirt colors — they're a little TEAM
+            const sShirts = [];
+            while (sShirts.length < 3) {
+              const sCol = pick(SHIRTS);
+              if (sShirts.indexOf(sCol) < 0) sShirts.push(sCol);
+            }
+            soccerShirtQueue = sShirts.slice(); // addCreature's "soccer" case consumes one per kid
+            const sKids = [];
+            for (let si = 0; si < 3; si++) {
+              const sk = addCreature("soccer");
+              sk.wx = sMinX + ((sMaxX - sMinX) * (si + 0.5)) / 3; // spread along the block
+              sk.wy = R(1.6, 4.2); // on the NEAR SIDEWALK (band wy 0.5..5.0) — the sidewalk/front-lawn side, NEVER on the asphalt
+              sk.dir = si % 2 ? -1 : 1; // mixed directions — they cross each other all the time
+              sk.minX = sMinX;
+              sk.maxX = sMaxX;
+              sk.kidCd = 0; // per-kid cooldowns for the worker's bump/ball exchanges
+              sk.ballCd = 0;
+              sk.g.rotation.z = sk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              sKids.push(sk);
+            }
+            // ONE shared ball — attached to the LEADER kid (so the ball-bonk branch
+            // and the ball's world-add happen exactly once)
+            const sBall = {
+              wx: (sMinX + sMaxX) / 2,
+              wy: 3.0,
+              z: 0,
+              vz: 0,
+              tx: (sMinX + sMaxX) / 2,
+              ty: 3.0,
+            };
+            const sBallG = makeSoccerBall();
+            sBallG.position.set(sBall.wx, sBall.wy, GZ);
+            const sLeader = sKids[0];
+            sLeader.ball = sBall;
+            sLeader.ballG = sBallG;
+            dynamicGroup.add(sBallG); // the shared ball is a world object — added ONCE
+            soccerTeam = {
+              kids: sKids,
+              leader: sLeader,
+              ball: sBall,
+              ballG: sBallG,
+              minX: sMinX,
+              maxX: sMaxX,
+              midX: (sMinX + sMaxX) / 2,
+              owner: sKids[1], // start with the middle kid in possession
+              receiver: null,
+              ownerKickT: R(0.8, 1.8), // stagger the first kick
+              workerKickCd: 0,
+              grabCd: 0,
+            };
+            // the chalk field on their block: a center circle + center line + a little
+            // goal of stacked books at each end (pure sidewalk decor)
+            const sChalk = new THREE.MeshLambertMaterial({
+              color: 0xf8f8f2,
+              transparent: true,
+              opacity: 0.45,
+            });
+            const sCircle = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 40), sChalk);
+            sCircle.rotation.x = -Math.PI / 2;
+            sCircle.position.set(soccerTeam.midX, 2.9, 0.33);
+            groundGroup.add(sCircle);
+            const sLine = new THREE.Mesh(new THREE.BoxGeometry(0.1, 3.2, 0.02), sChalk);
+            sLine.position.set(soccerTeam.midX, 2.9, 0.32);
+            groundGroup.add(sLine);
+            const sBookCols = [0xb3392e, 0x2e5f8a, 0xc9972e, 0x3e7d3a];
+            for (const sGx of [soccerTeam.minX - 1.4, soccerTeam.maxX + 1.4]) {
+              for (const sGy of [1.9, 4.1]) {
+                let sBz = 0.3;
+                for (let sBi = 0; sBi < 4; sBi++) {
+                  const sBook = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.55, 0.16, 0.4),
+                    new THREE.MeshLambertMaterial({
+                      color: sBookCols[(sBi + (sGy > 3 ? 2 : 0)) % 4],
+                    }),
+                  );
+                  sBook.position.set(sGx + R(-0.12, 0.12), sGy, sBz + 0.08);
+                  sBook.castShadow = true;
+                  sBz += 0.16;
+                  groundGroup.add(sBook);
+                }
+              }
+            }
           }
         }
 
@@ -13502,18 +13593,22 @@
       const DRIVETR_HIT_DIST = 1.3; // contact distance at which the tricycle bumps the worker
       const DRIVETR_HIT_CD = 1.6; // per-kid cooldown between bumps (keeps the hits from spamming)
       const DRIVETR_BACKOFF_T = 4.0; // seconds the kid backs off to its home spot after a bump before it can re-lunge
-      // ---- Flatbush soccer kids (small kids chasing a ball up and down the block) ----
+      // ---- Flatbush soccer team (3 small kids + ONE shared ball, up and down ONE block) ----
       const HP_HIT_SOCKER = 3; // a soccer kid's "MOMMY!" charge — a light bump (heavier than the stink, lighter than a driveway lunge)
-      const HP_HIT_SOCCERBALL = 2; // a soccer ball bonked out of the worker's path — a minor whack
+      const HP_HIT_SOCCERBALL = 2; // the ball bonking you / you bonking the ball — a minor whack
       const SOCKER_LINES = [
         "Don't touch me!",
         "Mommy!",
         "Bad man!",
       ]; // what a kid screams the moment the worker touches them
-      const SOCCER_LEAD = 1.3; // resting ball position: just ahead of the kid's running foot
-      const SOCCER_KICK_AHEAD = 3.4; // where a kick sends the ball (the kid chases it back down)
+      const SOCCER_LEAD = 1.3; // the ball ALWAYS rides this far AHEAD of the kid carrying it
+      const SOCCER_PICKUP = 1.3; // a loose ball this close to a kid gets picked up (new owner)
+      const SOCCER_WORKER_RANGE = 9; // this close, the kids kick it AT the worker / block his path
       const SOCCER_KICK_VZ = 3.2; // the lob on a kick — the ball bounces on the sidewalk
+      const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
+      let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors (one per kid)
+      let soccerTeam = null; // the shared team: { kids, leader, ball, ballG, minX, maxX, midX, owner, receiver, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
       // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
@@ -14779,6 +14874,19 @@
                   c.gender,
                   "kid",
                 );
+                // the worker's bonk DEFLECTS the ball — it goes loose and a
+                // DIFFERENT kid sprints to get it back
+                if (soccerTeam) {
+                  soccerTeam.owner = null;
+                  soccerTeam.grabCd = 0.8;
+                  const defBall = soccerTeam.ball;
+                  defBall.z = Math.max(defBall.z, 0.2);
+                  defBall.vz = Math.max(defBall.vz, 1.8);
+                  defBall.tx = R(soccerTeam.minX + 2, soccerTeam.maxX - 2);
+                  defBall.ty = R(1.6, 4.2);
+                  soccerTeam.receiver =
+                    soccerTeam.kids[(Math.random() * 3) | 0];
+                }
               }
               // solid: the worker bounces back off the ball
               const bd = Math.sqrt(b2) || 0.001;
@@ -16532,54 +16640,143 @@
               break;
             }
             case "soccer": {
-              // ===== Flatbush street-soccer kid =====
-              // A small kid runs up and down the WHOLE block, chasing and kicking a
-              // soccer ball. It does NOT care about obstacles in its way — no
-              // npcRoadRules, no walk-around, no off-screen recycling: a fixed fixture
-              // of its block (like the driveway tricycles). Other NPCs route around
-              // it via AVOID_TYPES.soccer.
-              c.kidCd = Math.max(0, (c.kidCd || 0) - dt);
-              c.ballCd = Math.max(0, (c.ballCd || 0) - dt);
-              // --- the kick: every few seconds the kid booms the ball ahead and chases it
-              c.kickT = (c.kickT || 0) - dt;
-              if (c.kickT <= 0) {
-                c.kickT = R(1.2, 2.6);
-                c.ball.wx = c.wx + c.dir * SOCCER_KICK_AHEAD; // the ball leaps ahead
-                c.ball.wy = c.wy;
-                c.ball.vz = SOCCER_KICK_VZ; // +z lob — it bounces on the sidewalk
-              }
-              // --- the ball: its own little physics (eases back to the kid + bounces)
-              {
-                const b = c.ball;
-                const leadX = c.wx + c.dir * SOCCER_LEAD;
-                const ease = Math.min(1, dt * 3.2); // the kid chases the ball back down
-                b.wx += (leadX - b.wx) * ease;
-                b.wy += (c.wy - b.wy) * ease;
-                b.vz -= 12 * dt; // gravity
-                b.z += b.vz * dt;
-                if (b.z <= 0 && b.vz < 0) {
-                  b.z = 0;
-                  b.vz = Math.abs(b.vz) * 0.55; // damped bounce on the sidewalk
-                  if (b.vz < 0.5) b.vz = 0; // settles
+              // ===== Flatbush soccer TEAM (3 kids + ONE shared ball on one block) =====
+              // The LEADER kid's tick simulates the WHOLE team (the other two kids'
+              // ticks break out early). The owner patrols the block with the ball
+              // ALWAYS in front of him; every few seconds he kicks it — to a
+              // teammate, long up the block for a DIFFERENT kid to run get and kick
+              // back, or right at the worker when he's close. The non-owner kids jog
+              // up and down the block (blocking the worker's path when he's near).
+              // They do NOT care about obstacles in their way — a fixed fixture of
+              // their block (like the driveway tricycles); other NPCs route around
+              // them via AVOID_TYPES.soccer.
+              if (!soccerTeam || soccerTeam.leader !== c) break; // only the leader simulates
+              const T = soccerTeam,
+                B = T.ball;
+              c.ballCd = Math.max(0, (c.ballCd || 0) - dt); // ball-bonk cooldown (the leader owns c.ball)
+              T.grabCd = Math.max(0, T.grabCd - dt);
+              T.workerKickCd = Math.max(0, T.workerKickCd - dt);
+              for (const k of T.kids) k.kidCd = Math.max(0, (k.kidCd || 0) - dt);
+              // --- pickup: the closest kid to a LOW loose ball takes the ball ---
+              if (!T.owner && T.grabCd <= 0 && B.z < 0.8) {
+                let best = null,
+                  bd = SOCCER_PICKUP;
+                for (const k of T.kids) {
+                  const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                  if (d < bd) {
+                    bd = d;
+                    best = k;
+                  }
                 }
-                c.ballG.position.set(b.wx, b.wy, GZ + b.z);
-                c.ballG.rotation.z -= c.dir * dt * 7; // the ball rolls (patch pattern spins)
+                if (best) {
+                  T.owner = best;
+                  T.ownerKickT = R(1.0, 2.2);
+                }
               }
-              // --- the run: full-block patrol, flip at the cross-street edges
-              c.wx += c.dir * c.sp * dt;
-              if (c.dir > 0 && c.wx >= c.maxX) {
-                c.wx = c.maxX;
-                c.dir = -1;
-              } else if (c.dir < 0 && c.wx <= c.minX) {
-                c.wx = c.minX;
-                c.dir = 1;
+              // --- the owner kicks (at the worker / to a mate / long up the block) ---
+              if (T.owner) {
+                T.ownerKickT = (T.ownerKickT || 1) - dt;
+                if (T.ownerKickT <= 0) {
+                  const o = T.owner;
+                  T.ownerKickT = R(1.6, 3.0);
+                  let tx, ty;
+                  if (
+                    state === "play" &&
+                    T.workerKickCd <= 0 &&
+                    Math.hypot(p.wx - o.wx, p.wy - o.wy) < SOCCER_WORKER_RANGE
+                  ) {
+                    tx = p.wx;
+                    ty = p.wy; // KICK THE BALL AT THE WORKER
+                    T.workerKickCd = SOCCER_WORKER_KICK_CD;
+                    o.dir = p.wx >= o.wx ? 1 : -1;
+                  } else {
+                    const mates = T.kids.filter((k) => k !== o);
+                    const mate = mates[(Math.random() * mates.length) | 0];
+                    if (Math.abs(mate.wx - o.wx) > 9) {
+                      tx = mate.wx;
+                      ty = o.wy; // pass to a teammate elsewhere on the block
+                    } else {
+                      tx = o.wx + o.dir * R(12, 24); // long kick up the block
+                      tx = tx < T.minX ? T.minX + 1 : tx > T.maxX ? T.maxX - 1 : tx;
+                      ty = o.wy;
+                    }
+                  }
+                  B.tx = tx;
+                  B.ty = ty;
+                  B.vz = SOCCER_KICK_VZ;
+                  B.z = Math.max(B.z, 0.15);
+                  T.owner = null;
+                  T.grabCd = 0.7; // a beat before anyone can re-grab it
+                  // a DIFFERENT kid sprints to get it (the mate nearest the target)
+                  let rec = null,
+                    rd = 1e9;
+                  for (const k of T.kids) {
+                    if (k === o) continue;
+                    const d = Math.hypot(B.tx - k.wx, B.ty - k.wy);
+                    if (d < rd) {
+                      rd = d;
+                      rec = k;
+                    }
+                  }
+                  T.receiver = rec;
+                }
               }
-              // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
-              animParts(c, c.sp * dt * 3.4);
-              if (c.parts && c.parts.upper)
-                c.parts.upper.position.z =
-                  0.62 + Math.abs(Math.sin(c.phase)) * 0.05;
-              if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              // --- the ball: ease to its target (or ahead of the owner) + hop ---
+              if (T.owner) {
+                const leadX = T.owner.wx + T.owner.dir * SOCCER_LEAD;
+                const ease = Math.min(1, dt * 4.5);
+                B.wx += (leadX - B.wx) * ease;
+                B.wy += (T.owner.wy - B.wy) * ease;
+              } else {
+                const ease = Math.min(1, dt * 2.6);
+                B.wx += (B.tx - B.wx) * ease;
+                B.wy += (B.ty - B.wy) * ease;
+              }
+              B.vz -= 12 * dt; // gravity
+              B.z += B.vz * dt;
+              if (B.z <= 0 && B.vz < 0) {
+                B.z = 0;
+                B.vz = Math.abs(B.vz) * 0.55; // damped bounce on the sidewalk
+                if (B.vz < 0.5) B.vz = 0; // settles
+              }
+              T.ballG.position.set(B.wx, B.wy, GZ + B.z);
+              T.ballG.rotation.z -=
+                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 7; // the ball rolls
+              // --- the kids: owner patrols, receiver sprints, the rest jog ---
+              for (const k of T.kids) {
+                let sp = k.sp;
+                if (k === T.owner) {
+                  k.wx += k.dir * sp * dt;
+                } else if (!T.owner && T.receiver === k) {
+                  k.dir = B.wx >= k.wx ? 1 : -1;
+                  if (Math.abs(B.wx - k.wx) > 1.4)
+                    k.wx += k.dir * sp * 1.25 * dt; // sprint to the loose ball
+                } else {
+                  if (
+                    state === "play" &&
+                    Math.hypot(p.wx - k.wx, p.wy - k.wy) < SOCCER_WORKER_RANGE
+                  )
+                    k.dir = p.wx >= k.wx ? 1 : -1; // block the worker's path
+                  k.wx += k.dir * sp * 0.85 * dt;
+                }
+                if (k.dir > 0 && k.wx >= T.maxX) {
+                  k.wx = T.maxX;
+                  k.dir = -1;
+                } else if (k.dir < 0 && k.wx <= T.minX) {
+                  k.wx = T.minX;
+                  k.dir = 1;
+                }
+                // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
+                animParts(k, sp * dt * 3.4);
+                if (k.parts && k.parts.upper)
+                  k.parts.upper.position.z =
+                    0.62 + Math.abs(Math.sin(k.phase)) * 0.05;
+                if (k.g) k.g.rotation.z = k.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              }
+              // the ball is ALWAYS in front of the kid carrying it — checked AFTER
+              // the kids moved, so even an edge flip snaps it ahead, never behind
+              if (T.owner && (B.wx - T.owner.wx) * T.owner.dir < 0.5)
+                B.wx = T.owner.wx + T.owner.dir * SOCCER_LEAD;
               break; // a fixed fixture: never recycles off-screen
             }
             case "tric": {
