@@ -38,12 +38,13 @@ const buildSrc = src.slice(src.indexOf('function buildTruck()'), src.indexOf('fu
 check('the hazard lights are built (hazLights array)', buildSrc.indexOf('const hazLights = []') >= 0);
 check('each light = emissive orange core lens + additive-blended halo (the glow)', buildSrc.indexOf('emissive: 0xff6a00') >= 0 && buildSrc.indexOf('THREE.AdditiveBlending') >= 0 && buildSrc.indexOf('new THREE.CircleGeometry(s.haloR, 20)') >= 0);
 check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: \'mid\'') >= 0 && (buildSrc.match(/phase: 'side'/g) || []).length === 2);
-// the measured circle centers on the VISIBLE outer rear face (from _measure_haz.js
-// `circles`/`sample`) must be the exact placement, each 0.02 proud of its local surface
-check('big orange lens sits on the painted circle (y=-0.799, z=4.004, surface x=-3.92)', buildSrc.indexOf('{ x: -3.94, y: -0.799, z: 4.004, r: 0.078, haloR: 0.11, phase: \'side\' }') >= 0);
-check('medium orange lens sits on the painted circle (y=-0.477, z=3.973, surface x=-3.966)', buildSrc.indexOf('{ x: -3.986, y: -0.477, z: 3.973, r: 0.054, haloR: 0.078, phase: \'mid\' }') >= 0);
-check('white circle lens sits on the painted circle (y=0.091, z=4.047, surface x=-4.014)', buildSrc.indexOf('{ x: -4.034, y: 0.091, z: 4.047, r: 0.055, haloR: 0.08, phase: \'side\' }') >= 0);
+// the measured circle centers (from _measure_haz.js `sample` probes) must be the exact
+// placement, each lens 0.05 outside ITS OWN local surface (-3.918 / -3.959 / -3.998)
+check('light 1 sits 0.05 outside painted circle 1 (y=-0.819, z=4.012, surface x=-3.918)', buildSrc.indexOf('{ x: -3.968, y: -0.819, z: 4.012, r: 0.085, haloR: 0.14, phase: \'side\' }') >= 0);
+check('light 2 (middle) sits 0.05 outside painted circle 2 (y=-0.53, z=3.995, surface x=-3.959)', buildSrc.indexOf('{ x: -4.009, y: -0.53, z: 3.995, r: 0.085, haloR: 0.14, phase: \'mid\' }') >= 0);
+check('light 3 sits 0.05 outside painted circle 3 (y=-0.238, z=3.978, surface x=-3.998)', buildSrc.indexOf('{ x: -4.048, y: -0.238, z: 3.978, r: 0.085, haloR: 0.14, phase: \'side\' }') >= 0);
 check('lenses are placed at each spot OUTSIDE the body (s.x, s.y, s.z)', buildSrc.indexOf('core.position.set(s.x, s.y, s.z)') >= 0 && buildSrc.indexOf('halo.position.set(s.x - 0.02, s.y, s.z)') >= 0);
+check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
 
 // ---- (2) updateTruck drives the blink on a 3-second clock ----

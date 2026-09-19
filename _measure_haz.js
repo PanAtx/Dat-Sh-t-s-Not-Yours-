@@ -707,18 +707,24 @@ function faceAffine(tri, M, center, rad) {
         // sample hidden INTERIOR faces of the body)
         let hit = null,
           hitX = 0;
-        for (let x = -7.6; x < -3.9 && !hit; x += 0.05) {
+        for (let x = -7.6; x < -3.9 && !hit; x += 0.02) {
           const P = new THREE.Vector3(x, y, z);
+          let bestSlice = null;
           for (const ti of list) {
             const T = tris[ti];
             const bb = inTri(P, T);
             if (!bb) continue;
             const xAt = bb[0] * T[0].x + bb[1] * T[1].x + bb[2] * T[2].x;
             // true 3D crossing: the triangle plane must lie in this x slice
-            if (Math.abs(xAt - x) > 0.04) continue;
-            hitX = xAt;
-            hit = [bb, T];
-            break;
+            if (Math.abs(xAt - x) > 0.012) continue;
+            // multiple faces can crowd one slice: the true visible hit is the
+            // OUTERMOST (most negative x) of them
+            if (bestSlice && xAt > bestSlice.xAt) continue;
+            bestSlice = { bb, T, xAt };
+          }
+          if (bestSlice) {
+            hit = [bestSlice.bb, bestSlice.T];
+            hitX = bestSlice.xAt;
           }
         }
         if (!hit) continue;
@@ -795,9 +801,9 @@ function faceAffine(tri, M, center, rad) {
     // with the lenses drawn on top of the texture.
     const X = -3.99;
     const LENSES = [
-      { x: -3.94, y: -0.799, z: 4.004, r: 0.078 },
-      { x: -3.986, y: -0.477, z: 3.973, r: 0.054 },
-      { x: -4.034, y: 0.091, z: 4.047, r: 0.055 },
+      { x: -3.968, y: -0.819, z: 4.012, r: 0.085 },
+      { x: -4.009, y: -0.53, z: 3.995, r: 0.085 },
+      { x: -4.048, y: -0.238, z: 3.978, r: 0.085 },
     ];
     const bms = [];
     g.traverse((o) => {
@@ -892,17 +898,21 @@ function faceAffine(tri, M, center, rad) {
       // raycast from OUTSIDE (x = -7.6) inward; first true 3D rear-facing hit
       let hit = null,
         hitX = 0;
-      for (let x = -7.6; x < -3.9 && !hit; x += 0.05) {
+      for (let x = -7.6; x < -3.9 && !hit; x += 0.02) {
         const P = new THREE.Vector3(x, y, z);
+        let bestSlice = null;
         for (const ti of buckets.get(bkey(y, z)) || []) {
           const T = tris[ti];
           const bb = inTri(P, T);
           if (!bb) continue;
           const xAt = bb[0] * T[0].x + bb[1] * T[1].x + bb[2] * T[2].x;
-          if (Math.abs(xAt - x) > 0.04) continue;
-          hitX = xAt;
-          hit = [bb, T];
-          break;
+          if (Math.abs(xAt - x) > 0.012) continue;
+          if (bestSlice && xAt > bestSlice.xAt) continue;
+          bestSlice = { bb, T, xAt };
+        }
+        if (bestSlice) {
+          hit = [bestSlice.bb, bestSlice.T];
+          hitX = bestSlice.xAt;
         }
       }
       if (!hit) return null;
@@ -1009,16 +1019,22 @@ function faceAffine(tri, M, center, rad) {
       return [dec.data[i], dec.data[i + 1], dec.data[i + 2]];
     };
     const probe = (py, pz) => {
-      for (let x = -7.6; x < -3.9; x += 0.03) {
+      for (let x = -7.6; x < -3.9; x += 0.02) {
         const P = new THREE.Vector3(x, py, pz);
+        let bestSlice = null;
         for (const T of tris) {
           const bb = inTri(P, T);
           if (!bb) continue;
           const xAt = bb[0] * T[0].x + bb[1] * T[1].x + bb[2] * T[2].x;
-          if (Math.abs(xAt - x) > 0.025) continue;
+          if (Math.abs(xAt - x) > 0.012) continue;
+          if (bestSlice && xAt > bestSlice.xAt) continue;
+          bestSlice = { bb, T, xAt };
+        }
+        if (bestSlice) {
+          const { bb, T } = bestSlice;
           const u = bb[0] * T[3] + bb[1] * T[5] + bb[2] * T[7];
           const v = bb[0] * T[4] + bb[1] * T[6] + bb[2] * T[8];
-          return { rgb: sample(u, v), x: xAt };
+          return { rgb: sample(u, v), x: bestSlice.xAt };
         }
       }
       return null;
@@ -1129,27 +1145,30 @@ function faceAffine(tri, M, center, rad) {
         // raycast from outside: first true 3D rear-facing hit = what a rear
         // viewer actually sees
         let ch = ' ';
-        for (let x = -7.6; x < -3.9; x += 0.05) {
+        for (let x = -7.6; x < -3.9; x += 0.02) {
           const P = new THREE.Vector3(x, y, z);
-          let crossed = false;
+          let bestSlice = null;
           for (const T of tris) {
             const bb = inTri(P, T);
             if (!bb) continue;
             const [w1, w2, w3] = bb;
             const xAt = w1 * T[0].x + w2 * T[1].x + w3 * T[2].x;
-            if (Math.abs(xAt - x) > 0.04) continue;
-            const u = w1 * T[3] + w2 * T[5] + w3 * T[7];
-            const v = w1 * T[4] + w2 * T[6] + w3 * T[8];
-            const [cr, cg, cb] = sample(u, v);
-            const lum = (cr + cg + cb) / 3;
-            if (cr > 150 && cr > cg + 40) ch = cr > cg && cg > cb ? '#' : 'R';
-            else if (lum > 150) ch = 'o';
-            else if (lum > 60) ch = '+';
-            else ch = '.';
-            crossed = true;
-            break;
+            if (Math.abs(xAt - x) > 0.012) continue;
+            if (bestSlice && xAt > bestSlice.xAt) continue;
+            bestSlice = { bb, T, xAt };
           }
-          if (crossed) break;
+          if (!bestSlice) continue;
+          const { bb, T } = bestSlice;
+          const [w1, w2, w3] = bb;
+          const u = w1 * T[3] + w2 * T[5] + w3 * T[7];
+          const v = w1 * T[4] + w2 * T[6] + w3 * T[8];
+          const [cr, cg, cb] = sample(u, v);
+          const lum = (cr + cg + cb) / 3;
+          if (cr > 150 && cr > cg + 40) ch = cr > cg && cg > cb ? '#' : 'R';
+          else if (lum > 150) ch = 'o';
+          else if (lum > 60) ch = '+';
+          else ch = '.';
+          break;
         }
         line += ch;
       }

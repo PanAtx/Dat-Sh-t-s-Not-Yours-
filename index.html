@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.126</div>
+          <div id="app-version" class="menu-version">v1.0.128</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.126';
+      const APP_VERSION = '1.0.128';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4913,23 +4913,20 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
-          // === rear hazard lights (the three circles painted on the rear) ===
+          // === rear hazard lights (the three orange circles painted on the rear) ===
           // Placed EXACTLY on the graphic: measured by raycasting the FBX's emissive
-          // texture on the VISIBLE outer rear face (see _measure_haz.js,
-          // `node _measure_haz.js circles` + `sample`). The top strip of the rear panel
-          // paints, left to right: a big orange circle, a medium orange circle, a white
-          // circle, then two reds. The three hazard lenses cover the left trio, each
-          // sitting 0.02 proud of the (slightly curved) local surface so they are visible
-          // and never z-fight the texture, sized to the painted circles, and blink the
-          // classic DSNY pattern: 1s both outer lights, 1s the middle light, 1s all dark
-          // — then repeat forever (driven in updateTruck via hazLights).
-          //   big orange:  (y=-0.799, z=4.004) Ø0.164, surface x=-3.92
-          //   med orange:  (y=-0.477, z=3.973) Ø0.116, surface x=-3.966
-          //   white circle:(y=0.091, z=4.047)  Ø0.119, surface x=-4.014
+          // texture from OUTSIDE the truck (see _measure_haz.js: `circles`, `sample`,
+          // `rearview`). The rear paints a row of THREE orange circles (each Ø 0.19):
+          //   (y = -0.819, z = 4.012)  (y = -0.530, z = 3.995)  (y = -0.238, z = 3.978)
+          // The face is slightly curved, so each lens sits 0.05 outside ITS OWN local
+          // surface x (measured: -3.918 / -3.959 / -3.998) — proud of the body, never
+          // buried, never z-fighting — and blinks the classic DSNY pattern: 1s both outer
+          // lights, 1s the middle light, 1s all dark, repeated (driven in updateTruck
+          // via hazLights).
           const hazSpots = [
-            { x: -3.94, y: -0.799, z: 4.004, r: 0.078, haloR: 0.11, phase: 'side' },
-            { x: -3.986, y: -0.477, z: 3.973, r: 0.054, haloR: 0.078, phase: 'mid' },
-            { x: -4.034, y: 0.091, z: 4.047, r: 0.055, haloR: 0.08, phase: 'side' },
+            { x: -3.968, y: -0.819, z: 4.012, r: 0.085, haloR: 0.14, phase: 'side' },
+            { x: -4.009, y: -0.53, z: 3.995, r: 0.085, haloR: 0.14, phase: 'mid' },
+            { x: -4.048, y: -0.238, z: 3.978, r: 0.085, haloR: 0.14, phase: 'side' },
           ];
           const hazLights = [];
           for (const s of hazSpots) {
@@ -4955,6 +4952,61 @@
             g.add(halo);
             hazLights.push({ coreMat: coreMat, haloMat: haloMat, halo: halo, phase: s.phase });
           }
+          // ===== TEMPORARY DEBUG (press H to toggle): giant magenta placement markers =====
+          // A GIANT magenta ring + crosshair at each lens' EXACT spot, rendered with
+          // depthTest OFF so it shows THROUGH the truck body — you can see at a glance
+          // where the lenses sit relative to the three painted orange circles. A magenta
+          // version-tag sprite floats above the rear so we can confirm which build is
+          // running. REMOVE this block (and the KeyH handler) once placement is confirmed.
+          const hazDebug = new THREE.Group();
+          for (const s of hazSpots) {
+            const ring = new THREE.Mesh(
+              new THREE.RingGeometry(0.55, 0.7, 40),
+              new THREE.MeshBasicMaterial({
+                color: 0xff00ff,
+                side: THREE.DoubleSide,
+                depthTest: false,
+                transparent: true,
+                opacity: 0.9,
+              }),
+            );
+            ring.rotation.y = -Math.PI / 2;
+            ring.position.set(s.x - 0.03, s.y, s.z);
+            ring.renderOrder = 999;
+            hazDebug.add(ring);
+            const cross = new THREE.LineSegments(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(s.x - 0.7, s.y, s.z),
+                new THREE.Vector3(s.x + 0.25, s.y, s.z),
+                new THREE.Vector3(s.x, s.y - 0.7, s.z),
+                new THREE.Vector3(s.x, s.y + 0.7, s.z),
+                new THREE.Vector3(s.x, s.y, s.z - 0.7),
+                new THREE.Vector3(s.x, s.y, s.z + 0.7),
+              ]),
+              new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false }),
+            );
+            cross.renderOrder = 999;
+            hazDebug.add(cross);
+          }
+          const tagCanvas = document.createElement('canvas');
+          tagCanvas.width = 512;
+          tagCanvas.height = 96;
+          const tctx = tagCanvas.getContext('2d');
+          tctx.fillStyle = 'rgba(10,5,15,0.85)';
+          tctx.fillRect(0, 0, 512, 96);
+          tctx.fillStyle = '#ff00ff';
+          tctx.font = 'bold 44px monospace';
+          tctx.textAlign = 'center';
+          tctx.textBaseline = 'middle';
+          tctx.fillText('v' + APP_VERSION + ' HAZDBG', 256, 48);
+          const tag = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(tagCanvas), depthTest: false }),
+          );
+          tag.scale.set(3.0, 0.56, 1);
+          tag.position.set(-4.3, 5.7, 4.0);
+          tag.renderOrder = 999;
+          hazDebug.add(tag);
+          g.add(hazDebug);
           worldGroup.add(g);
           return {
             g: g,
@@ -4965,6 +5017,7 @@
             hopperY: hopperY,
             hopperZ: hopperZ,
             hazLights: hazLights,
+            hazDebug: hazDebug,
             cabOff: boxL + 1.6,
             wx: -28,
             hidden: 0,
@@ -19635,6 +19688,8 @@
         // TEST MODE: R = spawn a Red Bull can near the worker (quick visual check of the 3D model).
         // Play state only. Reuses the same spawn as the score-triggered "Run It Up" pickup.
         if (e.code === "KeyR" && state === "play") spawnMonsterNearPlayer();
+        // HAZARD LIGHT DEBUG: H toggles the giant magenta placement markers (temporary)
+        if (e.code === "KeyH" && truck && truck.hazDebug) truck.hazDebug.visible = !truck.hazDebug.visible;
         if (e.code === "Enter" && state !== "play") advanceGame();
       });
       window.addEventListener("keyup", (e) => {
