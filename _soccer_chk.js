@@ -86,13 +86,17 @@ const ballFn = (function () {
   for (; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}') { d--; if (d === 0) break; } }
   return src.slice(i, k + 1);
 })();
-check('ball is a white sphere resting on the ground (center at 0.22)', ballFn.indexOf('SPH(R, M(0xf5f5f0))') >= 0 && ballFn.indexOf('ball.position.z = R;') >= 0);
+check('ball is a white sphere resting on the ground (core centered at 0.22 above the contact point)', ballFn.indexOf('SPH(R, M(0xf5f5f0))') >= 0 && ballFn.indexOf('core.position.z = R;') >= 0 && ballFn.indexOf('ball.position.z = R;') < 0);
 check('ball has 12 black pentagons (icosahedron vertices — a real soccer ball, not a dalmatian)',
   ballFn.indexOf('PHI = (1 + Math.sqrt(5)) / 2') >= 0 &&
   (ballFn.match(/\[[^\[\]]+,\s*[^\[\]]+,\s*[^\[\]]+\]/g) || []).length >= 12 &&
   ballFn.indexOf('THREE.ShapeGeometry') >= 0 && ballFn.indexOf('pent.quaternion.setFromUnitVectors') >= 0);
-check('pentagons center on the ball (position.z += R) — black spots ALL around the sphere, not buried in its bottom',
-  ballFn.indexOf('pent.position.z += R') >= 0);
+check('pentagons + sphere live in a CORE group centered on the ball centre (exposed via userData) — spots ALL around',
+  ballFn.indexOf('const core = new THREE.Group();') >= 0 &&
+  ballFn.indexOf('core.add(pent)') >= 0 && ballFn.indexOf('g.add(core)') >= 0 &&
+  ballFn.indexOf('g.userData.core = core') >= 0);
+check('the roll spins the CORE (the ball centre), NOT the outer contact-point group (orbiting it dips the ball into the sidewalk)',
+  src.indexOf('T.ballG.userData.core.rotation.y +=') >= 0 && src.indexOf('T.ballG.rotation.y +=') < 0);
 check('the old 6-patch dalmatian is gone', ballFn.indexOf('BX(0.08, 0.08, 0.03, patchM)') < 0);
 // spawn: Flatbush only, ONE garbage block, 3 distinct shirts, chalk field
 const spawnSrc = (function () {
@@ -162,7 +166,7 @@ function makeTeam() {
   });
   const kids = [mkKid(100), mkKid(120), mkKid(140)];
   const ball = { wx: 120, wy: 3, z: 0, vz: 0, tx: 120, ty: 3 };
-  const ballG = { position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } }, rotation: { z: 0 } };
+  const ballG = { position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } }, rotation: { z: 0 }, userData: { core: { rotation: { y: 0 } } } };
   return {
     kids: kids, leader: kids[0], ball: ball, ballG: ballG,
     minX: 90, maxX: 150, midX: 120,

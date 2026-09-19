@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.120</div>
+          <div id="app-version" class="menu-version">v1.0.121</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.120';
+      const APP_VERSION = '1.0.121';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9163,13 +9163,19 @@
       // A little REAL soccer ball, resting radius 0.22 (centre at 0.22 above the
       // ground so it sits ON the sidewalk). Classic pattern: a white sphere with
       // 12 black pentagons, one at each vertex of an icosahedron.
+      // The OUTER group's origin is the GROUND CONTACT POINT (its world z = GZ +
+      // B.z). The sphere + pentagons live in an inner CORE group centered on the
+      // ball's CENTRE — the roll spins the CORE about the centre. Spinning the
+      // outer group instead would orbit the ball around its contact point and dip
+      // it into the sidewalk.
       function makeSoccerBall() {
         const g = new THREE.Group();
         const R = 0.22;
+        const core = new THREE.Group();
+        core.position.z = R; // the ball CENTER sits R above the contact point
         const ball = SPH(R, M(0xf5f5f0));
-        ball.position.z = R;
         ball.castShadow = true;
-        g.add(ball);
+        core.add(ball); // sphere at the core's center
         const PHI = (1 + Math.sqrt(5)) / 2;
         const verts = [
           [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0],
@@ -9190,11 +9196,12 @@
         for (const v of verts) {
           const dir = new THREE.Vector3(v[0], v[1], v[2]).normalize();
           const pent = new THREE.Mesh(pentGeo, patchM);
-          pent.position.copy(dir.clone().multiplyScalar(R * 0.99));
-          pent.position.z += R; // patches center on the BALL (the sphere sits at z=R in group space) — black spots ALL around, not just the bottom
+          pent.position.copy(dir.clone().multiplyScalar(R * 0.99)); // around the ball CENTER — black spots ALL around, not just the bottom
           pent.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir); // face OUTWARD, exactly
-          g.add(pent);
+          core.add(pent);
         }
+        g.add(core);
+        g.userData.core = core; // the update loop spins THIS (the ball's centre), never the outer contact-point group
         return g;
       }
       // Seed scatter pile pigeons peck at (one pile per flock)
@@ -16840,8 +16847,8 @@
                 if (B.vz < 0.5) B.vz = 0; // settles
               }
               T.ballG.position.set(B.wx, B.wy, GZ + B.z);
-              T.ballG.rotation.y +=
-                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 8; // the ball ROLLS — spin about the horizontal axis, like a real kicked ball
+              T.ballG.userData.core.rotation.y +=
+                (T.owner ? T.owner.dir : B.tx >= B.wx ? 1 : -1) * dt * 8; // the ball ROLLS — spin the CORE about the ball's OWN centre (the outer group is the contact point — spinning it would orbit the ball into the sidewalk)
               // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
               for (const k of T.kids) {
                 if (T.celebrateT > 0) {
