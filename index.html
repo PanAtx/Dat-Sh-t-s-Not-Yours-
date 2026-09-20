@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.132</div>
+          <div id="app-version" class="menu-version">v1.0.133</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.132';
+      const APP_VERSION = '1.0.133';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4925,9 +4925,9 @@
           // lights, 1s the middle light, 1s all dark, repeated (driven in
           // updateTruck via hazLights).
           const hazSpots = [
-            { x: -3.998, y: -0.239, z: 3.98, r: 0.105, haloR: 0.16, phase: 'side' },
-            { x: -3.957, y: -0.531, z: 3.997, r: 0.105, haloR: 0.16, phase: 'mid' },
-            { x: -3.917, y: -0.821, z: 4.014, r: 0.105, haloR: 0.16, phase: 'side' },
+            { x: -3.998, y: -0.169, z: 3.89, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -3.957, y: -0.461, z: 3.907, r: 0.105, haloR: 0.22, phase: 'mid' },
+            { x: -3.917, y: -0.751, z: 3.924, r: 0.105, haloR: 0.22, phase: 'side' },
           ];
           const hazN = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
           const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal
@@ -15774,8 +15774,8 @@
           for (let i = 0; i < truck.hazLights.length; i++) {
             const L = truck.hazLights[i];
             const on = L.phase === "mid" ? midOn : sideOn;
-            L.coreMat.emissiveIntensity = on ? 1.7 : 0;
-            L.haloMat.opacity = on ? 0.8 : 0;
+            L.coreMat.emissiveIntensity = on ? 2.6 : 0;
+            L.haloMat.opacity = on ? 0.95 : 0;
             L.halo.visible = on;
           }
         }

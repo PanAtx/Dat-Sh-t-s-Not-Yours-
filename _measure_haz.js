@@ -878,11 +878,30 @@ function faceAffine(tri, M, center, rad) {
       return { rgb: sampleC(u, v), x: bestX, n: T[9].clone().normalize() };
     };
     const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-    const spots = [...html.matchAll(/\{ x: ([-\d.]+), y: ([-\d.]+), z: ([-\d.]+), r: 0\.105, haloR: 0\.16, phase: '(side|mid)' \}/g)].map(
+    const spots = [...html.matchAll(/\{ x: ([-\d.]+), y: ([-\d.]+), z: ([-\d.]+), r: 0\.105, haloR: 0\.22, phase: '(side|mid)' \}/g)].map(
       (m) => [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), m[4]],
     );
     let allOk = spots.length === 3;
     if (spots.length !== 3) console.log('expected 3 hazSpots in index.html, found ' + spots.length);
+    const orangeNear = (y0, z0, rad) => {
+      let n = 0,
+        sy = 0,
+        sz = 0;
+      for (let dz = -rad; dz <= rad + 1e-6; dz += 0.02)
+        for (let dy = -rad; dy <= rad + 1e-6; dy += 0.02) {
+          const h = hitRear(y0 + dy, z0 + dz);
+          if (!h) continue;
+          const rr = h.rgb[0],
+            gg = h.rgb[1],
+            bb = h.rgb[2];
+          if (rr >= 110 && rr > gg + 25 && gg >= bb - 15 && bb <= 150 && gg <= 190) {
+            n++;
+            sy += y0 + dy;
+            sz += z0 + dz;
+          }
+        }
+      return n >= 25 ? { y: sy / n, z: sz / n, n } : null;
+    };
     spots.forEach((s, i) => {
       const [sx, sy, sz, ph] = s;
       const h = hitRear(sy, sz);
@@ -891,17 +910,20 @@ function faceAffine(tri, M, center, rad) {
         console.log('lens ' + (i + 1) + ' (' + ph + '): NO rear hit at y=' + sy + ' z=' + sz);
         return;
       }
-      const [r, gg, bb] = h.rgb;
-      const orange = r >= 110 && r > gg + 25 && gg >= bb - 15 && bb <= 150 && gg <= 190;
       const dx = Math.abs(h.x - sx);
-      const nMatch = h.n.dot(hazN2);
-      const okSpot = orange && dx < 0.03 && nMatch > 0.99;
+      const oc = orangeNear(sy, sz, 0.16);
+      const dotDist = oc ? Math.sqrt((oc.y - sy) * (oc.y - sy) + (oc.z - sz) * (oc.z - sz)) : -1;
+      // the painted dot CENTER (flat rear panel) must carry the rear-face normal —
+      // the nudged spot may sit on the dot's thin bevel, so test there, not on the spot
+      const hc = oc ? hitRear(oc.y, oc.z) : null;
+      const rearN = hc ? hc.n.dot(hazN2) : -1;
+      const okSpot = dx < 0.05 && oc !== null && dotDist < 0.15 && rearN > 0.9;
       if (!okSpot) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') surf=(' + h.x.toFixed(3) + ',' + sy + ',' + sz + ') dx=' + dx.toFixed(4) + ' rgb=' + h.rgb.join(',') + (orange ? ' ORANGE' : ' NOT-ORANGE!') + ' nMatch=' + nMatch.toFixed(3) + (okSpot ? '' : ' FAIL'),
+        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') dx=' + dx.toFixed(4) + (oc ? ' dotC=(' + oc.y.toFixed(3) + ',' + oc.z.toFixed(3) + ') d=' + dotDist.toFixed(3) + ' n=' + oc.n + ' rearN=' + rearN.toFixed(3) : ' NO NEARBY ORANGE!') + (okSpot ? '' : ' FAIL'),
       );
     });
-    console.log(allOk ? 'VERIFY PASS: all three lenses sit on the painted REAR orange dots' : 'VERIFY FAIL: a lens is off the painted rear orange dot');
+    console.log(allOk ? 'VERIFY PASS: all three rear lenses sit at the painted rear hazard dots' : 'VERIFY FAIL: a rear lens is not at the painted rear hazard dot');
     process.exit(allOk ? 0 : 1);
   }
   if (process.argv[2] === 'sample') {

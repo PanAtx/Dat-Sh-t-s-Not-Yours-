@@ -42,9 +42,9 @@ check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.inde
 // the measured REAR-face dot centers (from _rear_color.js blobs: orange circles
 // on the rear raycast to their true (y,z) + surface x) must be the exact placement,
 // each lens/halo lifted off the face along the rear normal (-0.989, -0.133, 0.063)
-check('light 1 sits on painted rear dot (x=-3.998, y=-0.239, z=3.98)', buildSrc.indexOf("{ x: -3.998, y: -0.239, z: 3.98, r: 0.105, haloR: 0.16, phase: 'side' }") >= 0);
-check('light 2 (middle) sits on painted rear dot (x=-3.957, y=-0.531, z=3.997)', buildSrc.indexOf("{ x: -3.957, y: -0.531, z: 3.997, r: 0.105, haloR: 0.16, phase: 'mid' }") >= 0);
-check('light 3 sits on painted rear dot (x=-3.917, y=-0.821, z=4.014)', buildSrc.indexOf("{ x: -3.917, y: -0.821, z: 4.014, r: 0.105, haloR: 0.16, phase: 'side' }") >= 0);
+check('light 1 sits on painted rear dot (x=-3.998, y=-0.169, z=3.89)', buildSrc.indexOf("{ x: -3.998, y: -0.169, z: 3.89, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('light 2 (middle) sits on painted rear dot (x=-3.957, y=-0.461, z=3.907)', buildSrc.indexOf("{ x: -3.957, y: -0.461, z: 3.907, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
+check('light 3 sits on painted rear dot (x=-3.917, y=-0.751, z=3.924)', buildSrc.indexOf("{ x: -3.917, y: -0.751, z: 3.924, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
@@ -53,7 +53,7 @@ check('the truck object exposes hazLights for the blink driver', buildSrc.indexO
 const upSrc = src.slice(src.indexOf('function updateTruck(dt)'), src.indexOf('// ==================== CREATURE AI'));
 check('the blink cycle runs on a 3-second clock (% 3)', upSrc.indexOf('(performance.now() * 0.001) % 3') >= 0);
 check('phase windows: 1s sides, then 1s middle, then 1s dark', upSrc.indexOf('const sideOn = hz < 1') >= 0 && upSrc.indexOf('midOn = hz >= 1 && hz < 2') >= 0);
-check('core glow + halo pulse with the phase (emissiveIntensity / opacity)', upSrc.indexOf('L.coreMat.emissiveIntensity = on ? 1.7 : 0') >= 0 && upSrc.indexOf('L.haloMat.opacity = on ? 0.8 : 0') >= 0);
+check('core glow + halo pulse with the phase (emissiveIntensity / opacity)', upSrc.indexOf('L.coreMat.emissiveIntensity = on ? 2.6 : 0') >= 0 && upSrc.indexOf('L.haloMat.opacity = on ? 0.95 : 0') >= 0);
 check('the halo is hidden while its light is dark (no ghost glow)', upSrc.indexOf('L.halo.visible = on;') >= 0);
 
 // ---- (3) execute the REAL blink block for 3 full cycles ----
@@ -94,7 +94,7 @@ if (iHZ < 0) {
       break;
     }
     hazLights.forEach((L, i) => {
-      const wantOp = e[i] ? 0.8 : 0;
+      const wantOp = e[i] ? 0.95 : 0;
       if (Math.abs(L.haloMat.opacity - wantOp) > 1e-9 || L.halo.visible !== !!e[i]) {
         glowOk = false;
         glowDetail = 't=' + t.toFixed(1) + 's light ' + i + ' opacity=' + L.haloMat.opacity + ' visible=' + L.halo.visible;
