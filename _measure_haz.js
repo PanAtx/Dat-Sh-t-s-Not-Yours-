@@ -795,156 +795,101 @@ function faceAffine(tri, M, center, rad) {
     process.exit(0);
   }
   if (process.argv[2] === 'verify') {
-    // Final check: rasterize the rear face and overlay the THREE lens spots that
-    // index.html now places (hazX = -4.03, r=0.085 core / r=0.14 halo). Reports, per
-    // lens, how much of the painted circle is covered and prints an ASCII rear view
-    // with the lenses drawn on top of the texture.
-    const X = -3.99;
-    const LENSES = [
-      { x: -3.968, y: -0.819, z: 4.012, r: 0.085 },
-      { x: -4.009, y: -0.53, z: 3.995, r: 0.085 },
-      { x: -4.048, y: -0.238, z: 3.978, r: 0.085 },
-    ];
+    // Final check for the SIDE-face hazard lights: for each of the three painted
+    // dots index.html's hazSpots covers, (a) the dot's texture UV samples ORANGE
+    // in the color map (1000054), (b) the dot's UV->3D position on the body mesh
+    // (on the face whose normal matches the side normal) matches the lens spot
+    // within 0.03. End-to-end chain: painted pixel -> texture UV -> body
+    // geometry -> game constant.
     const bms = [];
     g.traverse((o) => {
       if (o.isMesh && /^truck_ply_vcl_garbageTruck_body_lmb_0_[01]$/.test(o.name)) bms.push(o);
     });
-    const tris = [];
-    const wA = new THREE.Vector3(),
-      wB = new THREE.Vector3(),
-      wC = new THREE.Vector3();
-    for (const bodyMesh of bms) {
-      const pos = bodyMesh.geometry.attributes.position,
-        uv = bodyMesh.geometry.attributes.uv;
-      const M = bodyMesh.matrixWorld;
-      for (let t = 0; t < pos.count / 3; t++) {
-        const i = t * 3;
-        wA.fromBufferAttribute(pos, i).applyMatrix4(M);
-        wB.fromBufferAttribute(pos, i + 1).applyMatrix4(M);
-        wC.fromBufferAttribute(pos, i + 2).applyMatrix4(M);
-        const nn = new THREE.Vector3().subVectors(wB, wA).cross(new THREE.Vector3().subVectors(wC, wA));
-        if (nn.x > 0.5 * nn.length()) continue;
-        tris.push([wA.clone(), wB.clone(), wC.clone(), uv.getX(i), uv.getY(i), uv.getX(i + 1), uv.getY(i + 1), uv.getX(i + 2), uv.getY(i + 2)]);
-      }
+    const texPath = path.join(__dirname, '_tex_0.png');
+    if (!fs.existsSync(texPath)) {
+      console.log('VERIFY SKIP: _tex_0.png not found (extract the color texture from truck.fbx first)');
+      process.exit(0);
     }
-    const inTri = (P, T) => {
-      const a = T[0],
-        b = T[1],
-        c = T[2];
-      const area = (p, q, r) => (q.y - p.y) * (r.z - p.z) - (q.z - p.z) * (r.y - p.y);
-      const A = area(P, a, b),
-        B = area(P, b, c),
-        C = area(P, c, a);
-      if ((A < 0 || B < 0 || C < 0) && (A > 0 || B > 0 || C > 0)) return null;
-      const tot = A + B + C;
-      if (Math.abs(tot) < 1e-9) return null;
-      return [B / tot, C / tot, A / tot];
+    const dec = decodePng(fs.readFileSync(texPath));
+    const TW2 = dec.width,
+      TH2 = dec.height;
+    const sampleC = (u, v) => {
+      const uu = ((u % 1) + 1) % 1,
+        vv = ((v % 1) + 1) % 1;
+      const x = Math.min(TW2 - 1, Math.floor(uu * TW2));
+      const y = Math.min(TH2 - 1, Math.floor((1 - vv) * TH2));
+      const o = (y * TW2 + x) * 4;
+      return [dec.data[o], dec.data[o + 1], dec.data[o + 2]];
     };
-    const BUCK = 96;
-    const yMin = -3,
-      yMax = 2.8,
-      zMin = 0,
-      zMax = 4.6;
-    const buckets = new Map();
-    const bkey = (y, z) => Math.floor(((y - yMin) / (yMax - yMin)) * BUCK) + ',' + Math.floor(((z - zMin) / (zMax - zMin)) * BUCK);
-    tris.forEach((T, ti) => {
-      const ys = [T[0].y, T[1].y, T[2].y],
-        zs = [T[0].z, T[1].z, T[2].z];
-      const loY = Math.max(yMin, Math.min(...ys)),
-        hiY = Math.min(yMax, Math.max(...ys));
-      const loZ = Math.max(zMin, Math.min(...zs)),
-        hiZ = Math.min(zMax, Math.max(...zs));
-      for (let by = Math.floor(((loY - yMin) / (yMax - yMin)) * BUCK); by <= Math.floor(((hiY - yMin) / (yMax - yMin)) * BUCK); by++) {
-        for (let bz = Math.floor(((loZ - zMin) / (zMax - zMin)) * BUCK); bz <= Math.floor(((hiZ - zMin) / (zMax - zMin)) * BUCK); bz++) {
-          const k = by + ',' + bz;
-          if (!buckets.has(k)) buckets.set(k, []);
-          buckets.get(k).push(ti);
+    const hazN2 = new THREE.Vector3(-0.14, 0.99, -0.06).normalize();
+    // the three painted dots the lenses cover: exact texture pixel centers
+    const DOTS = [
+      { px: 1580, py: 598 },
+      { px: 1433, py: 598 },
+      { px: 1282, py: 598 },
+    ];
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    const spots = [...html.matchAll(/\{ x: ([-\d.]+), y: ([-\d.]+), z: ([-\d.]+), r: 0\.06, haloR: 0\.1, phase: '(side|mid)' \}/g)].map(
+      (m) => [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), m[4]],
+    );
+    let allOk = spots.length === 3;
+    if (spots.length !== 3) console.log('expected 3 hazSpots in index.html, found ' + spots.length);
+    const vA2 = new THREE.Vector3(),
+      vB2 = new THREE.Vector3(),
+      vC2 = new THREE.Vector3();
+    DOTS.forEach((d, i) => {
+      const u = d.px / TW2,
+        v = 1 - d.py / TH2;
+      const rgb = sampleC(u, v);
+      const orange = rgb[0] >= 110 && rgb[0] > rgb[1] + 25 && rgb[1] >= rgb[2] - 15 && rgb[2] <= 150 && rgb[1] <= 190;
+      let best = null;
+      for (const bm of bms) {
+        const pos = bm.geometry.attributes.position,
+          uv = bm.geometry.attributes.uv,
+          M = bm.matrixWorld;
+        for (let t = 0; t < pos.count / 3; t++) {
+          const k = t * 3;
+          const ua = uv.getX(k),
+            va = uv.getY(k),
+            ub = uv.getX(k + 1),
+            vb = uv.getY(k + 1),
+            uc = uv.getX(k + 2),
+            vc = uv.getY(k + 2);
+          const det = (ub - ua) * (vc - va) - (vb - va) * (uc - ua);
+          if (Math.abs(det) < 1e-12) continue;
+          const w = ((vc - va) * (u - ua) - (uc - ua) * (v - va)) / det;
+          const xx = ((ub - ua) * (v - va) - (vb - va) * (u - ua)) / det;
+          if (w < -1e-5 || xx < -1e-5 || w + xx > 1 + 1e-5) continue;
+          vA2.fromBufferAttribute(pos, k).applyMatrix4(M);
+          vB2.fromBufferAttribute(pos, k + 1).applyMatrix4(M);
+          vC2.fromBufferAttribute(pos, k + 2).applyMatrix4(M);
+          const nm = new THREE.Vector3().subVectors(vB2, vA2).cross(new THREE.Vector3().subVectors(vC2, vA2)).normalize();
+          const dotN = nm.dot(hazN2);
+          if (dotN < 0.9) continue; // the side face, not another UV-sharing face
+          if (best && dotN <= best.dotN) continue;
+          const P = vA2
+            .clone()
+            .addScaledVector(new THREE.Vector3().subVectors(vB2, vA2), w)
+            .addScaledVector(new THREE.Vector3().subVectors(vC2, vA2), xx);
+          best = { p: P, dotN };
         }
       }
-    });
-    const fbx2 = fs.readFileSync(path.join(__dirname, 'truck.fbx'));
-    const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    let ti = fbx2.indexOf(sig),
-      dec = null;
-    while (ti >= 0) {
-      let j = ti + 8,
-        len = 0;
-      while (j < fbx2.length) {
-        const l = fbx2.readUInt32BE(j);
-        const t2 = fbx2.toString('ascii', j + 4, j + 8);
-        j += 12 + l;
-        len += 12 + l;
-        if (t2 === 'IEND') break;
+      if (!best) {
+        allOk = false;
+        console.log('dot' + (i + 1) + ' tex=(' + d.px + ',' + d.py + '): NO side-face hit for UV (' + u.toFixed(4) + ',' + v.toFixed(4) + ')');
+        return;
       }
-      if (len === 100708) {
-        dec = decodePng(fbx2.subarray(ti, ti + len));
-        break;
-      }
-      ti = fbx2.indexOf(sig, ti + 8);
-    }
-    if (!dec) throw new Error('emissive texture not found');
-    const W = dec.width,
-      H = dec.height,
-      px = dec.data;
-    const sample = (u, v) => {
-      let uu = ((u % 1) + 1) % 1,
-        vv = 1 - ((v % 1) + 1) % 1;
-      const x = Math.min(W - 1, Math.max(0, Math.floor(uu * W))),
-        y = Math.min(H - 1, Math.max(0, Math.floor(vv * H)));
-      const o = (y * W + x) * 4;
-      return [px[o], px[o + 1], px[o + 2]];
-    };
-    const sampleAt = (y, z) => {
-      // raycast from OUTSIDE (x = -7.6) inward; first true 3D rear-facing hit
-      let hit = null,
-        hitX = 0;
-      for (let x = -7.6; x < -3.9 && !hit; x += 0.02) {
-        const P = new THREE.Vector3(x, y, z);
-        let bestSlice = null;
-        for (const ti of buckets.get(bkey(y, z)) || []) {
-          const T = tris[ti];
-          const bb = inTri(P, T);
-          if (!bb) continue;
-          const xAt = bb[0] * T[0].x + bb[1] * T[1].x + bb[2] * T[2].x;
-          if (Math.abs(xAt - x) > 0.012) continue;
-          if (bestSlice && xAt > bestSlice.xAt) continue;
-          bestSlice = { bb, T, xAt };
-        }
-        if (bestSlice) {
-          hit = [bestSlice.bb, bestSlice.T];
-          hitX = bestSlice.xAt;
-        }
-      }
-      if (!hit) return null;
-      const [bb, T] = hit;
-      const u = bb[0] * T[3] + bb[1] * T[5] + bb[2] * T[7];
-      const v = bb[0] * T[4] + bb[1] * T[6] + bb[2] * T[8];
-      return { rgb: sample(u, v), x: hitX };
-    };
-    // per-lens: (a) painted-circle coverage under the lens disc, (b) lens must sit
-    // OUTSIDE the surface (x more negative than the hit) so it is visible
-    let allOk = true;
-    LENSES.forEach((L, i) => {
-      let inFace = 0,
-        painted = 0;
-      for (let ry = -6; ry <= 6; ry++) {
-        for (let rz = -6; rz <= 6; rz++) {
-          const rr = Math.sqrt(ry * ry + rz * rz);
-          if (rr > 6) continue;
-          inFace++;
-          const c = sampleAt(L.y + (ry / 6) * L.r, L.z + (rz / 6) * L.r);
-          if (c && (c.rgb[0] + c.rgb[1] + c.rgb[2]) / 3 > 40) painted++;
-        }
-      }
-      const cov = painted / inFace;
-      const cc = sampleAt(L.y, L.z);
-      const inFront = cc ? L.x < cc.x - 0.005 : false;
-      if (cov < 0.85 || !inFront) allOk = false;
+      const [sx, sy, sz] = spots[i] || [0, 0, 0, '?'];
+      const ddx = best.p.x - sx,
+        ddy = best.p.y - sy,
+        ddz = best.p.z - sz;
+      const dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+      if (!orange || dist >= 0.03) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + L.y + ',' + L.z + '): surface x=' + (cc ? cc.x.toFixed(3) : 'none') + ', lens x=' + L.x + ' ' + (inFront ? 'OUTSIDE (visible)' : 'BURIED!') + ', ' + Math.round(cov * 100) + '% painted under r=' + L.r + ' disc, center rgb=' + (cc ? cc.rgb.join(',') : '-'),
+        'lens ' + (i + 1) + ' (' + spots[i][3] + '): dot3d=(' + best.p.x.toFixed(3) + ',' + best.p.y.toFixed(3) + ',' + best.p.z.toFixed(3) + ') spot=(' + sx + ',' + sy + ',' + sz + ') d=' + dist.toFixed(4) + ' rgb=' + rgb.join(',') + (orange ? ' ORANGE' : ' NOT-ORANGE!') + (dist < 0.03 ? '' : ' OFF!'),
       );
     });
-    console.log(allOk ? 'VERIFY PASS: all three lenses sit on the painted circles' : 'VERIFY FAIL: a lens is off the painted graphic');
+    console.log(allOk ? 'VERIFY PASS: all three lenses sit on the painted side dots' : 'VERIFY FAIL: a lens is off the painted dot');
     process.exit(allOk ? 0 : 1);
   }
   if (process.argv[2] === 'sample') {

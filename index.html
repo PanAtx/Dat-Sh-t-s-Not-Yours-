@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.128</div>
+          <div id="app-version" class="menu-version">v1.0.130</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.128';
+      const APP_VERSION = '1.0.130';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4913,31 +4913,37 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
-          // === rear hazard lights (the three orange circles painted on the rear) ===
-          // Placed EXACTLY on the graphic: measured by raycasting the FBX's emissive
-          // texture from OUTSIDE the truck (see _measure_haz.js: `circles`, `sample`,
-          // `rearview`). The rear paints a row of THREE orange circles (each Ø 0.19):
-          //   (y = -0.819, z = 4.012)  (y = -0.530, z = 3.995)  (y = -0.238, z = 3.978)
-          // The face is slightly curved, so each lens sits 0.05 outside ITS OWN local
-          // surface x (measured: -3.918 / -3.959 / -3.998) — proud of the body, never
-          // buried, never z-fighting — and blinks the classic DSNY pattern: 1s both outer
-          // lights, 1s the middle light, 1s all dark, repeated (driven in updateTruck
-          // via hazLights).
+          // === hazard lights (the row of orange circles painted on the +Y side) ===
+          // The DSNY art paints a row of four small orange circles (Ø ≈ 0.11) along
+          // the truck's +Y side, just below the "sanitation" banner. The three the
+          // player sees from behind (dots 2-4 of the row) get real glowing lenses.
+          // Positions measured exactly from the color-texture dot centers
+          // (pixels 1282/1433/1580 @ row 598 of the 2048 map) mapped UV->3D on the
+          // body mesh (see _dotpos.js). The side face normal is (-0.14, 0.99, -0.06),
+          // so each lens/halo is oriented along that normal and lifted off the
+          // surface — proud of the body, never buried, never z-fighting — and
+          // blinks the classic DSNY pattern: 1s both outer lights, 1s the middle
+          // light, 1s all dark, repeated (driven in updateTruck via hazLights).
           const hazSpots = [
-            { x: -3.968, y: -0.819, z: 4.012, r: 0.085, haloR: 0.14, phase: 'side' },
-            { x: -4.009, y: -0.53, z: 3.995, r: 0.085, haloR: 0.14, phase: 'mid' },
-            { x: -4.048, y: -0.238, z: 3.978, r: 0.085, haloR: 0.14, phase: 'side' },
+            { x: -1.844, y: 1.224, z: 2.011, r: 0.06, haloR: 0.1, phase: 'side' },
+            { x: -0.299, y: 1.432, z: 1.912, r: 0.06, haloR: 0.1, phase: 'mid' },
+            { x: 1.288, y: 1.645, z: 1.812, r: 0.06, haloR: 0.1, phase: 'side' },
           ];
+          const hazN = new THREE.Vector3(-0.14, 0.99, -0.06).normalize();
+          const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal
+          const hazQh = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), hazN); // circle face -> normal
+          const hazSpot = new THREE.Vector3();
           const hazLights = [];
           for (const s of hazSpots) {
+            hazSpot.set(s.x, s.y, s.z);
             const coreMat = new THREE.MeshLambertMaterial({
               color: 0xff8c1e,
               emissive: 0xff6a00,
               emissiveIntensity: 0,
             });
             const core = new THREE.Mesh(new THREE.CylinderGeometry(s.r, s.r, 0.05, 18), coreMat);
-            core.rotation.z = Math.PI / 2; // lens axis along the truck's X
-            core.position.set(s.x, s.y, s.z);
+            core.quaternion.copy(hazQc); // lens axis along the side-face normal
+            core.position.copy(hazSpot).addScaledVector(hazN, 0.03);
             g.add(core);
             const haloMat = new THREE.MeshBasicMaterial({
               color: 0xff9a3d,
@@ -4947,8 +4953,8 @@
               depthWrite: false,
             });
             const halo = new THREE.Mesh(new THREE.CircleGeometry(s.haloR, 20), haloMat);
-            halo.rotation.y = -Math.PI / 2; // face the rear (-X)
-            halo.position.set(s.x - 0.02, s.y, s.z);
+            halo.quaternion.copy(hazQh); // face the side (+Y)
+            halo.position.copy(hazSpot).addScaledVector(hazN, 0.02);
             g.add(halo);
             hazLights.push({ coreMat: coreMat, haloMat: haloMat, halo: halo, phase: s.phase });
           }
@@ -4959,7 +4965,10 @@
           // version-tag sprite floats above the rear so we can confirm which build is
           // running. REMOVE this block (and the KeyH handler) once placement is confirmed.
           const hazDebug = new THREE.Group();
+          const hazT1 = new THREE.Vector3().crossVectors(hazN, new THREE.Vector3(0, 0, 1)).normalize();
+          const hazT2 = new THREE.Vector3().crossVectors(hazT1, hazN).normalize();
           for (const s of hazSpots) {
+            const cp = new THREE.Vector3(s.x, s.y, s.z).addScaledVector(hazN, 0.03);
             const ring = new THREE.Mesh(
               new THREE.RingGeometry(0.55, 0.7, 40),
               new THREE.MeshBasicMaterial({
@@ -4970,18 +4979,16 @@
                 opacity: 0.9,
               }),
             );
-            ring.rotation.y = -Math.PI / 2;
-            ring.position.set(s.x - 0.03, s.y, s.z);
+            ring.quaternion.copy(hazQh);
+            ring.position.copy(cp);
             ring.renderOrder = 999;
             hazDebug.add(ring);
             const cross = new THREE.LineSegments(
               new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(s.x - 0.7, s.y, s.z),
-                new THREE.Vector3(s.x + 0.25, s.y, s.z),
-                new THREE.Vector3(s.x, s.y - 0.7, s.z),
-                new THREE.Vector3(s.x, s.y + 0.7, s.z),
-                new THREE.Vector3(s.x, s.y, s.z - 0.7),
-                new THREE.Vector3(s.x, s.y, s.z + 0.7),
+                cp.clone().addScaledVector(hazT1, -0.7),
+                cp.clone().addScaledVector(hazT1, 0.7),
+                cp.clone().addScaledVector(hazT2, -0.7),
+                cp.clone().addScaledVector(hazT2, 0.7),
               ]),
               new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false }),
             );
@@ -5003,7 +5010,7 @@
             new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(tagCanvas), depthTest: false }),
           );
           tag.scale.set(3.0, 0.56, 1);
-          tag.position.set(-4.3, 5.7, 4.0);
+          tag.position.set(0.4, 3.1, 1.9);
           tag.renderOrder = 999;
           hazDebug.add(tag);
           g.add(hazDebug);
