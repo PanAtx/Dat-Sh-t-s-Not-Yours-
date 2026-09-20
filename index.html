@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.150</div>
+          <div id="app-version" class="menu-version">v1.0.151</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.150';
+      const APP_VERSION = '1.0.151';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15728,6 +15728,23 @@
         truck.g.visible = true;
         // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
         truck.g.position.set(truck.wx, -4.5, GZ);
+        // DEBUG (temporary): magenta rectangle outlining the truck's COLLISION
+        // box footprint. Asymmetric — street side (player's RIGHT) is wider,
+        // curb side (player's LEFT) is narrower. It is a child of truck.g, so it
+        // follows the truck automatically.
+        if (truck.boxWStreet != null && truck.boxWCurb != null) {
+          if (!truck._colRect) {
+            const _cg = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+            truck._colRect = new THREE.LineSegments(
+              _cg,
+              new THREE.LineBasicMaterial({ color: 0xff00ff })
+            );
+            truck.g.add(truck._colRect);
+          }
+          const _cw = truck.boxWStreet + truck.boxWCurb;
+          truck._colRect.position.set(0, (truck.boxWCurb - truck.boxWStreet) / 2, 0.03);
+          truck._colRect.scale.set(truck.boxL * 2, _cw, 0.08);
+        }
         // The rear hazard lights blink in the DSNY pattern: 1s BOTH outer
         // lights (L1+L3), 1s the MIDDLE light (L2) — repeat forever. There is
         // NEVER a moment when all three are dark.
