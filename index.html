@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.160</div>
+          <div id="app-version" class="menu-version">v1.0.161</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.160';
+      const APP_VERSION = '1.0.161';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -14781,14 +14781,18 @@
           carry === "canFull" ||
           carry === "litterBasket"
         ) {
-          if (carry === "bag") {
-            // Heavy bags must be hauled right up to the rear scoop to dump — a tighter
-            // zone than the generous nearHopper() band the other bags/cans use.
-            const heavy = !!(carried && carried.type === "heavy");
-            if (heavy ? nearHopperHeavy() : nearHopper())
-              return tossBag(carried);
+          // HEAVY CARGO — the GREEN heavy bag and the full metal can — has to
+          // be hauled right up to the REAR of the hopper to dump: a tight
+          // zone at the back of the scoop, no long-distance lobbing. Lighter
+          // bags can be tossed in from a bit further back: the generous
+          // nearHopper() band.
+          const heavyCargo =
+            carry === "canFull" || !!(carried && carried.type === "heavy");
+          if (heavyCargo) {
+            if (nearHopperHeavy())
+              return carry === "bag" ? tossBag(carried) : dumpCan();
             Voice.say(
-              heavy
+              carried && carried.type === "heavy"
                 ? "I need to be closer to the truck. This bag is too heavy!"
                 : "I need to get closer to the truck!",
               1.8,
@@ -14800,8 +14804,9 @@
             );
             return;
           }
+          if (carry === "bag" && nearHopper()) return tossBag(carried);
           // Litter baskets need a much tighter zone — you have to be right at the
-          // rear scoop to dump one. Bags/cans keep the generous nearHopper() band.
+          // rear scoop to dump one. Lighter bags keep the generous nearHopper() band.
           const near =
             carry === "litterBasket" ? nearHopperLitter() : nearHopper();
           if (near)
@@ -15539,6 +15544,13 @@
         const immuneBoost = p.immuneT > 0 ? RUN_IT_UP_SPEED_MULT : 1;
         const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost; // backing up is a touch slower
         const lat = l; // strafe component (continuous)
+        // The worker's PRE-MOVE spot. The truck push-out further down only
+        // resolves motion the WORKER made into the truck: if he was already
+        // inside the push band before this frame's move, it was the truck's
+        // own creep/back-up that moved into him — and the truck must never
+        // shove / slide him along with itself.
+        const prevWx = p.wx,
+          prevWy = p.wy;
         p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * dt;
         p.wy = clamp(p.wy + lat * LAT_SPEED * immuneBoost * dt, -9.4, workerMaxY());
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
@@ -15599,23 +15611,26 @@
           const tHalfWCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW;
           // The worker keeps a little breathing room from the truck's RIGHT
           // (street) side, plus the existing bit from the curb (LEFT) side.
-          // When he's CARRYING, the ITEM must not touch the truck: pin the SIDE
-          // limits OUTSIDE the truck's painted body (visual reach = boxW/0.8 —
-          // the collision box sits inside the paint on the curb side) with a
-          // 0.35u margin. The FRONT (cab) is solid, so it keeps the same 0.35u
-          // carry margin. The REAR is the OPEN SCOOP — there is no body behind
-          // the face for the item to clip into — so a carrying worker is
-          // allowed to step right up to it (his center may go up to 1.0u past
-          // the rear face). That's his dumping spot: pinning him 0.35u PAST
-          // the face left the dump zone (see nearHopper) unreachable at the
-          // closest he could get, and "I need to get closer to the truck!"
-          // would fire there. NPCs use the raw collision box.
+          // When he's CARRYING, the ITEM must not touch the truck: the held
+          // bag hangs ~0.72u out in front of him (the litter basket ~0.95u),
+          // so a hair-thin margin let the item clip the PAINTED body (visual
+          // reach = boxW/0.8 — the collision box sits inside the paint on the
+          // curb side). CARRY_M keeps a full arm's-length off the paint on
+          // both sides and the solid FRONT (cab). The REAR keeps a SMALLER
+          // standoff (CARRY_M_BACK): the open scoop is his dumping spot, so a
+          // carrying worker stands a bit CLOSER to the back of the hopper
+          // than to the sides — his center stops CARRY_M_BACK + radius past
+          // the open face, and the held item (≤ 0.95u out) just reaches the
+          // opening with nothing solid behind the face to clip into. NPCs
+          // use the raw collision box.
           const _holding = carry !== "none";
           const _visReach = truck.boxW * 1.25; // painted body reach (boxW is 0.8x measured)
-          const tHalfWStreetP = _holding ? Math.max(tHalfWStreet, _visReach) + 0.35 : tHalfWStreet + 0.25;
-          const tHalfWCurbP = _holding ? Math.max(tHalfWCurb, _visReach) + 0.35 : tHalfWCurb + 0.25;
-          const tHalfLendPFront = _holding ? tHalfL + 0.35 : tHalfL; // front (cab) — solid body
-          const tHalfLendPBack = _holding ? tHalfL - 1.0 : tHalfL; // rear (open scoop) — step right up to it
+          const CARRY_M = 0.7; // carrying standoff off the painted body (sides + cab)
+          const CARRY_M_BACK = 0.25; // rear: a bit closer to the open hopper (the dumping spot)
+          const tHalfWStreetP = _holding ? Math.max(tHalfWStreet, _visReach) + CARRY_M : tHalfWStreet + 0.25;
+          const tHalfWCurbP = _holding ? Math.max(tHalfWCurb, _visReach) + CARRY_M : tHalfWCurb + 0.25;
+          const tHalfLendPFront = _holding ? tHalfL + CARRY_M : tHalfL; // front (cab) — solid body
+          const tHalfLendPBack = _holding ? tHalfL + CARRY_M_BACK : tHalfL; // rear — carrying stands a bit back, close to the hopper
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
           const cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);
           const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
@@ -15623,16 +15638,39 @@
             dy = p.wy - cy;
           const d2 = dx * dx + dy * dy;
           if (d2 < WR * WR) {
-            if (d2 > 1e-8) {
-              const d = Math.sqrt(d2);
-              const push = WR - d;
-              p.wx += (dx / d) * push;
-              p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
-            } else {
-              // Degenerate (worker inside the box): eject toward the nearer side
-              const dBot = Math.abs(p.wy - (tCy - tHalfWStreetP));
-              const dTop = Math.abs(p.wy - (tCy + tHalfWCurbP));
-              p.wy = dBot < dTop ? tCy - tHalfWStreetP - WR : tCy + tHalfWCurbP + WR;
+            // Two ways the worker can end up in the push band:
+            //  (a) HE walked into the truck this frame (pre-move spot was
+            //      outside) -> resolve the overlap;
+            //  (b) the truck's own back-up / creep moved into him -> never
+            //      DRAG him while he stands still... but the moment he walks
+            //      again he MUST be pushed OUT of the body, so a truck that
+            //      swept over him can't let him walk through the hopper
+            //      (this is what made carrying workers pass through the back
+            //      from one side — the wide carrying band got covered by the
+            //      truck's motion and then disabled the push-out entirely).
+            const pdx = prevWx - cx,
+              pdy = prevWy - cy;
+            const preOut = pdx * pdx + pdy * pdy >= WR * WR;
+            if (preOut || f !== 0 || l !== 0) {
+              if (d2 > 1e-8) {
+                const d = Math.sqrt(d2);
+                const push = WR - d;
+                p.wx += (dx / d) * push;
+                p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
+              } else {
+                // Degenerate (worker center inside the box): eject through
+                // the NEAREST face (rear face included) so he exits where he
+                // is, not teleported to a far side.
+                const dBack = p.wx - (tCx - tHalfLendPBack);
+                const dFront = tCx + tHalfLendPFront - p.wx;
+                const dStreet = p.wy - (tCy - tHalfWStreetP);
+                const dCurb = tCy + tHalfWCurbP - p.wy;
+                const m = Math.min(dBack, dFront, dStreet, dCurb);
+                if (m === dBack) p.wx = tCx - tHalfLendPBack - WR;
+                else if (m === dFront) p.wx = tCx + tHalfLendPFront + WR;
+                else if (m === dStreet) p.wy = tCy - tHalfWStreetP - WR;
+                else p.wy = tCy + tHalfWCurbP + WR;
+              }
             }
           }
         }

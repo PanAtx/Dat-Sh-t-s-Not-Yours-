@@ -26,12 +26,12 @@ function disposeObj(){ calls.dispose++; }
 function addScore(){ calls.score++; }
 function hopperDeposit(){ calls.deposit++; }
 function checkHouse(){ calls.house++; }
-const body = ['nearHopper', 'tossBag', 'updateFlyingBags', 'tryInteract'].map(n => extractFn(html, n)).join('\n');
+const body = ['nearHopper', 'nearHopperHeavy', 'tossBag', 'updateFlyingBags', 'tryInteract'].map(n => extractFn(html, n)).join('\n');
 const api = new Function(
-  'truck','p','flyingBags','dynamicGroup','SFX','Voice','hopperWorldX','hopperWorldY','hopperTopZ','GZ','state','blocks','creatures','pickUp','dumpCan','disposeObj','addScore','hopperDeposit','checkHouse','WORKER_GENDER',
+  'truck','p','flyingBags','dynamicGroup','SFX','Voice','hopperWorldX','hopperWorldY','hopperTopZ','GZ','state','blocks','creatures','pickUp','dumpCan','disposeObj','addScore','hopperDeposit','checkHouse','WORKER_GENDER','HEAVY_DUMP_RADIUS',
   'var carry="none", carried=null;\n' + body + '\n' +
   'return { nearHopper, tossBag, updateFlyingBags, tryInteract, setCarry:function(c,i){carry=c;carried=i;}, getCarry:function(){return carry;} };'
-)(truck, p, flyingBags, dynamicGroup, SFX, Voice, hopperWorldX, hopperWorldY, hopperTopZ, 0.01, 'play', [], [], ()=>{}, ()=>{calls.deposit++;}, disposeObj, addScore, hopperDeposit, checkHouse, 'male');
+)(truck, p, flyingBags, dynamicGroup, SFX, Voice, hopperWorldX, hopperWorldY, hopperTopZ, 0.01, 'play', [], [], ()=>{}, ()=>{calls.deposit++;}, disposeObj, addScore, hopperDeposit, checkHouse, 'male', 3.6);
 
 function makeBag(){ return { state:'curb', h:{}, g:{ parent:{ remove:(x)=>{x.parent=null;} }, position:{ __z:0, set:function(x,y,z){this.__z=z;} }, rotation:{x:0,y:0,z:0} } }; }
 function stepBags(n){ for (let i=0;i<n;i++) api.updateFlyingBags(0.05); }
