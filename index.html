@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.136</div>
+          <div id="app-version" class="menu-version">v1.0.137</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.136';
+      const APP_VERSION = '1.0.137';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4967,7 +4967,10 @@
           const hazDebug = new THREE.Group();
           const hazT1 = new THREE.Vector3().crossVectors(hazN, new THREE.Vector3(0, 0, 1)).normalize();
           const hazT2 = new THREE.Vector3().crossVectors(hazT1, hazN).normalize();
+          const hazRings = [];
+          let hazRingIdx = 0;
           for (const s of hazSpots) {
+            hazRingIdx++;
             const cp = new THREE.Vector3(s.x, s.y, s.z).addScaledVector(hazN, 0.03);
             const ring = new THREE.Mesh(
               new THREE.RingGeometry(0.55, 0.7, 40),
@@ -4983,6 +4986,7 @@
             ring.position.copy(cp);
             ring.renderOrder = 999;
             hazDebug.add(ring);
+            hazRings.push({ label: 'L' + hazRingIdx, local: new THREE.Vector3(s.x, s.y, s.z), mesh: ring });
             const cross = new THREE.LineSegments(
               new THREE.BufferGeometry().setFromPoints([
                 cp.clone().addScaledVector(hazT1, -0.7),
@@ -5013,6 +5017,15 @@
           tag.position.set(-4.3, -0.55, 4.7);
           tag.renderOrder = 999;
           hazDebug.add(tag);
+          // TEMPORARY: on-screen coordinate readout. Shows each ring's LOCAL (code)
+          // coords + LIVE world coords while the H markers are up, so placement can be
+          // dialed in by reading numbers instead of guessing. Removed in the final cleanup.
+          const hazReadout = document.createElement('div');
+          hazReadout.id = 'hazreadout';
+          hazReadout.style.cssText =
+            'position:fixed;top:14px;left:14px;z-index:70;font:12px/1.55 monospace;background:rgba(10,5,15,0.86);color:#ff6bff;border:1px solid #ff00ff;border-radius:6px;padding:8px 11px;pointer-events:none;white-space:pre;letter-spacing:0.3px;';
+          hazReadout.style.display = 'none';
+          document.body.appendChild(hazReadout);
           g.add(hazDebug);
           worldGroup.add(g);
           return {
@@ -5025,6 +5038,8 @@
             hopperZ: hopperZ,
             hazLights: hazLights,
             hazDebug: hazDebug,
+            hazRings: hazRings,
+            hazReadout: hazReadout,
             cabOff: boxL + 1.6,
             wx: -28,
             hidden: 0,
@@ -15779,6 +15794,25 @@
             L.halo.visible = on;
           }
         }
+        // TEMPORARY: refresh the on-screen ring coordinate readout while the H markers are up.
+        if (truck.hazDebug && truck.hazDebug.visible && truck.hazReadout && truck.hazRings) {
+          const hwp = new THREE.Vector3();
+          let ht = 'HAZ RINGS — H hides\n';
+          for (const r of truck.hazRings) {
+            r.mesh.getWorldPosition(hwp);
+            ht +=
+              r.label +
+              '  local (' +
+              r.local.x.toFixed(3) + ', ' +
+              r.local.y.toFixed(3) + ', ' +
+              r.local.z.toFixed(3) + ')\n' +
+              '     world (' +
+              hwp.x.toFixed(2) + ', ' +
+              hwp.y.toFixed(2) + ', ' +
+              hwp.z.toFixed(2) + ')\n';
+          }
+          truck.hazReadout.textContent = ht;
+        }
         if (truck.bladePush) truck.bladePush(0);
         // Hopper trash pile follows the truck and runs its shrink/fade cycle.
         updateHopperTrash(dt);
@@ -19695,8 +19729,11 @@
         // TEST MODE: R = spawn a Red Bull can near the worker (quick visual check of the 3D model).
         // Play state only. Reuses the same spawn as the score-triggered "Run It Up" pickup.
         if (e.code === "KeyR" && state === "play") spawnMonsterNearPlayer();
-        // HAZARD LIGHT DEBUG: H toggles the giant magenta placement markers (temporary)
-        if (e.code === "KeyH" && truck && truck.hazDebug) truck.hazDebug.visible = !truck.hazDebug.visible;
+        // HAZARD LIGHT DEBUG: H toggles the giant magenta placement markers + coord readout (temporary)
+        if (e.code === "KeyH" && truck && truck.hazDebug) {
+          truck.hazDebug.visible = !truck.hazDebug.visible;
+          if (truck.hazReadout) truck.hazReadout.style.display = truck.hazDebug.visible ? 'block' : 'none';
+        }
         if (e.code === "Enter" && state !== "play") advanceGame();
       });
       window.addEventListener("keyup", (e) => {
