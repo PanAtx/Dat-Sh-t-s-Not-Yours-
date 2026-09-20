@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.158</div>
+          <div id="app-version" class="menu-version">v1.0.159</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.158';
+      const APP_VERSION = '1.0.159';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15592,15 +15592,15 @@
           const tHalfWCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW;
           // The worker keeps a little breathing room from the truck's RIGHT
           // (street) side, plus the existing bit from the curb (LEFT) side.
-          // When he's CARRYING, the ITEM is what clips into the truck:
-          //   curb   (TRUCK LEFT)  -> only minor clipping -> TINY margin
-          //   street (TRUCK RIGHT) -> more clipping       -> bigger margin
-          //   front/rear faces     -> standard margin
-          // NPCs use the raw collision box.
+          // When he's CARRYING, the ITEM must not touch the truck: pin all
+          // four of HIS limits OUTSIDE the truck's painted body (visual reach
+          // = boxW/0.8 — the collision box sits inside the paint on the curb
+          // side) with a 0.35u margin. NPCs use the raw collision box.
           const _holding = carry !== "none";
-          const tHalfWStreetP = tHalfWStreet + 0.25 + (_holding ? 0.5 : 0);
-          const tHalfWCurbP = tHalfWCurb + 0.25 + (_holding ? 0.1 : 0);
-          const tHalfLendP = tHalfL + (_holding ? 0.35 : 0); // front (cab) + rear (hopper)
+          const _visReach = truck.boxW * 1.25; // painted body reach (boxW is 0.8x measured)
+          const tHalfWStreetP = _holding ? Math.max(tHalfWStreet, _visReach) + 0.35 : tHalfWStreet + 0.25;
+          const tHalfWCurbP = _holding ? Math.max(tHalfWCurb, _visReach) + 0.35 : tHalfWCurb + 0.25;
+          const tHalfLendP = _holding ? tHalfL + 0.35 : tHalfL; // front (cab) + rear (hopper)
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
           const cx = Math.min(Math.max(p.wx, tCx - tHalfLendP), tCx + tHalfLendP);
           const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
