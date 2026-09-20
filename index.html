@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.159</div>
+          <div id="app-version" class="menu-version">v1.0.160</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.159';
+      const APP_VERSION = '1.0.160';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -13336,12 +13336,17 @@
           dy = hy - p.wy;
         // The worker must stand right at the open rear scoop to deposit — a tight band
         // around the hopper, NOT a long-distance throw across the whole street.
-        return dx > -1.0 && dx < 3.5 && Math.abs(dy) < 4.5;
+        // The band reaches 4.0u from the scoop point (the scoop sits 1.6u INSIDE the
+        // rear face), so it always covers the carrying worker's closest approach —
+        // his push-out lets him stand right up to the open face — and he can dump
+        // from anywhere along the back of the hooper, not just a hair-thin spot.
+        return dx > -1.0 && dx < 4.0 && Math.abs(dy) < 4.5;
       }
       // Litter baskets are serviced-once and tossed away — the worker dumps one from
       // a tighter zone than bags/cans. Keep the radius comfortably bigger than the
-      // truck's ~1.5 auto-follow offset, or the worker can't reach the scoop at all.
-      const LITTER_DUMP_RADIUS = 3.5;
+      // carrying worker's closest approach (he can stand right up to the open rear
+      // face, scoop point ~1.6u in front of it), or he can't reach the scoop at all.
+      const LITTER_DUMP_RADIUS = 4.0;
       function nearHopperLitter() {
         if (!truck || truck.hidden > 0) return false;
         const hx =
@@ -13350,8 +13355,10 @@
         return Math.hypot(p.wx - hx, p.wy - hy) < LITTER_DUMP_RADIUS;
       }
       // Heavy bags can't be lobbed across the street — the worker has to haul them
-      // right up to the rear scoop. Tighter than the generous nearHopper() band.
-      const HEAVY_DUMP_RADIUS = 3.2;
+      // right up to the rear scoop. Tighter than the generous nearHopper() band,
+      // but wide enough for his carrying push-out standoff (up to ~1.0u past the
+      // open face, scoop point ~1.6u in front of it).
+      const HEAVY_DUMP_RADIUS = 3.6;
       function nearHopperHeavy() {
         if (!truck || truck.hidden > 0) return false;
         const hx =
@@ -15592,17 +15599,25 @@
           const tHalfWCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW;
           // The worker keeps a little breathing room from the truck's RIGHT
           // (street) side, plus the existing bit from the curb (LEFT) side.
-          // When he's CARRYING, the ITEM must not touch the truck: pin all
-          // four of HIS limits OUTSIDE the truck's painted body (visual reach
-          // = boxW/0.8 — the collision box sits inside the paint on the curb
-          // side) with a 0.35u margin. NPCs use the raw collision box.
+          // When he's CARRYING, the ITEM must not touch the truck: pin the SIDE
+          // limits OUTSIDE the truck's painted body (visual reach = boxW/0.8 —
+          // the collision box sits inside the paint on the curb side) with a
+          // 0.35u margin. The FRONT (cab) is solid, so it keeps the same 0.35u
+          // carry margin. The REAR is the OPEN SCOOP — there is no body behind
+          // the face for the item to clip into — so a carrying worker is
+          // allowed to step right up to it (his center may go up to 1.0u past
+          // the rear face). That's his dumping spot: pinning him 0.35u PAST
+          // the face left the dump zone (see nearHopper) unreachable at the
+          // closest he could get, and "I need to get closer to the truck!"
+          // would fire there. NPCs use the raw collision box.
           const _holding = carry !== "none";
           const _visReach = truck.boxW * 1.25; // painted body reach (boxW is 0.8x measured)
           const tHalfWStreetP = _holding ? Math.max(tHalfWStreet, _visReach) + 0.35 : tHalfWStreet + 0.25;
           const tHalfWCurbP = _holding ? Math.max(tHalfWCurb, _visReach) + 0.35 : tHalfWCurb + 0.25;
-          const tHalfLendP = _holding ? tHalfL + 0.35 : tHalfL; // front (cab) + rear (hopper)
+          const tHalfLendPFront = _holding ? tHalfL + 0.35 : tHalfL; // front (cab) — solid body
+          const tHalfLendPBack = _holding ? tHalfL - 1.0 : tHalfL; // rear (open scoop) — step right up to it
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
-          const cx = Math.min(Math.max(p.wx, tCx - tHalfLendP), tCx + tHalfLendP);
+          const cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);
           const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
           const dx = p.wx - cx,
             dy = p.wy - cy;

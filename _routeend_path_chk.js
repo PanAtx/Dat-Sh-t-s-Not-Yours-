@@ -81,7 +81,7 @@ function harness(world){
     updateHopperTrash: world.updateHopperTrash, updateHUD: world.updateHUD,
     clamp: world.clamp, camera: world.camera, finishRouteEnd: world.finishRouteEnd,
     WORKER_GENDER: 'male',
-    WORKER_MAX_Y: grabConst('WORKER_MAX_Y'),
+    workerMaxY: () => 8.0, // Flatbush cap — index.html's workerMaxY() (Manhattan levels cap at 5.0)
     RE_CHEER: grabConst('RE_CHEER'), RE_WALK_SP: grabConst('RE_WALK_SP'),
     RE_DRIVE_SP: grabConst('RE_DRIVE_SP'), RE_DRIVE_MAX: grabConst('RE_DRIVE_MAX'),
     Math: Math
