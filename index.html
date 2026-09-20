@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.162</div>
+          <div id="app-version" class="menu-version">v1.0.163</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.162';
+      const APP_VERSION = '1.0.163';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3963,7 +3963,10 @@
           if (ch.geometry) ch.geometry.dispose();
           if (ch.material) {
             (Array.isArray(ch.material) ? ch.material : [ch.material]).forEach(
-              (m) => m.dispose(),
+              (m) => {
+                if (m.map) m.map.dispose(); // free canvas textures (e.g. the mailbox U.S. MAIL label)
+                m.dispose();
+              },
             );
           }
         });
@@ -8039,6 +8042,233 @@
           cd: 0,
         });
       }
+      function makeUspsEagleTexture() {
+        // White USPS eagle logo plate (stylized eagle head in a blue field +
+        // "UNITED STATES POSTAL SERVICE" + the red signature rule). The canvas
+        // background is the body blue so the plate blends into the side.
+        // Guarded for the Node smoke tests (no DOM there) -> null.
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const c = document.createElement("canvas");
+        c.width = 256;
+        c.height = 340;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#20388e"; // = the box body blue (USPS royal navy)
+        ctx.fillRect(0, 0, 256, 340);
+        const rr = (x, y, w, h, r) => {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        };
+        ctx.fillStyle = "#f4f6f8";
+        rr(20, 20, 216, 300, 18);
+        ctx.fill();
+        ctx.fillStyle = "#20388e";
+        rr(48, 40, 160, 150, 12);
+        ctx.fill();
+        // stylized eagle head (white on the blue field), beak hooked to the right
+        ctx.save();
+        ctx.translate(128, 115);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.moveTo(-58, -8);
+        ctx.quadraticCurveTo(-64, -52, -14, -56);
+        ctx.quadraticCurveTo(28, -58, 44, -30);
+        ctx.quadraticCurveTo(50, -18, 34, -14);
+        ctx.lineTo(58, -4);
+        ctx.quadraticCurveTo(26, -6, 20, 2);
+        ctx.quadraticCurveTo(4, 14, -22, 8);
+        ctx.quadraticCurveTo(-52, 2, -58, -8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#20388e"; // the eye
+        ctx.beginPath();
+        ctx.arc(16, -34, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        // wordmark + red rule
+        ctx.fillStyle = "#20388e";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        ctx.font = "bold 30px Arial, Helvetica, sans-serif";
+        ctx.fillText("UNITED STATES", 128, 236);
+        ctx.fillText("POSTAL SERVICE", 128, 272);
+        ctx.fillStyle = "#b3122e";
+        ctx.fillRect(52, 286, 152, 6);
+        const t = new THREE.CanvasTexture(c);
+        t.needsUpdate = true;
+        return t;
+      }
+      function makeCollectionTimesTexture() {
+        // Front "COLLECTION TIMES" table (dark header bar + schedule grid) for the
+        // plate below the mail slot. Guarded for the Node smoke tests -> null.
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const c = document.createElement("canvas");
+        c.width = 256;
+        c.height = 128;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#f4f6f8";
+        ctx.fillRect(0, 0, 256, 128);
+        ctx.fillStyle = "#121f52";
+        ctx.fillRect(0, 0, 256, 34);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 20px Arial, Helvetica, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("COLLECTION TIMES", 128, 18);
+        // 2 columns x 4 rows of schedule cells
+        ctx.strokeStyle = "#8a93a6";
+        ctx.lineWidth = 2;
+        for (let r = 0; r < 4; r++) {
+          const y = 46 + r * 20;
+          ctx.strokeRect(16, y, 104, 16);
+          ctx.strokeRect(136, y, 104, 16);
+        }
+        ctx.fillStyle = "#5b6478"; // faint "text" dashes inside the cells
+        for (let r = 0; r < 4; r++) {
+          const y = 52 + r * 20;
+          ctx.fillRect(24, y, 60, 3);
+          ctx.fillRect(144, y, 60, 3);
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.needsUpdate = true;
+        return t;
+      }
+      function makeMailboxMesh() {
+        // High-poly USPS sidewalk COLLECTION BOX (the big blue street-corner box,
+        // built to match the reference photo): FOUR SHORT LEGS with flanged feet —
+        // NO pole — a tombstone cross-section (FLAT front, curved arched top flowing
+        // into a FLAT back, FLAT sides), the mail-SLOT OPENING + "COLLECTION TIMES"
+        // plate + door/keyhole on the street face (-Y), the white USPS eagle logo on
+        // both flat sides, and rivet rows along the arches. Origin at the ground
+        // point, like makeHydrantMesh / makeSidewalkTree. 32-seg arch curve +
+        // beveled edges + 26 rivet spheres -> well over 1000 triangles.
+        const g = new THREE.Group();
+        const usps = M(0x20388e); // USPS royal navy blue (body + legs)
+        const uspsDoor = M(0x1a2f78); // deeper blue door panel + feet
+        const uspsDark = M(0x121f52); // seams, slot frame, rivets
+        const slotDark = M(0x0a0d14); // the mail-slot opening
+        const white = M(0xf4f6f8);
+        const brass = MS(0x9a7b2d); // keyhole escutcheon
+        // --- body: flat front (+x in shape space), arched top, flat back ---
+        // Shape local (x,y): x = front(+)/back(-) depth, y = height. Rotation
+        // (PI/2, -PI/2, 0) maps: shape x -> world -Y (front faces the street),
+        // shape y -> world +Z (up), extrusion -> world -X (long axis along the
+        // street). Body spans x +-0.375, y -0.265..+0.265, z 0.5..1.75.
+        const prof = new THREE.Shape();
+        prof.moveTo(0.25, 0);
+        prof.lineTo(0.25, 1.0);
+        prof.absarc(0, 1.0, 0.25, 0, Math.PI, false);
+        prof.lineTo(-0.25, 0);
+        prof.closePath();
+        const body = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(prof, {
+            depth: 0.72,
+            bevelEnabled: true,
+            bevelThickness: 0.015,
+            bevelSize: 0.015,
+            bevelSegments: 2,
+            curveSegments: 32,
+          }),
+          usps,
+        );
+        body.castShadow = true;
+        body.rotation.set(Math.PI / 2, -Math.PI / 2, 0); // tombstone upright, front -> street
+        body.position.set(0.36, 0, 0.5); // extrusion runs toward -X, center the box
+        g.add(body);
+        // --- four short legs with flanged feet (the reference look, no pole) ---
+        for (let i = 0; i < 4; i++) {
+          const lx = i % 2 === 0 ? -1 : 1;
+          const ly = i < 2 ? -1 : 1;
+          const leg = BX(0.09, 0.09, 0.5, usps);
+          leg.position.set(lx * 0.26, ly * 0.15, 0.25);
+          g.add(leg);
+          const foot = BX(0.17, 0.17, 0.05, uspsDoor);
+          foot.position.set(lx * 0.26, ly * 0.15, 0.025);
+          g.add(foot);
+        }
+        // --- street face (-Y): mail-slot opening, times plate, door + keyhole ---
+        // dark navy frame around the slot, then the near-black opening inside it
+        const slotFrame = BX(0.56, 0.05, 0.16, uspsDark);
+        slotFrame.position.set(0, -0.258, 1.32);
+        g.add(slotFrame);
+        const slot = BX(0.48, 0.03, 0.08, slotDark);
+        slot.position.set(0, -0.272, 1.32);
+        g.add(slot);
+        // white "COLLECTION TIMES" plate under the slot (+ canvas table when available)
+        const plate = BX(0.46, 0.02, 0.24, white);
+        plate.position.set(0, -0.266, 1.08);
+        g.add(plate);
+        const timesTex = makeCollectionTimesTexture();
+        if (timesTex) {
+          const times = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.44, 0.22),
+            new THREE.MeshLambertMaterial({ map: timesTex }),
+          );
+          times.position.set(0, -0.278, 1.08);
+          times.rotation.x = Math.PI / 2; // face the street (-Y), text upright
+          g.add(times);
+        }
+        // the front door panel (deeper blue) with seam lines + brass keyhole
+        const door = BX(0.56, 0.03, 0.55, uspsDoor);
+        door.position.set(0, -0.266, 0.75);
+        g.add(door);
+        for (let i = 0; i < 2; i++) {
+          const seam = BX(0.58, 0.02, 0.02, uspsDark);
+          seam.position.set(0, -0.278, 1.03 - i * 0.51);
+          g.add(seam);
+        }
+        const escut = CY(0.032, 0.032, 0.015, brass, 16);
+        escut.position.set(0, -0.284, 0.92); // cylinder axis (Y) already faces the street
+        g.add(escut);
+        const keyhole = CY(0.013, 0.013, 0.018, slotDark, 12);
+        keyhole.position.set(0, -0.285, 0.92);
+        g.add(keyhole);
+        // --- the white USPS eagle logo on both FLAT sides (+/- X) ---
+        const logoTex = makeUspsEagleTexture();
+        if (logoTex) {
+          for (let s = -1; s <= 1; s += 2) {
+            const logo = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.3, 0.4),
+              new THREE.MeshLambertMaterial({ map: logoTex }),
+            );
+            logo.position.set(s * 0.378, 0, 1.02);
+            // face outward on each flat side, text upright (world up = +Z):
+            // +X side: (x=PI/2, y=PI/2) -> normal +X, up +Z; mirror for -X
+            logo.rotation.set(Math.PI / 2, s * (Math.PI / 2), 0);
+            g.add(logo);
+          }
+        }
+        // --- rivet rows: along both side arches + down both front corners ---
+        for (let s = -1; s <= 1; s += 2) {
+          for (let i = 0; i < 9; i++) {
+            const th = (i / 8) * Math.PI;
+            const riv = SP(0.012, uspsDark, 8);
+            riv.position.set(s * 0.378, -0.25 * Math.cos(th), 1.5 + 0.25 * Math.sin(th));
+            g.add(riv);
+          }
+          for (let i = 0; i < 4; i++) {
+            const riv = SP(0.012, uspsDark, 8);
+            riv.position.set(s * 0.33, -0.272, 0.6 + i * 0.24);
+            g.add(riv);
+          }
+        }
+        return g;
+      }
+      function addMailbox(b, wx, wy) {
+        const g = makeMailboxMesh();
+        // Rest the flanged feet ON the curb top (GZ 0.3 -> curb top 0.35), like the
+        // hydrant, and offset by the house cell's worldX (group-local space).
+        g.position.set(wx - b.worldX, wy, GZ + 0.05);
+        b.group.add(g);
+        // Solid sidewalk obstacle: NPC walkers route around it (b.trees is the
+        // avoidable-obstacle list). It is NOT a worker hazard — decorative like a tree.
+        if (!b.trees) b.trees = [];
+        b.trees.push({ wx: wx, wy: wy });
+      }
       function addManhole(b, wx, wy) {
         const g = new THREE.Group();
         const hole = CY(0.55, 0.55, 0.05, M(0x0a0c0e), 14);
@@ -12067,8 +12297,10 @@
         // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
         if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(0, 4.8));
         // sidewalk trees (registered in b.trees so NPC walkers route around them —
-        // they're a solid obstacle, not a walkable hazard like a pothole or a bottle)
-        if (Math.random() < 0.5) {
+        // they're a solid obstacle, not a walkable hazard like a pothole or a bottle).
+        // Suppressed on the corner mailbox's house (Block 2, first corner) so a canopy
+        // can never clip the box.
+        if (Math.random() < 0.5 && !(baseX === 96 && houseIdx === 0)) {
           const isSidewalkTree =
             isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX";
           const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
@@ -12081,6 +12313,10 @@
           if (!b.trees) b.trees = [];
           b.trees.push({ wx: baseX + tx, wy: ty });
         }
+        // USPS blue mailbox — the fixed street fixture at the FIRST CORNER of Block 2
+        // (the corner shared with Intersection 1, world x=96). It sits 2.4u into the
+        // block, 1.0u off the curb, door facing the street like a real curbside box.
+        if (baseX === 96 && houseIdx === 0) addMailbox(b, baseX + 2.4, 1.5);
         // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
         if (borough === "BROOKLYN" && houseIdx < HOUSES_PER_BLOCK - 1) {
           const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
