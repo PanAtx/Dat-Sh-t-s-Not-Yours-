@@ -187,7 +187,9 @@ check('the roll spin is SPEED-based (rotation rate = ground speed / ball radius 
   soccerCase.indexOf('T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt') >= 0 && soccerCase.indexOf('* dt * 8') < 0);
 check('kids stay clamped to the block (hiX/loX flips)', soccerCase.indexOf('k.wx >= hiX') >= 0 && soccerCase.indexOf('k.wx <= loX') >= 0 && soccerCase.indexOf('k.dir = -1') >= 0 && soccerCase.indexOf('k.dir = 1') >= 0);
 check('the receiver SPRINTS 2D (1.6x) and the mates jog in — nobody idles', soccerCase.indexOf('k.sp * 1.6 * dt') >= 0 && soccerCase.indexOf('k.sp * 0.95 * dt') >= 0 && soccerCase.indexOf('k.sp * 1.15 * dt') >= 0);
-check('the case references NO obstacle system (bottles/cans/trees are not in their path)', soccerCase.indexOf('npcWalkAroundObstacles') < 0 && soccerCase.indexOf('hazards') < 0 && soccerCase.indexOf('b.trees') < 0 && soccerCase.indexOf('c.stop') < 0 && soccerCase.indexOf('yieldLane') < 0);
+check('the kids reference NO walker obstacle system (npcWalkAroundObstacles/hazards/yieldLane)', soccerCase.indexOf('npcWalkAroundObstacles') < 0 && soccerCase.indexOf('hazards') < 0 && soccerCase.indexOf('c.stop') < 0 && soccerCase.indexOf('yieldLane') < 0);
+check('the ball BOUNCES off solid sidewalk obstacles (b.trees) and re-aims', soccerCase.indexOf('SOCCER BALL vs SOLID SIDEWALK OBSTACLES') >= 0 && soccerCase.indexOf('B.tx = B.wx') >= 0);
+check('kids dead-stop at solid obstacles (kidStepBlocked guards all 4 forward steps)', (soccerCase.match(/kidStepBlocked\(k,/g) || []).length === 4);
 check('no off-screen recycling (a fixed fixture of the block)', soccerCase.indexOf('break; // a fixed fixture: never recycles off-screen') >= 0);
 function makeTeam() {
   const mkKid = (wx) => ({
@@ -211,7 +213,7 @@ const animParts = (c, dp) => { c.phase += dp; };
 const voiceCalls = [];
 const Voice = { say(text, gap, pitch, bx, by, gender, speaker, style) { voiceCalls.push({ text: text, speaker: speaker, style: style }); } };
 const runCase = new Function(
-  'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam',
+  'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam', 'blocks',
   'SOCCER_LEAD', 'SOCCER_PICKUP', 'SOCCER_WORKER_RANGE', 'SOCCER_KICK_VZ', 'SOCCER_WORKER_KICK_CD',
   'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_ROLL_SP', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
   'SOCCER_ROLL_ACCEL', 'SOCCER_BALL_R', 'clamp',
@@ -221,7 +223,7 @@ const runCase = new Function(
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks yet)
 const step = (pw) =>
-  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
+  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, [], SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
 let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0, nanFrames = 0;
 let lastOwner = T.owner;
 try {

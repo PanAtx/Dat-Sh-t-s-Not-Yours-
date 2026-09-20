@@ -1,8 +1,8 @@
 // _mailbox_chk.js — verify the USPS blue sidewalk COLLECTION BOX: high-poly build
 // to the reference (no pole, 4 short legs, flat front + mail slot, arched top ->
-// flat back, flat sides), the U.S. Postal Service palette, curb placement at the
-// FIRST CORNER of Block 2, walker-avoidance registration, and Node-safe (no DOM)
-// construction.
+// flat back, flat sides), the U.S. Postal Service palette, curb placement on every
+// 5th street corner starting at the first corner of Block 2, walker-avoidance
+// registration, and Node-safe (no DOM) construction.
 const fs = require('fs');
 const path = require('path');
 global.THREE = require(path.join(__dirname, '_three128.js'));
@@ -27,9 +27,15 @@ function BX(w, h, d, m){ const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d)
 function CY(r1, r2, h, m, s){ const q = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); q.castShadow = true; return q; }
 function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); q.castShadow = true; return q; }
 const GZ = 0.3;
+const HOUSES_PER_BLOCK = 10; // mirrors index.html (10 houses x 8u per 80u block)
 
 eval(extract('makeUspsEagleTexture'));
 eval(extract('makeCollectionTimesTexture'));
+eval(extract('makeGraffitiTexture'));
+eval(extract('addGraffiti'));
+eval(extract('getKestTexture'));
+eval(extract('addKestSticker'));
+eval(extract('mailboxAt'));
 eval(extract('makeMailboxMesh'));
 eval(extract('addMailbox'));
 eval(extract('addManhole'));
@@ -47,8 +53,12 @@ check('addMailbox builds a Group without a DOM' + (threw ? '  [' + threw.message
 
 // ---- 2) placement: on the curb top, offset by the block's worldX -------------
 check('rests ON the curb (GZ+0.05) and offset by worldX', built && Math.abs(built.position.z - (GZ + 0.05)) < 1e-6 && Math.abs(built.position.x - (98.4 - 96)) < 1e-6 && Math.abs(built.position.y - 1.5) < 1e-6);
+check('rotated so the FLAT BACK faces the street (slot/door toward the houses)', built && Math.abs(built.rotation.z - Math.PI) < 1e-6);
 check('registers a solid obstacle in b.trees (walkers route around)', b.trees.length === 1 && b.trees[0].wx === 98.4 && b.trees[0].wy === 1.5);
-check('does NOT add a worker hazard (decorative, like a tree)', b.hazards.length === 0);
+check('does NOT add a worker hazard (solid instead: walkers avoid + worker collides via b.trees)', b.hazards.length === 0);
+check('worker collision blocks solid b.trees obstacles (mailboxes, hard push-out)', /SOLID SIDEWALK OBSTACLES[^\n]*b\.trees/.test(src) && /OBST_SOLID_R/.test(src) && /p\.wx = o\.wx \+ \(ox \/ d\) \* min/.test(src));
+check('the soccer ball bounces off b.trees obstacles (reflect + re-aim)', /SOCCER BALL vs SOLID SIDEWALK OBSTACLES/.test(src) && /B\.tx = B\.wx/.test(src));
+check('soccer kids dead-stop at solid obstacles (kidStepBlocked)', src.indexOf('kidStepBlocked') >= 0);
 
 // ---- 3) high-poly + reference collection-box shape + USPS palette -------------
 let tris = 0, meshes = 0;
@@ -72,20 +82,39 @@ check('white logo / times plates (0xf4f6f8)', has(0xf4f6f8));
 check('brass keyhole escutcheon (Standard 0x9a7b2d)', [...mats].some(m => m.type === 'MeshStandardMaterial' && m.color && m.color.getHex() === 0x9a7b2d));
 check('no red flag / chrome handle left over (matches reference)', !has(0xc8102e) && !has(0xd8dce0));
 check('eagle + times canvas textures Node-guarded (null in Node)', makeUspsEagleTexture() === null && makeCollectionTimesTexture() === null);
+check('graffiti canvas Node-guarded (null in Node)', makeGraffitiTexture() === null);
+check('graffiti is RANDOM per build (Math.random in the texture fn)', /Math\.random/.test(extract('makeGraffitiTexture')));
+check('graffiti decals are browser-only (none in the Node build)', built && built.children.every(ch => !(ch.material && ch.material.transparent)));
+check('kest texture Node-guarded (null in Node)', getKestTexture() === null);
+check('sticker loader requests kestgak.png', /kestgak\.png/.test(extract('getKestTexture')));
+check('sticker plane keeps the PNG aspect (0.3/0.213 = 1.408 ~= 128/91)', (() => { const s = extract('addKestSticker'); const m = /PlaneGeometry\(([\d.]+), ([\d.]+)\)/.exec(s); return m && Math.abs(parseFloat(m[1]) / parseFloat(m[2]) - 128 / 91) < 0.01; })());
+check('kest sticker RANDOM per build (spot + tilt via Math.random)', /Math\.random/.test(extract('addKestSticker')));
+check('kest sticker sits ON TOP of the graffiti (renderOrder 10, outside the decal)', (() => { const s = extract('addKestSticker'); return /renderOrder = 10/.test(s) && /0\.272/.test(s); })());
+check('kest sticker ONLY on the back face (no side offsets)', (() => { const s = extract('addKestSticker'); return /0\.272/.test(s) && !/-0\.38/.test(s); })());
 // the reference shape: NO pole, four short legs, low tombstone box on feet
 const geos = [];
 built && built.traverse(ch => { if (ch.geometry) geos.push(ch.geometry); });
 check('NO long pole: no tall cylinder (all cyl h <= 0.1)', geos.every(g => g.type !== 'CylinderGeometry' || (g.parameters && g.parameters.height <= 0.1)));
 check('four FLANGED FEET (0.17 boxes): got ' + geos.filter(g => g.type === 'BoxGeometry' && g.parameters.width === 0.17).length, geos.filter(g => g.type === 'BoxGeometry' && g.parameters.width === 0.17).length === 4);
 check('four short LEGS (0.09 boxes): got ' + geos.filter(g => g.type === 'BoxGeometry' && g.parameters.width === 0.09).length, geos.filter(g => g.type === 'BoxGeometry' && g.parameters.width === 0.09).length === 4);
+const legs = [];
+built && built.traverse(ch => { if (ch.geometry && ch.geometry.type === 'BoxGeometry' && ch.geometry.parameters.width === 0.09) legs.push(ch); });
+check('legs are extensions of the box CORNERS (outer faces flush, centers +-0.33/+-0.22)', legs.length === 4 && legs.every(ch => Math.abs(Math.abs(ch.position.x) - 0.33) < 1e-6 && Math.abs(Math.abs(ch.position.y) - 0.22) < 1e-6));
 check('26 RIVETS (spheres r=0.012): got ' + geos.filter(g => g.type === 'SphereGeometry' && g.parameters.radius === 0.012).length, geos.filter(g => g.type === 'SphereGeometry' && g.parameters.radius === 0.012).length === 26);
 check('tombstone body: extruded 32-seg arch, 0.72 long along street', (() => { const ex = geos.find(g => g.type === 'ExtrudeGeometry'); const op = ex && ((ex.parameters && ex.parameters.options) || ex.parameters); return !!ex && op.curveSegments === 32 && op.depth === 0.72; })());
 check('low box on legs: no child above 1.8u', built && built.children.every(ch => ch.position.z < 1.8));
 
-// ---- 4) the level places it at the FIRST CORNER of Block 2 --------------------
-check('gated to Block 2 house 0 (baseX === 96 && houseIdx === 0)', /baseX === 96 && houseIdx === 0\)\s*addMailbox\(b, baseX \+ 2\.4, 1\.5\)/.test(src));
-check('the random sidewalk tree is suppressed on that house', /Math\.random\(\) < 0\.5 && !\(baseX === 96 && houseIdx === 0\)/.test(src));
-check('mailbox world x=98.4 is inside Block 2 (96..176) and hugs its first corner', 98.4 > 96 && 98.4 < 102);
+// ---- 4) every 5th STREET CORNER, starting at the FIRST CORNER of Block 2 -------
+check('mailboxAt: boxes at corners x=96 (blk2 W), x=368 (blk4 E), x=576 (blk7 W)', mailboxAt(96, 0) === 1 && mailboxAt(288, 9) === 2 && mailboxAt(576, 0) === 1);
+check('mailboxAt: MID-BLOCK houses are false (96,5)/(192,4)/(96,1)', !mailboxAt(96, 5) && !mailboxAt(192, 4) && !mailboxAt(96, 1));
+check('mailboxAt: other corners are false (176)/(192)/(480)/(656)/(672)', !mailboxAt(96, 9) && !mailboxAt(192, 0) && !mailboxAt(480, 0) && !mailboxAt(576, 9) && !mailboxAt(672, 0));
+check('mailboxAt: NO boxes on Block 1 corners (0)/(80)', !mailboxAt(0, 0) && !mailboxAt(0, 9));
+check('mailboxAt: exactly 3 boxes total on the 8-block route', (() => { let n = 0; for (let bx = 0; bx <= 672; bx += 96) for (let i = 0; i < 10; i++) if (mailboxAt(bx, i)) n++; return n; })() === 3);
+check('makeBlockContents gates addMailbox on mailboxAt with west/east offsets', /const mb = mailboxAt\(b\.blockX, houseIdx\);\s*if \(mb\) addMailbox\(b, baseX \+ \(mb === 1 \? 2\.4 : 5\.6\), 1\.5\);/.test(src));
+check('the random sidewalk tree is suppressed on EVERY mailbox corner house', /Math\.random\(\) < 0\.5 && !mailboxAt\(b\.blockX, houseIdx\)/.test(src));
+check('first box at world x=98.4 = corner 96 + 2.4u in', 96 + 2.4 === 98.4 && 98.4 > 96 && 98.4 < 102);
+check('east-corner box at x=368-2.4=365.6 sits INSIDE Block 4 (288..368)', 368 - 2.4 >= 288 && 368 - 2.4 < 368);
+check('EVERY box gets unique graffiti + sticker (fresh random canvases per build)', /addGraffiti\(g\);[\s\S]*?addKestSticker\(g\)/.test(extract('makeMailboxMesh')));
 check('mailbox world y=1.5 is on the near sidewalk (curb 0.5 .. grass 5.0)', 1.5 > 0.5 && 1.5 < 5.0);
 check('disposeObj frees canvas label textures (no GPU leak on level rebuild)', /if \(m\.map\) m\.map\.dispose\(\);/.test(src));
 

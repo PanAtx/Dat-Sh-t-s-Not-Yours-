@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.163</div>
+          <div id="app-version" class="menu-version">v1.0.164</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.163';
+      const APP_VERSION = '1.0.164';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8137,6 +8137,195 @@
         t.needsUpdate = true;
         return t;
       }
+      function makeGraffitiTexture() {
+        // One face of random street graffiti: 2-4 tags (wildstyle squiggle with
+        // dark outline + neon inner pass, bubble word, or paint splat + arrow),
+        // each with drips. Built with Math.random at level-build time, so the box
+        // wears a different pattern on every new game. Node-safe -> null.
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const c = document.createElement("canvas");
+        c.width = 256;
+        c.height = 384;
+        const ctx = c.getContext("2d");
+        const R = Math.random;
+        const pick = (a) => a[(R() * a.length) | 0];
+        const NEON = ["#ff2d95", "#00e5ff", "#ffe600", "#39ff14", "#b026ff", "#ff6d00", "#f5f7fa", "#ff1744"];
+        const INK = "#101318";
+        const n = 2 + ((R() * 3) | 0); // 2-4 tags per face
+        for (let t = 0; t < n; t++) {
+          const kind = (R() * 3) | 0;
+          const color = pick(NEON);
+          ctx.save();
+          ctx.translate(60 + R() * 136, 80 + R() * 200);
+          ctx.rotate((R() - 0.5) * 0.7);
+          ctx.globalAlpha = 0.78 + R() * 0.2;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          if (kind === 0) {
+            // wildstyle squiggle: chunky dark stroke + neon inner pass + drips
+            const segs = 4 + ((R() * 4) | 0);
+            let px = -90,
+              py = 0;
+            ctx.strokeStyle = INK;
+            ctx.lineWidth = 15 + R() * 9;
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            for (let i = 0; i < segs; i++) {
+              const nx = px + 24 + R() * 26;
+              const ny = py + (R() - 0.5) * 70;
+              ctx.quadraticCurveTo(px + (nx - px) / 2 + (R() - 0.5) * 30, py + (R() - 0.5) * 44, nx, ny);
+              px = nx;
+              py = ny;
+            }
+            ctx.stroke();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 6 + R() * 4;
+            ctx.stroke();
+            for (let i = 0, dn = 2 + ((R() * 3) | 0); i < dn; i++) {
+              const dx = -80 + R() * 160;
+              const dy = (R() - 0.3) * 30;
+              const dl = 12 + R() * 30;
+              ctx.strokeStyle = INK;
+              ctx.lineWidth = 3.5 + R() * 2.5;
+              ctx.beginPath();
+              ctx.moveTo(dx, dy);
+              ctx.lineTo(dx + (R() - 0.5) * 6, dy + dl);
+              ctx.stroke();
+              ctx.fillStyle = INK;
+              ctx.beginPath();
+              ctx.arc(dx + (R() - 0.5) * 6, dy + dl + 3, 2.5 + R() * 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else if (kind === 1) {
+            // bubble word: thick dark outline + neon fill + letter drips
+            const word = pick(["DAT", "SH", "NSY", "T-2", "K7", "666", "YNT", "B!", "ZED", "0x"]);
+            ctx.font = "italic 900 " + (54 + ((R() * 30) | 0)) + "px Arial, Helvetica, sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.strokeStyle = INK;
+            ctx.lineWidth = 9;
+            ctx.strokeText(word, 0, 0);
+            ctx.fillStyle = color;
+            ctx.fillText(word, 0, 0);
+            for (let i = 0, dn = 1 + ((R() * 3) | 0); i < dn; i++) {
+              const dx = -40 + R() * 80;
+              const dl = 10 + R() * 22;
+              ctx.strokeStyle = INK;
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.moveTo(dx, 16);
+              ctx.lineTo(dx, 16 + dl);
+              ctx.stroke();
+              ctx.fillStyle = INK;
+              ctx.beginPath();
+              ctx.arc(dx, 19 + dl, 2.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          } else {
+            // paint splat + a thrown arrow
+            ctx.fillStyle = color;
+            for (let i = 0, blobs = 10 + ((R() * 14) | 0); i < blobs; i++) {
+              const a = R() * Math.PI * 2;
+              const r = R() * R() * (22 + R() * 26);
+              ctx.beginPath();
+              ctx.arc(Math.cos(a) * r * 1.7, Math.sin(a) * r, 2 + R() * 7, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.strokeStyle = pick(NEON);
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(-26, 24);
+            ctx.lineTo(34, -22);
+            ctx.moveTo(34, -22);
+            ctx.lineTo(13, -20);
+            ctx.moveTo(34, -22);
+            ctx.lineTo(31, -1);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.needsUpdate = true;
+        return t;
+      }
+      function addGraffiti(g) {
+        // Transparent decal planes hugging the four flat outside faces of the
+        // collection box (front, back, both flat sides). A fresh random canvas
+        // per build -> different graffiti every new game. depthWrite off keeps
+        // the decals from occluding, while the proud door/slot/keyhole (which
+        // stick out past the plane) correctly hide the paint behind them.
+        // Node-safe: no DOM -> no decals.
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return;
+        const faces = [
+          { w: 0.76, x: 0, y: -0.268, rx: Math.PI / 2, ry: 0 }, // front (-Y)
+          { w: 0.76, x: 0, y: 0.268, rx: Math.PI / 2, ry: Math.PI }, // back (+Y)
+          { w: 0.54, x: -0.381, y: 0, rx: Math.PI / 2, ry: -Math.PI / 2 }, // flat side
+          { w: 0.54, x: 0.381, y: 0, rx: Math.PI / 2, ry: Math.PI / 2 }, // flat side
+        ];
+        for (const f of faces) {
+          const m = new THREE.Mesh(
+            new THREE.PlaneGeometry(f.w, 1.34),
+            new THREE.MeshLambertMaterial({
+              map: makeGraffitiTexture(),
+              transparent: true,
+              depthWrite: false,
+            }),
+          );
+          m.position.set(f.x, f.y, 1.13);
+          m.rotation.set(f.rx, f.ry, 0);
+          m.castShadow = false;
+          g.add(m);
+        }
+      }
+      // --- "kestgak" sticker: loaded once, cached (the PNG ships in the repo root) ---
+      let kestTex = null;
+      const kestWaiters = [];
+      function getKestTexture() {
+        if (typeof document === "undefined" || !THREE.TextureLoader) return null;
+        if (kestTex) return kestTex;
+        if (kestWaiters.length === 0) {
+          // first game: kick off the one-time async load; later builds reuse it
+          new THREE.TextureLoader().load("kestgak.png", (t) => {
+            kestTex = t;
+            for (const w of kestWaiters) w(t);
+            kestWaiters.length = 0;
+          });
+        }
+        return null;
+      }
+      function addKestSticker(g) {
+        // One big "kest" sticker slapped haphazardly on the flat BACK face
+        // (street side): random spot (no grid, no forethought), straight-ish
+        // sometimes, tilted a few degrees other times, re-rolled every level
+        // build like the graffiti. Sits ON TOP of the graffiti: slightly
+        // further out than the decal (0.272 vs 0.268) + higher renderOrder.
+        // Node-safe.
+        if (typeof document === "undefined" || !THREE.TextureLoader) return null;
+        const f = { px: 0, py: 0.272, rx: Math.PI / 2, ry: Math.PI, hw: 0.05 }; // back face only
+        const mat = new THREE.MeshLambertMaterial({ transparent: true, depthWrite: false });
+        // 0.6 x 0.426 = 4x the size, keeps the PNG's 128x91 landscape aspect
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.426), mat);
+        const R = Math.random;
+        const lateral = (R() - 0.5) * 2 * f.hw;
+        m.position.set(lateral, f.py, 0.71 + R() * 0.83);
+        // straight-ish 30% of the time, else tilted ~2-12 degrees either way
+        m.rotation.set(f.rx, f.ry, R() < 0.3 ? 0 : (R() < 0.5 ? -1 : 1) * (0.04 + R() * 0.18));
+        m.castShadow = false;
+        m.renderOrder = 10; // painted AFTER the graffiti decals -> on top
+        const tex = getKestTexture();
+        if (tex) {
+          mat.map = tex;
+        } else {
+          m.visible = false; // hidden until the cached PNG finishes loading
+          kestWaiters.push((t) => {
+            mat.map = t;
+            mat.needsUpdate = true;
+            m.visible = true;
+          });
+        }
+        g.add(m);
+        return m;
+      }
       function makeMailboxMesh() {
         // High-poly USPS sidewalk COLLECTION BOX (the big blue street-corner box,
         // built to match the reference photo): FOUR SHORT LEGS with flanged feet —
@@ -8180,14 +8369,16 @@
         body.position.set(0.36, 0, 0.5); // extrusion runs toward -X, center the box
         g.add(body);
         // --- four short legs with flanged feet (the reference look, no pole) ---
+        // The legs are extensions of the box's CORNERS: outer faces flush with the
+        // body faces (body +-0.375 x / +-0.265 y, 0.09 leg -> centers +-0.33/+-0.22)
         for (let i = 0; i < 4; i++) {
           const lx = i % 2 === 0 ? -1 : 1;
           const ly = i < 2 ? -1 : 1;
           const leg = BX(0.09, 0.09, 0.5, usps);
-          leg.position.set(lx * 0.26, ly * 0.15, 0.25);
+          leg.position.set(lx * 0.33, ly * 0.22, 0.25);
           g.add(leg);
           const foot = BX(0.17, 0.17, 0.05, uspsDoor);
-          foot.position.set(lx * 0.26, ly * 0.15, 0.025);
+          foot.position.set(lx * 0.33, ly * 0.22, 0.025);
           g.add(foot);
         }
         // --- street face (-Y): mail-slot opening, times plate, door + keyhole ---
@@ -8256,13 +8447,34 @@
             g.add(riv);
           }
         }
+        // --- random graffiti on the outside faces (fresh pattern every new game) ---
+        addGraffiti(g);
+        // --- one haphazard "kest" sticker on top of the graffiti, re-rolled each game ---
+        addKestSticker(g);
         return g;
+      }
+      // A USPS collection box on EVERY 5TH STREET CORNER, counting from the FIRST
+      // CORNER of Block 2 (near-side corner at world x=96). Near-side corners are
+      // each block's west edge (houseIdx 0) and east edge (houseIdx 9):
+      // 96, 176, 192, 272, 288, 368, 384, 464, 480, 560, 576, 656, 672, 752.
+      // Every 5th from x=96 -> boxes at x=96, x=368, x=576 (3 per level).
+      // Returns 0 = no box, 1 = west corner (box 2.4u INTO the block),
+      // 2 = east corner (box 2.4u back from the block's end edge).
+      function mailboxAt(blockX, houseIdx) {
+        if (houseIdx !== 0 && houseIdx !== HOUSES_PER_BLOCK - 1) return 0;
+        const blockIdx = Math.round(blockX / 96);
+        const cornerIdx = blockIdx * 2 + (houseIdx === HOUSES_PER_BLOCK - 1 ? 1 : 0);
+        if (cornerIdx < 2 || (cornerIdx - 2) % 5 !== 0) return 0;
+        return houseIdx === 0 ? 1 : 2;
       }
       function addMailbox(b, wx, wy) {
         const g = makeMailboxMesh();
         // Rest the flanged feet ON the curb top (GZ 0.3 -> curb top 0.35), like the
         // hydrant, and offset by the house cell's worldX (group-local space).
         g.position.set(wx - b.worldX, wy, GZ + 0.05);
+        // Present the FLAT BACK to the street: spin 180 about Z so the mail slot,
+        // times plate and door face the house/store side of the sidewalk.
+        g.rotation.z = Math.PI;
         b.group.add(g);
         // Solid sidewalk obstacle: NPC walkers route around it (b.trees is the
         // avoidable-obstacle list). It is NOT a worker hazard — decorative like a tree.
@@ -12298,9 +12510,9 @@
         if (Math.random() < 0.15) addDogShit(b, baseX + R(1, 6), R(0, 4.8));
         // sidewalk trees (registered in b.trees so NPC walkers route around them —
         // they're a solid obstacle, not a walkable hazard like a pothole or a bottle).
-        // Suppressed on the corner mailbox's house (Block 2, first corner) so a canopy
-        // can never clip the box.
-        if (Math.random() < 0.5 && !(baseX === 96 && houseIdx === 0)) {
+        // Suppressed on every mailbox house (every 5th corner from Block 2 on)
+        // so a canopy can never clip the box.
+        if (Math.random() < 0.5 && !mailboxAt(b.blockX, houseIdx)) {
           const isSidewalkTree =
             isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX";
           const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
@@ -12313,10 +12525,12 @@
           if (!b.trees) b.trees = [];
           b.trees.push({ wx: baseX + tx, wy: ty });
         }
-        // USPS blue mailbox — the fixed street fixture at the FIRST CORNER of Block 2
-        // (the corner shared with Intersection 1, world x=96). It sits 2.4u into the
-        // block, 1.0u off the curb, door facing the street like a real curbside box.
-        if (baseX === 96 && houseIdx === 0) addMailbox(b, baseX + 2.4, 1.5);
+        // USPS blue collection boxes — one on EVERY 5TH STREET CORNER, counting
+        // from the FIRST CORNER of Block 2 (world x=96): boxes at x=96, 368, 576.
+        // Each sits 2.4u in from its corner, 1.0u off the curb, flat back facing
+        // the street. Every box gets its own fresh random graffiti + sticker.
+        const mb = mailboxAt(b.blockX, houseIdx);
+        if (mb) addMailbox(b, baseX + (mb === 1 ? 2.4 : 5.6), 1.5);
         // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
         if (borough === "BROOKLYN" && houseIdx < HOUSES_PER_BLOCK - 1) {
           const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
@@ -15832,6 +16046,27 @@
           // At the wall (stoop/door or plain face): hard stop right on the line.
           p.wy = stopY;
         }
+        // === SOLID SIDEWALK OBSTACLES (USPS collection boxes / sidewalk trees = b.trees) ===
+        // The worker can't walk THROUGH a collection box: hard circle push-out
+        // along the closest-point normal (same scheme as the truck body). His
+        // center stops at the box's face — holding the stick into it is a stable
+        // dead stop, never a clip.
+        const OBST_SOLID_R = 0.55; // solid reach of a collection box (0.75u-wide body)
+        const OBST_WORKER_R = 0.45; // worker body half-width
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const tr = blocks[bi].trees;
+          if (!tr) continue;
+          for (let j = 0; j < tr.length; j++) {
+            const o = tr[j];
+            const ox = p.wx - o.wx,
+              oy = p.wy - o.wy;
+            const d = Math.hypot(ox, oy);
+            const min = OBST_SOLID_R + OBST_WORKER_R;
+            if (d >= min || d < 1e-4) continue;
+            p.wx = o.wx + (ox / d) * min;
+            p.wy = o.wy + (oy / d) * min;
+          }
+        }
         // === Truck body collision: worker can't clip through the truck, but can walk freely
         // around the front AND along BOTH sides. The push runs along the CLOSEST point of the
         // box (rounded corners), so rounding the cab or the hopper never teleports the worker
@@ -17298,6 +17533,33 @@
                   B.vx = 0;
                   B.vy = 0; // arrived — resting
                 }
+                // === SOCCER BALL vs SOLID SIDEWALK OBSTACLES (USPS boxes / trees = b.trees) ===
+                // The ball can't roll THROUGH a collection box: reflect off the
+                // face (damped) and re-aim at the resting spot, so it settles on
+                // the near side of the box where a kid can grab it.
+                for (let bi = 0; bi < blocks.length; bi++) {
+                  const tr = blocks[bi].trees;
+                  if (!tr) continue;
+                  for (let j = 0; j < tr.length; j++) {
+                    const o = tr[j];
+                    const bx = B.wx - o.wx,
+                      by = B.wy - o.wy;
+                    const d = Math.hypot(bx, by);
+                    const min = 0.72; // ball 0.22 + box solid reach ~0.5
+                    if (d >= min || d < 1e-4) continue;
+                    B.wx = o.wx + (bx / d) * min;
+                    B.wy = o.wy + (by / d) * min;
+                    const nx = bx / d,
+                      ny = by / d;
+                    const vn = B.vx * nx + B.vy * ny;
+                    if (vn < 0) {
+                      B.vx -= 1.55 * vn * nx; // reflect with 0.55 restitution
+                      B.vy -= 1.55 * vn * ny;
+                    }
+                    B.tx = B.wx;
+                    B.ty = B.wy; // re-aim: rest on the near side — a kid will grab it
+                  }
+                }
               }
               B.vz -= 12 * dt; // gravity
               B.z += B.vz * dt;
@@ -17324,6 +17586,19 @@
                 T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt;
               }
               // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
+              // A kid's forward step is dead-stopped by a solid sidewalk obstacle
+              // (a USPS collection box / tree in b.trees) on his lane — nobody
+              // clips straight through a mailbox while chasing the ball.
+              const kidStepBlocked = (k, stepX) => {
+                const nx = k.wx + stepX;
+                for (let bi = 0; bi < blocks.length; bi++) {
+                  const tr = blocks[bi].trees;
+                  if (!tr) continue;
+                  for (let j = 0; j < tr.length; j++)
+                    if (Math.abs(tr[j].wx - nx) < 0.8 && Math.abs(tr[j].wy - k.wy) < 0.8) return true;
+                }
+                return false;
+              };
               for (const k of T.kids) {
                 if (T.celebrateT > 0) {
                   // victory hops while the "GOOOOAL!" bubble lands
@@ -17333,21 +17608,21 @@
                       0.62 + Math.abs(Math.sin(k.phase)) * 0.24;
                 } else if (k === T.owner) {
                   // dribble at full pace, the ball rolling just ahead of him
-                  k.wx += k.dir * k.sp * 1.15 * dt;
+                  if (!kidStepBlocked(k, k.dir * k.sp * 1.15 * dt)) k.wx += k.dir * k.sp * 1.15 * dt;
                 } else if (!T.owner && T.receiver === k && (!inMouth(B.wx, B.wy) || T.kickoffDir)) {
                   // sprint the loose ball in x AND y — a kid chases it wherever it lies
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0)
+                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0 && !kidStepBlocked(k, k.dir * k.sp * 1.6 * dt))
                     k.wx += k.dir * k.sp * 1.6 * dt;
                   k.wy += (B.wy - k.wy) * Math.min(1, dt * 3.0);
                 } else if (!T.owner) {
                   // mate: jog in toward the action (positioning) — kids keep moving
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  k.wx += k.dir * k.sp * 0.95 * dt;
+                  if (!kidStepBlocked(k, k.dir * k.sp * 0.95 * dt)) k.wx += k.dir * k.sp * 0.95 * dt;
                   k.wy += (B.wy - k.wy) * Math.min(1, dt * 1.2);
                 } else {
                   // mate of the owner: keep running, stay in the play
-                  k.wx += k.dir * k.sp * 0.9 * dt;
+                  if (!kidStepBlocked(k, k.dir * k.sp * 0.9 * dt)) k.wx += k.dir * k.sp * 0.9 * dt;
                 }
                 // the walkable band — but the RECEIVER may chase the ball past it
                 // (a kid chasing a stray ball does not care about the paint)
