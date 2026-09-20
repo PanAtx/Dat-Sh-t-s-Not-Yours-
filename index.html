@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.138</div>
+          <div id="app-version" class="menu-version">v1.0.139</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.138';
+      const APP_VERSION = '1.0.139';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4956,7 +4956,7 @@
             halo.quaternion.copy(hazQh); // face the side (+Y)
             halo.position.copy(hazSpot).addScaledVector(hazN, 0.02);
             g.add(halo);
-            hazLights.push({ coreMat: coreMat, haloMat: haloMat, halo: halo, phase: s.phase });
+            hazLights.push({ coreMat: coreMat, haloMat: haloMat, halo: halo, core: core, phase: s.phase });
           }
           // ===== TEMPORARY DEBUG (press H to toggle): giant magenta placement markers =====
           // A GIANT magenta ring + crosshair at each lens' EXACT spot, rendered with
@@ -4986,7 +4986,6 @@
             ring.position.copy(cp);
             ring.renderOrder = 999;
             hazDebug.add(ring);
-            hazRings.push({ label: 'L' + hazRingIdx, local: new THREE.Vector3(s.x, s.y, s.z), mesh: ring });
             const cross = new THREE.LineSegments(
               new THREE.BufferGeometry().setFromPoints([
                 cp.clone().addScaledVector(hazT1, -0.7),
@@ -4998,7 +4997,34 @@
             );
             cross.renderOrder = 999;
             hazDebug.add(cross);
+            hazRings.push({ label: 'L' + hazRingIdx, local: new THREE.Vector3(s.x, s.y, s.z), mesh: ring, cross: cross });
           }
+          // TEMPORARY: manual placement nudge. Moves a light's core lens + halo + debug
+          // ring + crosshair by (dx, dy, dz) in truck-local space and keeps the readout's
+          // `local` coords in sync. Driven by the U/I/J/K/N/M keydown handler (L1 only)
+          // so the placement can be dialed in by hand. Removed with the H debug cleanup.
+          const nudgeHaz = (i, dx, dy, dz) => {
+            const L = hazLights[i];
+            if (!L) return;
+            L.core.position.x += dx;
+            L.core.position.y += dy;
+            L.core.position.z += dz;
+            L.halo.position.x += dx;
+            L.halo.position.y += dy;
+            L.halo.position.z += dz;
+            const R = hazRings[i];
+            if (R) {
+              R.mesh.position.x += dx;
+              R.mesh.position.y += dy;
+              R.mesh.position.z += dz;
+              R.cross.position.x += dx;
+              R.cross.position.y += dy;
+              R.cross.position.z += dz;
+              R.local.x += dx;
+              R.local.y += dy;
+              R.local.z += dz;
+            }
+          };
           const tagCanvas = document.createElement('canvas');
           tagCanvas.width = 512;
           tagCanvas.height = 96;
@@ -5039,6 +5065,7 @@
             hazLights: hazLights,
             hazDebug: hazDebug,
             hazRings: hazRings,
+            nudgeHaz: nudgeHaz,
             hazReadout: hazReadout,
             cabOff: boxL + 1.6,
             wx: -28,
@@ -15797,7 +15824,7 @@
         // TEMPORARY: refresh the on-screen ring coordinate readout while the H markers are up.
         if (truck.hazDebug && truck.hazDebug.visible && truck.hazReadout && truck.hazRings) {
           const hwp = new THREE.Vector3();
-          let ht = 'HAZ RINGS — H hides\n';
+          let ht = 'HAZ RINGS — H hides | L1: U/I=x J/K=y N/M=z\n';
           for (const r of truck.hazRings) {
             r.mesh.getWorldPosition(hwp);
             ht +=
@@ -19704,6 +19731,19 @@
         )
           e.preventDefault();
         keys[e.code] = true;
+        // HAZARD LIGHT MANUAL PLACEMENT (debug): nudge L1 in truck-local space.
+        // U/I = x increase/decrease, J/K = y increase/decrease, N/M = z increase/decrease.
+        // Runs BEFORE the e.repeat guard so holding a key slides the lens smoothly.
+        // Removed together with the rest of the H debug block once placement is set.
+        if (truck && truck.nudgeHaz) {
+          const HAZ_STEP = 0.02;
+          if (e.code === "KeyU") truck.nudgeHaz(0, HAZ_STEP, 0, 0);
+          else if (e.code === "KeyI") truck.nudgeHaz(0, -HAZ_STEP, 0, 0);
+          else if (e.code === "KeyJ") truck.nudgeHaz(0, 0, HAZ_STEP, 0);
+          else if (e.code === "KeyK") truck.nudgeHaz(0, 0, -HAZ_STEP, 0);
+          else if (e.code === "KeyN") truck.nudgeHaz(0, 0, 0, HAZ_STEP);
+          else if (e.code === "KeyM") truck.nudgeHaz(0, 0, 0, -HAZ_STEP);
+        }
         if (e.repeat) return;
         // ESC / P = pause / resume the live shift (mirrors the on-screen PAUSE + gamepad START)
         if (e.code === "Escape" || e.code === "KeyP") {

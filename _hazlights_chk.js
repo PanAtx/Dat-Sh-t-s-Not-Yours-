@@ -47,6 +47,7 @@ check('light 2 (middle) sits on rear hazard zone (x=-3.957, y=-0.227, z=3.863)',
 check('light 3 sits on rear hazard zone (x=-4.027, y=-0.378, z=3.695)', buildSrc.indexOf("{ x: -4.027, y: -0.378, z: 3.695, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
+check('manual L1 nudge keys exist: U/I=x, J/K=y, N/M=z (run before the e.repeat guard so held keys slide)', buildSrc.indexOf('const nudgeHaz = (i, dx, dy, dz) => {') >= 0 && buildSrc.indexOf('hazRings: hazRings,') >= 0 && buildSrc.indexOf('nudgeHaz: nudgeHaz,') >= 0 && src.indexOf('e.code === "KeyU"') >= 0 && src.indexOf('e.code === "KeyI"') >= 0 && src.indexOf('e.code === "KeyJ"') >= 0 && src.indexOf('e.code === "KeyK"') >= 0 && src.indexOf('e.code === "KeyN"') >= 0 && src.indexOf('e.code === "KeyM"') >= 0 && src.indexOf('truck.nudgeHaz(0, HAZ_STEP, 0, 0)') >= 0 && src.indexOf('truck.nudgeHaz(0, 0, 0, -HAZ_STEP)') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
 
 // ---- (2) updateTruck drives the blink on a 3-second clock ----
