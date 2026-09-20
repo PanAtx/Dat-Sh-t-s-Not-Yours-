@@ -5,11 +5,19 @@
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-const s = html.indexOf('function makeTricycle(){');
-if (s < 0) throw new Error('makeTricycle not found');
-const e = html.indexOf('\nfunction ', s + 1);
-if (e < 0) throw new Error('end of makeTricycle not found');
-const code = html.slice(s, e);
+function extract(name){
+  // brace-counted (indentation-proof)
+  const idx = html.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = html.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < html.length; i++){
+    if (html[i] === '{') depth++;
+    else if (html[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return html.slice(idx, i + 1);
+}
+const code = extract('makeTricycle');
 
 const P = () => ({ x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } });
 const M = (c, opt) => ({ c: c });

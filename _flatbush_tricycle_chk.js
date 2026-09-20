@@ -53,7 +53,7 @@ function extractTricCase(){
 }
 const tricCase = extractTricCase();
 check("case 'tric' has a driveway-tricycle branch", tricCase.indexOf('isDrivewayTric') >= 0);
-check("driveway branch breaks before the street logic", /if \(c\.isDrivewayTric\)\{[\s\S]*?break;[\s\S]*?===== street tricycle/.test(tricCase));
+check("driveway branch breaks before the street logic", /if \(c\.isDrivewayTric\)\s*\{[\s\S]*?break;[\s\S]*?===== street tricycle/.test(tricCase));
 
 // Run the exact case body in a switch with the same free variables updateCreatures gives it.
 // A driveway tricycle (isDrivewayTric) breaks before touching the street logic, so only the
@@ -236,7 +236,7 @@ function runApproach(){
 }
 
 // ---- 3) Traffic + collision systems EXCLUDE isDrivewayTric ----
-check('collideCreatures skips driveway tricycles (own AI handles the bump)', /if \(c\.type === 'tric' && c\.isDrivewayTric\) continue;/.test(src));
+check('collideCreatures skips driveway tricycles (own AI handles the bump)', /if \(c\.type === "tric" && c\.isDrivewayTric\) continue;/.test(src));
 
 // ---- 4) Flatbush (day 3) spawns NO non-attacking street tricycle ----
 // The generic roster's street tricycle (BASE_NPC_COUNTS.tric) must be zeroed on Flatbush,
@@ -269,7 +269,7 @@ check('street tricycles are capped to zero on every level (Flatbush traffic base
 check('findVehicleAhead ignores driveway tricycles', /!VEHICLE_TYPES\[other\.type\] \|\| other\.isDrivewayTric/.test(src));
 check('findClosingVehicle ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
 check('npcLaneFree ignores driveway tricycles', /!VEHICLE_TYPES\[v\.type\] \|\| !v\.boxW \|\| v\.isDrivewayTric/.test(src));
-check('separateVehicles / truck-collision list excludes driveway tricycles', /v\.type !== 'lady' && !v\.isDrivewayTric/.test(src));
+check('separateVehicles / truck-collision list excludes driveway tricycles', /v\.type !== "lady" &&\s*!v\.isDrivewayTric/.test(src));
 
 console.log(ok ? '\nFLATBUSH TRICYCLE CHECKS PASSED' : '\nFLATBUSH TRICYCLE CHECKS FAILED');
 process.exit(ok ? 0 : 1);

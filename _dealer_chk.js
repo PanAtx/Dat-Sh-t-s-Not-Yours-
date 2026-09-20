@@ -119,7 +119,7 @@ check(
 check("bubble CSS for dealer speaker", /bub-dealer \{/.test(html));
 check(
   "spawnBubble maps dealer speaker",
-  /speaker === "dealer"\) el\.className = "bubble bub-dealer";/.test(html),
+  /speaker === "dealer"\) cls = "bubble bub-dealer";/.test(html),
 );
 console.log("[4] RUNTIME: real dealer case body");
 const caseIdx = html.indexOf('case "dealer": {');

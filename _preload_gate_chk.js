@@ -12,11 +12,11 @@ let pass = true;
 const check = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n); if (!c) pass = false; };
 
 // ---- (1) HTML: loading screen + hidden menu ----
-check('#loading modal exists', /<div id="loading" class="modal">/.test(html));
+check('#loading modal exists', /<div id="loading" class="modal"\s*>/.test(html));
 check('loading has bar + pct + label', ['ldbar-fill', 'ld-pct', 'ld-label'].every(id => html.indexOf('id="' + id + '"') >= 0));
 check('loading has RETRY button', html.indexOf('id="btnRetry"') >= 0);
-check('#menu is hidden by default', /<div id="menu" class="modal hidden">/.test(html));
-check('#loading z-index 30 (above #menu 20)', /#loading \{ z-index:30/.test(html));
+check('#menu is hidden by default', /<div id="menu" class="modal hidden"\s*>/.test(html));
+check('#loading z-index 30 (above #menu 20)', /#loading \{\s*z-index:\s*30/.test(html));
 
 // ---- (2) PRELOAD_ASSETS covers the 6 models + 2 title images ----
 const paS = html.indexOf('const PRELOAD_ASSETS');
@@ -24,17 +24,36 @@ const paE = html.indexOf('const PRELOAD_TOTAL', paS);
 const paBlock = html.slice(paS, paE);
 const need = ['truck.fbx', 'car.glb', 'litterReduced2.glb', 'coffee_shop_cup.glb',
   'sweet_bread_roll_game_ready__2k_pbr.glb', 'red_bull_energy_drink_can.glb', 'dsnylogo3.jpg', 'explicit_logo.webp'];
-for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf("'" + u + "'") >= 0);
+for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf('"' + u + '"') >= 0);
 
 // ---- (3) getModelUrl streaming support ----
 check('getModelUrl(url, onProgress) signature', /async function getModelUrl\(url, onProgress\)/.test(html));
-check('reads content-length header', html.indexOf("get('content-length')") >= 0);
+check('reads content-length header', html.indexOf('get("content-length")') >= 0);
 check('streams via body.getReader', html.indexOf('body.getReader') >= 0);
 
 // ---- (5) buildTruck throws when the FBX template is missing ----
-const btS = html.indexOf('function buildTruck(){');
-const btE = html.indexOf('\nfunction ', btS + 10);
-const btCode = html.slice(btS, btE > 0 ? btE : btS + 4000);
+function matchBrace(text, openIdx){
+  // string/comment-aware brace matcher (Prettier indented everything, so the old
+  // "\nfunction " end-marker is gone)
+  let depth = 0, i = openIdx, q = null;
+  for (; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '\\') i++;
+      else if (c === q) q = null;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '/'){ i += 2; while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*'){ i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
+    if (c === "'" || c === '"' || c === '`') q = c;
+    else if (c === '{') depth++;
+    else if (c === '}'){ depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+const btS = html.indexOf('function buildTruck() {');
+const btE = matchBrace(html, html.indexOf('{', btS)) + 1;
+const btCode = html.slice(btS, btE);
 let threw = false;
 try { new Function('FBX_TPL', btCode + '\nreturn buildTruck;')({ truck: null })(); }
 catch (e) { threw = /FBX truck model not loaded yet/.test(e.message); }
@@ -45,7 +64,7 @@ const bootS = html.indexOf('// ==================== BOOT ====================');
 const boot = html.slice(bootS);
 check('boot no longer calls truck = buildTruck()', boot.indexOf('truck = buildTruck()') < 0);
 check('boot kicks off preloadAssets()', /preloadAssets\(\);/.test(boot));
-const rtS = html.indexOf('function rebuildTruckFromFbx(){');
+const rtS = html.indexOf('function rebuildTruckFromFbx() {');
 const rtE = html.indexOf('\nfunction ', rtS + 10);
 check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx/.test(html.slice(rtS, rtE > 0 ? rtE : rtS + 1200)));
 
@@ -90,8 +109,8 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   check('cold load reports the true byte size from the Blob', res.size === SIZES['truck.fbx']);
 
   // run the REAL preloadAssetsToCache extracted from index.html
-  const f1 = html.indexOf('async function preloadAssetsToCache(){');
-  const f2 = html.indexOf('async function buildModelTemplates(){', f1);
+  const f1 = html.indexOf('async function preloadAssetsToCache() {');
+  const f2 = html.indexOf('async function buildModelTemplates() {', f1);
   const pcCode = html.slice(f1, f2);
   const PRELOAD_ASSETS = Object.keys(SIZES).map(u => ({ url: u, size: SIZES[u], label: u }));
   const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);

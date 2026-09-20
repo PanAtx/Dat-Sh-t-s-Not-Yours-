@@ -36,12 +36,16 @@ function extractObj(name){ const m = src.match(new RegExp(name + ' = (\\{[\\s\\S
 const TREASURE_NAMES = extractObj('TREASURE_NAMES');
 const MONGO_NAMES = extractObj('MONGO_NAMES');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.replace(/\r$/, '').startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (indentation-proof)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 
 // ---- (2) doghouse placement: mirror spawnWorld's mag/side/flip/clamp math ----

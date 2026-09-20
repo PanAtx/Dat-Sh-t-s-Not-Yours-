@@ -4,7 +4,8 @@
 //   2) power-ups (coffee / BEC / Monster) are snapped to the front of a real house cell
 //      (the REAL snapToHouseCell, extracted verbatim) so they're never in an intersection;
 //   3) the dog house anchor is firmly on the front-lawn GRASS;
-//   4) the worker can now walk out onto the grass (WORKER_MAX_Y clears the grass band).
+//   4) the worker's lateral reach is level-aware (workerMaxY() = 8.0 on borough levels
+//      clears the grass band; 5.0 in Manhattan keeps him on the sidewalk).
 const fs = require('fs');
 const path = require('path');
 
@@ -22,11 +23,6 @@ function extractFn(name){
   }
   return src.slice(idx, i + 1);
 }
-const grabConst = (name) => {
-  const m = src.match(new RegExp('const ' + name + '\\s*=\\s*([0-9.]+);'));
-  if (!m) throw new Error('const not found: ' + name);
-  return parseFloat(m[1]);
-};
 
 // ---- world constants (mirrors index.html) ----
 const BW = 8, HOUSES_PER_BLOCK = 10, BLOCK_W = BW * HOUSES_PER_BLOCK;
@@ -36,7 +32,6 @@ const LEVEL_BLOCKS = [
   { x: 576, garbage: true  }, { x: 672, garbage: false },
 ];
 const R = (a, b) => a + Math.random() * (b - a);
-const WORKER_MAX_Y = grabConst('WORKER_MAX_Y');
 
 // Ground bands (from buildGround): asphalt y -9.5..0.5, near sidewalk 0.5..5.0,
 // front-lawn grass 5.0..8.5. "In front of a house" = x inside some block's 80u span;
@@ -114,9 +109,14 @@ for (const bl of LEVEL_BLOCKS){
 }
 check('dog house: anchor firmly on the front-lawn GRASS (y 5..8.5), inside its block, off street/sidewalk (' + dogN + ' houses)', dogOk, dogWorst ? JSON.stringify(dogWorst) : '');
 
-// ---- (4) worker can walk onto the grass: WORKER_MAX_Y must clear the grass band. ----
-check('worker reach: WORKER_MAX_Y (' + WORKER_MAX_Y + ') clears the sidewalk (5.0) into the front-lawn grass (5..8.5), short of the houses', WORKER_MAX_Y > 5.0 && WORKER_MAX_Y <= GRASS_Y1);
-check('worker reach: the OLD sidewalk-only cap (4.5) is gone from the movement clamp', src.indexOf('clamp(p.wy + lat * LAT_SPEED * dt, -9.4, WORKER_MAX_Y)') >= 0);
+// ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels
+//      (clears the sidewalk into the front-lawn grass, short of the houses) and 5.0 in
+//      Manhattan (sidewalk only); the movement clamp uses it. ----
+const isManhattanLevel = () => false;   // borough-level stub for the extracted workerMaxY()
+eval(extractFn('workerMaxY'));
+check('worker reach: workerMaxY() (borough) = 8.0 clears the sidewalk (5.0) into the front-lawn grass (5..8.5), short of the houses', workerMaxY() > 5.0 && workerMaxY() <= GRASS_Y1);
+check('worker reach: Manhattan caps the worker on the sidewalk (5.0)', src.indexOf('return isManhattanLevel() ? 5.0 : 8.0;') >= 0);
+check('worker reach: the movement clamp clamps to workerMaxY() (no leftover constant cap)', src.indexOf('clamp(p.wy + lat * LAT_SPEED * immuneBoost * dt, -9.4, workerMaxY())') >= 0);
 
 console.log(ok ? '\nPLACEMENT ALL CHECKS PASS' : '\nPLACEMENT FAILURES');
 process.exit(ok ? 0 : 1);

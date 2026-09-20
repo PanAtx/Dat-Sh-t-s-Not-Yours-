@@ -41,13 +41,35 @@ for (const ic of icons){
 check('apple-touch-icon.png is a valid 180x180 PNG', JSON.stringify(pngInfo('apple-touch-icon.png')) === JSON.stringify({ w: 180, h: 180 }));
 
 // ---- (2) head links ----
-check('favicon -> icon-192.png (PNG)', /<link rel="icon" type="image\/png" href="icon-192\.png">/.test(html));
-check('apple-touch-icon -> apple-touch-icon.png', /<link rel="apple-touch-icon" href="apple-touch-icon\.png">/.test(html));
+check('favicon -> icon-192.png (PNG)', /<link rel="icon" type="image\/png" href="icon-192\.png"\s*\/?>/.test(html));
+check('apple-touch-icon -> apple-touch-icon.png', /<link rel="apple-touch-icon" href="apple-touch-icon\.png"\s*\/?>/.test(html));
 
 // ---- (3) SFX radio helpers - extracted verbatim, run against fake Cache/fetch ----
+// The SFX object is bounded by BRACE-COUNTING (string/comment-aware) because Prettier
+// indented its closing `};`, breaking the old "\n};" marker.
+const sfxObj = html.indexOf('const SFX = {');
+if (sfxObj < 0) throw new Error('SFX object not found');
+function matchBrace(text, openIdx){
+  let depth = 0, i = openIdx, q = null;
+  for (; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '\\') i++;
+      else if (c === q) q = null;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '/'){ i += 2; while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*'){ i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
+    if (c === "'" || c === '"' || c === '`') q = c;
+    else if (c === '{') depth++;
+    else if (c === '}'){ depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
 const start = html.indexOf('radioEl: null');
-const skipPos = html.indexOf('radioSkip(){', start);
-const end = html.indexOf('\n};', skipPos);
+if (start < 0) throw new Error('radio state line not found');
+const end = matchBrace(html, sfxObj);
+if (end < 0) throw new Error('SFX object end not found');
 const sfxCode = html.slice(start, end);
 check('SFX fragment now includes radioGetList()', sfxCode.indexOf('radioGetList()') >= 0);
 check('SFX fragment now includes radioCacheTrack()', sfxCode.indexOf('radioCacheTrack(') >= 0);
@@ -133,16 +155,16 @@ const SFX = new Function('return {' + sfxCode + '};')();
   check('badge says CACHING n/N when a track is missing', /^CACHING \d+\/\d+$/.test(el.textContent) && el._c.has('caching'));
 
   // (6) install / connection / iOS wiring
-  check('beforeinstallprompt handler wired', html.indexOf("window.addEventListener('beforeinstallprompt'") >= 0);
-  check('appinstalled handler wired', html.indexOf("window.addEventListener('appinstalled'") >= 0);
-  check('offline/online badge handlers wired', html.indexOf("window.addEventListener('offline'") >= 0 && html.indexOf("window.addEventListener('online'") >= 0);
-  check('offline pings the badge red', /cacheBadgeSet\('OFFLINE', 'offline'\)/.test(html));
+  check('beforeinstallprompt handler wired', html.indexOf('window.addEventListener("beforeinstallprompt"') >= 0);
+  check('appinstalled handler wired', html.indexOf('window.addEventListener("appinstalled"') >= 0);
+  check('offline/online badge handlers wired', html.indexOf('window.addEventListener("offline"') >= 0 && html.indexOf('window.addEventListener("online"') >= 0);
+  check('offline pings the badge red', /cacheBadgeSet\("OFFLINE", "offline"\)/.test(html));
   check('INSTALL GAME button exists in HTML', html.indexOf('id="btnInstall"') >= 0);
-  check('INSTALL GAME button is wired in JS', html.indexOf("const btn = $('btnInstall')") >= 0);
+  check('INSTALL GAME button is wired in JS', html.indexOf('const btn = $("btnInstall")') >= 0);
   check('iOS fullscreen nudge element exists', html.indexOf('id="iosfs"') >= 0);
-  check('iOS nudge is dismissed via a close control', html.indexOf("const x = $('iosfs-x')") >= 0);
+  check('iOS nudge is dismissed via a close control', html.indexOf('const x = $("iosfs-x")') >= 0);
   check('_isIos + _isStandalone helpers defined', html.indexOf('function _isIos()') >= 0 && html.indexOf('function _isStandalone()') >= 0);
-  check('refreshInstallUi is called when the menu is revealed', /state = 'menu';[\s\S]{0,120}?refreshInstallUi\(\);/.test(html));
+  check('refreshInstallUi is called when the menu is revealed', /state = "menu";[\s\S]{0,120}?refreshInstallUi\(\);/.test(html));
   check('refreshInstallUi is called on QUIT (back to menu)', /radioMode\(\);[^\n]*dock the NOW PLAYING bar back into the menu[\s\S]{0,60}?refreshInstallUi\(\);/.test(html));
   check('#cachebadge.offline CSS rule present', /#cachebadge\.offline/.test(html));
   check('#btnInstall CSS rule present', /#btnInstall \{/.test(html));
@@ -152,7 +174,7 @@ const SFX = new Function('return {' + sfxCode + '};')();
   process.exit(pass ? 0 : 1);
 })().catch(e => { console.error('PWA ROUND-2 FAILED:', e && e.stack ? e.stack : e); process.exit(1); });
 
-const prs = html.indexOf('async function preloadRadioCache(){');
+const prs = html.indexOf('async function preloadRadioCache() {');
 const pre = html.indexOf('// Per-track checklist', prs);
 const prCode = html.slice(prs, pre);
 check('preloadRadioCache is defined in index.html', prs >= 0 && prCode.indexOf('radioGetList()') >= 0);

@@ -34,19 +34,39 @@ check('SW activate no longer wipes every cache', !/filter\(function \(k\) \{ ret
 check('SW still passes .mp3 / music/ through to the radio cache', sw.indexOf('mp3)$/i') >= 0 && sw.indexOf('/music/') >= 0);
 
 // ---- (3) index.html head ----
-check('head links the manifest', /<link rel="manifest" href="manifest\.js?on">/.test(html));
-check('head sets theme-color #0a0d12', /<meta name="theme-color" content="#0a0d12">/.test(html));
+check('head links the manifest', /<link rel="manifest" href="manifest\.js?on"\s*\/?>/.test(html));
+check('head sets theme-color #0a0d12', /<meta name="theme-color" content="#0a0d12"\s*\/?>/.test(html));
 check('head has a favicon + apple-touch-icon', /<link rel="icon"[^>]*>/.test(html) && /<link rel="apple-touch-icon"[^>]*>/.test(html));
 check('<title> is the official title', /<title>Dat Sh!t's Not Yours!<\/title>/.test(html));
 check('no apostrophe-less "Sh!ts" title left', html.indexOf('Sh!ts') < 0);
 check('offline-music background download is hooked into the menu reveal', /refreshInstallUi\(\);[\s\S]{0,200}?radioBackgroundDownload\(\);/.test(html));
 
 // ---- (4) radioWarm() - extracted verbatim, run against fake Cache/fetch ----
+// The SFX object is bounded by BRACE-COUNTING (string/comment-aware) because Prettier
+// indented its closing `};`, breaking the old "\n};" marker.
+const sfxObj = html.indexOf('const SFX = {');
+if (sfxObj < 0) throw new Error('SFX object not found');
+function matchBrace(text, openIdx){
+  let depth = 0, i = openIdx, q = null;
+  for (; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '\\') i++;
+      else if (c === q) q = null;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '/'){ i += 2; while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*'){ i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
+    if (c === "'" || c === '"' || c === '`') q = c;
+    else if (c === '{') depth++;
+    else if (c === '}'){ depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
 const start = html.indexOf('radioEl: null');
 if (start < 0) throw new Error('radio state line not found');
-const skipPos = html.indexOf('radioSkip(){', start);
-const end = html.indexOf('\n};', skipPos);
-if (skipPos < 0 || end < 0) throw new Error('SFX radio fragment not found');
+const end = matchBrace(html, sfxObj);
+if (end < 0) throw new Error('SFX radio fragment not found');
 const sfxCode = html.slice(start, end);
 check('SFX fragment now includes radioWarm()', sfxCode.indexOf('radioWarm()') >= 0);
 

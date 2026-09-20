@@ -14,25 +14,37 @@ let synOk = true;
 scripts.forEach((code, i) => { try { new vm.Script(code, { filename: 'inline#' + i }); } catch (e) { synOk = false; console.log('  syntax fail inline#' + i + ': ' + e.message); } });
 check('inline script(s) parse (' + scripts.length + ')', synOk);
 check('stepTopAt helper present', html.indexOf('function stepTopAt') >= 0);
-check('makeHouse exposes userData.step', html.indexOf('g.userData.step = { cx: 0') >= 0);
-check('makeBlockContents stores house.step', html.indexOf('house.step = { x0: baseX') >= 0);
+check('makeHouse exposes userData.step', html.indexOf('g.userData.step = {') >= 0);
+check('makeBlockContents stores house.step', html.indexOf('house.step = {') >= 0);
 check('creature lift guard present', html.indexOf('const _stTop = stepTopAt(c.wx, c.wy)') >= 0);
 check('worker lift guard present', html.indexOf('const wStepTop = stepTopAt(p.wx, p.wy)') >= 0);
 
 // (b) real makeHouse -> world footprint geometry
 const pos = () => ({ x: 0, y: 0, z: 0, set() {} });
 const THREE = {
-  Group: class { constructor(){ this.position = pos(); this.userData = {}; this.children = []; } add(){} traverse(fn){ fn(this); } },
-  Mesh: class { constructor(geo, mat){ this.position = pos(); this.isMesh = true; } },
+  Group: class { constructor(){ this.position = pos(); this.rotation = pos(); this.scale = pos(); this.userData = {}; this.children = []; } add(){} traverse(fn){ fn(this); } },
+  Mesh: class { constructor(geo, mat){ this.position = pos(); this.rotation = pos(); this.scale = pos(); this.isMesh = true; } },
   BoxGeometry: class { constructor(){} },
   MeshLambertMaterial: class { constructor(){} },
 };
 const M = c => ({ color: c });
-const BX = (w, d, h, m) => ({ geo: [w, d, h], m, position: pos() });
+const MS = c => ({ color: c });
+const SP = (r, m, s) => ({ geo: ['sphere', r], m, position: pos(), rotation: pos(), scale: pos() });
+const SPH = (r, m, ws, hs) => ({ geo: ['sphere', r], m, position: pos(), rotation: pos(), scale: pos() });
+const CY = (r1, r2, h, m, s) => ({ geo: ['cyl', r1, h], m, position: pos(), rotation: pos(), scale: pos() });
+const BX = (w, d, h, m) => ({ geo: [w, d, h], m, position: pos(), rotation: pos(), scale: pos() });
+const pick = a => a[0];
 const R = (a, b) => (a + b) / 2; // midpoint: deterministic d
 const sI = html.indexOf('function makeHouse()');
-const eI = html.indexOf('\nfunction ', sI + 10);
-const makeHouse = new Function('THREE', 'M', 'BX', 'R', html.slice(sI, eI) + '\n;return makeHouse;')(THREE, M, BX, R);
+// brace-counted (indentation-proof) end of makeHouse
+const brI = html.indexOf('{', sI);
+let dI = brI, depth = 0;
+for (; dI < html.length; dI++){
+  if (html[dI] === '{') depth++;
+  else if (html[dI] === '}'){ depth--; if (depth === 0) break; }
+}
+const eI = dI + 1;
+const makeHouse = new Function('THREE', 'M', 'MS', 'BX', 'SP', 'SPH', 'CY', 'pick', 'R', html.slice(sI, eI) + '\n;return makeHouse;')(THREE, M, MS, BX, SP, SPH, CY, pick, R);
 const GZ = 0.3, baseX = 100, HOUSE_Y = 10.5;
 const step = makeHouse().userData.step;
 const world = { x0: baseX - step.hw, x1: baseX + step.hw, y0: HOUSE_Y + step.cy - step.hd, y1: HOUSE_Y + step.cy + step.hd, top: step.top };

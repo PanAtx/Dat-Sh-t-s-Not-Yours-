@@ -6,12 +6,16 @@ global.THREE = require(path.join(__dirname, '_three128.js'));
 
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (indentation-proof)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 function extractObj(name){
   const m = src.match(new RegExp(name + ' = (\\{[\\s\\S]*?\\})'));

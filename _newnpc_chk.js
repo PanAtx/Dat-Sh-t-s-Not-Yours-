@@ -7,12 +7,16 @@ const fs = require('fs');
 const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (indentation-proof)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 // --- minimal three.js stub (groups record their children) ---
 const THREE = {
@@ -43,6 +47,9 @@ const GZ = 0.3;
 const creatures = [];
 const dynamicGroup = { add(){} };
 const p = { wx: 0, wy: 2.5 }; // player position (addCreature now spawns creatures around p.wx)
+// level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
+const JACKER_FACE_SE = -Math.PI / 2;   // kept in sync with index.html (jacker faces southeast)
 
 eval(extract('makeJacker'));
 eval(extract('makeHooker'));
@@ -50,7 +57,7 @@ eval(extract('makeSkater'));
 eval(extract('makeEScooter'));
 eval(extract('makeHighPolyDog'));
 eval(extract('makeDogHouse'));
-eval(extract('addCreature'));
+eval(extract('npcPace') + '\n' + extract('creatureMaxY') + '\n' + extract('addCreature'));
 
 let pass = true;
 const check = (n,c,e) => { console.log((c?'PASS':'FAIL') + '  ' + n + (c?'':'  ['+e+']')); if(!c) pass=false; };
@@ -103,12 +110,15 @@ out = clampToChain(0, 0, 0.5, 0.5, 2.3);
 check('chain: worker already inside reach -> dog can reach them', out[0] === 0.5 && out[1] === 0.5, out.join(','));
 
 // --- the player's bump lines are wired in collideCreatures ---
-const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 4000);
-check('bump line: hooker -> "Want a date?"', bumpSec.indexOf("'Want a date?'") >= 0);
-check('bump line: skater -> "Whoa! Like, watch it bro!"', bumpSec.indexOf('Whoa! Like, watch it bro!') >= 0);
+// (Prettier reformatted the Voice.say calls onto multi-line form and pushed the bump block
+//  deeper into the function, so the slice window is wider than the original 4000 chars)
+const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 14000);
+check('bump line: hooker -> "Conducting business, hon."', bumpSec.indexOf('"Conducting business, hon."') >= 0);
+check('bump line: skater -> "Whoa! Like, watch it, bro!"', bumpSec.indexOf('Whoa! Like, watch it, bro!') >= 0);
 check("bump line: escooter -> \"I'm calling a lawyer!\"", bumpSec.indexOf("I'm calling a lawyer!") >= 0);
-check('bump: jacker is solid but says nothing', bumpSec.indexOf('jacker') >= 0 && bumpSec.indexOf('too busy jackhammering') >= 0);
-check('leashdog skipped by bump collision', bumpSec.indexOf("if (c.type === 'leashdog') continue;") >= 0);
+check('bump: jacker is solid AND deals damage (HP_HIT_JACKER) with the dual "city progress" line',
+  bumpSec.indexOf('hurtNPC(HP_HIT_JACKER, "jacker")') >= 0 && bumpSec.indexOf("Don't mess with city progress!") >= 0);
+check('leashdog skipped by bump collision', bumpSec.indexOf('if (c.type === "leashdog") continue;') >= 0);
 
 // --- round 2 fixes ---
 const findMats = (g, acc) => { (g.children || []).forEach(ch => { if (ch.material && ch.material.color !== undefined) acc.push({ ch: ch, color: ch.material.color }); findMats(ch, acc); }); return acc; };
@@ -152,10 +162,12 @@ check('doghouse: mirrored roof slabs across the ridge (+X and -X sides)',
 const holes = dh2.children.filter(ch => ch.material && ch.material.color === 0x14100e);
 check('doghouse: entry hole on the street-facing (-Y) face', holes.length === 1 && holes[0].position.y < -0.2, JSON.stringify(holes.map(h2 => h2.position.y)));
 
-// chain must be visibly chunky + metallic
+// chain must read as a real LEASH: a thin black lead (unit bar, 0.02 section) that
+// tieLeashChain scales to the dog->anchor length — not a chunky silver bar
 const ld3 = addCreature('leashdog');
-check('chain: visible size (>= 0.05 thick, not a 2px dark hair)',
-  ld3.chain.geometry.h >= 0.05 && ld3.chain.geometry.d >= 0.04, JSON.stringify({h: ld3.chain.geometry.h, d: ld3.chain.geometry.d}));
+check('chain: thin black lead bar (unit length, 0.02 section), black material',
+  ld3.chain.geometry.w === 1 && ld3.chain.geometry.h === 0.02 && ld3.chain.geometry.d === 0.02 &&
+  ld3.chain.material.color === 0x111111, JSON.stringify({h: ld3.chain.geometry.h, d: ld3.chain.geometry.d, c: ld3.chain.material.color}));
 
 // gravel bits function exists and feeds the dust pipeline
 const gravelSec = src.slice(src.indexOf('function spawnGravelBits'), src.indexOf('function spawnGravelBits') + 1200);
@@ -166,19 +178,23 @@ check('jackhammer: worker shudders + gravel at the chisel tip in the AI case',
 check('hooker: hip shimmy (side-to-side rock) in the AI case', src.indexOf('c.g.rotation.y = Math.sin(c.swayT * 2.2) * 0.14') >= 0);
 
 // --- round 3 fixes ---
-const skCase3 = src.slice(src.lastIndexOf("case 'skater'"), src.lastIndexOf("case 'skater'") + 1600);
+const skCase3 = src.slice(src.lastIndexOf('case "skater"'), src.lastIndexOf('case "skater"') + 2200);
 check('skater: big readable tricks (full flip + 0.9m pop + crouch + 360 body spin)',
   skCase3.indexOf('t * Math.PI * 2') >= 0 && skCase3.indexOf('pop * 0.9') >= 0 &&
   skCase3.indexOf('0.3 * crouch') >= 0 && skCase3.indexOf('c.doSpin ? t * Math.PI * 2 : 0') >= 0);
 check('skater: bright orange deck for contrast against the dark asphalt', src.indexOf('0xff7a1a') >= 0);
 check('skater: parks at the curb edge (y 4.3..4.9), out of the main walking line',
   src.indexOf('c.wy = R(4.3, 4.9)') >= 0);
-const chainZ = (src.match(/chain\.position\.set\([^;]*0\.38\)/g) || []).length;
-check('chain: sits ABOVE the grass surface (z 0.38) in BOTH spawn + per-frame update', chainZ >= 2, 'occurrences=' + chainZ);
+// chain no longer sits at a fixed z: tieLeashChain rigidly TILTS the lead between the high
+// post/tree anchor (z 1.5) and the dog's collar (z 0.62) — midpoint + quaternion, re-tied each frame
+const tieChainCalls = (src.match(/tieLeashChain\(/g) || []).length;
+check('chain: rigidly tied dog->anchor (midpoint + quaternion) via tieLeashChain, wired in spawn + per-frame update',
+  src.indexOf('chain.position.set(dx + cx2 / 2, dy + cy2 / 2, (az + dz) / 2)') >= 0 &&
+  src.indexOf('chain.quaternion.setFromUnitVectors') >= 0 && tieChainCalls >= 3, 'tieLeashChain calls=' + tieChainCalls);
 check('doghouse: bright chain stake at the anchor (moves with the house on recycle)', src.indexOf('stakeM = M(0xe8b416)') >= 0);
 
 // --- round 4 fixes: arm/shoe orientation ---
-const mkSk = src.slice(src.indexOf('function makeSkater'), src.indexOf('function makeSkater') + 2600);
+const mkSk = src.slice(src.indexOf('function makeSkater'), src.indexOf('function makeSkater') + 4000);
 check('skater: arms use a single X rotation (lateral spread, no forward/back tilt)',
   mkSk.indexOf('arm.rotation.x = Math.PI / 2 + side * 0.75') >= 0 && mkSk.indexOf('arm.rotation.z') < 0);
 const mkHk = src.slice(src.indexOf('function makeHooker'), src.indexOf('function makeHooker') + 3000);
@@ -188,7 +204,7 @@ check('hooker: shoe long axis along the TOE direction (+X) with toe-down pitch (
   mkHk.indexOf('BX(0.17, 0.1, 0.04, heelM)') >= 0);
 
 // --- round 5: e-scooter head ---
-const mkEs = src.slice(src.indexOf('function makeEScooter'), src.indexOf('function makeEScooter') + 2500);
+const mkEs = src.slice(src.indexOf('function makeEScooter'), src.indexOf('function makeEScooter') + 4000);
 check('escooter: square BOX head like the other NPCs (bare sphere removed)',
   mkEs.indexOf('head = BX(0.22, 0.26, 0.22, skin)') >= 0 && mkEs.indexOf('head = SPH') < 0);
 // --- round 6: fentanyl fold (yeller) ---
@@ -201,7 +217,7 @@ check('yeller: chest folds ~60° forward at the hips (makePerson fold: 1.05 on a
 check('yeller: arms hang STRAIGHT DOWN to the knees at spawn (counter-rotated -1.05, NOT the old outstretched -2.0 zombie T-pose)',
   yel.parts.armL.rotation.y === -1.05 && yel.parts.armR.rotation.y === -1.05,
   JSON.stringify({ l: yel.parts.armL.rotation.y, r: yel.parts.armR.rotation.y }));
-const yCase = src.slice(src.indexOf("case 'yeller':{"), src.indexOf("case 'jacker':{"));
+const yCase = src.slice(src.indexOf('case "yeller": {'), src.indexOf('case "jacker": {'));
 check('yeller: AI case re-asserts the arm hang, shambles forward, unsteady sway + slow leg swing',
   yCase.indexOf('armL.rotation.y = -1.05') >= 0 && yCase.indexOf('c.wx += ySp * dt') >= 0 &&
   yCase.indexOf('c.g.rotation.x') >= 0 && yCase.indexOf('animParts(c, ySp * dt * 1.8, 0.24)') >= 0);

@@ -3,12 +3,16 @@ const fs = require('fs');
 const path = require('path');
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (indentation-proof)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 
 // --- stubs for everything addCreature touches ---
@@ -19,13 +23,15 @@ const GZ = 0.3;
 const p = { wx: 0, wy: 0 };   // player position — addCreature scatters creatures around p.wx
 const creatures = [];
 const dynamicGroup = { add(){} };
+// level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
 const dummyPerson = { g: { position: { set(){} }, userData: {} }, legL: {} };
 global.makePerson = () => dummyPerson;
 const dummy = () => ({ position: { set(){} }, userData: {} });
 global.makeRat = global.makeRaccoon = global.makeSquirrel = global.makePigeon = global.makeTricycle =
 global.makeDogWalker = global.makeRC = global.makeBicycle = global.makeMoto = global.makeCar = dummy;
 
-eval(extract('addCreature'));
+eval(extract('npcPace') + '\n' + extract('creatureMaxY') + '\n' + extract('addCreature'));
 
 let pass = true;
 const check = (n, c, e) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  [' + e + ']')); if (!c) pass = false; };

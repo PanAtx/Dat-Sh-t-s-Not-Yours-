@@ -44,12 +44,14 @@ const p = { wx: 0, wy: 0, invuln: 0, stunT: 0 };
 const state = 'play';
 const Voice = { say(){} };
 const npcRoadRules = () => 0, animParts = () => {}, spawnGravelBits = () => {}, spawnDustEffect = () => {};
-const separateVehicles = () => {}, resolveTruckCollisions = () => {};
+const separateVehicles = () => {}, resolveTruckCollisions = () => {}, clampRoadVehicles = () => {};
 const blocks = [];                        // no houses in this isolated skater test
 const stepTopAt = (wx, wy) => GZ;         // the skater sits on flat curb/sidewalk — no raised step under it
+// level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
 
 // ---- execute the REAL functions from index.html ----
-eval(fnSrc('makeSkater') + '\n' + fnSrc('addCreature') + '\n' + fnSrc('updateCreatures'));
+eval(fnSrc('creatureMaxY') + '\n' + fnSrc('npcPace') + '\n' + fnSrc('makeSkater') + '\n' + fnSrc('addCreature') + '\n' + fnSrc('updateCreatures'));
 
 const sk = addCreature('skater');
 let pass = true; const check = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n); if (!c) pass = false; };

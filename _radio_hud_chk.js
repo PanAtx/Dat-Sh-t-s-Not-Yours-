@@ -2,9 +2,31 @@
 const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 
-// extract SFX radio methods (radioEl... through radioSkip)
+// extract SFX radio methods (radioEl... through end of the SFX object) — bounded by
+// BRACE-COUNTING (string/comment-aware) because Prettier indented the closing "}"
+const sfxObj = html.indexOf('const SFX = {');
+if (sfxObj < 0) throw new Error('SFX object not found');
+function matchBrace(text, openIdx){
+  let depth = 0, i = openIdx, q = null;
+  for (; i < text.length; i++){
+    const c = text[i];
+    if (q){
+      if (c === '\\') i++;
+      else if (c === q) q = null;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '/'){ i += 2; while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*'){ i += 2; while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++; i++; continue; }
+    if (c === "'" || c === '"' || c === '`') q = c;
+    else if (c === '{') depth++;
+    else if (c === '}'){ depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
 const s = html.indexOf('radioEl: null');
-const e = html.indexOf('};', html.indexOf('radioSkip(){'));
+if (s < 0) throw new Error('radio state line not found');
+const e = matchBrace(html, sfxObj);
+if (e < 0) throw new Error('SFX object end not found');
 const methods = html.slice(s, e);
 // extract the HUD block
 const h0 = html.indexOf('const radioBox');
@@ -112,9 +134,9 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   // --- docked widget: in-game size, visible title, whole bar tappable, pinned to frame bottom ---
   check('menu button styling is scoped to #btnStart (no .menu-bottom button leak onto MUTE/SKIP)', !/\.menu-bottom\s*button/.test(html) && /#btnStart\s*\{/.test(html));
   check('panel button styling is scoped to #btnStart/#btnRestart (radio buttons keep .radio-btn size)', !/\.panel\s*button/.test(html) && /#btnStart,\s*#btnRestart/.test(html));
-  check('whole widget bar is a tap target (#radio pointer-events:auto)', /#radio\s*\{[^}]*pointer-events:auto/.test(html));
+  check('whole widget bar is a tap target (#radio pointer-events:auto)', /#radio\s*\{[^}]*pointer-events:\s*auto/.test(html));
   check('title has an explicit line-height (dock inherits line-height:0 from .menu-logo-wrap)', /#radio-title\s*\{[^}]*line-height/.test(html));
-  check('menu bar pinned to the very bottom of the logo frame', /\.menu-bottom\s*\{[^}]*bottom:0/.test(html));
+  check('menu bar pinned to the very bottom of the logo frame', /\.menu-bottom\s*\{[^}]*bottom:\s*0/.test(html));
   let titleThrew = false;
   try { (els['radio']._h['click'] || [])[0]({ target: els['radio-title'] }); } catch (e) { titleThrew = true; }
   check('tapping the song title area tunes in (not just the analyzer)', !titleThrew && played.length === 3);

@@ -30,12 +30,16 @@ function SP(r, m, s){ const q = new THREE.Mesh(new THREE.SphereGeometry(r, s || 
 // --- extract makeTreasure verbatim from index.html ---
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 function extract(name){
-  const lines = src.split('\n');
-  const start = lines.findIndex(l => l.startsWith('function ' + name + '('));
-  if (start < 0) throw new Error(name + ' not found');
-  let end = start;
-  while (end < lines.length && lines[end].replace(/\r$/, '') !== '}') end++;   // exactly column 0, CRLF-safe
-  return lines.slice(start, end + 1).join('\n');
+  // brace-counted (indentation-proof)
+  const idx = src.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found');
+  const brace = src.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < src.length; i++){
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return src.slice(idx, i + 1);
 }
 eval(extract('makeTreasure'));
 

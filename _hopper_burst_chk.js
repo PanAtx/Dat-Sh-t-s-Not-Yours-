@@ -5,11 +5,19 @@
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-const s = html.indexOf('function spawnHopperBurst');
-if (s < 0) throw new Error('spawnHopperBurst not found in index.html');
-const e = html.indexOf('\nfunction ', s + 1);
-if (e < 0) throw new Error('end of spawnHopperBurst not found');
-const code = html.slice(s, e);
+function extract(name){
+  // brace-counted (indentation-proof)
+  const idx = html.indexOf('function ' + name + '(');
+  if (idx < 0) throw new Error(name + ' not found in index.html');
+  const brace = html.indexOf('{', idx);
+  let depth = 0, i = brace;
+  for (; i < html.length; i++){
+    if (html[i] === '{') depth++;
+    else if (html[i] === '}'){ depth--; if (depth === 0) break; }
+  }
+  return html.slice(idx, i + 1);
+}
+const code = extract('spawnHopperBurst');
 
 // --- minimal THREE / world stubs (enough to run the spawner and inspect its output) ---
 let planeCount = 0, boxCount = 0, sphereCount = 0;

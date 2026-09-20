@@ -46,13 +46,15 @@ if (!workerColor) {
 }
 console.log('PASS  worker has distinct bubble color class');
 
-// Check 5b: Color classes are set directly (not layered on default) to avoid CSS specificity override
-const spawnPattern = /el\.className = 'bubble bub-[a-z]+'/;
+// Check 5b: The bubble class is set with ONE direct assignment (el.className = cls).
+// Each speaker branch REPLACES the whole class string — no default-based layering that a
+// specific class would have to beat in CSS specificity.
+const spawnPattern = /el\.className = cls;/;
 if (!spawnPattern.test(code)) {
-  console.log('FAIL  spawnBubble does not set color class directly');
+  console.log('FAIL  spawnBubble does not set the bubble class directly');
   process.exit(1);
 }
-console.log('PASS  spawnBubble sets color class directly (no bub-default override)');
+console.log('PASS  spawnBubble sets the bubble class directly (no bub-default override)');
 
 // Check 6: NPC types have color classes
 const npcTypes = ['dog', 'ped', 'hooker', 'skater', 'escooter', 'yeller', 'rat', 'driver', 'kid'];
@@ -80,7 +82,7 @@ for (const cls of npcColorLines) {
 console.log('PASS  no NPC bubble color is green');
 
 // Check 8: rectsOverlap implements AABB correctly
-const overlapImpl = code.match(/function rectsOverlap\(a, b\)\{[^}]*\}/);
+const overlapImpl = code.match(/function rectsOverlap\(a, b\)\s*\{[^}]*\}/);
 if (overlapImpl) {
   const impl = overlapImpl[0];
   if (!impl.includes('a.x < b.x + b.w') || !impl.includes('a.y < b.y + b.h')) {
@@ -95,14 +97,15 @@ console.log('PASS  rectsOverlap implements AABB collision correctly');
 
 // Check 9: Voice.say call sites pass speaker types
 // Worker calls should pass 'worker', dog calls should pass 'dog', etc.
-const workerCalls = code.match(/Voice\.say\([^)]*WORKER_GENDER[^)]*'worker'\)/g);
+// (Prettier put each argument on its own line, so the match spans lines)
+const workerCalls = code.match(/Voice\.say\(\s*"[^"]*",[\s\S]*?WORKER_GENDER,\s*"worker",\s*\)/g);
 if (!workerCalls || workerCalls.length < 10) {
   console.log('FAIL  not enough worker Voice.say calls with speaker type');
   process.exit(1);
 }
 console.log('PASS  worker Voice.say calls pass speaker type (' + workerCalls.length + ' calls)');
 
-const dogCalls = code.match(/Voice\.say\([^)]*'dog'\)/g);
+const dogCalls = code.match(/Voice\.say\(\s*"[^"]*",[\s\S]*?"dog",\s*\)/g);
 if (!dogCalls || dogCalls.length < 2) {
   console.log('FAIL  not enough dog Voice.say calls with speaker type');
   process.exit(1);
@@ -113,7 +116,7 @@ console.log('PASS  dog Voice.say calls pass speaker type (' + dogCalls.length + 
 // This is a logic test: two bubbles at same (sx, sy) should get different line numbers
 // Line 0 for first, Line 1 for second (since line 0 is occupied).
 // We verify the algorithm by checking the code structure.
-const findLineLoop = code.match(/for \(let line = 0; line < 4; line\+\+\)\{/);
+const findLineLoop = code.match(/for \(let line = 0; line < 4; line\+\+\)\s*\{/);
 if (!findLineLoop) {
   console.log('FAIL  findFreeBubbleLine does not loop through line slots');
   process.exit(1);
@@ -129,7 +132,7 @@ if (!usesLock) {
 console.log('PASS  bubble position locking prevents jitter');
 
 // Check 12: Pop-in animation is defined and applied
-const hasPopAnim = code.includes('animation:bubblePop');
+const hasPopAnim = /animation:\s*bubblePop/.test(code);
 const hasPopKeyframes = code.includes('@keyframes bubblePop');
 if (!hasPopAnim || !hasPopKeyframes) {
   console.log('FAIL  bubble pop-in animation missing');
