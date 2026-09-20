@@ -42,9 +42,9 @@ check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.inde
 // the measured REAR-face dot centers (from _rear_color.js blobs: orange circles
 // on the rear raycast to their true (y,z) + surface x) must be the exact placement,
 // each lens/halo lifted off the face along the rear normal (-0.989, -0.133, 0.063)
-check('light 1 sits on painted rear dot (x=-3.998, y=-0.169, z=3.89)', buildSrc.indexOf("{ x: -3.998, y: -0.169, z: 3.89, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
-check('light 2 (middle) sits on painted rear dot (x=-3.957, y=-0.461, z=3.907)', buildSrc.indexOf("{ x: -3.957, y: -0.461, z: 3.907, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
-check('light 3 sits on painted rear dot (x=-3.917, y=-0.751, z=3.924)', buildSrc.indexOf("{ x: -3.917, y: -0.751, z: 3.924, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('light 1 sits on rear hazard zone (x=-3.998, y=-0.089, z=3.79)', buildSrc.indexOf("{ x: -3.998, y: -0.089, z: 3.79, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('light 2 (middle) sits on rear hazard zone (x=-3.957, y=-0.381, z=3.807)', buildSrc.indexOf("{ x: -3.957, y: -0.381, z: 3.807, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
+check('light 3 sits on rear hazard zone (x=-3.917, y=-0.671, z=3.824)', buildSrc.indexOf("{ x: -3.917, y: -0.671, z: 3.824, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
