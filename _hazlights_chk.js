@@ -41,12 +41,13 @@ const buildSrc = src.slice(src.indexOf('function buildTruck()'), src.indexOf('fu
 check('the hazard lights are built (hazLights array)', buildSrc.indexOf('const hazLights = []') >= 0);
 check('each light = emissive orange core lens + additive-blended halo (the glow)', buildSrc.indexOf('emissive: 0xff6a00') >= 0 && buildSrc.indexOf('THREE.AdditiveBlending') >= 0 && buildSrc.indexOf('new THREE.CircleGeometry(s.haloR, 20)') >= 0);
 check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: \'mid\'') >= 0 && (buildSrc.match(/phase: 'side'/g) || []).length === 2);
-// the FINAL hand-tuned rear-face placements (dialed in with the U/I/J/K/N/M
-// nudge keys in v1.0.139) must be the exact hardcoded positions; each lens/halo
-// is oriented along the rear normal (-0.989, -0.133, 0.063) and lifted off it
-check('light 1 sits at final rear placement (x=-4.918, y=-0.299, z=3.979)', buildSrc.indexOf("{ x: -4.918, y: -0.299, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
-check('light 2 (middle) sits at final rear placement (x=-4.918, y=-0.619, z=4.019)', buildSrc.indexOf("{ x: -4.918, y: -0.619, z: 4.019, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
-check('light 3 sits at final rear placement (x=-4.918, y=-0.959, z=4.079)', buildSrc.indexOf("{ x: -4.918, y: -0.959, z: 4.079, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+// the x=-4.918 standoff (player-confirmed) + each lens' EXACT painted dot
+// y/z center (re-measured with `_rear_color.js blobs`) must be the exact
+// hardcoded positions; each lens/halo is oriented along the rear normal
+// (-0.989, -0.133, 0.063) and lifted off it
+check('light 1 sits at its painted dot (x=-4.918, y=-0.239, z=3.98)', buildSrc.indexOf("{ x: -4.918, y: -0.239, z: 3.98, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('light 2 (middle) sits at its painted dot (x=-4.918, y=-0.531, z=3.997)', buildSrc.indexOf("{ x: -4.918, y: -0.531, z: 3.997, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
+check('light 3 sits at its painted dot (x=-4.918, y=-0.821, z=4.014)', buildSrc.indexOf("{ x: -4.918, y: -0.821, z: 4.014, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
 
@@ -54,7 +55,7 @@ check('the truck object exposes hazLights for the blink driver', buildSrc.indexO
 const upSrc = src.slice(src.indexOf('function updateTruck(dt)'), src.indexOf('// ==================== CREATURE AI'));
 check('the blink cycle runs on a 2-second clock (% 2)', upSrc.indexOf('(performance.now() * 0.001) % 2') >= 0);
 check('phase windows: 1s sides, then 1s middle — repeat, never all dark', upSrc.indexOf('const sideOn = hz < 1') >= 0 && upSrc.indexOf('midOn = hz >= 1;') >= 0);
-check('core glow + halo pulse with the phase (emissiveIntensity / opacity)', upSrc.indexOf('L.coreMat.emissiveIntensity = on ? 2.6 : 0') >= 0 && upSrc.indexOf('L.haloMat.opacity = on ? 0.95 : 0') >= 0);
+check('core glow + halo pulse with the phase (emissiveIntensity / opacity)', upSrc.indexOf('L.coreMat.emissiveIntensity = on ? 1.6 : 0') >= 0 && upSrc.indexOf('L.haloMat.opacity = on ? 0.6 : 0') >= 0);
 check('the halo is hidden while its light is dark (no ghost glow)', upSrc.indexOf('L.halo.visible = on;') >= 0);
 
 // ---- (3) execute the REAL blink block for 4 full cycles ----
@@ -95,7 +96,7 @@ if (iHZ < 0) {
       break;
     }
     hazLights.forEach((L, i) => {
-      const wantOp = e[i] ? 0.95 : 0;
+      const wantOp = e[i] ? 0.6 : 0;
       if (Math.abs(L.haloMat.opacity - wantOp) > 1e-9 || L.halo.visible !== !!e[i]) {
         glowOk = false;
         glowDetail = 't=' + t.toFixed(1) + 's light ' + i + ' opacity=' + L.haloMat.opacity + ' visible=' + L.halo.visible;
@@ -103,7 +104,7 @@ if (iHZ < 0) {
     });
   }
   check('the REAL blink block: 1s both outer / 1s middle, repeated for 4 full cycles (never all dark)', patOk, patDetail);
-  check('the glow follows the core: halo opacity 0.8 + visible only while the light is on', glowOk, glowDetail);
+  check('the glow follows the core: halo opacity 0.6 + visible only while the light is on', glowOk, glowDetail);
 }
 
 console.log(ok ? '\nHAZARD LIGHT CHECKS PASSED' : '\nHAZARD LIGHT CHECKS FAILED');

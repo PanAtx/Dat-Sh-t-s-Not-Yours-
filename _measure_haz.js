@@ -902,14 +902,14 @@ function faceAffine(tri, M, center, rad) {
         }
       return n >= 25 ? { y: sy / n, z: sz / n, n } : null;
     };
-    // FINAL hand-tuned placement of the rear hazard lenses (group-local), dialed
-    // in with the U/I/J/K/N/M nudge keys (v1.0.139) and confirmed by the player.
-    // These are the ground truth — hazSpots in index.html must match them exactly
-    // (the old "painted dot centers" comparison is superseded by this placement).
+    // FINAL placements of the rear hazard lenses (group-local): the player-
+    // confirmed x=-4.918 standoff + each lens' EXACT painted dot y/z center
+    // (re-measured with `_rear_color.js blobs`). These are the ground truth —
+    // hazSpots in index.html must match them exactly.
     const final = [
-      { x: -4.918, y: -0.299, z: 3.979 },
-      { x: -4.918, y: -0.619, z: 4.019 },
-      { x: -4.918, y: -0.959, z: 4.079 },
+      { x: -4.918, y: -0.239, z: 3.98 },
+      { x: -4.918, y: -0.531, z: 3.997 },
+      { x: -4.918, y: -0.821, z: 4.014 },
     ];
     spots.forEach((s, i) => {
       const [sx, sy, sz, ph] = s;
