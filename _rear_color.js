@@ -317,6 +317,39 @@ if (process.argv[2] === 'fine') {
   console.log(n ? 'O-centroid: y=' + (sy / n).toFixed(3) + ' z=' + (sz / n).toFixed(3) + ' surfX=' + (sx / n).toFixed(3) + ' n=' + n : 'no orange found');
   process.exit(0);
 }
+// nrm mode: print the rear-face normal + surface x at a given (y,z)
+if (process.argv[2] === 'nrm') {
+  const y = parseFloat(process.argv[3]),
+    z = parseFloat(process.argv[4]);
+  const k = Math.floor(((y - yMin) / (yMax - yMin)) * BUCK) + ',' + Math.floor(((z - zMin) / (zMax - zMin)) * BUCK);
+  let best = null,
+    bestX = 0;
+  for (const ti of buckets.get(k) || []) {
+    const T = tris[ti];
+    const a = T[0],
+      b = T[1],
+      c = T[2],
+      h = T[9];
+    const d1 = (b.z - a.z) * (y - a.y) - (b.y - a.y) * (z - a.z);
+    const d2 = (c.z - b.z) * (y - b.y) - (c.y - b.y) * (z - b.z);
+    const d3 = (a.z - c.z) * (y - c.y) - (a.y - c.y) * (z - c.z);
+    if ((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) continue;
+    if (Math.abs(h.x) < 1e-6) continue;
+    const xHit = a.x - (h.y * (y - a.y) + h.z * (z - a.z)) / h.x;
+    if (xHit > -3.5) continue;
+    if (best !== null && xHit > bestX) continue;
+    best = ti;
+    bestX = xHit;
+  }
+  if (best === null) {
+    console.log('no rear hit at y=' + y + ' z=' + z);
+    process.exit(0);
+  }
+  const h = tris[best][9];
+  const ln = Math.sqrt(h.x * h.x + h.y * h.y + h.z * h.z);
+  console.log('rear@y=' + y + ' z=' + z + ' x=' + bestX.toFixed(3) + ' n=(' + (h.x / ln).toFixed(3) + ',' + (h.y / ln).toFixed(3) + ',' + (h.z / ln).toFixed(3) + ') |n|=' + ln.toFixed(3));
+  process.exit(0);
+}
 // __BLOBS__
 if (process.argv[2] === 'blobs') {
   const ry0 = parseFloat(process.argv[3] || '0.3'),

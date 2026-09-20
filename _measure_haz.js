@@ -795,12 +795,11 @@ function faceAffine(tri, M, center, rad) {
     process.exit(0);
   }
   if (process.argv[2] === 'verify') {
-    // Final check for the SIDE-face hazard lights: for each of the three painted
-    // dots index.html's hazSpots covers, (a) the dot's texture UV samples ORANGE
-    // in the color map (1000054), (b) the dot's UV->3D position on the body mesh
-    // (on the face whose normal matches the side normal) matches the lens spot
-    // within 0.03. End-to-end chain: painted pixel -> texture UV -> body
-    // geometry -> game constant.
+    // Final check for the REAR-face hazard lights: for each hazSpot in
+    // index.html, raycast the rear-facing body at (y,z) and confirm (a) the
+    // painted color texture is ORANGE there, (b) the spot sits on that surface
+    // (|x - surfX| < 0.03), and (c) the rear face normal matches hazN.
+    // End-to-end chain: game constant -> rear surface -> painted orange pixel.
     const bms = [];
     g.traverse((o) => {
       if (o.isMesh && /^truck_ply_vcl_garbageTruck_body_lmb_0_[01]$/.test(o.name)) bms.push(o);
@@ -812,84 +811,97 @@ function faceAffine(tri, M, center, rad) {
     }
     const dec = decodePng(fs.readFileSync(texPath));
     const TW2 = dec.width,
-      TH2 = dec.height;
+      TH2 = dec.height,
+      CH2 = dec.ch || 4;
     const sampleC = (u, v) => {
       const uu = ((u % 1) + 1) % 1,
         vv = ((v % 1) + 1) % 1;
       const x = Math.min(TW2 - 1, Math.floor(uu * TW2));
       const y = Math.min(TH2 - 1, Math.floor((1 - vv) * TH2));
-      const o = (y * TW2 + x) * 4;
+      const o = (y * TW2 + x) * CH2;
       return [dec.data[o], dec.data[o + 1], dec.data[o + 2]];
     };
-    const hazN2 = new THREE.Vector3(-0.14, 0.99, -0.06).normalize();
-    // the three painted dots the lenses cover: exact texture pixel centers
-    const DOTS = [
-      { px: 1580, py: 598 },
-      { px: 1433, py: 598 },
-      { px: 1282, py: 598 },
-    ];
+    const hazN2 = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
+    // rear-facing body triangles (world space) with their face normal
+    const tris = [];
+    const vA2 = new THREE.Vector3(),
+      vB2 = new THREE.Vector3(),
+      vC2 = new THREE.Vector3();
+    for (const bm of bms) {
+      const pos = bm.geometry.attributes.position,
+        uv = bm.geometry.attributes.uv,
+        M = bm.matrixWorld;
+      for (let t = 0; t < pos.count / 3; t++) {
+        const k = t * 3;
+        vA2.fromBufferAttribute(pos, k).applyMatrix4(M);
+        vB2.fromBufferAttribute(pos, k + 1).applyMatrix4(M);
+        vC2.fromBufferAttribute(pos, k + 2).applyMatrix4(M);
+        const nm = new THREE.Vector3().subVectors(vB2, vA2).cross(new THREE.Vector3().subVectors(vC2, vA2));
+        if (nm.x > 0.5 * nm.length()) continue; // keep rear-facing (toward -X) only
+        tris.push([vA2.clone(), vB2.clone(), vC2.clone(), uv.getX(k), uv.getY(k), uv.getX(k + 1), uv.getY(k + 1), uv.getX(k + 2), uv.getY(k + 2), nm]);
+      }
+    }
+    const hitRear = (y, z) => {
+      let best = null,
+        bestX = 0;
+      for (const T of tris) {
+        const a = T[0],
+          b = T[1],
+          c = T[2],
+          n = T[9];
+        const d1 = (b.z - a.z) * (y - a.y) - (b.y - a.y) * (z - a.z);
+        const d2 = (c.z - b.z) * (y - b.y) - (c.y - b.y) * (z - b.z);
+        const d3 = (a.z - c.z) * (y - c.y) - (a.y - c.y) * (z - c.z);
+        if ((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) continue;
+        if (Math.abs(n.x) < 1e-6) continue;
+        const xHit = a.x - (n.y * (y - a.y) + n.z * (z - a.z)) / n.x;
+        if (xHit > -3.5) continue;
+        if (best !== null && xHit > bestX) continue;
+        best = T;
+        bestX = xHit;
+      }
+      if (!best) return null;
+      const T = best,
+        a = T[0],
+        b = T[1],
+        c = T[2];
+      const d1 = (b.z - a.z) * (y - a.y) - (b.y - a.y) * (z - a.z);
+      const d2 = (c.z - b.z) * (y - b.y) - (c.y - b.y) * (z - b.z);
+      const d3 = (a.z - c.z) * (y - c.y) - (a.y - c.y) * (z - c.z);
+      const tot = d1 + d2 + d3;
+      if (Math.abs(tot) < 1e-12) return null;
+      const w1 = d1 / tot,
+        w2 = d2 / tot,
+        w3 = d3 / tot;
+      const u = w1 * T[3] + w2 * T[5] + w3 * T[7];
+      const v = w1 * T[4] + w2 * T[6] + w3 * T[8];
+      return { rgb: sampleC(u, v), x: bestX, n: T[9].clone().normalize() };
+    };
     const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-    const spots = [...html.matchAll(/\{ x: ([-\d.]+), y: ([-\d.]+), z: ([-\d.]+), r: 0\.06, haloR: 0\.1, phase: '(side|mid)' \}/g)].map(
+    const spots = [...html.matchAll(/\{ x: ([-\d.]+), y: ([-\d.]+), z: ([-\d.]+), r: 0\.105, haloR: 0\.16, phase: '(side|mid)' \}/g)].map(
       (m) => [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3]), m[4]],
     );
     let allOk = spots.length === 3;
     if (spots.length !== 3) console.log('expected 3 hazSpots in index.html, found ' + spots.length);
-    const vA2 = new THREE.Vector3(),
-      vB2 = new THREE.Vector3(),
-      vC2 = new THREE.Vector3();
-    DOTS.forEach((d, i) => {
-      const u = d.px / TW2,
-        v = 1 - d.py / TH2;
-      const rgb = sampleC(u, v);
-      const orange = rgb[0] >= 110 && rgb[0] > rgb[1] + 25 && rgb[1] >= rgb[2] - 15 && rgb[2] <= 150 && rgb[1] <= 190;
-      let best = null;
-      for (const bm of bms) {
-        const pos = bm.geometry.attributes.position,
-          uv = bm.geometry.attributes.uv,
-          M = bm.matrixWorld;
-        for (let t = 0; t < pos.count / 3; t++) {
-          const k = t * 3;
-          const ua = uv.getX(k),
-            va = uv.getY(k),
-            ub = uv.getX(k + 1),
-            vb = uv.getY(k + 1),
-            uc = uv.getX(k + 2),
-            vc = uv.getY(k + 2);
-          const det = (ub - ua) * (vc - va) - (vb - va) * (uc - ua);
-          if (Math.abs(det) < 1e-12) continue;
-          const w = ((vc - va) * (u - ua) - (uc - ua) * (v - va)) / det;
-          const xx = ((ub - ua) * (v - va) - (vb - va) * (u - ua)) / det;
-          if (w < -1e-5 || xx < -1e-5 || w + xx > 1 + 1e-5) continue;
-          vA2.fromBufferAttribute(pos, k).applyMatrix4(M);
-          vB2.fromBufferAttribute(pos, k + 1).applyMatrix4(M);
-          vC2.fromBufferAttribute(pos, k + 2).applyMatrix4(M);
-          const nm = new THREE.Vector3().subVectors(vB2, vA2).cross(new THREE.Vector3().subVectors(vC2, vA2)).normalize();
-          const dotN = nm.dot(hazN2);
-          if (dotN < 0.9) continue; // the side face, not another UV-sharing face
-          if (best && dotN <= best.dotN) continue;
-          const P = vA2
-            .clone()
-            .addScaledVector(new THREE.Vector3().subVectors(vB2, vA2), w)
-            .addScaledVector(new THREE.Vector3().subVectors(vC2, vA2), xx);
-          best = { p: P, dotN };
-        }
-      }
-      if (!best) {
+    spots.forEach((s, i) => {
+      const [sx, sy, sz, ph] = s;
+      const h = hitRear(sy, sz);
+      if (!h) {
         allOk = false;
-        console.log('dot' + (i + 1) + ' tex=(' + d.px + ',' + d.py + '): NO side-face hit for UV (' + u.toFixed(4) + ',' + v.toFixed(4) + ')');
+        console.log('lens ' + (i + 1) + ' (' + ph + '): NO rear hit at y=' + sy + ' z=' + sz);
         return;
       }
-      const [sx, sy, sz] = spots[i] || [0, 0, 0, '?'];
-      const ddx = best.p.x - sx,
-        ddy = best.p.y - sy,
-        ddz = best.p.z - sz;
-      const dist = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
-      if (!orange || dist >= 0.03) allOk = false;
+      const [r, gg, bb] = h.rgb;
+      const orange = r >= 110 && r > gg + 25 && gg >= bb - 15 && bb <= 150 && gg <= 190;
+      const dx = Math.abs(h.x - sx);
+      const nMatch = h.n.dot(hazN2);
+      const okSpot = orange && dx < 0.03 && nMatch > 0.99;
+      if (!okSpot) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + spots[i][3] + '): dot3d=(' + best.p.x.toFixed(3) + ',' + best.p.y.toFixed(3) + ',' + best.p.z.toFixed(3) + ') spot=(' + sx + ',' + sy + ',' + sz + ') d=' + dist.toFixed(4) + ' rgb=' + rgb.join(',') + (orange ? ' ORANGE' : ' NOT-ORANGE!') + (dist < 0.03 ? '' : ' OFF!'),
+        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') surf=(' + h.x.toFixed(3) + ',' + sy + ',' + sz + ') dx=' + dx.toFixed(4) + ' rgb=' + h.rgb.join(',') + (orange ? ' ORANGE' : ' NOT-ORANGE!') + ' nMatch=' + nMatch.toFixed(3) + (okSpot ? '' : ' FAIL'),
       );
     });
-    console.log(allOk ? 'VERIFY PASS: all three lenses sit on the painted side dots' : 'VERIFY FAIL: a lens is off the painted dot');
+    console.log(allOk ? 'VERIFY PASS: all three lenses sit on the painted REAR orange dots' : 'VERIFY FAIL: a lens is off the painted rear orange dot');
     process.exit(allOk ? 0 : 1);
   }
   if (process.argv[2] === 'sample') {

@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.130</div>
+          <div id="app-version" class="menu-version">v1.0.132</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.130';
+      const APP_VERSION = '1.0.132';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4913,23 +4913,23 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
-          // === hazard lights (the row of orange circles painted on the +Y side) ===
-          // The DSNY art paints a row of four small orange circles (Ø ≈ 0.11) along
-          // the truck's +Y side, just below the "sanitation" banner. The three the
-          // player sees from behind (dots 2-4 of the row) get real glowing lenses.
-          // Positions measured exactly from the color-texture dot centers
-          // (pixels 1282/1433/1580 @ row 598 of the 2048 map) mapped UV->3D on the
-          // body mesh (see _dotpos.js). The side face normal is (-0.14, 0.99, -0.06),
-          // so each lens/halo is oriented along that normal and lifted off the
-          // surface — proud of the body, never buried, never z-fighting — and
-          // blinks the classic DSNY pattern: 1s both outer lights, 1s the middle
-          // light, 1s all dark, repeated (driven in updateTruck via hazLights).
+          // === hazard lights (the row of orange circles painted on the REAR) ===
+          // The DSNY art paints a row of three orange circles (Ø ≈ 0.21) on the
+          // truck's REAR face, above the hopper. Each gets a real glowing lens.
+          // Positions measured exactly from the color texture: _rear_color.js
+          // `blobs` raycasts the rear face and finds each orange circle's center
+          // (y,z) + surface x + true diameter; the rear face normal is
+          // (-0.989, -0.133, 0.063). Each lens/halo is oriented along that normal
+          // and lifted off the surface — proud of the body, never buried, never
+          // z-fighting — and blinks the classic DSNY pattern: 1s both outer
+          // lights, 1s the middle light, 1s all dark, repeated (driven in
+          // updateTruck via hazLights).
           const hazSpots = [
-            { x: -1.844, y: 1.224, z: 2.011, r: 0.06, haloR: 0.1, phase: 'side' },
-            { x: -0.299, y: 1.432, z: 1.912, r: 0.06, haloR: 0.1, phase: 'mid' },
-            { x: 1.288, y: 1.645, z: 1.812, r: 0.06, haloR: 0.1, phase: 'side' },
+            { x: -3.998, y: -0.239, z: 3.98, r: 0.105, haloR: 0.16, phase: 'side' },
+            { x: -3.957, y: -0.531, z: 3.997, r: 0.105, haloR: 0.16, phase: 'mid' },
+            { x: -3.917, y: -0.821, z: 4.014, r: 0.105, haloR: 0.16, phase: 'side' },
           ];
-          const hazN = new THREE.Vector3(-0.14, 0.99, -0.06).normalize();
+          const hazN = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
           const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal
           const hazQh = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), hazN); // circle face -> normal
           const hazSpot = new THREE.Vector3();
@@ -5010,7 +5010,7 @@
             new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(tagCanvas), depthTest: false }),
           );
           tag.scale.set(3.0, 0.56, 1);
-          tag.position.set(0.4, 3.1, 1.9);
+          tag.position.set(-4.3, -0.55, 4.7);
           tag.renderOrder = 999;
           hazDebug.add(tag);
           g.add(hazDebug);

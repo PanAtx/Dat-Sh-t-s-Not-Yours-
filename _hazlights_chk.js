@@ -1,8 +1,7 @@
 // _hazlights_chk.js — verify the truck's HAZARD LIGHTS (index.html).
-// The truck's texture paints a row of small orange circles along the +Y side
-// (just below the "sanitation" banner) — the three the player sees from behind
-// (dots 2-4). Three real glowing lenses now sit on that side face, oriented
-// along its normal (-0.14, 0.99, -0.06), and blink the DSNY pattern:
+// The truck's texture paints a row of three orange circles on the REAR face
+// (above the hopper). Three real glowing lenses sit on that rear face, oriented
+// along its normal (-0.989, -0.133, 0.063), and blink the DSNY pattern:
 // 1s both OUTER lights ON, 1s the MIDDLE light ON, 1s ALL dark — then repeat
 // forever. The glow is an emissive core + an additive-blended halo.
 //
@@ -40,13 +39,13 @@ const buildSrc = src.slice(src.indexOf('function buildTruck()'), src.indexOf('fu
 check('the hazard lights are built (hazLights array)', buildSrc.indexOf('const hazLights = []') >= 0);
 check('each light = emissive orange core lens + additive-blended halo (the glow)', buildSrc.indexOf('emissive: 0xff6a00') >= 0 && buildSrc.indexOf('THREE.AdditiveBlending') >= 0 && buildSrc.indexOf('new THREE.CircleGeometry(s.haloR, 20)') >= 0);
 check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: \'mid\'') >= 0 && (buildSrc.match(/phase: 'side'/g) || []).length === 2);
-// the measured side-face dot centers (from _dotpos.js: texture dots 2-4 mapped
-// UV->3D on the body mesh) must be the exact placement, each lens/halo lifted
-// off the face along the side normal (-0.14, 0.99, -0.06)
-check('light 1 sits on painted dot 4 (x=-1.844, y=1.224, z=2.011)', buildSrc.indexOf("{ x: -1.844, y: 1.224, z: 2.011, r: 0.06, haloR: 0.1, phase: 'side' }") >= 0);
-check('light 2 (middle) sits on painted dot 3 (x=-0.299, y=1.432, z=1.912)', buildSrc.indexOf("{ x: -0.299, y: 1.432, z: 1.912, r: 0.06, haloR: 0.1, phase: 'mid' }") >= 0);
-check('light 3 sits on painted dot 2 (x=1.288, y=1.645, z=1.812)', buildSrc.indexOf("{ x: 1.288, y: 1.645, z: 1.812, r: 0.06, haloR: 0.1, phase: 'side' }") >= 0);
-check('lenses/halos are oriented along the side-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
+// the measured REAR-face dot centers (from _rear_color.js blobs: orange circles
+// on the rear raycast to their true (y,z) + surface x) must be the exact placement,
+// each lens/halo lifted off the face along the rear normal (-0.989, -0.133, 0.063)
+check('light 1 sits on painted rear dot (x=-3.998, y=-0.239, z=3.98)', buildSrc.indexOf("{ x: -3.998, y: -0.239, z: 3.98, r: 0.105, haloR: 0.16, phase: 'side' }") >= 0);
+check('light 2 (middle) sits on painted rear dot (x=-3.957, y=-0.531, z=3.997)', buildSrc.indexOf("{ x: -3.957, y: -0.531, z: 3.997, r: 0.105, haloR: 0.16, phase: 'mid' }") >= 0);
+check('light 3 sits on painted rear dot (x=-3.917, y=-0.821, z=4.014)', buildSrc.indexOf("{ x: -3.917, y: -0.821, z: 4.014, r: 0.105, haloR: 0.16, phase: 'side' }") >= 0);
+check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
 
