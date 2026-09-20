@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.144</div>
+          <div id="app-version" class="menu-version">v1.0.145</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.144';
+      const APP_VERSION = '1.0.145';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15582,11 +15582,17 @@
             tCy = -4.5;
           const tHalfL = truck.boxL,
             tHalfW = truck.boxW;
-          // Empty-handed the worker squeezes to his visual half-width (0.28) so he
-          // can close right up to the truck's rear; carrying trash keeps 0.45.
+          // Empty-handed: the worker squeezes up to the truck's LEFT flank (the
+          // extra-narrow left edge, boxWLeft) and tucks 0.4u closer to the rear
+          // hopper face. Carrying trash keeps the full box on both sides.
+          const tHalfWLeft =
+            carry === "none" ? (truck.boxWLeft != null ? truck.boxWLeft : truck.boxW) : truck.boxW;
+          const tHalfLrear = carry === "none" ? tHalfL - 0.4 : tHalfL;
+          // Empty-handed the worker also squeezes to his visual half-width (0.28)
+          // so he can close right up to the truck's rear; carrying trash keeps 0.45.
           const WR = carry === "none" ? 0.28 : 0.45;
-          const cx = Math.min(Math.max(p.wx, tCx - tHalfL), tCx + tHalfL);
-          const cy = Math.min(Math.max(p.wy, tCy - tHalfW), tCy + tHalfW);
+          const cx = Math.min(Math.max(p.wx, tCx - tHalfLrear), tCx + tHalfL);
+          const cy = Math.min(Math.max(p.wy, tCy - tHalfWLeft), tCy + tHalfW);
           const dx = p.wx - cx,
             dy = p.wy - cy;
           const d2 = dx * dx + dy * dy;
@@ -15598,9 +15604,9 @@
               p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
             } else {
               // Degenerate (worker inside the box): eject toward the nearer side
-              const dBot = Math.abs(p.wy - (tCy - tHalfW));
+              const dBot = Math.abs(p.wy - (tCy - tHalfWLeft));
               const dTop = Math.abs(p.wy - (tCy + tHalfW));
-              p.wy = dBot < dTop ? tCy - tHalfW - WR : tCy + tHalfW + WR;
+              p.wy = dBot < dTop ? tCy - tHalfWLeft - WR : tCy + tHalfW + WR;
             }
           }
         }
