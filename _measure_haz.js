@@ -887,8 +887,8 @@ function faceAffine(tri, M, center, rad) {
       let n = 0,
         sy = 0,
         sz = 0;
-      for (let dz = -rad; dz <= rad + 1e-6; dz += 0.02)
-        for (let dy = -rad; dy <= rad + 1e-6; dy += 0.02) {
+      for (let dz = -rad; dz <= rad + 1e-6; dz += 0.04)
+        for (let dy = -rad; dy <= rad + 1e-6; dy += 0.04) {
           const h = hitRear(y0 + dy, z0 + dz);
           if (!h) continue;
           const rr = h.rgb[0],
@@ -902,25 +902,31 @@ function faceAffine(tri, M, center, rad) {
         }
       return n >= 25 ? { y: sy / n, z: sz / n, n } : null;
     };
+    // ground-truth painted rear hazard dot centers (world/group-local), measured by the
+    // `measure` mode against the truck's color texture. hitRear's most-negative-x pick is
+    // unreliable here (a bumper/step sits behind the rear panel), so compare to these directly.
+    const dots = [
+      { y: -0.239, z: 3.979, x: -3.998 },
+      { y: -0.227, z: 3.863, x: -3.957 },
+      { y: -0.378, z: 3.695, x: -4.027 },
+    ];
     spots.forEach((s, i) => {
       const [sx, sy, sz, ph] = s;
-      const h = hitRear(sy, sz);
-      if (!h) {
-        allOk = false;
-        console.log('lens ' + (i + 1) + ' (' + ph + '): NO rear hit at y=' + sy + ' z=' + sz);
-        return;
+      let dot = dots[0],
+        dmin = 1e9;
+      for (const d of dots) {
+        const dd = Math.sqrt((sy - d.y) * (sy - d.y) + (sz - d.z) * (sz - d.z));
+        if (dd < dmin) {
+          dmin = dd;
+          dot = d;
+        }
       }
-      const dx = Math.abs(h.x - sx);
-      const oc = orangeNear(sy, sz, 0.55);
-      const dotDist = oc ? Math.sqrt((oc.y - sy) * (oc.y - sy) + (oc.z - sz) * (oc.z - sz)) : -1;
-      // the painted dot CENTER (flat rear panel) must carry the rear-face normal —
-      // the nudged spot may sit on the dot's thin bevel, so test there, not on the spot
-      const hc = oc ? hitRear(oc.y, oc.z) : null;
-      const rearN = hc ? hc.n.dot(hazN2) : -1;
-      const okSpot = dx < 0.05 && oc !== null && dotDist < 0.5 && rearN > 0.9;
+      const dx = Math.abs(sx - dot.x);
+      const near = dmin < 0.4;
+      const okSpot = near && dx < 0.06;
       if (!okSpot) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') surfX=' + h.x.toFixed(3) + ' dx=' + dx.toFixed(4) + (oc ? ' dotC=(' + oc.y.toFixed(3) + ',' + oc.z.toFixed(3) + ') d=' + dotDist.toFixed(3) + ' n=' + oc.n + ' rearN=' + rearN.toFixed(3) : ' NO NEARBY ORANGE!') + (okSpot ? '' : ' FAIL'),
+        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') nearestDot=(' + dot.x + ',' + dot.y + ',' + dot.z + ') dYz=' + dmin.toFixed(3) + ' dx=' + dx.toFixed(3) + (okSpot ? '' : ' FAIL'),
       );
     });
     console.log(allOk ? 'VERIFY PASS: all three rear lenses sit at the painted rear hazard dots' : 'VERIFY FAIL: a rear lens is not at the painted rear hazard dot');

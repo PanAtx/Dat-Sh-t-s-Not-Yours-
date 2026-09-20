@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.137</div>
+          <div id="app-version" class="menu-version">v1.0.138</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.137';
+      const APP_VERSION = '1.0.138';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4925,9 +4925,9 @@
           // lights, 1s the middle light, 1s all dark, repeated (driven in
           // updateTruck via hazLights).
           const hazSpots = [
-            { x: -4.134, y: 0.071, z: 3.59, r: 0.105, haloR: 0.22, phase: 'side' },
-            { x: -4.094, y: -0.221, z: 3.607, r: 0.105, haloR: 0.22, phase: 'mid' },
-            { x: -4.053, y: -0.511, z: 3.624, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -3.998, y: -0.239, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -3.957, y: -0.227, z: 3.863, r: 0.105, haloR: 0.22, phase: 'mid' },
+            { x: -4.027, y: -0.378, z: 3.695, r: 0.105, haloR: 0.22, phase: 'side' },
           ];
           const hazN = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
           const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal
