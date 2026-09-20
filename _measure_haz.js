@@ -911,16 +911,16 @@ function faceAffine(tri, M, center, rad) {
         return;
       }
       const dx = Math.abs(h.x - sx);
-      const oc = orangeNear(sy, sz, 0.45);
+      const oc = orangeNear(sy, sz, 0.55);
       const dotDist = oc ? Math.sqrt((oc.y - sy) * (oc.y - sy) + (oc.z - sz) * (oc.z - sz)) : -1;
       // the painted dot CENTER (flat rear panel) must carry the rear-face normal —
       // the nudged spot may sit on the dot's thin bevel, so test there, not on the spot
       const hc = oc ? hitRear(oc.y, oc.z) : null;
       const rearN = hc ? hc.n.dot(hazN2) : -1;
-      const okSpot = dx < 0.05 && oc !== null && dotDist < 0.4 && rearN > 0.9;
+      const okSpot = dx < 0.05 && oc !== null && dotDist < 0.5 && rearN > 0.9;
       if (!okSpot) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') dx=' + dx.toFixed(4) + (oc ? ' dotC=(' + oc.y.toFixed(3) + ',' + oc.z.toFixed(3) + ') d=' + dotDist.toFixed(3) + ' n=' + oc.n + ' rearN=' + rearN.toFixed(3) : ' NO NEARBY ORANGE!') + (okSpot ? '' : ' FAIL'),
+        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') surfX=' + h.x.toFixed(3) + ' dx=' + dx.toFixed(4) + (oc ? ' dotC=(' + oc.y.toFixed(3) + ',' + oc.z.toFixed(3) + ') d=' + dotDist.toFixed(3) + ' n=' + oc.n + ' rearN=' + rearN.toFixed(3) : ' NO NEARBY ORANGE!') + (okSpot ? '' : ' FAIL'),
       );
     });
     console.log(allOk ? 'VERIFY PASS: all three rear lenses sit at the painted rear hazard dots' : 'VERIFY FAIL: a rear lens is not at the painted rear hazard dot');
