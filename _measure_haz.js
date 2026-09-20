@@ -902,34 +902,26 @@ function faceAffine(tri, M, center, rad) {
         }
       return n >= 25 ? { y: sy / n, z: sz / n, n } : null;
     };
-    // ground-truth painted rear hazard dot centers (world/group-local), measured by the
-    // `measure` mode against the truck's color texture. hitRear's most-negative-x pick is
-    // unreliable here (a bumper/step sits behind the rear panel), so compare to these directly.
-    const dots = [
-      { y: -0.239, z: 3.979, x: -3.998 },
-      { y: -0.227, z: 3.863, x: -3.957 },
-      { y: -0.378, z: 3.695, x: -4.027 },
+    // FINAL hand-tuned placement of the rear hazard lenses (group-local), dialed
+    // in with the U/I/J/K/N/M nudge keys (v1.0.139) and confirmed by the player.
+    // These are the ground truth — hazSpots in index.html must match them exactly
+    // (the old "painted dot centers" comparison is superseded by this placement).
+    const final = [
+      { x: -4.918, y: -0.299, z: 3.979 },
+      { x: -4.918, y: -0.619, z: 4.019 },
+      { x: -4.918, y: -0.959, z: 4.079 },
     ];
     spots.forEach((s, i) => {
       const [sx, sy, sz, ph] = s;
-      let dot = dots[0],
-        dmin = 1e9;
-      for (const d of dots) {
-        const dd = Math.sqrt((sy - d.y) * (sy - d.y) + (sz - d.z) * (sz - d.z));
-        if (dd < dmin) {
-          dmin = dd;
-          dot = d;
-        }
-      }
-      const dx = Math.abs(sx - dot.x);
-      const near = dmin < 0.4;
-      const okSpot = near && dx < 0.06;
+      const f = final[i] || { x: NaN, y: NaN, z: NaN };
+      const d = Math.sqrt((sx - f.x) * (sx - f.x) + (sy - f.y) * (sy - f.y) + (sz - f.z) * (sz - f.z));
+      const okSpot = d < 1e-6;
       if (!okSpot) allOk = false;
       console.log(
-        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') nearestDot=(' + dot.x + ',' + dot.y + ',' + dot.z + ') dYz=' + dmin.toFixed(3) + ' dx=' + dx.toFixed(3) + (okSpot ? '' : ' FAIL'),
+        'lens ' + (i + 1) + ' (' + ph + '): spot=(' + sx + ',' + sy + ',' + sz + ') final=(' + f.x + ',' + f.y + ',' + f.z + ') d=' + d.toExponential(1) + (okSpot ? '' : ' FAIL'),
       );
     });
-    console.log(allOk ? 'VERIFY PASS: all three rear lenses sit at the painted rear hazard dots' : 'VERIFY FAIL: a rear lens is not at the painted rear hazard dot');
+    console.log(allOk ? 'VERIFY PASS: all three rear lenses sit at the final hand-tuned placements' : 'VERIFY FAIL: a rear lens is not at its final hand-tuned placement');
     process.exit(allOk ? 0 : 1);
   }
   if (process.argv[2] === 'sample') {

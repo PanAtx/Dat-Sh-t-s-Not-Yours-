@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.139</div>
+          <div id="app-version" class="menu-version">v1.0.140</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.139';
+      const APP_VERSION = '1.0.140';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4916,18 +4916,19 @@
           // === hazard lights (the row of orange circles painted on the REAR) ===
           // The DSNY art paints a row of three orange circles (Ø ≈ 0.21) on the
           // truck's REAR face, above the hopper. Each gets a real glowing lens.
-          // Positions measured exactly from the color texture: _rear_color.js
-          // `blobs` raycasts the rear face and finds each orange circle's center
-          // (y,z) + surface x + true diameter; the rear face normal is
-          // (-0.989, -0.133, 0.063). Each lens/halo is oriented along that normal
+          // The rear face normal is (-0.989, -0.133, 0.063) (measured by
+          // _rear_color.js). These final positions were placed BY HAND with the
+          // U/I/J/K/N/M debug nudge keys (v1.0.139) and confirmed by the player —
+          // they are the ground truth that _hazlights_chk.js / _measure_haz.js
+          // verify pin against. Each lens/halo is oriented along the rear normal
           // and lifted off the surface — proud of the body, never buried, never
           // z-fighting — and blinks the classic DSNY pattern: 1s both outer
           // lights, 1s the middle light, 1s all dark, repeated (driven in
           // updateTruck via hazLights).
           const hazSpots = [
-            { x: -3.998, y: -0.239, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' },
-            { x: -3.957, y: -0.227, z: 3.863, r: 0.105, haloR: 0.22, phase: 'mid' },
-            { x: -4.027, y: -0.378, z: 3.695, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -4.918, y: -0.299, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -4.918, y: -0.619, z: 4.019, r: 0.105, haloR: 0.22, phase: 'mid' },
+            { x: -4.918, y: -0.959, z: 4.079, r: 0.105, haloR: 0.22, phase: 'side' },
           ];
           const hazN = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
           const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal

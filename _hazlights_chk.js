@@ -39,12 +39,12 @@ const buildSrc = src.slice(src.indexOf('function buildTruck()'), src.indexOf('fu
 check('the hazard lights are built (hazLights array)', buildSrc.indexOf('const hazLights = []') >= 0);
 check('each light = emissive orange core lens + additive-blended halo (the glow)', buildSrc.indexOf('emissive: 0xff6a00') >= 0 && buildSrc.indexOf('THREE.AdditiveBlending') >= 0 && buildSrc.indexOf('new THREE.CircleGeometry(s.haloR, 20)') >= 0);
 check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: \'mid\'') >= 0 && (buildSrc.match(/phase: 'side'/g) || []).length === 2);
-// the measured REAR-face dot centers (from _rear_color.js blobs: orange circles
-// on the rear raycast to their true (y,z) + surface x) must be the exact placement,
-// each lens/halo lifted off the face along the rear normal (-0.989, -0.133, 0.063)
-check('light 1 sits on rear hazard zone (x=-3.998, y=-0.239, z=3.979)', buildSrc.indexOf("{ x: -3.998, y: -0.239, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
-check('light 2 (middle) sits on rear hazard zone (x=-3.957, y=-0.227, z=3.863)', buildSrc.indexOf("{ x: -3.957, y: -0.227, z: 3.863, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
-check('light 3 sits on rear hazard zone (x=-4.027, y=-0.378, z=3.695)', buildSrc.indexOf("{ x: -4.027, y: -0.378, z: 3.695, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+// the FINAL hand-tuned rear-face placements (dialed in with the U/I/J/K/N/M
+// nudge keys in v1.0.139) must be the exact hardcoded positions; each lens/halo
+// is oriented along the rear normal (-0.989, -0.133, 0.063) and lifted off it
+check('light 1 sits at final rear placement (x=-4.918, y=-0.299, z=3.979)', buildSrc.indexOf("{ x: -4.918, y: -0.299, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('light 2 (middle) sits at final rear placement (x=-4.918, y=-0.619, z=4.019)', buildSrc.indexOf("{ x: -4.918, y: -0.619, z: 4.019, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
+check('light 3 sits at final rear placement (x=-4.918, y=-0.959, z=4.079)', buildSrc.indexOf("{ x: -4.918, y: -0.959, z: 4.079, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('temporary magenta debug markers + H key toggle exist (remove after visual check)', buildSrc.indexOf('hazDebug') >= 0 && buildSrc.indexOf('0xff00ff') >= 0 && src.indexOf('e.code === "KeyH"') >= 0);
 check('manual L1 nudge keys exist: U/I=x, J/K=y, N/M=z (run before the e.repeat guard so held keys slide)', buildSrc.indexOf('const nudgeHaz = (i, dx, dy, dz) => {') >= 0 && buildSrc.indexOf('hazRings: hazRings,') >= 0 && buildSrc.indexOf('nudgeHaz: nudgeHaz,') >= 0 && src.indexOf('e.code === "KeyU"') >= 0 && src.indexOf('e.code === "KeyI"') >= 0 && src.indexOf('e.code === "KeyJ"') >= 0 && src.indexOf('e.code === "KeyK"') >= 0 && src.indexOf('e.code === "KeyN"') >= 0 && src.indexOf('e.code === "KeyM"') >= 0 && src.indexOf('truck.nudgeHaz(0, HAZ_STEP, 0, 0)') >= 0 && src.indexOf('truck.nudgeHaz(0, 0, 0, -HAZ_STEP)') >= 0);
