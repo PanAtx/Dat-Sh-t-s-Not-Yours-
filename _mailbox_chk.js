@@ -2,7 +2,9 @@
 // to the reference (no pole, 4 short legs, flat front + mail slot, arched top ->
 // flat back, flat sides), the U.S. Postal Service palette, curb placement on every
 // 5th street corner starting at the first corner of Block 2, walker-avoidance
-// registration, and Node-safe (no DOM) construction.
+// registration, and Node-safe (no DOM) construction. Also guards the neighboring
+// addManhole: a manhole is a WORKER-ONLY trip hazard — cars and motorbikes drive
+// right over it, never swerve to avoid it.
 const fs = require('fs');
 const path = require('path');
 global.THREE = require(path.join(__dirname, '_three128.js'));
@@ -126,6 +128,35 @@ try { addManhole(b2, 105, -5); } catch (e){ threw2 = e; }
 check('addManhole builds without throwing (hole declaration intact)' + (threw2 ? '  [' + threw2.message + ']' : ''), !threw2 && added2.length === 1);
 check('manhole registers a trip hazard', b2.hazards.length === 1 && b2.hazards[0].type === 'trip');
 check('manhole has the dark hole mesh (0x0a0c0e)', added2[0] && added2[0].children.some(ch => ch.material && ch.material.color && ch.material.color.getHex() === 0x0a0c0e));
+
+// ---- 6) manholes are WORKER-ONLY: cars/motos (every vehicle) drive over them ----
+// A manhole must NEVER feed vehicle AI. The worker trips on it (stun + possible
+// drop of the carried bag) and that's the full extent of its gameplay effect — a
+// car or motorbike rolls right over the pried-open lid.
+const csStart = src.indexOf('function collideStatic(');
+const csEnd = csStart >= 0 ? src.indexOf('\n      function ', csStart + 10) : -1;
+const collideSrc = csStart >= 0 ? src.slice(csStart, csEnd > 0 ? csEnd : csStart + 1500) : '';
+const ucStart = src.indexOf('function updateCreatures('); // AI switch anchor (after the spawn switch)
+check('worker (sanitation worker) is the ONLY manhole reactor: collideStatic reads b.hazards', collideSrc.indexOf('blocks[i].hazards') >= 0);
+check('worker trips on a flat "trip" hazard (doStun 0.8 "trip")', /doStun\(0\.8, "trip"\)/.test(collideSrc));
+check('manhole drop: 0.5 = a carried bag can be dropped on the trip', /drop: 0\.5/.test(extract('addManhole')));
+const caseIdx = (name) => src.indexOf('case "' + name + '":', ucStart);
+const vehicleCase = (name, endName) => {
+  const s = caseIdx(name);
+  const e = endName === null ? -1 : caseIdx(endName);
+  return s >= 0 ? src.slice(s, e > 0 ? e : s + 40000) : '';
+};
+const tricCaseSrc = vehicleCase('tric', 'rc'); // street tricycle block (VEHICLE_TYPES member)
+const rcCaseSrc = vehicleCase('rc', 'bike');
+const bikeCaseSrc = vehicleCase('bike', 'car'); // case "bike": falls through to case "ebike":
+const carCaseSrc = vehicleCase('car', 'moto');
+const motoCaseSrc = vehicleCase('moto', 'breaker');
+check('street-tricycle AI case references NO road hazards (rides over manholes)', tricCaseSrc.length > 100 && tricCaseSrc.indexOf('hazard') < 0);
+check('rc AI case references NO road hazards (drives over manholes)', rcCaseSrc.length > 100 && rcCaseSrc.indexOf('hazard') < 0);
+check('bike/ebike AI case references NO road hazards (rides over manholes)', bikeCaseSrc.length > 100 && bikeCaseSrc.indexOf('hazard') < 0);
+check('car AI case references NO road hazards (drives over manholes)', carCaseSrc.length > 100 && carCaseSrc.indexOf('hazard') < 0);
+check('moto AI case references NO road hazards (drives over manholes)', motoCaseSrc.length > 100 && motoCaseSrc.indexOf('hazard') < 0);
+check('vehicle obstacle logic only ever sees vehicles + the DSNY truck (findVehicleAhead)', (() => { const fv = extract('findVehicleAhead'); return fv.indexOf('b.hazards') < 0 && fv.indexOf('blocks') < 0 && fv.indexOf('VEHICLE_TYPES') >= 0 && fv.indexOf('isTruck') >= 0; })());
 
 console.log(ok ? 'MAILBOX ALL CHECKS PASS' : 'MAILBOX FAILURES');
 process.exit(ok ? 0 : 1);
