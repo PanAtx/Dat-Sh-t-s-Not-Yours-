@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.155</div>
+          <div id="app-version" class="menu-version">v1.0.156</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.155';
+      const APP_VERSION = '1.0.156';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4912,9 +4912,9 @@
           // room to squeeze past without sticking, and the worker can slip by
           // the rear corner closer to the truck (the visuals keep the full width).
           const boxW = (tStreet > 0.5 ? tStreet : 2.9) * 0.8;
-          // ASYMMETRIC width (sides confirmed with the player):
-          //  boxWStreet = y-min edge  = the player's RIGHT  -> base width
-          //  boxWCurb   = y-max edge  = the player's LEFT   -> NARROWER
+          // ASYMMETRIC width. DEFINITION (player-confirmed):
+          //  boxWStreet = y-min edge = TRUCK RIGHT (street) -> base width
+          //  boxWCurb   = y-max edge = TRUCK LEFT  (curb)   -> NARROWER
           const boxWStreet = boxW * 1.0;
           const boxWCurb = boxW * 0.35;
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
@@ -15585,19 +15585,19 @@
           const tCx = truck.wx,
             tCy = -4.5;
           const tHalfL = truck.boxL;
-          // Asymmetric width (sides confirmed by the player): STREET side (y-min,
-          // player's RIGHT) is at base width; CURB side (y-max, player's LEFT) is NARROWER.
+          // ASYMMETRIC width. DEFINITION (player-confirmed):
+          //   TRUCK LEFT  = curb/sidewalk side (y+)  -> NARROWER
+          //   TRUCK RIGHT = street side (y-)         -> base width
           const tHalfWStreet = truck.boxWStreet != null ? truck.boxWStreet : truck.boxW;
           const tHalfWCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW;
-          // Keep the worker back from the curb-side (player's LEFT) edge: the
-          // curb COLLISION edge sits inside the truck's painted body, so the
-          // worker used to clip through the side. Pin HIS push-out edge at least
-          // to the visual body reach (boxW/0.8) + 0.25u breathing room.
-          // (NPCs unaffected — they use the raw collision box.)
-          const tHalfWCurbP = Math.max(tHalfWCurb, truck.boxW * 1.25) + 0.25;
+          // The worker keeps a little breathing room from the truck's RIGHT
+          // (street) side, plus the existing bit from the curb (LEFT) side —
+          // those two edges of HIS push-out box are inflated. NPCs use the raw box.
+          const tHalfWStreetP = tHalfWStreet + 0.25;
+          const tHalfWCurbP = tHalfWCurb + 0.25;
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
           const cx = Math.min(Math.max(p.wx, tCx - tHalfL), tCx + tHalfL);
-          const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreet), tCy + tHalfWCurbP);
+          const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
           const dx = p.wx - cx,
             dy = p.wy - cy;
           const d2 = dx * dx + dy * dy;
@@ -15609,9 +15609,9 @@
               p.wy = clamp(p.wy + (dy / d) * push, -9.4, workerMaxY());
             } else {
               // Degenerate (worker inside the box): eject toward the nearer side
-              const dBot = Math.abs(p.wy - (tCy - tHalfWStreet));
+              const dBot = Math.abs(p.wy - (tCy - tHalfWStreetP));
               const dTop = Math.abs(p.wy - (tCy + tHalfWCurbP));
-              p.wy = dBot < dTop ? tCy - tHalfWStreet - WR : tCy + tHalfWCurbP + WR;
+              p.wy = dBot < dTop ? tCy - tHalfWStreetP - WR : tCy + tHalfWCurbP + WR;
             }
           }
         }
@@ -15735,9 +15735,8 @@
         // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
         truck.g.position.set(truck.wx, -4.5, GZ);
         // DEBUG (temporary): magenta rectangle outlining the truck's COLLISION
-        // box footprint. Asymmetric — street side (player's RIGHT) is wider,
-        // curb side (player's LEFT) is narrower. It is a child of truck.g, so it
-        // follows the truck automatically.
+        // box footprint. Child of truck.g, so it follows the truck automatically.
+        // Side labels show MY best guess at each side's name — verify in-game!
         if (truck.boxWStreet != null && truck.boxWCurb != null) {
           if (!truck._colRect) {
             const _cg = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
@@ -15746,6 +15745,33 @@
               new THREE.LineBasicMaterial({ color: 0xff00ff })
             );
             truck.g.add(truck._colRect);
+            const _mkLabel = (txt) => {
+              const cv = document.createElement("canvas");
+              cv.width = 512;
+              cv.height = 128;
+              const g2 = cv.getContext("2d");
+              g2.fillStyle = "rgba(0,0,0,0.55)";
+              g2.fillRect(0, 0, 512, 128);
+              g2.strokeStyle = "#ff00ff";
+              g2.strokeRect(4, 4, 504, 120);
+              g2.fillStyle = "#ff00ff";
+              g2.font = "bold 60px Arial";
+              g2.textAlign = "center";
+              g2.textBaseline = "middle";
+              g2.fillText(txt, 256, 64);
+              const sp = new THREE.Sprite(
+                new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false })
+              );
+              sp.scale.set(3.4, 0.85, 1);
+              sp.renderOrder = 999;
+              return sp;
+            };
+            const _labL = _mkLabel("TRUCK LEFT (curb)");
+            _labL.position.set(0, truck.boxWCurb + 1.0, 1.4);
+            truck.g.add(_labL);
+            const _labR = _mkLabel("TRUCK RIGHT (street)");
+            _labR.position.set(0, -(truck.boxWStreet + 1.0), 1.4);
+            truck.g.add(_labR);
           }
           const _cw = truck.boxWStreet + truck.boxWCurb;
           truck._colRect.position.set(0, (truck.boxWCurb - truck.boxWStreet) / 2, 0.03);
@@ -15888,7 +15914,7 @@
           }
         }
         // Check the garbage truck as an obstacle — ALWAYS check regardless of best
-        const tBoxYMin = -4.5 - (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW); // street side (player's RIGHT) at base width
+        const tBoxYMin = -4.5 - (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW); // street side (TRUCK RIGHT) at base width
         const tBoxYMax = -4.5 + (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW); // curb side (player's LEFT) narrower
         const vBoxYMin = vehicle.wy - vehicle.boxW;
         const vBoxYMax = vehicle.wy + vehicle.boxW;
