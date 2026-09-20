@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.156</div>
+          <div id="app-version" class="menu-version">v1.0.157</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.156';
+      const APP_VERSION = '1.0.157';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15591,12 +15591,16 @@
           const tHalfWStreet = truck.boxWStreet != null ? truck.boxWStreet : truck.boxW;
           const tHalfWCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW;
           // The worker keeps a little breathing room from the truck's RIGHT
-          // (street) side, plus the existing bit from the curb (LEFT) side —
-          // those two edges of HIS push-out box are inflated. NPCs use the raw box.
-          const tHalfWStreetP = tHalfWStreet + 0.25;
-          const tHalfWCurbP = tHalfWCurb + 0.25;
+          // (street) side, plus the existing bit from the curb (LEFT) side.
+          // When he's CARRYING (bag / can / litter basket), the ITEM is what
+          // clips into the truck, so ALL FOUR edges get an extra margin.
+          // NPCs use the raw collision box.
+          const _carryM = carry !== "none" ? 0.35 : 0;
+          const tHalfWStreetP = tHalfWStreet + 0.25 + _carryM;
+          const tHalfWCurbP = tHalfWCurb + 0.25 + _carryM;
+          const tHalfLendP = tHalfL + _carryM; // front (cab) + rear (hopper) faces
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
-          const cx = Math.min(Math.max(p.wx, tCx - tHalfL), tCx + tHalfL);
+          const cx = Math.min(Math.max(p.wx, tCx - tHalfLendP), tCx + tHalfLendP);
           const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
           const dx = p.wx - cx,
             dy = p.wy - cy;
