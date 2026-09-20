@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.149</div>
+          <div id="app-version" class="menu-version">v1.0.150</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.149';
+      const APP_VERSION = '1.0.150';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4916,7 +4916,7 @@
           //  boxWStreet = y-min edge  = the player's RIGHT  -> WIDER  (cars were too close)
           //  boxWCurb   = y-max edge  = the player's LEFT   -> NARROWER
           const boxWStreet = boxW * 1.2;
-          const boxWCurb = boxW * 0.6;
+          const boxWCurb = boxW * 0.45;
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
           // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
@@ -5076,7 +5076,7 @@
           boxL: 6.76,
           boxW: 1.8,
           boxWStreet: 2.16,
-          boxWCurb: 1.08,
+          boxWCurb: 0.81,
           hopperOff: -7.267,
           hopperY: 0,
           hopperZ: 2.6,
@@ -15928,7 +15928,7 @@
         }
         // ALSO check against the garbage truck — never detour into the truck's lane
         const tBoxYMin = -4.5 - (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW); // ≈ -6.66 (wider street side)
-        const tBoxYMax = -4.5 + (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW); // ≈ -3.42 (narrow curb side)
+        const tBoxYMax = -4.5 + (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW); // ≈ -3.19 (narrow curb side)
         if (checkWy >= tBoxYMin && checkWy <= tBoxYMax) {
           return false;
         } // inside truck Y — blocked
@@ -17560,7 +17560,7 @@
               // === CRITICAL: Direct hopper proximity check — prevents driving into the truck ===
               // If car's Y overlaps truck's body AND car is approaching from behind, must brake/steer
               const tYMin = -4.5 - (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW); // ≈ -6.66 (wider street side)
-              const tYMax = -4.5 + (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW); // ≈ -3.42 (narrow curb side)
+              const tYMax = -4.5 + (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW); // ≈ -3.19 (narrow curb side)
               const carBoxYMin = c.wy - c.boxW;
               const carBoxYMax = c.wy + c.boxW;
               const overlapsTruckY = carBoxYMax > tYMin && carBoxYMin < tYMax;
