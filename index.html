@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.175</div>
+          <div id="app-version" class="menu-version">v1.0.176</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.175';
+      const APP_VERSION = '1.0.176';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9426,25 +9426,23 @@
         };
         return g;
       }
-      function makeQueensTownhouse() {
+      // ==================== QUEENS HOUSE (level 4 — Thursday, Maspeth) ====================
+      // Dedicated Queens copy of the ORIGINAL house design (same as makeStatenHouse).
+      // Kept as its own builder so Maspeth can be tuned / modified without touching
+      // Staten Island. Edit the palette, dimensions, roof, windows, porch, door here.
+      function makeQueensHouse() {
         const g = new THREE.Group();
-        const cols = [0xa08060, 0x9a7a5a, 0xb09070, 0x8a6a4a];
+        const cols = [0x9a8a7a, 0x8a7a6a, 0xaa9a8a];
         const col = cols[(Math.random() * cols.length) | 0];
-        const w = 8.0,
-          d = 5.5,
+        const w = 10.0,
+          d = 6.0,
           h = 3.5;
         const body = BX(w, d, h, M(col));
         body.position.z = 0.3 + h / 2;
         g.add(body);
-        // pitched roof
-        const roofL = BX(w + 0.5, 2.5, 0.25, M(0x4a3a2a));
-        roofL.position.set(0, -d / 2 - 1.0, 0.3 + h + 0.8);
-        roofL.rotation.z = Math.PI / 6;
-        g.add(roofL);
-        const roofR = BX(w + 0.5, 2.5, 0.25, M(0x4a3a2a));
-        roofR.position.set(0, -d / 2 + 2.0, 0.3 + h + 0.8);
-        roofR.rotation.z = -Math.PI / 6;
-        g.add(roofR);
+        const roof = BX(w + 0.5, d + 0.5, 0.3, M(0x2a2a2a));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
         const winM = new THREE.MeshLambertMaterial({
           color: 0x8cc0e8,
           emissive: 0x1a3a4f,
@@ -9453,24 +9451,24 @@
         for (let floor = 0; floor < 2; floor++) {
           const fy = 0.3 + 1.0 + floor * 1.3;
           for (let x = -1; x <= 1; x += 2) {
-            const frame = BX(0.7, 0.1, 1.0, M(0x1a1a1a));
-            frame.position.set(x * w * 0.25, -d / 2 + 0.04, fy);
+            const frame = BX(0.8, 0.1, 1.1, M(0x1a1a1a));
+            frame.position.set(x * w * 0.22, -d / 2 + 0.04, fy);
             g.add(frame);
-            const glass = BX(0.6, 0.04, 0.9, winM);
-            glass.position.set(x * w * 0.25, -d / 2 - 0.05, fy);
+            const glass = BX(0.7, 0.04, 1.0, winM);
+            glass.position.set(x * w * 0.22, -d / 2 - 0.05, fy);
             g.add(glass);
           }
         }
-        const porch = BX(w * 0.7, 0.9, 0.1, M(0x8a7a6a));
-        porch.position.set(0, -d / 2 - 0.4, 0.3 + 0.55);
+        const porch = BX(w * 0.8, 1.0, 0.1, M(0x8a7a6a));
+        porch.position.set(0, -d / 2 - 0.5, 0.3 + 0.55);
         g.add(porch);
-        const door = BX(0.8, 0.1, 1.6, M(0x3a2a1a));
-        door.position.set(0, -d / 2 + 0.05, 0.3 + 1.5);
+        const door = BX(0.9, 0.1, 1.7, M(0x4a3a2a));
+        door.position.set(0, -d / 2 + 0.05, 0.3 + 1.55);
         g.add(door);
         // Door step area data for stepTopAt()
         g.userData.step = {
           hw: w * 0.35,
-          cy: -d / 2 - 0.4,
+          cy: -d / 2 - 0.5,
           hd: 0.4,
           top: 0.36,
         };
@@ -9543,7 +9541,7 @@
       const HOUSE_TPLS = {
         MANHATTAN: makeBrownstone, // tall 4-story brick buildings, high stoops
         "THE BRONX": makeBronxApartment, // dedicated 3-story Bronx apartment block (isolated from Manhattan brownstones)
-        QUEENS: makeQueensTownhouse, // level 4 (Thursday, Maspeth) — dedicated Queens townhouse
+        QUEENS: makeQueensHouse, // level 4 (Thursday, Maspeth) — dedicated Queens copy of the original house design
         "STATEN ISLAND": makeHouse, // small house with flowers (old template, customize later)
         BROOKLYN: makeBrooklynFlatbushHouse, // Queens-style houses for the Flatbush level (day 3)
       };
