@@ -62,7 +62,8 @@ const finishIdx = LEVEL_XS.indexOf(ROUTE_FINISH_X);
 check('finish is NOT the very last intersection (I7 of 8)', finishIdx === LEVEL_XS.length - 2, 'idx=' + finishIdx);
 
 // spawnWorld / makeBlockContents honor the garbage flag
-check('spawnWorld loops 10 houses per LEVEL_BLOCKS entry', /for \(const bl of LEVEL_BLOCKS\)\s*\{[\s\S]*?for \(let i = 0; i < HOUSES_PER_BLOCK; i\+\+\)/.test(html));
+// (Maspeth loops 12 buildings per block; standard levels keep 10 — see housesN)
+check('spawnWorld loops one cell per house (10 standard / 12 Maspeth)', /const housesN = isQueens \? QUEENS_HOUSES_PER_BLOCK : HOUSES_PER_BLOCK;[\s\S]*?for \(let i = 0; i < housesN; i\+\+\)/.test(html));
 check('makeBlockContents gates curb bags/cans on b.garbage', /if \(b\.garbage\)\s*\{[\s\S]*?makeCurbBag/.test(html));
 check('no infinite block recycling remains (recycle removed from updateBlocks)', /function updateBlocks\(dt\)\s*\{[\s\S]*?b\.passed[\s\S]*?\}/.test(html) && !/updateBlocks[\s\S]*?b\.worldX \+= TILE/.test(html));
 

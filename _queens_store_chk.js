@@ -106,7 +106,13 @@ const checks = [
   ],
   [
     'exactly ONE Maspeth store per block: only the frozen corner becomes a store',
-    /isQueens &&[\s\S]*?\(i === 0 \|\| i === HOUSES_PER_BLOCK - 1\)[\s\S]*?\(i === 0\) === QUEENS_STORE_CORNERS\[blkIdx\]/.test(
+    /isQueens &&[\s\S]*?\(i === 0 \|\| i === housesN - 1\)[\s\S]*?\(i === 0\) === QUEENS_STORE_CORNERS\[blkIdx\]/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth store corner is the block END (housesN-1), not the 10-house last index',
+    /const housesN = isQueens \? QUEENS_HOUSES_PER_BLOCK : HOUSES_PER_BLOCK;[\s\S]*?\(i === 0 \|\| i === housesN - 1\)/.test(
       html,
     ),
   ],
@@ -115,6 +121,36 @@ const checks = [
     /if \(isQueensStore\) \{[\s\S]*?const halfW = QUEENS_STORE_W \/ 2;[\s\S]*?hg\.position\.x = storeOptions\.isLeft \? halfW : BW - halfW;/.test(
       html,
     ),
+  ],
+  // --- denser Maspeth street: 12 buildings per 80u block ---
+  [
+    'Maspeth packs 12 buildings per block (2x 8u corner cells + 10x 6.4u middle cells)',
+    /const QUEENS_HOUSES_PER_BLOCK = 12;[\s\S]*?const QUEENS_MID_W = \(BLOCK_W - 2 \* BW\) \/ \(QUEENS_HOUSES_PER_BLOCK - 2\);/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth cells tile the full 80u block (x + width lands exactly on the block edge)',
+    (function () {
+      const mW = html.match(/function queensCellW\(i\) \{[\s\S]*?\n\s*\}/);
+      const mX = html.match(/function queensCellX\(i\) \{[\s\S]*?\n\s*\}/);
+      if (!mW || !mX) return false;
+      const scope =
+        'const BW = 8, BLOCK_W = 80, QUEENS_HOUSES_PER_BLOCK = 12, QUEENS_MID_W = (BLOCK_W - 2 * BW) / (QUEENS_HOUSES_PER_BLOCK - 2);\n' +
+        mW[0] +
+        '\n' +
+        mX[0] +
+        '\n';
+      const f = new Function(
+        scope +
+          'for (let i = 0; i < QUEENS_HOUSES_PER_BLOCK; i++) { const w = queensCellW(i), x = queensCellX(i); if (!(w > 0 && x >= 0 && x + w <= BLOCK_W + 1e-9)) return false; } return queensCellX(QUEENS_HOUSES_PER_BLOCK - 1) + queensCellW(QUEENS_HOUSES_PER_BLOCK - 1) === BLOCK_W && queensCellW(0) === 8 && queensCellW(11) === 8 && QUEENS_MID_W === 6.4;',
+      );
+      return f();
+    })(),
+  ],
+  [
+    'Maspeth houses sit at their own cell centers (6.4u middle cells -> tighter rows)',
+    /hg\.position\.x = isQueensBlock \? cellW \/ 2 : 4\.0;/.test(html),
   ],
   // --- wiring (Queens only) ---
   [
@@ -185,7 +221,7 @@ const checks = [
   // --- trees: no tree in front of a store ---
   [
     'no tree spawns in front of a store (store cells are tree-free)',
-    /!mailboxAt\(b\.blockX, houseIdx\) &&[\s\S]*?!\(storeOptions && storeOptions\.isStore\)/.test(
+    /!mailboxAt\(\s*b\.blockX,\s*houseIdx,[\s\S]*?\) &&[\s\S]*?!\(storeOptions && storeOptions\.isStore\)/.test(
       html,
     ),
   ],
