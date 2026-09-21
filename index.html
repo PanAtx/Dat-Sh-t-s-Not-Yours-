@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.195</div>
+          <div id="app-version" class="menu-version">v1.0.196</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.195';
+      const APP_VERSION = '1.0.196';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -13327,14 +13327,19 @@
       }
       // For recycling: a currently-free active block (one not already holding a living dog), so
       // the route keeps ~1 dog per block even as dogs hop ahead off-screen.
-      function freeBronxDogBlock() {
+      // minX: only blocks that START at/behind this line qualify, so the recycled dog always
+      // lands OFF-SCREEN ahead of the player (camera sees ~15u; recycle callers pass
+      // p.wx + 50). Near the route end there are no blocks ahead, so it falls back to any
+      // free block (the level is ending — a dog behind the worker is harmless).
+      function freeBronxDogBlock(minX) {
         const taken = new Set();
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.type === "leashdog" && c.bronxBlock) taken.add(c.bronxBlock);
         }
         const free = bronxDogBlocks.filter((b) => !taken.has(b));
-        const pool = free.length ? free : bronxDogBlocks;
+        const ahead = free.filter((b) => b.x >= minX);
+        const pool = ahead.length ? ahead : free.length ? free : bronxDogBlocks;
         return pool[(Math.random() * pool.length) | 0];
       }
       // ---- Queens (Maspeth) corner-store placement ----
@@ -13504,6 +13509,7 @@
             : isQueensLevel()
               ? 4 // Maspeth: busier route — 4 doghouses (was 1)
               : 1;
+        const qDogs = []; // Queens dogs placed so far (frontage de-dup)
         for (let d = 0; d < dogCount; d++) {
           const ld = addCreature("leashdog");
           {
@@ -13696,7 +13702,18 @@
               // (or any other borough): NO doghouse, the chain ties to a cast-iron POST
               // (never a tree), placed in front of a house — front-yard grass or the
               // curb sidewalk (spot rules in queensDogSpot).
-              queensDogSpot(ld, b.blockX);
+              ld.dogSlot = d; // spreads the 4 recycle targets along the route
+              // Never let two dogs share a house frontage: re-roll while another dog's
+              // post is within one cell (16u) of this one.
+              let spotTries = 0;
+              do {
+                queensDogSpot(ld, b.blockX);
+                spotTries++;
+              } while (
+                spotTries < 8 &&
+                qDogs.some((o) => Math.abs(o.anchorX - ld.anchorX) < 16)
+              );
+              qDogs.push(ld);
               ld.wx = ld.homeX;
               ld.wy = ld.homeY;
               ld.anchorObj = makePostMesh();
@@ -19957,16 +19974,34 @@
                   // Queens (Maspeth): recycle ahead of the route to a random house's
                   // frontage — front-yard lawn post or curb post (same spot rules as
                   // spawnWorld's queensDogSpot).
-                  let targetX = p.wx + 44 + R(0, 10);
+                  // OFF-SCREEN GUARANTEE: the window starts 50u ahead (the camera only
+                  // sees ~15u forward) and the safe-window re-clamp pushes FORWARD only
+                  // (into the next block's 10..70 window). It must never pull the dog
+                  // back toward the player — that backward pull is what made dogs
+                  // materialize mid-block on screen. c.dogSlot spreads the 4 dogs
+                  // across the route instead of stacking them in the same 10u window.
+                  let targetX = p.wx + 50 + (c.dogSlot || 0) * 10 + R(0, 10);
                   let blockIdx = Math.floor(targetX / 96);
                   let posInCycle = targetX % 96;
-                  if (posInCycle > 80) {
+                  if (posInCycle < 10 || posInCycle > 70) {
                     targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
-                  } else if (posInCycle < 10 || posInCycle > 70) {
-                    targetX = blockIdx * 96 + 10 + R(0, 60);
                   }
                   const qbx = Math.floor(targetX / 96) * 96;
-                  queensDogSpot(c, qbx);
+                  // Never let two dogs share a house frontage: re-roll the spot while
+                  // another dog's post is within one cell (16u) of this one.
+                  let spotTries = 0;
+                  do {
+                    queensDogSpot(c, qbx);
+                    spotTries++;
+                  } while (
+                    spotTries < 8 &&
+                    creatures.some(
+                      (o) =>
+                        o !== c &&
+                        o.type === "leashdog" &&
+                        Math.abs((o.anchorX || -1e9) - c.anchorX) < 16,
+                    )
+                  );
                   c.wx = c.homeX;
                   c.wy = c.homeY;
                   c.agro = 0;
@@ -19984,8 +20019,9 @@
                   if (isBronxLevel()) {
                     // Bronx: recycle to a free active block (one dog per block), curb post or
                     // stoop-foot post. HomeY for a stoop climbs toward the wall stop, so it
-                    // isn't capped at the Manhattan sidewalk ceiling.
-                    const nb = freeBronxDogBlock();
+                    // isn't capped at the Manhattan sidewalk ceiling. Only blocks far enough
+                    // AHEAD (p.wx + 50, camera sees ~15u) so the dog recycles off-screen.
+                    const nb = freeBronxDogBlock(p.wx + 50);
                     c.bronxBlock = nb;
                     const hb = bronxStairHouse(nb.x);
                     const onStoop = hb && Math.random() < 0.5;
@@ -20052,13 +20088,14 @@
                       dynamicGroup.add(c.anchorObj);
                     }
                   } else {
-                    let targetX = p.wx + 44 + R(0, 10);
+                    // OFF-SCREEN GUARANTEE (same rule as Queens): the window starts 50u
+                    // ahead (camera sees ~15u forward) and the re-clamp pushes FORWARD
+                    // only, so the dog never materializes inside the camera frustum.
+                    let targetX = p.wx + 50 + R(0, 10);
                     let blockIdx = Math.floor(targetX / 96);
                     let posInCycle = targetX % 96;
-                    if (posInCycle > 80) {
+                    if (posInCycle < 10 || posInCycle > 70) {
                       targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
-                    } else if (posInCycle < 10 || posInCycle > 70) {
-                      targetX = blockIdx * 96 + 10 + R(0, 60);
                     }
                     c.anchorX = targetX;
                     c.anchorY = R(0.85, 1.05);
@@ -20087,7 +20124,8 @@
                     }
                   }
                 } else {
-                  c.anchorX = p.wx + 44 + R(0, 10);
+                  // Generic doghouse recycle: 50u ahead (off-screen; camera sees ~15u).
+                  c.anchorX = p.wx + 50 + R(0, 10);
                   c.anchorY = R(7.4, 8.2);
                   c.homeX = c.anchorX + R(-0.4, 0.8);
                   c.homeY = c.anchorY - R(0.9, 1.5);

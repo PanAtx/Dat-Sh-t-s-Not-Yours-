@@ -60,16 +60,15 @@ for (let i = 0; i < 50000; i++) {
 let recycleIntersection = 0, recycleCorner = 0;
 let recycleAnchorYBad = 0, recycleAnchorXBad = 0;
 let recycleDogYBad = 0, recycleDogXBad = 0;
+let recycleOnScreen = 0; // camera sees ~15u forward; recycle must land >= 50u ahead
 
 for (let i = 0; i < 50000; i++) {
   let playerX = R(80, 600);
-  let targetX = playerX + 44 + R(0, 10);
+  let targetX = playerX + 50 + R(0, 10);
   let blockIdx = Math.floor(targetX / CYCLE);
   let posInCycle = targetX % CYCLE;
-  if (posInCycle > BLOCK_W) {
-    targetX = (blockIdx + 1) * CYCLE + ANCHOR_X_MIN + R(0, 60);
-  } else if (posInCycle < ANCHOR_X_MIN || posInCycle > BLOCK_W - ANCHOR_X_MIN) {
-    targetX = blockIdx * CYCLE + ANCHOR_X_MIN + R(0, 60);
+  if (posInCycle < ANCHOR_X_MIN || posInCycle > BLOCK_W - ANCHOR_X_MIN) {
+    targetX = (blockIdx + 1) * CYCLE + ANCHOR_X_MIN + R(0, 60); // FORWARD only
   }
   let anchorY = R(ANCHOR_Y_MIN, ANCHOR_Y_MAX);
   let homeX = targetX + R(-0.4, 0.8);
@@ -89,10 +88,12 @@ for (let i = 0; i < 50000; i++) {
     let dogPosInBlock = homeX - blockStart;
     if (dogPosInBlock < DOG_X_MIN || dogPosInBlock > BLOCK_W - DOG_X_MIN) recycleDogXBad++;
   }
+  if (targetX - playerX < 50) recycleOnScreen++; // would materialize inside the camera frustum
 }
 
 check('recycling: no anchors in intersections (50k)', recycleIntersection === 0, recycleIntersection + ' violations');
 check('recycling: no anchors in corners (50k)', recycleCorner === 0, recycleCorner + ' violations');
+check('recycling: ALWAYS off-screen ahead (target >= 50u forward, 50k)', recycleOnScreen === 0, recycleOnScreen + ' violations');
 check('recycling: all anchors on sidewalk x range (50k)', recycleAnchorXBad === 0, recycleAnchorXBad + ' violations');
 check('recycling: all anchors on sidewalk y range (50k)', recycleAnchorYBad === 0, recycleAnchorYBad + ' violations');
 check('recycling: all dog homes on sidewalk y range (50k)', recycleDogYBad === 0, recycleDogYBad + ' violations');

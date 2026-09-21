@@ -117,7 +117,7 @@ for (let t = 0; t < 500; t++){
   const c = makeFlatbushDog(10, 7.6);             // some spawn far BEHIND where the player now is
   p.wx = c.wx + 70;                               // tx < -55 -> should recycle
   runLeashDogCase(c, false, []);                  // flatbush = false
-  if (!(c.anchorX > p.wx + 40)){ otherOk = false; otherDetail = 'anchorX=' + c.anchorX + ' p.wx=' + p.wx; break; }
+  if (!(c.anchorX > p.wx + 49)){ otherOk = false; otherDetail = 'anchorX=' + c.anchorX + ' p.wx=' + p.wx; break; }
 }
 check('non-Flatbush leashdog still recycles ahead of the player (regression guard)', otherOk, otherDetail);
 

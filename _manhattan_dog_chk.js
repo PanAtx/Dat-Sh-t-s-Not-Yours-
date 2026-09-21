@@ -267,7 +267,7 @@ function runLeashDogCase(c, manhattan, rec){
   const c = makeManhattanDog(10, 2.4);
   p.wx = c.wx + 70;                            // worker far AHEAD -> tx < -55
   runLeashDogCase(c, true);
-  const axInFront = c.anchorX > p.wx + 40 && c.anchorX <= p.wx + 54;
+  const axInFront = c.anchorX > p.wx + 49 && c.anchorX <= p.wx + 217; // 50u min (off-screen), forward-only re-clamp
   const anchorOnWalk = c.anchorY >= 0.85 && c.anchorY <= 1.05;
   const fixtureFollows = c.anchorObj.position && c.anchorObj.position.x === c.anchorX && c.anchorObj.position.y === c.anchorY;
   check('Manhattan recycle: anchor jumps ahead of the route AT THE CURB (y 0.85..1.05)',

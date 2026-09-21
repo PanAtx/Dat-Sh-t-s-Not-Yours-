@@ -179,6 +179,34 @@ check('Maspeth leashed dog: AI recycle moves Queens dogs to a new house frontage
   const caseText = src.slice(start, i + 1).replace(/\s+/g, ' ');
   return caseText.indexOf('if (isQueensLevel()) {') >= 0 && caseText.indexOf('queensDogSpot(c,') >= 0 && /isQueensLevel\(\)\) \? 1\.5 : 0\.62/.test(caseText);
 })());
+// ---- (3b) Maspeth leashed dog RECYCLE MUST STAY OFF-SCREEN: the old re-clamp pulled
+//      targets back toward the player (posInCycle > 70 -> same block 10..70), which
+//      materialized the dog mid-block INSIDE the camera frustum. The clamp must now
+//      push FORWARD only, and the window must start >= 50u ahead. ----
+check('Maspeth leashed dog: AI recycle re-clamp is FORWARD-only (no backward pull into the same block)', (() => {
+  const fnStart = src.indexOf('function updateCreatures(dt) {');
+  const start = src.indexOf('case "leashdog": {', fnStart);
+  if (start < 0) return false;
+  let i = src.indexOf('{', start), d = 0;
+  for (; i < src.length; i++) { if (src[i] === '{') d++; else if (src[i] === '}') { d--; if (d === 0) break; } }
+  const caseText = src.slice(start, i + 1).replace(/\s+/g, ' ');
+  const qStart = caseText.indexOf('if (isQueensLevel()) {');
+  const qSeg = caseText.slice(qStart, qStart + 900);
+  return qSeg.indexOf('(blockIdx + 1) * 96 + 10 + R(0, 60)') >= 0 && qSeg.indexOf('blockIdx * 96 + 10 + R(0, 60)') < 0;
+})());
+check('Maspeth leashed dog: recycle target lands >= 50u ahead of the player (off-screen, 20k stress incl. dogSlot spread)', (() => {
+  const Rq = (a, b) => a + Math.random() * (b - a);
+  for (let t = 0; t < 20000; t++) {
+    const pwx = Rq(80, 1400);
+    const slot = (Math.random() * 4) | 0;
+    let targetX = pwx + 50 + slot * 10 + Rq(0, 10);
+    let blockIdx = Math.floor(targetX / 96);
+    let posInCycle = targetX % 96;
+    if (posInCycle < 10 || posInCycle > 70) targetX = (blockIdx + 1) * 96 + 10 + Rq(0, 60);
+    if (targetX - pwx < 50) return false;
+  }
+  return true;
+})());
 // ---- (3c) Maspeth leashed dog RATE: 4 per level (unchanged from the doghouse era) ----
 check('Maspeth leashed dog rate: 4 per level (was 1)', (() => {
   const i = src.indexOf('const dogCount = isFlatbushLevel()');

@@ -165,7 +165,7 @@ function makeDog(anchorX, anchorY, withHouse){
     const c = makeDog(200, 1.0, true);
     p.wx = 300; p.wy = 2.5;
     runLeashDogCase(c, {manhattan:true, flatbush:false, bronx:false});
-    if (!(c.anchorX > p.wx + 40)){ manOk=false; det='anchorX='+c.anchorX+' p.wx='+p.wx; break; }
+    if (!(c.anchorX > p.wx + 49)){ manOk=false; det='anchorX='+c.anchorX+' p.wx='+p.wx; break; }
   }
   check('MANHATTAN: leashdog recycles AHEAD of player (unchanged)', manOk, det);
 }
@@ -208,7 +208,7 @@ function makeDog(anchorX, anchorY, withHouse){
     const c = makeDog(200, 1.0, false);
     p.wx = 300; p.wy = 2.5;
     runLeashDogCase(c, {bronx:true, manhattan:false, flatbush:false});
-    if (!(c.anchorX > p.wx + 40)){ brOk=false; det='anchorX='+c.anchorX+' p.wx='+p.wx; break; }
+    if (!(c.anchorX > p.wx + 49)){ brOk=false; det='anchorX='+c.anchorX+' p.wx='+p.wx; break; }
     if (typeof c.blockMaxX !== 'number'){ brOk=false; det='blockMaxX='+c.blockMaxX; break; }
   }
   check('BRONX: leashdog recycles AHEAD of player (shared Manhattan path)', brOk, det);
