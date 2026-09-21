@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.183</div>
+          <div id="app-version" class="menu-version">v1.0.184</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.183';
+      const APP_VERSION = '1.0.184';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2884,13 +2884,15 @@
               : bl.x + BLOCK_W + IW - parkW / 2; // right store: bl.x + 72 .. bl.x + 96
             groundStrip(parkW, 15.5, 0.35, 16.25, apron, parkCx); // park patch behind store
           }
-          // Intersection corner patches (same fix as Flatbush): the grass front-lawn
-          // strip above runs the FULL route width and its top (z 0.45) clears the
-          // cross-street asphalt (z 0.385), so a green patch pokes through each
-          // cross-street gap right at the corner. Cap every intersection's front-lawn
-          // band (y 5.0..8.5) with the same poured concrete (0.35 thick).
+          // Intersection corner patches (same fix as Flatbush): the grass strips above run
+          // the FULL route width and their top (z 0.45) clears the cross-street asphalt
+          // (z 0.385), so green pokes through each cross-street gap right at the corner.
+          // Cap every intersection with poured concrete (0.35 thick): the front-lawn band
+          // (y 5.0..8.5) across the gap, and the PARK band (y 8.5..24) across the FULL
+          // cross-street width (30u), so no green shows by the intersection on either band.
           for (const xInt of LEVEL_XS) {
-            groundStrip(IW, 3.5, 0.35, 6.75, apron, xInt + IW / 2);
+            groundStrip(IW, 3.5, 0.35, 6.75, apron, xInt + IW / 2); // front-lawn band
+            groundStrip(30, 15.5, 0.35, 16.25, apron, xInt + IW / 2); // park band (full cross-street width)
           }
         } else {
           console.log("  -> Non-Manhattan path: green lawns");

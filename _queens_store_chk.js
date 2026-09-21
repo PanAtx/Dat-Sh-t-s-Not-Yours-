@@ -163,12 +163,12 @@ const checks = [
     ),
   ],
   [
-    'Maspeth caps every intersection front-lawn band with concrete (Flatbush-style, no green corner patch)',
+    'Maspeth caps every intersection front-lawn + park band with concrete (Flatbush-style, no green corner patch)',
     (() => {
       const i = html.indexOf('Maspeth path: green lawns/park');
       return (
         i >= 0 &&
-        /for \(const xInt of LEVEL_XS\) \{\s*groundStrip\(IW, 3\.5, 0\.35, 6\.75, apron, xInt \+ IW \/ 2\);/.test(
+        /for \(const xInt of LEVEL_XS\) \{\s*groundStrip\(IW, 3\.5, 0\.35, 6\.75, apron, xInt \+ IW \/ 2\);[\s\S]*?groundStrip\(30, 15\.5, 0\.35, 16\.25, apron, xInt \+ IW \/ 2\);/.test(
           html.slice(i),
         )
       );
