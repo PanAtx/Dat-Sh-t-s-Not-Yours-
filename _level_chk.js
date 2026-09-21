@@ -70,5 +70,34 @@ check('no infinite block recycling remains (recycle removed from updateBlocks)',
 // Ground is fixed, not player-following
 check('groundGroup no longer follows the player', /groundGroup\.position\.x = 0;/.test(html) && !/groundGroup\.position\.x = p\.wx;/.test(html));
 
+// Maspeth porch light variety: only a FEW houses have the light on, and the lit
+// glow shines DOWN the wall (a tall pool centered below the bulb), not as a
+// sideways halo. Flicker must keep the pool's tall aspect and find the house group.
+let qPorchOk = true, qPorchMsg = "";
+{
+  const qSrc = html.slice(
+    html.indexOf("function makeQueensHouse("),
+    html.indexOf("function makeBronxApartment("),
+  );
+  const prob = /const porchLightOn = Math\.random\(\) < ([\d.]+);/.exec(qSrc);
+  if (!prob || !(parseFloat(prob[1]) > 0 && parseFloat(prob[1]) < 1))
+    (qPorchOk = false), (qPorchMsg += " porchLightOn must be a probability in (0,1);");
+  if (!/porchLightOn &&\s+typeof document/.test(qSrc))
+    (qPorchOk = false), (qPorchMsg += " glow sprite not gated on porchLightOn;");
+  const pool = /glow\.scale\.set\(([\d.]+), ([\d.]+), 1\);[\s\S]{0,200}?glow\.position\.set\(0, -d \/ 2 - [\d.]+, 0\.3 \+ ([\d.]+)\);/.exec(qSrc);
+  if (!pool) (qPorchOk = false), (qPorchMsg += " no glow pool sprite;");
+  else if (parseFloat(pool[2]) <= parseFloat(pool[1]) || parseFloat(pool[3]) >= 1.82)
+    (qPorchOk = false), (qPorchMsg += " pool must be taller than wide and centered BELOW the bulb (z < 1.82);");
+}
+if (html.indexOf("gl.scale.set(s * (gl.userData.aw || 1), s * (gl.userData.ah || 1), 1);") < 0)
+  (qPorchOk = false), (qPorchMsg += " updateBulbGlow squashes the pool's vertical aspect;");
+if (html.indexOf("b.g = hg;") < 0)
+  (qPorchOk = false), (qPorchMsg += " b.g not wired so updateBulbGlow finds the house groups;");
+check(
+  "Maspeth porch lights: only a few on (Math.random() < 0.3), lit glow pool shines DOWN the wall below the bulb, unlit bulbs are dim with no glow",
+  qPorchOk,
+  qPorchMsg.trim(),
+);
+
 console.log('\n' + (ok ? 'LEVEL LAYOUT CHECKS PASSED' : 'LEVEL LAYOUT CHECKS FAILED'));
 process.exit(ok ? 0 : 1);

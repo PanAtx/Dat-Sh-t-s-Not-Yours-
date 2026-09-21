@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.186</div>
+          <div id="app-version" class="menu-version">v1.0.188</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.186';
+      const APP_VERSION = '1.0.188';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7207,7 +7207,9 @@
           f = Math.max(0.45, Math.min(1.0, f)); // keep it in a warm, visible range
           gl.material.opacity = 0.55 * f;
           const s = 1.4 * (0.88 + 0.18 * f);
-          gl.scale.set(s, s, 1);
+          // aw/ah preserve each sprite's aspect — Maspeth's pool is a tall, vertical
+          // downward wash, so scaling x/y uniformly would squash it into a side halo.
+          gl.scale.set(s * (gl.userData.aw || 1), s * (gl.userData.ah || 1), 1);
         }
       }
       function makeHouse() {
@@ -7519,26 +7521,31 @@
         muntinH2.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
         g.add(muntinH2);
 
-        // Wall-mounted porch light above the door: a bracket with an exposed glowing bulb.
-        // (The old shade/cover was removed so the bulb is fully visible.)
+        // Wall-mounted porch light above the door: a bracket with an exposed bulb.
+        // Variety: only a few houses on the street have the light ON — the rest keep a
+        // dim unlit bulb on the bracket (no glow, no flicker), so the row isn't uniform.
+        const porchLightOn = Math.random() < 0.3;
         const bracket = BX(0.06, 0.08, 0.18, M(0x333333));
         bracket.position.set(0, -d / 2 - 0.03, 0.3 + 1.92);
         g.add(bracket);
-        // Bulb: round incandescent bulb, bright yellow light (not orange), left uncovered
+        // Bulb: when ON it's a bright warm incandescent; when OFF it's a dim glass bulb
+        // with no emissive, so it reads as unlit, not as a dark hole in the wall.
         const bulb = SPH(
           0.065,
           new THREE.MeshLambertMaterial({
-            color: 0xffffcc,
-            emissive: 0xffff66,
-            emissiveIntensity: 4.5,
+            color: porchLightOn ? 0xffffcc : 0x9a9484,
+            emissive: porchLightOn ? 0xffff66 : 0x000000,
+            emissiveIntensity: porchLightOn ? 4.5 : 0,
           }),
         );
         bulb.position.set(0, -d / 2 - 0.03, 0.3 + 1.82);
         g.add(bulb);
-        // Glow halo: a soft additive sprite "glow" around the exposed bulb, sitting
-        // slightly toward the street side (+Y) so it reads as a halo, not a cap.
-        // Its opacity + scale are driven each frame by updateBulbGlow() (flicker).
+        // Glow (lit houses only): the light shines DOWN — a soft additive pool on the
+        // wall BELOW the bulb (over the door/step), stretched tall so it reads as a
+        // downward wash, not a sideways halo around the bulb. Its opacity + scale are
+        // driven each frame by updateBulbGlow() (flicker).
         if (
+          porchLightOn &&
           typeof document !== "undefined" &&
           THREE.Sprite &&
           THREE.CanvasTexture
@@ -7567,12 +7574,17 @@
               depthWrite: false,
             }),
           );
-          glow.scale.set(1.4, 1.4, 1);
-          glow.position.set(0, -d / 2 - 0.01, 0.3 + 1.84);
+          // Tall vertical pool: 1.12 wide x 2.03 high at base flicker — the wash runs from
+          // the bulb (z 2.12) DOWN the wall over the door to the step (top 0.36). aw/ah feed
+          // updateBulbGlow's per-frame scale so the pool stays stretched every frame.
+          glow.userData.aw = 0.8;
+          glow.userData.ah = 1.45;
+          glow.scale.set(1.12, 2.03, 1);
+          glow.position.set(0, -d / 2 - 0.02, 0.3 + 1.1);
           g.add(glow);
           g.userData.glow = glow;
         }
-        // Random phase/speed so every house's bulb flickers independently
+        // Random phase/speed so every lit house's bulb flickers independently
         g.userData.flickerPhase = Math.random() * 100;
         g.userData.flickerSpeed = 0.6 + Math.random() * 0.9;
         const sm = M(0x9a948a);
@@ -12831,6 +12843,9 @@
         }
         hg.position.y = HOUSE_Y;
         b.group.add(hg);
+        // b.g is the house/store group itself — updateBulbGlow() reads blocks[i].g to drive
+        // each lit porch bulb's glow flicker (groups without a glow are skipped by its guard).
+        b.g = hg;
         const house = {
           serviced: false,
           lamp: hg.userData.lamp,
@@ -13357,15 +13372,28 @@
               }
             } else {
               // Original doghouse placement for other non-Manhattan levels
-              // The doghouse belongs on the front-lawn GRASS, off to the SIDE of the front
-              // walkway — never on the street/sidewalk, never on the raised concrete step in
-              // front of the door. Leash should reach the house wall, but dog's resting
-              // position is set back from the door to avoid clipping.
-              const mag = R(2.4, 3.4);
-              let side = Math.random() < 0.5 ? -1 : 1;
-              let ax = b.worldX + side * mag;
-              if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0)
-                ax = b.worldX - side * mag;
+              // The doghouse belongs on the front-lawn GRASS — never on the street/sidewalk,
+              // never on the raised concrete step in front of the door. Leash should reach
+              // the house wall, but dog's resting position is set back from the door to
+              // avoid clipping.
+              let ax;
+              if (borough === "QUEENS") {
+                // Maspeth: the doghouse sits on the front lawn in the GAP BETWEEN two
+                // houses — at a middle-cell boundary (where the two neighbors' lawns meet) —
+                // so it can never land on a house's front landing / concrete step.
+                const gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 2)) | 0);
+                ax =
+                  b.blockX +
+                  queensCellX(gapIdx) +
+                  QUEENS_MID_W +
+                  R(-0.35, 0.35);
+              } else {
+                const mag = R(2.4, 3.4);
+                let side = Math.random() < 0.5 ? -1 : 1;
+                ax = b.worldX + side * mag;
+                if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0)
+                  ax = b.worldX - side * mag;
+              }
               ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
               ld.anchorY = R(6.4, 7.8); // firmly on the front-lawn GRASS (band y 5..8.5)
               // Home position set back from the door so dog can't clip through the house

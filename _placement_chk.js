@@ -109,6 +109,25 @@ for (const bl of LEVEL_BLOCKS){
 }
 check('dog house: anchor firmly on the front-lawn GRASS (y 5..8.5), inside its block, off street/sidewalk (' + dogN + ' houses)', dogOk, dogWorst ? JSON.stringify(dogWorst) : '');
 
+// ---- (3b) Maspeth dog house (Queens variant): the anchor sits in the GAP BETWEEN two
+//      houses — at a middle-cell boundary (x = blockX + QX(gap) + 6.4, jitter ±0.35) — on
+//      the front-lawn grass band, so it can never land on a front landing / concrete step.
+const QX = (i) => (i === 0 ? 0 : i === 11 ? 72 : 8 + (i - 1) * 6.4);
+let dogQOk = true, dogQN = 0, dogQWorst = null;
+for (const bl of LEVEL_BLOCKS) {
+  for (let gap = 1; gap <= 10; gap++) {
+    const ax = bl.x + QX(gap) + 6.4 + R(-0.35, 0.35);
+    const anchorX = Math.max(bl.x + 1.0, Math.min(bl.x + BLOCK_W - 1.0, ax));
+    const anchorY = R(DOG_ANCHOR_Y0, DOG_ANCHOR_Y1);
+    dogQN++;
+    const onGrass = anchorY >= GRASS_Y0 && anchorY <= GRASS_Y1;
+    const inBlock = anchorX >= bl.x && anchorX <= bl.x + BLOCK_W;
+    if (!onGrass || !inBlock){ dogQOk = false; if (!dogQWorst) dogQWorst = { x: anchorX.toFixed(2), y: anchorY.toFixed(2) }; }
+  }
+}
+check('Maspeth dog house: gap-between-houses anchor (middle-cell boundary ± 0.35) firmly on front-lawn GRASS, inside its block (' + dogQN + ' gaps)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
+check('Maspeth dog house: spawnWorld routes Queens to the cell-boundary gap (queensCellX + QUEENS_MID_W), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
+
 // ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels
 //      (clears the sidewalk into the front-lawn grass, short of the houses) and 5.0 in
 //      Manhattan (sidewalk only); the movement clamp uses it. ----
@@ -116,7 +135,7 @@ const isManhattanLevel = () => false;   // borough-level stub for the extracted 
 eval(extractFn('workerMaxY'));
 check('worker reach: workerMaxY() (borough) = 8.0 clears the sidewalk (5.0) into the front-lawn grass (5..8.5), short of the houses', workerMaxY() > 5.0 && workerMaxY() <= GRASS_Y1);
 check('worker reach: Manhattan caps the worker on the sidewalk (5.0)', src.indexOf('return isManhattanLevel() ? 5.0 : 8.0;') >= 0);
-check('worker reach: the movement clamp clamps to workerMaxY() (no leftover constant cap)', src.indexOf('clamp(p.wy + lat * LAT_SPEED * immuneBoost * dt, -9.4, workerMaxY())') >= 0);
+check('worker reach: the movement clamp clamps to workerMaxY() (no leftover constant cap)', /clamp\(\s*p\.wy \+ lat \* LAT_SPEED \* immuneBoost \* dt,?\s*-9\.4,?\s*workerMaxY\(\)\s*\)/.test(src));
 
 console.log(ok ? '\nPLACEMENT ALL CHECKS PASS' : '\nPLACEMENT FAILURES');
 process.exit(ok ? 0 : 1);
