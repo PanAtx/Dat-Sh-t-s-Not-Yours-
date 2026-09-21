@@ -163,6 +163,18 @@ const checks = [
     ),
   ],
   [
+    'Maspeth caps every intersection front-lawn band with concrete (Flatbush-style, no green corner patch)',
+    (() => {
+      const i = html.indexOf('Maspeth path: green lawns/park');
+      return (
+        i >= 0 &&
+        /for \(const xInt of LEVEL_XS\) \{\s*groundStrip\(IW, 3\.5, 0\.35, 6\.75, apron, xInt \+ IW \/ 2\);/.test(
+          html.slice(i),
+        )
+      );
+    })(),
+  ],
+  [
     'buildGround freezes the corner choice too (concrete matches the store across restarts)',
     /QUEENS_STORE_CORNERS === null\)[\s\S]*?QUEENS_STORE_CORNERS = pickQueensStoreCorners\(\);/.test(
       html,
