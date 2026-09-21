@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.175</div>
+          <div id="app-version" class="menu-version">v1.0.176</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.175';
+      const APP_VERSION = '1.0.176';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4893,7 +4893,9 @@
           //    Measured from truck.fbx: street-height body reach ≈ 2.25 (outer box ≈ 2.93).
           let tMaxX = 0,
             tMinX = 0,
-            tStreet = 0;
+            tStreet = 0,
+            tYmin = Infinity,
+            tYmax = -Infinity;
           const _v = new THREE.Vector3();
           g.traverse((o) => {
             if (!o.isMesh || !o.geometry || !o.geometry.attributes.position)
@@ -4906,6 +4908,8 @@
               if (_v.z < 1.6) {
                 const ay = Math.abs(_v.y);
                 if (ay > tStreet) tStreet = ay;
+                if (_v.y < tYmin) tYmin = _v.y;
+                if (_v.y > tYmax) tYmax = _v.y;
               }
             }
           });
@@ -4984,6 +4988,16 @@
             hopperZ: hopperZ,
             hazLights: hazLights,
             cabOff: boxL + 1.6,
+            // ITEM-CLIP box = the PAINTED body at street height (the z band a
+            // carried item overlaps), measured from the model above. The
+            // collision box must NOT be scaled for this: it is deliberately
+            // NARROWER than the paint (0.8x) and symmetric, while the paint
+            // reaches ~2.2u on BOTH sides — a scaled collision box would cut
+            // the item in mid-air, 1.4u short of the visible body.
+            clipMinX: tMinX - 0.05,
+            clipMaxX: tMaxX + 0.05,
+            clipMinY: tYmin - 0.05,
+            clipMaxY: tYmax + 0.05,
             wx: -28,
             hidden: 0,
           };
@@ -16248,11 +16262,20 @@
           if (!truckClipBox.min) {
             truckClipBox.min = new THREE.Vector3();
             truckClipBox.max = new THREE.Vector3();
-            const RS = (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW) * 1.25 + 0.05,
-              RC = (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW) * 1.25 + 0.05,
-              RL = (truck.boxL != null ? truck.boxL : 4.0) + 0.05;
-            truckClipBox.min.set(-RL, -RS, -1.5); // below the ground
-            truckClipBox.max.set(RL, RC, 1.15); // above carried items (~1.0), below toss arcs (2.4+)
+            if (truck.clipMinX != null) {
+              // FBX truck: the MEASURED painted body (buildTruck). The cut
+              // lands exactly on the paint, so only the part of the item
+              // inside the body is clipped — everything outside stays visible.
+              truckClipBox.min.set(truck.clipMinX, truck.clipMinY, -0.2);
+              truckClipBox.max.set(truck.clipMaxX, truck.clipMaxY, 1.15); // above carried items (~1.0), below toss arcs (2.4+)
+            } else {
+              // canvas truck: no measured paint — approximate it from the box.
+              const RS = (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW) * 1.25 + 0.05,
+                RC = (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW) * 1.25 + 0.05,
+                RL = (truck.boxL != null ? truck.boxL : 4.0) + 0.05;
+              truckClipBox.min.set(-RL, -RS, -1.5); // below the ground
+              truckClipBox.max.set(RL, RC, 1.15); // above carried items (~1.0), below toss arcs (2.4+)
+            }
           }
           for (const m of truckClipMats) {
             if (!m.__tcu) continue; // disposed this shift
@@ -20291,8 +20314,8 @@
       //            breathing room on every side);
       //   OUTER  = inner + the 0.45u worker radius = where his CENTER stops;
       //   CLIP   = the painted body — the part of the held item INSIDE this
-      //            box is clipped away (clipping planes), the rest stays
-      //            visible (the translucent magenta FILL marks it).
+      //            box is clipped away (per-fragment discard test), the rest
+      //            stays visible (the translucent magenta FILL marks it).
       // The group follows the truck every frame (updateTruckDebugBox).
       const TRUCK_DEBUG_WR = 0.45; // worker collision radius (mirrors the push-out)
       let truckDebugBox = null,
@@ -20332,18 +20355,22 @@
           bC = truck.boxWCurb != null ? truck.boxWCurb : bW;
         const edgeStreet = bS + C_M;
         const edgeCurb = bC + C_M;
+        // CLIP volume = the MEASURED painted body when available (buildTruck).
+        // It is NOT the scaled collision box: the paint is wider than the
+        // collision box (0.8x) and reaches ~2.2u on BOTH sides, so the old
+        // scaled estimate cut items 1.4u short of the paint on the curb side.
+        const clipX0 = truck.clipMinX != null ? truck.clipMinX : -(bL + CLIP_E),
+          clipX1 = truck.clipMaxX != null ? truck.clipMaxX : bL + CLIP_E,
+          clipY0 = truck.clipMinY != null ? truck.clipMinY : -(bS * 1.25 + CLIP_E),
+          clipY1 = truck.clipMaxY != null ? truck.clipMaxY : bC * 1.25 + CLIP_E;
         const grp = new THREE.Group();
         // Translucent magenta FILL of the ITEM-CLIP volume: the held item
         // "disappears into the truck" while it is inside the painted body.
-        const rearX = -(bL + CLIP_E),
-          frontX = bL + CLIP_E,
-          yS = -(bS * 1.25 + CLIP_E),
-          yC = bC * 1.25 + CLIP_E;
         const shp = new THREE.Shape();
-        shp.moveTo(frontX, yS);
-        shp.lineTo(frontX, yC);
-        shp.lineTo(rearX, yC);
-        shp.lineTo(rearX, yS);
+        shp.moveTo(clipX1, clipY0);
+        shp.lineTo(clipX1, clipY1);
+        shp.lineTo(clipX0, clipY1);
+        shp.lineTo(clipX0, clipY0);
         const fill = new THREE.Mesh(
           new THREE.ShapeGeometry(shp),
           new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }),
@@ -20364,7 +20391,7 @@
           new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.55 }),
         );
         const clip = new THREE.LineLoop(
-          truckDebugOutline(bL + CLIP_E, bL + CLIP_E, bS * 1.25 + CLIP_E, bC * 1.25 + CLIP_E, 0),
+          truckDebugOutline(-clipX0, clipX1, -clipY0, clipY1, 0),
           new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.35 }),
         );
         inner.position.z = 0.02;

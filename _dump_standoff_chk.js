@@ -14,10 +14,10 @@
 //      CARRY_M / CARRY_M_CURB / CARRY_M_BACK / CARRY_CHAMFER, sharp corners;
 //   2) item clip: a per-fragment discard test is injected into the held
 //      item's materials — fragments whose world position lands INSIDE the
-//      painted truck box (x1.25 + pad, tracked via the truck's inverse world
-//      matrix) are discarded, everything outside stays visible; the item's
-//      materials are cloned on pickup so the shared template materials stay
-//      untouched;
+//      MEASURED painted truck box (buildTruck's street-height paint extents
+//      + pad, tracked via the truck's inverse world matrix) are discarded,
+//      everything outside stays visible; the item's materials are cloned on
+//      pickup so the shared template materials stay untouched;
 //   3) the truck's own motion must never shove a STANDING worker: the push-out
 //      is skipped only while he doesn't move — the instant he walks again he's
 //      pushed OUT of the body (a truck that swept over him can't let him walk
@@ -65,7 +65,30 @@ check('item clip: the held item is CLIPPED by the painted truck box (per-fragmen
   assert.ok(html.indexOf('uTruckInv * vec4(vTcWorldPos, 1.0)') >= 0, 'fragment position tested in TRUCK space (matrix follows the truck)');
   assert.ok(html.indexOf('if (tcL.x > uBoxMin.x && tcL.x < uBoxMax.x && tcL.y > uBoxMin.y && tcL.y < uBoxMax.y && tcL.z > uBoxMin.z && tcL.z < uBoxMax.z) discard;') >= 0, 'fragments INSIDE the box are discarded, everything outside stays visible');
   assert.ok(html.indexOf('truck.g.updateWorldMatrix(true, false);') >= 0, 'truck matrix refreshed BEFORE the uniform update (box tracks the truck, not its spawn point)');
-  assert.ok(html.indexOf('* 1.25 + 0.05') >= 0, 'clip box = painted reach (x1.25) + small pad');
+  assert.ok(html.indexOf('* 1.25 + 0.05') >= 0, 'canvas fallback clip box = box estimate (x1.25) + pad');
+});
+check('item clip: the clip box is the MEASURED painted body (street-height extents), not the scaled collision box', ()=>{
+  assert.ok(html.indexOf('tYmin = Infinity') >= 0, 'measures paint y-min at street height');
+  assert.ok(html.indexOf('if (_v.y < tYmin) tYmin = _v.y;') >= 0);
+  assert.ok(html.indexOf('if (_v.y > tYmax) tYmax = _v.y;') >= 0, 'measures paint y-max at street height');
+  assert.ok(html.indexOf('clipMinX: tMinX - 0.05') >= 0, 'rear face = measured paint + pad');
+  assert.ok(html.indexOf('clipMaxX: tMaxX + 0.05') >= 0, 'front face = measured paint + pad');
+  assert.ok(html.indexOf('clipMinY: tYmin - 0.05') >= 0, 'street face = measured paint + pad');
+  assert.ok(html.indexOf('clipMaxY: tYmax + 0.05') >= 0, 'curb face = measured paint + pad (old estimate was 1.4u INSIDE the paint)');
+  assert.ok(html.indexOf('truck.clipMinX != null') >= 0, 'play update uses the measured box');
+});
+check('clip math: with the REAL measured paint, ONLY the part inside the body is cut (probe_truck_paint.mjs)', ()=>{
+  // real FBX paint in truck-local space: x [-6.053, +5.830], street-height y [-2.224, +2.246]
+  const P = 0.05;
+  const X0 = -6.053 - P, X1 = 5.83 + P, Y0 = -2.224 - P, Y1 = 2.246 + P, Z0 = -0.2, Z1 = 1.15;
+  const cut = (x, y, z) => x > X0 && x < X1 && y > Y0 && y < Y1 && z > Z0 && z < Z1;
+  assert.ok(cut(-5.5, 2.0, 0.5), 'CURB-side overlap of the paint is cut (old box ended at +0.84 -> item poked THROUGH the paint)');
+  assert.ok(cut(-6.0, -2.0, 0.5), 'street-side overlap is cut');
+  assert.ok(!cut(-5.5, 2.45, 0.5), '0.15u past the curb paint face stays VISIBLE');
+  assert.ok(!cut(-6.3, -0.5, 0.5), '0.2u behind the rear face stays VISIBLE');
+  assert.ok(!cut(6.0, 0, 0.5), 'past the cab face stays VISIBLE');
+  assert.ok(!cut(-3.0, -2.5, 0.5), 'past the street paint face stays VISIBLE');
+  assert.ok(!cut(-5.5, 0.5, 1.3), 'above the 1.15 cap (toss arcs) stays VISIBLE');
 });
 check('item clip: the OLD clipping-plane approach is GONE (it kept only the box interior — items vanished everywhere else)', ()=>{
   assert.ok(html.indexOf('renderer.localClippingEnabled') < 0);
@@ -421,7 +444,7 @@ check('debug box outline: CLIP volume = the painted body (where the item is cut 
 check('debug box: the CLIP outline is drawn (a third magenta loop in the block)', ()=>{
   const blk = html.indexOf('TEST MODE: B = MAGENTA TRUCK DEBUG BOX');
   assert.ok(blk >= 0);
-  assert.ok(html.indexOf('truckDebugOutline(bL + CLIP_E, bL + CLIP_E, bS * 1.25 + CLIP_E, bC * 1.25 + CLIP_E, 0)', blk) > blk);
+  assert.ok(html.indexOf('truckDebugOutline(-clipX0, clipX1, -clipY0, clipY1, 0)', blk) > blk);
 });
 
 console.log('\n' + pass + ' dump-standoff checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));
