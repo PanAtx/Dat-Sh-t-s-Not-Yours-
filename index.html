@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.170</div>
+          <div id="app-version" class="menu-version">v1.0.171</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.170';
+      const APP_VERSION = '1.0.171';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -20278,18 +20278,43 @@
           C_M_CURB = 0.4,
           C_M_BACK = 0.25,
           CORNER_R = 1.5; // mirrors the carrying push-out constants
-        const visReach = truck.boxW * 1.25;
-        const edgeStreet = Math.max(truck.boxWStreet != null ? truck.boxWStreet : truck.boxW, visReach) + C_M;
-        const edgeCurb = Math.max(truck.boxWCurb != null ? truck.boxWCurb : truck.boxW, visReach) + C_M_CURB;
+        const bL = truck.boxL != null ? truck.boxL : 4.0, // same fallbacks as the play update
+          bW = truck.boxW != null ? truck.boxW : 1.9,
+          bS = truck.boxWStreet != null ? truck.boxWStreet : bW,
+          bC = truck.boxWCurb != null ? truck.boxWCurb : bW;
+        const visReach = bW * 1.25;
+        const edgeStreet = Math.max(bS, visReach) + C_M;
+        const edgeCurb = Math.max(bC, visReach) + C_M_CURB;
         const grp = new THREE.Group();
+        // Translucent magenta FILL of the inner box: 1px lines are easy to miss,
+        // the tinted zone is impossible to (same shape, incl. the rounded corner).
+        const rearX = -(bL + C_M_BACK),
+          frontX = bL + C_M,
+          yS = -edgeStreet,
+          yC = edgeCurb,
+          ax = rearX + CORNER_R,
+          ay = yC - CORNER_R;
+        const shp = new THREE.Shape();
+        shp.moveTo(frontX, yS);
+        shp.lineTo(frontX, yC);
+        shp.lineTo(rearX + CORNER_R, yC);
+        for (let a = 90; a <= 180; a += 9) {
+          shp.lineTo(ax + CORNER_R * Math.cos((a * Math.PI) / 180), ay + CORNER_R * Math.sin((a * Math.PI) / 180));
+        }
+        shp.lineTo(rearX, yS);
+        const fill = new THREE.Mesh(
+          new THREE.ShapeGeometry(shp),
+          new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }),
+        );
+        fill.position.z = 0.015;
         const inner = new THREE.LineLoop(
-          truckDebugOutline(truck.boxL + C_M_BACK, truck.boxL + C_M, edgeStreet, edgeCurb, CORNER_R),
+          truckDebugOutline(bL + C_M_BACK, bL + C_M, edgeStreet, edgeCurb, CORNER_R),
           new THREE.LineBasicMaterial({ color: 0xff00ff }),
         );
         const outer = new THREE.LineLoop(
           truckDebugOutline(
-            truck.boxL + C_M_BACK + TRUCK_DEBUG_WR,
-            truck.boxL + C_M + TRUCK_DEBUG_WR,
+            bL + C_M_BACK + TRUCK_DEBUG_WR,
+            bL + C_M + TRUCK_DEBUG_WR,
             edgeStreet + TRUCK_DEBUG_WR,
             edgeCurb + TRUCK_DEBUG_WR,
             CORNER_R + TRUCK_DEBUG_WR,
@@ -20298,29 +20323,35 @@
         );
         inner.position.z = 0.02;
         outer.position.z = 0.05;
-        grp.add(inner, outer);
-        scene.add(grp);
-        grp.position.set(truck.wx, -4.5, GZ); // visible IMMEDIATELY — the per-frame update only runs in play
+        grp.add(fill, inner, outer);
+        // THE box must live INSIDE worldGroup (the +45deg-rotated world) — in scene
+        // space its position AND orientation would be rotated off the street.
+        worldGroup.add(grp);
+        grp.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ); // visible IMMEDIATELY
         truckDebugBox = grp;
-        truckDebugSig = [truck.boxL, truck.boxW, truck.boxWStreet, truck.boxWCurb].join("|");
-        console.log("[DSNY] truck debug box ON (press B to hide)");
+        truckDebugSig = [bL, bW, bS, bC].join("|");
+        console.log("[DSNY] truck debug box ON at local (" + grp.position.x.toFixed(1) + ", -4.5) — press B to hide");
       }
       function updateTruckDebugBox() {
         if (!truck || !truckDebugBox) return;
-        const sig = [truck.boxL, truck.boxW, truck.boxWStreet, truck.boxWCurb].join("|");
+        const bL = truck.boxL != null ? truck.boxL : 4.0,
+          bW = truck.boxW != null ? truck.boxW : 1.9,
+          bS = truck.boxWStreet != null ? truck.boxWStreet : bW,
+          bC = truck.boxWCurb != null ? truck.boxWCurb : bW;
+        const sig = [bL, bW, bS, bC].join("|");
         if (sig !== truckDebugSig) {
           // truck model changed -> rebuild the outline with the new box
-          scene.remove(truckDebugBox);
+          worldGroup.remove(truckDebugBox);
           truckDebugBox.traverse((o) => o.geometry && o.geometry.dispose());
           truckDebugBox = null;
           buildTruckDebugBox();
         }
-        truckDebugBox.position.set(truck.wx, -4.5, GZ);
+        truckDebugBox.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ);
       }
       function toggleTruckDebugBox() {
         if (!truck) return;
         if (truckDebugBox) {
-          scene.remove(truckDebugBox);
+          worldGroup.remove(truckDebugBox);
           truckDebugBox.traverse((o) => o.geometry && o.geometry.dispose());
           truckDebugBox = null;
           truckDebugSig = "";
@@ -20328,6 +20359,7 @@
         } else {
           buildTruckDebugBox();
         }
+        needsIdleRender = true; // menus / game over render ONE static frame — force a fresh one so the toggle is visible instantly
       }
       window.addEventListener("keydown", (e) => {
         if (

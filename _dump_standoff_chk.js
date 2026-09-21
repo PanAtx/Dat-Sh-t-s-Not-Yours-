@@ -392,11 +392,18 @@ check('regression: full can 4.5u past the face -> "get closer" line, no dump (ca
 check('debug box: B toggles the MAGENTA carrying push-out outline that follows the truck', ()=>{
   assert.ok(html.indexOf('if (e.code === "KeyB") toggleTruckDebugBox();') >= 0);
   assert.ok(html.indexOf('0xff00ff') >= 0, 'magenta color');
-  assert.ok(html.indexOf('truckDebugBox.position.set(truck.wx, -4.5, GZ);') >= 0);
+  assert.ok(html.indexOf('truckDebugBox.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ);') >= 0);
   assert.ok(html.indexOf('updateTruckDebugBox();') > html.indexOf('truck.g.position.set(truck.wx, -4.5, GZ);'));
 });
 check('debug box: group is placed at the truck AT BUILD TIME (not buried at the world origin under the road)', ()=>{
-  assert.ok(html.indexOf('grp.position.set(truck.wx, -4.5, GZ);') >= 0);
+  assert.ok(html.indexOf('grp.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ);') >= 0);
+});
+check('debug box: lives INSIDE worldGroup (the +45deg-rotated world) so it sits on the street, and forces a fresh menu frame', ()=>{
+  const blk = html.indexOf('TEST MODE: B = MAGENTA TRUCK DEBUG BOX');
+  assert.ok(blk >= 0);
+  assert.ok(html.indexOf('worldGroup.add(grp);') > blk);
+  assert.ok(html.indexOf('worldGroup.remove(truckDebugBox);') > blk);
+  assert.ok(html.indexOf('needsIdleRender = true;', blk) > blk);
 });
 check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 corner / 0.45 radius)', ()=>{
   assert.ok(html.indexOf('const C_M = 0.7,') >= 0);
