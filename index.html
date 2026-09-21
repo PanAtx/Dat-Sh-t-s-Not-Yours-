@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.189</div>
+          <div id="app-version" class="menu-version">v1.0.190</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.189';
+      const APP_VERSION = '1.0.190';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -9958,6 +9958,10 @@
         if (!LEVEL_DAYS[level - 1]) return false;
         return LEVEL_DAYS[level - 1].borough === "THE BRONX";
       }
+      function isQueensLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
+        return LEVEL_DAYS[level - 1].borough === "QUEENS";
+      }
 
       // ==================== HOUSE TEMPLATE REGISTRY ====================
       // Maps each borough's name (from LEVEL_DAYS) to the builder function that
@@ -11924,6 +11928,49 @@
         g.add(stake); // the chain visually ties here
         return g;
       }
+      // QUEENS-EXCLUSIVE copy of makeDogHouse (same copy pattern as makeBronxLeashDog):
+      // Maspeth's doghouses are built with THIS function, so Queens-only changes
+      // (palette, size, props) can never touch the shared makeDogHouse that Flatbush's
+      // driveway doghouses use. Geometry is identical for now.
+      function makeQueensDogHouse() {
+        // LOW-poly doghouse for the front lawn (deliberately chunky next to the
+        // high-poly dog). The chain stake sits at the group origin - that's where
+        // the chain anchor (c.anchorX / c.anchorY) is.
+        // NOTE: doghouse meshes don't cast shadows — the doghouse is small and its
+        // ground-level slabs are only ~6–10 texels wide in the shadow map, so the
+        // contact shadow on the grass flickers as the camera scrolls.
+        const g = new THREE.Group();
+        const wood = M(0x7a5a3a),
+          roof = M(0x8a3a30),
+          dark = M(0x14100e),
+          stakeM = M(0xe8b416); // stake is bright yellow so the chain reads as tied to it
+        const walls = BX(0.7, 0.55, 0.6, wood);
+        walls.position.z = 0.3;
+        walls.castShadow = false;
+        g.add(walls);
+        const hole = BX(0.3, 0.04, 0.3, dark);
+        hole.position.set(0, -0.29, 0.27);
+        hole.castShadow = false;
+        g.add(hole); // entry on the street-facing (-Y) side
+        // gabled roof: TWO slabs mirrored across a ridge that runs left/right (Y),
+        // sloping down toward +X and -X (walls are 0.7 long in X, top at z 0.6)
+        const roofF = BX(0.46, 0.85, 0.05, roof);
+        roofF.rotation.y = 0.42;
+        roofF.position.set(0.21, 0, 0.68);
+        roofF.castShadow = false;
+        g.add(roofF);
+        const roofB = BX(0.46, 0.85, 0.05, roof);
+        roofB.rotation.y = -0.42;
+        roofB.position.set(-0.21, 0, 0.68);
+        roofB.castShadow = false;
+        g.add(roofB);
+        const stake = CY(0.02, 0.02, 0.35, stakeM, 6);
+        stake.rotation.x = Math.PI / 2;
+        stake.position.set(0, 0, 0.17);
+        stake.castShadow = false;
+        g.add(stake); // the chain visually ties here
+        return g;
+      }
       function makeTricycle() {
         // Classic "Big Wheel" kid tricycle, child-sized (ref: low plastic trike).
         // Axes: +X forward, Y lateral, Z up (ground z=0). Cylinder axis = Y (unrotated = upright wheel).
@@ -12673,8 +12720,9 @@
             break;
           case "leashdog": {
             // Bronx-exclusive copy of the Manhattan leashed-dog model. The Bronx builds
-            // NO doghouse — the chain ties to a sidewalk fixture (see spawnWorld). Other
-            // levels keep the shared makeHighPolyDog + makeDogHouse path.
+            // NO doghouse — the chain ties to a sidewalk fixture (see spawnWorld).
+            // Queens builds its doghouse with the EXCLUSIVE makeQueensDogHouse copy;
+            // other levels keep the shared makeHighPolyDog + makeDogHouse path.
             let dg;
             if (isBronxLevel()) {
               // 30% chance of a large mean pitbull with diverse coat
@@ -12688,7 +12736,9 @@
               c.houseG = null; // no doghouse on the Bronx
             } else {
               dg = makeHighPolyDog();
-              c.houseG = makeDogHouse();
+              // Queens gets its EXCLUSIVE doghouse copy so Maspeth tweaks never touch
+              // the shared makeDogHouse that Flatbush's driveway doghouses use.
+              c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();
             }
             c.data = dg;
             c.chain = new THREE.Mesh(
@@ -13370,34 +13420,54 @@
                   ld.homeX - ld.anchorX,
                 );
               }
+            } else if (borough === "QUEENS") {
+              // Maspeth (Queens) EXCLUSIVE doghouse placement — its own top-level branch,
+              // fully separate from the Flatbush driveway branch above and the generic
+              // side-of-door branch below, so Queens-only tweaks can never leak into
+              // Flatbush (or any other borough).
+              // The doghouse sits on the front lawn in the GAP BETWEEN two houses — at a
+              // MIDDLE-cell boundary (where the two neighbors' lawns meet) — so it can
+              // never land on a house's front landing / concrete step. gapIdx 1..9 ONLY:
+              // the anchor stays one full 6.4u middle cell away from BOTH 8u corner cells
+              // (one of them is the corner store, so this also keeps the doghouse off the
+              // corner-store frontage), and deep inside the 80u block, so it can never
+              // reach the 16u intersection at either end.
+              const gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
+              const ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
+              ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+              ld.anchorY = R(6.4, 7.8); // firmly on the front-lawn GRASS (band y 5..8.5)
+              // Home position set back from the door so dog can't clip through the house
+              ld.homeX = ld.anchorX + R(-0.4, 0.8);
+              ld.homeY = ld.anchorY - R(1.2, 2.0);
+              ld.wx = ld.homeX;
+              ld.wy = ld.homeY;
+              ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
+              dynamicGroup.add(ld.houseG);
+              tieLeashChain(
+                ld.chain,
+                ld.anchorX,
+                ld.anchorY,
+                0.62,
+                ld.wx,
+                ld.wy,
+                0.62,
+              );
+              dynamicGroup.add(ld.chain);
+              ld.g.rotation.z = Math.atan2(
+                ld.homeY - ld.anchorY,
+                ld.homeX - ld.anchorX,
+              ); // resting, street-facing
             } else {
               // Original doghouse placement for other non-Manhattan levels
               // The doghouse belongs on the front-lawn GRASS — never on the street/sidewalk,
               // never on the raised concrete step in front of the door. Leash should reach
               // the house wall, but dog's resting position is set back from the door to
               // avoid clipping.
-              let ax;
-              if (borough === "QUEENS") {
-                // Maspeth: the doghouse sits on the front lawn in the GAP BETWEEN two
-                // houses — at a MIDDLE-cell boundary (where the two neighbors' lawns meet) —
-                // so it can never land on a house's front landing / concrete step.
-                // gapIdx 1..9 ONLY: the anchor stays one full 6.4u middle cell away from
-                // BOTH 8u corner cells (one of them is the corner store, so this also keeps
-                // the doghouse off the corner-store frontage), and deep inside the 80u
-                // block, so it can never reach the 16u intersection at either end.
-                const gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
-                ax =
-                  b.blockX +
-                  queensCellX(gapIdx) +
-                  QUEENS_MID_W +
-                  R(-0.35, 0.35);
-              } else {
-                const mag = R(2.4, 3.4);
-                let side = Math.random() < 0.5 ? -1 : 1;
-                ax = b.worldX + side * mag;
-                if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0)
-                  ax = b.worldX - side * mag;
-              }
+              const mag = R(2.4, 3.4);
+              let side = Math.random() < 0.5 ? -1 : 1;
+              let ax = b.worldX + side * mag;
+              if (ax < b.blockX + 1.0 || ax > b.blockX + BLOCK_W - 1.0)
+                ax = b.worldX - side * mag;
               ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
               ld.anchorY = R(6.4, 7.8); // firmly on the front-lawn GRASS (band y 5..8.5)
               // Home position set back from the door so dog can't clip through the house

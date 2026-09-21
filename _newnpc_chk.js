@@ -48,7 +48,7 @@ const creatures = [];
 const dynamicGroup = { add(){} };
 const p = { wx: 0, wy: 2.5 }; // player position (addCreature now spawns creatures around p.wx)
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
-const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false, isQueensLevel = () => false;
 const JACKER_FACE_SE = -Math.PI / 2;   // kept in sync with index.html (jacker faces southeast)
 
 eval(extract('makeJacker'));
@@ -57,6 +57,7 @@ eval(extract('makeSkater'));
 eval(extract('makeEScooter'));
 eval(extract('makeHighPolyDog'));
 eval(extract('makeDogHouse'));
+eval(extract('makeQueensDogHouse'));
 eval(extract('npcPace') + '\n' + extract('creatureMaxY') + '\n' + extract('addCreature'));
 
 let pass = true;
@@ -86,6 +87,20 @@ check('high-poly dog: full pivot interface (legs/tail/head/root)',
 check('high-poly dog: more geometry than the dogwalker pup (smoothed)', countMeshes(d) >= 18, countMeshes(d) + ' meshes');
 const dh = makeDogHouse();
 check('doghouse: low-poly (4-6 chunky meshes)', dh.children.length <= 6 && dh.children.length >= 4, dh.children.length + ' meshes');
+// --- Queens-EXCLUSIVE doghouse copy: Maspeth must NEVER share makeDogHouse with Flatbush ---
+const qh = makeQueensDogHouse();
+check('queens doghouse: low-poly (4-6 chunky meshes)', qh.children.length <= 6 && qh.children.length >= 4, qh.children.length + ' meshes');
+const qRoofs = qh.children.filter(ch => ch.geometry && ch.geometry.w === 0.46 && ch.position.x !== undefined);
+check('queens doghouse: mirrored roof slabs across the ridge (+X and -X sides)',
+  qRoofs.length === 2 && qRoofs[0].position.x > 0 && qRoofs[1].position.x < 0 &&
+  Math.abs(qRoofs[0].position.x + qRoofs[1].position.x) < 0.001 &&
+  Math.abs(qRoofs[0].rotation.y + qRoofs[1].rotation.y) < 0.001,
+  JSON.stringify(qRoofs.map(r => [r.position.x, r.rotation.y])));
+const qHoles = qh.children.filter(ch => ch.material && ch.material.color === 0x14100e);
+check('queens doghouse: entry hole on the street-facing (-Y) face', qHoles.length === 1 && qHoles[0].position.y < -0.2, JSON.stringify(qHoles.map(h2 => h2.position.y)));
+check('queens doghouse: makeQueensDogHouse is a faithful rename copy of makeDogHouse (identical body)', extract('makeQueensDogHouse').replace('function makeQueensDogHouse(', 'function makeDogHouse(') === extract('makeDogHouse'));
+check('addCreature leashdog: Queens routes to makeQueensDogHouse, Flatbush keeps the shared makeDogHouse', src.indexOf('c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();') >= 0);
+check('isQueensLevel: borough-gated on QUEENS', /function isQueensLevel\(\) \{[\s\S]*?borough === "QUEENS"/.test(src));
 // --- leashdog wiring ---
 const ld = addCreature('leashdog');
 check('leashdog: dog group wired as c.g with dogParts', ld.g === ld.data && !!ld.dogParts, 'g=' + !!ld.g + ' dogParts=' + !!ld.dogParts);
