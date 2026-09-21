@@ -111,26 +111,39 @@ check('dog house: anchor firmly on the front-lawn GRASS (y 5..8.5), inside its b
 
 // ---- (3b) Maspeth dog house (Queens variant): the anchor sits in the GAP BETWEEN two
 //      houses — at a MIDDLE-cell boundary (x = blockX + QX(gap) + 6.4, jitter ±0.35) — on
-//      the front-lawn grass band, so it can never land on a front landing / concrete step.
+//      the Maspeth front-lawn grass band (y 3.5..6.75), mid-lawn and IN FRONT of the
+//      doormat/concrete landing (y ~5.3..6.7, HOUSE_Y 10.5): the doghouse body
+//      (anchorY +- 0.3, anchor band R(4.0, 5.0)) stays on grass, never over the mat.
 //      gap 1..9 only: off BOTH corner cells (store corner + house corner) and strictly
 //      inside the block, so it never reaches the 16u intersection at either end.
 const QX = (i) => (i === 0 ? 0 : i === 11 ? 72 : 8 + (i - 1) * 6.4);
+const Q_GRASS_Y0 = 3.5, Q_GRASS_Y1 = 6.75; // Maspeth front-lawn strip (buildGround)
+const Q_LANDING_Y0 = 5.3;                  // street-side edge of the doormat/landing
+const Q_BODY_D = 0.3;                      // doghouse walls are 0.6u deep (half 0.3)
 let dogQOk = true, dogQN = 0, dogQWorst = null;
 for (const bl of LEVEL_BLOCKS) {
   for (let gap = 1; gap <= 9; gap++) {
     const ax = bl.x + QX(gap) + 6.4 + R(-0.35, 0.35);
     const anchorX = Math.max(bl.x + 1.0, Math.min(bl.x + BLOCK_W - 1.0, ax));
-    const anchorY = R(DOG_ANCHOR_Y0, DOG_ANCHOR_Y1);
+    const anchorY = R(4.0, 5.0); // must match index.html Queens branch ld.anchorY = R(4.0, 5.0)
     dogQN++;
     const posIn = anchorX - bl.x;
-    const onGrass = anchorY >= GRASS_Y0 && anchorY <= GRASS_Y1;
+    const onGrass = anchorY - Q_BODY_D >= Q_GRASS_Y0 && anchorY + Q_BODY_D <= Q_GRASS_Y1;
+    const clearOfLanding = anchorY + Q_BODY_D <= Q_LANDING_Y0 + 1e-6; // body never over the mat
     const strictlyInBlock = posIn > 0 && posIn < BLOCK_W; // never on an intersection
     const offCorners = posIn >= QX(1) + 6.4 - 0.35 && posIn <= QX(9) + 6.4 + 0.35; // >= 6.05u off both corner cells
-    if (!onGrass || !strictlyInBlock || !offCorners){ dogQOk = false; if (!dogQWorst) dogQWorst = { x: anchorX.toFixed(2), y: anchorY.toFixed(2) }; }
+    if (!onGrass || !clearOfLanding || !strictlyInBlock || !offCorners){ dogQOk = false; if (!dogQWorst) dogQWorst = { x: anchorX.toFixed(2), y: anchorY.toFixed(2) }; }
   }
 }
-check('Maspeth dog house: gap-between-houses anchor (middle-cell boundary ± 0.35) firmly on front-lawn GRASS, strictly inside its block, off both corner cells (store corner + house corner) (' + dogQN + ' gaps)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
-check('Maspeth dog house: spawnWorld routes Queens to MIDDLE-cell gaps only (gapIdx 1..9, never a corner cell / corner-store frontage), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && /const gapIdx = 1 \+ \(\(Math\.random\(\) \* \(QUEENS_HOUSES_PER_BLOCK - 3\)\) \| 0\);/.test(src) && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
+check('Maspeth dog house: gap-between-houses anchor (middle-cell boundary ± 0.35) firmly on the front-lawn GRASS (y 3.5..6.75), IN FRONT of the doormat/landing, strictly inside its block, off both corner cells (store corner + house corner) (' + dogQN + ' gaps)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
+check('Maspeth dog house: spawnWorld routes Queens to MIDDLE-cell gaps only (gapIdx 1..9, never a corner cell / corner-store frontage) with the mid-lawn anchor band R(4.0, 5.0), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && /const gapIdx = 1 \+ \(\(Math\.random\(\) \* \(QUEENS_HOUSES_PER_BLOCK - 3\)\) \| 0\);/.test(src) && src.indexOf('ld.anchorY = R(4.0, 5.0);') >= 0 && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
+// ---- (3c) Maspeth doghouse RATE: 4 doghouses per level (increased from 1) ----
+check('Maspeth doghouse rate: 4 per level (was 1)', (() => {
+  const i = src.indexOf('const dogCount = isFlatbushLevel()');
+  if (i < 0) return false;
+  const seg = src.slice(i, i + 320);
+  return /isQueensLevel\(\)\s*\?\s*4\b/.test(seg) && /:\s*1\s*;/.test(seg);
+})());
 
 // ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels
 //      (clears the sidewalk into the front-lawn grass, short of the houses) and 5.0 in
