@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.178</div>
+          <div id="app-version" class="menu-version">v1.0.179</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.178';
+      const APP_VERSION = '1.0.179';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8861,6 +8861,45 @@
         "THE LAUNDRY & THE LAMENT: WASH & FOLD",
       ];
 
+      // Maspeth (Queens, level 4 — Thursday) corner stores — a Polish & Irish
+      // neighborhood: bakeries, kielbasa & pierogi, delis with lotto, pizza, a
+      // florist, Irish imports, real estate, a pharmacy, laundromats. 32 unique
+      // names, randomly used like the other borough pools. ONE store per block.
+      const MASPETH_STORE_NAMES = [
+        "MAMA'S PIEKARNIA: BREAD BEFORE SUNRISE",
+        "CHLEB & A LITTLE PRIDE: POLISH BREAD",
+        "THE ROLL & THE REVENGE: BAKERY",
+        "PANCZEK PANIC: DONUTS & DUMPLINGS",
+        "KIJBASA KINGDOM: POLISH SAUSAGE",
+        "PUSZKA'S PIEROGI: FRESH DAILY",
+        "THE BIGOS & THE BIG CHEESE",
+        "STARKI'S SAUSAGES: ASK ABOUT THE RIB",
+        "ZUREK'S CORNER: SOUP & SIDELINE",
+        "KOVALSKI'S DELI & LOTTO DREAMS",
+        "THE LOTTO & THE LUNCHMEAT",
+        "NOWAK'S DELI: WE KNOW YOUR KIELBASA",
+        "SCRATCH THAT TICKET: DELI & LOTTERY",
+        "MATEJKO'S DELI: KAPUSNICA & HOPE",
+        "MAMA'S PIEZZA: THIN CRUST, THICK LOVE",
+        "THE KRUST & THE KIELBASA: PIZZA",
+        "ROZA & ROSE: FLOWERS FOR EVERYTHING",
+        "THE BLOOM & THE BYCHOW: FLORIST",
+        "O'MALLEY'S IRISH IMPORTS: STOUT & STOOP",
+        "THE SHAMROCK & THE SHAMROCKS",
+        "KILBRIDE'S IMPORTS: FROM THE GREEN ISLE",
+        "MAGEE & SONS REALTY: WE OWN THE CORNER",
+        "DUBLIN DREAMS REALTY: ASK ABOUT THE LOT",
+        "THE PHARMACY & THE PIEROGI",
+        "O'BRIEN'S DRUGS & DREAMS",
+        "THE CROSS & THE CURE: PHARMACY",
+        "THE WASH & THE WIT: LAUNDROMAT",
+        "SOAP & A SLAN: WASH & FOLD",
+        "THE SPIN & THE SINN FEIN",
+        "BARZAKI'S BUTCHER: COLD CUTS, WARM WELCOMES",
+        "THE PINT & THE PIEROGI: BAR & EATERY",
+        "GROSZ & SONS: GROCERY & GUTS",
+      ];
+
       // Fisher-Yates shuffle — used to randomize store names each shift start.
       function shuffleStoreNames(arr) {
         const a = arr.slice();
@@ -9543,6 +9582,142 @@
         divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
         g.add(divider);
         // Storefront door (side entrance) — first house's on the left, last house's on
+        // the right, so doors don't crowd the intersection gaps.
+        const doorX = storeOptions.isLeft ? -2.6 : 2.6;
+        const door = BX(0.75, 0.06, 1.85, M(0x3a2a1a));
+        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.225);
+        g.add(door);
+        const doorGlass = BX(
+          0.65,
+          0.02,
+          0.85,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x112233,
+            emissiveIntensity: 0.3,
+          }),
+        );
+        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.725);
+        g.add(doorGlass);
+        // Door handle
+        const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
+        handle.position.set(doorX + 0.25, -d / 2 - 0.07, 0.3 + 1.0);
+        g.add(handle);
+        // Sidewalk entrance mat/step
+        const mat = BX(1.0, 0.4, 0.04, M(0x555555));
+        mat.position.set(doorX, -d / 2 - 0.5, 0.31);
+        g.add(mat);
+        // Sign board above window (solid backing)
+        const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+        signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
+        g.add(signBoard);
+        // Store name sign — plane mesh facing outward (not a sprite that always faces camera)
+        const signMat = makeStoreSignMaterial(
+          storeOptions.storeName,
+          storeOptions.isUptown,
+        );
+        const signPlane = new THREE.Mesh(
+          new THREE.PlaneGeometry(6.8, 0.48),
+          signMat,
+        );
+        signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
+        signPlane.rotation.x = Math.PI / 2; // Face outward from building (-Y direction)
+        g.add(signPlane);
+        // Sign crown molding
+        const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+        signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
+        g.add(signCrown);
+        // Step data for collision: the entrance MAT, centered under the door (cx offset).
+        g.userData.step = {
+          cx: doorX,
+          hw: 0.6,
+          cy: -d / 2 - 0.5,
+          hd: 0.5,
+          top: 0.33,
+        };
+        // Building front wall collision (kick-plate face = the storefront's nearest face).
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2 - 0.4,
+          hd: 0,
+          stoopX: 0,
+          stoopHw: 0,
+        };
+        return g;
+      }
+      // ==================== QUEENS (MASPETH) STOREFRONT ====================
+      // A copy of the Flatbush corner store, dedicated to Maspeth (level 4). Same
+      // narrow 6.5u footprint + Manhattan-style ground-floor storefront (kick-plate,
+      // display window, side door + glass + handle, entrance mat, canvas name sign).
+      // Kept as its own builder so Maspeth's store can be tuned independently.
+      const QUEENS_STORE_W = 6.5;
+      function makeQueensStore(storeOptions) {
+        const g = new THREE.Group();
+        const cols = [
+          0x8a5a3b,
+          0xb08954,
+          0x7a3b34,
+          0x5d6b75,
+          0x9c7a4d,
+          0x6b5a7e,
+          0x98683f,
+          0x4a6a5a,
+        ];
+        const col = cols[(Math.random() * cols.length) | 0];
+        const w = QUEENS_STORE_W, // 6.5u: narrower than the 8u cell so it clears the corner driveway
+          d = 4.8,
+          h = 5.4; // Maspeth two-story height
+        const body = BX(w, d, h, M(col));
+        body.position.z = 0.3 + h / 2;
+        body.receiveShadow = false;
+        g.add(body);
+        const roof = BX(w + 0.3, d + 0.3, 0.3, M(0x2e2a26));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
+        const winM = new THREE.MeshLambertMaterial({
+          color: 0x9fd0e8,
+          emissive: 0x24434f,
+          emissiveIntensity: 0.7,
+        });
+        // Two floors of residential windows above the sign band (Maspeth two-story feel).
+        for (let floor = 0; floor < 2; floor++) {
+          const fy = 0.3 + 3.1 + floor * 1.6;
+          for (let side = -1; side <= 1; side += 2) {
+            const winX = side * w * 0.27;
+            const frame = BX(0.86, 0.11, 0.86, M(0xffffff));
+            frame.position.set(winX, -d / 2 + 0.01, fy);
+            g.add(frame);
+            const glass = BX(0.78, 0.06, 0.78, winM);
+            glass.position.set(winX, -d / 2 - 0.01, fy);
+            g.add(glass);
+          }
+        }
+        // ---- Manhattan-style storefront (ground floor) ----
+        // Kick-plate / base below window
+        const kickplate = BX(w - 0.4, 0.4, 0.2, M(0x444444));
+        kickplate.position.set(0, -d / 2 - 0.2, 0.3 + 0.1);
+        g.add(kickplate);
+        // Large display window (narrower, no Z-fighting)
+        const winFrame = BX(3.6, 0.1, 1.4, M(0x222222));
+        winFrame.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(winFrame);
+        const winGlass = BX(
+          3.4,
+          0.04,
+          1.3,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x223344,
+            emissiveIntensity: 0.55,
+          }),
+        );
+        winGlass.position.set(0, -d / 2 - 0.09, 0.3 + 1.15);
+        g.add(winGlass);
+        // Window divider
+        const divider = BX(0.08, 0.08, 1.35, M(0x222222));
+        divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(divider);
+        // Storefront door (side entrance) — left store's on the left, right store's on
         // the right, so doors don't crowd the intersection gaps.
         const doorX = storeOptions.isLeft ? -2.6 : 2.6;
         const door = BX(0.75, 0.06, 1.85, M(0x3a2a1a));
@@ -12542,10 +12717,13 @@
           storeOptions.isStore &&
           borough === "BROOKLYN" &&
           LEVEL_DAYS[level - 1].area === "FLATBUSH";
+        const isQueensStore =
+          !!storeOptions && storeOptions.isStore && borough === "QUEENS";
         let hg;
         if (storeOptions && storeOptions.isStore) {
           // Bronx storefronts: Bronx row-house shell + Manhattan storefront design.
           // Flatbush storefronts: Flatbush two-story shell + Manhattan storefront design.
+          // Queens (Maspeth) storefronts: Maspeth two-story shell + storefront design.
           // Manhattan storefronts: the brownstone store.
           const storeArea = LEVEL_DAYS[level - 1].area;
           if (borough === "THE BRONX") hg = makeBronxStore(storeOptions);
@@ -12554,6 +12732,7 @@
             storeArea === "FLATBUSH"
           )
             hg = makeFlatbushStore(storeOptions);
+          else if (borough === "QUEENS") hg = makeQueensStore(storeOptions);
           else hg = makeBrownstone(storeOptions);
         } else {
           const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
@@ -12573,6 +12752,11 @@
         // house of the block hugs the right corner.
         if (isFlatbushStore) {
           const halfW = FLATBUSH_STORE_W / 2;
+          hg.position.x = storeOptions.isLeft ? halfW : BW - halfW;
+        }
+        // Maspeth (Queens): same outer-edge anchor as Flatbush (isLeft => left corner).
+        if (isQueensStore) {
+          const halfW = QUEENS_STORE_W / 2;
           hg.position.x = storeOptions.isLeft ? halfW : BW - halfW;
         }
         hg.position.y = HOUSE_Y;
@@ -12748,6 +12932,17 @@
         const pool = free.length ? free : bronxDogBlocks;
         return pool[(Math.random() * pool.length) | 0];
       }
+      // ---- Queens (Maspeth) corner-store placement ----
+      // Exactly ONE corner per block gets a store. Which corner (left = house 0, or
+      // right = house HOUSES_PER_BLOCK-1) is chosen randomly ONCE per session and then
+      // frozen, so a level restart (which re-runs spawnWorld) keeps the same store
+      // corner. Only re-randomizes on a fresh page load / new session.
+      let QUEENS_STORE_CORNERS = null;
+      function pickQueensStoreCorners() {
+        const a = [];
+        for (let b = 0; b < LEVEL_BLOCKS.length; b++) a.push(Math.random() < 0.5);
+        return a;
+      }
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
@@ -12773,11 +12968,23 @@
           // a West Indian mini-market, the laundromat). Flatbush ONLY — not Bed-Stuy.
           storePool = shuffleStoreNames(FLATBUSH_STORE_NAMES);
           isUptown = false; // bold, loud sign palettes
+        } else if (borough === "QUEENS") {
+          // Maspeth (Queens) corners: Polish + Irish neighborhood storefronts
+          // (bakeries, kielbasa & pierogi, delis with lotto, pizza, florist, Irish
+          // imports, real estate, a pharmacy, laundromats). ONE store per block.
+          storePool = shuffleStoreNames(MASPETH_STORE_NAMES);
+          isUptown = false; // bold, loud sign palettes
         }
         let storeIdx = 0;
         // Fixed route: 8 blocks of 10 houses each (Blocks 1 & 8 carry no curb garbage).
         // No block recycling — the whole route is laid out up front at absolute positions.
-        for (const bl of LEVEL_BLOCKS) {
+        // Queens (Maspeth): freeze the random store-corner choice for this session so a
+        // level restart (re-running spawnWorld) keeps the SAME store corner per block.
+        const isQueens = borough === "QUEENS";
+        if (isQueens && QUEENS_STORE_CORNERS === null)
+          QUEENS_STORE_CORNERS = pickQueensStoreCorners();
+        for (let blkIdx = 0; blkIdx < LEVEL_BLOCKS.length; blkIdx++) {
+          const bl = LEVEL_BLOCKS[blkIdx];
           for (let i = 0; i < HOUSES_PER_BLOCK; i++) {
             const g = new THREE.Group();
             const worldX = bl.x + i * BW;
@@ -12802,6 +13009,21 @@
                 isFlatbush) &&
               (i === 0 || i === HOUSES_PER_BLOCK - 1)
             ) {
+              const storeName = storePool[storeIdx % storePool.length];
+              storeIdx++;
+              storeOptions = {
+                isStore: true,
+                storeName: storeName,
+                isUptown: isUptown,
+                isLeft: i === 0,
+              };
+            } else if (
+              isQueens &&
+              (i === 0 || i === HOUSES_PER_BLOCK - 1) &&
+              (i === 0) === QUEENS_STORE_CORNERS[blkIdx]
+            ) {
+              // Maspeth: only the ONE chosen corner per block gets a store (left if
+              // QUEENS_STORE_CORNERS[blkIdx] is true, else the right corner).
               const storeName = storePool[storeIdx % storePool.length];
               storeIdx++;
               storeOptions = {
