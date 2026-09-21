@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.202</div>
+          <div id="app-version" class="menu-version">v1.0.203</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.202';
+      const APP_VERSION = '1.0.203';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4038,6 +4038,16 @@
         0x8a2d4e, // wine
         0x4a4a7a, // slate violet
         0xb08a3e, // old gold
+      ];
+      // The boy's temper: threats + curses in Polish, spat as he follows the worker
+      // around the corner after a bump (protecting his sister's innocence).
+      const POLISH_BOY_CURSES = [
+        "Odstąp od mojej siostry!",
+        "Ty chuliganie, zostaw ją w spokoju!",
+        "Będę za tobą po całym rogu!",
+        "Ostatnie ostrzeżenie, brudniku!",
+        "Moja siostra jest niewinna, a ty — szmatko!",
+        "Twoja matka by się wstydziła!",
       ];
       function disposeObj(o) {
         o.traverse((ch) => {
@@ -9753,55 +9763,35 @@
       // Kept as its own builder so Maspeth's store can be tuned independently.
       const QUEENS_STORE_W = 6.5;
       function makePolishDeliSign(food) {
-        // The Polish deli's hanging sign: a cream panel with a red trim, mounted on
-        // short rods in FRONT of the deli facade (the store itself is the deli — its
-        // name comes from the MASPETH_STORE_NAMES pool). The emblem is a PICKLE or a
-        // PIEROGI, picked at random per store. Local coords assume the deli's
-        // facade is at y = -2.4 (d/2 = 2.4) facing -Y, so the group is dropped into
-        // the store group at the door's x.
+        // The Polish deli's window ADVERTISEMENT: a poster-sized small rectangle stuck
+        // in the display window (NOT on the door) — cream paper with a red border and a
+        // PICKLE or a PIEROGI drawn on it, picked at random per store. The deli itself
+        // is the Maspeth corner store (name from the MASPETH_STORE_NAMES pool). Local
+        // coords assume the facade at y = -2.4 (d/2 = 2.4) facing -Y; the display
+        // window is centered at z = 0.3 + 1.15, so the poster sits at z 1.45.
         const g = new THREE.Group();
-        const panelM = M(0xf2ead8),
-          trimM = M(0x8a2d4e),
-          rodM = M(0x333333);
-        // Panel (long axis along X, floating just off the facade)
-        const panel = BX(2.3, 0.07, 0.85, panelM);
-        panel.position.set(0, -2.54, 2.2);
-        g.add(panel);
-        // Red trim: top + bottom + both sides
-        const trimT = BX(2.4, 0.04, 0.06, trimM);
-        trimT.position.set(0, -2.54, 2.62);
-        g.add(trimT);
-        const trimB = BX(2.4, 0.04, 0.06, trimM);
-        trimB.position.set(0, -2.54, 1.78);
-        g.add(trimB);
-        const trimL = BX(0.06, 0.04, 0.9, trimM);
-        trimL.position.set(-1.17, -2.54, 2.2);
-        g.add(trimL);
-        const trimR = BX(0.06, 0.04, 0.9, trimM);
-        trimR.position.set(1.17, -2.54, 2.2);
-        g.add(trimR);
-        // Mounting rods from the facade to the panel
-        [-0.85, 0.85].forEach((rx) => {
-          const rod = BX(0.05, 0.18, 0.05, rodM);
-          rod.position.set(rx, -2.45, 2.2);
-          g.add(rod);
-        });
-        // THE EMBLEM: pickle (a green capsule) or pierogi (a pale pinched half-moon)
+        const paper = BX(1.05, 0.03, 0.85, M(0xf2ead8));
+        paper.position.set(0, -2.52, 1.45);
+        g.add(paper);
+        const border = BX(1.15, 0.02, 0.95, M(0x8a2d4e));
+        border.position.set(0, -2.525, 1.45);
+        g.add(border);
+        // THE EMBLEM: pickle (a small green capsule) or pierogi (a pale pinched half-moon)
         if (food === "pierogi") {
-          const dumpling = SPH(0.2, M(0xe8d5a0));
-          dumpling.scale.set(1.6, 0.7, 0.9);
-          dumpling.position.set(0, -2.6, 2.2);
+          const dumpling = SPH(0.13, M(0xe8d5a0));
+          dumpling.scale.set(1.5, 0.7, 0.9);
+          dumpling.position.set(0, -2.56, 1.45);
           g.add(dumpling);
-          const pleat = BX(0.55, 0.05, 0.04, M(0xc9b07a));
-          pleat.position.set(0, -2.6, 2.36);
+          const pleat = BX(0.38, 0.03, 0.03, M(0xc9b07a));
+          pleat.position.set(0, -2.56, 1.56);
           g.add(pleat); // the pinched edge
         } else {
-          const pickle = SPH(0.17, M(0x5a8a3a));
+          const pickle = SPH(0.11, M(0x5a8a3a));
           pickle.scale.set(0.8, 0.7, 1.7);
-          pickle.position.set(0, -2.6, 2.2);
+          pickle.position.set(0, -2.56, 1.45);
           g.add(pickle);
-          const stem = BX(0.04, 0.03, 0.1, M(0x3a5a1a));
-          stem.position.set(0, -2.6, 2.5);
+          const stem = BX(0.03, 0.02, 0.08, M(0x3a5a1a));
+          stem.position.set(0, -2.56, 1.66);
           g.add(stem);
         }
         return g;
@@ -9918,14 +9908,15 @@
         const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
         signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
         g.add(signCrown);
-        // POLISH DELI: a store whose name is a deli gets its hanging emblem sign in
-        // FRONT of the store — a pickle or a pierogi (random per store) — the deli
-        // itself being the Maspeth corner store (name from MASPETH_STORE_NAMES).
+        // POLISH DELI: a store whose name is a deli gets a poster-sized ADVERTISEMENT
+        // stuck in the display window (off to one side of the divider, away from the
+        // door) — a pickle or a pierogi (random per store) — the deli itself being
+        // the Maspeth corner store (name from MASPETH_STORE_NAMES).
         if (/DELI/i.test(storeOptions.storeName)) {
           const deliSign = makePolishDeliSign(
             Math.random() < 0.5 ? "pickle" : "pierogi",
           );
-          deliSign.position.x = doorX;
+          deliSign.position.x = storeOptions.isLeft ? 0.95 : -0.95;
           g.add(deliSign);
         }
 
@@ -13115,12 +13106,14 @@
             }
             break;
           case "polishboy":
-            // The nice Polish boy (Maspeth, the ladies' brother): a regular sidewalk
-            // pedestrian; the Queens spawn block places him on his sister's block.
-            c.wy = R(1.2, 4.2);
-            c.sp = npcPace();
-            c.dir = Math.random() < 0.5 ? -1 : 1; // random walk direction
+            // The nice Polish boy (Maspeth, the ladies' brother): a CAUCASIAN
+            // sidewalk regular who hangs around the corner store (the deli, if there
+            // is one). Bumping him starts a follow-me temper tantrum — see the
+            // "polishboy" case in updateCreatures.
+            c.wy = R(1.6, 3.6);
+            c.cd = 0;
             c.data = makePerson({
+              skin: pick(POLISH_SKIN), // caucasian only, like the whole Maspeth clan
               shirt: pick(SHIRTS),
               pants: pick(PANTS),
               hair: pick(HAIRS),
@@ -13374,6 +13367,15 @@
         // landing top instead of clipping into the 0.3..0.36 slab.
         const stLocal = hg.userData.step;
         const houseX = baseX + hg.position.x; // regular houses stay at x=4.0; Flatbush corner stores track their anchored x
+        // Maspeth corner store spot (world x, block y, isDeli) — the Polish boy hangs
+        // around one of these (the deli, if the level has one).
+        if (isQueensStore) {
+          queensStoreSpots.push({
+            x: houseX,
+            y: HOUSE_Y,
+            deli: /DELI/i.test(storeOptions.storeName),
+          });
+        }
         const stepCx = stLocal.cx || 0; // step offset from house center (0 for centered, 1.6 for Bronx stoop)
         house.step = {
           x0: houseX + stepCx - stLocal.hw,
@@ -13613,6 +13615,7 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
+        queensStoreSpots = []; // Maspeth corner stores get re-collected this level
         // On Manhattan + Bronx levels, pick the appropriate store name pool and shuffle it
         let storePool = null;
         let isUptown = false;
@@ -14022,15 +14025,25 @@
             pw.g.position.set(pw.wx, pw.wy, GZ);
             pw.g.rotation.z = -Math.PI / 2; // facing the street, like the hooker
           }
-          // The nice Polish boy: his SISTER is one of the ladies above, so he
-          // patrols the block she's standing on. Bumping him earns a polite ask
-          // to stop bothering her.
+          // The nice Polish boy: he hangs around the corner store — the Polish
+          // deli if the level has one, else a random corner store. Bumping him
+          // earns a polite ask (and a very loud follow-me tantrum in Polish).
           {
-            const sib = polishBlocks[(Math.random() * polishBlocks.length) | 0];
-            const pb = addCreature("polishboy");
-            pb.wx = sib.x + 10 + R(0, 60);
-            pb.wy = R(1.6, 4.0); // sidewalk, like a regular pedestrian
-            pb.g.position.set(pb.wx, pb.wy, GZ);
+            const deliSpot =
+              queensStoreSpots.find((s) => s.deli) ||
+              queensStoreSpots[(Math.random() * queensStoreSpots.length) | 0];
+            if (deliSpot) {
+              const pb = addCreature("polishboy");
+              pb.wx = deliSpot.x + R(-2.5, 2.5); // on the sidewalk in front of the store
+              pb.wy = R(1.8, 3.6);
+              pb.loiter = {
+                minX: deliSpot.x - 4,
+                maxX: deliSpot.x + 4,
+                dir: Math.random() < 0.5 ? -1 : 1,
+              };
+              pb.aggro = false;
+              pb.g.position.set(pb.wx, pb.wy, GZ);
+            }
           }
         }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
@@ -15365,6 +15378,7 @@
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
+      let queensStoreSpots = []; // Maspeth corner stores: { x, y, deli } — the Polish boy hangs around one
       let soccerTeams = []; // one team per Flatbush block: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
@@ -16922,7 +16936,9 @@
                     c.gender,
                     "polish",
                   );
-                else if (c.type === "polishboy")
+                else if (c.type === "polishboy") {
+                  // Polite on the record — then he follows you around the corner,
+                  // cursing in Polish to protect his sister's innocence.
                   Voice.say(
                     pick([
                       "Hey, please stop talking to my sister.",
@@ -16936,6 +16952,10 @@
                     c.gender,
                     "ped",
                   );
+                  c.aggro = true;
+                  c.aggroT = 14;
+                  c.sayCd = 1.2;
+                }
                 else if (c.type === "skater")
                   Voice.say(
                     "Whoa! Like, watch it, bro!",
@@ -18202,11 +18222,61 @@
               }
               break;
             }
-            case "polishboy":
-              // The nice Polish boy (Queens-only, spawned by the Queens block on his
-              // sister's block): a regular sidewalk pedestrian — falls straight
-              // through to the shared walker behavior below (obstacle routing,
-              // traffic yielding, off-screen recycle).
+            case "polishboy": {
+              // The nice Polish boy: he hangs around his corner store — a slow
+              // back-and-forth on the sidewalk in front of it. If the worker bumps
+              // him, he FOLLOWS the worker around the corner of the block, cursing
+              // in Polish to protect his sister's innocence — until the worker gets
+              // ahead of the corner (45u) or the temper cools (14s), then he drifts
+              // back to the store.
+              const L = c.loiter;
+              if (c.aggro) {
+                c.aggroT -= dt;
+                const dx = p.wx - c.wx;
+                const sp = 1.5; // a little braver than the worker's walk
+                if (Math.abs(dx) > 2.2) {
+                  c.wx += (dx > 0 ? 1 : -1) * sp * dt;
+                  animParts(c, sp * dt * 2.4);
+                }
+                c.wy = clamp(c.wy + (p.wy - c.wy) * Math.min(1, dt * 2), 1.2, 4.4);
+                if (c.g) c.g.rotation.z = dx >= 0 ? 0 : Math.PI; // face the worker
+                c.sayCd = (c.sayCd || 0) - dt;
+                if (c.sayCd <= 0 && Math.abs(dx) < 30) {
+                  Voice.say(
+                    pick(POLISH_BOY_CURSES),
+                    4,
+                    0.95,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  c.sayCd = R(2.2, 3.4);
+                }
+                // The worker made it around the corner, or the temper cooled
+                if (dx > 45 || c.aggroT <= 0) {
+                  c.aggro = false;
+                  c.aggroT = 0;
+                  // If he lost the block entirely, re-root himself at the store
+                  if (c.wx < L.minX - 10 || c.wx > L.maxX + 10)
+                    c.wx = (L.minX + L.maxX) / 2;
+                }
+              } else if (L) {
+                const sp = 0.7;
+                c.wx += L.dir * sp * dt;
+                if (c.wx > L.maxX) {
+                  c.wx = L.maxX;
+                  L.dir = -1;
+                } else if (c.wx < L.minX) {
+                  c.wx = L.minX;
+                  L.dir = 1;
+                }
+                animParts(c, sp * dt * 2.2);
+                if (c.g) c.g.rotation.z = L.dir >= 0 ? 0 : Math.PI;
+              }
+              c.cd -= dt;
+              break;
+            }
             case "ped":
             case "lady":
             case "dogwalker": {
@@ -19846,16 +19916,11 @@
             case "polish": {
               // Maspeth sidewalk regular: a POISED idle — slow, subtle sway (nothing
               // like the hooker's shimmy) and an occasional glance over her shoulder.
-              // Recycles off-screen ahead of the worker like the hooker (42u >> 15u
-              // camera reach, so she never pops in mid-screen).
+              // She NEVER recycles — each block keeps its own lady (recycling used to
+              // teleport her 42u ahead of the worker, popping her onto other blocks).
               c.swayT += dt;
               c.g.rotation.z = -Math.PI / 2 + Math.sin(c.swayT * 0.7) * 0.04;
               c.g.rotation.y = Math.sin(c.swayT * 0.9) * 0.06;
-              if (tx < -55) {
-                c.wx = p.wx + 42;
-                c.wy = R(1.4, 6.5); // sidewalk or front lawn
-                c.swayT = R(0, 6.28);
-              }
               break;
             }
             case "crazy": {

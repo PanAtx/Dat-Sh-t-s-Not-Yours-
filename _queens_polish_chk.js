@@ -127,9 +127,8 @@ const aiCase = (() => {
 })();
 check('AI: case "polish" exists with a subtle (poised) sway',
   aiCase.indexOf('c.swayT += dt') >= 0 && /Math\.sin\(c\.swayT \* 0\.7\) \* 0\.04/.test(aiCase));
-check('AI: recycles OFF-SCREEN ahead of the worker (p.wx + 42, tx < -55)',
-  aiCase.indexOf('tx < -55') >= 0 && aiCase.indexOf('c.wx = p.wx + 42') >= 0);
-check('AI: recycled wy spans sidewalk + lawn zones', /R\(1\.4, 6\.5\)/.test(aiCase));
+check('AI: NEVER recycles — each block keeps its own lady (no tx < -55 teleport)',
+  aiCase.indexOf('NEVER recycles') >= 0 && aiCase.indexOf('tx < -55') < 0 && aiCase.indexOf('p.wx + 42') < 0);
 
 // ================= 5. BUMP LINES (collideCreatures) =================
 const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 16000);
@@ -173,9 +172,10 @@ check('spawn block: dresses UNIQUE per block (palette shuffled into polishDressQ
   src.indexOf('let polishDressQueue = []') >= 0 &&
   addSec.indexOf('polishDressQueue.shift()') >= 0 &&
   addSec.indexOf('makePolishGirl(pdress)') >= 0);
-check('spawn: one nice Polish boy per Queens level, on a random lady\'s block (her brother)',
+check('spawn: one nice Polish boy per Queens level, loitering in front of a corner store (her brother)',
   src.indexOf('addCreature("polishboy")') >= 0 &&
-  src.indexOf('polishBlocks[(Math.random() * polishBlocks.length) | 0]') >= 0);
+  src.indexOf('queensStoreSpots') >= 0 &&
+  src.indexOf('pb.loiter') >= 0);
 
 // ================= 8. DOG COUNT SCALED BY SCORE =================
 const dogSec = (() => {

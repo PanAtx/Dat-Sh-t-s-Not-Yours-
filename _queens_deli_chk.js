@@ -64,8 +64,10 @@ check(
   sign.indexOf('0xf2ead8') >= 0 && sign.indexOf('0x8a2d4e') >= 0
 );
 check(
-  'sign mounts on rods in FRONT of the facade (panel floats at y -2.54)',
-  sign.indexOf('panel.position.set(0, -2.54, 2.2)') >= 0 && sign.indexOf('rod') >= 0
+  'poster-sized small rectangle (1.05u paper) with a red border — NO rods, NOT wide',
+  sign.indexOf('BX(1.05, 0.03, 0.85') >= 0 &&
+    sign.indexOf('0x8a2d4e') >= 0 &&
+    sign.indexOf('rod') < 0
 );
 check(
   'pickle emblem: green capsule (0x5a8a3a) + stem (0x3a5a1a)',
@@ -91,8 +93,9 @@ check(
   qStore.indexOf('/DELI/i.test(storeOptions.storeName)') >= 0
 );
 check(
-  'deli sign hangs at the door (position.x = doorX) in front of the deli',
-  qStore.indexOf('deliSign.position.x = doorX') >= 0 && qStore.indexOf('makePolishDeliSign(') >= 0
+  'deli poster sits IN the display window (off the divider, away from the door)',
+  qStore.indexOf('deliSign.position.x = storeOptions.isLeft ? 0.95 : -0.95') >= 0 &&
+    sign.indexOf('paper.position.set(0, -2.52, 1.45)') >= 0
 );
 check(
   'pickle/pierogi chosen at random per store (Math.random() < 0.5)',
@@ -113,21 +116,34 @@ const addSec = (() => {
   return src.slice(i, j > i ? j : i + 9000);
 })();
 check(
-  'addCreature has case "polishboy" (makePerson walker, male)',
+  'addCreature has case "polishboy" (makePerson, CAUCASIAN skin only, male)',
   addSec.indexOf('case "polishboy":') >= 0 &&
     addSec.indexOf('makePerson(') >= 0 &&
+    addSec.indexOf('skin: pick(POLISH_SKIN)') >= 0 &&
     addSec.indexOf('type === "polishboy"') >= 0
 );
 const aiSec = (() => {
   const u = src.indexOf('function updateCreatures(');
   const i = src.indexOf('case "polishboy":', u);
   if (i < 0) return '';
-  return src.slice(i, i + 600);
+  return src.slice(i, i + 2400);
 })();
 check(
-  'polishboy falls through to the shared walker case (ped/lady/dogwalker behavior)',
-  /case "polishboy":\s*\/\/[\s\S]{0,600}case "ped":/.test(aiSec) &&
-    aiSec.indexOf('makePerson') < 0 // NO per-frame rebuild (construction lives in addCreature)
+  'AI: polishboy is his OWN case (no per-frame rebuild, no street-ped fallthrough)',
+  /case "polishboy": \{/.test(aiSec) && aiSec.indexOf('makePerson') < 0
+);
+check(
+  'AI: loiters in front of the corner store (c.loiter, ±4u pace, turns around)',
+  aiSec.indexOf('c.loiter') >= 0 &&
+    aiSec.indexOf('L.minX') >= 0 &&
+    aiSec.indexOf('L.maxX') >= 0
+);
+check(
+  'AI: aggro FOLLOWS the worker, cursing in Polish, ends at the corner (45u) or 14s',
+  aiSec.indexOf('c.aggro') >= 0 &&
+    aiSec.indexOf('POLISH_BOY_CURSES') >= 0 &&
+    aiSec.indexOf('dx > 45') >= 0 &&
+    src.indexOf('c.aggroT = 14') >= 0
 );
 check(
   'polishboy is male (gender list)',
@@ -141,6 +157,12 @@ const bumpSec = (() => {
   return src.slice(i, i + 22000);
 })();
 check('bump GATE includes polishboy', bumpSec.indexOf('c.type === "polishboy"') >= 0);
+check(
+  'bump TRIGGERS the follow (c.aggro = true, aggroT = 14, sayCd primed)',
+  bumpSec.indexOf('c.aggro = true;') >= 0 &&
+    bumpSec.indexOf('c.aggroT = 14;') >= 0 &&
+    bumpSec.indexOf('c.sayCd = 1.2;') >= 0
+);
 [
   'Hey, please stop talking to my sister.',
   "She's my sister — please leave her be.",
@@ -162,19 +184,43 @@ check(
   })()
 );
 
-// spawn: exactly one per Queens level, on a random lady's block (her brother)
-const spawnSec = (() => {
-  const i = src.indexOf('The nice Polish boy: his SISTER');
-  if (i < 0) return '';
-  return src.slice(i, i + 500);
-})();
 check(
-  'spawn: polishboy spawns (addCreature("polishboy"))',
-  spawnSec.indexOf('addCreature("polishboy")') >= 0
+  '6 Polish curses/threats in POLISH_BOY_CURSES (protecting his sister)',
+  (() => {
+    const i = src.indexOf('const POLISH_BOY_CURSES = [');
+    if (i < 0) return false;
+    const seg = src.slice(i, src.indexOf('];', i));
+    const lines = seg
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('"'));
+    return (
+      lines.length >= 6 &&
+      lines.every((l) => /siostr|spokoju|ostrz|matka|rogu/i.test(l))
+    );
+  })()
 );
 check(
-  'spawn: he stands on the block of a random lady (her sister is one of them)',
-  spawnSec.indexOf('polishBlocks[(Math.random() * polishBlocks.length) | 0]') >= 0
+  'corner store spots are collected during block build (isQueensStore, deli flag)',
+  src.indexOf('queensStoreSpots.push(') >= 0 &&
+    src.indexOf('deli: /DELI/i.test(storeOptions.storeName)') >= 0
+);
+const spawnSec = (() => {
+  const i = src.indexOf('The nice Polish boy: he hangs around the corner store');
+  if (i < 0) return '';
+  return src.slice(i, i + 900);
+})();
+check(
+  'spawn: the boy hangs around the deli (preferred) else a random corner store',
+  spawnSec.indexOf('queensStoreSpots.find((s) => s.deli)') >= 0 &&
+    spawnSec.indexOf('addCreature("polishboy")') >= 0 &&
+    spawnSec.indexOf('deliSpot.x + R(-2.5, 2.5)') >= 0
+);
+check(
+  'spawn: loiter range is ±4u around the store, aggro starts off',
+  spawnSec.indexOf('minX: deliSpot.x - 4') >= 0 &&
+    spawnSec.indexOf('maxX: deliSpot.x + 4') >= 0 &&
+    spawnSec.indexOf('pb.aggro = false') >= 0
 );
 
 // written-up offense lines
