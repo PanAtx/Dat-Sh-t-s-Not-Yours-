@@ -18,8 +18,7 @@ function makeG(){ return {
   parent: null, visible: true, children: [],
   position: { x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } },
   rotation: { x:0, y:0, z:0, set:function(x,y,z){ this.x=x; this.y=y; this.z=z; } },
-  add(c){ this.children.push(c); if(c) c.parent=this; }, remove(){},
-  traverse(f){ f(this); for (const c of this.children) if (c.traverse) c.traverse(f); }
+  add(c){ this.children.push(c); if(c) c.parent=this; }, remove(){}
 }; }
 const THREE = { Group: function(){ return makeG(); } };
 // ---- primitive-hierarchy mocks used by buildLitterTrash ---------------------------
