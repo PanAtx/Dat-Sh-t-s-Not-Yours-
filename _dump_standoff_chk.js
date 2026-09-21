@@ -16,7 +16,11 @@
 //      a SMALLER CARRY_M_BACK = 0.25u at the rear — the open scoop is the
 //      dumping spot, so he stands a bit closer to the back of the hopper
 //      (deepest = 0.25 + radius 0.45 = 0.7u past the face) while his held
-//      item never reaches solid body;
+//      item never reaches solid body; the rear CURB-side corner (hopper back
+//      meets the truck's LEFT) is ROUNDED (CARRY_CORNER_R = 1.5u quarter
+//      arc) so a carrying worker can tuck right up to that corner — the
+//      sharp corner's diagonal push used to pin him well back from it. Only
+//      that corner is rounded; the street-side rear corner stays sharp;
 //   2) the truck's own motion must never shove a STANDING worker: the push-out
 //      is skipped only while he doesn't move — the instant he walks again he's
 //      pushed OUT of the body (a truck that swept over him can't let him walk
@@ -73,7 +77,7 @@ check('push-out: degenerate ejection exits through the NEAREST face (rear face i
   assert.ok(html.indexOf('if (m === dBack) p.wx = tCx - tHalfLendPBack - WR;') >= 0);
 });
 check('push-out: cx clamp uses back limit on the rear side, front limit on the cab side', ()=>{
-  assert.ok(html.indexOf('const cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);') >= 0);
+  assert.ok(html.indexOf('let cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);') >= 0);
 });
 check('zones: nearHopper band dx < 4.0 (lighter bags toss from further back), basket 4.0, heavy 3.6', ()=>{
   assert.ok(html.indexOf('return dx > -1.0 && dx < 4.0 && Math.abs(dy) < 4.5;') >= 0);
@@ -90,7 +94,7 @@ check('can is heavy cargo: dumped only from the tight rear zone (nearHopperHeavy
 // push-out entirely. These drive the exact formula to prove: (a) a standing worker
 // is never dragged by the truck's back-up, (b) a walking worker is always pushed
 // OUT of the body — he can never cross the rear face from either side.
-const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.4, CARRY_M_BACK = 0.25, T_CY = -4.5;
+const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.4, CARRY_M_BACK = 0.25, CARRY_CORNER_R = 1.5, T_CY = -4.5;
 const C_STREET = T_CY - (Math.max(1.8, 1.8 * 1.25) + CARRY_M); // -7.45 painted street edge + 0.7
 const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -1.85 curb margin is smaller
 const X_FRONT = BOX_L + CARRY_M;                               // +7.46
@@ -115,6 +119,93 @@ function pushOut(wx, wy, prevX, prevY, moving, boxX0) {
   }
   return [wx, wy];
 }
+// Same push-out, but with the rear CURB-side corner rounded (CARRY_CORNER_R
+// quarter arc) — mirrors the game's current carrying behavior exactly.
+function pushOutR(wx, wy, prevX, prevY, moving, boxX0) {
+  let cx = Math.min(Math.max(wx, boxX0), X_FRONT);
+  let cy = Math.min(Math.max(wy, C_STREET), C_CURB);
+  if (wx < boxX0 && wy > C_CURB) {
+    const R = CARRY_CORNER_R;
+    const acx = boxX0 + R, acy = C_CURB - R;
+    const adx = wx - acx, ady = wy - acy;
+    const ad = Math.hypot(adx, ady) || 1e-4;
+    cx = acx + (adx / ad) * R;
+    cy = acy + (ady / ad) * R;
+  }
+  const dx = wx - cx, dy = wy - cy, d2 = dx * dx + dy * dy;
+  if (d2 < WR * WR) {
+    const pdx = prevX - cx, pdy = prevY - cy;
+    if (pdx * pdx + pdy * pdy >= WR * WR || moving) {
+      if (d2 > 1e-8) {
+        const d = Math.sqrt(d2), push = WR - d;
+        return [wx + (dx / d) * push, wy + (dy / d) * push];
+      }
+      const dBack = wx - boxX0, dFront = X_FRONT - wx, dSt = wy - C_STREET, dCu = C_CURB - wy;
+      const m = Math.min(dBack, dFront, dSt, dCu);
+      if (m === dBack) return [boxX0 - WR, wy];
+      if (m === dFront) return [X_FRONT + WR, wy];
+      if (m === dSt) return [wx, C_STREET - WR];
+      return [wx, C_CURB + WR];
+    }
+  }
+  return [wx, wy];
+}
+check('push-out: rear CURB corner is rounded for carrying workers (CARRY_CORNER_R quarter arc)', ()=>{
+  assert.ok(html.indexOf('const CARRY_CORNER_R = 1.5;') >= 0);
+  assert.ok(html.indexOf('if (_holding && p.wx < tCx - tHalfLendPBack && p.wy > tCy + tHalfWCurbP) {') >= 0);
+  assert.ok(html.indexOf('cx = acx + (adx / ad) * R;') >= 0);
+  assert.ok(html.indexOf('cy = acy + (ady / ad) * R;') >= 0);
+});
+check('rounded corner: a carrying worker can now stand RIGHT AT the rear CURB corner (old sharp rule kept him 0.45u back)', ()=>{
+  // u = 45-degree diagonal into the corner. r = distance from the old corner
+  // point along it. Old sharp rule: he is legal only at r >= 0.45. The rounded
+  // corner (radius 1.5) removes the corner material, so the whole zone
+  // r <= ~0.17 must now be a legal standing spot — he tucks right into the
+  // curve where bags / baskets used to be rejected as "far away".
+  const ux = -Math.SQRT1_2, uy = Math.SQRT1_2;
+  const corX = -BOX_L - CARRY_M_BACK, corY = C_CURB; // corner of the carrying push-out box
+  for (const r of [0.05, 0.1, 0.15]) {
+    const wx = corX + r * ux, wy = corY + r * uy;
+    const [px, py] = pushOutR(wx, wy, wx, wy, true, -BOX_L - CARRY_M_BACK);
+    assert.ok(Math.hypot(px - wx, py - wy) < 1e-6, 'rounded corner still rejects r=' + r);
+  }
+  // ...and the OLD sharp box rejected all of those spots (push > 0.3u out):
+  for (const r of [0.05, 0.1]) {
+    const wx = corX + r * ux, wy = corY + r * uy;
+    const [px, py] = pushOut(wx, wy, wx, wy, true, -BOX_L - CARRY_M_BACK);
+    assert.ok(Math.hypot(px - wx, py - wy) > 0.3, 'sharp box should reject r=' + r);
+  }
+});
+check('rounded corner only at the rear CURB corner: street-side rear corner walk is identical to the sharp box', ()=>{
+  function walk(rounded) {
+    let x = FACE_X - 3.0, y = C_STREET - 3.0; // street-side corner diagonal (y-)
+    for (let i = 0; i < 200; i++) {
+      const b = [x, y];
+      x += 0.1; y += 0.1;
+      const r = rounded
+        ? pushOutR(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK)
+        : pushOut(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK);
+      x = r[0]; y = r[1];
+    }
+    return [x, y];
+  }
+  const sharp = walk(false), rnd = walk(true);
+  assert.ok(Math.abs(rnd[0] - sharp[0]) < 1e-9 && Math.abs(rnd[1] - sharp[1]) < 1e-9,
+    'street corner moved: rounded (' + rnd[0].toFixed(2) + ',' + rnd[1].toFixed(2) + ') vs sharp (' + sharp[0].toFixed(2) + ',' + sharp[1].toFixed(2) + ')');
+});
+check('rounded corner cannot be exploited: crossing the face line near the corner happens only OUTSIDE the curb edge', ()=>{
+  let x = FACE_X - 3, y = C_CURB + 1.2;
+  let crossed = null;
+  for (let i = 0; i < 500; i++) {
+    const b = [x, y];
+    x += 0.11;
+    const r = pushOutR(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK);
+    x = r[0]; y = r[1];
+    if (x > FACE_X + 1.2 && crossed === null) crossed = y;
+    if (x > FACE_X + 3) break;
+  }
+  if (crossed !== null) assert.ok(crossed >= C_CURB, 'crossed the face inside the body at y=' + crossed.toFixed(2));
+});
 check('TRUCK BACKING UP over a standing carrying worker never drags him', ()=>{
   let wx = FACE_X - 0.85, wy = -4.5; // standing behind the carrying box rear (FACE_X - 0.25 - 0.45 band)
   let dragged = false;
@@ -153,13 +244,13 @@ check('carrying worker cannot cross the rear face from the STREET (right) side a
     if (crossed !== null) assert.ok(crossed <= C_STREET, 'crossed the face inside the street-side body at y=' + crossed.toFixed(2));
   }
 });
-check('carrying worker cannot cross the rear face from the CURB (left) side at any lane y', ()=>{
+check('carrying worker cannot cross the rear face from the CURB (left) side at any lane y (rounded corner in effect)', ()=>{
   for (let y0 = T_CY; y0 <= C_CURB + 0.4; y0 += 0.2) {
     let x = FACE_X - 3, y = y0, crossed = null;
     for (let i = 0; i < 500; i++) {
       const b = [x, y];
       x += 0.11;
-      const r = pushOut(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK);
+      const r = pushOutR(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK);
       x = r[0]; y = r[1];
       if (x > FACE_X + 1.2 && crossed === null) crossed = y;
       if (x > FACE_X + 3) break;

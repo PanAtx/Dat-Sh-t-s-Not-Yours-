@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.167</div>
+          <div id="app-version" class="menu-version">v1.0.168</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.167';
+      const APP_VERSION = '1.0.168';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -16101,13 +16101,33 @@
           const CARRY_M = 0.7; // carrying standoff off the painted body (street side + cab)
           const CARRY_M_CURB = 0.4; // curb (LEFT) side: carrying worker may stand a bit closer
           const CARRY_M_BACK = 0.25; // rear: a bit closer to the open hopper (the dumping spot)
+          const CARRY_CORNER_R = 1.5; // rear CURB-side corner (hopper back meets truck LEFT) is rounded this far
           const tHalfWStreetP = _holding ? Math.max(tHalfWStreet, _visReach) + CARRY_M : tHalfWStreet + 0.25;
           const tHalfWCurbP = _holding ? Math.max(tHalfWCurb, _visReach) + CARRY_M_CURB : tHalfWCurb + 0.25;
           const tHalfLendPFront = _holding ? tHalfL + CARRY_M : tHalfL; // front (cab) — solid body
           const tHalfLendPBack = _holding ? tHalfL + CARRY_M_BACK : tHalfL; // rear — carrying stands a bit back, close to the hopper
           const WR = 0.45; // worker collision radius (visual body half-width is 0.28 — vest 0.56 lateral)
-          const cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);
-          const cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
+          let cx = Math.min(Math.max(p.wx, tCx - tHalfLendPBack), tCx + tHalfLendPFront);
+          let cy = Math.min(Math.max(p.wy, tCy - tHalfWStreetP), tCy + tHalfWCurbP);
+          if (_holding && p.wx < tCx - tHalfLendPBack && p.wy > tCy + tHalfWCurbP) {
+            // The rear CURB-side corner (where the hopper's back meets the
+            // truck's LEFT) is ROUNDED: the push-out surface there is a
+            // quarter arc of radius CARRY_CORNER_R, not the sharp corner.
+            // The sharp corner is the FARTHEST point of the box in that
+            // quadrant, so its diagonal push pinned a carrying worker well
+            // back from the back-left corner; the arc removes that extra
+            // standoff so he can tuck right up to it with the held item
+            // clearing the curve. The other three corners stay sharp, and
+            // the non-carrying box is untouched.
+            const R = CARRY_CORNER_R;
+            const acx = tCx - tHalfLendPBack + R,
+              acy = tCy + tHalfWCurbP - R;
+            const adx = p.wx - acx,
+              ady = p.wy - acy;
+            const ad = Math.hypot(adx, ady) || 1e-4;
+            cx = acx + (adx / ad) * R;
+            cy = acy + (ady / ad) * R;
+          }
           const dx = p.wx - cx,
             dy = p.wy - cy;
           const d2 = dx * dx + dy * dy;
