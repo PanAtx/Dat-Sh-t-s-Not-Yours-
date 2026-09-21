@@ -56,25 +56,7 @@ check('cats still spawned outside npcCounts (BASE_NPC_COUNTS cat: 0)', /cat: 0,/
 
 // ---- 3) source: all debug cat modes are fully removed ----
 check('no debugNoFlee flag left anywhere in the cat AI or spawn', src.indexOf('debugNoFlee') < 0);
-check('no magenta debug glow (0xff00ff) left in the cat code (only the truck debug box may use it)', (function () {
-  const a = src.indexOf('TEST MODE: B = MAGENTA TRUCK DEBUG BOX');
-  const b = src.indexOf('window.addEventListener("keydown"', a);
-  if (a < 0 || b < 0) return false;
-  const inside = src.slice(a, b);
-  let i = 0,
-    j = 0,
-    total = 0,
-    within = 0;
-  while ((i = src.indexOf('0xff00ff', i)) >= 0) {
-    total++;
-    i += 8;
-  }
-  while ((j = inside.indexOf('0xff00ff', j)) >= 0) {
-    within++;
-    j += 8;
-  }
-  return total === within && total > 0;
-})());
+check('no magenta debug glow (0xff00ff) left anywhere (the truck debug box was removed)', src.indexOf('0xff00ff') < 0);
 check('no DEBUG cat comments left in the spawn code', spawnBlock.indexOf('DEBUG') < 0);
 // ---- 4) behavioral: the REAL makeCat builds all 4 coats with their colors ----
 function extractBlock(openText, closeText) {

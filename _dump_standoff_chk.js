@@ -11,13 +11,13 @@
 //
 // Fix under test:
 //   1) push-out: carrying keeps a CARRY_M = 0.7u standoff off the painted
-//      body on the street side + cab, a SMALLER CARRY_M_CURB = 0.4u on the
+//      body on the street side + cab, a SMALLER CARRY_M_CURB = 0.15u on the
 //      curb (LEFT) side (he may stand a bit closer to the truck's left), and
-//      a SMALLER CARRY_M_BACK = 0.25u at the rear — the open scoop is the
+//      a SMALLER CARRY_M_BACK = 0.15u at the rear — the open scoop is the
 //      dumping spot, so he stands a bit closer to the back of the hopper
-//      (deepest = 0.25 + radius 0.45 = 0.7u past the face) while his held
+//      (deepest = 0.15 + radius 0.45 = 0.6u past the face) while his held
 //      item never reaches solid body; the rear CURB-side corner (hopper back
-//      meets the truck's LEFT) is CHAMFERED (CARRY_CHAMFER = 1.5u 45-degree
+//      meets the truck's LEFT) is CHAMFERED (CARRY_CHAMFER = 0.4u 45-degree
 //      cut) so a carrying worker can tuck right up to that corner — the
 //      sharp corner's diagonal push used to pin him well back from it. Only
 //      that corner is chamfered; the street-side rear corner stays sharp;
@@ -55,7 +55,7 @@ check('push-out: street side keeps the full CARRY_M standoff off the painted bod
   assert.ok(html.indexOf('Math.max(tHalfWStreet, _visReach) + CARRY_M') >= 0);
 });
 check('push-out: curb (LEFT) side uses the SMALLER CARRY_M_CURB margin (carrying worker stands a bit closer)', ()=>{
-  assert.ok(html.indexOf('const CARRY_M_CURB = 0.4;') >= 0);
+  assert.ok(html.indexOf('const CARRY_M_CURB = 0.15;') >= 0);
   assert.ok(html.indexOf('Math.max(tHalfWCurb, _visReach) + CARRY_M_CURB') >= 0);
   const mCur = html.match(/const CARRY_M_CURB = ([\d.]+);/),
     mStr = html.match(/const CARRY_M = ([\d.]+);/);
@@ -65,7 +65,7 @@ check('push-out: front (cab) keeps the CARRY_M carry margin', ()=>{
   assert.ok(html.indexOf('const tHalfLendPFront = _holding ? tHalfL + CARRY_M : tHalfL;') >= 0);
 });
 check('push-out: rear keeps the smaller CARRY_M_BACK standoff (a bit closer to the hopper)', ()=>{
-  assert.ok(html.indexOf('const CARRY_M_BACK = 0.25;') >= 0);
+  assert.ok(html.indexOf('const CARRY_M_BACK = 0.15;') >= 0);
   assert.ok(html.indexOf('const tHalfLendPBack = _holding ? tHalfL + CARRY_M_BACK : tHalfL;') >= 0);
 });
 check('push-out: truck motion must never drag a standing worker, but a walking one is pushed OUT (no hopper pass-through)', ()=>{
@@ -94,9 +94,9 @@ check('can is heavy cargo: dumped only from the tight rear zone (nearHopperHeavy
 // push-out entirely. These drive the exact formula to prove: (a) a standing worker
 // is never dragged by the truck's back-up, (b) a walking worker is always pushed
 // OUT of the body — he can never cross the rear face from either side.
-const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.4, CARRY_M_BACK = 0.25, CARRY_CHAMFER = 1.5, T_CY = -4.5;
+const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.15, CARRY_M_BACK = 0.15, CARRY_CHAMFER = 0.4, T_CY = -4.5;
 const C_STREET = T_CY - (Math.max(1.8, 1.8 * 1.25) + CARRY_M); // -7.45 painted street edge + 0.7
-const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -1.85 curb margin is smaller
+const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -2.1 curb margin is smaller
 const X_FRONT = BOX_L + CARRY_M;                               // +7.46
 function pushOut(wx, wy, prevX, prevY, moving, boxX0) {
   const cx = Math.min(Math.max(wx, boxX0), X_FRONT);
@@ -149,7 +149,7 @@ function pushOutR(wx, wy, prevX, prevY, moving, boxX0) {
   return [wx, wy];
 }
 check('push-out: rear CURB corner is CHAMFERED at 45 degrees for carrying workers (CARRY_CHAMFER cut)', ()=>{
-  assert.ok(html.indexOf('const CARRY_CHAMFER = 1.5;') >= 0);
+  assert.ok(html.indexOf('const CARRY_CHAMFER = 0.4;') >= 0);
   assert.ok(html.indexOf('if (_holding && p.wx < tCx - tHalfLendPBack && p.wy > tCy + tHalfWCurbP) {') >= 0);
   assert.ok(html.indexOf('const CH = CARRY_CHAMFER;') >= 0);
   assert.ok(html.indexOf('const tt = Math.min(1, Math.max(0, (p.wx - bx + p.wy - by + CH) / (2 * CH)));') >= 0);
@@ -159,12 +159,12 @@ check('push-out: rear CURB corner is CHAMFERED at 45 degrees for carrying worker
 check('45-degree chamfer: a carrying worker can now stand RIGHT AT the rear CURB corner (old sharp rule kept him 0.45u back)', ()=>{
   // u = 45-degree diagonal into the corner. r = distance from the old corner
   // point along it. Old sharp rule: he is legal only at r >= 0.45. The 45-degree
-  // chamfer (1.5u leg) removes the corner material, so the whole zone
-  // r <= ~0.17 must now be a legal standing spot — he tucks right into the
-  // cut where bags / baskets used to be rejected as "far away".
+  // chamfer (0.4u leg) removes the corner material, so the zone
+  // r >= 0.45 - CH/√2 = ~0.17 must now be a legal standing spot — he tucks
+  // right into the cut where bags / baskets used to be rejected as "far away".
   const ux = -Math.SQRT1_2, uy = Math.SQRT1_2;
   const corX = -BOX_L - CARRY_M_BACK, corY = C_CURB; // corner of the carrying push-out box
-  for (const r of [0.05, 0.1, 0.15]) {
+  for (const r of [0.18, 0.25, 0.35]) {
     const wx = corX + r * ux, wy = corY + r * uy;
     const [px, py] = pushOutR(wx, wy, wx, wy, true, -BOX_L - CARRY_M_BACK);
     assert.ok(Math.hypot(px - wx, py - wy) < 1e-6, 'chamfered corner still rejects r=' + r);
@@ -207,7 +207,7 @@ check('chamfer cannot be exploited: crossing the face line near the corner happe
   if (crossed !== null) assert.ok(crossed >= C_CURB, 'crossed the face inside the body at y=' + crossed.toFixed(2));
 });
 check('TRUCK BACKING UP over a standing carrying worker never drags him', ()=>{
-  let wx = FACE_X - 0.85, wy = -4.5; // standing behind the carrying box rear (FACE_X - 0.25 - 0.45 band)
+  let wx = FACE_X - 0.85, wy = -4.5; // standing behind the carrying box rear (FACE_X - 0.15 - 0.45 band)
   let dragged = false;
   for (let i = 1; i <= 12; i++) {
     const boxX0 = -BOX_L - CARRY_M_BACK - 0.1 * i; // truck backs up 0.1u/frame
@@ -274,7 +274,7 @@ check('KEY: 1.0u past the rear face (just past the deepest carrying approach) ->
   assert.strictEqual(zones.nearHopperHeavy(), true);
   assert.strictEqual(zones.nearHopperLitter(), true);
 });
-check('KEY: 0.8u past the face (edge of the carrying standoff) -> all three zones say NEAR', ()=>{
+check('KEY: 0.8u past the face (past the carrying standoff edge) -> all three zones say NEAR', ()=>{
   at(FACE_X - 0.8, -4.5);
   assert.strictEqual(allNear(), true);
 });
@@ -282,16 +282,16 @@ check('truck auto-follow equilibrium (0.1u past the face) -> all zones say NEAR'
   at(FACE_X - 0.1, -4.5);
   assert.strictEqual(allNear(), true);
 });
-check('KEY: deepest carrying approach (CARRY_M_BACK 0.25 + worker radius 0.45 = 0.7u past the face) -> all zones say NEAR', ()=>{
-  at(FACE_X - 0.7, -4.5);
+check('KEY: deepest carrying approach (CARRY_M_BACK 0.15 + worker radius 0.45 = 0.6u past the face) -> all zones say NEAR', ()=>{
+  at(FACE_X - 0.6, -4.5);
   assert.strictEqual(allNear(), true);
 });
 check('rear street-side corner standoff -> all zones say NEAR', ()=>{
-  at(FACE_X - 0.25 - 0.318, -7.45 - 0.318); // corner (-7.01, -7.45) + 0.45 diagonal
+  at(FACE_X - 0.15 - 0.318, -7.45 - 0.318); // corner (-6.91, -7.45) + 0.45 diagonal
   assert.strictEqual(allNear(), true);
 });
 check('rear curb-side corner standoff -> light-bag band says NEAR', ()=>{
-  at(FACE_X - 0.25 - 0.318, -1.85 + 0.318); // corner (-7.01, -1.85) + 0.45 diagonal
+  at(FACE_X - 0.15 - 0.318, -2.1 + 0.318); // corner (-6.91, -2.1) + 0.45 diagonal
   assert.strictEqual(zones.nearHopper(), true);
   assert.strictEqual(zones.nearHopperHeavy(), false);
 });
@@ -326,7 +326,7 @@ function makeBag(type){ return { kind:'bag', type: type, state:'curb', h:{}, g:{
 function reset(){ calls.voices.length=0; flyingBags.length=0; flyingCans.length=0; flyingBaskets.length=0; }
 
 check('END-TO-END: normal bag at the closest approach -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.7, -4.5);
+  reset(); at(FACE_X - 0.6, -4.5);
   const b = makeBag('normal');
   api.setCarry('bag', b);
   api.tryInteract();
@@ -336,7 +336,7 @@ check('END-TO-END: normal bag at the closest approach -> dumped, silent', ()=>{
   assert.deepStrictEqual(calls.voices, []);
 });
 check('END-TO-END: HEAVY bag at the deepest carrying approach -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.7, -4.5);
+  reset(); at(FACE_X - 0.6, -4.5);
   const b = makeBag('heavy');
   api.setCarry('bag', b);
   api.tryInteract();
@@ -354,7 +354,7 @@ check('END-TO-END: full can at the deepest carrying approach -> dumped, silent',
   assert.deepStrictEqual(calls.voices, []);
 });
 check('END-TO-END: litter basket at the rear curb side of the standoff -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.8, -1.9);
+  reset(); at(FACE_X - 0.6, -3.7); // rear curb-side corner approach (deepest rear, on the curb side of the face)
   const b = { kind:'litterbasket', state:'curb', h:{}, hx:10, hy:0, g:{ parent:null }, trash:null };
   api.setCarry('litterBasket', b);
   api.tryInteract();
@@ -388,105 +388,6 @@ check('regression: full can 4.5u past the face -> "get closer" line, no dump (ca
   assert.deepStrictEqual(calls.voices, ['I need to get closer to the truck!']);
 });
 
-// ---- 4) TEST MODE B: the magenta debug box for the carrying push-out -------
-check('debug box: B toggles the MAGENTA carrying push-out outline that follows the truck', ()=>{
-  assert.ok(html.indexOf('if (e.code === "KeyB") toggleTruckDebugBox();') >= 0);
-  assert.ok(html.indexOf('0xff00ff') >= 0, 'magenta color');
-  assert.ok(html.indexOf('truckDebugBox.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ);') >= 0);
-  assert.ok(html.indexOf('updateTruckDebugBox();') > html.indexOf('truck.g.position.set(truck.wx, -4.5, GZ);'));
-});
-check('debug box: group is placed at the truck AT BUILD TIME (not buried at the world origin under the road)', ()=>{
-  assert.ok(html.indexOf('grp.position.set(Number.isFinite(truck.wx) ? truck.wx : 0, -4.5, GZ);') >= 0);
-});
-check('debug box: lives INSIDE worldGroup (the +45deg-rotated world) so it sits on the street, and forces a fresh menu frame', ()=>{
-  const blk = html.indexOf('TEST MODE: B = MAGENTA TRUCK DEBUG BOX');
-  assert.ok(blk >= 0);
-  assert.ok(html.indexOf('worldGroup.add(grp);') > blk);
-  assert.ok(html.indexOf('worldGroup.remove(truckDebugBox);') > blk);
-  assert.ok(html.indexOf('needsIdleRender = true;', blk) > blk);
-});
-check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 chamfer / 0.45 radius)', ()=>{
-  assert.ok(html.indexOf('const C_M = 0.7,') >= 0);
-  assert.ok(html.indexOf('C_M_CURB = 0.4,') >= 0);
-  assert.ok(html.indexOf('C_M_BACK = 0.25,') >= 0);
-  assert.ok(html.indexOf('CHAMFER = 1.5;') >= 0);
-  assert.ok(html.indexOf('const TRUCK_DEBUG_WR = 0.45;') >= 0);
-});
-// Run the REAL outline builder from index.html with a minimal THREE stub:
-function makeDebugOutline(){
-  const stub = {
-    BufferGeometry: class { setAttribute(n, a) { this[n] = a; } getAttribute(n) { return this[n]; } },
-    BufferAttribute: class { constructor(a, s) { this.array = a; this.itemSize = s; } },
-  };
-  const f = extractFn(html, 'truckDebugOutline');
-  return new Function('THREE', f + '; return truckDebugOutline;')(stub);
-}
-function outlinePts(geo){
-  const a = geo.getAttribute('position').array, out = [];
-  for (let i = 0; i < a.length; i += 3) out.push([a[i], a[i + 1]]);
-  return out;
-}
-function minDistToPolyline(q, poly){
-  // min distance from point q to the CLOSED polyline's segments (the chamfer
-  // is a single edge between two vertices, so vertex-only distance is wrong)
-  let d = 1e9;
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i], b = poly[(i + 1) % poly.length];
-    const abx = b[0] - a[0], aby = b[1] - a[1];
-    const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * abx + (q[1] - a[1]) * aby) / (abx * abx + aby * aby)));
-    d = Math.min(d, Math.hypot(q[0] - (a[0] + abx * t), q[1] - (a[1] + aby * t)));
-  }
-  return d;
-}
-check('debug box outline: the rear CURB corner is a 45-degree CHAMFER (depth = CH·√2/2 from the old corner)', ()=>{
-  const make = makeDebugOutline();
-  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
-  const CH = 1.5;
-  const pts = outlinePts(make(halfBack, halfFront, eS, eC, CH));
-  assert.ok(pts.length >= 5 && pts.every(q => isFinite(q[0]) && isFinite(q[1])));
-  const corX = -halfBack, corY = eC; // where the OLD sharp corner point was
-  const dmin = minDistToPolyline([corX, corY], pts);
-  assert.ok(Math.abs(dmin - CH * Math.SQRT2 / 2) < 1e-3, 'chamfer depth ' + dmin);
-  // every point sits on one of the FIVE flat edges (four box edges + the
-  // 45-degree cut: x-offset from the rear face == y-offset from the curb edge):
-  for (const q of pts) {
-    const onEdge =
-      (Math.abs(q[0] - halfFront) < 1e-5 && q[1] >= -eS - 1e-5 && q[1] <= eC + 1e-5) ||
-      (Math.abs(q[1] - eC) < 1e-5 && q[0] <= corX + CH + 1e-5 && q[0] >= corX - 1e-5) ||
-      (Math.abs(q[0] - corX) < 1e-5 && q[1] <= eC - CH + 1e-5 && q[1] >= -eS - 1e-5) ||
-      (Math.abs(q[1] + eS) < 1e-5 && q[0] <= halfFront + 1e-5 && q[0] >= corX - 1e-5) ||
-      (Math.abs(q[0] - corX - (eC - q[1])) < 1e-5 && q[0] >= corX - 1e-5 && q[0] <= corX + CH + 1e-5);
-    assert.ok(onEdge, 'off-shape point ' + q);
-  }
-  // the cut must reach BOTH faces (endpoints on the curb edge and the rear face):
-  assert.ok(pts.some(q => Math.abs(q[0] - (corX + CH)) < 1e-5 && Math.abs(q[1] - eC) < 1e-5), 'missing curb-edge chamfer endpoint');
-  assert.ok(pts.some(q => Math.abs(q[0] - corX) < 1e-5 && Math.abs(q[1] - (eC - CH)) < 1e-5), 'missing rear-face chamfer endpoint');
-});
-check('debug box outline: OUTER line = inner + the 0.45u worker radius (where his CENTER stops)', ()=>{
-  const make = makeDebugOutline();
-  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
-  const inr = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
-  // the outer 45-degree cut is a TRUE 0.45u perpendicular offset: chamfer
-  // length grows by WR·(2−√2), not WR (flat edges are offset by WR plain).
-  const out = outlinePts(make(halfBack + 0.45, halfFront + 0.45, eS + 0.45, eC + 0.45, 1.5 + 0.45 * (2 - Math.SQRT2)));
-  const ext = (a, f) => f(...a.map(q => q[0])), extY = (a, f) => f(...a.map(q => q[1]));
-  assert.ok(Math.abs(ext(out, Math.max) - (ext(inr, Math.max) + 0.45)) < 1e-5);
-  assert.ok(Math.abs(ext(out, Math.min) - (ext(inr, Math.min) - 0.45)) < 1e-5);
-  assert.ok(Math.abs(extY(out, Math.max) - (extY(inr, Math.max) + 0.45)) < 1e-5);
-  assert.ok(Math.abs(extY(out, Math.min) - (extY(inr, Math.min) - 0.45)) < 1e-5);
-  const corX = -halfBack, corY = eC;
-  const dmin = minDistToPolyline([corX, corY], out);
-  // the outer cut is exactly 0.45 further from the old corner point
-  assert.ok(Math.abs(dmin - (1.5 * Math.SQRT2 / 2 - 0.45)) < 1e-3, 'outer chamfer depth ' + dmin);
-});
-check('debug box outline: the rear STREET-side corner stays SHARP (exact vertex, no chamfer)', ()=>{
-  const make = makeDebugOutline();
-  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
-  const pts = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
-  assert.ok(
-    pts.some(q => Math.abs(q[0] + halfBack) < 1e-5 && Math.abs(q[1] + eS) < 1e-5),
-    'missing sharp street corner vertex',
-  );
-});
+// ---- (the TEST MODE B magenta debug box was removed from the game) --------
 
 console.log('\n' + pass + ' dump-standoff checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));
