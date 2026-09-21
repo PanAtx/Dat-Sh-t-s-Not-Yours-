@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.181</div>
+          <div id="app-version" class="menu-version">v1.0.182</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.181';
+      const APP_VERSION = '1.0.182';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2865,21 +2865,23 @@
           groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX); // front lawns (grass)
           groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX); // park beyond blocks (grass)
           const apron = 0x8d949c;
-          const halfStore = QUEENS_STORE_W / 2;
-          const parkW = IW + QUEENS_STORE_W; // 16 + 6.5 = 22.5u: store + the intersection gap on its side
+          const apronW = BW; // 8u: the FULL store cell (store + the 1.5u green strip on its inner side)
+          const parkW = BW + IW; // 8 + 16 = 24u: store cell + the intersection gap on the store's side
           for (let bi = 0; bi < LEVEL_BLOCKS.length; bi++) {
             const bl = LEVEL_BLOCKS[bi];
             const isLeft = QUEENS_STORE_CORNERS[bi];
-            // Front-lawn apron: just in front of the store (6.5u, at the store's x).
+            // Front-lawn apron: the whole store cell (store + the 1.5u green sliver on the
+            // store's side), so no front-yard green shows by the corner store. The neighbor
+            // house's yard (the next cell) stays green.
             const apronCx = isLeft
-              ? bl.x + halfStore // left corner store: center at block start + halfStore
-              : bl.x + (HOUSES_PER_BLOCK - 1) * BW + (BW - halfStore); // right corner store
-            groundStrip(QUEENS_STORE_W, 3.5, 0.35, 6.75, apron, apronCx); // front-lawn apron
-            // Park patch: from the intersection edge to the store's far edge, so the
-            // concrete wraps the store's intersection-facing side (no green patch there).
+              ? bl.x + BW / 2 // left corner store: center of the first cell
+              : bl.x + (HOUSES_PER_BLOCK - 1) * BW + BW / 2; // right corner store: center of last cell
+            groundStrip(apronW, 3.5, 0.35, 6.75, apron, apronCx); // front-lawn apron
+            // Park patch: from the intersection edge out to the store cell's inner edge, so the
+            // concrete wraps the whole corner (no green park on the store's side either).
             const parkCx = isLeft
-              ? bl.x - IW + parkW / 2 // left store: intersection is to the LEFT
-              : bl.x + BLOCK_W + IW - parkW / 2; // right store: intersection is to the RIGHT
+              ? bl.x - IW + parkW / 2 // left store: bl.x - 16 .. bl.x + 8
+              : bl.x + BLOCK_W + IW - parkW / 2; // right store: bl.x + 72 .. bl.x + 96
             groundStrip(parkW, 15.5, 0.35, 16.25, apron, parkCx); // park patch behind store
           }
         } else {
