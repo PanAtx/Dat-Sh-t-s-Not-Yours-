@@ -58,6 +58,7 @@ eval(extract('makeEScooter'));
 eval(extract('makeHighPolyDog'));
 eval(extract('makeDogHouse'));
 eval(extract('makeQueensDogHouse'));
+eval(extract('makeQueensDog'));
 eval(extract('npcPace') + '\n' + extract('creatureMaxY') + '\n' + extract('addCreature'));
 
 let pass = true;
@@ -100,6 +101,15 @@ const qHoles = qh.children.filter(ch => ch.material && ch.material.color === 0x1
 check('queens doghouse: entry hole on the street-facing (-Y) face', qHoles.length === 1 && qHoles[0].position.y < -0.2, JSON.stringify(qHoles.map(h2 => h2.position.y)));
 check('queens doghouse: makeQueensDogHouse is a faithful rename copy of makeDogHouse (identical body)', extract('makeQueensDogHouse').replace('function makeQueensDogHouse(', 'function makeDogHouse(') === extract('makeDogHouse'));
 check('addCreature leashdog: Queens routes to makeQueensDogHouse, Flatbush keeps the shared makeDogHouse', src.indexOf('c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();') >= 0);
+// --- Queens-EXCLUSIVE dog + leash copy: Maspeth must NEVER share makeHighPolyDog / tieLeashChain ---
+check('queens dog: makeQueensDog is a faithful rename copy of makeHighPolyDog (identical body)', extract('makeQueensDog').replace('function makeQueensDog(', 'function makeHighPolyDog(') === extract('makeHighPolyDog'));
+check('queens dog: full pivot interface (legs/tail/head/root)', (() => {
+  const qd = makeQueensDog();
+  const p = qd.userData.dog;
+  return !!(p && p.legFL && p.legFR && p.legHL && p.legHR && p.tailPivot && p.headPivot && p.root);
+})());
+check('queens leash: tieQueensLeashChain is a faithful rename copy of tieLeashChain (identical body)', extract('tieQueensLeashChain').replace('function tieQueensLeashChain(', 'function tieLeashChain(') === extract('tieLeashChain'));
+check('addCreature leashdog: Queens routes to makeQueensDog, other levels keep the shared makeHighPolyDog', src.indexOf('dg = isQueensLevel() ? makeQueensDog() : makeHighPolyDog();') >= 0);
 check('isQueensLevel: borough-gated on QUEENS', /function isQueensLevel\(\) \{[\s\S]*?borough === "QUEENS"/.test(src));
 // --- leashdog wiring ---
 const ld = addCreature('leashdog');

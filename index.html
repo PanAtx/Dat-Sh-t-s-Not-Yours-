@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.191</div>
+          <div id="app-version" class="menu-version">v1.0.192</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.191';
+      const APP_VERSION = '1.0.192';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11971,6 +11971,108 @@
         g.add(stake); // the chain visually ties here
         return g;
       }
+      // QUEENS-EXCLUSIVE copy of makeHighPolyDog (same copy pattern as makeBronxLeashDog /
+      // makeQueensDogHouse): Maspeth's leashed dogs are built with THIS function, so
+      // Queens-only changes (coat, size, props) can never touch the shared makeHighPolyDog
+      // that Manhattan's street dogs use. Geometry is identical for now.
+      function makeQueensDog(dogSize = 'medium', dogCoat = null) {
+        // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
+        // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
+        // animation block drives it (trotting legs, wagging tail, barking head).
+        const g = new THREE.Group();
+        const furC = dogSize === 'large' ? DOG_PALETTES[dogCoat].fur : pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+        const fur = M(furC),
+          furD = M(0x241c14),
+          furL = M(0xc7ab87),
+          eyeM = M(0x14100e);
+        const body = SPH(0.1, fur, 18, 14);
+        body.scale.set(2.4, 1.1, 1.3);
+        body.position.set(-0.05, 0, 0.2);
+        g.add(body);
+        const belly = SPH(0.085, furL, 14, 10);
+        belly.scale.set(1.9, 0.8, 0.9);
+        belly.position.set(-0.05, 0, 0.12);
+        g.add(belly);
+        const chest = SPH(0.08, furL, 14, 10);
+        chest.scale.set(1, 0.9, 1);
+        chest.position.set(0.16, 0, 0.2);
+        g.add(chest);
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0.26, 0, 0.24);
+        g.add(headPivot);
+        const head = SPH(0.08, fur, 16, 12);
+        head.scale.set(1.2, 1.05, 1);
+        head.position.set(0.06, 0, 0.07);
+        headPivot.add(head);
+        const muzzle = SPH(0.045, furL, 12, 10);
+        muzzle.scale.set(1.35, 0.85, 0.8);
+        muzzle.position.set(0.15, 0, 0.04);
+        headPivot.add(muzzle);
+        const nose = SPH(0.018, furD, 10, 8);
+        nose.position.set(0.21, 0, 0.045);
+        headPivot.add(nose);
+        [-1, 1].forEach((s) => {
+          const eye = SPH(0.014, eyeM, 8, 6);
+          eye.position.set(0.08, s * 0.045, 0.13);
+          headPivot.add(eye);
+          const ear = SPH(0.04, furD, 10, 8);
+          ear.scale.set(0.7, 1.0, 0.5);
+          ear.position.set(0.0, s * 0.075, 0.11);
+          headPivot.add(ear);
+        });
+        // red collar with a little brass tag
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(0.09, 0.015, 8, 16),
+          M(0xb02020),
+        );
+        collar.rotation.y = Math.PI / 2;
+        collar.position.set(0.02, 0, 0.08);
+        headPivot.add(collar);
+        const tag = SPH(0.02, MS(0xd8b23a), 8, 6);
+        tag.position.set(0.0, 0, -0.02);
+        headPivot.add(tag);
+        // four legs on hip pivots (trotting gait driven by the shared dogParts block)
+        const dogLegs = {};
+        [
+          ["legFL", 0.19, 0.1],
+          ["legFR", 0.19, -0.1],
+          ["legHL", -0.21, 0.11],
+          ["legHR", -0.21, -0.11],
+        ].forEach((lg) => {
+          const pivot = new THREE.Group();
+          pivot.position.set(lg[1], lg[2], 0.18);
+          g.add(pivot);
+          const leg = CY(0.028, 0.036, 0.17, fur, 10);
+          leg.rotation.x = Math.PI / 2;
+          leg.position.z = -0.085;
+          pivot.add(leg);
+          const paw = SPH(0.034, furD, 10, 8);
+          paw.scale.set(1.25, 0.75, 0.85);
+          paw.position.set(0.012, 0, -0.15);
+          pivot.add(paw);
+          dogLegs[lg[0]] = pivot;
+        });
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.3, 0, 0.26);
+        g.add(tailPivot);
+        const t1 = SPH(0.055, fur, 12, 10);
+        t1.scale.set(1.1, 0.85, 0.95);
+        t1.position.set(-0.07, 0, 0.06);
+        tailPivot.add(t1);
+        const t2 = SPH(0.045, furL, 12, 10);
+        t2.position.set(-0.14, 0, 0.13);
+        tailPivot.add(t2);
+        g.userData.dog = {
+          tailPivot: tailPivot,
+          headPivot: headPivot,
+          legFL: dogLegs.legFL,
+          legFR: dogLegs.legFR,
+          legHL: dogLegs.legHL,
+          legHR: dogLegs.legHR,
+          root: g,
+        };
+        return g;
+      }
       function makeTricycle() {
         // Classic "Big Wheel" kid tricycle, child-sized (ref: low plastic trike).
         // Axes: +X forward, Y lateral, Z up (ground z=0). Cylinder axis = Y (unrotated = upright wheel).
@@ -12421,6 +12523,29 @@
             new THREE.Vector3(cx2, cy2, dz2).normalize(),
           );
       }
+      // QUEENS-EXCLUSIVE copy of tieLeashChain (same copy pattern as tieBronxLeashChain):
+      // Maspeth's chain is tied with THIS function, so Queens-only changes to the leash
+      // geometry can never touch the shared tieLeashChain the other boroughs use.
+      function tieQueensLeashChain(chain, ax, ay, az, dx, dy, dz) {
+        // Orient the thin leash bar (BoxGeometry(1, 0.02, 0.02), local +X = its length) as a
+        // RIGID 3D segment from the dog end (dx, dy, dz) to the anchor end (ax, ay, az).
+        // On Manhattan the anchor sits HIGH at the post/tree collar (z 1.5) while the dog's
+        // collar is at z 0.62, so the bar must TILT in 3D -- a flat bar rotated about Z alone
+        // would leave the dog end floating ~0.9u above the collar. setFromUnitVectors maps the
+        // bar's local +X onto the (anchor - dog) direction, landing one end on the fixture
+        // tie-off and the other on the dog's collar.
+        const cx2 = ax - dx,
+          cy2 = ay - dy,
+          dz2 = az - dz;
+        const len = Math.sqrt(cx2 * cx2 + cy2 * cy2 + dz2 * dz2);
+        chain.scale.x = Math.max(0.02, len);
+        chain.position.set(dx + cx2 / 2, dy + cy2 / 2, (az + dz) / 2);
+        if (len > 1e-4)
+          chain.quaternion.setFromUnitVectors(
+            new THREE.Vector3(1, 0, 0),
+            new THREE.Vector3(cx2, cy2, dz2).normalize(),
+          );
+      }
       // NYC street pace: a real spread of speeds, not one speed. A mix of strollers,
       // a normal walk, a brisk power-walk, and a genuine hurry (late for the bus / a
       // meeting). The fast end is what turns the sidewalk into a real obstacle course
@@ -12721,8 +12846,9 @@
           case "leashdog": {
             // Bronx-exclusive copy of the Manhattan leashed-dog model. The Bronx builds
             // NO doghouse — the chain ties to a sidewalk fixture (see spawnWorld).
-            // Queens builds its doghouse with the EXCLUSIVE makeQueensDogHouse copy;
-            // other levels keep the shared makeHighPolyDog + makeDogHouse path.
+            // Queens builds its dog with the EXCLUSIVE makeQueensDog copy and its
+            // doghouse with makeQueensDogHouse; other levels keep the shared
+            // makeHighPolyDog + makeDogHouse path.
             let dg;
             if (isBronxLevel()) {
               // 30% chance of a large mean pitbull with diverse coat
@@ -12735,9 +12861,9 @@
             dg = makeBronxLeashDog(c.dogSize, c.dogCoat);
               c.houseG = null; // no doghouse on the Bronx
             } else {
-              dg = makeHighPolyDog();
-              // Queens gets its EXCLUSIVE doghouse copy so Maspeth tweaks never touch
-              // the shared makeDogHouse that Flatbush's driveway doghouses use.
+              // Queens gets its EXCLUSIVE dog + doghouse copies so Maspeth tweaks never
+              // touch the shared makeHighPolyDog / makeDogHouse used by other levels.
+              dg = isQueensLevel() ? makeQueensDog() : makeHighPolyDog();
               c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();
             }
             c.data = dg;
@@ -13434,14 +13560,50 @@
               // (one of them is the corner store, so this also keeps the doghouse off the
               // corner-store frontage), and deep inside the 80u block, so it can never
               // reach the 16u intersection at either end.
-              const gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
-              const ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
-              ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+              // Pick a MIDDLE-cell boundary (gapIdx 1..9), then VERIFY the doghouse body
+              // (walls 0.7 x 0.6 -> anchor +- 0.35 x +- 0.3) does not overlap the
+              // doormat/concrete landing of EITHER neighbor — their real house.step world
+              // rectangles. With today's geometry the boundary is 3.2u from each house
+              // center and the landing spans +- 1.25u, so this always passes; the guard
+              // keeps "never on a doormat, never directly in front of a house" true even
+              // if the house geometry ever changes.
+              const hAt = (i) =>
+                blocks.find(
+                  (h) =>
+                    h.blockX === b.blockX &&
+                    Math.abs(h.worldX - (b.blockX + queensCellX(i) + QUEENS_MID_W / 2)) < 0.1,
+                );
+              const clearsLanding = (gx, axc, ayc) => {
+                for (const gi of [gx, gx + 1]) {
+                  const hh = hAt(gi);
+                  const st = hh && hh.house && hh.house.step;
+                  if (
+                    st &&
+                    axc - 0.35 < st.x1 &&
+                    axc + 0.35 > st.x0 &&
+                    ayc - 0.3 < st.y1 &&
+                    ayc + 0.3 > st.y0
+                  )
+                    return false;
+                }
+                return true;
+              };
+              let gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
+              let ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
               // Maspeth front-lawn GRASS is y 3.5..6.75 (HOUSE_Y 10.5). The doormat/concrete
               // landing in front of each door occupies y ~5.3..6.7 (house face 6.4..6.8), so
               // the doghouse stays mid-lawn, clearly IN FRONT of the landing: its 0.6u-deep
               // body (anchorY +- 0.3) spans at most y 3.7..5.3 — never on the mat/landing.
-              ld.anchorY = R(4.0, 5.0);
+              let ay = R(4.0, 5.0);
+              for (let tries = 0; tries < 12; tries++) {
+                const axc = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+                if (clearsLanding(gapIdx, axc, ay)) break;
+                gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
+                ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
+                ay = R(4.0, 5.0);
+              }
+              ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
+              ld.anchorY = ay;
               // Home position set back from the door so dog can't clip through the house
               ld.homeX = ld.anchorX + R(-0.4, 0.8);
               ld.homeY = ld.anchorY - R(1.2, 2.0);
@@ -13449,7 +13611,7 @@
               ld.wy = ld.homeY;
               ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
               dynamicGroup.add(ld.houseG);
-              tieLeashChain(
+              tieQueensLeashChain(
                 ld.chain,
                 ld.anchorX,
                 ld.anchorY,

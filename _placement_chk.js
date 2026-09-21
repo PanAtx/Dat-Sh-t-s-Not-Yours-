@@ -136,13 +136,20 @@ for (const bl of LEVEL_BLOCKS) {
   }
 }
 check('Maspeth dog house: gap-between-houses anchor (middle-cell boundary ± 0.35) firmly on the front-lawn GRASS (y 3.5..6.75), IN FRONT of the doormat/landing, strictly inside its block, off both corner cells (store corner + house corner) (' + dogQN + ' gaps)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
-check('Maspeth dog house: spawnWorld routes Queens to MIDDLE-cell gaps only (gapIdx 1..9, never a corner cell / corner-store frontage) with the mid-lawn anchor band R(4.0, 5.0), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && /const gapIdx = 1 \+ \(\(Math\.random\(\) \* \(QUEENS_HOUSES_PER_BLOCK - 3\)\) \| 0\);/.test(src) && src.indexOf('ld.anchorY = R(4.0, 5.0);') >= 0 && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
+check('Maspeth dog house: spawnWorld routes Queens to MIDDLE-cell gaps only (gapIdx 1..9, never a corner cell / corner-store frontage) with the mid-lawn anchor band R(4.0, 5.0), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && /(?:const|let) gapIdx = 1 \+ \(\(Math\.random\(\) \* \(QUEENS_HOUSES_PER_BLOCK - 3\)\) \| 0\);/.test(src) && src.indexOf('let ay = R(4.0, 5.0);') >= 0 && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
 // ---- (3c) Maspeth doghouse RATE: 4 doghouses per level (increased from 1) ----
 check('Maspeth doghouse rate: 4 per level (was 1)', (() => {
   const i = src.indexOf('const dogCount = isFlatbushLevel()');
   if (i < 0) return false;
   const seg = src.slice(i, i + 320);
   return /isQueensLevel\(\)\s*\?\s*4\b/.test(seg) && /:\s*1\s*;/.test(seg);
+})());
+// ---- (3d) Maspeth doghouse: runtime doormat guard + QUEENS-exclusive dog/leash wiring ----
+check('Maspeth dog house: runtime guard keeps the body off BOTH neighbors doormat/landing (house.step rectangles, retry on overlap) and ties with the QUEENS-exclusive chain (tieQueensLeashChain)', (() => {
+  const j = src.indexOf('borough === "QUEENS"', src.indexOf('const dogCount = isFlatbushLevel()'));
+  if (j < 0) return false;
+  const seg = src.slice(j, j + 4000);
+  return seg.indexOf('clearsLanding') >= 0 && seg.indexOf('house.step') >= 0 && seg.indexOf('tieQueensLeashChain(') >= 0;
 })());
 
 // ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels
