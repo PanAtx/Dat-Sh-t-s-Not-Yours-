@@ -40,7 +40,12 @@ function SP(r,m,s){ return new THREE.Mesh(new THREE.SphereGeometry(r,s||8,s||6),
 function SPH(r,m,ws,hs){ return new THREE.Mesh(new THREE.SphereGeometry(r,ws||14,hs||10), m); }
 const SKIN_TONES = [0xffd7b0];
 const SHIRTS = [0x3d6ea5], PANTS = [0x2f3640], HAIRS = [0x2a2118];
+// Maspeth palettes (top-level in the game; makePolishGirl references them)
+const POLISH_SKIN = [0xf7d9bc, 0xf3c6a5, 0xe8b48c];
+const POLISH_HAIR = [0xe8c877, 0xd9b36c, 0xc9a35a, 0x111111, 0x1c1c1e];
+const POLISH_DRESSES = [0x3a5f8a, 0x7a2d5c, 0x2d6b4f, 0x8a2d4e, 0x4a4a7a, 0xb08a3e];
 const pick = a => a[0];
+let polishDressQueue = []; // addCreature's "polish" case consumes one color per lady
 const R = (a,b) => (a+b)/2;
 const makePerson = () => { const g = new THREE.Group(); const legL = new THREE.Group(), legR = new THREE.Group(), armL = new THREE.Group(), armR = new THREE.Group(); const upper = new THREE.Group(); g.add(legL); g.add(legR); g.add(upper); upper.add(armL); upper.add(armR); g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR, upper: upper }; return { g: g, legL: legL, legR: legR, armL: armL, armR: armR }; };
 const GZ = 0.3;

@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.199</div>
+          <div id="app-version" class="menu-version">v1.0.202</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.199';
+      const APP_VERSION = '1.0.202';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4026,6 +4026,18 @@
       const SKIN_TONES = [
         0xf3c6a5, 0xe8b48c, 0xd9a06b, 0xc68642, 0x9c6b3c, 0x8d5524, 0x6f4522,
         0x5a3a1e,
+      ];
+      // Maspeth (Queens) Polish ladies: faired palettes, shared by makePolishGirl
+      // and the spawn block (one UNIQUE dress color per block, see polishDressQueue).
+      const POLISH_SKIN = [0xf7d9bc, 0xf3c6a5, 0xe8b48c]; // caucasian tones only
+      const POLISH_HAIR = [0xe8c877, 0xd9b36c, 0xc9a35a, 0x111111, 0x1c1c1e]; // blond or black
+      const POLISH_DRESSES = [
+        0x3a5f8a, // navy
+        0x7a2d5c, // plum
+        0x2d6b4f, // emerald
+        0x8a2d4e, // wine
+        0x4a4a7a, // slate violet
+        0xb08a3e, // old gold
       ];
       function disposeObj(o) {
         o.traverse((ch) => {
@@ -9740,6 +9752,60 @@
       // display window, side door + glass + handle, entrance mat, canvas name sign).
       // Kept as its own builder so Maspeth's store can be tuned independently.
       const QUEENS_STORE_W = 6.5;
+      function makePolishDeliSign(food) {
+        // The Polish deli's hanging sign: a cream panel with a red trim, mounted on
+        // short rods in FRONT of the deli facade (the store itself is the deli — its
+        // name comes from the MASPETH_STORE_NAMES pool). The emblem is a PICKLE or a
+        // PIEROGI, picked at random per store. Local coords assume the deli's
+        // facade is at y = -2.4 (d/2 = 2.4) facing -Y, so the group is dropped into
+        // the store group at the door's x.
+        const g = new THREE.Group();
+        const panelM = M(0xf2ead8),
+          trimM = M(0x8a2d4e),
+          rodM = M(0x333333);
+        // Panel (long axis along X, floating just off the facade)
+        const panel = BX(2.3, 0.07, 0.85, panelM);
+        panel.position.set(0, -2.54, 2.2);
+        g.add(panel);
+        // Red trim: top + bottom + both sides
+        const trimT = BX(2.4, 0.04, 0.06, trimM);
+        trimT.position.set(0, -2.54, 2.62);
+        g.add(trimT);
+        const trimB = BX(2.4, 0.04, 0.06, trimM);
+        trimB.position.set(0, -2.54, 1.78);
+        g.add(trimB);
+        const trimL = BX(0.06, 0.04, 0.9, trimM);
+        trimL.position.set(-1.17, -2.54, 2.2);
+        g.add(trimL);
+        const trimR = BX(0.06, 0.04, 0.9, trimM);
+        trimR.position.set(1.17, -2.54, 2.2);
+        g.add(trimR);
+        // Mounting rods from the facade to the panel
+        [-0.85, 0.85].forEach((rx) => {
+          const rod = BX(0.05, 0.18, 0.05, rodM);
+          rod.position.set(rx, -2.45, 2.2);
+          g.add(rod);
+        });
+        // THE EMBLEM: pickle (a green capsule) or pierogi (a pale pinched half-moon)
+        if (food === "pierogi") {
+          const dumpling = SPH(0.2, M(0xe8d5a0));
+          dumpling.scale.set(1.6, 0.7, 0.9);
+          dumpling.position.set(0, -2.6, 2.2);
+          g.add(dumpling);
+          const pleat = BX(0.55, 0.05, 0.04, M(0xc9b07a));
+          pleat.position.set(0, -2.6, 2.36);
+          g.add(pleat); // the pinched edge
+        } else {
+          const pickle = SPH(0.17, M(0x5a8a3a));
+          pickle.scale.set(0.8, 0.7, 1.7);
+          pickle.position.set(0, -2.6, 2.2);
+          g.add(pickle);
+          const stem = BX(0.04, 0.03, 0.1, M(0x3a5a1a));
+          stem.position.set(0, -2.6, 2.5);
+          g.add(stem);
+        }
+        return g;
+      }
       function makeQueensStore(storeOptions) {
         const g = new THREE.Group();
         const cols = [
@@ -9852,6 +9918,17 @@
         const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
         signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
         g.add(signCrown);
+        // POLISH DELI: a store whose name is a deli gets its hanging emblem sign in
+        // FRONT of the store — a pickle or a pierogi (random per store) — the deli
+        // itself being the Maspeth corner store (name from MASPETH_STORE_NAMES).
+        if (/DELI/i.test(storeOptions.storeName)) {
+          const deliSign = makePolishDeliSign(
+            Math.random() < 0.5 ? "pickle" : "pierogi",
+          );
+          deliSign.position.x = doorX;
+          g.add(deliSign);
+        }
+
         // Step data for collision: the entrance MAT, centered under the door (cx offset).
         g.userData.step = {
           cx: doorX,
@@ -11537,26 +11614,18 @@
         g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
         return g;
       }
-      function makePolishGirl() {
+      function makePolishGirl(dressColor) {
         // Maspeth (Queens) sidewalk regular: a pretty Polish woman standing the
         // corner — fair (caucasian) skin ONLY, blond or black hair, a NICE DRESS in
         // a random color (so no two look alike), stiletto heels, and an EXPENSIVE
         // gold purse in her hand. Body proportions mirror the hooker (this is a
         // "nice dress" woman, not a street walker) — both arms relaxed at her sides.
+        // dressColor: when given (the Queens spawn block hands each block a UNIQUE
+        // color via polishDressQueue), it overrides the random pick.
         const g = new THREE.Group();
-        const POLISH_SKIN = [0xf7d9bc, 0xf3c6a5, 0xe8b48c]; // caucasian tones only
-        const POLISH_HAIR = [0xe8c877, 0xd9b36c, 0xc9a35a, 0x111111, 0x1c1c1e]; // blond or black
-        const POLISH_DRESSES = [
-          0x3a5f8a, // navy
-          0x7a2d5c, // plum
-          0x2d6b4f, // emerald
-          0x8a2d4e, // wine
-          0x4a4a7a, // slate violet
-          0xb08a3e, // old gold
-        ];
         const skin = M(pick(POLISH_SKIN));
         const dressM = new THREE.MeshLambertMaterial({
-          color: pick(POLISH_DRESSES),
+          color: dressColor != null ? dressColor : pick(POLISH_DRESSES),
           emissive: 0x0a0a12,
           emissiveIntensity: 0.35,
         });
@@ -12833,7 +12902,8 @@
           type === "yeller" ||
           type === "jacker" ||
           type === "skater" ||
-          type === "escooter"
+          type === "escooter" ||
+          type === "polishboy"
         )
           c.gender = "male";
         else if (
@@ -13034,9 +13104,27 @@
             break;
           case "polish":
             // Maspeth Polish woman: position is set by the Queens spawn block
-            // (one per active block, sidewalk or front lawn).
+            // (one per active block, sidewalk or front lawn). Each block gets a
+            // UNIQUE dress color, handed over via polishDressQueue.
             c.swayT = R(0, 6.28);
-            c.data = makePolishGirl();
+            {
+              const pdress = polishDressQueue.length
+                ? polishDressQueue.shift()
+                : null;
+              c.data = makePolishGirl(pdress);
+            }
+            break;
+          case "polishboy":
+            // The nice Polish boy (Maspeth, the ladies' brother): a regular sidewalk
+            // pedestrian; the Queens spawn block places him on his sister's block.
+            c.wy = R(1.2, 4.2);
+            c.sp = npcPace();
+            c.dir = Math.random() < 0.5 ? -1 : 1; // random walk direction
+            c.data = makePerson({
+              shirt: pick(SHIRTS),
+              pants: pick(PANTS),
+              hair: pick(HAIRS),
+            });
             break;
           case "crazy":
             c.wy = R(1.2, 4.2);
@@ -13921,6 +14009,11 @@
           const polishBlocks = LEVEL_BLOCKS.filter(
             (b) => b.garbage === true && b.x >= 96 && b.x <= 576,
           );
+          // Every lady gets a UNIQUE dress color: shuffle the palette into the
+          // queue; addCreature's "polish" case consumes one per block.
+          polishDressQueue = polishDressQueue.concat(
+            POLISH_DRESSES.slice().sort(() => Math.random() - 0.5),
+          );
           for (const bl of polishBlocks) {
             const pw = addCreature("polish");
             const onLawn = Math.random() < 0.5;
@@ -13928,6 +14021,16 @@
             pw.wy = onLawn ? R(5.0, 7.0) : R(1.4, 4.2);
             pw.g.position.set(pw.wx, pw.wy, GZ);
             pw.g.rotation.z = -Math.PI / 2; // facing the street, like the hooker
+          }
+          // The nice Polish boy: his SISTER is one of the ladies above, so he
+          // patrols the block she's standing on. Bumping him earns a polite ask
+          // to stop bothering her.
+          {
+            const sib = polishBlocks[(Math.random() * polishBlocks.length) | 0];
+            const pb = addCreature("polishboy");
+            pb.wx = sib.x + 10 + R(0, 60);
+            pb.wy = R(1.6, 4.0); // sidewalk, like a regular pedestrian
+            pb.g.position.set(pb.wx, pb.wy, GZ);
           }
         }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
@@ -14776,6 +14879,7 @@
             c.type === "jacker" ||
             c.type === "hooker" ||
             c.type === "polish" ||
+            c.type === "polishboy" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -15260,6 +15364,7 @@
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
+      let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
       let soccerTeams = []; // one team per Flatbush block: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
@@ -15565,6 +15670,11 @@
           "Failure to present valid Polish documentation",
           "Uninvited contact with a Maspeth native",
           "Failure to respect a citizen's home-country sovereignty",
+        ],
+        polishboy: [
+          "Failure to respect a concerned younger brother",
+          "Unsanctioned interaction with a Maspeth native's sibling",
+          "Failure to observe neighborhood sibling protocols",
         ],
         skater: [
           "Failure to yield to a wheeled citizen",
@@ -16740,6 +16850,7 @@
             c.type === "jacker" ||
             c.type === "hooker" ||
             c.type === "polish" ||
+            c.type === "polishboy" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -16810,6 +16921,20 @@
                     c.wy,
                     c.gender,
                     "polish",
+                  );
+                else if (c.type === "polishboy")
+                  Voice.say(
+                    pick([
+                      "Hey, please stop talking to my sister.",
+                      "She's my sister — please leave her be.",
+                      "My sister asked me to tell you to back off.",
+                    ]),
+                    3,
+                    1.05,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
                   );
                 else if (c.type === "skater")
                   Voice.say(
@@ -18077,6 +18202,11 @@
               }
               break;
             }
+            case "polishboy":
+              // The nice Polish boy (Queens-only, spawned by the Queens block on his
+              // sister's block): a regular sidewalk pedestrian — falls straight
+              // through to the shared walker behavior below (obstacle routing,
+              // traffic yielding, off-screen recycle).
             case "ped":
             case "lady":
             case "dogwalker": {

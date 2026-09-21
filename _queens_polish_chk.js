@@ -56,6 +56,10 @@ function CY(r1, r2, h, m, s) { return new THREE.Mesh(new THREE.CylinderGeometry(
 function SP(r, m, s) { return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); }
 function SPH(r, m, ws, hs) { return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
 const pick = (a, n) => a[n || 0];
+// Maspeth palettes (top-level in the game; the builder references them):
+const POLISH_SKIN = [0xf7d9bc, 0xf3c6a5, 0xe8b48c];
+const POLISH_HAIR = [0xe8c877, 0xd9b36c, 0xc9a35a, 0x111111, 0x1c1c1e];
+const POLISH_DRESSES = [0x3a5f8a, 0x7a2d5c, 0x2d6b4f, 0x8a2d4e, 0x4a4a7a, 0xb08a3e];
 
 let pass = true;
 const check = (n, c, e) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  [' + e + ']')); if (!c) pass = false; };
@@ -65,13 +69,13 @@ eval(extract('makePolishGirl'));
 const mk = extract('makePolishGirl');
 // caucasian skin ONLY — no SKIN_TONES, and every skin hex is a fair tone
 const FAIR = [/0xf7d9bc/, /0xf3c6a5/, /0xe8b48c/, /0xf5d7bd/, /0xffe0bd/, /0xffd7b0/];
-const skinLine = (mk.match(/POLISH_SKIN\s*=\s*\[[^\]]*\]/) || [''])[0];
+const skinLine = (src.match(/const POLISH_SKIN = \[[^\]]*\]/) || [''])[0];
 const skinHexes = skinLine.match(/0x[0-9a-f]{6}/gi) || [];
 check('polish girl: skin palette exists and is caucasian-only (no SKIN_TONES)',
   skinHexes.length >= 2 && mk.indexOf('SKIN_TONES') < 0, 'skinLine=' + skinLine);
 check('polish girl: every skin hex is a fair tone', skinHexes.every((h) => FAIR.some((r) => r.test(h))), JSON.stringify(skinHexes));
 // blond or black hair
-const hairLine = (mk.match(/POLISH_HAIR\s*=\s*\[[^\]]*\]/) || [''])[0];
+const hairLine = (src.match(/const POLISH_HAIR = \[[^\]]*\]/) || [''])[0];
 const hairHexes = hairLine.match(/0x[0-9a-f]{6}/gi) || [];
 const isBlond = (h) => {
   const n = parseInt(h.slice(2), 16);
@@ -85,9 +89,13 @@ const isBlack = (h) => {
 };
 check('polish girl: hair palette has blond AND black', hairHexes.length >= 2 && hairHexes.some(isBlond) && hairHexes.some(isBlack), JSON.stringify(hairHexes));
 // random-color dress (4+ distinct colors)
-const dressLine = (mk.match(/POLISH_DRESSES\s*=\s*\[[^\]]*\]/s) || [''])[0];
+const dressLine = (src.match(/const POLISH_DRESSES = \[[^\]]*\]/s) || [''])[0];
 const dressHexes = dressLine.match(/0x[0-9a-f]{6}/gi) || [];
-check('polish girl: dress palette has 4+ distinct colors (random per woman)', new Set(dressHexes).size >= 4, JSON.stringify(dressHexes));
+check('polish girl: dress palette has 4+ distinct colors (unique per block)', new Set(dressHexes).size >= 4, JSON.stringify(dressHexes));
+// unique dress per block: builder takes dressColor, queue feeds one per lady
+check('makePolishGirl takes a dressColor param (overrides the random pick)',
+  src.indexOf('function makePolishGirl(dressColor)') >= 0 &&
+  src.indexOf('dressColor != null ? dressColor : pick(POLISH_DRESSES)') >= 0);
 // hooker-class body: cone mini-skirt + stiletto spikes
 check('polish girl: wears the hooker-class dress (cone mini-skirt)', mk.indexOf('ConeGeometry(0.27, 0.55, 12') >= 0);
 check('polish girl: stiletto heels', mk.indexOf('stiletto') >= 0 && mk.indexOf('spike') >= 0);
@@ -107,7 +115,7 @@ check('npcCounts: polish is base 0 (spawned by the dedicated block, like crazy/d
 // ================= 3. addCreature WIRING =================
 const addSec = extract('addCreature');
 check('addCreature: case "polish" builds makePolishGirl',
-  /case\s+"polish":/.test(addSec) && /makePolishGirl\(\)/.test(addSec));
+  /case\s+"polish":/.test(addSec) && /makePolishGirl\(pdress\)/.test(addSec));
 check('addCreature: polish voice gender is female',
   /type\s*===\s*"lady"\s*\|\|\s*type\s*===\s*"hooker"\s*\|\|\s*type\s*===\s*"polish"/.test(addSec));
 
@@ -159,6 +167,15 @@ check('spawn block: sidewalk OR front lawn (50/50)',
   spawnSec.indexOf('onLawn') >= 0 && spawnSec.indexOf('R(5.0, 7.0)') >= 0 && spawnSec.indexOf('R(1.4, 4.2)') >= 0);
 check('spawn block: faces the street (-PI/2, like the hooker)',
   spawnSec.indexOf('pw.g.rotation.z = -Math.PI / 2') >= 0);
+check('spawn block: dresses UNIQUE per block (palette shuffled into polishDressQueue)',
+  spawnSec.indexOf('polishDressQueue') >= 0 &&
+  spawnSec.indexOf('POLISH_DRESSES.slice().sort(() => Math.random() - 0.5)') >= 0 &&
+  src.indexOf('let polishDressQueue = []') >= 0 &&
+  addSec.indexOf('polishDressQueue.shift()') >= 0 &&
+  addSec.indexOf('makePolishGirl(pdress)') >= 0);
+check('spawn: one nice Polish boy per Queens level, on a random lady\'s block (her brother)',
+  src.indexOf('addCreature("polishboy")') >= 0 &&
+  src.indexOf('polishBlocks[(Math.random() * polishBlocks.length) | 0]') >= 0);
 
 // ================= 8. DOG COUNT SCALED BY SCORE =================
 const dogSec = (() => {
@@ -176,6 +193,7 @@ check('WRITTEN UP!: polish has its own offense lines',
 // ================= 10. FLYING CANS CAN HIT HER =================
 const canSec = extract('checkFlyingCanNpcHit');
 check('flying cans: polish is a hittable civilian', canSec.indexOf('c.type === "polish"') >= 0);
+check('flying cans: polishboy is a hittable civilian too', canSec.indexOf('c.type === "polishboy"') >= 0);
 
 console.log(pass ? '\nQUEENS POLISH CHECK: ALL PASS' : '\nQUEENS POLISH CHECK: FAILURES ABOVE');
 process.exit(pass ? 0 : 1);
