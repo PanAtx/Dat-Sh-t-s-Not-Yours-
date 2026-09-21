@@ -395,6 +395,9 @@ check('debug box: B toggles the MAGENTA carrying push-out outline that follows t
   assert.ok(html.indexOf('truckDebugBox.position.set(truck.wx, -4.5, GZ);') >= 0);
   assert.ok(html.indexOf('updateTruckDebugBox();') > html.indexOf('truck.g.position.set(truck.wx, -4.5, GZ);'));
 });
+check('debug box: group is placed at the truck AT BUILD TIME (not buried at the world origin under the road)', ()=>{
+  assert.ok(html.indexOf('grp.position.set(truck.wx, -4.5, GZ);') >= 0);
+});
 check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 corner / 0.45 radius)', ()=>{
   assert.ok(html.indexOf('const C_M = 0.7,') >= 0);
   assert.ok(html.indexOf('C_M_CURB = 0.4,') >= 0);
