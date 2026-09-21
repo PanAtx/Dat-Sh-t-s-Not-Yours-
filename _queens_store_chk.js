@@ -142,15 +142,22 @@ const checks = [
   ],
   [
     'Maspeth concrete front-lawn apron is QUEENS_STORE_W wide, 0.35 thick, at the store corner',
-    /groundStrip\(QUEENS_STORE_W, 3\.5, 0\.35, 6\.75, apron, cx\);/.test(html),
+    /groundStrip\(QUEENS_STORE_W, 3\.5, 0\.35, 6\.75, apron, apronCx\);/.test(html),
   ],
   [
-    'Maspeth concrete park patch behind the store (QUEENS_STORE_W wide, full park band)',
-    /groundStrip\(QUEENS_STORE_W, 15\.5, 0\.35, 16\.25, apron, cx\);/.test(html),
+    'Maspeth concrete park patch is EXTENDED (IW + QUEENS_STORE_W wide) to the intersection edge',
+    /const parkW = IW \+ QUEENS_STORE_W;/.test(html) &&
+      /groundStrip\(parkW, 15\.5, 0\.35, 16\.25, apron, parkCx\);/.test(html),
   ],
   [
     'Maspeth concrete corners track the FROZEN store corner (left = block start, right = block end)',
     /QUEENS_STORE_CORNERS\[bi\][\s\S]*?bl\.x \+ halfStore[\s\S]*?bl\.x \+ \(HOUSES_PER_BLOCK - 1\) \* BW \+ \(BW - halfStore\)/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth park patch wraps the intersection-facing side (left: bl.x - IW, right: bl.x + BLOCK_W + IW)',
+    /const parkCx = isLeft[\s\S]*?bl\.x - IW \+ parkW \/ 2[\s\S]*?bl\.x \+ BLOCK_W \+ IW - parkW \/ 2/.test(
       html,
     ),
   ],
