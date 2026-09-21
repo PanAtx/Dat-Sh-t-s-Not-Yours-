@@ -2,17 +2,19 @@
 // the worker's push-out box is now IDENTICAL for carrying and empty-handed
 // (raw collision box + 0.25u breathing room, SHARP corners), so he can tuck
 // right up to the hopper while holding a bag / can / basket. The held item is
-// allowed to visually clip into the PAINTED truck body: updatePlayer hides it
-// the instant it goes inside the paint (it "disappears into the truck") and
-// brings it back the moment it clears, so nothing ever pokes through. The
-// dump zones must stay reachable at his new closest approach.
+// allowed to visually clip into the PAINTED truck body: its materials carry
+// the body as clipping planes, so only the part of the item INSIDE the truck
+// is cut away and the rest stays visible — nothing pokes through the paint.
+// The dump zones must stay reachable at his new closest approach.
 //
 // Fix under test:
 //   1) push-out: ONE box for both states — 0.25u margin on every side, no
 //      CARRY_M / CARRY_M_CURB / CARRY_M_BACK / CARRY_CHAMFER, sharp corners;
-//   2) item clip: the held item is hidden while its center is inside the
-//      painted body (+ its own size), and visibility is reset on pickup and
-//      on drop so a hidden item can never stay hidden;
+//   2) item clip: the held item's materials carry the painted truck body as
+//      six CLIPPING PLANES — only the part of the item INSIDE the truck is
+//      cut away, the rest stays visible (it reads as sliding behind the
+//      paint); the item's materials are cloned on pickup so the shared
+//      template materials stay untouched;
 //   3) the truck's own motion must never shove a STANDING worker: the push-out
 //      is skipped only while he doesn't move — the instant he walks again he's
 //      pushed OUT of the body (a truck that swept over him can't let him walk
@@ -53,17 +55,21 @@ check('push-out: the old carrying standoffs are GONE (no CARRY_M / CARRY_M_CURB 
   assert.ok(html.indexOf('CARRY_CHAMFER') < 0);
   assert.ok(html.indexOf('_holding ?') < 0, 'no carry-conditional box left');
 });
-check('item clip: the held item is hidden while its center is inside the painted truck body', ()=>{
-  assert.ok(html.indexOf('carried.g.getWorldPosition(_truckClipV);') >= 0);
-  assert.ok(html.indexOf('truck.g.worldToLocal(_truckClipV);') >= 0);
-  assert.ok(html.indexOf('carried.g.visible = !(') >= 0);
-  assert.ok(html.indexOf('* 1.25 + 0.4') >= 0, 'clip volume = painted reach (x1.25) + item size');
+check('item clip: the held item is CLIPPED by the painted truck body (only the part inside is removed)', ()=>{
+  assert.ok(html.indexOf('renderer.localClippingEnabled = true;') >= 0);
+  assert.ok(html.indexOf('m.clippingPlanes = truckClipWorld;') >= 0);
+  assert.ok(html.indexOf('applyMatrix4(truck.g.matrixWorld)') >= 0, 'planes follow the truck every frame');
+  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, 1, 0), RS)') >= 0, 'street face plane');
+  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, -1, 0), RC)') >= 0, 'curb face plane');
+  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(1, 0, 0), RL)') >= 0, 'rear face plane');
+  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(-1, 0, 0), RL)') >= 0, 'front face plane');
+  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, 0, -1), HT)') >= 0, 'top plane (flying items stay visible)');
+  assert.ok(html.indexOf('* 1.25 + 0.05') >= 0, 'clip box = painted reach (x1.25) + small pad');
 });
-check('item clip: visibility is reset on PICK-UP and on DROP (a hidden item must not stay hidden)', ()=>{
+check('item clip: the item materials are CLONED once on pickup (shared template materials stay untouched)', ()=>{
   const attach = html.indexOf('function attachCarried(');
-  assert.ok(attach >= 0 && html.indexOf('item.g.visible = true;', attach) > attach);
-  const drop = html.indexOf('function dropCarried(');
-  assert.ok(drop > attach && html.indexOf('item.g.visible = true;', drop) > drop);
+  assert.ok(attach >= 0 && html.indexOf('item.clipMats') >= 0);
+  assert.ok(html.indexOf('o.material.clone()', attach) > attach, 'materials cloned in attachCarried');
 });
 check('push-out: truck motion must never drag a standing worker, but a walking one is pushed OUT (no hopper pass-through)', ()=>{
   assert.ok(html.indexOf('const preOut = pdx * pdx + pdy * pdy >= WR * WR;') >= 0);
@@ -347,9 +353,9 @@ check('debug box: lives INSIDE worldGroup (the +45deg-rotated world) so it sits 
   assert.ok(html.indexOf('worldGroup.remove(truckDebugBox);') > blk);
   assert.ok(html.indexOf('needsIdleRender = true;', blk) > blk);
 });
-check('debug box: mirrors the push-out + clip constants (0.25 margin / 0.45 radius / 0.4 clip / x1.25 paint)', ()=>{
+check('debug box: mirrors the push-out + clip constants (0.25 margin / 0.45 radius / 0.05 clip pad / x1.25 paint)', ()=>{
   assert.ok(html.indexOf('const C_M = 0.25,') >= 0);
-  assert.ok(html.indexOf('CLIP_E = 0.4;') >= 0);
+  assert.ok(html.indexOf('CLIP_E = 0.05;') >= 0);
   assert.ok(html.indexOf('* 1.25 + CLIP_E') >= 0);
   assert.ok(html.indexOf('const TRUCK_DEBUG_WR = 0.45;') >= 0);
 });
@@ -394,15 +400,15 @@ check('debug box outline: OUTER line = inner + the 0.45u worker radius (where hi
   assert.ok(Math.abs(extY(out, Math.max) - (extY(inr, Math.max) + 0.45)) < 1e-5);
   assert.ok(Math.abs(extY(out, Math.min) - (extY(inr, Math.min) - 0.45)) < 1e-5);
 });
-check('debug box outline: CLIP volume = painted body + item size (where the held item vanishes)', ()=>{
+check('debug box outline: CLIP volume = the painted body (where the item is cut away)', ()=>{
   const make = makeDebugOutline();
   const bL = BOX_L;
-  const pts = outlinePts(make(bL + 0.4, bL + 0.4, 1.8 * 1.25 + 0.4, 0.63 * 1.25 + 0.4, 0));
+  const pts = outlinePts(make(bL + 0.05, bL + 0.05, 1.8 * 1.25 + 0.05, 0.63 * 1.25 + 0.05, 0));
   const ext = (a, f) => f(...a.map(q => q[0])), extY = (a, f) => f(...a.map(q => q[1]));
-  assert.ok(Math.abs(ext(pts, Math.max) - (bL + 0.4)) < 1e-5);
-  assert.ok(Math.abs(ext(pts, Math.min) + (bL + 0.4)) < 1e-5);
-  assert.ok(Math.abs(extY(pts, Math.max) - (0.63 * 1.25 + 0.4)) < 1e-5);
-  assert.ok(Math.abs(extY(pts, Math.min) + (1.8 * 1.25 + 0.4)) < 1e-5);
+  assert.ok(Math.abs(ext(pts, Math.max) - (bL + 0.05)) < 1e-5);
+  assert.ok(Math.abs(ext(pts, Math.min) + (bL + 0.05)) < 1e-5);
+  assert.ok(Math.abs(extY(pts, Math.max) - (0.63 * 1.25 + 0.05)) < 1e-5);
+  assert.ok(Math.abs(extY(pts, Math.min) + (1.8 * 1.25 + 0.05)) < 1e-5);
 });
 check('debug box: the CLIP outline is drawn (a third magenta loop in the block)', ()=>{
   const blk = html.indexOf('TEST MODE: B = MAGENTA TRUCK DEBUG BOX');

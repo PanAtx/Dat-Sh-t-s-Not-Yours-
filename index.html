@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.173</div>
+          <div id="app-version" class="menu-version">v1.0.174</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.173';
+      const APP_VERSION = '1.0.174';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2729,6 +2729,7 @@
         renderer.setSize(innerWidth, innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.localClippingEnabled = true; // per-material clipping planes (held item vs truck body)
         $("game").appendChild(renderer.domElement);
 
         scene = new THREE.Scene();
@@ -13816,10 +13817,23 @@
           hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
         return Math.hypot(p.wx - hx, p.wy - hy) < HEAVY_DUMP_RADIUS;
       }
-      const _truckClipV = new THREE.Vector3(); // temp: held-item vs painted-truck clip test
+      let truckClipLocal = null, // 6 planes of the painted truck body in TRUCK space (built once)
+        truckClipWorld = null; // same planes transformed to world space every frame
       function attachCarried(item) {
         worker.group.add(item.g);
-        item.g.visible = true; // it may have been hidden by the truck clip check
+        // Clone this item's materials ONCE so we can give them the truck's
+        // clipping planes without touching the shared template materials the
+        // ground items use (the clone stays with the item for the rest of the
+        // shift — resting items under the truck get clipped correctly too).
+        if (!item.clipMats) {
+          item.g.traverse((o) => {
+            if (o.isMesh && o.material)
+              o.material = Array.isArray(o.material)
+                ? o.material.map((m) => m.clone())
+                : o.material.clone();
+          });
+          item.clipMats = true;
+        }
         if (item.kind === "litterbasket") {
           // Taller model — hold it out to the side, base low, so it reads as "carried".
           item.g.position.set(0.95, 0.0, 0.2);
@@ -13975,7 +13989,6 @@
         worker.group.remove(item.g);
         dynamicGroup.add(item.g);
         item.g.position.set(item.wx, item.wy, GZ);
-        item.g.visible = true; // the truck clip check may have hidden it while carried
         carried = null;
         carry = "none";
         SFX.playDropSound();
@@ -16182,21 +16195,38 @@
         );
         // HELD-ITEM CLIPPING: carrying lets him stand as close as empty-handed,
         // so the held bag / can / basket pokes into the truck body when he
-        // tucks up to the hopper. Hide the item the instant its center goes
-        // inside the PAINTED body (+ its own size, so nothing pokes through
-        // the edge first) — it "disappears into the truck" — and bring it
-        // back the moment it clears the paint.
-        if (carried && carried.g && truck && truck.g) {
-          carried.g.getWorldPosition(_truckClipV);
-          truck.g.worldToLocal(_truckClipV);
-          const clipLen = (truck.boxL != null ? truck.boxL : 4.0) + 0.4,
-            clipCurb = (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW) * 1.25 + 0.4,
-            clipStreet = (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW) * 1.25 + 0.4;
-          carried.g.visible = !(
-            Math.abs(_truckClipV.x) < clipLen &&
-            _truckClipV.y < clipCurb &&
-            _truckClipV.y > -clipStreet
-          );
+        // tucks up to the hopper. The item's materials carry six CLIPPING
+        // PLANES (the painted truck body as a box), so only the part of the
+        // item INSIDE the truck is cut away — the rest stays visible and the
+        // item reads as sliding behind the paint. Planes are built in truck
+        // space once, then transformed to world space here each frame.
+        if (truck && truck.g) {
+          if (!truckClipLocal) {
+            const RS = (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW) * 1.25 + 0.05,
+              RC = (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW) * 1.25 + 0.05,
+              RL = (truck.boxL != null ? truck.boxL : 4.0) + 0.05,
+              HT = 1.15; // above carried items (~1.0), below toss arcs (2.4+)
+            // a fragment is kept while its distance is >= 0 to ALL six planes,
+            // so the whole painted volume is the only removed region:
+            truckClipLocal = [
+              new THREE.Plane(new THREE.Vector3(0, 1, 0), RS), // street face
+              new THREE.Plane(new THREE.Vector3(0, -1, 0), RC), // curb face
+              new THREE.Plane(new THREE.Vector3(1, 0, 0), RL), // rear face
+              new THREE.Plane(new THREE.Vector3(-1, 0, 0), RL), // front (cab) face
+              new THREE.Plane(new THREE.Vector3(0, 0, -1), HT), // top (flying items stay visible)
+              new THREE.Plane(new THREE.Vector3(0, 0, 1), 1.5), // bottom (ground)
+            ];
+            truckClipWorld = truckClipLocal.map((pl) => pl.clone());
+          }
+          for (let i = 0; i < 6; i++)
+            truckClipWorld[i].copy(truckClipLocal[i]).applyMatrix4(truck.g.matrixWorld);
+          if (carried && carried.g)
+            carried.g.traverse((o) => {
+              if (o.isMesh && o.material)
+                (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+                  m.clippingPlanes = truckClipWorld;
+                });
+            });
         }
         // invulnerability flashing — and IMMUNITY ("Monster") flashes RAPIDLY with a
         // constant burst of colorful stars shooting off the worker
@@ -20227,9 +20257,9 @@
       //   INNER  = the worker-stop surface (raw collision box + 0.25u
       //            breathing room on every side);
       //   OUTER  = inner + the 0.45u worker radius = where his CENTER stops;
-      //   CLIP   = the painted body + item size — the held item "disappears
-      //            into the truck" while it is inside this volume (the
-      //            translucent magenta FILL marks it).
+      //   CLIP   = the painted body — the part of the held item INSIDE this
+      //            box is clipped away (clipping planes), the rest stays
+      //            visible (the translucent magenta FILL marks it).
       // The group follows the truck every frame (updateTruckDebugBox).
       const TRUCK_DEBUG_WR = 0.45; // worker collision radius (mirrors the push-out)
       let truckDebugBox = null,
@@ -20262,7 +20292,7 @@
       }
       function buildTruckDebugBox() {
         const C_M = 0.25, // worker breathing room (carrying == empty-handed)
-          CLIP_E = 0.4; // item-clip volume margin (its own size past the paint)
+          CLIP_E = 0.05; // item-clip box pad past the paint (mirrors the clip planes)
         const bL = truck.boxL != null ? truck.boxL : 4.0, // same fallbacks as the play update
           bW = truck.boxW != null ? truck.boxW : 1.9,
           bS = truck.boxWStreet != null ? truck.boxWStreet : bW,
