@@ -1,10 +1,12 @@
-// _cat_spawn_chk.js — verify the bodega cat spawn (Manhattan + Bronx + Flatbush):
-// exactly 4 cats on 4 different active blocks, sitting on the sidewalk in front of
-// the store (bl.x + 3.0, wy 4.5) — or perched ON the store mat at the door (Bronx:
-// bl.x - 2.6, wy 6.7; Flatbush: the left corner store's mat at bl.x + 0.65, wy 7.6) —
-// one of each coat (tuxedo / grey / orange / tabby, with the Bronx-only white & grey
-// "mott" replacing plain grey), and that the old debug cat modes are fully gone
-// (per-block "easy visibility" loop, magenta glow, debugNoFlee flag).
+// _cat_spawn_chk.js — verify the bodega cat spawn (Manhattan + Bronx + Flatbush +
+// Queens): exactly 4 cats on 4 different active blocks, sitting on the sidewalk in
+// front of the store (Manhattan/Queens: bl.x + 3.0 / the corner-store door, wy 4.5) —
+// or perched ON the store mat at the door (Bronx: bl.x - 2.6, wy 6.7; Flatbush: the
+// left corner store's mat at bl.x + 0.65, wy 7.6) — one of each coat (tuxedo / grey /
+// orange / tabby, with the Bronx-only white & grey "mott" and the Queens-only
+// three-patch "calico" replacing plain grey on their levels), and that the old debug
+// cat modes are fully gone (per-block "easy visibility" loop, magenta glow,
+// debugNoFlee flag).
 
 const fs = require('fs');
 const path = require('path');
@@ -37,14 +39,21 @@ check('Bronx cats can perch ON the store mat at the door (bl.x - 2.6, wy 6.7)',
   /bc\.wx = bl\.x - 2\.6/.test(spawnBlock) && /bc\.wy = 6\.7/.test(spawnBlock));
 check('Flatbush cats perch ON the left corner store mat (bl.x + 0.65, wy 7.6)',
   /bc\.wx = bl\.x \+ 0\.65/.test(spawnBlock) && /bc\.wy = 7\.6/.test(spawnBlock));
+check('Queens (Maspeth) cats: dedicated Manhattan-style block gated on isQueensLevel()',
+  spawnBlock.indexOf('Maspeth bodega cats') >= 0 && /if \(isQueensLevel\(\)\) \{/.test(spawnBlock));
+check('Queens cats face their block corner store door (frozen corner: bl.x + 0.65 left / bl.x + 79.35 right) on the sidewalk (wy 4.5)',
+  /QUEENS_STORE_CORNERS\[catBlocks\[i\]\] \? 0\.65 : 79\.35/.test(spawnBlock) &&
+  /bc\.wy = 4\.5; \/\/ on the sidewalk in front of the storefront/.test(spawnBlock));
+check('Queens levels swap in the three-patch "calico" coat (replaces plain grey, like the Bronx mott)',
+  spawnBlock.indexOf('["calico", "tuxedo", "orange", "tabby"]') >= 0);
 check('every cat gets a chase ceiling (yMax) so mat cats never snap to the street',
   /bc\.yMax = Math\.max\(4\.5, bc\.wy\)/.test(spawnBlock) &&
   /c\.yMax = 4\.5/.test(src) &&
   /clamp\(c\.wy \+ \(p\.wy - c\.wy\) \* dt \* 3, 0\.5, c\.yMax\)/.test(src));
 
 // ---- 2) source: coats wired through the spawn chain ----
-check('CAT_PALETTES defines all coats (tuxedo/grey/orange/tabby + Bronx-only mott)',
-  ['tuxedo', 'grey', 'orange', 'tabby', 'mott'].every(k => spawnBlock.indexOf(k) >= 0 || (function () { const i = src.indexOf('const CAT_PALETTES = {'); return i >= 0 && src.slice(i, src.indexOf('};', i)).indexOf(k + ':') >= 0; })()));
+check('CAT_PALETTES defines all coats (tuxedo/grey/orange/tabby + Bronx-only mott + Queens-only calico)',
+  ['tuxedo', 'grey', 'orange', 'tabby', 'mott', 'calico'].every(k => spawnBlock.indexOf(k) >= 0 || (function () { const i = src.indexOf('const CAT_PALETTES = {'); return i >= 0 && src.slice(i, src.indexOf('};', i)).indexOf(k + ':') >= 0; })()));
 check('Bronx levels swap in the white & grey "mott" coat; Manhattan + Flatbush keep their four',
   /const coats = isBronxLevel\(\)/.test(spawnBlock) &&
   /\["mott", "tuxedo", "orange", "tabby"\]/.test(spawnBlock) &&
@@ -92,7 +101,7 @@ const factory2 = new Function('M',
 const makeCatLive = factory2(function (c) { MATLOG.push(c); return { color: { getHex: () => c } }; });
 
 const names = Object.keys(CAT_PALETTES);
-check('5 coat palettes defined in index.html (4 standard + Bronx-only mott)', names.length === 5, JSON.stringify(names));
+check('6 coat palettes defined in index.html (4 standard + Bronx-only mott + Queens-only calico)', names.length === 6, JSON.stringify(names));
 const furColors = [];
 let allBuild = true;
 for (const n of names) {
@@ -110,7 +119,7 @@ for (const n of names) {
     'fur=' + pal.fur.toString(16) + ' light=' + pal.light.toString(16) + ' furD=' + pal.furD.toString(16) + ' eye=' + pal.eye.toString(16));
   allBuild = allBuild && built && coatOk;
 }
-check('all 5 fur colors are visually distinct', new Set(furColors).size === 5, furColors.map(c => '0x' + c.toString(16)).join(', '));
+check('all 6 fur colors are visually distinct', new Set(furColors).size === 6, furColors.map(c => '0x' + c.toString(16)).join(', '));
 
 // Default (no arg) must still build the original orange cat
 MATLOG.length = 0;

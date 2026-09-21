@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.194</div>
+          <div id="app-version" class="menu-version">v1.0.195</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.194';
+      const APP_VERSION = '1.0.195';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7440,8 +7440,13 @@
       function makeQueensHouse() {
         const g = new THREE.Group();
         const cols = [
-          0x8a5a3b, 0xb08954, 0x7a3b34, 0x5d6b75, 0x9c7a4d, 0x6b5a7e, 0x98683f,
-          0x4a6a5a,
+          0x8a5a3b, 0x9c7a4d, 0xb08954, // classic Maspeth browns
+          0x4a7a52, // green
+          0xc9a13b, // yellow (ochre)
+          0x4a6a9a, // blue
+          0x8a8d90, // grey
+          0xe8e6e0, // white
+          0xa83a2e, // red
         ];
         const col = cols[(Math.random() * cols.length) | 0];
         const w = R(3.6, 4.6),
@@ -10685,12 +10690,15 @@
       // different one: black-and-white tuxedo, grey, orange, and brown tabby.
       // The white & grey "mott" coat (Mott Haven's mouser) is Bronx-only: on Bronx
       // levels it replaces the plain grey cat.
+      // The three-patch "calico" coat is Queens-only: on Maspeth levels it replaces
+      // the plain grey cat (orange patch coat, white belly, black markings).
       const CAT_PALETTES = {
         tuxedo: { fur: 0x1c1c22, light: 0xf2f2f0, furD: 0x33333c, eye: 0x42963a }, // black & white, green eyes
         grey: { fur: 0x8f9099, light: 0xd6d7db, furD: 0x6d6e76, eye: 0xb5892f }, // grey coat, gold eyes
         orange: { fur: 0xd4813e, light: 0xf5e6d0, furD: 0xb87030, eye: 0x42963a }, // ginger (the original)
         tabby: { fur: 0x8a6a48, light: 0xcfb99a, furD: 0x66492c, eye: 0x3f7d3a }, // brown tabby markings
         mott: { fur: 0xe9eaee, light: 0xfafafb, furD: 0x8f95a3, eye: 0x3f6ea8 }, // white & grey "Mott" (Bronx only), blue eyes
+        calico: { fur: 0xcf7a33, light: 0xfaf3ea, furD: 0x33302e, eye: 0xc98a2e }, // three-patch calico (Queens only), amber eyes
       };
       // Bronx leashdog coat palettes for the large mean pitbulls. These are distinct from
       // the brown/tan coats of the regular medium-sized dogs (those still use furC pick).
@@ -14071,6 +14079,41 @@
               bc.wy = 4.5; // on the sidewalk in front of the storefront
             }
             bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling (mat cats: their mat's wy)
+            bc.g.position.set(bc.wx, bc.wy, GZ);
+            // Face along the street like raccoon/dog (no sideways rotation)
+          }
+        }
+        // Maspeth bodega cats: a dedicated QUEENS copy of the Manhattan spawn block so
+        // Maspeth can evolve on its own. Exactly 4 per level, each on the sidewalk
+        // (wy 4.5) in front of its block's corner store. The store sits at the corner
+        // frozen for the session (QUEENS_STORE_CORNERS), so the cat faces the store
+        // door at bl.x + 0.65 (left corner) or bl.x + 79.35 (right corner).
+        // Coats: Queens swaps the plain grey for the three-patch "calico" (a
+        // Queens-only coat, like the Bronx's "mott").
+        if (isQueensLevel()) {
+          const active = [1, 2, 3, 4, 5];
+          for (let i = active.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = active[i];
+            active[i] = active[j];
+            active[j] = t;
+          }
+          const catBlocks = active.slice(0, 4);
+          const coats = ["calico", "tuxedo", "orange", "tabby"];
+          for (let i = coats.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = coats[i];
+            coats[i] = coats[j];
+            coats[j] = t;
+          }
+          for (let i = 0; i < 4; i++) {
+            const bl = LEVEL_BLOCKS[catBlocks[i]];
+            const bc = addCreature("cat", { palette: coats[i] });
+            bc.wx =
+              bl.x +
+              (QUEENS_STORE_CORNERS[catBlocks[i]] ? 0.65 : 79.35); // in front of the block's corner store door
+            bc.wy = 4.5; // on the sidewalk in front of the storefront
+            bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
