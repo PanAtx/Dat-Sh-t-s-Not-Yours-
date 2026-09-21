@@ -17,10 +17,10 @@
 //      dumping spot, so he stands a bit closer to the back of the hopper
 //      (deepest = 0.25 + radius 0.45 = 0.7u past the face) while his held
 //      item never reaches solid body; the rear CURB-side corner (hopper back
-//      meets the truck's LEFT) is ROUNDED (CARRY_CORNER_R = 1.5u quarter
-//      arc) so a carrying worker can tuck right up to that corner — the
+//      meets the truck's LEFT) is CHAMFERED (CARRY_CHAMFER = 1.5u 45-degree
+//      cut) so a carrying worker can tuck right up to that corner — the
 //      sharp corner's diagonal push used to pin him well back from it. Only
-//      that corner is rounded; the street-side rear corner stays sharp;
+//      that corner is chamfered; the street-side rear corner stays sharp;
 //   2) the truck's own motion must never shove a STANDING worker: the push-out
 //      is skipped only while he doesn't move — the instant he walks again he's
 //      pushed OUT of the body (a truck that swept over him can't let him walk
@@ -94,7 +94,7 @@ check('can is heavy cargo: dumped only from the tight rear zone (nearHopperHeavy
 // push-out entirely. These drive the exact formula to prove: (a) a standing worker
 // is never dragged by the truck's back-up, (b) a walking worker is always pushed
 // OUT of the body — he can never cross the rear face from either side.
-const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.4, CARRY_M_BACK = 0.25, CARRY_CORNER_R = 1.5, T_CY = -4.5;
+const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.4, CARRY_M_BACK = 0.25, CARRY_CHAMFER = 1.5, T_CY = -4.5;
 const C_STREET = T_CY - (Math.max(1.8, 1.8 * 1.25) + CARRY_M); // -7.45 painted street edge + 0.7
 const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -1.85 curb margin is smaller
 const X_FRONT = BOX_L + CARRY_M;                               // +7.46
@@ -119,18 +119,16 @@ function pushOut(wx, wy, prevX, prevY, moving, boxX0) {
   }
   return [wx, wy];
 }
-// Same push-out, but with the rear CURB-side corner rounded (CARRY_CORNER_R
-// quarter arc) — mirrors the game's current carrying behavior exactly.
+// Same push-out, but with the rear CURB-side corner CHAMFERED (CARRY_CHAMFER
+// 45-degree cut) — mirrors the game's current carrying behavior exactly.
 function pushOutR(wx, wy, prevX, prevY, moving, boxX0) {
   let cx = Math.min(Math.max(wx, boxX0), X_FRONT);
   let cy = Math.min(Math.max(wy, C_STREET), C_CURB);
   if (wx < boxX0 && wy > C_CURB) {
-    const R = CARRY_CORNER_R;
-    const acx = boxX0 + R, acy = C_CURB - R;
-    const adx = wx - acx, ady = wy - acy;
-    const ad = Math.hypot(adx, ady) || 1e-4;
-    cx = acx + (adx / ad) * R;
-    cy = acy + (ady / ad) * R;
+    const CH = CARRY_CHAMFER;
+    const t = Math.min(1, Math.max(0, (wx - boxX0 + wy - C_CURB + CH) / (2 * CH)));
+    cx = boxX0 + CH * t;
+    cy = C_CURB - CH * t;
   }
   const dx = wx - cx, dy = wy - cy, d2 = dx * dx + dy * dy;
   if (d2 < WR * WR) {
@@ -150,24 +148,26 @@ function pushOutR(wx, wy, prevX, prevY, moving, boxX0) {
   }
   return [wx, wy];
 }
-check('push-out: rear CURB corner is rounded for carrying workers (CARRY_CORNER_R quarter arc)', ()=>{
-  assert.ok(html.indexOf('const CARRY_CORNER_R = 1.5;') >= 0);
+check('push-out: rear CURB corner is CHAMFERED at 45 degrees for carrying workers (CARRY_CHAMFER cut)', ()=>{
+  assert.ok(html.indexOf('const CARRY_CHAMFER = 1.5;') >= 0);
   assert.ok(html.indexOf('if (_holding && p.wx < tCx - tHalfLendPBack && p.wy > tCy + tHalfWCurbP) {') >= 0);
-  assert.ok(html.indexOf('cx = acx + (adx / ad) * R;') >= 0);
-  assert.ok(html.indexOf('cy = acy + (ady / ad) * R;') >= 0);
+  assert.ok(html.indexOf('const CH = CARRY_CHAMFER;') >= 0);
+  assert.ok(html.indexOf('const tt = Math.min(1, Math.max(0, (p.wx - bx + p.wy - by + CH) / (2 * CH)));') >= 0);
+  assert.ok(html.indexOf('cx = bx + CH * tt;') >= 0);
+  assert.ok(html.indexOf('cy = by - CH * tt;') >= 0);
 });
-check('rounded corner: a carrying worker can now stand RIGHT AT the rear CURB corner (old sharp rule kept him 0.45u back)', ()=>{
+check('45-degree chamfer: a carrying worker can now stand RIGHT AT the rear CURB corner (old sharp rule kept him 0.45u back)', ()=>{
   // u = 45-degree diagonal into the corner. r = distance from the old corner
-  // point along it. Old sharp rule: he is legal only at r >= 0.45. The rounded
-  // corner (radius 1.5) removes the corner material, so the whole zone
+  // point along it. Old sharp rule: he is legal only at r >= 0.45. The 45-degree
+  // chamfer (1.5u leg) removes the corner material, so the whole zone
   // r <= ~0.17 must now be a legal standing spot — he tucks right into the
-  // curve where bags / baskets used to be rejected as "far away".
+  // cut where bags / baskets used to be rejected as "far away".
   const ux = -Math.SQRT1_2, uy = Math.SQRT1_2;
   const corX = -BOX_L - CARRY_M_BACK, corY = C_CURB; // corner of the carrying push-out box
   for (const r of [0.05, 0.1, 0.15]) {
     const wx = corX + r * ux, wy = corY + r * uy;
     const [px, py] = pushOutR(wx, wy, wx, wy, true, -BOX_L - CARRY_M_BACK);
-    assert.ok(Math.hypot(px - wx, py - wy) < 1e-6, 'rounded corner still rejects r=' + r);
+    assert.ok(Math.hypot(px - wx, py - wy) < 1e-6, 'chamfered corner still rejects r=' + r);
   }
   // ...and the OLD sharp box rejected all of those spots (push > 0.3u out):
   for (const r of [0.05, 0.1]) {
@@ -176,24 +176,24 @@ check('rounded corner: a carrying worker can now stand RIGHT AT the rear CURB co
     assert.ok(Math.hypot(px - wx, py - wy) > 0.3, 'sharp box should reject r=' + r);
   }
 });
-check('rounded corner only at the rear CURB corner: street-side rear corner walk is identical to the sharp box', ()=>{
-  function walk(rounded) {
+check('chamfer only at the rear CURB corner: street-side rear corner walk is identical to the sharp box', ()=>{
+  function walk(chamfered) {
     let x = FACE_X - 3.0, y = C_STREET - 3.0; // street-side corner diagonal (y-)
     for (let i = 0; i < 200; i++) {
       const b = [x, y];
       x += 0.1; y += 0.1;
-      const r = rounded
+      const r = chamfered
         ? pushOutR(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK)
         : pushOut(x, y, b[0], b[1], true, -BOX_L - CARRY_M_BACK);
       x = r[0]; y = r[1];
     }
     return [x, y];
   }
-  const sharp = walk(false), rnd = walk(true);
-  assert.ok(Math.abs(rnd[0] - sharp[0]) < 1e-9 && Math.abs(rnd[1] - sharp[1]) < 1e-9,
-    'street corner moved: rounded (' + rnd[0].toFixed(2) + ',' + rnd[1].toFixed(2) + ') vs sharp (' + sharp[0].toFixed(2) + ',' + sharp[1].toFixed(2) + ')');
+  const sharp = walk(false), chm = walk(true);
+  assert.ok(Math.abs(chm[0] - sharp[0]) < 1e-9 && Math.abs(chm[1] - sharp[1]) < 1e-9,
+    'street corner moved: chamfered (' + chm[0].toFixed(2) + ',' + chm[1].toFixed(2) + ') vs sharp (' + sharp[0].toFixed(2) + ',' + sharp[1].toFixed(2) + ')');
 });
-check('rounded corner cannot be exploited: crossing the face line near the corner happens only OUTSIDE the curb edge', ()=>{
+check('chamfer cannot be exploited: crossing the face line near the corner happens only OUTSIDE the curb edge', ()=>{
   let x = FACE_X - 3, y = C_CURB + 1.2;
   let crossed = null;
   for (let i = 0; i < 500; i++) {
@@ -244,7 +244,7 @@ check('carrying worker cannot cross the rear face from the STREET (right) side a
     if (crossed !== null) assert.ok(crossed <= C_STREET, 'crossed the face inside the street-side body at y=' + crossed.toFixed(2));
   }
 });
-check('carrying worker cannot cross the rear face from the CURB (left) side at any lane y (rounded corner in effect)', ()=>{
+check('carrying worker cannot cross the rear face from the CURB (left) side at any lane y (chamfer in effect)', ()=>{
   for (let y0 = T_CY; y0 <= C_CURB + 0.4; y0 += 0.2) {
     let x = FACE_X - 3, y = y0, crossed = null;
     for (let i = 0; i < 500; i++) {
@@ -405,11 +405,11 @@ check('debug box: lives INSIDE worldGroup (the +45deg-rotated world) so it sits 
   assert.ok(html.indexOf('worldGroup.remove(truckDebugBox);') > blk);
   assert.ok(html.indexOf('needsIdleRender = true;', blk) > blk);
 });
-check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 corner / 0.45 radius)', ()=>{
+check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 chamfer / 0.45 radius)', ()=>{
   assert.ok(html.indexOf('const C_M = 0.7,') >= 0);
   assert.ok(html.indexOf('C_M_CURB = 0.4,') >= 0);
   assert.ok(html.indexOf('C_M_BACK = 0.25,') >= 0);
-  assert.ok(html.indexOf('CORNER_R = 1.5;') >= 0);
+  assert.ok(html.indexOf('CHAMFER = 1.5;') >= 0);
   assert.ok(html.indexOf('const TRUCK_DEBUG_WR = 0.45;') >= 0);
 });
 // Run the REAL outline builder from index.html with a minimal THREE stub:
@@ -426,43 +426,60 @@ function outlinePts(geo){
   for (let i = 0; i < a.length; i += 3) out.push([a[i], a[i + 1]]);
   return out;
 }
-check('debug box outline: the rounded rear CURB corner is drawn as a quarter arc (depth = R·(√2−1))', ()=>{
+function minDistToPolyline(q, poly){
+  // min distance from point q to the CLOSED polyline's segments (the chamfer
+  // is a single edge between two vertices, so vertex-only distance is wrong)
+  let d = 1e9;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    const abx = b[0] - a[0], aby = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * abx + (q[1] - a[1]) * aby) / (abx * abx + aby * aby)));
+    d = Math.min(d, Math.hypot(q[0] - (a[0] + abx * t), q[1] - (a[1] + aby * t)));
+  }
+  return d;
+}
+check('debug box outline: the rear CURB corner is a 45-degree CHAMFER (depth = CH·√2/2 from the old corner)', ()=>{
   const make = makeDebugOutline();
   const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
-  const pts = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
-  assert.ok(pts.length >= 10 && pts.every(q => isFinite(q[0]) && isFinite(q[1])));
+  const CH = 1.5;
+  const pts = outlinePts(make(halfBack, halfFront, eS, eC, CH));
+  assert.ok(pts.length >= 5 && pts.every(q => isFinite(q[0]) && isFinite(q[1])));
   const corX = -halfBack, corY = eC; // where the OLD sharp corner point was
-  let dmin = 1e9;
-  for (const q of pts) dmin = Math.min(dmin, Math.hypot(q[0] - corX, q[1] - corY));
-  assert.ok(Math.abs(dmin - 1.5 * (Math.SQRT2 - 1)) < 1e-3, 'arc depth ' + dmin);
-  // every point sits on a flat edge OR exactly on the arc circle:
-  const ax = corX + 1.5, ay = corY - 1.5;
+  const dmin = minDistToPolyline([corX, corY], pts);
+  assert.ok(Math.abs(dmin - CH * Math.SQRT2 / 2) < 1e-3, 'chamfer depth ' + dmin);
+  // every point sits on one of the FIVE flat edges (four box edges + the
+  // 45-degree cut: x-offset from the rear face == y-offset from the curb edge):
   for (const q of pts) {
     const onEdge =
       (Math.abs(q[0] - halfFront) < 1e-5 && q[1] >= -eS - 1e-5 && q[1] <= eC + 1e-5) ||
-      (Math.abs(q[1] - eC) < 1e-5 && q[0] <= corX + 1.5 + 1e-5 && q[0] >= corX - 1e-5) ||
-      (Math.abs(q[0] - corX) < 1e-5 && q[1] <= eC - 1.5 + 1e-5 && q[1] >= -eS - 1e-5) ||
-      (Math.abs(q[1] + eS) < 1e-5 && q[0] <= halfFront + 1e-5 && q[0] >= corX - 1e-5);
-    assert.ok(onEdge || Math.abs(Math.hypot(q[0] - ax, q[1] - ay) - 1.5) < 1e-4, 'off-shape point ' + q);
+      (Math.abs(q[1] - eC) < 1e-5 && q[0] <= corX + CH + 1e-5 && q[0] >= corX - 1e-5) ||
+      (Math.abs(q[0] - corX) < 1e-5 && q[1] <= eC - CH + 1e-5 && q[1] >= -eS - 1e-5) ||
+      (Math.abs(q[1] + eS) < 1e-5 && q[0] <= halfFront + 1e-5 && q[0] >= corX - 1e-5) ||
+      (Math.abs(q[0] - corX - (eC - q[1])) < 1e-5 && q[0] >= corX - 1e-5 && q[0] <= corX + CH + 1e-5);
+    assert.ok(onEdge, 'off-shape point ' + q);
   }
+  // the cut must reach BOTH faces (endpoints on the curb edge and the rear face):
+  assert.ok(pts.some(q => Math.abs(q[0] - (corX + CH)) < 1e-5 && Math.abs(q[1] - eC) < 1e-5), 'missing curb-edge chamfer endpoint');
+  assert.ok(pts.some(q => Math.abs(q[0] - corX) < 1e-5 && Math.abs(q[1] - (eC - CH)) < 1e-5), 'missing rear-face chamfer endpoint');
 });
 check('debug box outline: OUTER line = inner + the 0.45u worker radius (where his CENTER stops)', ()=>{
   const make = makeDebugOutline();
   const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
   const inr = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
-  const out = outlinePts(make(halfBack + 0.45, halfFront + 0.45, eS + 0.45, eC + 0.45, 1.5 + 0.45));
+  // the outer 45-degree cut is a TRUE 0.45u perpendicular offset: chamfer
+  // length grows by WR·(2−√2), not WR (flat edges are offset by WR plain).
+  const out = outlinePts(make(halfBack + 0.45, halfFront + 0.45, eS + 0.45, eC + 0.45, 1.5 + 0.45 * (2 - Math.SQRT2)));
   const ext = (a, f) => f(...a.map(q => q[0])), extY = (a, f) => f(...a.map(q => q[1]));
   assert.ok(Math.abs(ext(out, Math.max) - (ext(inr, Math.max) + 0.45)) < 1e-5);
   assert.ok(Math.abs(ext(out, Math.min) - (ext(inr, Math.min) - 0.45)) < 1e-5);
   assert.ok(Math.abs(extY(out, Math.max) - (extY(inr, Math.max) + 0.45)) < 1e-5);
   assert.ok(Math.abs(extY(out, Math.min) - (extY(inr, Math.min) - 0.45)) < 1e-5);
   const corX = -halfBack, corY = eC;
-  let dmin = 1e9;
-  for (const q of out) dmin = Math.min(dmin, Math.hypot(q[0] - corX, q[1] - corY));
-  // same arc center, bigger radius -> the corner depth shrinks by exactly 0.45
-  assert.ok(Math.abs(dmin - (1.5 * (Math.SQRT2 - 1) - 0.45)) < 1e-3, 'outer arc depth ' + dmin);
+  const dmin = minDistToPolyline([corX, corY], out);
+  // the outer cut is exactly 0.45 further from the old corner point
+  assert.ok(Math.abs(dmin - (1.5 * Math.SQRT2 / 2 - 0.45)) < 1e-3, 'outer chamfer depth ' + dmin);
 });
-check('debug box outline: the rear STREET-side corner stays SHARP (exact vertex, no arc)', ()=>{
+check('debug box outline: the rear STREET-side corner stays SHARP (exact vertex, no chamfer)', ()=>{
   const make = makeDebugOutline();
   const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
   const pts = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
