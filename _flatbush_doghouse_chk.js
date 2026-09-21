@@ -68,14 +68,14 @@ function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
-    'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
+    'isBronxLevel', 'dogStopY', 'isQueensLevel', // Bronx + Queens feature globals (injected false here — non-Bronx/Queens tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, VoiceRec, flatbushDriveways,
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
     () => false, () => 7.5, function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; },
     function makePostMesh(){ return { position: { set(){} }, parent: null }; },
     function tieLeashChain(){ /* no-op: this harness exercises recycling/bite, not chain geometry */ },
-    () => false, () => Infinity);
+    () => false, () => Infinity, () => false);
 }
 // Build a leashdog at a FIXED driveway spawn (mirrors spawnWorld's Flatbush placement).
 function makeFlatbushDog(anchorX, anchorY){

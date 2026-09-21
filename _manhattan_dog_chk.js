@@ -149,12 +149,12 @@ function runLeashDogCase(c, manhattan, rec){
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W',
-    'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
+    'isBronxLevel', 'dogStopY', 'isQueensLevel', // Bronx + Queens feature globals (injected false here — non-Bronx/Queens tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, VoiceRec, [],
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
     () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W,
-    () => false, () => Infinity);
+    () => false, () => Infinity, () => false);
 }
 
 // ---- 1) Street boundary: an aggro'd Manhattan dog NEVER steps onto the asphalt ----
@@ -339,7 +339,7 @@ check('spawnWorld (Manhattan): doghouse hidden, chain still tied to the anchor',
 check('spawnWorld (Manhattan): chain ties to the TOP of the fixture (post collar, z 1.5) and tilts to the dog collar (z 0.62)',
   /tieLeashChain\(\s*ld\.chain,\s*ld\.anchorX,\s*ld\.anchorY,\s*1\.5,\s*ld\.wx,\s*ld\.wy,\s*0\.62/.test(manBlock));
 check('AI case: per-frame chain ties at the dog COLLAR - Manhattan/Bronx tilts from the post collar (z 1.5) down to the collar, ground ties at the stake top (z 0.62)',
-  /tieLeashChain\(\s*c\.chain,\s*c\.anchorX,\s*c\.anchorY,\s*(?:isManhattanLevel\(\)\s*\|\|\s*isBronxLevel\(\)|isManhattanLevel\(\))\s*\?\s*1\.5\s*:\s*0\.62,\s*dogSwayX,\s*dogSwayY,\s*dogCollarZ\s*,?\s*\)/.test(caseText));
+  /tieLeashChain\(\s*c\.chain,\s*c\.anchorX,\s*c\.anchorY,\s*\(?isManhattanLevel\(\)\s*\|\|\s*isBronxLevel\(\)\s*\|\|\s*isQueensLevel\(\)\)?\s*\?\s*1\.5\s*:\s*0\.62,\s*dogSwayX,\s*dogSwayY,\s*dogCollarZ\s*,?\s*\)/.test(caseText));
 check('AI case: the dog collar z TRACKS THE GROUND via stepTopAt (0.62 on flat ground, follows a raised lip)',
   /const dogCollarZ = stepTopAt\(c\.wx, c\.wy\) \+ \(0\.62 - GZ\)/.test(caseText));
 check('AI case: the leash SWAYS - a damped chainLean spring nudges the dog end along the leash axis as the dog moves (bowing lead)',

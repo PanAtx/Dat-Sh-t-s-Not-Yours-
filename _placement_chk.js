@@ -109,47 +109,82 @@ for (const bl of LEVEL_BLOCKS){
 }
 check('dog house: anchor firmly on the front-lawn GRASS (y 5..8.5), inside its block, off street/sidewalk (' + dogN + ' houses)', dogOk, dogWorst ? JSON.stringify(dogWorst) : '');
 
-// ---- (3b) Maspeth dog house (Queens variant): the anchor sits in the GAP BETWEEN two
-//      houses — at a MIDDLE-cell boundary (x = blockX + QX(gap) + 6.4, jitter ±0.35) — on
-//      the Maspeth front-lawn grass band (y 3.5..6.75), mid-lawn and IN FRONT of the
-//      doormat/concrete landing (y ~5.3..6.7, HOUSE_Y 10.5): the doghouse body
-//      (anchorY +- 0.3, anchor band R(4.0, 5.0)) stays on grass, never over the mat.
-//      gap 1..9 only: off BOTH corner cells (store corner + house corner) and strictly
-//      inside the block, so it never reaches the 16u intersection at either end.
+// ---- (3b) Maspeth leashed dogs (NO doghouse — post-tied, Mott Haven style): the
+//      cast-iron post stands in front of a house, either on the front-yard GRASS
+//      ("lawn": x +- 1.5..2.2 off the door, y 4.2..5.2 — the grass band in front of
+//      the doormat/landing y 5.3..6.7, never on it) or at the CURB on the sidewalk
+//      ("curb": y 0.85..1.05 within the house frontage). Middle cells 1..10 only:
+//      off both corner cells (store corner + house corner) and strictly inside the
+//      80u block, so the post is never at an intersection and never on the store.
 const QX = (i) => (i === 0 ? 0 : i === 11 ? 72 : 8 + (i - 1) * 6.4);
 const Q_GRASS_Y0 = 3.5, Q_GRASS_Y1 = 6.75; // Maspeth front-lawn strip (buildGround)
 const Q_LANDING_Y0 = 5.3;                  // street-side edge of the doormat/landing
-const Q_BODY_D = 0.3;                      // doghouse walls are 0.6u deep (half 0.3)
 let dogQOk = true, dogQN = 0, dogQWorst = null;
-for (const bl of LEVEL_BLOCKS) {
-  for (let gap = 1; gap <= 9; gap++) {
-    const ax = bl.x + QX(gap) + 6.4 + R(-0.35, 0.35);
-    const anchorX = Math.max(bl.x + 1.0, Math.min(bl.x + BLOCK_W - 1.0, ax));
-    const anchorY = R(4.0, 5.0); // must match index.html Queens branch ld.anchorY = R(4.0, 5.0)
-    dogQN++;
-    const posIn = anchorX - bl.x;
-    const onGrass = anchorY - Q_BODY_D >= Q_GRASS_Y0 && anchorY + Q_BODY_D <= Q_GRASS_Y1;
-    const clearOfLanding = anchorY + Q_BODY_D <= Q_LANDING_Y0 + 1e-6; // body never over the mat
-    const strictlyInBlock = posIn > 0 && posIn < BLOCK_W; // never on an intersection
-    const offCorners = posIn >= QX(1) + 6.4 - 0.35 && posIn <= QX(9) + 6.4 + 0.35; // >= 6.05u off both corner cells
-    if (!onGrass || !clearOfLanding || !strictlyInBlock || !offCorners){ dogQOk = false; if (!dogQWorst) dogQWorst = { x: anchorX.toFixed(2), y: anchorY.toFixed(2) }; }
+for (let blx = 0; blx < 800; blx += 96) {
+  for (let mid = 1; mid <= 10; mid++) {
+    const hx = QX(mid) + 3.2; // middle house center
+    // lawn spot (mirrors index.html queensDogSpot)
+    {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const ax = Math.max(blx + 1.0, Math.min(blx + BLOCK_W - 1.0, blx + hx + side * R(1.5, 2.2)));
+      const ay = R(4.2, 5.2);
+      const homeX = ax + side * R(0.2, 0.6);
+      const homeY = ay + R(0.3, 0.9);
+      dogQN++;
+      const onGrass = ay >= Q_GRASS_Y0 && ay <= Q_GRASS_Y1;
+      const beforeLanding = ay <= Q_LANDING_Y0 - 1e-6; // post strictly in front of the mat
+      const offLandingX = Math.abs(ax - (blx + hx)) >= 1.5 - 1e-6; // landing spans +- 1.25u of the door
+      const homeOffLanding = Math.abs(homeX - (blx + hx)) >= 1.7 - 1e-6 && homeY <= 6.75;
+      const inFrontage = Math.abs(ax - (blx + hx)) <= 2.2 + 1e-6;
+      const inBlock = ax > blx && ax < blx + BLOCK_W;
+      if (!onGrass || !beforeLanding || !offLandingX || !homeOffLanding || !inFrontage || !inBlock) {
+        dogQOk = false;
+        if (!dogQWorst) dogQWorst = { t: 'lawn', x: (ax - blx).toFixed(2), y: +ay.toFixed(2), hx: +hx.toFixed(2) };
+      }
+    }
+    // curb spot
+    {
+      const ax = Math.max(blx + 10.0, Math.min(blx + BLOCK_W - 10.0, blx + hx + R(-3.0, 3.0)));
+      const ay = R(0.85, 1.05);
+      dogQN++;
+      const atCurb = ay >= 0.85 && ay <= 1.05;
+      const inFrontage = Math.abs(ax - (blx + hx)) <= 3.0 + 1e-6;
+      const offCorners = ax - blx >= 10 - 1e-6 && ax - blx <= 70 + 1e-6; // well inside the 80u block
+      if (!atCurb || !inFrontage || !offCorners) {
+        dogQOk = false;
+        if (!dogQWorst) dogQWorst = { t: 'curb', x: (ax - blx).toFixed(2), y: +ay.toFixed(2), hx: +hx.toFixed(2) };
+      }
+    }
   }
 }
-check('Maspeth dog house: gap-between-houses anchor (middle-cell boundary ± 0.35) firmly on the front-lawn GRASS (y 3.5..6.75), IN FRONT of the doormat/landing, strictly inside its block, off both corner cells (store corner + house corner) (' + dogQN + ' gaps)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
-check('Maspeth dog house: spawnWorld routes Queens to MIDDLE-cell gaps only (gapIdx 1..9, never a corner cell / corner-store frontage) with the mid-lawn anchor band R(4.0, 5.0), keeping the old side-of-door logic for other boroughs', src.indexOf('borough === "QUEENS"') >= 0 && /queensCellX\(gapIdx\)\s*\+\s*QUEENS_MID_W/.test(src) && /(?:const|let) gapIdx = 1 \+ \(\(Math\.random\(\) \* \(QUEENS_HOUSES_PER_BLOCK - 3\)\) \| 0\);/.test(src) && src.indexOf('let ay = R(4.0, 5.0);') >= 0 && src.indexOf('const mag = R(2.4, 3.4);') >= 0);
-// ---- (3c) Maspeth doghouse RATE: 4 doghouses per level (increased from 1) ----
-check('Maspeth doghouse rate: 4 per level (was 1)', (() => {
+check('Maspeth leashed dog: post is in front of a house on the front-yard GRASS (y 4.2..5.2, off the doormat/landing in x AND y, home never over the mat) or at the CURB on the sidewalk (y 0.85..1.05, in frontage); never a corner cell / intersection (' + dogQN + ' spots)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
+check('Maspeth leashed dog: spawnWorld routes Queens to queensDogSpot + a cast-iron POST (makePostMesh) tied HIGH (tieQueensLeashChain z 1.5), with NO doghouse and NO tree in the branch', (() => {
+  const j = src.indexOf('borough === "QUEENS"', src.indexOf('const dogCount = isFlatbushLevel()'));
+  if (j < 0) return false;
+  const seg = src.slice(j, j + 2000);
+  return seg.indexOf('queensDogSpot(ld, b.blockX)') >= 0 && seg.indexOf('makePostMesh()') >= 0 && seg.indexOf('tieQueensLeashChain(') >= 0 && /1\.5,\s*ld\.wx/.test(seg) && seg.indexOf('houseG') < 0 && seg.indexOf('makeSidewalkTree') < 0 && seg.indexOf('makeQueensDogHouse') < 0 && seg.indexOf('makeDogHouse') < 0;
+})());
+check('Maspeth leashed dog: queensDogSpot places lawn posts off the doormat/landing (x offset +- 1.5..2.2, y 4.2..5.2, home stays on the post side) and curb posts at y 0.85..1.05', (() => {
+  const k = src.indexOf('function queensDogSpot(t, bx) {');
+  if (k < 0) return false;
+  const seg = src.slice(k, k + 1600);
+  return seg.indexOf('t.anchorType = "lawn"') >= 0 && seg.indexOf('R(4.2, 5.2)') >= 0 && seg.indexOf('R(0.85, 1.05)') >= 0 && seg.indexOf('side * R(1.5, 2.2)') >= 0 && seg.indexOf('t.homeX = t.anchorX + side * R(0.2, 0.6)') >= 0;
+})());
+check('Maspeth leashed dog: AI recycle moves Queens dogs to a new house frontage (queensDogSpot + post re-tie) and the chain ties HIGH for Queens (z 1.5)', (() => {
+  const fnStart = src.indexOf('function updateCreatures(dt) {');
+  const start = src.indexOf('case "leashdog": {', fnStart);
+  if (start < 0) return false;
+  let i = src.indexOf('{', start), d = 0;
+  for (; i < src.length; i++) { if (src[i] === '{') d++; else if (src[i] === '}') { d--; if (d === 0) break; } }
+  const caseText = src.slice(start, i + 1).replace(/\s+/g, ' ');
+  return caseText.indexOf('if (isQueensLevel()) {') >= 0 && caseText.indexOf('queensDogSpot(c,') >= 0 && /isQueensLevel\(\)\) \? 1\.5 : 0\.62/.test(caseText);
+})());
+// ---- (3c) Maspeth leashed dog RATE: 4 per level (unchanged from the doghouse era) ----
+check('Maspeth leashed dog rate: 4 per level (was 1)', (() => {
   const i = src.indexOf('const dogCount = isFlatbushLevel()');
   if (i < 0) return false;
   const seg = src.slice(i, i + 320);
   return /isQueensLevel\(\)\s*\?\s*4\b/.test(seg) && /:\s*1\s*;/.test(seg);
-})());
-// ---- (3d) Maspeth doghouse: runtime doormat guard + QUEENS-exclusive dog/leash wiring ----
-check('Maspeth dog house: runtime guard keeps the body off BOTH neighbors doormat/landing (house.step rectangles, retry on overlap) and ties with the QUEENS-exclusive chain (tieQueensLeashChain)', (() => {
-  const j = src.indexOf('borough === "QUEENS"', src.indexOf('const dogCount = isFlatbushLevel()'));
-  if (j < 0) return false;
-  const seg = src.slice(j, j + 4000);
-  return seg.indexOf('clearsLanding') >= 0 && seg.indexOf('house.step') >= 0 && seg.indexOf('tieQueensLeashChain(') >= 0;
 })());
 
 // ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels

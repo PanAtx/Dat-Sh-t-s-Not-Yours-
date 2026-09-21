@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.192</div>
+          <div id="app-version" class="menu-version">v1.0.194</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.192';
+      const APP_VERSION = '1.0.194';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12073,6 +12073,113 @@
         };
         return g;
       }
+      // QUEENS-EXCLUSIVE copy of makeBronxLeashDog (Mott Haven's leashed street dog):
+      // Maspeth's leashed dogs are built with THIS function, so Queens-only changes
+      // (coat, size, props) can never touch the Bronx's makeBronxLeashDog. Like the
+      // Bronx, Queens dogs tie to cast-iron posts — NO doghouse.
+      function makeQueensLeashDog(dogSize, dogCoat) {
+        // Leashed street dog: chunkier and smoother than the dogwalker's pup, with a
+        // collar + tag. Same pivot interface as makeDog so the shared dog walk/bark
+        // animation block drives it (trotting legs, wagging tail, barking head).
+        const g = new THREE.Group();
+        // Large mean pitbull: coat from DOG_PALETTES (yellow / dark brown / husky / spotted),
+        // full palette like the bodega cats. Regular medium dogs keep the brown/tan pick.
+        const pal = dogSize === 'large' ? DOG_PALETTES[dogCoat] : null;
+        const furC = pal ? pal.fur : pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468, 0x5a4630]);
+        const fur = M(furC),
+          furD = M(pal ? pal.furD : 0x241c14),
+          furL = M(pal ? pal.light : 0xc7ab87),
+          eyeM = M(0x14100e);
+        const body = SPH(0.1, fur, 18, 14);
+        body.scale.set(2.4, 1.1, 1.3);
+        body.position.set(-0.05, 0, 0.2);
+        g.add(body);
+        const belly = SPH(0.085, furL, 14, 10);
+        belly.scale.set(1.9, 0.8, 0.9);
+        belly.position.set(-0.05, 0, 0.12);
+        g.add(belly);
+        const chest = SPH(0.08, furL, 14, 10);
+        chest.scale.set(1, 0.9, 1);
+        chest.position.set(0.16, 0, 0.2);
+        g.add(chest);
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0.26, 0, 0.24);
+        g.add(headPivot);
+        const head = SPH(0.08, fur, 16, 12);
+        head.scale.set(1.2, 1.05, 1);
+        head.position.set(0.06, 0, 0.07);
+        headPivot.add(head);
+        const muzzle = SPH(0.045, furL, 12, 10);
+        muzzle.scale.set(1.35, 0.85, 0.8);
+        muzzle.position.set(0.15, 0, 0.04);
+        headPivot.add(muzzle);
+        const nose = SPH(0.018, furD, 10, 8);
+        nose.position.set(0.21, 0, 0.045);
+        headPivot.add(nose);
+        [-1, 1].forEach((s) => {
+          const eye = SPH(0.014, eyeM, 8, 6);
+          eye.position.set(0.08, s * 0.045, 0.13);
+          headPivot.add(eye);
+          const ear = SPH(0.04, furD, 10, 8);
+          ear.scale.set(0.7, 1.0, 0.5);
+          ear.position.set(0.0, s * 0.075, 0.11);
+          headPivot.add(ear);
+        });
+        // red collar with a little brass tag
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(0.09, 0.015, 8, 16),
+          M(0xb02020),
+        );
+        collar.rotation.y = Math.PI / 2;
+        collar.position.set(0.02, 0, 0.08);
+        headPivot.add(collar);
+        const tag = SPH(0.02, MS(0xd8b23a), 8, 6);
+        tag.position.set(0.0, 0, -0.02);
+        headPivot.add(tag);
+        // four legs on hip pivots (trotting gait driven by the shared dogParts block)
+        const dogLegs = {};
+        [
+          ["legFL", 0.19, 0.1],
+          ["legFR", 0.19, -0.1],
+          ["legHL", -0.21, 0.11],
+          ["legHR", -0.21, -0.11],
+        ].forEach((lg) => {
+          const pivot = new THREE.Group();
+          pivot.position.set(lg[1], lg[2], 0.18);
+          g.add(pivot);
+          const leg = CY(0.028, 0.036, 0.17, fur, 10);
+          leg.rotation.x = Math.PI / 2;
+          leg.position.z = -0.085;
+          pivot.add(leg);
+          const paw = SPH(0.034, furD, 10, 8);
+          paw.scale.set(1.25, 0.75, 0.85);
+          paw.position.set(0.012, 0, -0.15);
+          pivot.add(paw);
+          dogLegs[lg[0]] = pivot;
+        });
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.3, 0, 0.26);
+        g.add(tailPivot);
+        const t1 = SPH(0.055, fur, 12, 10);
+        t1.scale.set(1.1, 0.85, 0.95);
+        t1.position.set(-0.07, 0, 0.06);
+        tailPivot.add(t1);
+        const t2 = SPH(0.045, furL, 12, 10);
+        t2.position.set(-0.14, 0, 0.13);
+        tailPivot.add(t2);
+        // Scale the large pitbull up (the regular medium dog stays 1:1)
+        if (dogSize === 'large') g.scale.set(1.35, 1.4, 1.35);
+        g.userData.dog = {
+          tailPivot: tailPivot,
+          headPivot: headPivot,
+          legFL: dogLegs.legFL,
+          legFR: dogLegs.legFR,
+          legHL: dogLegs.legHL,
+          legHR: dogLegs.legHR,
+          root: g,
+        };
+        return g;
+      }
       function makeTricycle() {
         // Classic "Big Wheel" kid tricycle, child-sized (ref: low plastic trike).
         // Axes: +X forward, Y lateral, Z up (ground z=0). Cylinder axis = Y (unrotated = upright wheel).
@@ -12844,13 +12951,13 @@
             c.wheelR = c.data.userData.wheelR;
             break;
           case "leashdog": {
-            // Bronx-exclusive copy of the Manhattan leashed-dog model. The Bronx builds
-            // NO doghouse — the chain ties to a sidewalk fixture (see spawnWorld).
-            // Queens builds its dog with the EXCLUSIVE makeQueensDog copy and its
-            // doghouse with makeQueensDogHouse; other levels keep the shared
+            // Bronx (Mott Haven) + Queens (Maspeth) leashed street dogs: NO doghouse —
+            // the chain ties to a cast-iron POST (never a tree, see spawnWorld). Each
+            // borough builds its dog with its own EXCLUSIVE copy so coat/size tweaks
+            // never leak across boroughs; other levels keep the shared
             // makeHighPolyDog + makeDogHouse path.
             let dg;
-            if (isBronxLevel()) {
+            if (isBronxLevel() || isQueensLevel()) {
               // 30% chance of a large mean pitbull with diverse coat
             c.dogSize = Math.random() < 0.3 ? 'large' : 'medium';
             c.dogCoat = null;
@@ -12858,13 +12965,11 @@
               const coats = Object.keys(DOG_PALETTES);
               c.dogCoat = coats[(Math.random() * coats.length) | 0];
             }
-            dg = makeBronxLeashDog(c.dogSize, c.dogCoat);
-              c.houseG = null; // no doghouse on the Bronx
+            dg = isQueensLevel() ? makeQueensLeashDog(c.dogSize, c.dogCoat) : makeBronxLeashDog(c.dogSize, c.dogCoat);
+              c.houseG = null; // no doghouse on the Bronx or Queens — post-tied
             } else {
-              // Queens gets its EXCLUSIVE dog + doghouse copies so Maspeth tweaks never
-              // touch the shared makeHighPolyDog / makeDogHouse used by other levels.
-              dg = isQueensLevel() ? makeQueensDog() : makeHighPolyDog();
-              c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();
+              dg = makeHighPolyDog();
+              c.houseG = makeDogHouse();
             }
             c.data = dg;
             c.chain = new THREE.Mesh(
@@ -13235,6 +13340,35 @@
         for (let b = 0; b < LEVEL_BLOCKS.length; b++) a.push(Math.random() < 0.5);
         return a;
       }
+      function queensDogSpot(t, bx) {
+        // Maspeth (Queens) leashed-dog spot — Mott Haven (Bronx) style: NO doghouse.
+        // The chain ties to a cast-iron POST (never a tree) in front of a house:
+        //   "lawn" — front-yard grass beside the landing: the post sits in the side
+        //            grass strip (x +- 1.5..2.2 from the door, y 4.2..5.2 — the grass
+        //            band in front of the doormat/landing y 5.3..6.7, never on it)
+        //   "curb" — sidewalk at the curb (y 0.85..1.05) within the house frontage.
+        // Middle cells 1..10 only — corner cells 0/11 (corner store + corner house)
+        // are excluded, so the post is never at an intersection corner and never on
+        // the corner-store frontage. bx = the block's world X start.
+        const midIdx = 1 + ((Math.random() * 10) | 0);
+        const hx = bx + queensCellX(midIdx) + QUEENS_MID_W / 2;
+        t.blockMinX = bx + 6.0;
+        t.blockMaxX = bx + BLOCK_W - 6.0;
+        if (Math.random() < 0.5) {
+          t.anchorType = "lawn";
+          const side = Math.random() < 0.5 ? -1 : 1;
+          t.anchorX = clamp(hx + side * R(1.5, 2.2), bx + 1.0, bx + BLOCK_W - 1.0);
+          t.anchorY = R(4.2, 5.2);
+          t.homeX = t.anchorX + side * R(0.2, 0.6); // same side as the post: never over the landing
+          t.homeY = t.anchorY + R(0.3, 0.9);
+        } else {
+          t.anchorType = "curb";
+          t.anchorX = clamp(hx + R(-3.0, 3.0), bx + 10.0, bx + BLOCK_W - 10.0);
+          t.anchorY = R(0.85, 1.05);
+          t.homeX = t.anchorX + R(-0.4, 0.8);
+          t.homeY = clamp(t.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
+        }
+      }
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
@@ -13549,73 +13683,24 @@
                 );
               }
             } else if (borough === "QUEENS") {
-              // Maspeth (Queens) EXCLUSIVE doghouse placement — its own top-level branch,
-              // fully separate from the Flatbush driveway branch above and the generic
-              // side-of-door branch below, so Queens-only tweaks can never leak into
-              // Flatbush (or any other borough).
-              // The doghouse sits on the front lawn in the GAP BETWEEN two houses — at a
-              // MIDDLE-cell boundary (where the two neighbors' lawns meet) — so it can
-              // never land on a house's front landing / concrete step. gapIdx 1..9 ONLY:
-              // the anchor stays one full 6.4u middle cell away from BOTH 8u corner cells
-              // (one of them is the corner store, so this also keeps the doghouse off the
-              // corner-store frontage), and deep inside the 80u block, so it can never
-              // reach the 16u intersection at either end.
-              // Pick a MIDDLE-cell boundary (gapIdx 1..9), then VERIFY the doghouse body
-              // (walls 0.7 x 0.6 -> anchor +- 0.35 x +- 0.3) does not overlap the
-              // doormat/concrete landing of EITHER neighbor — their real house.step world
-              // rectangles. With today's geometry the boundary is 3.2u from each house
-              // center and the landing spans +- 1.25u, so this always passes; the guard
-              // keeps "never on a doormat, never directly in front of a house" true even
-              // if the house geometry ever changes.
-              const hAt = (i) =>
-                blocks.find(
-                  (h) =>
-                    h.blockX === b.blockX &&
-                    Math.abs(h.worldX - (b.blockX + queensCellX(i) + QUEENS_MID_W / 2)) < 0.1,
-                );
-              const clearsLanding = (gx, axc, ayc) => {
-                for (const gi of [gx, gx + 1]) {
-                  const hh = hAt(gi);
-                  const st = hh && hh.house && hh.house.step;
-                  if (
-                    st &&
-                    axc - 0.35 < st.x1 &&
-                    axc + 0.35 > st.x0 &&
-                    ayc - 0.3 < st.y1 &&
-                    ayc + 0.3 > st.y0
-                  )
-                    return false;
-                }
-                return true;
-              };
-              let gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
-              let ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
-              // Maspeth front-lawn GRASS is y 3.5..6.75 (HOUSE_Y 10.5). The doormat/concrete
-              // landing in front of each door occupies y ~5.3..6.7 (house face 6.4..6.8), so
-              // the doghouse stays mid-lawn, clearly IN FRONT of the landing: its 0.6u-deep
-              // body (anchorY +- 0.3) spans at most y 3.7..5.3 — never on the mat/landing.
-              let ay = R(4.0, 5.0);
-              for (let tries = 0; tries < 12; tries++) {
-                const axc = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-                if (clearsLanding(gapIdx, axc, ay)) break;
-                gapIdx = 1 + ((Math.random() * (QUEENS_HOUSES_PER_BLOCK - 3)) | 0);
-                ax = b.blockX + queensCellX(gapIdx) + QUEENS_MID_W + R(-0.35, 0.35);
-                ay = R(4.0, 5.0);
-              }
-              ld.anchorX = clamp(ax, b.blockX + 1.0, b.blockX + BLOCK_W - 1.0);
-              ld.anchorY = ay;
-              // Home position set back from the door so dog can't clip through the house
-              ld.homeX = ld.anchorX + R(-0.4, 0.8);
-              ld.homeY = ld.anchorY - R(1.2, 2.0);
+              // Maspeth (Queens) leashed street dogs — Mott Haven (Bronx) style, in its
+              // own top-level branch so Queens-only tweaks can never leak into Flatbush
+              // (or any other borough): NO doghouse, the chain ties to a cast-iron POST
+              // (never a tree), placed in front of a house — front-yard grass or the
+              // curb sidewalk (spot rules in queensDogSpot).
+              queensDogSpot(ld, b.blockX);
               ld.wx = ld.homeX;
               ld.wy = ld.homeY;
-              ld.houseG.position.set(ld.anchorX, ld.anchorY, GZ);
-              dynamicGroup.add(ld.houseG);
+              ld.anchorObj = makePostMesh();
+              ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
+              dynamicGroup.add(ld.anchorObj);
+              // Ties HIGH: the post is vertical, so the chain connects to the TOP of
+              // the post (z 1.5) and tilts down to the dog's collar (z 0.62).
               tieQueensLeashChain(
                 ld.chain,
                 ld.anchorX,
                 ld.anchorY,
-                0.62,
+                1.5,
                 ld.wx,
                 ld.wy,
                 0.62,
@@ -13624,7 +13709,7 @@
               ld.g.rotation.z = Math.atan2(
                 ld.homeY - ld.anchorY,
                 ld.homeX - ld.anchorX,
-              ); // resting, street-facing
+              );
             } else {
               // Original doghouse placement for other non-Manhattan levels
               // The doghouse belongs on the front-lawn GRASS — never on the street/sidewalk,
@@ -19825,7 +19910,34 @@
               // prevents the leash from stretching across the screen when the dog is far
               // from its anchor and tries to lunge at the worker.
               if (c.wx - p.wx < -55 && !isFlatbushLevel()) {
-                if (isManhattanLevel() || isBronxLevel()) {
+                if (isQueensLevel()) {
+                  // Queens (Maspeth): recycle ahead of the route to a random house's
+                  // frontage — front-yard lawn post or curb post (same spot rules as
+                  // spawnWorld's queensDogSpot).
+                  let targetX = p.wx + 44 + R(0, 10);
+                  let blockIdx = Math.floor(targetX / 96);
+                  let posInCycle = targetX % 96;
+                  if (posInCycle > 80) {
+                    targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
+                  } else if (posInCycle < 10 || posInCycle > 70) {
+                    targetX = blockIdx * 96 + 10 + R(0, 60);
+                  }
+                  const qbx = Math.floor(targetX / 96) * 96;
+                  queensDogSpot(c, qbx);
+                  c.wx = c.homeX;
+                  c.wy = c.homeY;
+                  c.agro = 0;
+                  c.calmCd = 2.0; // the dog settles before it can get aggro again
+                  if (c.anchorObj) {
+                    if (c.anchorObj.parent === null)
+                      dynamicGroup.add(c.anchorObj);
+                    c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+                  } else {
+                    c.anchorObj = makePostMesh();
+                    c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
+                    dynamicGroup.add(c.anchorObj);
+                  }
+                } else if (isManhattanLevel() || isBronxLevel()) {
                   if (isBronxLevel()) {
                     // Bronx: recycle to a free active block (one dog per block), curb post or
                     // stoop-foot post. HomeY for a stoop climbs toward the wall stop, so it
@@ -19995,6 +20107,17 @@
                 ) {
                   gx = clamp(gx, c.blockMinX, c.blockMaxX);
                 }
+              } else if (isQueensLevel()) {
+                // Maspeth dogs stay in their zone: curb dogs on the walk (>= 0.85),
+                // lawn dogs on the front-yard grass (<= 6.5, in front of the landing).
+                if (c.anchorType === "curb") gy = Math.max(0.85, gy);
+                else gy = Math.min(gy, 6.5);
+                if (
+                  typeof c.blockMinX === "number" &&
+                  typeof c.blockMaxX === "number"
+                ) {
+                  gx = clamp(gx, c.blockMinX, c.blockMaxX);
+                }
               }
               const mvx = gx - c.wx,
                 mvy = gy - c.wy;
@@ -20009,6 +20132,16 @@
                   c.wy = Math.max(0.85, c.wy);
                   // Bronx: same wall stop line — the dog climbs the stoop but can't enter.
                   if (isBronxLevel()) c.wy = Math.min(c.wy, dogStopY(c.wx));
+                  if (
+                    typeof c.blockMinX === "number" &&
+                    typeof c.blockMaxX === "number"
+                  ) {
+                    c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+                  }
+                } else if (isQueensLevel()) {
+                  // Maspeth: same zone rules after the move (curb on the walk, lawn on grass).
+                  if (c.anchorType === "curb") c.wy = Math.max(0.85, c.wy);
+                  else c.wy = Math.min(c.wy, 6.5);
                   if (
                     typeof c.blockMinX === "number" &&
                     typeof c.blockMaxX === "number"
@@ -20112,7 +20245,7 @@
                   c.chain,
                   c.anchorX,
                   c.anchorY,
-                  isManhattanLevel() || isBronxLevel() ? 1.5 : 0.62,
+                  (isManhattanLevel() || isBronxLevel() || isQueensLevel()) ? 1.5 : 0.62,
                   dogSwayX,
                   dogSwayY,
                   dogCollarZ,

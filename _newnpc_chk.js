@@ -59,6 +59,14 @@ eval(extract('makeHighPolyDog'));
 eval(extract('makeDogHouse'));
 eval(extract('makeQueensDogHouse'));
 eval(extract('makeQueensDog'));
+const DOG_PALETTES = {
+  yellow: { fur: 0xdbc480, furD: 0x8a6a20, light: 0xf0e0a0 },
+  husky: { fur: 0xe0e4e8, furD: 0x8f95a3, light: 0xfafafc },
+  darkbrown: { fur: 0x4a2c18, furD: 0x3a2010, light: 0x8a5a30 },
+  spotted: { fur: 0xf0f0f0, furD: 0x141414, light: 0xffffff },
+};
+eval(extract('makeBronxLeashDog'));
+eval(extract('makeQueensLeashDog'));
 eval(extract('npcPace') + '\n' + extract('creatureMaxY') + '\n' + extract('addCreature'));
 
 let pass = true;
@@ -100,7 +108,8 @@ check('queens doghouse: mirrored roof slabs across the ridge (+X and -X sides)',
 const qHoles = qh.children.filter(ch => ch.material && ch.material.color === 0x14100e);
 check('queens doghouse: entry hole on the street-facing (-Y) face', qHoles.length === 1 && qHoles[0].position.y < -0.2, JSON.stringify(qHoles.map(h2 => h2.position.y)));
 check('queens doghouse: makeQueensDogHouse is a faithful rename copy of makeDogHouse (identical body)', extract('makeQueensDogHouse').replace('function makeQueensDogHouse(', 'function makeDogHouse(') === extract('makeDogHouse'));
-check('addCreature leashdog: Queens routes to makeQueensDogHouse, Flatbush keeps the shared makeDogHouse', src.indexOf('c.houseG = isQueensLevel() ? makeQueensDogHouse() : makeDogHouse();') >= 0);
+check('addCreature leashdog: Queens joins the Bronx post-tied street-dog path (NO doghouse: houseG = null)', src.indexOf('if (isBronxLevel() || isQueensLevel())') >= 0 && src.indexOf('c.houseG = null; // no doghouse on the Bronx or Queens — post-tied') >= 0);
+check('addCreature leashdog: Queens builds makeQueensLeashDog, Bronx keeps makeBronxLeashDog, other levels keep the shared makeHighPolyDog + makeDogHouse', src.indexOf('dg = isQueensLevel() ? makeQueensLeashDog(c.dogSize, c.dogCoat) : makeBronxLeashDog(c.dogSize, c.dogCoat);') >= 0 && src.indexOf('dg = makeHighPolyDog();') >= 0 && src.indexOf('c.houseG = makeDogHouse();') >= 0);
 // --- Queens-EXCLUSIVE dog + leash copy: Maspeth must NEVER share makeHighPolyDog / tieLeashChain ---
 check('queens dog: makeQueensDog is a faithful rename copy of makeHighPolyDog (identical body)', extract('makeQueensDog').replace('function makeQueensDog(', 'function makeHighPolyDog(') === extract('makeHighPolyDog'));
 check('queens dog: full pivot interface (legs/tail/head/root)', (() => {
@@ -109,7 +118,13 @@ check('queens dog: full pivot interface (legs/tail/head/root)', (() => {
   return !!(p && p.legFL && p.legFR && p.legHL && p.legHR && p.tailPivot && p.headPivot && p.root);
 })());
 check('queens leash: tieQueensLeashChain is a faithful rename copy of tieLeashChain (identical body)', extract('tieQueensLeashChain').replace('function tieQueensLeashChain(', 'function tieLeashChain(') === extract('tieLeashChain'));
-check('addCreature leashdog: Queens routes to makeQueensDog, other levels keep the shared makeHighPolyDog', src.indexOf('dg = isQueensLevel() ? makeQueensDog() : makeHighPolyDog();') >= 0);
+check('queens street dog: makeQueensLeashDog is a faithful rename copy of makeBronxLeashDog (identical body)', extract('makeQueensLeashDog').replace('function makeQueensLeashDog(', 'function makeBronxLeashDog(') === extract('makeBronxLeashDog'));
+check('queens street dog: medium dog + large pitbull both build a full pivot interface', (() => {
+  const md = makeQueensLeashDog('medium', null);
+  const ld = makeQueensLeashDog('large', 'yellow');
+  const ok = (u) => !!(u && u.legFL && u.legFR && u.legHL && u.legHR && u.tailPivot && u.headPivot && u.root);
+  return ok(md.userData.dog) && ok(ld.userData.dog) && ld.scale.x === 1.35;
+})());
 check('isQueensLevel: borough-gated on QUEENS', /function isQueensLevel\(\) \{[\s\S]*?borough === "QUEENS"/.test(src));
 // --- leashdog wiring ---
 const ld = addCreature('leashdog');
