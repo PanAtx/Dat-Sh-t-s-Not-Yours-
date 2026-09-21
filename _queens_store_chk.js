@@ -133,6 +133,42 @@ const checks = [
     'Maspeth store dispatch is borough-gated on QUEENS (not any other borough)',
     /const isQueensStore =[\s\S]*?borough === "QUEENS";/.test(html),
   ],
+  // --- ground: green lawns/park, concrete ONLY at the store corners ---
+  [
+    'Maspeth ground path is borough-gated on QUEENS with green lawns + green park',
+    /else if \([\s\S]*?borough === "QUEENS"[^;]*\)[\s\S]*?groundStrip\(GW, 3\.5, 0\.3, 6\.75, 0x4d7a3a, GCX\); \/\/ front lawns \(grass\)[\s\S]*?groundStrip\(GW, 15\.5, 0\.3, 16\.25, 0x35522c, GCX\); \/\/ park beyond blocks \(grass\)/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth concrete front-lawn apron is QUEENS_STORE_W wide, 0.35 thick, at the store corner',
+    /groundStrip\(QUEENS_STORE_W, 3\.5, 0\.35, 6\.75, apron, cx\);/.test(html),
+  ],
+  [
+    'Maspeth concrete park patch behind the store (QUEENS_STORE_W wide, full park band)',
+    /groundStrip\(QUEENS_STORE_W, 15\.5, 0\.35, 16\.25, apron, cx\);/.test(html),
+  ],
+  [
+    'Maspeth concrete corners track the FROZEN store corner (left = block start, right = block end)',
+    /QUEENS_STORE_CORNERS\[bi\][\s\S]*?bl\.x \+ halfStore[\s\S]*?bl\.x \+ \(HOUSES_PER_BLOCK - 1\) \* BW \+ \(BW - halfStore\)/.test(
+      html,
+    ),
+  ],
+  [
+    'buildGround freezes the corner choice too (concrete matches the store across restarts)',
+    /QUEENS_STORE_CORNERS === null\)[\s\S]*?QUEENS_STORE_CORNERS = pickQueensStoreCorners\(\);/.test(
+      html,
+    ) &&
+      (html.match(/QUEENS_STORE_CORNERS = pickQueensStoreCorners\(\);/g) || [])
+        .length >= 2,
+  ],
+  // --- trees: no tree in front of a store ---
+  [
+    'no tree spawns in front of a store (store cells are tree-free)',
+    /!mailboxAt\(b\.blockX, houseIdx\) &&[\s\S]*?!\(storeOptions && storeOptions\.isStore\)/.test(
+      html,
+    ),
+  ],
   // --- ensure we did NOT touch the Flatbush two-corner logic ---
   [
     'Flatbush still gets stores on BOTH corners (i === 0 || last) unchanged',

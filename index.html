@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.179</div>
+          <div id="app-version" class="menu-version">v1.0.180</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.179';
+      const APP_VERSION = '1.0.180';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2846,6 +2846,31 @@
           // house front lawns in between stay green.
           for (const xInt of LEVEL_XS) {
             groundStrip(IW, 3.5, 0.35, 6.75, apron, xInt + IW / 2);
+          }
+        } else if (
+          LEVEL_DAYS[level - 1] &&
+          LEVEL_DAYS[level - 1].borough === "QUEENS"
+        ) {
+          // Maspeth: green front lawns + green park (residential), but the ONE
+          // corner-store corner of each block gets poured concrete — a front-lawn
+          // apron (y 5.0..8.5) and a park patch (y 8.5..24) behind it, both at the
+          // store's width, centered on the frozen store corner. Houses keep grass.
+          if (QUEENS_STORE_CORNERS === null)
+            QUEENS_STORE_CORNERS = pickQueensStoreCorners();
+          console.log(
+            "  -> Maspeth path: green lawns/park + concrete ONLY at the store corners",
+          );
+          groundStrip(GW, 3.5, 0.3, 6.75, 0x4d7a3a, GCX); // front lawns (grass)
+          groundStrip(GW, 15.5, 0.3, 16.25, 0x35522c, GCX); // park beyond blocks (grass)
+          const apron = 0x8d949c;
+          const halfStore = QUEENS_STORE_W / 2;
+          for (let bi = 0; bi < LEVEL_BLOCKS.length; bi++) {
+            const bl = LEVEL_BLOCKS[bi];
+            const cx = QUEENS_STORE_CORNERS[bi]
+              ? bl.x + halfStore // left corner store: center at block start + halfStore
+              : bl.x + (HOUSES_PER_BLOCK - 1) * BW + (BW - halfStore); // right corner store
+            groundStrip(QUEENS_STORE_W, 3.5, 0.35, 6.75, apron, cx); // front-lawn apron
+            groundStrip(QUEENS_STORE_W, 15.5, 0.35, 16.25, apron, cx); // park patch behind store
           }
         } else {
           console.log("  -> Non-Manhattan path: green lawns");
@@ -12870,7 +12895,13 @@
         // they're a solid obstacle, not a walkable hazard like a pothole or a bottle).
         // Suppressed on every mailbox house (every 5th corner from Block 2 on)
         // so a canopy can never clip the box.
-        if (Math.random() < 0.5 && !mailboxAt(b.blockX, houseIdx)) {
+        // Never plant a tree in front of a storefront (the canopy would clip the
+        // sign/door) — store cells are tree-free on every borough that has stores.
+        if (
+          Math.random() < 0.5 &&
+          !mailboxAt(b.blockX, houseIdx) &&
+          !(storeOptions && storeOptions.isStore)
+        ) {
           const isSidewalkTree =
             isManhattanLevel() || borough === "BROOKLYN" || borough === "THE BRONX";
           const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
