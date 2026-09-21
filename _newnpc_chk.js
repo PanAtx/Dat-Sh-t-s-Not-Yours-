@@ -53,6 +53,7 @@ const JACKER_FACE_SE = -Math.PI / 2;   // kept in sync with index.html (jacker f
 
 eval(extract('makeJacker'));
 eval(extract('makeHooker'));
+eval(extract('makePolishGirl'));
 eval(extract('makeSkater'));
 eval(extract('makeEScooter'));
 eval(extract('makeHighPolyDog'));
@@ -76,6 +77,7 @@ const countMeshes = g => g.children.reduce((s,ch) => s + 1 + countMeshes(ch), 0)
 // --- genders (deterministic) ---
 check('jacker (man) -> male', addCreature('jacker').gender === 'male');
 check('hooker (woman) -> female', addCreature('hooker').gender === 'female');
+check('polish (woman) -> female', addCreature('polish').gender === 'female');
 check('skater (man) -> male', addCreature('skater').gender === 'male');
 check('escooter (guy) -> male', addCreature('escooter').gender === 'male');
 check('leashdog (animal) -> neutral', addCreature('leashdog').gender === null);
@@ -85,6 +87,9 @@ const j = makeJacker();
 check('jacker: builds a group with parts + hammer', !!j.userData.parts && !!j.userData.hammer && j.children.length >= 4, 'children=' + j.children.length);
 const h = makeHooker();
 check('hooker: builds with parts', !!h.userData.parts && h.children.length >= 6, 'children=' + h.children.length);
+const pg = makePolishGirl();
+check('polish girl: builds with parts + purse', !!pg.userData.parts && !!pg.userData.bag && pg.userData.bag.children.length >= 2, 'bag children=' + (pg.userData.bag ? pg.userData.bag.children.length : 0));
+check('polish girl: addCreature builds without throwing', (() => { try { return !!addCreature('polish').data; } catch (e) { return false; } })());
 const s = makeSkater();
 check('skater: board pivot exposed', !!s.userData.board && !!s.userData.parts);
 const e = makeEScooter();

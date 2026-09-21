@@ -208,11 +208,15 @@ check('Maspeth leashed dog: recycle target lands >= 50u ahead of the player (off
   return true;
 })());
 // ---- (3c) Maspeth leashed dog RATE: 4 per level (unchanged from the doghouse era) ----
-check('Maspeth leashed dog rate: 4 per level (was 1)', (() => {
+check('Maspeth leashed dog rate: scaled by week score ($5000+ = 4 dogs, else 2)', (() => {
   const i = src.indexOf('const dogCount = isFlatbushLevel()');
   if (i < 0) return false;
-  const seg = src.slice(i, i + 320);
-  return /isQueensLevel\(\)\s*\?\s*4\b/.test(seg) && /:\s*1\s*;/.test(seg);
+  const seg = src.slice(i, i + 460);
+  return (
+    /isQueensLevel\(\)\s*\?\s*weekScore\s*>=\s*5000\s*\?\s*4\b/.test(seg) &&
+    /:\s*2\b/.test(seg) &&
+    /:\s*1\s*;/.test(seg)
+  );
 })());
 
 // ---- (4) worker reach is level-aware: workerMaxY() = 8.0 on the borough levels
