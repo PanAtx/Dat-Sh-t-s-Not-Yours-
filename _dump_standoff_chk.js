@@ -388,4 +388,78 @@ check('regression: full can 4.5u past the face -> "get closer" line, no dump (ca
   assert.deepStrictEqual(calls.voices, ['I need to get closer to the truck!']);
 });
 
+// ---- 4) TEST MODE B: the magenta debug box for the carrying push-out -------
+check('debug box: B toggles the MAGENTA carrying push-out outline that follows the truck', ()=>{
+  assert.ok(html.indexOf('if (e.code === "KeyB") toggleTruckDebugBox();') >= 0);
+  assert.ok(html.indexOf('0xff00ff') >= 0, 'magenta color');
+  assert.ok(html.indexOf('truckDebugBox.position.set(truck.wx, -4.5, GZ);') >= 0);
+  assert.ok(html.indexOf('updateTruckDebugBox();') > html.indexOf('truck.g.position.set(truck.wx, -4.5, GZ);'));
+});
+check('debug box: mirrors the carrying push-out constants (0.7 street / 0.4 curb / 0.25 back / 1.5 corner / 0.45 radius)', ()=>{
+  assert.ok(html.indexOf('const C_M = 0.7,') >= 0);
+  assert.ok(html.indexOf('C_M_CURB = 0.4,') >= 0);
+  assert.ok(html.indexOf('C_M_BACK = 0.25,') >= 0);
+  assert.ok(html.indexOf('CORNER_R = 1.5;') >= 0);
+  assert.ok(html.indexOf('const TRUCK_DEBUG_WR = 0.45;') >= 0);
+});
+// Run the REAL outline builder from index.html with a minimal THREE stub:
+function makeDebugOutline(){
+  const stub = {
+    BufferGeometry: class { setAttribute(n, a) { this[n] = a; } getAttribute(n) { return this[n]; } },
+    BufferAttribute: class { constructor(a, s) { this.array = a; this.itemSize = s; } },
+  };
+  const f = extractFn(html, 'truckDebugOutline');
+  return new Function('THREE', f + '; return truckDebugOutline;')(stub);
+}
+function outlinePts(geo){
+  const a = geo.getAttribute('position').array, out = [];
+  for (let i = 0; i < a.length; i += 3) out.push([a[i], a[i + 1]]);
+  return out;
+}
+check('debug box outline: the rounded rear CURB corner is drawn as a quarter arc (depth = R·(√2−1))', ()=>{
+  const make = makeDebugOutline();
+  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
+  const pts = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
+  assert.ok(pts.length >= 10 && pts.every(q => isFinite(q[0]) && isFinite(q[1])));
+  const corX = -halfBack, corY = eC; // where the OLD sharp corner point was
+  let dmin = 1e9;
+  for (const q of pts) dmin = Math.min(dmin, Math.hypot(q[0] - corX, q[1] - corY));
+  assert.ok(Math.abs(dmin - 1.5 * (Math.SQRT2 - 1)) < 1e-3, 'arc depth ' + dmin);
+  // every point sits on a flat edge OR exactly on the arc circle:
+  const ax = corX + 1.5, ay = corY - 1.5;
+  for (const q of pts) {
+    const onEdge =
+      (Math.abs(q[0] - halfFront) < 1e-5 && q[1] >= -eS - 1e-5 && q[1] <= eC + 1e-5) ||
+      (Math.abs(q[1] - eC) < 1e-5 && q[0] <= corX + 1.5 + 1e-5 && q[0] >= corX - 1e-5) ||
+      (Math.abs(q[0] - corX) < 1e-5 && q[1] <= eC - 1.5 + 1e-5 && q[1] >= -eS - 1e-5) ||
+      (Math.abs(q[1] + eS) < 1e-5 && q[0] <= halfFront + 1e-5 && q[0] >= corX - 1e-5);
+    assert.ok(onEdge || Math.abs(Math.hypot(q[0] - ax, q[1] - ay) - 1.5) < 1e-4, 'off-shape point ' + q);
+  }
+});
+check('debug box outline: OUTER line = inner + the 0.45u worker radius (where his CENTER stops)', ()=>{
+  const make = makeDebugOutline();
+  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
+  const inr = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
+  const out = outlinePts(make(halfBack + 0.45, halfFront + 0.45, eS + 0.45, eC + 0.45, 1.5 + 0.45));
+  const ext = (a, f) => f(...a.map(q => q[0])), extY = (a, f) => f(...a.map(q => q[1]));
+  assert.ok(Math.abs(ext(out, Math.max) - (ext(inr, Math.max) + 0.45)) < 1e-5);
+  assert.ok(Math.abs(ext(out, Math.min) - (ext(inr, Math.min) - 0.45)) < 1e-5);
+  assert.ok(Math.abs(extY(out, Math.max) - (extY(inr, Math.max) + 0.45)) < 1e-5);
+  assert.ok(Math.abs(extY(out, Math.min) - (extY(inr, Math.min) - 0.45)) < 1e-5);
+  const corX = -halfBack, corY = eC;
+  let dmin = 1e9;
+  for (const q of out) dmin = Math.min(dmin, Math.hypot(q[0] - corX, q[1] - corY));
+  // same arc center, bigger radius -> the corner depth shrinks by exactly 0.45
+  assert.ok(Math.abs(dmin - (1.5 * (Math.SQRT2 - 1) - 0.45)) < 1e-3, 'outer arc depth ' + dmin);
+});
+check('debug box outline: the rear STREET-side corner stays SHARP (exact vertex, no arc)', ()=>{
+  const make = makeDebugOutline();
+  const halfBack = BOX_L + 0.25, halfFront = BOX_L + 0.7, eS = 2.25 + 0.7, eC = 2.25 + 0.4;
+  const pts = outlinePts(make(halfBack, halfFront, eS, eC, 1.5));
+  assert.ok(
+    pts.some(q => Math.abs(q[0] + halfBack) < 1e-5 && Math.abs(q[1] + eS) < 1e-5),
+    'missing sharp street corner vertex',
+  );
+});
+
 console.log('\n' + pass + ' dump-standoff checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));

@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.168</div>
+          <div id="app-version" class="menu-version">v1.0.169</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.168';
+      const APP_VERSION = '1.0.169';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -16287,6 +16287,7 @@
         truck.g.visible = true;
         // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
         truck.g.position.set(truck.wx, -4.5, GZ);
+        updateTruckDebugBox(); // magenta debug box (B) follows the truck
         // The rear hazard lights blink in the DSNY pattern: 1s BOTH outer
         // lights (L1+L3), 1s the MIDDLE light (L2) — repeat forever. There is
         // NEVER a moment when all three are dark.
@@ -19887,6 +19888,7 @@
         if (truck.g) {
           truck.g.visible = true;
           truck.g.position.set(truck.wx, -4.5, GZ);
+          updateTruckDebugBox();
         }
         routeEnd.driveT += dt;
         const hopperOff = truck.hopperOff != null ? truck.hopperOff : -4.3;
@@ -20229,6 +20231,103 @@
         gp.pStart = !!gp.start;
         gp.pSelect = !!gp.select;
       }
+      // ==================== TEST MODE: B = MAGENTA TRUCK DEBUG BOX ====================
+      // Shows the truck's CARRYING push-out boundary — the exact surface a
+      // sanitation worker stops against while holding an item. Two magenta
+      // outlines (mirrors the push-out block in updatePlayer):
+      //   INNER = the standoff surface the held bag/can/basket keeps clear
+      //           of (CARRY_M street/cab, CARRY_M_CURB curb, CARRY_M_BACK
+      //           rear, rounded rear CURB-side corner = CARRY_CORNER_R);
+      //   OUTER = inner + the 0.45u worker radius = where his CENTER stops.
+      // The group follows the truck every frame (updateTruckDebugBox).
+      const TRUCK_DEBUG_WR = 0.45; // worker collision radius (mirrors the push-out)
+      let truckDebugBox = null,
+        truckDebugSig = "";
+      function truckDebugOutline(halfBack, halfFront, edgeStreet, edgeCurb, cornerR) {
+        // Closed outline in truck-local coords (origin at the truck center:
+        // x along the street, y across the lane). Sharp everywhere EXCEPT the
+        // rear curb-side corner (rear face meets the truck's LEFT), which is a
+        // quarter arc — the same shape as the carrying push-out box.
+        const rearX = -halfBack,
+          frontX = halfFront,
+          yS = -edgeStreet,
+          yC = edgeCurb;
+        const ax = rearX + cornerR,
+          ay = yC - cornerR;
+        const pts = [
+          [frontX, yS],
+          [frontX, yC],
+          [rearX + cornerR, yC],
+        ];
+        for (let a = 90; a <= 180; a += 9) {
+          pts.push([ax + cornerR * Math.cos((a * Math.PI) / 180), ay + cornerR * Math.sin((a * Math.PI) / 180)]);
+        }
+        pts.push([rearX, yS]);
+        const v = new Float32Array(pts.length * 3);
+        for (let i = 0; i < pts.length; i++) {
+          v[i * 3] = pts[i][0];
+          v[i * 3 + 1] = pts[i][1];
+          v[i * 3 + 2] = 0;
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.BufferAttribute(v, 3));
+        return g;
+      }
+      function buildTruckDebugBox() {
+        const C_M = 0.7,
+          C_M_CURB = 0.4,
+          C_M_BACK = 0.25,
+          CORNER_R = 1.5; // mirrors the carrying push-out constants
+        const visReach = truck.boxW * 1.25;
+        const edgeStreet = Math.max(truck.boxWStreet != null ? truck.boxWStreet : truck.boxW, visReach) + C_M;
+        const edgeCurb = Math.max(truck.boxWCurb != null ? truck.boxWCurb : truck.boxW, visReach) + C_M_CURB;
+        const grp = new THREE.Group();
+        const inner = new THREE.LineLoop(
+          truckDebugOutline(truck.boxL + C_M_BACK, truck.boxL + C_M, edgeStreet, edgeCurb, CORNER_R),
+          new THREE.LineBasicMaterial({ color: 0xff00ff }),
+        );
+        const outer = new THREE.LineLoop(
+          truckDebugOutline(
+            truck.boxL + C_M_BACK + TRUCK_DEBUG_WR,
+            truck.boxL + C_M + TRUCK_DEBUG_WR,
+            edgeStreet + TRUCK_DEBUG_WR,
+            edgeCurb + TRUCK_DEBUG_WR,
+            CORNER_R + TRUCK_DEBUG_WR,
+          ),
+          new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.55 }),
+        );
+        inner.position.z = 0.02;
+        outer.position.z = 0.05;
+        grp.add(inner, outer);
+        scene.add(grp);
+        truckDebugBox = grp;
+        truckDebugSig = [truck.boxL, truck.boxW, truck.boxWStreet, truck.boxWCurb].join("|");
+        console.log("[DSNY] truck debug box ON (press B to hide)");
+      }
+      function updateTruckDebugBox() {
+        if (!truck || !truckDebugBox) return;
+        const sig = [truck.boxL, truck.boxW, truck.boxWStreet, truck.boxWCurb].join("|");
+        if (sig !== truckDebugSig) {
+          // truck model changed -> rebuild the outline with the new box
+          scene.remove(truckDebugBox);
+          truckDebugBox.traverse((o) => o.geometry && o.geometry.dispose());
+          truckDebugBox = null;
+          buildTruckDebugBox();
+        }
+        truckDebugBox.position.set(truck.wx, -4.5, GZ);
+      }
+      function toggleTruckDebugBox() {
+        if (!truck) return;
+        if (truckDebugBox) {
+          scene.remove(truckDebugBox);
+          truckDebugBox.traverse((o) => o.geometry && o.geometry.dispose());
+          truckDebugBox = null;
+          truckDebugSig = "";
+          console.log("[DSNY] truck debug box OFF");
+        } else {
+          buildTruckDebugBox();
+        }
+      }
       window.addEventListener("keydown", (e) => {
         if (
           ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(
@@ -20262,6 +20361,10 @@
         // TEST MODE: R = spawn a Red Bull can near the worker (quick visual check of the 3D model).
         // Play state only. Reuses the same spawn as the score-triggered "Run It Up" pickup.
         if (e.code === "KeyR" && state === "play") spawnMonsterNearPlayer();
+        // TEST MODE: B = toggle the magenta debug box around the truck's
+        // carrying push-out boundary (inner = item standoff surface, outer =
+        // worker-center stop line; rounded rear curb-side corner).
+        if (e.code === "KeyB") toggleTruckDebugBox();
         if (e.code === "Enter" && state !== "play") advanceGame();
       });
       window.addEventListener("keyup", (e) => {
