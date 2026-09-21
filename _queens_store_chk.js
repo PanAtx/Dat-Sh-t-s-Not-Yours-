@@ -218,10 +218,22 @@ const checks = [
       (html.match(/QUEENS_STORE_CORNERS = pickQueensStoreCorners\(\);/g) || [])
         .length >= 2,
   ],
-  // --- trees: no tree in front of a store ---
+  // --- trees: no tree in front of a store, sidewalk placement, corner properties tree-free ---
   [
     'no tree spawns in front of a store (store cells are tree-free)',
     /!mailboxAt\(\s*b\.blockX,\s*houseIdx,[\s\S]*?\) &&[\s\S]*?!\(storeOptions && storeOptions\.isStore\)/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth trees are SIDEWALK trees near the curb (not on the front lawn)',
+    /const isSidewalkTree =[\s\S]*?borough === "THE BRONX" \|\|[\s\S]*?isQueensBlock;[\s\S]*?const t = isSidewalkTree \? makeSidewalkTree\(\) : makeTree\(\);[\s\S]*?ty = isSidewalkTree \? R\(0\.8, 1\.8\) : R\(6, 7\.5\);/.test(
+      html,
+    ),
+  ],
+  [
+    'Maspeth corner properties are tree-free (both block corners: store corner AND house corner)',
+    /!\(storeOptions && storeOptions\.isStore\) &&[\s\S]*?!\([\s\S]*?isQueensBlock &&[\s\S]*?houseIdx === 0 \|\| houseIdx === QUEENS_HOUSES_PER_BLOCK - 1/.test(
       html,
     ),
   ],
