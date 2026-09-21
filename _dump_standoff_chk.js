@@ -2,19 +2,22 @@
 // the worker's push-out box is now IDENTICAL for carrying and empty-handed
 // (raw collision box + 0.25u breathing room, SHARP corners), so he can tuck
 // right up to the hopper while holding a bag / can / basket. The held item is
-// allowed to visually clip into the PAINTED truck body: its materials carry
-// the body as clipping planes, so only the part of the item INSIDE the truck
-// is cut away and the rest stays visible — nothing pokes through the paint.
+// allowed to visually clip into the PAINTED truck body: a per-fragment
+// discard test in its materials cuts away only the part INSIDE the truck
+// (clipping planes can't express this — they keep only the intersection of
+// half-spaces, which would hide everything OUTSIDE the box) — the rest stays
+// visible, nothing pokes through the paint.
 // The dump zones must stay reachable at his new closest approach.
 //
 // Fix under test:
 //   1) push-out: ONE box for both states — 0.25u margin on every side, no
 //      CARRY_M / CARRY_M_CURB / CARRY_M_BACK / CARRY_CHAMFER, sharp corners;
-//   2) item clip: the held item's materials carry the painted truck body as
-//      six CLIPPING PLANES — only the part of the item INSIDE the truck is
-//      cut away, the rest stays visible (it reads as sliding behind the
-//      paint); the item's materials are cloned on pickup so the shared
-//      template materials stay untouched;
+//   2) item clip: a per-fragment discard test is injected into the held
+//      item's materials — fragments whose world position lands INSIDE the
+//      painted truck box (x1.25 + pad, tracked via the truck's inverse world
+//      matrix) are discarded, everything outside stays visible; the item's
+//      materials are cloned on pickup so the shared template materials stay
+//      untouched;
 //   3) the truck's own motion must never shove a STANDING worker: the push-out
 //      is skipped only while he doesn't move — the instant he walks again he's
 //      pushed OUT of the body (a truck that swept over him can't let him walk
@@ -55,21 +58,26 @@ check('push-out: the old carrying standoffs are GONE (no CARRY_M / CARRY_M_CURB 
   assert.ok(html.indexOf('CARRY_CHAMFER') < 0);
   assert.ok(html.indexOf('_holding ?') < 0, 'no carry-conditional box left');
 });
-check('item clip: the held item is CLIPPED by the painted truck body (only the part inside is removed)', ()=>{
-  assert.ok(html.indexOf('renderer.localClippingEnabled = true;') >= 0);
-  assert.ok(html.indexOf('m.clippingPlanes = truckClipWorld;') >= 0);
-  assert.ok(html.indexOf('applyMatrix4(truck.g.matrixWorld)') >= 0, 'planes follow the truck every frame');
-  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, 1, 0), RS)') >= 0, 'street face plane');
-  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, -1, 0), RC)') >= 0, 'curb face plane');
-  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(1, 0, 0), RL)') >= 0, 'rear face plane');
-  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(-1, 0, 0), RL)') >= 0, 'front face plane');
-  assert.ok(html.indexOf('new THREE.Plane(new THREE.Vector3(0, 0, -1), HT)') >= 0, 'top plane (flying items stay visible)');
+check('item clip: the held item is CLIPPED by the painted truck box (per-fragment discard in the item materials)', ()=>{
+  assert.ok(html.indexOf('function applyTruckClip(') >= 0, 'clip shader injector exists');
+  assert.ok(html.indexOf('#include <clipping_planes_fragment>') >= 0, 'injected at the standard clipping chunk');
+  assert.ok(html.indexOf('vTcWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;') >= 0, 'fragment world position from the vertex stage');
+  assert.ok(html.indexOf('uTruckInv * vec4(vTcWorldPos, 1.0)') >= 0, 'fragment position tested in TRUCK space (matrix follows the truck)');
+  assert.ok(html.indexOf('if (tcL.x > uBoxMin.x && tcL.x < uBoxMax.x && tcL.y > uBoxMin.y && tcL.y < uBoxMax.y && tcL.z > uBoxMin.z && tcL.z < uBoxMax.z) discard;') >= 0, 'fragments INSIDE the box are discarded, everything outside stays visible');
+  assert.ok(html.indexOf('truck.g.updateWorldMatrix(true, false);') >= 0, 'truck matrix refreshed BEFORE the uniform update (box tracks the truck, not its spawn point)');
   assert.ok(html.indexOf('* 1.25 + 0.05') >= 0, 'clip box = painted reach (x1.25) + small pad');
+});
+check('item clip: the OLD clipping-plane approach is GONE (it kept only the box interior — items vanished everywhere else)', ()=>{
+  assert.ok(html.indexOf('renderer.localClippingEnabled') < 0);
+  assert.ok(html.indexOf('clippingPlanes') < 0, 'no clippingPlanes assignment left');
+  assert.ok(html.indexOf('truckClipLocal') < 0);
+  assert.ok(html.indexOf('truckClipWorld') < 0);
 });
 check('item clip: the item materials are CLONED once on pickup (shared template materials stay untouched)', ()=>{
   const attach = html.indexOf('function attachCarried(');
   assert.ok(attach >= 0 && html.indexOf('item.clipMats') >= 0);
-  assert.ok(html.indexOf('o.material.clone()', attach) > attach, 'materials cloned in attachCarried');
+  assert.ok(html.indexOf('const c = m.clone();', attach) > attach, 'materials cloned in attachCarried');
+  assert.ok(html.indexOf('applyTruckClip(c)', attach) > attach, 'clip test applied to the clones');
 });
 check('push-out: truck motion must never drag a standing worker, but a walking one is pushed OUT (no hopper pass-through)', ()=>{
   assert.ok(html.indexOf('const preOut = pdx * pdx + pdy * pdy >= WR * WR;') >= 0);

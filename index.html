@@ -2123,7 +2123,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.174</div>
+          <div id="app-version" class="menu-version">v1.0.175</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2247,7 +2247,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.174';
+      const APP_VERSION = '1.0.175';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2729,7 +2729,6 @@
         renderer.setSize(innerWidth, innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.localClippingEnabled = true; // per-material clipping planes (held item vs truck body)
         $("game").appendChild(renderer.domElement);
 
         scene = new THREE.Scene();
@@ -13817,20 +13816,60 @@
           hy = -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
         return Math.hypot(p.wx - hx, p.wy - hy) < HEAVY_DUMP_RADIUS;
       }
-      let truckClipLocal = null, // 6 planes of the painted truck body in TRUCK space (built once)
-        truckClipWorld = null; // same planes transformed to world space every frame
+      const truckClipMats = new Set(); // every material running the truck-clip fragment test
+      const truckClipBox = {}; // {min, max} of the painted truck box in TRUCK space (built once)
+      const _truckClipInv = new THREE.Matrix4(); // inverse truck world matrix (freshened each frame)
+      // Give a material the per-fragment TRUCK-CLIP test: a fragment whose world
+      // position lands INSIDE the painted truck box is discarded, so the part
+      // of the item inside the truck is invisible and the rest stays visible
+      // (it reads as sliding behind the paint). Clipping planes can't express
+      // this (they keep only the intersection of half-spaces), so the test is
+      // injected into the material's shader via onBeforeCompile.
+      function applyTruckClip(mat) {
+        if (!mat || mat.__truckClip) return;
+        mat.__truckClip = true;
+        mat.__tcu = {
+          uTruckInv: { value: new THREE.Matrix4() },
+          uBoxMin: { value: new THREE.Vector3() },
+          uBoxMax: { value: new THREE.Vector3() },
+        };
+        const oc = mat.onBeforeCompile;
+        mat.onBeforeCompile = (shader, renderer) => {
+          if (oc) oc(shader, renderer);
+          shader.uniforms.uTruckInv = mat.__tcu.uTruckInv;
+          shader.uniforms.uBoxMin = mat.__tcu.uBoxMin;
+          shader.uniforms.uBoxMax = mat.__tcu.uBoxMax;
+          shader.vertexShader =
+            'varying vec3 vTcWorldPos;\n' +
+            shader.vertexShader.replace(
+              '#include <worldpos_vertex>',
+              '#include <worldpos_vertex>\n\tvTcWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+            );
+          shader.fragmentShader =
+            'varying vec3 vTcWorldPos;\nuniform mat4 uTruckInv;\nuniform vec3 uBoxMin;\nuniform vec3 uBoxMax;\n' +
+            shader.fragmentShader.replace(
+              '#include <clipping_planes_fragment>',
+              '#include <clipping_planes_fragment>\n\tvec4 tcL = uTruckInv * vec4(vTcWorldPos, 1.0);\n\tif (tcL.x > uBoxMin.x && tcL.x < uBoxMax.x && tcL.y > uBoxMin.y && tcL.y < uBoxMax.y && tcL.z > uBoxMin.z && tcL.z < uBoxMax.z) discard;',
+            );
+        };
+        mat.needsUpdate = true;
+        truckClipMats.add(mat);
+      }
       function attachCarried(item) {
         worker.group.add(item.g);
-        // Clone this item's materials ONCE so we can give them the truck's
-        // clipping planes without touching the shared template materials the
-        // ground items use (the clone stays with the item for the rest of the
-        // shift — resting items under the truck get clipped correctly too).
+        // Clone this item's materials ONCE so the truck-clip shader can be
+        // injected without touching the shared template materials the ground
+        // items use (the clone stays with the item for the rest of the shift —
+        // resting items under the truck get clipped correctly too).
         if (!item.clipMats) {
           item.g.traverse((o) => {
-            if (o.isMesh && o.material)
-              o.material = Array.isArray(o.material)
-                ? o.material.map((m) => m.clone())
-                : o.material.clone();
+            if (!o.isMesh || !o.material) return;
+            const fix = (m) => {
+              const c = m.clone();
+              applyTruckClip(c);
+              return c;
+            };
+            o.material = Array.isArray(o.material) ? o.material.map(fix) : fix(o.material);
           });
           item.clipMats = true;
         }
@@ -16195,38 +16234,32 @@
         );
         // HELD-ITEM CLIPPING: carrying lets him stand as close as empty-handed,
         // so the held bag / can / basket pokes into the truck body when he
-        // tucks up to the hopper. The item's materials carry six CLIPPING
-        // PLANES (the painted truck body as a box), so only the part of the
-        // item INSIDE the truck is cut away — the rest stays visible and the
-        // item reads as sliding behind the paint. Planes are built in truck
-        // space once, then transformed to world space here each frame.
+        // tucks up to the hopper. Every clip material runs a per-fragment test
+        // against the PAINTED truck box (see applyTruckClip): fragments INSIDE
+        // the box are discarded — the part of the item inside the truck is
+        // invisible, the rest stays visible. The box lives in truck space, so
+        // only the inverse world matrix needs refreshing as the truck moves.
         if (truck && truck.g) {
-          if (!truckClipLocal) {
+          // matrixWorld is only refreshed by the renderer LATER this frame, so
+          // force a fresh one now — the clip box must follow the truck's
+          // CURRENT position, not the stale matrix from last render.
+          truck.g.updateWorldMatrix(true, false);
+          _truckClipInv.copy(truck.g.matrixWorld).invert();
+          if (!truckClipBox.min) {
+            truckClipBox.min = new THREE.Vector3();
+            truckClipBox.max = new THREE.Vector3();
             const RS = (truck.boxWStreet != null ? truck.boxWStreet : truck.boxW) * 1.25 + 0.05,
               RC = (truck.boxWCurb != null ? truck.boxWCurb : truck.boxW) * 1.25 + 0.05,
-              RL = (truck.boxL != null ? truck.boxL : 4.0) + 0.05,
-              HT = 1.15; // above carried items (~1.0), below toss arcs (2.4+)
-            // a fragment is kept while its distance is >= 0 to ALL six planes,
-            // so the whole painted volume is the only removed region:
-            truckClipLocal = [
-              new THREE.Plane(new THREE.Vector3(0, 1, 0), RS), // street face
-              new THREE.Plane(new THREE.Vector3(0, -1, 0), RC), // curb face
-              new THREE.Plane(new THREE.Vector3(1, 0, 0), RL), // rear face
-              new THREE.Plane(new THREE.Vector3(-1, 0, 0), RL), // front (cab) face
-              new THREE.Plane(new THREE.Vector3(0, 0, -1), HT), // top (flying items stay visible)
-              new THREE.Plane(new THREE.Vector3(0, 0, 1), 1.5), // bottom (ground)
-            ];
-            truckClipWorld = truckClipLocal.map((pl) => pl.clone());
+              RL = (truck.boxL != null ? truck.boxL : 4.0) + 0.05;
+            truckClipBox.min.set(-RL, -RS, -1.5); // below the ground
+            truckClipBox.max.set(RL, RC, 1.15); // above carried items (~1.0), below toss arcs (2.4+)
           }
-          for (let i = 0; i < 6; i++)
-            truckClipWorld[i].copy(truckClipLocal[i]).applyMatrix4(truck.g.matrixWorld);
-          if (carried && carried.g)
-            carried.g.traverse((o) => {
-              if (o.isMesh && o.material)
-                (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
-                  m.clippingPlanes = truckClipWorld;
-                });
-            });
+          for (const m of truckClipMats) {
+            if (!m.__tcu) continue; // disposed this shift
+            m.__tcu.uTruckInv.value.copy(_truckClipInv);
+            m.__tcu.uBoxMin.value.copy(truckClipBox.min);
+            m.__tcu.uBoxMax.value.copy(truckClipBox.max);
+          }
         }
         // invulnerability flashing — and IMMUNITY ("Monster") flashes RAPIDLY with a
         // constant burst of colorful stars shooting off the worker
