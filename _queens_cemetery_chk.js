@@ -179,6 +179,66 @@ check(
   cemBlock.indexOf('GZ + per.top + 0.02') >= 0
 );
 
+// ================= 2b. ORIENTATION: everything STANDS UP (Z is the vertical axis) =================
+{
+  const THREE = require(path.join(__dirname, 'three_r128.min.js'));
+  const M = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const MS = (c, o) =>
+    new THREE.MeshStandardMaterial(
+      Object.assign({ color: c, metalness: 0.95, roughness: 0.28 }, o || {})
+    );
+  const BX = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+  const CY = (r1, r2, h, m, s) =>
+    new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m);
+  const SP = (r, m, s) => new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m);
+  const CEM_GREYS = [0x9aa0a6, 0x8d939a, 0xa8adb3, 0x7e848b];
+  const ctx = vm.createContext({ THREE, M, MS, BX, CY, SP, CEM_GREYS, Math });
+  vm.runInContext(
+    extract('makeHeadstone') +
+      '\n' +
+      extract('makeDeadTree') +
+      '\n' +
+      extract('makeRaven') +
+      '\n' +
+      extract('makeCemeteryFence'),
+    ctx
+  );
+  const bb = (g) => {
+    g.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(g);
+    const s = b.getSize(new THREE.Vector3());
+    return {
+      x: +s.x.toFixed(2),
+      y: +s.y.toFixed(2),
+      z: +s.z.toFixed(2),
+      minZ: +b.min.z.toFixed(2),
+    };
+  };
+  const stand = (name, g, needZ, uprightLikeWall) => {
+    const b = bb(g);
+    check(
+      name + ' STANDS UP on its end (Z-UP, tall in the vertical axis): got X/Y/Z=' + b.x + '/' + b.y + '/' + b.z,
+      b.z >= needZ && b.minZ >= -0.05 && (!uprightLikeWall || b.y <= Math.max(b.z, b.x)),
+      JSON.stringify(b)
+    );
+  };
+  for (let v = 0; v < 5; v++)
+    stand('headstone variant ' + v, ctx.makeHeadstone(v), v === 3 ? 0.9 : 1.0, true);
+  stand('monument (variant 4)', ctx.makeHeadstone(4), 1.6, true);
+  stand('dead tree (trunk vertical)', ctx.makeDeadTree(), 2.0, true);
+  stand('raven (perched, upright)', ctx.makeRaven(), 0.5, false);
+  const fb = bb(ctx.makeCemeteryFence(96));
+  check(
+    'iron fence STANDS UP as a wall along the street: ~96u run in X, thin in Y, tall in Z (>=2.4), footing on the ground: got X/Y/Z=' + fb.x + '/' + fb.y + '/' + fb.z,
+    fb.x >= 95 && fb.x <= 97 && fb.y < 1 && fb.z >= 2.4 && fb.minZ >= -0.05,
+    JSON.stringify(fb)
+  );
+  check(
+    'raven perch math: monument userData.top == 1.73 (the raven sits at GZ + top + 0.02)',
+    Math.abs(ctx.makeHeadstone(4).userData.top - 1.73) < 0.06
+  );
+}
+
 // ================= 3. GHOST HELPERS =================
 const ghostify = (() => {
   try {

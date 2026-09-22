@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.215</div>
+          <div id="app-version" class="menu-version">v1.0.216</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.215';
+      const APP_VERSION = '1.0.216';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7466,110 +7466,126 @@
       const CEM_GREYS = [0x9aa0a6, 0x8d939a, 0xa8adb3, 0x7e848b]; // weathered stone
       function makeHeadstone(v) {
         // v: 0 rounded slab, 1 cross, 2 obelisk, 3 twin slabs, 4 big monument
+        // Z-UP: the game's vertical axis is Z (ground = GZ), so all HEIGHTS go in the
+        // 3rd (Z) argument of BX and local z=0 is the ground the stone stands ON.
         const g = new THREE.Group();
         const grey = M(CEM_GREYS[(Math.random() * CEM_GREYS.length) | 0]);
         const greyD = M(0x6f757c);
-        const plinth = BX(0.85, 0.14, 0.34, greyD);
+        const plinth = BX(0.85, 0.34, 0.14, greyD); // wide (X) x deep (Y) x low (Z)
         plinth.position.z = 0.07;
         g.add(plinth);
         let top = 1.2;
         if (v === 1) {
           // cross
-          const vert = BX(0.17, 1.25, 0.14, grey);
-          vert.position.z = 0.75;
+          const vert = BX(0.17, 0.14, 1.25, grey);
+          vert.position.z = 0.14 + 1.25 / 2; // stands on the plinth
           g.add(vert);
-          const horiz = BX(0.52, 0.15, 0.14, grey);
-          horiz.position.set(0, 0, 0.95);
+          const horiz = BX(0.52, 0.14, 0.15, grey);
+          horiz.position.z = 0.14 + 1.25 - 0.3;
           g.add(horiz);
-          top = 1.4;
+          top = 0.14 + 1.25;
         } else if (v === 2) {
           // obelisk (tapered square shaft + pyramid tip)
+          const sq = new THREE.Group(); // spins the square section about the VERTICAL (Z) axis
+          sq.rotation.z = Math.PI / 4;
           const shaft = new THREE.Mesh(
             new THREE.CylinderGeometry(0.11, 0.2, 1.25, 4),
             grey,
           );
-          shaft.rotation.y = Math.PI / 4;
-          shaft.position.z = 0.75;
+          shaft.rotation.x = Math.PI / 2; // cylinder axis (Y) -> vertical Z
+          shaft.position.z = 0.14 + 1.25 / 2;
           shaft.castShadow = true;
-          g.add(shaft);
+          sq.add(shaft);
           const tip = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.22, 4), grey);
-          tip.rotation.y = Math.PI / 4;
-          tip.position.z = 1.53;
+          tip.rotation.x = Math.PI / 2; // cone apex -> up
+          tip.position.z = 0.14 + 1.25 + 0.11;
           tip.castShadow = true;
-          g.add(tip);
-          top = 1.65;
+          sq.add(tip);
+          g.add(sq);
+          top = 0.14 + 1.25 + 0.22;
         } else if (v === 3) {
           // twin slabs (a shared grave)
-          const s1 = BX(0.4, 0.85, 0.16, grey);
-          s1.position.set(-0.22, 0, 0.55);
+          const s1 = BX(0.4, 0.16, 0.85, grey);
+          s1.position.set(-0.22, 0, 0.14 + 0.425);
           g.add(s1);
-          const s2 = BX(0.38, 0.75, 0.16, M(CEM_GREYS[(Math.random() * 4) | 0]));
-          s2.position.set(0.24, 0, 0.5);
+          const s2 = BX(0.38, 0.16, 0.75, M(CEM_GREYS[(Math.random() * 4) | 0]));
+          s2.position.set(0.24, 0, 0.14 + 0.375);
           g.add(s2);
-          top = 1.0;
+          top = 0.14 + 0.85;
         } else if (v === 4) {
           // big monument: base + shaft + urn on top
-          const base = BX(1.0, 0.3, 0.4, greyD);
-          base.position.z = 0.25;
+          const base = BX(1.0, 0.4, 0.3, greyD);
+          base.position.z = 0.15;
           g.add(base);
-          const shaftM = BX(0.55, 1.0, 0.26, grey);
-          shaftM.position.z = 0.9;
+          const shaftM = BX(0.55, 0.26, 1.0, grey);
+          shaftM.position.z = 0.3 + 0.5;
           g.add(shaftM);
           const urn = SP(0.18, grey);
-          urn.scale.set(1, 1.25, 1);
-          urn.position.z = 1.62;
+          urn.scale.set(1, 1, 1.25);
+          urn.position.z = 0.3 + 1.0 + 0.2;
           g.add(urn);
-          top = 1.9;
+          top = 0.3 + 1.0 + 0.43;
         } else {
           // rounded slab
-          const slab = BX(0.72, 1.05, 0.18, grey);
-          slab.position.z = 0.65;
+          const slab = BX(0.72, 0.18, 1.05, grey);
+          slab.position.z = 0.14 + 1.05 / 2;
           g.add(slab);
           const cap = new THREE.Mesh(
             new THREE.CylinderGeometry(0.36, 0.36, 0.18, 12),
             grey,
           );
           cap.rotation.z = Math.PI / 2; // axis along X: the rounded top
-          cap.position.z = 1.175;
+          cap.position.z = 0.14 + 1.05;
           cap.castShadow = true;
           g.add(cap);
-          top = 1.36;
+          top = 0.14 + 1.05 + 0.36;
         }
         g.userData.top = top; // world z of the highest point (the raven perches on this)
         return g;
       }
       function makeDeadTree() {
-        // Scary tree: bare, gnarled, no leaves — a dark trunk with twisted limbs
+        // Scary tree: bare, gnarled, no leaves — a dark trunk with twisted limbs.
+        // Z-UP: the trunk axis (cylinder Y) is rotated to the vertical Z; each limb
+        // lives in a wrapper group that spins about the VERTICAL (Z) axis for its
+        // compass direction, then the limb tilts out of the trunk on its own X.
         const g = new THREE.Group();
         const bark = M(0x332a1e),
           barkD = M(0x2a2118);
         const trunk = CY(0.1, 0.2, 2.1, bark, 7);
         trunk.position.z = 1.05;
-        trunk.rotation.x = 0.06; // lean
+        trunk.rotation.x = Math.PI / 2 - 0.06; // axis -> vertical, with a lean
         g.add(trunk);
+        // [azimuth (compass spin), attach height, limb length, outward tilt]
         const limbs = [
-          [0.75, 1.55, 1.3, 0.5],
-          [-0.8, 1.75, 1.5, -0.55],
-          [0.5, 1.95, 1.2, 0.2],
-          [-0.55, 2.05, 1.1, -0.25],
-          [0.1, 2.15, 1.0, 0.05],
+          [0.6, 1.1, 1.3, 0.5],
+          [-0.9, 1.3, 1.5, 0.55],
+          [0.2, 1.5, 1.2, 0.25],
+          [-0.35, 1.6, 1.1, 0.3],
+          [0.08, 1.75, 1.0, 0.12],
         ];
-        for (const [lz, lpos, ll, la] of limbs) {
+        for (const [az, lpos, ll, la] of limbs) {
+          const w = new THREE.Group();
+          w.position.z = lpos;
+          w.rotation.z = az; // compass direction about the vertical axis
+          g.add(w);
           const limb = CY(0.025, 0.07, ll, barkD, 6);
-          limb.position.set(0, 0, lpos);
-          limb.rotation.x = lz;
-          limb.rotation.y = la;
-          g.add(limb);
-          // a twig branching off the limb
+          limb.rotation.x = la; // tilt out of the trunk (axis -> Z-ish)
+          limb.position.y = Math.sin(la) * (ll / 2);
+          limb.position.z = Math.cos(la) * (ll / 2);
+          w.add(limb);
+          // a twig branching off near the limb's tip
           const tw = CY(0.012, 0.028, 0.6, barkD, 5);
-          tw.position.set(0, 0, ll * 0.55);
-          tw.rotation.x = lz * 0.6 + 0.5;
-          limb.add(tw);
+          tw.rotation.x = la + 0.5;
+          tw.position.y = Math.sin(la) * ll * 0.55 + Math.sin(la + 0.5) * 0.3;
+          tw.position.z = Math.cos(la) * ll * 0.55 + Math.cos(la + 0.5) * 0.3;
+          w.add(tw);
         }
         return g;
       }
       function makeRaven() {
-        // A black raven, perched: body + head + beak + folded wings + tail + legs
+        // A black raven, perched: body + head + beak + folded wings + tail + legs.
+        // Z-UP: legs stand on the local z=0 perch, the body's long axis is the depth
+        // (Y), the head + beak point toward the street (-Y).
         const g = new THREE.Group();
         const black = M(0x0a0a0c);
         const body = SP(0.16, black);
@@ -7577,40 +7593,41 @@
         body.position.z = 0.28;
         g.add(body);
         const head = SP(0.085, black);
-        head.position.set(0, 0.02, 0.52);
+        head.position.set(0, -0.12, 0.5); // up + toward the street
         g.add(head);
         const beak = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.11, 5), M(0x8a7a2a));
-        beak.rotation.x = Math.PI / 2;
-        beak.position.set(0, 0.02, 0.63);
+        beak.rotation.x = Math.PI; // cone apex -> forward (-Y, street side)
+        beak.position.set(0, -0.22, 0.5);
         g.add(beak);
         for (const side of [-1, 1]) {
-          const wing = BX(0.05, 0.2, 0.28, M(0x141418));
-          wing.position.set(side * 0.13, 0.02, 0.24);
-          wing.rotation.z = -side * 0.15;
+          const wing = BX(0.24, 0.06, 0.3, M(0x141418));
+          wing.position.set(side * 0.16, 0, 0.3);
+          wing.rotation.y = side * 0.3; // folded, tip angled back
           g.add(wing);
           const leg = CY(0.014, 0.014, 0.14, M(0x8a7a2a), 5);
-          leg.position.set(side * 0.045, 0, 0.07);
+          leg.rotation.x = Math.PI / 2; // standing on the perch
+          leg.position.set(side * 0.05, 0, 0.07);
           g.add(leg);
         }
-        const tail = BX(0.05, 0.08, 0.3, black);
-        tail.position.set(0, 0, 0.02);
-        tail.rotation.z = -0.5;
+        const tail = BX(0.06, 0.3, 0.1, black);
+        tail.position.set(0, 0.2, 0.35);
+        tail.rotation.x = 0.35; // tail end flicked UP behind
         g.add(tail);
         return g;
       }
       function makeCemeteryFence(len) {
         // Tall black wrought-iron fence (black paint): posts w/ finials, two rails,
-        // dense vertical bars, a dark concrete footing. Origin at the LEFT end,
-        // extends along +X, front face at y=0. The worker's collision wall IS the
-        // fence line (see the cemFence clamp in the worker update).
+        // dense vertical bars, a dark concrete footing. Origin at the LEFT end on the
+        // ground, extends along +X, front face at y=0. Z-UP: posts/bars are tall in Z.
+        // The worker's collision wall IS the fence line (see the cemFence clamp).
         const g = new THREE.Group();
         const iron = MS(0x101014, { metalness: 0.55, roughness: 0.5 });
-        const foot = BX(len, 0.24, 0.3, M(0x1a1b1e));
-        foot.position.z = 0.12;
+        const foot = BX(len, 0.3, 0.24, M(0x1a1b1e)); // long (X) x deep (Y) x low (Z)
+        foot.position.set(len / 2, 0, 0.12); // centered on the fence run (origin = LEFT end)
         g.add(foot);
         // posts + finials every 5u
         for (let x = 0; x <= len + 0.01; x += 5) {
-          const post = BX(0.24, 2.4, 0.24, iron);
+          const post = BX(0.24, 0.24, 2.4, iron);
           post.position.set(x, 0, 1.2);
           g.add(post);
           const fin = SP(0.1, iron, 8);
@@ -7619,13 +7636,13 @@
         }
         // horizontal rails
         for (const rz of [0.55, 1.78]) {
-          const rail = BX(len, 0.08, 0.05, iron);
+          const rail = BX(len, 0.05, 0.08, iron);
           rail.position.set(len / 2, 0, rz);
           g.add(rail);
         }
         // vertical bars (dense, 0.4u apart)
         for (let x = 0.4; x < len; x += 0.4) {
-          const bar = BX(0.045, 1.45, 0.04, iron);
+          const bar = BX(0.045, 0.04, 1.45, iron);
           bar.position.set(x, 0, 1.18);
           g.add(bar);
         }
@@ -7639,7 +7656,7 @@
         const g = new THREE.Group();
         const bx = QUEENS_CEMETERY_X;
         const fence = makeCemeteryFence(BLOCK_W);
-        fence.position.set(bx, CEM_FENCE_Y, 0);
+        fence.position.set(bx, CEM_FENCE_Y, GZ); // footing stands ON the ground
         g.add(fence);
         const stones = [];
         for (let i = 0; i < 10; i++) {
@@ -7647,7 +7664,7 @@
           const x = bx + R(4, BLOCK_W - 4);
           const y = R(CEM_FENCE_Y + 0.8, CEM_BACK_Y - 0.5);
           hs.position.set(x, y, GZ);
-          hs.rotation.y = -Math.PI / 2 + R(-0.5, 0.5); // face the street, lazy tilt
+          hs.rotation.z = R(-0.5, 0.5); // lazy spin about the VERTICAL axis (face the street)
           g.add(hs);
           stones.push({ x: x, y: y, top: hs.userData.top || 1.2 });
         }
@@ -7658,7 +7675,7 @@
             R(CEM_FENCE_Y + 2.0, CEM_BACK_Y - 1.5),
             GZ,
           );
-          mo.rotation.y = -Math.PI / 2 + R(-0.3, 0.3);
+          mo.rotation.z = R(-0.3, 0.3);
           g.add(mo);
         }
         for (let t = 0; t < 4; t++) {
@@ -7668,14 +7685,14 @@
             R(CEM_FENCE_Y + 1.5, CEM_BACK_Y - 1.0),
             GZ,
           );
-          tr.rotation.y = R(0, Math.PI * 2);
+          tr.rotation.z = R(0, Math.PI * 2);
           g.add(tr);
         }
         // the black raven, perched on a random headstone
         const per = stones[(Math.random() * stones.length) | 0];
         const raven = makeRaven();
         raven.position.set(per.x, per.y, GZ + per.top + 0.02);
-        raven.rotation.y = -Math.PI / 2 + R(-0.6, 0.6);
+        raven.rotation.z = R(-0.6, 0.6);
         g.add(raven);
         return g;
       }
@@ -13871,7 +13888,7 @@
                 R(CEM_FENCE_Y + 1.0, CEM_BACK_Y - 0.8),
                 GZ,
               );
-              hs.rotation.y = -Math.PI / 2 + R(-0.6, 0.6);
+              hs.rotation.z = R(-0.6, 0.6); // lazy spin about the VERTICAL axis
               groundGroup.add(hs);
             }
           }
