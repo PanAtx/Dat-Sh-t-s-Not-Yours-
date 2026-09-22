@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.217</div>
+          <div id="app-version" class="menu-version">v1.0.218</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.217';
+      const APP_VERSION = '1.0.218';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -13392,6 +13392,26 @@
         };
         // Optional per-spawn overrides (e.g. the bodega cats' coat palette)
         if (opts) for (const k in opts) c[k] = opts[k];
+        // Maspeth cemetery: the block is reserved for ghosts + rats (the raven is
+        // static scenery; the ghostly homeowner rides in via opts.ghost above).
+        // Anything else re-rolls its spawn offset until it lands OFF the block
+        // (8 tries, then snap to the nearer free side).
+        if (
+          isQueensLevel() &&
+          type !== "ghost" &&
+          type !== "rat" &&
+          !c.ghost
+        ) {
+          const c0 = QUEENS_CEMETERY_X,
+            c1 = QUEENS_CEMETERY_X + BLOCK_W;
+          let tries = 0;
+          while (c.wx > c0 && c.wx < c1 && tries < 8) {
+            c.wx = p.wx + (Math.random() < 0.5 ? R(-58, -20) : R(20, 58));
+            tries++;
+          }
+          if (c.wx > c0 && c.wx < c1)
+            c.wx = c.wx < (c0 + c1) / 2 ? c0 - 12 : c1 + 12;
+        }
         // Gender of the voice used when this NPC speaks (male/female/neutral):
         //   ped=man, lady=woman, breaker=man, yeller=man, jacker/skater/escooter=men,
         //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
@@ -15037,7 +15057,10 @@
         // Coats: Queens swaps the plain grey for the three-patch "calico" (a
         // Queens-only coat, like the Bronx's "mott").
         if (isQueensLevel()) {
-          const active = [1, 2, 3, 4, 5];
+          // The cemetery block has no corner store (and no cats): keep it out of the pool.
+          const active = [1, 2, 3, 4, 5].filter(
+            (i) => i !== QUEENS_CEMETERY_BLOCK,
+          );
           for (let i = active.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = active[i];
@@ -21677,6 +21700,40 @@
               }
               break;
             }
+          }
+          // ===== Maspeth cemetery NO-GO ZONE (final word, after ALL movement) =====
+          // Only ghosts + rats may be on the cemetery block (the raven is static
+          // scenery; the ghostly homeowner counts as a ghost). Anything else that
+          // drifted, walked or recycled onto it is snapped back to the edge it
+          // came from and turned to face AWAY, so the sidewalk in front of the
+          // iron fence stays clear of the living. Road vehicles are exempt —
+          // the street in front of the cemetery stays open to traffic.
+          if (
+            isQueensLevel() &&
+            c.type !== "ghost" &&
+            c.type !== "rat" &&
+            c.type !== "car" &&
+            c.type !== "moto" &&
+            c.type !== "bike" &&
+            c.type !== "ebike" &&
+            !c.ghost &&
+            c.wx > QUEENS_CEMETERY_X &&
+            c.wx < QUEENS_CEMETERY_X + BLOCK_W
+          ) {
+            const cMid = QUEENS_CEMETERY_X + BLOCK_W / 2;
+            c.wx = c.wx < cMid ? QUEENS_CEMETERY_X : QUEENS_CEMETERY_X + BLOCK_W;
+            if (typeof c.dir === "number")
+              c.dir = c.wx < cMid ? -1 : 1; // face away from the cemetery
+            // a raccoon's wander target inside the block drags it straight back
+            if (
+              typeof c.tx === "number" &&
+              c.tx > QUEENS_CEMETERY_X &&
+              c.tx < QUEENS_CEMETERY_X + BLOCK_W
+            )
+              c.tx =
+                c.wx < cMid
+                  ? QUEENS_CEMETERY_X - 5
+                  : QUEENS_CEMETERY_X + BLOCK_W + 5;
           }
           c.g.position.x = c.wx;
           c.g.position.y = c.wy;

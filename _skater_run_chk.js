@@ -49,6 +49,7 @@ const blocks = [];                        // no houses in this isolated skater t
 const stepTopAt = (wx, wy) => GZ;         // the skater sits on flat curb/sidewalk — no raised step under it
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
 const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
+const isQueensLevel = () => false, QUEENS_CEMETERY_X = 384, BLOCK_W = 96; // cemetery no-go stubs (never active in this harness)
 
 // ---- execute the REAL functions from index.html ----
 eval(fnSrc('creatureMaxY') + '\n' + fnSrc('npcPace') + '\n' + fnSrc('makeSkater') + '\n' + fnSrc('addCreature') + '\n' + fnSrc('updateCreatures'));

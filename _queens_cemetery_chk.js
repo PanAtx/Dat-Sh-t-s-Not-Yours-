@@ -325,6 +325,13 @@ check(
   'the cemetery homeowner is ghostified (c.ghost → ghostifyPerson) and keeps his questions',
   addSec.indexOf('if (c.ghost) ghostifyPerson(c.data.g)') >= 0
 );
+check(
+  'addCreature re-rolls spawns OFF the cemetery block (only ghosts + rats + the ghost homeowner may land on it)',
+  addSec.indexOf('Maspeth cemetery: the block is reserved for ghosts + rats') >= 0 &&
+    addSec.indexOf('while (c.wx > c0 && c.wx < c1 && tries < 8)') >= 0 &&
+    addSec.indexOf('type !== "ghost"') >= 0 &&
+    addSec.indexOf('type !== "rat"') >= 0
+);
 
 // ================= 6. updateCreatures (the ghost's AI) =================
 const ucStart = src.indexOf('function updateCreatures(dt) {');
@@ -366,6 +373,30 @@ check(
 check(
   'cemetery rats scurry the graveyard grass (cemRat band, behind the fence)',
   /c\.cemRat \? CEM_FENCE_Y \+ 0\.6 : 0\.8/.test(src) && /c\.cemRat \? CEM_BACK_Y - 0\.6 : 2\.2/.test(src)
+);
+check(
+  'cemetery NO-GO ZONE in updateCreatures: only ghosts + rats (+ ghost homeowner) stay on the block, everything else snaps to the nearer edge and faces away (road vehicles exempt)',
+  (() => {
+    const iNo = src.indexOf('Maspeth cemetery NO-GO ZONE');
+    const iEnd = src.indexOf('separateVehicles(vehicleList, dt)');
+    if (iNo < 0 || iEnd < 0) return false;
+    const sec = src.slice(iNo, iEnd);
+    return (
+      iNo > ucStart &&
+      iNo < iEnd &&
+      sec.indexOf('c.type !== "ghost"') >= 0 &&
+      sec.indexOf('c.type !== "rat"') >= 0 &&
+      sec.indexOf('c.type !== "car"') >= 0 &&
+      sec.indexOf('c.type !== "moto"') >= 0 &&
+      sec.indexOf('c.type !== "bike"') >= 0 &&
+      sec.indexOf('c.type !== "ebike"') >= 0 &&
+      sec.indexOf('c.dir = c.wx < cMid ? -1 : 1') >= 0
+    );
+  })()
+);
+check(
+  'bodega cat pool excludes the cemetery block (no store, no cats there)',
+  src.indexOf('[1, 2, 3, 4, 5].filter(\n            (i) => i !== QUEENS_CEMETERY_BLOCK') >= 0
 );
 
 // ================= 7. collideCreatures (the scare) =================
