@@ -7,8 +7,8 @@
 //   - addCreature case "ghost" + ghostified cemetery homeowner
 //   - updateCreatures case "ghost" (drift, float, creepy lines, block-bound)
 //   - collideCreatures ghost branch (scare + HP drain, NOT solid, cooldown)
-//   - worker fence clamp (impassable)
-//   - block suppression (no houses/stores/garbage/trees/dogs/ladies on the block)
+//   - worker fence clamp (impassable) + FULLY enclosed lot (front/back/side walls, cornered)
+//   - block suppression (no houses/stores/garbage/dogs/ladies; sidewalk trees now line the curb)
 //   - cemetery rats + 5 ghosts + 5 floating treasures in spawnWorld
 //   - "Failure to respect the dearly departed" write-up + ghost bubble style
 'use strict';
@@ -178,6 +178,18 @@ check(
   'the raven perches ON a headstone (stone userData.top + GZ offset)',
   cemBlock.indexOf('GZ + per.top + 0.02') >= 0
 );
+check(
+  'the lot is FULLY enclosed: front + back walls (BLOCK_W) + two side walls (CEM_BACK_Y-CEM_FENCE_Y) rotated to run parallel to the cross street',
+  cemBlock.indexOf('const back = makeCemeteryFence(BLOCK_W)') >= 0 &&
+    cemBlock.indexOf('const sideLen = CEM_BACK_Y - CEM_FENCE_Y') >= 0 &&
+    cemBlock.indexOf('const left = makeCemeteryFence(sideLen)') >= 0 &&
+    cemBlock.indexOf('const right = makeCemeteryFence(sideLen)') >= 0 &&
+    cemBlock.indexOf('rotation.z = Math.PI / 2') >= 0
+);
+check(
+  'the fence corners are cornered: makeCemeteryFence plants a post at BOTH ends (postAt(0) + postAt(len)) so the walls meet',
+  fence.indexOf('postAt(0)') >= 0 && fence.indexOf('postAt(len)') >= 0
+);
 
 // ================= 2b. ORIENTATION: everything STANDS UP (Z is the vertical axis) =================
 {
@@ -232,6 +244,15 @@ check(
     'iron fence STANDS UP as a wall along the street: ~96u run in X, thin in Y, tall in Z (>=2.4), footing on the ground: got X/Y/Z=' + fb.x + '/' + fb.y + '/' + fb.z,
     fb.x >= 95 && fb.x <= 97 && fb.y < 1 && fb.z >= 2.4 && fb.minZ >= -0.05,
     JSON.stringify(fb)
+  );
+  // The SIDE wall: same builder rotated +90° about Z so it runs along Y (parallel to the cross street).
+  const side = ctx.makeCemeteryFence(6.6); // CEM_BACK_Y - CEM_FENCE_Y
+  side.rotation.z = Math.PI / 2;
+  const sb = bb(side);
+  check(
+    'the SIDE fence wall runs along Y (parallel to the cross street) and stands up: got X/Y/Z=' + sb.x + '/' + sb.y + '/' + sb.z,
+    sb.y >= 6.4 && sb.y <= 6.9 && sb.x < 1 && sb.z >= 2.4 && sb.minZ >= -0.05,
+    JSON.stringify(sb)
   );
   check(
     'raven perch math: monument userData.top == 1.73 (the raven sits at GZ + top + 0.02)',
@@ -530,8 +551,8 @@ check(
   })()
 );
 check(
-  'cemetery cell: NO sidewalk trees (!b.cemetery in the tree gate)',
-  mbSec.indexOf('!b.cemetery &&') >= 0
+  'cemetery cell: sidewalk trees line the curb (the !b.cemetery tree suppression is REMOVED)',
+  mbSec.indexOf('!b.cemetery &&') === -1
 );
 check(
   'corner-store spawn skips the cemetery block (QUEENS_STORE_CORNERS gate)',

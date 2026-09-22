@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.218</div>
+          <div id="app-version" class="menu-version">v1.0.219</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.218';
+      const APP_VERSION = '1.0.219';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7625,15 +7625,19 @@
         const foot = BX(len, 0.3, 0.24, M(0x1a1b1e)); // long (X) x deep (Y) x low (Z)
         foot.position.set(len / 2, 0, 0.12); // centered on the fence run (origin = LEFT end)
         g.add(foot);
-        // posts + finials every 5u
-        for (let x = 0; x <= len + 0.01; x += 5) {
+        // posts + finials: one at EACH END (so wall segments close at the corners)
+        // plus one every ~5u between the ends.
+        const postAt = (x) => {
           const post = BX(0.24, 0.24, 2.4, iron);
           post.position.set(x, 0, 1.2);
           g.add(post);
           const fin = SP(0.1, iron, 8);
           fin.position.set(x, 0, 2.48);
           g.add(fin);
-        }
+        };
+        postAt(0);
+        for (let x = 5; x < len; x += 5) postAt(x);
+        postAt(len);
         // horizontal rails
         for (const rz of [0.55, 1.78]) {
           const rail = BX(len, 0.05, 0.08, iron);
@@ -7658,6 +7662,22 @@
         const fence = makeCemeteryFence(BLOCK_W);
         fence.position.set(bx, CEM_FENCE_Y, GZ); // footing stands ON the ground
         g.add(fence);
+        // The whole lot is ENCLOSED: a matching back wall + the two side walls (which
+        // run parallel to the cross street) close the rectangle. Every wall carries
+        // posts at both its ends (see makeCemeteryFence), so all four corners are
+        // properly cornered with no gaps.
+        const sideLen = CEM_BACK_Y - CEM_FENCE_Y;
+        const back = makeCemeteryFence(BLOCK_W);
+        back.position.set(bx, CEM_BACK_Y, GZ);
+        g.add(back);
+        const left = makeCemeteryFence(sideLen);
+        left.position.set(bx, CEM_FENCE_Y, GZ);
+        left.rotation.z = Math.PI / 2; // rotate the +X run to face +Y (along the cross street)
+        g.add(left);
+        const right = makeCemeteryFence(sideLen);
+        right.position.set(bx + BLOCK_W, CEM_FENCE_Y, GZ);
+        right.rotation.z = Math.PI / 2;
+        g.add(right);
         const stones = [];
         for (let i = 0; i < 10; i++) {
           const hs = makeHeadstone((Math.random() * 5) | 0);
@@ -13883,9 +13903,10 @@
         // 6.4u middle cells (see queensCellW/queensCellX). Standard levels keep 8u cells.
         const isQueensBlock = borough === "QUEENS";
         const cellW = isQueensBlock ? queensCellW(houseIdx) : BW;
-        // Maspeth 5th block: CEMETERY. No house, no corner store, no curb garbage,
-        // no sidewalk trees — the iron fence + headstones + monuments + dead trees
-        // + raven take over. The fence line becomes this cell's collision wall.
+        // Maspeth 5th block: CEMETERY. No house, no corner store, no curb garbage —
+        // the iron fence (front + back + both sides, fully enclosed) + headstones +
+        // monuments + dead trees + raven take over the lot, and a row of sidewalk
+        // trees lines the curb in front. The fence line becomes this cell's wall.
         const isCemCell = isQueensBlock && b.blockX === QUEENS_CEMETERY_X;
         if (isCemCell) {
           b.cemetery = true;
@@ -14098,7 +14119,6 @@
         // the store corner AND the house corner).
         if (
           Math.random() < 0.5 &&
-          !b.cemetery && // the cemetery block is tree-free on the sidewalk (dead trees live INSIDE the fence)
           !mailboxAt(
             b.blockX,
             houseIdx,
