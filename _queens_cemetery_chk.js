@@ -395,6 +395,22 @@ check(
   mbSec.indexOf('if (b.garbage && !b.cemetery) {') >= 0
 );
 check(
+  "the `house` bag/can record is hoisted ABOVE the !isCemCell scope (the curb-trash block OUTSIDE that scope references it - a TDZ/ReferenceError would crash spawnWorld on every garbage block)",
+  (() => {
+    const iHoist = mbSec.indexOf('let house = null;');
+    const iCem = mbSec.indexOf('if (!isCemCell) {');
+    const iClose = mbSec.indexOf('// end !isCemCell');
+    const iTrash = mbSec.indexOf('if (b.garbage && !b.cemetery) {');
+    return (
+      iHoist > -1 && iHoist < iCem && iCem < iClose && iTrash > iClose &&
+      mbSec.indexOf('const house = {') === -1 &&
+      /makeCurbBag\(\s*houseX\(\)\s*,\s*sideY\(\)\s*,\s*house\s*\)/.test(
+        mbSec.slice(iTrash, iTrash + 6000)
+      )
+    );
+  })()
+);
+check(
   'cemetery cell: NO sidewalk trees (!b.cemetery in the tree gate)',
   mbSec.indexOf('!b.cemetery &&') >= 0
 );

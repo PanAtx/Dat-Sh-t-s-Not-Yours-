@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.213</div>
+          <div id="app-version" class="menu-version">v1.0.214</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.213';
+      const APP_VERSION = '1.0.214';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -13897,6 +13897,9 @@
         }
         // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
         // Flatbush (Brooklyn) houses have a wider front porch — need extra setback.
+        // The house bag/can record is hoisted ABOVE the !isCemCell scope because the curb-trash
+        // block below it (guarded separately by b.garbage) attaches bags/cans to THIS house.
+        let house = null;
         if (!isCemCell) {
         let HOUSE_Y = 10.5;
         if (isManhattanLevel()) HOUSE_Y = 8.7;
@@ -13923,7 +13926,7 @@
         // b.g is the house/store group itself — updateBulbGlow() reads blocks[i].g to drive
         // each lit porch bulb's glow flicker (groups without a glow are skipped by its guard).
         b.g = hg;
-        const house = {
+        house = {
           serviced: false,
           lamp: hg.userData.lamp,
           bags: [],
