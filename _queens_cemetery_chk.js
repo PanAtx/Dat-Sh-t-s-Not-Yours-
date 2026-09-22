@@ -434,8 +434,8 @@ check(
   ghostBumpSrc.indexOf('if (c.type === "ghost" || c.ghost) {') === 0
 );
 check(
-  'ghost touch: sidewalk 6 HP chill / STREET 6+4=10 HP (HP_GHOST_STREET extra), tagged to "ghost" (the write-up cause)',
-  ghostBumpSrc.indexOf('onStreet ? HP_HIT_GHOST + HP_GHOST_STREET : HP_HIT_GHOST') >= 0 &&
+  'ghost touch: 10 HP drained (HP_HIT_GHOST + HP_GHOST_STREET) on ANY touch — street AND sidewalk alike — tagged to "ghost" (the write-up cause)',
+  ghostBumpSrc.indexOf('hurtNPC(HP_HIT_GHOST + HP_GHOST_STREET, "ghost")') >= 0 &&
     ghostBumpSrc.indexOf('"ghost")') >= 0
 );
 check(
@@ -462,7 +462,7 @@ check(
 );
 check('HP_HIT_GHOST is the DANGEROUS ghost damage (6, heavier than a hazard, lighter than a vehicle)', /const HP_HIT_GHOST = 6;/.test(src));
 check(
-  'HP_GHOST_STREET: touching a ghost OUT IN THE STREET does EVEN MORE damage (4 extra HP, on top of HP_HIT_GHOST)',
+  'HP_GHOST_STREET: the ghost-touch extra (4 HP on top of HP_HIT_GHOST — EVERY ghost touch, street and sidewalk, costs the full 10)',
   /const HP_GHOST_STREET = 4;/.test(src)
 );
 check(
@@ -655,6 +655,15 @@ check(
     if (i < 0) return false;
     const sec = src.slice(i, i + 600);
     return sec.indexOf('d.ghostMat = makeGhostMat()') >= 0 && sec.indexOf('d.ghostMat.opacity = 0') >= 0;
+  })()
+);
+check(
+  'ghosts cast NO shadows (ghostifyPerson walks every part: castShadow = false)',
+  (() => {
+    const i = src.indexOf('function ghostifyPerson(');
+    if (i < 0) return false;
+    const sec = src.slice(i, i + 600);
+    return sec.indexOf('o.castShadow = false') >= 0;
   })()
 );
 check(
@@ -997,7 +1006,7 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   const g1 = { type: 'ghost', ghostCd: 0, wx: 432.2, wy: 5.2, gender: 'female' }; // on the SIDEWALK
   const wxBefore = p.wx;
   runTouch(g1, p, Voice, doStun, hurtNPC);
-  check('ghost touch (SIDEWALK): 6 HP drained, tagged to the "ghost" cause', rec.hurt === 1 && rec.dmg === 6 && rec.cause === 'ghost');
+  check('ghost touch (SIDEWALK): the FULL 10 HP drained, tagged to the "ghost" cause', rec.hurt === 1 && rec.dmg === 10 && rec.cause === 'ghost');
   check('ghost touch: the worker got SCARED (one stun)', rec.stuns === 1);
   check(
     'ghost touch: the ghost spoke a creepy line in a "ghost" bubble + the worker yelled',
@@ -1009,7 +1018,7 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   rec.hurt = 0;
   runTouch(g1, p, Voice, doStun, hurtNPC);
   check('ghost touch: cooldown — an immediate re-touch re-damages NOTHING', rec.hurt === 0);
-  // OUT IN THE STREET: the touch is EVEN WORSE (6 + 4 = 10 HP)
+  // OUT IN THE STREET: same FULL 10 HP damage (street ghosts add the longer freeze + road lines)
   const saidStreet = [];
   const VoiceStreet = { say: (t, dur, pitch, x, y, g, sp) => saidStreet.push({ t, sp }) };
   const recS = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
@@ -1025,7 +1034,7 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   const gStreet = { type: 'ghost', ghostCd: 0, wx: 432.2, wy: -0.4, gender: 'male' }; // ghost OUT IN THE STREET
   runTouch(gStreet, pS, VoiceStreet, stunS, hurtS);
   check(
-    'STREET ghost touch: EVEN MORE damage (6 + 4 = 10 HP) tagged to the "ghost" cause',
+    'STREET ghost touch: the FULL 10 HP (6 + 4) tagged to the "ghost" cause — no easier than the sidewalk',
     recS.hurt === 1 && recS.dmg === 10 && recS.cause === 'ghost'
   );
   check(
@@ -1033,7 +1042,7 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
     saidStreet.some((v) => GHOST_STREET_LINES.indexOf(v.t) >= 0 && v.sp === 'ghost') &&
       saidStreet.some((v) => v.t === "NO! The street's ALL GHOSTS!?" && v.sp === 'worker')
   );
-  // the ghostified HOMEOWNER gets the ghost treatment too (sidewalk spot = 6 HP)
+  // the ghostified HOMEOWNER gets the ghost treatment too (sidewalk spot = full 10 HP)
   const rec2 = { hurt: 0, dmg: 0, cause: null };
   const hurt2 = (a, cause) => {
     rec2.hurt++;
@@ -1043,8 +1052,8 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   const ho = { type: 'homeowner', ghost: true, ghostCd: 0, wx: 432.2, wy: 5.2, gender: 'male' };
   runTouch(ho, p, Voice, doStun, hurt2);
   check(
-    'ghostified HOMEOWNER touch: same 6 HP "ghost" scare (not the 1 HP civilian bump)',
-    rec2.hurt === 1 && rec2.dmg === 6 && rec2.cause === 'ghost'
+    'ghostified HOMEOWNER touch: same FULL 10 HP "ghost" scare (not the 1 HP civilian bump)',
+    rec2.hurt === 1 && rec2.dmg === 10 && rec2.cause === 'ghost'
   );
 }
 
@@ -1078,10 +1087,27 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
 {
   const armSrc = extract('makeGhostArm');
   check(
-    'makeGhostArm: a clawed hand (5 fingers) reaches UP out of a spectral mound (animated arm ref)',
+    'makeGhostArm: a GRABBING hand (5 curled fingers — out, fold back, fingertip — 4 fan + thumb) reaches UP out of a spectral mound (animated arm ref)',
     armSrc.indexOf('for (let i = 0; i < 5; i++)') >= 0 &&
       armSrc.indexOf('g.userData.arm = arm') >= 0 &&
-      armSrc.indexOf('CY(0.016, 0.024, 0.16, mat, 5)') >= 0
+      armSrc.indexOf('const finger = (a, thumb) =>') >= 0 &&
+      armSrc.indexOf('tip.position.set') >= 0 &&
+      armSrc.indexOf('ANGLES') >= 0
+  );
+  check(
+    'spectral CURB FOG: a full-block mist band (y 0.45) + drifting wisps mark the street/sidewalk ghost-zone boundary (decoration only, no shadows, no hazard)',
+    (() => {
+      const i = src.indexOf('function buildCemeteryStreetGhosts(');
+      if (i < 0) return false;
+      const sec = src.slice(i, i + 1600);
+      return (
+        sec.indexOf('fogBand') >= 0 &&
+        sec.indexOf('BX(BLOCK_W, 0.8, 0.02, fogMat)') >= 0 &&
+        sec.indexOf('fogBand.position.set(bx + BLOCK_W / 2, 0.45') >= 0 &&
+        sec.indexOf('fogBand.castShadow = false') >= 0 &&
+        sec.indexOf('wisp') >= 0
+      );
+    })()
   );
   const hsSrc = extract('makeGhostHeadstone');
   check(

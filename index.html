@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.222</div>
+          <div id="app-version" class="menu-version">v1.0.223</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.222';
+      const APP_VERSION = '1.0.223';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7747,8 +7747,11 @@
           });
         return GHOST_OBJECT_MAT;
       }
-      // A spectral arm + clawed hand reaching UP out of a small mound of spectral earth.
-      // Origin at the ground point; userData.arm is the animated arm group (the reach).
+      // A spectral arm + GRABBING hand reaching UP out of a small mound of spectral
+      // earth. Origin at the ground point; userData.arm is the animated arm group (the
+      // reach). The hand has FIVE fingers, each read as a curl from above: a proximal
+      // segment reaches OUT from the palm, a distal segment FOLDS BACK toward the palm
+      // center, and a fingertip curls in — a claw closing on whatever's under it.
       function makeGhostArm() {
         const mat = makeGhostObjectMat();
         const g = new THREE.Group();
@@ -7765,18 +7768,35 @@
         fore.rotation.x = Math.PI / 2;
         fore.position.z = 0.55;
         arm.add(fore);
-        const hand = SP(0.1, mat);
-        hand.position.z = 0.76;
-        arm.add(hand);
-        for (let i = 0; i < 5; i++) {
-          // five clawing fingers fanning out of the palm
-          const a = (i / 5) * Math.PI * 2;
-          const f = CY(0.016, 0.024, 0.16, mat, 5);
-          f.rotation.x = Math.PI / 2;
-          f.position.set(Math.cos(a) * 0.075, Math.sin(a) * 0.075, 0.13);
-          f.rotation.z = a;
-          arm.add(f);
-        }
+        const palm = SP(0.1, mat);
+        palm.scale.set(1, 1, 0.8); // a real palm, not a ball
+        palm.position.z = 0.76;
+        arm.add(palm);
+        // Five grabbing fingers: four fan the +x side (±60°), the thumb grips from
+        // the opposite side. From above each finger reads as a curl closing on the
+        // palm — the claw is GRABBING, not fanning.
+        const finger = (a, thumb) => {
+          const ux = Math.cos(a),
+            uy = Math.sin(a);
+          const r1 = thumb ? 0.017 : 0.014,
+            r2 = thumb ? 0.024 : 0.02,
+            rp = thumb ? 0.125 : 0.115,
+            rf = thumb ? 0.145 : 0.13,
+            rt = thumb ? 0.1 : 0.09;
+          const prox = CY(r1, r2, 0.12, mat, 6); // reaches OUT from the palm
+          prox.rotation.z = a - Math.PI / 2; // axis along the radial direction
+          prox.position.set(ux * rp, uy * rp, thumb ? 0.68 : 0.74);
+          arm.add(prox);
+          const dist = CY(r1, r2, 0.11, mat, 6); // FOLDS BACK toward the palm center
+          dist.rotation.z = a - Math.PI / 2;
+          dist.position.set(ux * rf, uy * rf, thumb ? 0.6 : 0.66);
+          arm.add(dist);
+          const tip = SP(thumb ? 0.024 : 0.02, mat, 6); // curled fingertip, closing
+          tip.position.set(ux * rt, uy * rt, thumb ? 0.57 : 0.63);
+          arm.add(tip);
+        };
+        const ANGLES = [-60, -20, 20, 60, 180];
+        for (let i = 0; i < 5; i++) finger((ANGLES[i] * Math.PI) / 180, i === 4);
         arm.position.z = 0.04;
         arm.rotation.x = 0.18; // leans up out of the mound
         g.add(arm);
@@ -7854,6 +7874,36 @@
       // negative-y road (curb top ~ y 0.35); the sidewalk is y ~0.5..5.0 (fence at 5.4).
       function buildCemeteryStreetGhosts(b) {
         const bx = QUEENS_CEMETERY_X;
+        // --- SPECTRAL CURB FOG: a faint ghostly mist line runs the FULL block length
+        // along the curb (y ~0.45, between the street ghosts and the sidewalk ghosts) —
+        // the visible boundary of the two ghost zones. Pure decoration: no hazard,
+        // no shadows, nothing to hit.
+        const fogMat = new THREE.MeshLambertMaterial({
+          color: 0xa8ccff,
+          emissive: 0x24466e,
+          emissiveIntensity: 0.5,
+          transparent: true,
+          opacity: 0.14,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        const fogBand = BX(BLOCK_W, 0.8, 0.02, fogMat);
+        fogBand.castShadow = false;
+        fogBand.position.set(bx + BLOCK_W / 2, 0.45, GZ + 0.02);
+        groundGroup.add(fogBand);
+        // drifting wisps along the line (flattened spectral blobs, staggered so the
+        // fog reads as moving, not painted)
+        for (let i = 0; i < 10; i++) {
+          const wisp = SP(0.9, fogMat, 8);
+          wisp.castShadow = false;
+          wisp.scale.set(1.8, 0.55, 0.14);
+          wisp.position.set(
+            bx + 4 + i * ((BLOCK_W - 8) / 9) + R(-1.5, 1.5),
+            0.45 + R(-0.15, 0.15),
+            GZ + 0.03,
+          );
+          groundGroup.add(wisp);
+        }
         const place = (g, wx, wy, type, r) => {
           g.position.set(wx, wy, GZ);
           groundGroup.add(g);
@@ -10916,6 +10966,7 @@
         }
         g.traverse((o) => {
           if (o.material) o.material = mat;
+          o.castShadow = false; // the dead cast NO shadows (they're light, not matter)
         });
         return g;
       }
@@ -16336,7 +16387,7 @@
       const HP_HIT_SCHOLAR = 2; // bumping the Flatbush scholar offends him - a light bump (respect the observant citizen)
       const HP_HIT_BUMPER = 1; // a casual arcade bump with a walking civilian (ped, dogwalker, hooker, skater...) - very minor, just a nick
       const HP_HIT_GHOST = 6; // a Maspeth cemetery ghost touch is DANGEROUS — a real chill to the bone (heavier than a hazard, lighter than a vehicle)
-      const HP_GHOST_STREET = 4; // touching a ghost OUT IN THE STREET on the cemetery block is EVEN MORE dangerous (the dead claim the road) — added on top of HP_HIT_GHOST
+      const HP_GHOST_STREET = 4; // the ghost-touch EXTRA (on top of HP_HIT_GHOST): touching ANY cemetery ghost — street OR sidewalk — costs the full 10 HP (the dead claim the whole block)
       const HP_HIT_RAVEN = 4; // the cemetery raven's swoop strike — a fast, sharp hit (the beak, not a beatdown)
       const HP_HIT_GHOSTARM = 4; // a Maspeth spectral arm reaches out of the ground and GRABS the worker — a chilly, sharp yank (matches the raven's light strike)
       // The Maspeth cemetery ghost's creepy lines — it drops them as it drifts past the
@@ -17926,11 +17977,11 @@
             // ===== MASPETH CEMETERY GHOST =====
             // Not SOLID: it phases right through the worker and HE is the one who gets
             // scared — a chilling line, a jump (stun), and a chill to the bone
-            // (HP_HIT_GHOST), tagged to the ghost for the "Failure to respect the dearly
-            // departed" stamp. OUT IN THE STREET the touch is EVEN WORSE (HP_GHOST_STREET
-            // extra + a longer freeze) — the streets are DANGEROUS on the cemetery block:
-            // the dead claim the road. The ghostCd cooldown keeps one ghost from draining
-            // him frame-by-frame.
+            // (HP_HIT_GHOST + HP_GHOST_STREET = 10 HP EVERYWHERE, street and sidewalk
+            // alike), tagged to the ghost for the "Failure to respect the dearly
+            // departed" stamp. The street is no easier to walk: ghosts there claim the
+            // road (street lines + a LONGER freeze). The ghostCd cooldown keeps one
+            // ghost from draining him frame-by-frame.
             if (c.ghostCd <= 0) {
               c.ghostCd = 1.8;
               const onStreet = c.wy < 0.35; // out in the street, in front of the curb
@@ -17954,7 +18005,7 @@
                 "burst",
               );
               doStun(onStreet ? 0.8 : 0.55, "scare"); // he freezes for a second, white-knuckling the broom
-              hurtNPC(onStreet ? HP_HIT_GHOST + HP_GHOST_STREET : HP_HIT_GHOST, "ghost");
+              hurtNPC(HP_HIT_GHOST + HP_GHOST_STREET, "ghost"); // the FULL 10 HP, on the walk AND the street
             }
             return; // the ghost passes THROUGH: no bounce-back, no shove
           }
