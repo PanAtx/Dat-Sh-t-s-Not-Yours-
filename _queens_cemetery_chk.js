@@ -411,6 +411,34 @@ check(
   })()
 );
 check(
+  "cemetery block: EVERY consumer of b.house is null-guarded (b.house = null) - rebuildTruckFromFbx + tryInteract skip it, no direct blocks[i].house.bags/can chains remain",
+  (() => {
+    const fb = src.slice(
+      src.indexOf('function rebuildTruckFromFbx()'),
+      src.indexOf('function rebuildTruckFromFbx()') + 1600
+    );
+    const ti = src.slice(
+      src.indexOf('function tryInteract()'),
+      src.indexOf('function tryInteract()') + 2400
+    );
+    return (
+      fb.indexOf('if (!h) continue') >= 0 &&
+      ti.indexOf('if (!hh) continue') >= 0 &&
+      ti.indexOf('hh.bags') >= 0 &&
+      src.indexOf('blocks[i].house.bags') === -1 &&
+      src.indexOf('blocks[i].house.can') === -1 &&
+      src.indexOf('b.garbage && b.house &&') >= 0 && // updateBlocks passed-mark
+      (() => {
+        const rb = src.slice(
+          src.indexOf('function recycleBlock('),
+          src.indexOf('function recycleBlock(') + 500
+        );
+        return rb.indexOf('const h = b.house;') >= 0 && rb.indexOf('if (h) {') >= 0;
+      })()
+    );
+  })()
+);
+check(
   'cemetery cell: NO sidewalk trees (!b.cemetery in the tree gate)',
   mbSec.indexOf('!b.cemetery &&') >= 0
 );

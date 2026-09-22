@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.214</div>
+          <div id="app-version" class="menu-version">v1.0.215</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.214';
+      const APP_VERSION = '1.0.215';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -17176,7 +17176,9 @@
           let best = null,
             bd = 2.4;
           for (let i = 0; i < blocks.length; i++) {
-            for (const bag of blocks[i].house.bags) {
+            const hh = blocks[i].house;
+            if (!hh) continue; // the cemetery block has no house record (b.house = null)
+            for (const bag of hh.bags) {
               if (bag.state !== "curb") continue;
               const d = dist(bag.wx, bag.wy);
               if (d < bd) {
@@ -17184,7 +17186,7 @@
                 best = bag;
               }
             }
-            const c = blocks[i].house.can;
+            const c = hh.can;
             if (c && (c.state === "curb" || c.state === "droppedEmpty")) {
               const d = dist(c.wx, c.wy);
               if (d < bd) {
@@ -22929,6 +22931,7 @@
         truck = nt;
         for (let i = 0; i < blocks.length; i++) {
           const h = blocks[i].house;
+          if (!h) continue; // the cemetery block has no house record (b.house = null)
           (h.bags || []).forEach((bag) => {
             if (bag.state === "curb" && bag.g && bag.g.parent) {
               const pg = bag.g.parent;
