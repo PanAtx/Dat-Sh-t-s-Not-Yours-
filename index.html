@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.210</div>
+          <div id="app-version" class="menu-version">v1.0.211</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.210';
+      const APP_VERSION = '1.0.211';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -13188,8 +13188,9 @@
           case "polishboy":
             // The nice Polish boy (Maspeth, the ladies' brother): a CAUCASIAN
             // sidewalk regular who hangs around the corner store (the deli, if there
-            // is one). Bumping him starts a follow-me temper tantrum — see the
-            // "polishboy" case in updateCreatures.
+            // is one). He RECOGNIZES the worker as the guy who pesters his sister:
+            // aggro starts on proximity alone — see the "polishboy" case in
+            // updateCreatures.
             c.wy = R(1.6, 3.6);
             c.cd = 0;
             c.data = makePerson({
@@ -14129,8 +14130,9 @@
             pw.g.rotation.z = -Math.PI / 2; // facing the street, like the hooker
           }
           // The nice Polish boy: he hangs around the corner store — the Polish
-          // deli if the level has one, else a random corner store. Bumping him
-          // earns a polite ask (and a very loud follow-me tantrum in Polish).
+          // deli if the level has one, else a random corner store. He recognizes
+          // the worker as the guy who pesters his sister: a polite ask when you
+          // get near, then a very loud follow-me tantrum in Polish.
           {
             const deliSpot =
               queensStoreSpots.find((s) => s.deli) ||
@@ -17071,26 +17073,6 @@
                     c.gender,
                     "polish",
                   );
-                else if (c.type === "polishboy") {
-                  // Polite on the record — then he follows you around the corner,
-                  // cursing in Polish to protect his sister's innocence.
-                  Voice.say(
-                    pick([
-                      "Hey, please stop talking to my sister.",
-                      "She's my sister — please leave her be.",
-                      "My sister asked me to tell you to back off.",
-                    ]),
-                    3,
-                    1.05,
-                    c.wx,
-                    c.wy,
-                    c.gender,
-                    "ped",
-                  );
-                  c.aggro = true;
-                  c.aggroT = 14;
-                  c.sayCd = 1.2;
-                }
                 else if (c.type === "skater")
                   Voice.say(
                     "Whoa! Like, watch it, bro!",
@@ -18369,12 +18351,40 @@
             }
             case "polishboy": {
               // The nice Polish boy: he hangs around his corner store — a slow
-              // back-and-forth on the sidewalk in front of it. If the worker bumps
-              // him, he FOLLOWS the worker around the corner of the block, cursing
-              // in Polish to protect his sister's innocence — until the worker gets
-              // ahead of the corner (45u) or the temper cools (14s), then he drifts
-              // back to the store.
+              // back-and-forth on the sidewalk in front of it. He RECOGNIZES the
+              // worker as the guy who pesters his sister: the moment you're near
+              // (~11u) he's polite on the record, then FOLLOWS you around the
+              // corner of the block, cursing in Polish — until the worker gets
+              // ahead of the corner (45u) or the temper cools (14s), then he
+              // drifts back to the store. NO BUMP REQUIRED.
               const L = c.loiter;
+              // The recognition: proximity alone is enough to set him off
+              if (!c.aggro && L) {
+                const pd = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+                if (pd < 11) {
+                  c.aggro = true;
+                  c.aggroT = 14;
+                  if (!c.recognized) {
+                    c.recognized = true;
+                    c.sayCd = 0; // the recognition line lands immediately
+                    Voice.say(
+                      pick([
+                        "Hey, please stop talking to my sister.",
+                        "She's my sister — please leave her be.",
+                        "My sister asked me to tell you to back off.",
+                      ]),
+                      3,
+                      1.05,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "ped",
+                    );
+                  } else {
+                    c.sayCd = 1.2; // temper flares again: curses resume shortly
+                  }
+                }
+              }
               if (c.aggro) {
                 c.aggroT -= dt;
                 const dx = p.wx - c.wx;

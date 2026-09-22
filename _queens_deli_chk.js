@@ -4,8 +4,9 @@
 //     emblem is a PICKLE (green capsule + stem) or a PIEROGI (pale half-moon + pleat)
 //   - makeQueensStore wires the sign ONLY for deli-named stores, centered at the door
 //   - polishboy: addCreature case (makePerson, walker fallthrough), male voice,
-//     polite "stop talking to my sister" bump lines, bump gate, can-hittable,
-//     one per Queens level on a random lady's block (her brother), written-up lines
+//     polite "stop talking to my sister" RECOGNITION lines (proximity trigger,
+//     no bump needed), bump gate, can-hittable, one per Queens level on a random
+//     lady's block (her brother), written-up lines
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -126,7 +127,7 @@ const aiSec = (() => {
   const u = src.indexOf('function updateCreatures(');
   const i = src.indexOf('case "polishboy":', u);
   if (i < 0) return '';
-  return src.slice(i, i + 2400);
+  return src.slice(i, i + 3600);
 })();
 check(
   'AI: polishboy is his OWN case (no per-frame rebuild, no street-ped fallthrough)',
@@ -150,36 +151,43 @@ check(
   /type === "escooter" \|\|\s*\n\s*type === "polishboy"/.test(src)
 );
 
-// bump lines: polite asks to stop bothering his SISTER
+// recognition lines: polite asks to stop bothering his SISTER (proximity trigger)
 const bumpSec = (() => {
   const i = src.indexOf('function collideCreatures');
   if (i < 0) return '';
   return src.slice(i, i + 22000);
 })();
-check('bump GATE includes polishboy', bumpSec.indexOf('c.type === "polishboy"') >= 0);
+check('bump GATE includes polishboy (still a hittable civilian)', bumpSec.indexOf('c.type === "polishboy"') >= 0);
 check(
-  'bump TRIGGERS the follow (c.aggro = true, aggroT = 14, sayCd primed)',
-  bumpSec.indexOf('c.aggro = true;') >= 0 &&
-    bumpSec.indexOf('c.aggroT = 14;') >= 0 &&
-    bumpSec.indexOf('c.sayCd = 1.2;') >= 0
+  'aggro TRIGGERS on PROXIMITY alone (within 11u, temper 14s) — NOT on a bump',
+  aiSec.indexOf('Math.hypot(p.wx - c.wx, p.wy - c.wy)') >= 0 &&
+    aiSec.indexOf('pd < 11') >= 0 &&
+    aiSec.indexOf('c.aggro = true;') >= 0 &&
+    aiSec.indexOf('c.aggroT = 14;') >= 0 &&
+    bumpSec.indexOf('c.aggro = true;') < 0
+);
+check(
+  'recognition line lands only the FIRST time (c.recognized flag), re-aggro just resumes curses',
+  aiSec.indexOf('c.recognized = true') >= 0 &&
+    aiSec.indexOf('!c.recognized') >= 0
 );
 [
   'Hey, please stop talking to my sister.',
   "She's my sister — please leave her be.",
   'My sister asked me to tell you to back off.',
 ].forEach((line) => {
-  check('bump line present: "' + line + '"', bumpSec.indexOf(line) >= 0);
+  check('recognition line present: "' + line + '"', aiSec.indexOf(line) >= 0);
 });
 check(
-  'bump: every line is about his SISTER and he never mentions a mother',
+  'recognition: every line is about his SISTER and he never mentions a mother',
   (() => {
-    const i = bumpSec.lastIndexOf('c.type === "polishboy"'); // the Voice.say branch (after the gate)
+    const i = aiSec.indexOf('!c.recognized');
     if (i < 0) return false;
-    const seg = bumpSec.slice(i, i + 400);
+    const seg = aiSec.slice(i, i + 500);
     return (
       /sister/i.test(seg) &&
       seg.toLowerCase().indexOf('mother') < 0 &&
-      bumpSec.toLowerCase().indexOf('mother') < 0
+      aiSec.toLowerCase().indexOf('mother') < 0
     );
   })()
 );
