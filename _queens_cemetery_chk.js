@@ -1,5 +1,5 @@
 // _queens_cemetery_chk.js — verify the Maspeth 5th block CEMETERY in index.html:
-//   - constants (block index 4 / x 384, fence line 5.4, back edge 12.0)
+//   - constants (block index 1 / x 96 — TEMP testing position, real home is index 4 / x 384; fence line 5.4, back edge 12.0)
 //   - builders: makeHeadstone, makeDeadTree, makeRaven, makeCemeteryFence,
 //     buildCemeteryBlock (fence + stones + monuments + trees + raven)
 //   - ghost helpers (ghostifyPerson transparent blue, makeGhostPerson)
@@ -72,8 +72,8 @@ function extractFrom(anchor, fromIdx) {
 
 // ================= 1. CONSTANTS =================
 check(
-  'cemetery constants: block index 4, fence line 5.4, back edge 12.0',
-  /const QUEENS_CEMETERY_BLOCK = 4;/.test(src) &&
+  'cemetery constants: block index 1 (TEMP testing position), fence line 5.4, back edge 12.0',
+  /const QUEENS_CEMETERY_BLOCK = 1;/.test(src) &&
     /const QUEENS_CEMETERY_X = LEVEL_BLOCKS\[QUEENS_CEMETERY_BLOCK\]\.x;/.test(src) &&
     /const CEM_FENCE_Y = 5\.4;/.test(src) &&
     /const CEM_BACK_Y = 12\.0;/.test(src)
@@ -564,7 +564,7 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
   const said = [];
   const Voice = { say: (t) => said.push(t) };
   const CEM_BACK_Y = 12.0;
-  const QUEENS_CEMETERY_X = 384;
+  const QUEENS_CEMETERY_X = 96; // TEMP testing position (real: 384)
   const BLOCK_W = 96;
   const GZ = 0.3;
   const GHOST_LINES = ['Play with us and stay with us', 'Redrum'];
@@ -701,17 +701,17 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
   const loopSrc = src.slice(start, end).trim();
   const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
   const blocks = [
-    { cemetery: true, cemFence: { x0: 384.2, x1: 480.2, y: 5.4 } },
+    { cemetery: true, cemFence: { x0: 96.2, x1: 192.2, y: 5.4 } }, // TEMP testing position (real: 384.2/480.2)
     { buildingFront: { x0: 100, x1: 120, y1: 10 } }, // unrelated block: ignored
   ];
-  const p = { wx: 432, wy: 5.3 };
+  const p = { wx: 144, wy: 5.3 }; // TEMP testing position: inside 96.2..192.2 (real: 432)
   const fn = new Function('p', 'blocks', 'clamp', loopSrc);
   fn(p, blocks, clamp);
   check('worker pushed against the fence line stays at fence-0.3 (5.1)', Math.abs(p.wy - 5.1) < 1e-9, 'wy=' + p.wy);
-  const p2 = { wx: 432, wy: 3.0 }; // on the sidewalk side: free
+  const p2 = { wx: 144, wy: 3.0 }; // on the sidewalk side: free
   fn(p2, blocks, clamp);
   check('worker on the sidewalk side of the fence is unaffected', p2.wy === 3.0);
-  const p3 = { wx: 490, wy: 5.3 }; // past the fence x-range: free
+  const p3 = { wx: 250, wy: 5.3 }; // past the fence x-range: free (real: 490)
   fn(p3, blocks, clamp);
   check('outside the fence x-range the cemetery wall does not apply', p3.wy === 5.3);
 }

@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.216</div>
+          <div id="app-version" class="menu-version">v1.0.217</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.216';
+      const APP_VERSION = '1.0.217';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2329,8 +2329,8 @@
       // it: green grass, headstones, monuments, scary dead trees, a black raven.
       // The block's only living NPCs are the rats — everything else walking around
       // is a bluish, transparent ghost (the annoying homeowner is a ghost there too).
-      const QUEENS_CEMETERY_BLOCK = 4; // index into LEVEL_BLOCKS (the 5th block)
-      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 384
+      const QUEENS_CEMETERY_BLOCK = 1; // TEMP TESTING: 2nd block (restore to 4 = the 5th block when done)
+      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 96 (temp) / 384 (real)
       const CEM_FENCE_Y = 5.4; // iron fence line: right up against the sidewalk edge (y 5.0)
       const CEM_BACK_Y = 12.0; // back edge of the cemetery grass
       // 8 intersections (cross-streets), each starting 80u into its preceding segment:
