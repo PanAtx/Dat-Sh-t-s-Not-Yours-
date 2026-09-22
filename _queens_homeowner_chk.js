@@ -2,12 +2,15 @@
 // no-breakers-on-Queens in index.html:
 //   - no breakers spawn on Queens (npcCounts gate)
 //   - HOMEOWNER_QUESTIONS: exactly 32 stupid questions
-//   - addCreature case "homeowner" (makePerson, MIXED gender, follow fields)
-//   - AI: follows the worker ~2.2u gap, WAVES both arms (armL/armR rotation.x),
-//     asks questions every 2.4-3.6s, rests after 3-4 houses (24-32u)
+//   - addCreature case "homeowner" (makePerson, MIXED gender, follow fields,
+//     unique per-block outfit)
+//   - AI: follows the worker ~2.2u gap, WAVES BOTH ARMS TO THE SIDES
+//     (armL/armR rotation.y), asks questions every 2.4-3.6s, rests after
+//     3-4 houses (24-32u), STAYS ON ITS BLOCK (blockMinX/blockMaxX clamp)
 //   - bump: arcade-bump gate (very minor 1HP), "MY property!" line, write-up lines,
 //     collision radius, flying-can hittable
-//   - spawn: ONE per Queens level, just ahead of the worker's start
+//   - spawn: ONE PER ACTIVE BLOCK, each with a unique outfit color
+//   - speech bubbles are clamped on-screen (never off / partially off screen)
 'use strict';
 const fs = require("fs");
 const vm = require("vm");
@@ -73,7 +76,7 @@ check(
 const addSec = (() => {
   const i = src.indexOf('case "homeowner":');
   if (i < 0) return "";
-  return src.slice(i, i + 900);
+  return src.slice(i, i + 1200);
 })();
 check(
   'addCreature: case "homeowner" builds a makePerson (male-or-female, MIXED voice)',
@@ -94,13 +97,28 @@ check(
     addSec.indexOf("c.cool = 0") >= 0 &&
     addSec.indexOf("c.waveT") >= 0
 );
+check(
+  "addCreature: unique per-block outfit (c.outfit feeds the shirt, fallback SHIRTS)",
+  addSec.indexOf("c.outfit != null ? c.outfit : pick(SHIRTS)") >= 0
+);
+check(
+  "HOMEOWNER_OUTFITS palette exists with 8 distinct outfit colors",
+  (() => {
+    const i = src.indexOf("const HOMEOWNER_OUTFITS = [");
+    if (i < 0) return false;
+    const seg = src.slice(i, src.indexOf("];", i));
+    const colors = seg.match(/0x[0-9a-f]{6}/gi) || [];
+    return colors.length >= 8 && new Set(colors.map((c) => c.toLowerCase())).size === colors.length;
+  })(),
+  "palette too small or duplicate colors"
+);
 
 // ================= 4. AI (updateCreatures) =================
 const aiSec = (() => {
   const u = src.indexOf("function updateCreatures(");
   const i = src.indexOf('case "homeowner":', u);
   if (i < 0) return "";
-  return src.slice(i, i + 2400);
+  return src.slice(i, i + 3150);
 })();
 check(
   "AI: case \"homeowner\" exists (its own case, no per-frame rebuild)",
@@ -113,9 +131,21 @@ check(
     aiSec.indexOf("1.2, 4.4") >= 0
 );
 check(
-  "AI: WAVES both arms while following (armL + armR rotation.x oscillation)",
-  aiSec.indexOf("c.parts.armL.rotation.x = 1.35 + Math.sin(c.waveT * 7)") >= 0 &&
-    aiSec.indexOf("c.parts.armR.rotation.x") >= 0
+  "AI: WAVES BOTH ARMS TO THE SIDES (armL/armR rotation.y flapping, not across the body)",
+  aiSec.indexOf("c.parts.armL.rotation.y = -(1.15 + Math.sin(c.waveT * 6) * 0.5)") >= 0 &&
+    aiSec.indexOf("c.parts.armR.rotation.y = 1.15 + Math.sin(c.waveT * 6) * 0.5") >= 0
+);
+check(
+  "AI: wave is NOT the old arm-across-the-body rotation.x flap",
+  aiSec.indexOf("c.parts.armL.rotation.x = 1.35") < 0
+);
+check(
+  "AI: STAYS ON ITS BLOCK (x clamped to blockMinX..blockMaxX, never crosses the street)",
+  aiSec.indexOf("c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX)") >= 0
+);
+check(
+  "AI: while resting it drifts back toward the middle of its block",
+  aiSec.indexOf("(c.blockMinX + c.blockMaxX) / 2") >= 0
 );
 check(
   "AI: drops a random question every 2.4-3.6s while in earshot (<26u)",
@@ -150,22 +180,49 @@ check(
   })()
 );
 
-// ================= 6. SPAWN: ONE PER QUEENS LEVEL =================
+// ================= 6. SPAWN: ONE PER ACTIVE BLOCK, UNIQUE OUTFITS =================
 const spawnSec = (() => {
-  const i = src.indexOf("The nosy homeowner: ONE per Maspeth level");
+  const i = src.indexOf("The nosy homeowners: ONE PER ACTIVE BLOCK");
   if (i < 0) return "";
-  return src.slice(i, i + 400);
+  return src.slice(i, i + 1400);
 })();
 check(
-  "spawn: one homeowner per Queens level, just ahead of the worker's start",
-  spawnSec.indexOf('addCreature("homeowner")') >= 0 &&
-    spawnSec.indexOf("PLAYER_START_X + R(20, 40)") >= 0
+  "spawn: one homeowner PER ACTIVE BLOCK (filter active blocks x 96..576)",
+  spawnSec.indexOf('addCreature("homeowner", {') >= 0 &&
+    spawnSec.indexOf("b.garbage === true && b.x >= 96 && b.x <= 576") >= 0 &&
+    spawnSec.indexOf("bx + R(20, 60)") >= 0
+);
+check(
+  "spawn: each block gets a UNIQUE outfit from the shuffled queue",
+  spawnSec.indexOf("outfit: homeownerOutfitQueue[i % homeownerOutfitQueue.length]") >= 0 &&
+    spawnSec.indexOf("HOMEOWNER_OUTFITS.slice().sort(") >= 0
+);
+check(
+  "spawn: each homeowner is clamped to its block (blockMinX = bx + 4, blockMaxX = bx + 76)",
+  spawnSec.indexOf("ho.blockMinX = bx + 4") >= 0 &&
+    spawnSec.indexOf("ho.blockMaxX = bx + 76") >= 0
 );
 check(
   "spawn: inside the Queens gate (same block as the polish ladies/boy)",
-  src.lastIndexOf("if (isQueensLevel())", src.indexOf("The nosy homeowner")) > 0 &&
-    src.lastIndexOf("if (isQueensLevel())", src.indexOf("The nosy homeowner")) <
-      src.indexOf("The nosy homeowner")
+  src.lastIndexOf("if (isQueensLevel())", src.indexOf("The nosy homeowners")) > 0 &&
+    src.lastIndexOf("if (isQueensLevel())", src.indexOf("The nosy homeowners")) <
+      src.indexOf("The nosy homeowners")
+);
+
+// ================= 7. SPEECH BUBBLES STAY ON SCREEN =================
+check(
+  "bubbles: updateBubbles clamps the rendered box into the viewport (top/bottom/left/right)",
+  (() => {
+    const i = src.indexOf("function updateBubbles(");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 2200);
+    return (
+      seg.indexOf("getBoundingClientRect()") >= 0 &&
+      seg.indexOf("innerHeight - m") >= 0 &&
+      seg.indexOf("innerWidth - m") >= 0 &&
+      seg.indexOf("r.top < m") >= 0
+    );
+  })()
 );
 
 console.log(pass ? "HOMEOWNER CHECKS PASSED" : "QUEENS HOMEOWNER: FAILURES ABOVE");

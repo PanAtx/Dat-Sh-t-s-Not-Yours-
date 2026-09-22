@@ -28,7 +28,11 @@ function extractLiteral(name, open, close){
 const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
 const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
-const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
+const LEVEL_DAYS = eval('(' + extractLiteral('LEVEL_DAYS', '[', ']') + ')');
+const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', 'LEVEL_DAYS',
+  'var level;\n' + extractFn('isQueensLevel') + '\n' + extractFn('npcCounts') +
+  '\n; return (day) => { level = day; return npcCounts(day); };')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC, LEVEL_DAYS);
+// In the live game the global `level` equals the current day, so the harness mirrors that.
 
 // The Manhattan days are Uptown (Mon, d1) + Harlem (Sat, d6); Bed-Stuy is Sunday (d7).
 // skater is non-gated + non-scaling, so on non-excluded days its count equals the base (1).
@@ -75,7 +79,9 @@ check('Bronx two-wheeler override only touches d2 (d1 stays at 0; d3-d7 sit at t
   [3, 4, 5, 6, 7].every(d => npcCounts(d).moto === 1 && npcCounts(d).ebike === 1));
 // ---- Bronx (d2): no breakers on these streets ----
 check('Bronx (d2) has no breaker (npcCounts(2).breaker === 0)', npcCounts(2).breaker === 0, 'breaker=' + npcCounts(2).breaker);
-[1, 3, 4, 5, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
+// ---- Queens/Maspeth (d4): the isQueensLevel gate zeroes breakers entirely ----
+check('Queens/Maspeth (d4) has no breaker (isQueensLevel gate)', npcCounts(4).breaker === 0, 'breaker=' + npcCounts(4).breaker);
+[1, 3, 5, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
 
 console.log(ok ? '\nROSTER CHECKS PASSED' : '\nROSTER CHECKS FAILED');
 process.exit(ok ? 0 : 1);

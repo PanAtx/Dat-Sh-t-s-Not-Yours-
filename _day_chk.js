@@ -34,7 +34,9 @@ check('every level has a borough + area', LEVEL_DAYS.every(d => d.borough && d.a
 const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
 const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
-const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
+const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC','LEVEL_DAYS',
+  'var level;\n' + extractFn('isQueensLevel') + '\n' + extractFn('npcCounts') +
+  '\n; return (day) => { level = day; return npcCounts(day); };')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC, LEVEL_DAYS);
 const sum = c => Object.keys(c).reduce((a, k) => a + c[k], 0);
 // Monday (Manhattan Uptown): gated types (moto/ebike/rc) are absent, the skater + raccoon +
 // tric (street tricycle) drops apply, and the Manhattan +1 escooter/+1 bike boost is capped

@@ -260,7 +260,9 @@ function extractLiteral(name, open, close){
 const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
 const SCALING_NPC = eval('(' + extractLiteral('SCALING_NPC', '{', '}') + ')');
 const GATED_NPC = eval('(' + extractLiteral('GATED_NPC', '{', '}') + ')');
-const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', extractFn('npcCounts') + '\n; return npcCounts;')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC);
+const npcCounts = new Function('BASE_NPC_COUNTS', 'SCALING_NPC', 'GATED_NPC', 'LEVEL_DAYS',
+  'var level;\n' + extractFn('isQueensLevel') + '\n' + extractFn('npcCounts') +
+  '\n; return (day) => { level = day; return npcCounts(day); };')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC, eval('(' + extractLiteral('LEVEL_DAYS', '[', ']') + ')'));
 check('Flatbush (day 3) has NO non-attacking street tricycle (npcCounts(3).tric === 0)', npcCounts(3).tric === 0);
 check('the Manhattan days (1, 6) ALSO have no street tricycle (npcCounts(d).tric === 0)',
   npcCounts(1).tric === 0 && npcCounts(6).tric === 0);

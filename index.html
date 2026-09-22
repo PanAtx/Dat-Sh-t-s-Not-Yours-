@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.205</div>
+          <div id="app-version" class="menu-version">v1.0.206</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.205';
+      const APP_VERSION = '1.0.206';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4089,6 +4089,19 @@
         "Do you pick up when I'm not home? What if my dog is out?",
         "Are you sure that's a garbage truck? It's very big.",
       ];
+      // Each Maspeth block's homeowner wears a UNIQUE outfit from this palette
+      // (shuffled into the queue per level, consumed one per block).
+      const HOMEOWNER_OUTFITS = [
+        0xc0563a, // brick red
+        0x3f7ac0, // denim blue
+        0x4f9a5c, // garden green
+        0xc0a13f, // mustard
+        0x8a4fb0, // plum
+        0x3fa8a0, // teal
+        0xb05a9a, // rose
+        0x6b6f76, // heather grey
+      ];
+      let homeownerOutfitQueue = [];
       function disposeObj(o) {
         o.traverse((ch) => {
           if (ch.geometry) ch.geometry.dispose();
@@ -13161,7 +13174,9 @@
             break;
           case "homeowner":
             // The nosy Maspeth homeowner (male or female, MIXED): follows the worker
-            // around 3-4 houses asking stupid trash questions, both arms waving. See
+            // around 3-4 houses asking stupid trash questions, both arms waving to
+            // the SIDES. STAYS ON THE BLOCK THEY SPAWNED ON (blockMinX/blockMaxX
+            // clamp). Unique outfit per block (the spawn block feeds c.outfit). See
             // the "homeowner" case in updateCreatures for the follow/wave behavior.
             c.wy = R(1.6, 3.8);
             c.cd = 0;
@@ -13171,7 +13186,7 @@
             c.followMax = R(24, 32); // 3-4 houses of following, then a breather
             c.waveT = R(0, 6.28);
             c.data = makePerson({
-              shirt: pick(SHIRTS),
+              shirt: c.outfit != null ? c.outfit : pick(SHIRTS), // unique per block
               pants: pick(PANTS),
               hair: pick(HAIRS),
             });
@@ -14102,14 +14117,28 @@
               pb.g.position.set(pb.wx, pb.wy, GZ);
             }
           }
-          // The nosy homeowner: ONE per Maspeth level — shadows the worker around
-          // 3-4 houses asking stupid trash questions, both arms waving. Spawns
-          // just ahead of the worker's start.
+          // The nosy homeowners: ONE PER ACTIVE BLOCK — each block's homeowner
+          // STAYS ON THEIR BLOCK (never crosses the street), wears a UNIQUE outfit
+          // color, and shadows the worker around 3-4 houses asking stupid trash
+          // questions, both arms waving to the sides.
           {
-            const ho = addCreature("homeowner");
-            ho.wx = PLAYER_START_X + R(20, 40);
-            ho.wy = R(1.6, 3.8);
-            ho.g.position.set(ho.wx, ho.wy, GZ);
+            const hoBlocks = LEVEL_BLOCKS.filter(
+              (b) => b.garbage === true && b.x >= 96 && b.x <= 576,
+            );
+            homeownerOutfitQueue = HOMEOWNER_OUTFITS.slice().sort(
+              () => Math.random() - 0.5,
+            );
+            for (let i = 0; i < hoBlocks.length; i++) {
+              const bx = hoBlocks[i].x;
+              const ho = addCreature("homeowner", {
+                outfit: homeownerOutfitQueue[i % homeownerOutfitQueue.length],
+              });
+              ho.wx = bx + R(20, 60); // in the middle of their own block
+              ho.wy = R(1.6, 3.8);
+              ho.blockMinX = bx + 4; // hard bounds: stays on this block
+              ho.blockMaxX = bx + 76;
+              ho.g.position.set(ho.wx, ho.wy, GZ);
+            }
           }
         }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
@@ -18364,23 +18393,30 @@
             }
             case "homeowner": {
               // The nosy Maspeth homeowner: FOLLOWS the worker around 3-4 houses,
-              // both arms WAVING, asking a stream of stupid trash questions; then
-              // rests a few seconds and shadows the worker again. Always on the
-              // sidewalk, always facing the worker.
+              // both arms WAVING TO THE SIDES, asking a stream of stupid trash
+              // questions; then rests a few seconds and shadows the worker again.
+              // NEVER leaves the block they spawned on (never crosses the street):
+              // x is clamped to blockMinX..blockMaxX — when the worker is past the
+              // block they stand at the edge, facing them, asking while in earshot.
               c.askCd -= dt;
               const hdx = p.wx - c.wx,
                 hdy = p.wy - c.wy;
               const hdist = Math.sqrt(hdx * hdx + hdy * hdy) || 1;
               if (c.g) c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // face the worker
               if (c.cool > 0) {
-                // Resting: stand, huff, arms drop
+                // Resting: huff, arms drop, drift back toward the middle of the block
                 c.cool -= dt;
+                const bCx = (c.blockMinX + c.blockMaxX) / 2;
+                if (Math.abs(bCx - c.wx) > 3)
+                  c.wx += Math.sign(bCx - c.wx) * 0.8 * dt;
                 if (c.parts) {
                   c.parts.armL.rotation.x = 0;
                   c.parts.armR.rotation.x = 0;
+                  c.parts.armL.rotation.y = 0;
+                  c.parts.armR.rotation.y = 0;
                 }
               } else {
-                // Follow: close in until 2.2u away, then keep pace
+                // Follow: close in until 2.2u away, then keep pace (sidewalk band)
                 if (hdist > 2.2) {
                   const hsp = 2.6; // a determined follow-walk
                   c.wx += (hdx / hdist) * hsp * dt;
@@ -18388,12 +18424,14 @@
                   c.followed += hsp * dt;
                   animParts(c, hsp * dt * 2.4);
                 }
-                // Waving both arms while following (the signature move)
+                // WAVING TO THE SIDES: both arms out, flapping laterally (Y rotation)
+                // — never across the body.
                 c.waveT += dt;
                 if (c.parts) {
-                  c.parts.armL.rotation.x = 1.35 + Math.sin(c.waveT * 7) * 0.45;
-                  c.parts.armR.rotation.x =
-                    1.35 + Math.sin(c.waveT * 7 + 1.5) * 0.45;
+                  c.parts.armL.rotation.x = 0;
+                  c.parts.armR.rotation.x = 0;
+                  c.parts.armL.rotation.y = -(1.15 + Math.sin(c.waveT * 6) * 0.5);
+                  c.parts.armR.rotation.y = 1.15 + Math.sin(c.waveT * 6) * 0.5;
                 }
                 // A stupid question every few seconds while in earshot
                 if (c.askCd <= 0 && hdist < 26) {
@@ -18415,6 +18453,8 @@
                   c.cool = R(5, 8);
                 }
               }
+              // STAYS ON THEIR BLOCK: never cross the street / next block
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
               c.cd -= dt;
               break;
             }
@@ -21121,6 +21161,31 @@
           b.el.style.left = s.x + "px";
           b.el.style.top =
             Math.max(12, s.y - b.offsetLine * BUBBLE_LINE_STEP) + "px";
+          // KEEP THE WHOLE BUBBLE ON SCREEN: the bubble hangs above the head, so a
+          // speaker near the top edge pushes it off the top of the screen. Measure
+          // the rendered box and nudge it down / inward until it fits fully in the
+          // viewport (same for the left/right edges).
+          if (typeof document !== "undefined" &&
+              typeof b.el.getBoundingClientRect === "function") {
+            const r = b.el.getBoundingClientRect();
+            const m = 6;
+            let dx = 0,
+              dy = 0;
+            if (r.top < m) dy = m - r.top;
+            else if (r.bottom > innerHeight - m)
+              dy = innerHeight - m - r.bottom;
+            if (r.left < m) dx = m - r.left;
+            else if (r.right > innerWidth - m) dx = innerWidth - m - r.right;
+            if (dx !== 0) b.el.style.left = s.x + dx + "px";
+            if (dy !== 0)
+              b.el.style.top =
+                Math.max(
+                  12,
+                  s.y - b.offsetLine * BUBBLE_LINE_STEP,
+                ) +
+                dy +
+                "px";
+          }
         }
       }
       // ==================== GAME FLOW ====================
