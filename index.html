@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.219</div>
+          <div id="app-version" class="menu-version">v1.0.220</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.219';
+      const APP_VERSION = '1.0.220';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7653,23 +7653,23 @@
         return g;
       }
       function buildCemeteryBlock() {
-        // The whole cemetery as ONE world group (absolute positions): the iron
-        // fence at the fence line + a scatter of headstones, 3 monuments, 4 scary
-        // dead trees, and the black raven perched on a headstone. (makeBlockContents
-        // adds the middle-row headstones per cell so the whole block is full.)
+        // The whole cemetery as ONE world group (absolute positions): the iron fence
+        // along the sidewalk (front) + both sides (back is open green grass), a scatter
+        // of headstones, 3 monuments, 4 scary dead trees, and the black raven perched
+        // on a headstone. (makeBlockContents adds the middle-row headstones per cell
+        // so the whole block is full.)
         const g = new THREE.Group();
         const bx = QUEENS_CEMETERY_X;
+        // Iron fence along the sidewalk (front, the "front-yard" face) + both sides
+        // (parallel to the cross street). The BACK stays OPEN — no fence, just green
+        // grass with the headstones, monuments and dead trees.
         const fence = makeCemeteryFence(BLOCK_W);
         fence.position.set(bx, CEM_FENCE_Y, GZ); // footing stands ON the ground
         g.add(fence);
-        // The whole lot is ENCLOSED: a matching back wall + the two side walls (which
-        // run parallel to the cross street) close the rectangle. Every wall carries
-        // posts at both its ends (see makeCemeteryFence), so all four corners are
-        // properly cornered with no gaps.
+        // The two side walls close the front-to-back edges. Every wall carries posts
+        // at both its ends (see makeCemeteryFence), so the front corners are cornered
+        // with no gaps and each side run terminates cleanly at the back edge.
         const sideLen = CEM_BACK_Y - CEM_FENCE_Y;
-        const back = makeCemeteryFence(BLOCK_W);
-        back.position.set(bx, CEM_BACK_Y, GZ);
-        g.add(back);
         const left = makeCemeteryFence(sideLen);
         left.position.set(bx, CEM_FENCE_Y, GZ);
         left.rotation.z = Math.PI / 2; // rotate the +X run to face +Y (along the cross street)
@@ -13904,9 +13904,10 @@
         const isQueensBlock = borough === "QUEENS";
         const cellW = isQueensBlock ? queensCellW(houseIdx) : BW;
         // Maspeth 5th block: CEMETERY. No house, no corner store, no curb garbage —
-        // the iron fence (front + back + both sides, fully enclosed) + headstones +
-        // monuments + dead trees + raven take over the lot, and a row of sidewalk
-        // trees lines the curb in front. The fence line becomes this cell's wall.
+        // the iron fence (front along the sidewalk + both sides, open green back) +
+        // headstones + monuments + dead trees + raven take over the lot, and a row of
+        // sidewalk trees lines the curb in front. The fence line becomes this cell's
+        // wall.
         const isCemCell = isQueensBlock && b.blockX === QUEENS_CEMETERY_X;
         if (isCemCell) {
           b.cemetery = true;

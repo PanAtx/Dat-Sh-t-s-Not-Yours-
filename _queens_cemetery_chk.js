@@ -7,7 +7,7 @@
 //   - addCreature case "ghost" + ghostified cemetery homeowner
 //   - updateCreatures case "ghost" (drift, float, creepy lines, block-bound)
 //   - collideCreatures ghost branch (scare + HP drain, NOT solid, cooldown)
-//   - worker fence clamp (impassable) + FULLY enclosed lot (front/back/side walls, cornered)
+//   - worker fence clamp (impassable) + front & side fence (open green back, corners cornered)
 //   - block suppression (no houses/stores/garbage/dogs/ladies; sidewalk trees now line the curb)
 //   - cemetery rats + 5 ghosts + 5 floating treasures in spawnWorld
 //   - "Failure to respect the dearly departed" write-up + ghost bubble style
@@ -179,12 +179,13 @@ check(
   cemBlock.indexOf('GZ + per.top + 0.02') >= 0
 );
 check(
-  'the lot is FULLY enclosed: front + back walls (BLOCK_W) + two side walls (CEM_BACK_Y-CEM_FENCE_Y) rotated to run parallel to the cross street',
-  cemBlock.indexOf('const back = makeCemeteryFence(BLOCK_W)') >= 0 &&
+  'the fence runs along the sidewalk (front, BLOCK_W) + both sides (CEM_BACK_Y-CEM_FENCE_Y, parallel to the cross street) — the BACK is open green grass (no back wall)',
+  cemBlock.indexOf('const fence = makeCemeteryFence(BLOCK_W)') >= 0 &&
     cemBlock.indexOf('const sideLen = CEM_BACK_Y - CEM_FENCE_Y') >= 0 &&
     cemBlock.indexOf('const left = makeCemeteryFence(sideLen)') >= 0 &&
     cemBlock.indexOf('const right = makeCemeteryFence(sideLen)') >= 0 &&
-    cemBlock.indexOf('rotation.z = Math.PI / 2') >= 0
+    cemBlock.indexOf('rotation.z = Math.PI / 2') >= 0 &&
+    cemBlock.indexOf('const back = makeCemeteryFence') === -1
 );
 check(
   'the fence corners are cornered: makeCemeteryFence plants a post at BOTH ends (postAt(0) + postAt(len)) so the walls meet',
