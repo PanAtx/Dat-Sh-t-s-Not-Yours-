@@ -4,13 +4,16 @@
 //   - HOMEOWNER_QUESTIONS: exactly 32 stupid questions
 //   - addCreature case "homeowner" (makePerson, MIXED gender, follow fields,
 //     unique per-block outfit)
-//   - AI: follows the worker ~2.2u gap, WAVES BOTH ARMS TO THE SIDES
-//     (armL/armR rotation.y), asks questions every 2.4-3.6s, rests after
-//     3-4 houses (24-32u), STAYS ON ITS BLOCK (blockMinX/blockMaxX clamp)
+//   - AI: follows the worker ~2.2u gap, WAVES BOTH ARMS TO THE SIDES (left left,
+//     right right, alternating rotation.y), asks questions every 2.4-3.6s,
+//     rests after 3-4 houses (24-32u), STAYS ON ITS BLOCK (blockMinX/blockMaxX),
+//     USED-CAR-SALESMAN mannerisms (sales patter, pitch lean, point gesture,
+//     hands-on-hips rest, feet always moving)
 //   - bump: arcade-bump gate (very minor 1HP), "MY property!" line, write-up lines,
 //     collision radius, flying-can hittable
 //   - spawn: ONE PER ACTIVE BLOCK, each with a unique outfit color
-//   - speech bubbles are clamped on-screen (never off / partially off screen)
+//   - speech bubbles: clamped on-screen, comic tail pointing at the speaker,
+//     pop-scale in animation (bursts have no tail)
 'use strict';
 const fs = require("fs");
 const vm = require("vm");
@@ -90,12 +93,13 @@ check(
   )
 );
 check(
-  "addCreature seeds the follow state (followed, followMax 24-32u, askCd, cool, waveT)",
+  "addCreature seeds the follow state (followed, followMax 24-32u, askCd, cool, waveT, pointT)",
   addSec.indexOf("c.followed = 0") >= 0 &&
     addSec.indexOf("c.followMax = R(24, 32)") >= 0 &&
     addSec.indexOf("c.askCd = 0.8") >= 0 &&
     addSec.indexOf("c.cool = 0") >= 0 &&
-    addSec.indexOf("c.waveT") >= 0
+    addSec.indexOf("c.waveT") >= 0 &&
+    addSec.indexOf("c.pointT = 0") >= 0
 );
 check(
   "addCreature: unique per-block outfit (c.outfit feeds the shirt, fallback SHIRTS)",
@@ -118,7 +122,7 @@ const aiSec = (() => {
   const u = src.indexOf("function updateCreatures(");
   const i = src.indexOf('case "homeowner":', u);
   if (i < 0) return "";
-  return src.slice(i, i + 3150);
+  return src.slice(i, i + 4720);
 })();
 check(
   "AI: case \"homeowner\" exists (its own case, no per-frame rebuild)",
@@ -127,13 +131,13 @@ check(
 check(
   "AI: follows the worker (2.2u gap, keeps pace on the sidewalk 1.2..4.4)",
   aiSec.indexOf("hdist > 2.2") >= 0 &&
-    aiSec.indexOf("clamp(c.wy + (hdy / hdist)") >= 0 &&
+    aiSec.indexOf("clamp(c.wy + mvy * hsp * dt, 1.2, 4.4)") >= 0 &&
     aiSec.indexOf("1.2, 4.4") >= 0
 );
 check(
-  "AI: WAVES BOTH ARMS TO THE SIDES (armL/armR rotation.y flapping, not across the body)",
-  aiSec.indexOf("c.parts.armL.rotation.y = -(1.15 + Math.sin(c.waveT * 6) * 0.5)") >= 0 &&
-    aiSec.indexOf("c.parts.armR.rotation.y = 1.15 + Math.sin(c.waveT * 6) * 0.5") >= 0
+  "AI: WAVES BOTH ARMS TO THE SIDES — left arm left, right arm right, alternating (rotation.y)",
+  aiSec.indexOf("c.parts.armL.rotation.y = -(1.0 + Math.sin(c.waveT * 6) * 0.55)") >= 0 &&
+    aiSec.indexOf("1.0 + Math.sin(c.waveT * 6 + Math.PI) * 0.55") >= 0
 );
 check(
   "AI: wave is NOT the old arm-across-the-body rotation.x flap",
@@ -144,8 +148,40 @@ check(
   aiSec.indexOf("c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX)") >= 0
 );
 check(
-  "AI: while resting it drifts back toward the middle of its block",
-  aiSec.indexOf("(c.blockMinX + c.blockMaxX) / 2") >= 0
+  "AI: rest drift has the FEET moving (animParts while drifting, no sliding)",
+  aiSec.indexOf("animParts(c, 0.8 * dt * 2.4)") >= 0
+);
+check(
+  "AI: TURNS to walk where he's going (x-first movement, face travel direction)",
+  aiSec.indexOf("Math.abs(hdx) < 1.6") >= 0 &&
+    aiSec.indexOf("c.g.rotation.z = mvx >= 0 ? 0 : Math.PI") >= 0
+);
+check(
+  "AI: salesman mannerisms (pitch lean/nod, point gesture, hands-on-hips rest)",
+  aiSec.indexOf("c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06") >= 0 &&
+    aiSec.indexOf("c.parts.armR.rotation.x = -1.25") >= 0 &&
+    aiSec.indexOf("c.parts.armL.rotation.y = -2.7") >= 0 &&
+    aiSec.indexOf("c.parts.armR.rotation.y = 2.7") >= 0
+);
+check(
+  "AI: speech is 60% trash questions / 40% used-car-salesman patter",
+  aiSec.indexOf("Math.random() < 0.6") >= 0 &&
+    aiSec.indexOf("pick(HOMEOWNER_SALES)") >= 0
+);
+check(
+  "HOMEOWNER_SALES pool: 16+ salesman lines (buddy/sir pitches)",
+  (() => {
+    const i = src.indexOf("const HOMEOWNER_SALES = [");
+    if (i < 0) return false;
+    const seg = src.slice(i, src.indexOf("];", i));
+    const lines = seg.split("\n").map((l) => l.trim()).filter((l) => l.startsWith('"'));
+    return (
+      lines.length >= 16 &&
+      seg.toLowerCase().indexOf("buddy") >= 0 &&
+      seg.toLowerCase().indexOf("sir") >= 0
+    );
+  })(),
+  "pool too small or missing buddy/sir"
 );
 check(
   "AI: drops a random question every 2.4-3.6s while in earshot (<26u)",
@@ -209,7 +245,7 @@ check(
       src.indexOf("The nosy homeowners")
 );
 
-// ================= 7. SPEECH BUBBLES STAY ON SCREEN =================
+// ================= 7. SPEECH BUBBLES: ON SCREEN + TAIL + POP =================
 check(
   "bubbles: updateBubbles clamps the rendered box into the viewport (top/bottom/left/right)",
   (() => {
@@ -221,6 +257,33 @@ check(
       seg.indexOf("innerHeight - m") >= 0 &&
       seg.indexOf("innerWidth - m") >= 0 &&
       seg.indexOf("r.top < m") >= 0
+    );
+  })()
+);
+check(
+  "bubbles: comic tail pointing at the speaker (.bubble::after triangle)",
+  (() => {
+    const i = src.indexOf(".bubble::after");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 400);
+    return (
+      seg.indexOf("border-top: 10px solid #14141a") >= 0 &&
+      src.indexOf(".bub-burst::after") >= 0 &&
+      src.slice(src.indexOf(".bub-burst::after"), src.indexOf(".bub-burst::after") + 120)
+        .indexOf("display: none") >= 0
+    );
+  })()
+);
+check(
+  "bubbles: pop-scale in animation (@keyframes bubblePop with scale overshoot)",
+  (() => {
+    const i = src.indexOf("@keyframes bubblePop");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 400);
+    return (
+      seg.indexOf("scale(0)") >= 0 &&
+      seg.indexOf("scale(1.1)") >= 0 &&
+      seg.indexOf("scale(1)") >= 0
     );
   })()
 );

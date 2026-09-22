@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.206</div>
+          <div id="app-version" class="menu-version">v1.0.207</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.206';
+      const APP_VERSION = '1.0.207';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4088,6 +4088,26 @@
         "Can I put out my old mattress with the stains still on it?",
         "Do you pick up when I'm not home? What if my dog is out?",
         "Are you sure that's a garbage truck? It's very big.",
+      ];
+      // The homeowner's USED-CAR-SALESMAN patter (sleazy pitches, "buddy", "sir") —
+      // about 40% of his speech, mixed in between the trash questions.
+      const HOMEOWNER_SALES = [
+        "Buddy, you got a sec? I got a sec. Let's talk.",
+        "You do trash? Sir, I love a man with a trade.",
+        "This block? Best rates in the whole borough, I promise you.",
+        "Nice truck. You keep it, I'll protect it. Deal?",
+        "Trust me, I've been watching this street a long time.",
+        "Don't take this the wrong way, but you're doing great out here.",
+        "I'm not pushing. I'm just standing right here. Very close.",
+        "My whole family's in the waste business. Very reputable.",
+        "You ever think about what I do? I thought about it all day.",
+        "Take my advice: green bins, Tuesdays. That's all I got.",
+        "You're a catch, buddy. Out here. By yourself.",
+        "I'm right behind you. Is that creepy? Probably.",
+        "Your property is looking at me. I'm looking right back.",
+        "This is my last question, I promise. (It is not.)",
+        "You know what people say about this block? Nothing. I like that.",
+        "Last guy with a grabber like that? Famous. Anyway.",
       ];
       // Each Maspeth block's homeowner wears a UNIQUE outfit from this palette
       // (shuffled into the queue per level, consumed one per block).
@@ -13173,11 +13193,13 @@
             });
             break;
           case "homeowner":
-            // The nosy Maspeth homeowner (male or female, MIXED): follows the worker
-            // around 3-4 houses asking stupid trash questions, both arms waving to
-            // the SIDES. STAYS ON THE BLOCK THEY SPAWNED ON (blockMinX/blockMaxX
-            // clamp). Unique outfit per block (the spawn block feeds c.outfit). See
-            // the "homeowner" case in updateCreatures for the follow/wave behavior.
+            // The nosy Maspeth homeowner (male or female, MIXED): an ANNOYING
+            // USED-CAR SALESMAN — follows the worker around 3-4 houses, arms waving
+            // to the SIDES (left left, right right), pitching trash advice + sales
+            // patter; rests hands-on-hips, then shadows them again. STAYS ON THE
+            // BLOCK THEY SPAWNED ON (blockMinX/blockMaxX clamp). Unique outfit per
+            // block (the spawn block feeds c.outfit). See the "homeowner" case in
+            // updateCreatures for the follow/wave behavior.
             c.wy = R(1.6, 3.8);
             c.cd = 0;
             c.askCd = 0.8; // first question lands right away
@@ -13185,6 +13207,7 @@
             c.followed = 0; // distance shadowed this run
             c.followMax = R(24, 32); // 3-4 houses of following, then a breather
             c.waveT = R(0, 6.28);
+            c.pointT = 0; // >0 = the salesman's pointing gesture (lands with a line)
             c.data = makePerson({
               shirt: c.outfit != null ? c.outfit : pick(SHIRTS), // unique per block
               pants: pick(PANTS),
@@ -18392,51 +18415,78 @@
               break;
             }
             case "homeowner": {
-              // The nosy Maspeth homeowner: FOLLOWS the worker around 3-4 houses,
-              // both arms WAVING TO THE SIDES, asking a stream of stupid trash
-              // questions; then rests a few seconds and shadows the worker again.
+              // The nosy Maspeth homeowner — an ANNOYING USED-CAR SALESMAN who
+              // happens to live here: follows the worker around 3-4 houses, arms
+              // waving to the SIDES, pitching trash "advice" mixed with sleazy sales
+              // patter; then plants himself HANDS-ON-HIPS and shadows them again.
               // NEVER leaves the block they spawned on (never crosses the street):
               // x is clamped to blockMinX..blockMaxX — when the worker is past the
-              // block they stand at the edge, facing them, asking while in earshot.
+              // block they stand at the edge, facing them, pitching while in earshot.
               c.askCd -= dt;
               const hdx = p.wx - c.wx,
                 hdy = p.wy - c.wy;
               const hdist = Math.sqrt(hdx * hdx + hdy * hdy) || 1;
-              if (c.g) c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // face the worker
               if (c.cool > 0) {
-                // Resting: huff, arms drop, drift back toward the middle of the block
+                // REST: hands on hips, chest out, slow drift back to the block's
+                // middle — with the FEET moving (animParts), no more sliding.
                 c.cool -= dt;
                 const bCx = (c.blockMinX + c.blockMaxX) / 2;
-                if (Math.abs(bCx - c.wx) > 3)
+                if (Math.abs(bCx - c.wx) > 3) {
                   c.wx += Math.sign(bCx - c.wx) * 0.8 * dt;
+                  animParts(c, 0.8 * dt * 2.4);
+                }
+                c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // watch the worker go
                 if (c.parts) {
                   c.parts.armL.rotation.x = 0;
                   c.parts.armR.rotation.x = 0;
-                  c.parts.armL.rotation.y = 0;
-                  c.parts.armR.rotation.y = 0;
+                  c.parts.armL.rotation.y = -2.7; // HANDS ON HIPS
+                  c.parts.armR.rotation.y = 2.7;
+                  c.parts.upper.rotation.y = -0.05; // chest out, proud stance
                 }
               } else {
-                // Follow: close in until 2.2u away, then keep pace (sidewalk band)
+                // FOLLOW: close the X gap first so he TURNS and walks where he's
+                // going — he only shuffles laterally once he's on your line (no
+                // sideways slide, feet always swinging).
                 if (hdist > 2.2) {
+                  let mvx = hdx / hdist,
+                    mvy = hdy / hdist;
+                  if (Math.abs(hdx) < 1.6) mvx = 0; // on your line: step straight
+                  else mvy *= 0.35; // otherwise: mostly head-on
                   const hsp = 2.6; // a determined follow-walk
-                  c.wx += (hdx / hdist) * hsp * dt;
-                  c.wy = clamp(c.wy + (hdy / hdist) * hsp * dt, 1.2, 4.4);
+                  c.wx += mvx * hsp * dt;
+                  c.wy = clamp(c.wy + mvy * hsp * dt, 1.2, 4.4);
                   c.followed += hsp * dt;
+                  c.g.rotation.z = mvx >= 0 ? 0 : Math.PI; // face travel direction
                   animParts(c, hsp * dt * 2.4);
+                } else {
+                  c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // in your face: face you
                 }
-                // WAVING TO THE SIDES: both arms out, flapping laterally (Y rotation)
-                // — never across the body.
+                // SALES PITCH: slight forward lean, nodding along with the pitch
                 c.waveT += dt;
                 if (c.parts) {
+                  c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06;
+                  // ARMS OUT TO THE SIDES: left arm waves LEFT, right arm waves
+                  // RIGHT, alternating — like a man who just sold you a 1997 sedan.
                   c.parts.armL.rotation.x = 0;
                   c.parts.armR.rotation.x = 0;
-                  c.parts.armL.rotation.y = -(1.15 + Math.sin(c.waveT * 6) * 0.5);
-                  c.parts.armR.rotation.y = 1.15 + Math.sin(c.waveT * 6) * 0.5;
+                  c.parts.armL.rotation.y = -(1.0 + Math.sin(c.waveT * 6) * 0.55);
+                  c.parts.armR.rotation.y =
+                    1.0 + Math.sin(c.waveT * 6 + Math.PI) * 0.55;
                 }
-                // A stupid question every few seconds while in earshot
+                // POINT gesture while a line lands (arm out front, then back to wave)
+                if (c.pointT > 0) {
+                  c.pointT -= dt;
+                  if (c.parts) {
+                    c.parts.armR.rotation.x = -1.25;
+                    c.parts.armR.rotation.y = 1.55;
+                  }
+                }
+                // The pitch: trash questions 60%, used-car-salesman patter 40%
                 if (c.askCd <= 0 && hdist < 26) {
                   Voice.say(
-                    pick(HOMEOWNER_QUESTIONS),
+                    Math.random() < 0.6
+                      ? pick(HOMEOWNER_QUESTIONS)
+                      : pick(HOMEOWNER_SALES),
                     3.4,
                     1.0,
                     c.wx,
@@ -18445,6 +18495,7 @@
                     "ped",
                   );
                   c.askCd = R(2.4, 3.6);
+                  c.pointT = 0.7;
                 }
                 // 3-4 houses (24-32u) of shadowing and they're done - take a breather
                 if (c.followed >= c.followMax) {
