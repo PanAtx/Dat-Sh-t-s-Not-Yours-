@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.207</div>
+          <div id="app-version" class="menu-version">v1.0.208</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.207';
+      const APP_VERSION = '1.0.208';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4108,6 +4108,13 @@
         "This is my last question, I promise. (It is not.)",
         "You know what people say about this block? Nothing. I like that.",
         "Last guy with a grabber like that? Famous. Anyway.",
+      ];
+      // The homeowner's CLOSING PITCH — the one last line he calls out when you
+      // walk out of his block for good (then he's done, hands on hips for the shift).
+      const HOMEOWNER_BYE = [
+        "I'll be right here, buddy. I'm ALWAYS right here.",
+        "Take care out there, sir! I'll keep an eye on this block for you!",
+        "That's all for today! Come back soon — I'll be right here!",
       ];
       // Each Maspeth block's homeowner wears a UNIQUE outfit from this palette
       // (shuffled into the queue per level, consumed one per block).
@@ -13208,6 +13215,7 @@
             c.followMax = R(24, 32); // 3-4 houses of following, then a breather
             c.waveT = R(0, 6.28);
             c.pointT = 0; // >0 = the salesman's pointing gesture (lands with a line)
+            c.bye = false; // closing pitch fired (worker left his block for good)
             c.data = makePerson({
               shirt: c.outfit != null ? c.outfit : pick(SHIRTS), // unique per block
               pants: pick(PANTS),
@@ -18422,6 +18430,21 @@
               // NEVER leaves the block they spawned on (never crosses the street):
               // x is clamped to blockMinX..blockMaxX — when the worker is past the
               // block they stand at the edge, facing them, pitching while in earshot.
+              // CLOSING PITCH: the worker crossed the far edge of his block — one
+              // last line, then hands on hips for the rest of the shift.
+              if (!c.bye && p.wx > c.blockMaxX + 2) {
+                c.bye = true;
+                c.cool = 999;
+                Voice.say(
+                  pick(HOMEOWNER_BYE),
+                  3.4,
+                  1.0,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "ped",
+                );
+              }
               c.askCd -= dt;
               const hdx = p.wx - c.wx,
                 hdy = p.wy - c.wy;
@@ -18461,17 +18484,18 @@
                 } else {
                   c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // in your face: face you
                 }
-                // SALES PITCH: slight forward lean, nodding along with the pitch
+                // WINGS: arms out AT THE SIDES, flapping UP AND DOWN like he's
+                // trying to fly. (The person's left-right axis is the model's X
+                // rotation — rotation.y swings arms forward/back, not sideways.)
+                // Left arm (the +Y side) flaps positive, right arm mirrored.
                 c.waveT += dt;
                 if (c.parts) {
                   c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06;
-                  // ARMS OUT TO THE SIDES: left arm waves LEFT, right arm waves
-                  // RIGHT, alternating — like a man who just sold you a 1997 sedan.
-                  c.parts.armL.rotation.x = 0;
-                  c.parts.armR.rotation.x = 0;
-                  c.parts.armL.rotation.y = -(1.0 + Math.sin(c.waveT * 6) * 0.55);
-                  c.parts.armR.rotation.y =
-                    1.0 + Math.sin(c.waveT * 6 + Math.PI) * 0.55;
+                  const flap = 1.0 + Math.sin(c.waveT * 6) * 0.5;
+                  c.parts.armL.rotation.y = 0;
+                  c.parts.armR.rotation.y = 0;
+                  c.parts.armL.rotation.x = flap;
+                  c.parts.armR.rotation.x = -flap;
                 }
                 // POINT gesture while a line lands (arm out front, then back to wave)
                 if (c.pointT > 0) {

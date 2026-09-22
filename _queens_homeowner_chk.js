@@ -4,11 +4,11 @@
 //   - HOMEOWNER_QUESTIONS: exactly 32 stupid questions
 //   - addCreature case "homeowner" (makePerson, MIXED gender, follow fields,
 //     unique per-block outfit)
-//   - AI: follows the worker ~2.2u gap, WAVES BOTH ARMS TO THE SIDES (left left,
-//     right right, alternating rotation.y), asks questions every 2.4-3.6s,
+//   - AI: follows the worker ~2.2u gap, WINGS — arms out at the sides flapping
+//     up and down (rotation.x, mirrored), asks questions every 2.4-3.6s,
 //     rests after 3-4 houses (24-32u), STAYS ON ITS BLOCK (blockMinX/blockMaxX),
 //     USED-CAR-SALESMAN mannerisms (sales patter, pitch lean, point gesture,
-//     hands-on-hips rest, feet always moving)
+//     hands-on-hips rest, feet always moving) + CLOSING PITCH when you leave
 //   - bump: arcade-bump gate (very minor 1HP), "MY property!" line, write-up lines,
 //     collision radius, flying-can hittable
 //   - spawn: ONE PER ACTIVE BLOCK, each with a unique outfit color
@@ -79,7 +79,7 @@ check(
 const addSec = (() => {
   const i = src.indexOf('case "homeowner":');
   if (i < 0) return "";
-  return src.slice(i, i + 1200);
+  return src.slice(i, i + 1400);
 })();
 check(
   'addCreature: case "homeowner" builds a makePerson (male-or-female, MIXED voice)',
@@ -93,13 +93,14 @@ check(
   )
 );
 check(
-  "addCreature seeds the follow state (followed, followMax 24-32u, askCd, cool, waveT, pointT)",
+  "addCreature seeds the follow state (followed, followMax 24-32u, askCd, cool, waveT, pointT, bye)",
   addSec.indexOf("c.followed = 0") >= 0 &&
     addSec.indexOf("c.followMax = R(24, 32)") >= 0 &&
     addSec.indexOf("c.askCd = 0.8") >= 0 &&
     addSec.indexOf("c.cool = 0") >= 0 &&
     addSec.indexOf("c.waveT") >= 0 &&
-    addSec.indexOf("c.pointT = 0") >= 0
+    addSec.indexOf("c.pointT = 0") >= 0 &&
+    addSec.indexOf("c.bye = false") >= 0
 );
 check(
   "addCreature: unique per-block outfit (c.outfit feeds the shirt, fallback SHIRTS)",
@@ -122,7 +123,7 @@ const aiSec = (() => {
   const u = src.indexOf("function updateCreatures(");
   const i = src.indexOf('case "homeowner":', u);
   if (i < 0) return "";
-  return src.slice(i, i + 4720);
+  return src.slice(i, i + 5280);
 })();
 check(
   "AI: case \"homeowner\" exists (its own case, no per-frame rebuild)",
@@ -135,13 +136,33 @@ check(
     aiSec.indexOf("1.2, 4.4") >= 0
 );
 check(
-  "AI: WAVES BOTH ARMS TO THE SIDES — left arm left, right arm right, alternating (rotation.y)",
-  aiSec.indexOf("c.parts.armL.rotation.y = -(1.0 + Math.sin(c.waveT * 6) * 0.55)") >= 0 &&
-    aiSec.indexOf("1.0 + Math.sin(c.waveT * 6 + Math.PI) * 0.55") >= 0
+  "AI: WINGS — arms out AT THE SIDES flapping up and down (rotation.x, mirrored)",
+  aiSec.indexOf("const flap = 1.0 + Math.sin(c.waveT * 6) * 0.5") >= 0 &&
+    aiSec.indexOf("c.parts.armL.rotation.x = flap") >= 0 &&
+    aiSec.indexOf("c.parts.armR.rotation.x = -flap") >= 0 &&
+    aiSec.indexOf("c.parts.armL.rotation.y = 0") >= 0
 );
 check(
-  "AI: wave is NOT the old arm-across-the-body rotation.x flap",
-  aiSec.indexOf("c.parts.armL.rotation.x = 1.35") < 0
+  "AI: wave is NOT the forward/back rotation.y swing (that was one arm forward, one back)",
+  aiSec.indexOf("c.parts.armL.rotation.y = -(1.0") < 0 &&
+    aiSec.indexOf("Math.sin(c.waveT * 6 + Math.PI)") < 0
+);
+check(
+  "AI: CLOSING PITCH — one last line when the worker leaves his block (c.bye, then rest)",
+  aiSec.indexOf("!c.bye && p.wx > c.blockMaxX + 2") >= 0 &&
+    aiSec.indexOf("pick(HOMEOWNER_BYE)") >= 0 &&
+    aiSec.indexOf("c.cool = 999") >= 0
+);
+check(
+  "HOMEOWNER_BYE pool: 3+ farewell lines ('I'll be right here')",
+  (() => {
+    const i = src.indexOf("const HOMEOWNER_BYE = [");
+    if (i < 0) return false;
+    const seg = src.slice(i, src.indexOf("];", i));
+    const lines = seg.split("\n").map((l) => l.trim()).filter((l) => l.startsWith('"'));
+    return lines.length >= 3 && seg.indexOf("I'll be right here") >= 0;
+  })(),
+  "pool too small or missing the right-here line"
 );
 check(
   "AI: STAYS ON ITS BLOCK (x clamped to blockMinX..blockMaxX, never crosses the street)",
