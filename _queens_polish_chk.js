@@ -155,7 +155,7 @@ check('bubble mapping: speaker "polish" -> bub-polish',
 const spawnSec = (() => {
   const i = src.indexOf('Maspeth Polish women');
   if (i < 0) return '';
-  return src.slice(i, i + 1100);
+  return src.slice(i, i + 1400);
 })();
 check('spawn block: gated to Queens', spawnSec.indexOf('if (isQueensLevel())') >= 0);
 check('spawn block: one per ACTIVE block (garbage === true, x 96..576)',

@@ -113,7 +113,10 @@ check('mailboxAt: other corners are false (176)/(192)/(480)/(656)/(672)', !mailb
 check('mailboxAt: NO boxes on Block 1 corners (0)/(80)', !mailboxAt(0, 0) && !mailboxAt(0, 9));
 check('mailboxAt: exactly 3 boxes total on the 8-block route', (() => { let n = 0; for (let bx = 0; bx <= 672; bx += 96) for (let i = 0; i < 10; i++) if (mailboxAt(bx, i)) n++; return n; })() === 3);
 check('makeBlockContents gates addMailbox on mailboxAt with west/east offsets', /const mb = mailboxAt\(\s*b\.blockX,\s*houseIdx,[\s\S]*?\);\s*if \(mb\) addMailbox\(b, baseX \+ \(mb === 1 \? 2\.4 : 5\.6\), 1\.5\);/.test(src));
-check('the random sidewalk tree is suppressed on EVERY mailbox corner house', /Math\.random\(\) < 0\.5 &&\s*!mailboxAt\(\s*b\.blockX,\s*houseIdx,/.test(src));
+check(
+  'the random sidewalk tree is suppressed on EVERY mailbox corner house (and on the cemetery block)',
+  /Math\.random\(\) < 0\.5 &&\s*!b\.cemetery &&[\s\S]*?!\s*mailboxAt\(/.test(src)
+);
 check('first box at world x=98.4 = corner 96 + 2.4u in', 96 + 2.4 === 98.4 && 98.4 > 96 && 98.4 < 102);
 check('east-corner box at x=368-2.4=365.6 sits INSIDE Block 4 (288..368)', 368 - 2.4 >= 288 && 368 - 2.4 < 368);
 check('EVERY box gets unique graffiti + sticker (fresh random canvases per build)', /addGraffiti\(g\);[\s\S]*?addKestSticker\(g\)/.test(extract('makeMailboxMesh')));

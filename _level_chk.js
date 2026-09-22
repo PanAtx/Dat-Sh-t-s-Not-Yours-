@@ -64,7 +64,7 @@ check('finish is NOT the very last intersection (I7 of 8)', finishIdx === LEVEL_
 // spawnWorld / makeBlockContents honor the garbage flag
 // (Maspeth loops 12 buildings per block; standard levels keep 10 — see housesN)
 check('spawnWorld loops one cell per house (10 standard / 12 Maspeth)', /const housesN = isQueens \? QUEENS_HOUSES_PER_BLOCK : HOUSES_PER_BLOCK;[\s\S]*?for \(let i = 0; i < housesN; i\+\+\)/.test(html));
-check('makeBlockContents gates curb bags/cans on b.garbage', /if \(b\.garbage\)\s*\{[\s\S]*?makeCurbBag/.test(html));
+check('makeBlockContents gates curb bags/cans on b.garbage (clean on the cemetery block)', /if \(b\.garbage && !b\.cemetery\)\s*\{[\s\S]*?makeCurbBag/.test(html));
 check('no infinite block recycling remains (recycle removed from updateBlocks)', /function updateBlocks\(dt\)\s*\{[\s\S]*?b\.passed[\s\S]*?\}/.test(html) && !/updateBlocks[\s\S]*?b\.worldX \+= TILE/.test(html));
 
 // Ground is fixed, not player-following

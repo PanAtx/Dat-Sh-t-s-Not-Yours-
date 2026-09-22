@@ -64,7 +64,7 @@ const fns = ['nearHopper','nearHopperLitter','attachCarried','pickUp','dumpLitte
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
   'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
-  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP',
+  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
   'function tossBag(){} function dumpCan(){}\n' +
   fns + '\n' +
@@ -73,7 +73,7 @@ const api = new Function(
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
   CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, () => WORKER_MAX_Y,
-  dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP);
+  dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => false, 384, 96);
 // ---- 1) placement ------------------------------------------------------------------
 check('placeLitterBasket -> 11 baskets at corners (very first + last pair skipped), all "placed" on groundGroup, FULL of visible trash', ()=>{
   api.placeLitterBasket();
