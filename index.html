@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.221</div>
+          <div id="app-version" class="menu-version">v1.0.222</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.221';
+      const APP_VERSION = '1.0.222';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7860,36 +7860,77 @@
           b.hazards.push({ wx: wx, wy: wy, r: r, type: type, drop: 0, cd: 0 });
           return g;
         };
-        // --- spectral ARMS: out of the ground near the curb (street); they GRAB the worker.
-        for (const [ox, oy] of [
-          [8, 0.15],
-          [22, -0.1],
-          [36, 0.25],
-          [50, -0.05],
-          [64, 0.2],
-        ]) {
+        // The street is the obstacle course: the asphalt runs y -9.5..0.5 (the DSNY
+        // truck rides -4.5, cars/motos hug the curbs at -0.9 / -8.5). The spectral
+        // pack is scattered across the WHOLE road — the truck/car path included —
+        // from the far LEFT end of the block to the far RIGHT, in five staggered
+        // lanes (curb to curb), so the street reads as a CEMETERY of ghost objects
+        // the worker must weave through. Hazards only affect the worker; the
+        // vehicles drive over them.
+        const STREET_BANDS = [-0.6, -2.6, -4.6, -6.6, -8.6]; // curb -> far curb
+        const bandY = (i) => STREET_BANDS[i % STREET_BANDS.length] + R(-0.7, 0.7);
+        // Even columns edge-to-edge (left -> right) so no end of the street is
+        // empty, with jitter so it still reads as organic scatter.
+        const colX = (i, n) =>
+          bx + 3 + (i + 0.5) * ((BLOCK_W - 6) / n) + R(-1.4, 1.4);
+        // --- ghost HEADSTONES: 18 SOLID slabs across the WHOLE street (the worker
+        // goes around them).
+        const solids = [];
+        for (let i = 0; i < 18; i++)
+          solids.push({ x: colX(i, 18), y: bandY(i + 2), kind: "headstone" });
+        // --- SKULL PILES: 14 SOLID mounds across the WHOLE street (the worker goes
+        // around them).
+        for (let i = 0; i < 14; i++)
+          solids.push({ x: colX(i, 14), y: bandY(i + 4), kind: "skull" });
+        // Traversability: keep every pair of SOLID obstacles at least 2.4u apart
+        // (a headstone is ~0.9u wide, the worker ~0.8u — under that gap they weld
+        // into an impassable wall). Relax overlapping pairs apart along the pair's
+        // axis BEFORE anything is built, so the meshes + hazard entries get the
+        // final positions (y is clamped back onto the asphalt afterwards).
+        for (let pass = 0; pass < 20; pass++) {
+          for (let i = 0; i < solids.length; i++)
+            for (let j = i + 1; j < solids.length; j++) {
+              const dx = solids[j].x - solids[i].x;
+              const dy = solids[j].y - solids[i].y;
+              const d = Math.hypot(dx, dy);
+              if (d < 2.4) {
+                const push = (2.4 - d) / 2 + 0.02;
+                let nx, ny;
+                if (d > 0.001 && Math.abs(dy / d) < 0.7) {
+                  nx = dx / d;
+                  ny = dy / d;
+                } else {
+                  // dead-on overlap, or a pair stacked vertically: split them
+                  // HORIZONTALLY (the street is long in x — always room to spread)
+                  nx = dx >= 0 ? 1 : -1;
+                  ny = 0;
+                }
+                solids[i].x -= nx * push;
+                solids[i].y -= ny * push;
+                solids[j].x += nx * push;
+                solids[j].y += ny * push;
+              }
+            }
+          for (let i = 0; i < solids.length; i++)
+            solids[i].y = Math.max(-9.3, Math.min(0.2, solids[i].y)); // stay on the asphalt
+        }
+        for (let i = 0; i < solids.length; i++) {
+          const s = solids[i];
+          place(
+            s.kind === "headstone" ? makeGhostHeadstone() : makeSkullPile(),
+            s.x,
+            s.y,
+            "ghoststone",
+            s.kind === "headstone" ? 0.85 : 0.75
+          );
+        }
+        // --- spectral ARMS: 16 clawed hands reach up out of the asphalt, across the
+        // WHOLE street (curb to curb, left to right). They GRAB the worker (damage +
+        // scare, no shove).
+        for (let i = 0; i < 16; i++) {
           const a = makeGhostArm();
-          place(a, bx + ox, oy, "ghostarm", 0.55);
+          place(a, colX(i, 16), bandY(i), "ghostarm", 0.55);
           GHOST_ARMS.push({ g: a, phase: Math.random() * Math.PI * 2 });
-        }
-        // --- ghost HEADSTONES: SOLID on the street AND the sidewalk (the worker goes around).
-        for (const [ox, oy] of [
-          [14, -1.2],
-          [42, -0.9],
-          [26, 1.8],
-          [54, 3.2],
-          [70, 2.4],
-        ]) {
-          place(makeGhostHeadstone(), bx + ox, oy, "ghoststone", 0.85);
-        }
-        // --- SKULL PILES: SOLID on the street AND the sidewalk (the worker goes around).
-        for (const [ox, oy] of [
-          [32, -1.4],
-          [58, -1.1],
-          [18, 3.6],
-          [46, 4.3],
-        ]) {
-          place(makeSkullPile(), bx + ox, oy, "ghoststone", 0.75);
         }
       }
       // ==================== HOUSES, MAILBOXES, TREES ====================
@@ -10905,20 +10946,33 @@
         d.ghostMat.opacity = 0; // born invisible — updateCreatures fades it in
         return d;
       }
-      // ===== Cemetery ghost population: RANDOM spawns (STREET + SIDEWALK only — the
-      // ghosts roam the walk and the road in front of the fence, NOT the graveyard itself).
-      // They exist ONLY on the cemetery block (clamped to the block's x-range, never a
-      // neighbor block), and 55% of them walk out in the STREET. Each fades in. A spawner
-      // timer (top of updateCreatures) tops the pack up to GHOST_CAP; off-screen ghosts
-      // recycle to a fresh street/walk spot and fade in again.
+      // ===== Cemetery ghost population: EVENLY DISTRIBUTED (SLOT GRID) across the
+      // street + sidewalk. The block is divided into GHOST_SLOTS columns; each ghost
+      // owns one slot — EVEN slots out in the STREET (full width, through the truck
+      // lane), ODD slots on the SIDEWALK. With 75 ghosts on 75 slots EVERY slot is
+      // occupied: a perfect 50/50 checkerboard (38 street / 37 walk) lining the whole
+      // block edge to edge, so every stretch of block has the same ghost density on
+      // BOTH the road and the walk — the street never clumps while the sidewalk sits
+      // empty (and vice versa). Ghosts drift only inside their own column + zone band
+      // (see case "ghost"). A spawner timer tops the pack up to GHOST_CAP; off-screen
+      // ghosts re-take the NEXT slot (round-robin) and fade in again.
       let ghostSpawnT = 3;
-      const GHOST_CAP = 36; // a HORDE on the street + sidewalk — very hard for the worker to traverse
+      const GHOST_CAP = 75; // a HORDE across the whole street + sidewalk — very hard for the worker to traverse
+      const GHOST_SLOTS = 75; // one slot per ~1.3u across the block; EVEN slot = street, ODD slot = sidewalk (fills exactly at GHOST_CAP)
+      let GHOST_SLOT_CURSOR = 0; // round-robin: each new ghost takes the next slot
+      function ghostSlotX(slot) {
+        return QUEENS_CEMETERY_X + (slot + 0.5) * (BLOCK_W / GHOST_SLOTS);
+      }
       function spawnCemeteryGhost() {
         const gh = addCreature("ghost");
-        gh.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // ONLY the cemetery block
-        gh.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6); // 55% out in the street, the rest on the sidewalk
+        const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;
+        GHOST_SLOT_CURSOR++;
+        gh.slot = slot;
+        gh.zone = slot % 2 === 0 ? -1 : 1; // EVEN slot -> STREET, ODD slot -> SIDEWALK (50/50 by construction)
+        gh.wx = ghostSlotX(slot) + R(-0.4, 0.4); // ONLY the cemetery block (its own column)
+        gh.wy = gh.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7); // street: full width, through the truck lane / sidewalk: up to the fence
         gh.dir = Math.random() < 0.5 ? -1 : 1;
-        gh.tx = gh.wx;
+        gh.tx = ghostSlotX(slot);
         gh.ty = gh.wy;
         gh.tyT = R(2, 6);
         gh.fade = 0; // fade in from nothing
@@ -14940,7 +14994,7 @@
             // WELCOME here too — peds, animals, dogs and the Polish ladies all walk the
             // sidewalk in front of the fence, so the worker has to dodge EVERYONE, dead
             // or alive. The block's ONLY finds are the floating ghostly treasures.
-            for (let gi = 0; gi < 20; gi++) spawnCemeteryGhost(); // seed a crowded street + walk (fades in); the spawner tops it up to GHOST_CAP
+            for (let gi = 0; gi < 40; gi++) spawnCemeteryGhost(); // seed a CROWDED street + walk (fades in); the spawner tops it up to GHOST_CAP
             for (let ri = 0; ri < 3; ri++) {
               const rt = addCreature("rat");
               rt.cemRat = true; // lives behind the fence (cemetery grass band)
@@ -19242,8 +19296,9 @@
       }
       function updateCreatures(dt) {
         // ===== Maspeth ghost spawner (once per frame) =====
-        // A new ghost drifts in every few seconds — somewhere on the block, out in the
-        // street, or on the sidewalk — and fades in, until the pack hits GHOST_CAP.
+        // A new ghost drifts in every few seconds on the NEXT slot of the street/sidewalk
+        // slot grid (round-robin keeps the pack evenly spread 50/50 between the street
+        // and the walk) and fades in, until the pack hits GHOST_CAP.
         if (isQueensLevel() && state === "play") {
           ghostSpawnT -= dt;
           if (ghostSpawnT <= 0) {
@@ -19251,7 +19306,7 @@
             for (let k = 0; k < creatures.length; k++)
               if (creatures[k].type === "ghost") ghosts++;
             if (ghosts < GHOST_CAP) spawnCemeteryGhost();
-            ghostSpawnT = R(4, 8);
+            ghostSpawnT = R(2, 5); // restock the horde fast — the street stays packed
           }
         }
         // ===== Maspeth spectral street arms: the ghostly hands GROPE the ground & air =====
@@ -19573,14 +19628,14 @@
               break;
             }
             case "ghost": {
-              // Maspeth cemetery ghost: a slow, drifting float. It exists ONLY on the
-              // cemetery block (never a neighbor block) and roams the STREET (55%) and the
-              // SIDEWALK in front of the cemetery — the whole walkable band out front, NOT
-              // the graveyard itself (it stays in front of the iron fence). It bobs in the
-              // air, faces its travel, and drops a creepy line when the worker gets close.
-              // Normal NPCs just walk right through it; only the worker feels the chill (the
-              // touch exchange lives in collideCreatures).
-              // fade in over ~1s (c.fade ramps 0 -> 1); a recycled ghost re-fades
+              // Maspeth cemetery ghost: a slow, drifting float on its OWN SLOT — the
+              // pack is a slot grid (even slots in the STREET, odd slots on the
+              // SIDEWALK, see spawnCemeteryGhost) so the street and the walk stay
+              // EVENLY filled and never clump. It drifts within its own column + zone
+              // band, bobs in the air, faces its travel, and drops a creepy line when
+              // the worker gets close. Normal NPCs just walk right through it; only the
+              // worker feels the chill (the touch exchange lives in collideCreatures).
+              // It fades in over ~1s (c.fade ramps 0 -> 1); a recycled ghost re-fades.
               if (c.ghostMat) {
                 c.fade = Math.min(1, (c.fade || 0) + dt / 1.0);
                 c.ghostMat.opacity = 0.45 * c.fade;
@@ -19588,8 +19643,8 @@
               c.tyT -= dt;
               if (c.tyT <= 0) {
                 c.tyT = R(3, 7);
-                c.ty = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6); // 55% out in the street, the rest on the sidewalk (never the graveyard)
-                c.tx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // ONLY the cemetery block
+                c.tx = ghostSlotX(c.slot) + R(-0.45, 0.45); // stay inside its own column
+                c.ty = c.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7); // roam its own zone band (street full width / sidewalk)
               }
               const gx = c.tx - c.wx,
                 gy = c.ty - c.wy;
@@ -19599,8 +19654,9 @@
                 c.wy += (gy / gd) * c.sp * 0.7 * dt;
                 c.dir = gx >= 0 ? 1 : -1;
               }
-              c.wx = clamp(c.wx, QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // the ghost exists ONLY on the cemetery block
-              c.wy = clamp(c.wy, -1.9, CEM_FENCE_Y - 0.5); // the ghosts stay on the street + sidewalk, in front of the fence
+              const slotX = ghostSlotX(c.slot);
+              c.wx = clamp(c.wx, slotX - BLOCK_W / GHOST_SLOTS / 2, slotX + BLOCK_W / GHOST_SLOTS / 2); // stays on its own slot column (the block)
+              c.wy = clamp(c.wy, c.zone < 0 ? -9.2 : 0.6, c.zone < 0 ? 0.3 : CEM_FENCE_Y - 0.5); // stays in its own zone: street OR sidewalk
               if (c.g) {
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the drift
                 c.hopT = (c.hopT || 0) + dt;
@@ -19625,13 +19681,17 @@
                   "ghost",
                 );
               }
-              // Off-screen recycling: the ghost reappears somewhere in the cemetery's
-              // home zone (the STREET + SIDEWALK out front, on the block itself) — NOT at
-              // p.wx ± 38, which would fling a cemetery ghost down to a far block and break
-              // the "these are the cemetery's ghosts" theme.
+              // Off-screen recycling: the ghost re-takes the NEXT slot (round-robin,
+              // keeping the street/sidewalk pack evenly spread as the worker passes) and
+              // re-fades in. It NEVER flings to p.wx ± 38 (that would leave the block
+              // and break the "these are the cemetery's ghosts" theme).
               if (tx > 55 || tx < -58) {
-                c.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W);
-                c.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6);
+                const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;
+                GHOST_SLOT_CURSOR++;
+                c.slot = slot;
+                c.zone = slot % 2 === 0 ? -1 : 1;
+                c.wx = ghostSlotX(slot) + R(-0.4, 0.4);
+                c.wy = c.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7);
                 c.tx = c.wx;
                 c.ty = c.wy;
                 c.tyT = R(2, 6);

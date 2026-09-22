@@ -13,11 +13,14 @@
 //   - worker fence clamp (impassable) + front & side fence (open green back, corners cornered)
 //   - block OPEN to the living (no no-go zone; peds/animals/dogs/ladies roam it;
 //     only curb garbage + regular treasure are suppressed by !b.cemetery)
-//   - CROWDED ghost pack (20 seeds, topped up to GHOST_CAP=36, 55% street bias, ghosts
-//     exist ONLY on the cemetery block) + 3 rats + 10 treasures + raven
+//   - CROWDED ghost pack (40 seeds, topped up to GHOST_CAP=75, SLOT-GRID even split:
+//     even slots street / odd slots sidewalk, ghosts exist ONLY on the cemetery block)
+//     + 3 rats + 10 treasures + raven
 //   - STREET GHOSTS: spectral arms (grab -> HP_HIT_GHOSTARM damage), ghost headstones +
 //     skull piles (SOLID obstacles the worker goes around, "They only moved the headstones!"),
-//     placed on the street + sidewalk by buildCemeteryStreetGhosts, arms animated in updateCreatures
+//     placed ACROSS THE WHOLE STREET (truck lane + car lanes, left to right) by
+//     buildCemeteryStreetGhosts, separated >= 2.4u so the street stays traversable,
+//     arms animated in updateCreatures
 //   - "Failure to respect the dearly departed" write-up + ghost bubble style
 'use strict';
 const fs = require('fs');
@@ -372,9 +375,10 @@ const ghostCaseSrc = (() => {
 })();
 check('updateCreatures has case "ghost" (the wander AI)', ghostCaseSrc.length > 0);
 check(
-  'ghost AI: roams the STREET (55%) + sidewalk in front of the fence, exists ONLY on the cemetery block (never the graveyard, never a neighbor block)',
-  ghostCaseSrc.indexOf('Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
-    ghostCaseSrc.indexOf('c.tx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
+  'ghost AI: roams its OWN slot (column across the block, its own street/sidewalk zone band), exists ONLY on the cemetery block (never the graveyard, never a neighbor block)',
+  ghostCaseSrc.indexOf('ghostSlotX(c.slot)') >= 0 &&
+    ghostCaseSrc.indexOf('BLOCK_W / GHOST_SLOTS / 2') >= 0 &&
+    ghostCaseSrc.indexOf('c.zone < 0 ? -9.2 : 0.6') >= 0 &&
     ghostCaseSrc.indexOf('QUEENS_CEMETERY_X - 120') < 0 &&
     ghostCaseSrc.indexOf('CEM_BACK_Y') < 0
 );
@@ -391,10 +395,10 @@ check(
     ghostCaseSrc.indexOf('Math.abs(c.wx - p.wx) < 9') >= 0
 );
 check(
-  'ghost AI: off-screen recycle respawns on the street + sidewalk, ONLY on the cemetery block (NEVER the graveyard, never p.wx ± 38)',
+  'ghost AI: off-screen recycle re-takes the NEXT slot (round-robin, keeps the even street/sidewalk spread, NEVER p.wx ± 38)',
   ghostCaseSrc.indexOf('if (tx > 55 || tx < -58)') >= 0 &&
-    ghostCaseSrc.indexOf('c.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
-    ghostCaseSrc.indexOf('Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
+    ghostCaseSrc.indexOf('const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;') >= 0 &&
+    ghostCaseSrc.indexOf('c.wy = c.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7)') >= 0 &&
     ghostCaseSrc.indexOf('p.wx - 38') < 0
 );
 check(
@@ -589,8 +593,8 @@ check(
 const swIdx = src.indexOf('function spawnWorld(');
 const swSec = src.slice(swIdx, swIdx + 26000);
 check(
-  'spawnWorld: seeds a CROWDED pack of 20 ghosts via spawnCemeteryGhost (they fade in) + the spawner tops them up to GHOST_CAP',
-  swSec.indexOf('for (let gi = 0; gi < 20; gi++) spawnCemeteryGhost()') >= 0
+  'spawnWorld: seeds a CROWDED pack of 40 ghosts via spawnCemeteryGhost (they fade in) + the spawner tops them up to GHOST_CAP',
+  swSec.indexOf('for (let gi = 0; gi < 40; gi++) spawnCemeteryGhost()') >= 0
 );
 check(
   'spawnWorld: 3 cemetery rats (cemRat, behind the fence line)',
@@ -615,24 +619,34 @@ check(
 
 // ================= 10b. RANDOM GHOST SPAWNS + FADE-IN + RAVEN SWOOP =================
 check(
-  'spawnCemeteryGhost spawns a ghost on the STREET (55%) + SIDEWALK, ONLY on the cemetery block (in front of the fence) and fades it in (fade = 0)',
+  'spawnCemeteryGhost assigns each ghost a ROUND-ROBIN slot (EVEN slot -> STREET, ODD slot -> SIDEWALK) so the pack is an even 50/50 across street + walk',
   (() => {
     const i = src.indexOf('function spawnCemeteryGhost()');
     if (i < 0) return false;
-    const sec = src.slice(i, i + 700);
+    const sec = src.slice(i, i + 900);
     return (
       sec.indexOf('addCreature("ghost")') >= 0 &&
-      sec.indexOf('gh.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
-      sec.indexOf('gh.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
+      sec.indexOf('const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;') >= 0 &&
+      sec.indexOf('GHOST_SLOT_CURSOR++;') >= 0 &&
+      sec.indexOf('gh.zone = slot % 2 === 0 ? -1 : 1;') >= 0 &&
+      sec.indexOf('gh.wx = ghostSlotX(slot) + R(-0.4, 0.4)') >= 0 &&
+      sec.indexOf('gh.wy = gh.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7)') >= 0 &&
       sec.indexOf('gh.fade = 0') >= 0
     );
   })()
 );
 check(
-  'ghost spawner timer tops the pack up to GHOST_CAP (spawnCemeteryGhost when below cap)',
+  'ghost spawner timer tops the pack up to GHOST_CAP (spawnCemeteryGhost when below cap) on the 75-slot grid',
   src.indexOf('if (ghosts < GHOST_CAP) spawnCemeteryGhost()') >= 0 &&
     src.indexOf('let ghostSpawnT = 3') >= 0 &&
-    src.indexOf('const GHOST_CAP = 36') >= 0
+    src.indexOf('const GHOST_CAP = 75') >= 0 &&
+    src.indexOf('const GHOST_SLOTS = 75') >= 0
+);
+check(
+  'ghost AI: each ghost drifts ONLY inside its own slot column + its own zone band (street ghosts never touch the sidewalk, sidewalk ghosts never touch the street)',
+  /c\.tx = ghostSlotX\(c\.slot\) \+ R\(-0\.45, 0\.45\)/.test(src) &&
+    /c\.ty = c\.zone < 0 \? R\(-8\.8, -0\.5\) : R\(0\.8, 4\.7\)/.test(src) &&
+    /c\.wy = clamp\(c\.wy, c\.zone < 0 \? -9\.2 : 0\.6, c\.zone < 0 \? 0\.3 : CEM_FENCE_Y - 0\.5\)/.test(src)
 );
 check(
   'each ghost has its OWN material so it can fade in independently (makeGhostPerson -> d.ghostMat)',
@@ -732,19 +746,41 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
   const GZ = 0.3;
   const GHOST_LINES = ['Play with us and stay with us', 'Redrum'];
   const pick = (a) => a[0];
-  const p = { wx: QUEENS_CEMETERY_X + 20, wy: 3 };
-  const c = {
-    type: 'ghost',
-    wx: QUEENS_CEMETERY_X + 10,
-    wy: 2,
-    ty: 2,
-    tx: QUEENS_CEMETERY_X + 10,
-    tyT: 0.1, // first tick picks a fresh target
-    sp: 2.0,
-    dir: 1,
-    sayCd: 0,
-    g: { rotation: { z: 0 }, position: { z: GZ } },
-  };
+  const GHOST_SLOTS = 75;
+  let GHOST_SLOT_CURSOR = 0;
+  const ghostSlotX = (slot) => QUEENS_CEMETERY_X + (slot + 0.5) * (BLOCK_W / GHOST_SLOTS);
+  const p = { wx: QUEENS_CEMETERY_X + 8, wy: -4 };
+  // one STREET ghost (slot 0) + one SIDEWALK ghost (slot 1): the even split in action
+  const ghosts = [
+    {
+      type: 'ghost',
+      slot: 0,
+      zone: -1,
+      wx: ghostSlotX(0),
+      wy: -2,
+      ty: -2,
+      tx: ghostSlotX(0),
+      tyT: 0.1, // first tick picks a fresh target
+      sp: 2.0,
+      dir: 1,
+      sayCd: 0,
+      g: { rotation: { z: 0 }, position: { z: GZ } },
+    },
+    {
+      type: 'ghost',
+      slot: 1,
+      zone: 1,
+      wx: ghostSlotX(1),
+      wy: 1.0,
+      ty: 1.0,
+      tx: ghostSlotX(1),
+      tyT: 0.1,
+      sp: 2.0,
+      dir: 1,
+      sayCd: 0,
+      g: { rotation: { z: 0 }, position: { z: GZ } },
+    },
+  ];
   const stepFn = new Function(
     'c',
     'dt',
@@ -761,36 +797,70 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
     'pick',
     'state',
     'tx',
+    'ghostSlotX',
+    'GHOST_SLOTS',
+    'GHOST_SLOT_CURSOR',
     'switch (c.type) {\n' + ghostCaseSrc + '\n}',
   );
   let aiOk = true,
     aiMsg = '';
   try {
-    for (let i = 0; i < 200; i++) {
-      const tx = c.wx - p.wx;
-      stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_FENCE_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx);
-      if (c.wx < QUEENS_CEMETERY_X - 1e-6 || c.wx > QUEENS_CEMETERY_X + BLOCK_W + 1e-6)
-        throw new Error('x escaped the cemetery block: ' + c.wx);
-      if (c.wy < -1.9 - 1e-6 || c.wy > CEM_FENCE_Y - 0.5 + 1e-6) throw new Error('y escaped: ' + c.wy);
-    }
+    for (let i = 0; i < 200; i++)
+      for (let k = 0; k < ghosts.length; k++) {
+        const c = ghosts[k];
+        const tx = c.wx - p.wx;
+        stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_FENCE_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx, ghostSlotX, GHOST_SLOTS, GHOST_SLOT_CURSOR);
+        // each ghost must stay on its OWN slot column (inside the block) AND in its
+        // OWN zone band: street ghosts y -9.2..0.3, sidewalk ghosts y 0.6..fence-0.5
+        const colW = BLOCK_W / GHOST_SLOTS;
+        const sx = ghostSlotX(c.slot);
+        if (c.wx < sx - colW / 2 - 1e-6 || c.wx > sx + colW / 2 + 1e-6)
+          throw new Error('x escaped the slot column: ' + c.wx);
+        if (c.zone < 0) {
+          if (c.wy < -9.2 - 1e-6 || c.wy > 0.3 + 1e-6) throw new Error('street ghost left the street: ' + c.wy);
+        } else if (c.wy < 0.6 - 1e-6 || c.wy > CEM_FENCE_Y - 0.5 + 1e-6)
+          throw new Error('sidewalk ghost left the sidewalk: ' + c.wy);
+      }
   } catch (e) {
     aiOk = false;
     aiMsg = e.message;
   }
   check(
-    'ghost stays INSIDE the cemetery block (street + sidewalk only — NEVER the graveyard, NEVER a neighbor block) for 200 simulated frames',
+    'ghosts stay on their OWN slot columns + zone bands (street ghost on the street, sidewalk ghost on the sidewalk — the even split holds) for 200 simulated frames',
     aiOk,
     aiMsg
   );
   check(
     'ghost drifted toward its target (moved off its spawn spot)',
-    Math.abs(c.wx - (QUEENS_CEMETERY_X + 10)) > 1 || Math.abs(c.wy - 2) > 0.5
+    Math.abs(ghosts[0].wx - ghostSlotX(0)) > 0.2 || Math.abs(ghosts[0].wy + 2) > 0.2
   );
-  check('ghost hovered (c.g.position.z set above GZ with the bob)', c.g.position.z > GZ + 0.4);
+  check('ghost hovered (c.g.position.z set above GZ with the bob)', ghosts[0].g.position.z > GZ + 0.4);
   check(
     'ghost spoke a creepy line while near the worker',
     said.length > 0 && GHOST_LINES.indexOf(said[0]) >= 0,
     'said=' + JSON.stringify(said)
+  );
+  // Even-distribution proof: 75 round-robin slots -> the street and the sidewalk each
+  // get (nearly) half the pack, and the slots line the block edge to edge.
+  let streetN = 0,
+    walkN = 0;
+  const xs = [];
+  let cursor = 0;
+  for (let i = 0; i < 75; i++) {
+    const slot = cursor % GHOST_SLOTS;
+    cursor++;
+    if (slot % 2 === 0) streetN++;
+    else walkN++;
+    xs.push(ghostSlotX(slot));
+  }
+  check(
+    'the 75-ghost pack splits EVENLY between street and sidewalk (' + streetN + '/' + walkN + ', diff <= 1)',
+    Math.abs(streetN - walkN) <= 1
+  );
+  check(
+    'slots line the block edge-to-edge (first slot near the left edge, last near the right)',
+    Math.min.apply(null, xs) < QUEENS_CEMETERY_X + 2 &&
+      Math.max.apply(null, xs) > QUEENS_CEMETERY_X + BLOCK_W - 2
   );
 }
 
@@ -1052,6 +1122,24 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
       placeSrc.indexOf('b.hazards.push(') >= 0
   );
   check(
+    'buildCemeteryStreetGhosts: BUSY street — 16 ARMS + 18 HEADSTONES + 14 SKULL PILES',
+    placeSrc.indexOf('for (let i = 0; i < 16; i++)') >= 0 &&
+      placeSrc.indexOf('for (let i = 0; i < 18; i++)') >= 0 &&
+      placeSrc.indexOf('for (let i = 0; i < 14; i++)') >= 0
+  );
+  check(
+    'buildCemeteryStreetGhosts: objects line the street edge-to-edge (colX left -> right w/ jitter, 5 bands curb -> far curb incl. the truck lane at -4.6)',
+    placeSrc.indexOf('const colX =') >= 0 &&
+      placeSrc.indexOf('bx + 3 + (i + 0.5) * ((BLOCK_W - 6) / n)') >= 0 &&
+      placeSrc.indexOf('[-0.6, -2.6, -4.6, -6.6, -8.6]') >= 0
+  );
+  check(
+    'buildCemeteryStreetGhosts: SOLID obstacles kept >= 2.4u apart (separation pass) so the street stays traversable',
+    placeSrc.indexOf('if (d < 2.4)') >= 0 &&
+      placeSrc.indexOf('solids[i].x -= nx * push;') >= 0 &&
+      placeSrc.indexOf('solids[j].x += nx * push;') >= 0
+  );
+  check(
     'buildCemeteryStreetGhosts: called for the cemetery block cell (houseIdx === 0)',
     src.indexOf('buildCemeteryStreetGhosts(b);') >= 0
   );
@@ -1076,6 +1164,67 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
     'the spectral arms are ANIMATED (reach + sway) every frame in updateCreatures',
     src.indexOf('GHOST_ARMS.length') >= 0 &&
       src.indexOf('A.g.userData.arm.position.z') >= 0
+  );
+}
+
+console.log('');
+console.log('[functional] street obstacle layout (18 headstones + 14 skull piles, simulated placement)');
+{
+  // Re-run the buildCemeteryStreetGhosts placement math (colX/bandY/separation)
+  // with the real randoms: every final SOLID pair must be >= 2.4u apart (the street
+  // stays traversable) and every object must stay on the street inside the block.
+  const BLOCK_W = 96;
+  const bx = 96; // the cemetery block x (temp position)
+  const R = (a, b) => a + Math.random() * (b - a);
+  const STREET_BANDS = [-0.6, -2.6, -4.6, -6.6, -8.6];
+  const bandY = (i) => STREET_BANDS[i % 5] + R(-0.7, 0.7);
+  const colX = (i, n) => bx + 3 + (i + 0.5) * ((BLOCK_W - 6) / n) + R(-1.4, 1.4);
+  let minD = Infinity;
+  let inStreet = true;
+  for (let run = 0; run < 300; run++) {
+    const solids = [];
+    for (let i = 0; i < 18; i++) solids.push({ x: colX(i, 18), y: bandY(i + 2) });
+    for (let i = 0; i < 14; i++) solids.push({ x: colX(i, 14), y: bandY(i + 4) });
+    for (let pass = 0; pass < 20; pass++) {
+      for (let i = 0; i < solids.length; i++)
+        for (let j = i + 1; j < solids.length; j++) {
+          const dx = solids[j].x - solids[i].x;
+          const dy = solids[j].y - solids[i].y;
+          const d = Math.hypot(dx, dy);
+          if (d < 2.4) {
+            const push = (2.4 - d) / 2 + 0.02;
+            let nx, ny;
+            if (d > 0.001 && Math.abs(dy / d) < 0.7) {
+              nx = dx / d;
+              ny = dy / d;
+            } else {
+              nx = dx >= 0 ? 1 : -1;
+              ny = 0;
+            }
+            solids[i].x -= nx * push;
+            solids[i].y -= ny * push;
+            solids[j].x += nx * push;
+            solids[j].y += ny * push;
+          }
+        }
+      for (let i = 0; i < solids.length; i++)
+        solids[i].y = Math.max(-9.3, Math.min(0.2, solids[i].y));
+    }
+    for (let i = 0; i < solids.length; i++) {
+      if (solids[i].y < -9.5 || solids[i].y > 0.5 || solids[i].x < bx - 0.5 || solids[i].x > bx + BLOCK_W + 0.5)
+        inStreet = false;
+      for (let j = i + 1; j < solids.length; j++)
+        minD = Math.min(minD, Math.hypot(solids[j].x - solids[i].x, solids[j].y - solids[i].y));
+    }
+  }
+  check(
+    'street obstacles: after the separation pass every SOLID pair is >= 2.4u apart (300 random layouts)',
+    minD >= 2.4 - 1e-6,
+    'minD=' + minD
+  );
+  check(
+    'street obstacles: all 32 solids stay ON the street (y -9.5..0.5) inside the block x-range',
+    inStreet
   );
 }
 
