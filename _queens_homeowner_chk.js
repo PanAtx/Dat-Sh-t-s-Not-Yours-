@@ -5,10 +5,11 @@
 //   - addCreature case "homeowner" (makePerson, MIXED gender, follow fields,
 //     unique per-block outfit)
 //   - AI: follows the worker ~2.2u gap, WINGS — arms out at the sides flapping
-//     up and down (rotation.x, mirrored), asks questions every 2.4-3.6s,
-//     rests after 3-4 houses (24-32u), STAYS ON ITS BLOCK (blockMinX/blockMaxX),
-//     USED-CAR-SALESMAN mannerisms (sales patter, pitch lean, point gesture,
-//     hands-on-hips rest, feet always moving) + CLOSING PITCH when you leave
+//     up and down (rotation.x, mirrored), ALWAYS faces the worker in 3D (atan2),
+//     asks questions every 2.4-3.6s, rests after 3-4 houses (24-32u), STAYS ON ITS
+//     BLOCK (blockMinX/blockMaxX), USED-CAR-SALESMAN mannerisms (sales patter,
+//     pitch lean, FORWARD point, hands-at-chest rest, feet always moving) +
+//     CLOSING PITCH when you leave
 //   - bump: arcade-bump gate (very minor 1HP), "MY property!" line, write-up lines,
 //     collision radius, flying-can hittable
 //   - spawn: ONE PER ACTIVE BLOCK, each with a unique outfit color
@@ -130,10 +131,10 @@ check(
   aiSec.length > 0 && aiSec.indexOf("makePerson") < 0 && aiSec.indexOf("break;") >= 0
 );
 check(
-  "AI: follows the worker (2.2u gap, keeps pace on the sidewalk 1.2..4.4)",
+  "AI: follows the worker straight in 2D (2.2u gap, any direction, keeps to the sidewalk 1.2..4.4)",
   aiSec.indexOf("hdist > 2.2") >= 0 &&
-    aiSec.indexOf("clamp(c.wy + mvy * hsp * dt, 1.2, 4.4)") >= 0 &&
-    aiSec.indexOf("1.2, 4.4") >= 0
+    aiSec.indexOf("(hdx / hdist) * hsp * dt") >= 0 &&
+    aiSec.indexOf("clamp(c.wy + (hdy / hdist) * hsp * dt, 1.2, 4.4)") >= 0
 );
 check(
   "AI: WINGS — arms out AT THE SIDES flapping up and down (rotation.x, mirrored)",
@@ -173,16 +174,22 @@ check(
   aiSec.indexOf("animParts(c, 0.8 * dt * 2.4)") >= 0
 );
 check(
-  "AI: TURNS to walk where he's going (x-first movement, face travel direction)",
-  aiSec.indexOf("Math.abs(hdx) < 1.6") >= 0 &&
-    aiSec.indexOf("c.g.rotation.z = mvx >= 0 ? 0 : Math.PI") >= 0
+  "AI: ALWAYS faces the worker in 3D (atan2 full rotation around the vertical axis)",
+  aiSec.indexOf("c.g.rotation.z = Math.atan2(hdy, hdx)") >= 0
 );
 check(
-  "AI: salesman mannerisms (pitch lean/nod, point gesture, hands-on-hips rest)",
+  "AI: salesman mannerisms (pitch lean/nod, FORWARD point, hands-at-chest rest)",
   aiSec.indexOf("c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06") >= 0 &&
     aiSec.indexOf("c.parts.armR.rotation.x = -1.25") >= 0 &&
-    aiSec.indexOf("c.parts.armL.rotation.y = -2.7") >= 0 &&
-    aiSec.indexOf("c.parts.armR.rotation.y = 2.7") >= 0
+    aiSec.indexOf("c.parts.armR.rotation.y = -1.55") >= 0 &&
+    aiSec.indexOf("c.parts.armL.rotation.y = -1.9") >= 0 &&
+    aiSec.indexOf("c.parts.armR.rotation.y = -1.9") >= 0
+);
+check(
+  "AI: no arm ever swings behind the back (old +2.7/-2.7 rest and +1.55 point are gone)",
+  aiSec.indexOf("armL.rotation.y = -2.7") < 0 &&
+    aiSec.indexOf("armR.rotation.y = 2.7") < 0 &&
+    aiSec.indexOf("rotation.y = 1.55") < 0
 );
 check(
   "AI: speech is 60% trash questions / 40% used-car-salesman patter",
