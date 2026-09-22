@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.220</div>
+          <div id="app-version" class="menu-version">v1.0.221</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.220';
+      const APP_VERSION = '1.0.221';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7582,10 +7582,15 @@
         }
         return g;
       }
+      // The headstone the cemetery raven perches on: {x, y, top}. Set by
+      // buildCemeteryBlock (it picks a random stone), read by spawnWorld when the
+      // raven is spawned as a creature (it flies FROM this stone to attack).
+      let RAVEN_PERCH = null;
       function makeRaven() {
         // A black raven, perched: body + head + beak + folded wings + tail + legs.
         // Z-UP: legs stand on the local z=0 perch, the body's long axis is the depth
-        // (Y), the head + beak point toward the street (-Y).
+        // (Y), the head + beak point toward the street (-Y). The wings are stashed in
+        // userData.rav so the raven's AI can flap them while it swoops.
         const g = new THREE.Group();
         const black = M(0x0a0a0c);
         const body = SP(0.16, black);
@@ -7599,11 +7604,15 @@
         beak.rotation.x = Math.PI; // cone apex -> forward (-Y, street side)
         beak.position.set(0, -0.22, 0.5);
         g.add(beak);
+        let wingL = null,
+          wingR = null;
         for (const side of [-1, 1]) {
           const wing = BX(0.24, 0.06, 0.3, M(0x141418));
           wing.position.set(side * 0.16, 0, 0.3);
           wing.rotation.y = side * 0.3; // folded, tip angled back
           g.add(wing);
+          if (side < 0) wingL = wing;
+          else wingR = wing;
           const leg = CY(0.014, 0.014, 0.14, M(0x8a7a2a), 5);
           leg.rotation.x = Math.PI / 2; // standing on the perch
           leg.position.set(side * 0.05, 0, 0.07);
@@ -7613,6 +7622,7 @@
         tail.position.set(0, 0.2, 0.35);
         tail.rotation.x = 0.35; // tail end flicked UP behind
         g.add(tail);
+        g.userData.rav = { wingL, wingR }; // the AI flaps these while it flies
         return g;
       }
       function makeCemeteryFence(len) {
@@ -7708,13 +7718,179 @@
           tr.rotation.z = R(0, Math.PI * 2);
           g.add(tr);
         }
-        // the black raven, perched on a random headstone
+        // The raven's PERCH: a random headstone. The raven itself is spawned as a
+        // CREATURE in spawnWorld (it flies off this stone, swoops the worker ONCE,
+        // then glides back), so we only record the perch spot here.
         const per = stones[(Math.random() * stones.length) | 0];
-        const raven = makeRaven();
-        raven.position.set(per.x, per.y, GZ + per.top + 0.02);
-        raven.rotation.z = R(-0.6, 0.6);
-        g.add(raven);
+        RAVEN_PERCH = { x: per.x, y: per.y, top: per.top };
         return g;
+      }
+      // ==================== MASPETH STREET GHOSTS (arms / headstones / skulls) ====================
+      // These haunt the STREET and SIDEWALK in front of the cemetery (the graveyard itself is
+      // fenced off and the worker can't enter). They are STATIC world objects (groundGroup)
+      // registered as BLOCK HAZARDS, so collideStatic handles the worker's touch:
+      //   - ghost HEADSTONES + SKULL PILES are SOLID: the worker is shoved back and must go
+      //     AROUND them, and touching one makes him say "They only moved the headstones!".
+      //   - ghost ARMS reach up out of the ground to GRAB the worker (damage, no shove).
+      // Living NPCs/animals pass through all of these untouched (only the worker is spooked).
+      let GHOST_OBJECT_MAT = null;
+      function makeGhostObjectMat() {
+        if (!GHOST_OBJECT_MAT)
+          GHOST_OBJECT_MAT = new THREE.MeshLambertMaterial({
+            color: 0x9cc0ff,
+            emissive: 0x2a4a8a,
+            emissiveIntensity: 0.45,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+        return GHOST_OBJECT_MAT;
+      }
+      // A spectral arm + clawed hand reaching UP out of a small mound of spectral earth.
+      // Origin at the ground point; userData.arm is the animated arm group (the reach).
+      function makeGhostArm() {
+        const mat = makeGhostObjectMat();
+        const g = new THREE.Group();
+        const mound = SP(0.24, mat);
+        mound.scale.set(1.1, 1.1, 0.5); // low, wide spectral dirt bump
+        mound.position.z = 0.03;
+        g.add(mound);
+        const arm = new THREE.Group();
+        const upper = CY(0.055, 0.07, 0.42, mat, 8); // elbow -> mid
+        upper.rotation.x = Math.PI / 2; // stand it up (cylinder axis Y -> vertical Z)
+        upper.position.z = 0.21;
+        arm.add(upper);
+        const fore = CY(0.048, 0.06, 0.34, mat, 8); // mid -> wrist
+        fore.rotation.x = Math.PI / 2;
+        fore.position.z = 0.55;
+        arm.add(fore);
+        const hand = SP(0.1, mat);
+        hand.position.z = 0.76;
+        arm.add(hand);
+        for (let i = 0; i < 5; i++) {
+          // five clawing fingers fanning out of the palm
+          const a = (i / 5) * Math.PI * 2;
+          const f = CY(0.016, 0.024, 0.16, mat, 5);
+          f.rotation.x = Math.PI / 2;
+          f.position.set(Math.cos(a) * 0.075, Math.sin(a) * 0.075, 0.13);
+          f.rotation.z = a;
+          arm.add(f);
+        }
+        arm.position.z = 0.04;
+        arm.rotation.x = 0.18; // leans up out of the mound
+        g.add(arm);
+        g.userData.arm = arm;
+        return g;
+      }
+      // A spectral headstone (a ghostly rounded slab) — a SOLID street/sidewalk obstacle.
+      function makeGhostHeadstone() {
+        const mat = makeGhostObjectMat();
+        const g = new THREE.Group();
+        const plinth = BX(0.9, 0.36, 0.16, mat);
+        plinth.position.z = 0.08;
+        g.add(plinth);
+        const slab = BX(0.74, 0.2, 1.05, mat);
+        slab.position.z = 0.16 + 1.05 / 2;
+        g.add(slab);
+        const cap = CY(0.37, 0.37, 0.2, mat, 12);
+        cap.rotation.z = Math.PI / 2; // rounded top
+        cap.position.z = 0.16 + 1.05;
+        g.add(cap);
+        return g;
+      }
+      // A spectral pile of skulls — a SOLID street/sidewalk obstacle.
+      // The skulls are HIGH-POLY (cranium + jaw + dark sockets + nose + a row of teeth)
+      // so they read as REAL skulls lying face-up, not blobs.
+      function makeSkullPile() {
+        const mat = makeGhostObjectMat();
+        const g = new THREE.Group();
+        const mound = SP(0.34, mat, 12);
+        mound.scale.set(1.5, 1.05, 0.5);
+        mound.position.z = 0.05;
+        g.add(mound);
+        const eye = M(0x0a1020); // dark sockets / nose so the skulls read as SKULLS
+        // One high-poly skull, face UP (+z) so the eyes face the sky in the pile
+        const skull = (r) => {
+          const s = new THREE.Group();
+          const cranium = SPH(r, mat, 24, 18); // high-poly cranium — smooth, real-skull shape
+          cranium.scale.set(1.0, 1.12, 1.0); // slightly egg-shaped (longer front-to-back)
+          s.add(cranium);
+          for (const ex of [-r * 0.38, r * 0.38]) {
+            const e = SP(r * 0.24, eye, 16); // dark eye sockets
+            e.position.set(ex, r * 0.18, r * 0.62);
+            s.add(e);
+          }
+          const nose = BX(r * 0.14, r * 0.2, r * 0.22, eye); // dark nasal notch between the eyes
+          nose.position.set(0, -r * 0.12, r * 0.66);
+          s.add(nose);
+          for (let t = 0; t < 6; t++) {
+            const tooth = BX(r * 0.16, r * 0.14, r * 0.12, mat); // a row of teeth along the lower face
+            tooth.position.set((t - 2.5) * r * 0.22, -r * 0.52, r * 0.3);
+            s.add(tooth);
+          }
+          const chin = BX(r * 0.5, r * 0.3, r * 0.3, mat); // the jaw / chin
+          chin.position.set(0, -r * 0.78, r * 0.1);
+          s.add(chin);
+          return s;
+        };
+        const place = (x, y, z, r, ry) => {
+          const s = skull(r);
+          s.position.set(x, y, z);
+          if (ry) s.rotation.z = ry; // tumbled at a random spin
+          g.add(s);
+        };
+        place(0, 0, 0.2, 0.2, 0.4);
+        place(0.26, 0.05, 0.14, 0.15, 0.9);
+        place(-0.24, 0.03, 0.16, 0.14, -0.6);
+        place(0.06, 0.16, 0.3, 0.12, 2.2);
+        place(-0.05, -0.22, 0.1, 0.11, 1.3); // one tumbled out in front of the pile
+        return g;
+      }
+      // GHOST_ARMS: the live spectral arms (animated every frame in updateCreatures).
+      let GHOST_ARMS = [];
+      // Places the street ghosts on the cemetery block's STREET + SIDEWALK and registers each
+      // as a hazard on the block. bx = the block's world X (QUEENS_CEMETERY_X). Street is the
+      // negative-y road (curb top ~ y 0.35); the sidewalk is y ~0.5..5.0 (fence at 5.4).
+      function buildCemeteryStreetGhosts(b) {
+        const bx = QUEENS_CEMETERY_X;
+        const place = (g, wx, wy, type, r) => {
+          g.position.set(wx, wy, GZ);
+          groundGroup.add(g);
+          b.hazards.push({ wx: wx, wy: wy, r: r, type: type, drop: 0, cd: 0 });
+          return g;
+        };
+        // --- spectral ARMS: out of the ground near the curb (street); they GRAB the worker.
+        for (const [ox, oy] of [
+          [8, 0.15],
+          [22, -0.1],
+          [36, 0.25],
+          [50, -0.05],
+          [64, 0.2],
+        ]) {
+          const a = makeGhostArm();
+          place(a, bx + ox, oy, "ghostarm", 0.55);
+          GHOST_ARMS.push({ g: a, phase: Math.random() * Math.PI * 2 });
+        }
+        // --- ghost HEADSTONES: SOLID on the street AND the sidewalk (the worker goes around).
+        for (const [ox, oy] of [
+          [14, -1.2],
+          [42, -0.9],
+          [26, 1.8],
+          [54, 3.2],
+          [70, 2.4],
+        ]) {
+          place(makeGhostHeadstone(), bx + ox, oy, "ghoststone", 0.85);
+        }
+        // --- SKULL PILES: SOLID on the street AND the sidewalk (the worker goes around).
+        for (const [ox, oy] of [
+          [32, -1.4],
+          [58, -1.1],
+          [18, 3.6],
+          [46, 4.3],
+        ]) {
+          place(makeSkullPile(), bx + ox, oy, "ghoststone", 0.75);
+        }
       }
       // ==================== HOUSES, MAILBOXES, TREES ====================
       // Soft, organic flicker for every house's porch bulb + its additive glow halo.
@@ -10684,20 +10860,36 @@
       // blueish, transparent, glowy material — they read as "the same people,
       // only dead". depthWrite is off so overlapping ghosts never z-fight.
       let GHOST_MAT = null;
-      function ghostifyPerson(g) {
-        if (!GHOST_MAT)
-          GHOST_MAT = new THREE.MeshLambertMaterial({
-            color: 0xa8ccff,
-            emissive: 0x24466e,
-            emissiveIntensity: 0.55,
-            transparent: true,
-            opacity: 0.45,
-            depthWrite: false,
-          });
+      function ghostifyPerson(g, mat) {
+        if (!mat) {
+          if (!GHOST_MAT)
+            GHOST_MAT = new THREE.MeshLambertMaterial({
+              color: 0xa8ccff,
+              emissive: 0x24466e,
+              emissiveIntensity: 0.55,
+              transparent: true,
+              opacity: 0.45,
+              depthWrite: false,
+            });
+          mat = GHOST_MAT;
+        }
         g.traverse((o) => {
-          if (o.material) o.material = GHOST_MAT;
+          if (o.material) o.material = mat;
         });
         return g;
+      }
+      // A ghost's OWN material clone: each wandering ghost gets one so it can FADE IN
+      // independently on spawn. (The shared GHOST_MAT is for the ghostified homeowner,
+      // who never fades.)
+      function makeGhostMat() {
+        return new THREE.MeshLambertMaterial({
+          color: 0xa8ccff,
+          emissive: 0x24466e,
+          emissiveIntensity: 0.55,
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false,
+        });
       }
       function makeGhostPerson(o) {
         o = o || {};
@@ -10708,8 +10900,30 @@
           hair: 0x93a9c6,
           skirt: !!o.skirt,
         });
-        ghostifyPerson(d.g);
+        d.ghostMat = makeGhostMat();
+        ghostifyPerson(d.g, d.ghostMat);
+        d.ghostMat.opacity = 0; // born invisible — updateCreatures fades it in
         return d;
+      }
+      // ===== Cemetery ghost population: RANDOM spawns (STREET + SIDEWALK only — the
+      // ghosts roam the walk and the road in front of the fence, NOT the graveyard itself).
+      // They exist ONLY on the cemetery block (clamped to the block's x-range, never a
+      // neighbor block), and 55% of them walk out in the STREET. Each fades in. A spawner
+      // timer (top of updateCreatures) tops the pack up to GHOST_CAP; off-screen ghosts
+      // recycle to a fresh street/walk spot and fade in again.
+      let ghostSpawnT = 3;
+      const GHOST_CAP = 36; // a HORDE on the street + sidewalk — very hard for the worker to traverse
+      function spawnCemeteryGhost() {
+        const gh = addCreature("ghost");
+        gh.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // ONLY the cemetery block
+        gh.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6); // 55% out in the street, the rest on the sidewalk
+        gh.dir = Math.random() < 0.5 ? -1 : 1;
+        gh.tx = gh.wx;
+        gh.ty = gh.wy;
+        gh.tyT = R(2, 6);
+        gh.fade = 0; // fade in from nothing
+        gh.g.position.set(gh.wx, gh.wy, GZ);
+        return gh;
       }
       // Flatbush soccer kid: a SMALL kid — a makePerson scaled to 60% (the ball
       // keeps full street scale, so the kid reads as a child chasing a ball).
@@ -13412,26 +13626,12 @@
         };
         // Optional per-spawn overrides (e.g. the bodega cats' coat palette)
         if (opts) for (const k in opts) c[k] = opts[k];
-        // Maspeth cemetery: the block is reserved for ghosts + rats (the raven is
-        // static scenery; the ghostly homeowner rides in via opts.ghost above).
-        // Anything else re-rolls its spawn offset until it lands OFF the block
-        // (8 tries, then snap to the nearer free side).
-        if (
-          isQueensLevel() &&
-          type !== "ghost" &&
-          type !== "rat" &&
-          !c.ghost
-        ) {
-          const c0 = QUEENS_CEMETERY_X,
-            c1 = QUEENS_CEMETERY_X + BLOCK_W;
-          let tries = 0;
-          while (c.wx > c0 && c.wx < c1 && tries < 8) {
-            c.wx = p.wx + (Math.random() < 0.5 ? R(-58, -20) : R(20, 58));
-            tries++;
-          }
-          if (c.wx > c0 && c.wx < c1)
-            c.wx = c.wx < (c0 + c1) / 2 ? c0 - 12 : c1 + 12;
-        }
+        // Maspeth cemetery: the block is OPEN to the living — peds, raccoons, cats and
+        // every other animal, leashed dogs and the Polish ladies all walk its sidewalk
+        // (the worker has to dodge EVERYONE, dead or alive). The ONLY things the block
+        // excludes are curb garbage (no bags, no cans) and regular treasure — both gated
+        // by `!b.cemetery` in makeBlockContents. Ghosts, rats and the ghost homeowner
+        // ride in too.
         // Gender of the voice used when this NPC speaks (male/female/neutral):
         //   ped=man, lady=woman, breaker=man, yeller=man, jacker/skater/escooter=men,
         //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
@@ -13687,6 +13887,31 @@
             c.sayCd = R(3, 8); // creepy-line cooldown (it talks to the worker)
             c.ghostCd = 0; // contact-damage cooldown (so one ghost doesn't drain him per frame)
             c.data = makeGhostPerson();
+            c.fade = 0; // fade in from nothing (updateCreatures ramps c.fade -> 1)
+            c.ghostMat = c.data.ghostMat; // its OWN material so it can fade independently
+            break;
+          case "raven":
+            // Maspeth cemetery raven: a FLYING menace. It circles the sky above the block's
+            // street + sidewalk, and when the worker is under it it DIVES down onto his head
+            // for ONE hit, then climbs back up to keep circling. See the "raven" case in
+            // updateCreatures for the circling -> diving -> returning flight state machine.
+            c.sp = 10; // fast flight
+            c.dir = 1;
+            c.ravState = "circling";
+            c.ravCd = 3.0; // breather before the first dive
+            c.ravStruck = false; // one hit per dive
+            c.ravT = 0; // phase timer within the current state
+            c.hopT = 0; // wing-flap phase
+            // the circling orbit above the street + sidewalk band (in front of the fence)
+            c.cirCx = QUEENS_CEMETERY_X + BLOCK_W / 2;
+            c.cirCy = 1.5;
+            c.cirRx = 30; // wide sweep along the street
+            c.cirRy = 3.0; // shallow sweep across the walk
+            c.cirZ = GZ + 5.2; // the sky
+            c.cirAngle = Math.random() * Math.PI * 2;
+            c.wx = c.cirCx + Math.cos(c.cirAngle) * c.cirRx;
+            c.wy = c.cirCy + Math.sin(c.cirAngle) * c.cirRy;
+            c.data = makeRaven();
             break;
           case "homeowner":
             // The nosy Maspeth homeowner (male or female, MIXED): an ANNOYING
@@ -13921,6 +14146,7 @@
             groundGroup.add(
               buildCemeteryBlock(),
             ); // fence + back rows + monuments + trees + raven
+            buildCemeteryStreetGhosts(b); // spectral arms / ghost headstones / skull piles on the street + walk
           } else {
             // two headstones per cell so the whole block reads as one big graveyard
             for (let k = 0; k < 2; k++) {
@@ -14380,9 +14606,7 @@
           const ld = addCreature("leashdog");
           {
             let b = blocks[(Math.random() * blocks.length) | 0];
-            // Maspeth: the cemetery block has no leashed dogs — only rats + ghosts live there
-            while (isQueensLevel() && b.blockX === QUEENS_CEMETERY_X)
-              b = blocks[(Math.random() * blocks.length) | 0];
+            // Maspeth: leashed dogs roam the cemetery block too — the living are welcome there
             if (isManhattanLevel()) {
               // Manhattan: the dog is leashed to a REAL visible street fixture on the sidewalk -
               // a sidewalk tree or a cast-iron fence post (the doghouse is hidden; there are no lawns).
@@ -14649,8 +14873,7 @@
             (b) =>
               b.garbage === true &&
               b.x >= 96 &&
-              b.x <= 576 &&
-              b.x !== QUEENS_CEMETERY_X, // the cemetery has no Polish ladies — only rats + ghosts
+              b.x <= 576, // the cemetery block counts too — the living ladies walk there
           );
           // Every lady gets a UNIQUE dress color: shuffle the palette into the
           // queue; addCreature's "polish" case consumes one per block.
@@ -14712,19 +14935,12 @@
               ho.g.position.set(ho.wx, ho.wy, GZ);
             }
             // ===== The Maspeth cemetery (5th block): its own residents =====
-            // Only the rats are alive there; the rest are ghosts — the ghostly
-            // homeowner above, plus wandering ghosts that drift the sidewalk, the
-            // street edge, and in and out of the cemetery through the iron fence.
-            // The block's ONLY treasures are the floating ghostly ones (no mongo).
-            for (let gi = 0; gi < 5; gi++) {
-              const gh = addCreature("ghost");
-              gh.blockMinX = QUEENS_CEMETERY_X + 5;
-              gh.blockMaxX = QUEENS_CEMETERY_X + BLOCK_W - 5;
-              gh.wx = R(gh.blockMinX, gh.blockMaxX);
-              gh.wy = R(1.0, 10.5);
-              gh.dir = Math.random() < 0.5 ? -1 : 1;
-              gh.g.position.set(gh.wx, gh.wy, GZ);
-            }
+            // A haunted block: the dead (a pack of ghosts that FADE IN and roam the
+            // street, sidewalk and graveyard), the rats, and the raven. The living are
+            // WELCOME here too — peds, animals, dogs and the Polish ladies all walk the
+            // sidewalk in front of the fence, so the worker has to dodge EVERYONE, dead
+            // or alive. The block's ONLY finds are the floating ghostly treasures.
+            for (let gi = 0; gi < 20; gi++) spawnCemeteryGhost(); // seed a crowded street + walk (fades in); the spawner tops it up to GHOST_CAP
             for (let ri = 0; ri < 3; ri++) {
               const rt = addCreature("rat");
               rt.cemRat = true; // lives behind the fence (cemetery grass band)
@@ -14732,10 +14948,12 @@
               rt.wy = R(CEM_FENCE_Y + 0.8, CEM_BACK_Y - 0.8);
               rt.g.position.set(rt.wx, rt.wy, GZ);
             }
+            // the raven: perches on a headstone, swoops the worker ONCE, glides back
+            if (RAVEN_PERCH) addCreature("raven");
             // ghostly treasures: JUST behind the fence line, in the air — a worker
             // standing on the sidewalk (his center stops at fence - 0.3) can still
             // reach them: the 1.8u pickup radius covers the gap.
-            for (let ti = 0; ti < 5; ti++)
+            for (let ti = 0; ti < 10; ti++)
               spawnGhostTreasure(
                 R(QUEENS_CEMETERY_X + 6, QUEENS_CEMETERY_X + BLOCK_W - 6),
                 R(CEM_FENCE_Y + 0.4, CEM_FENCE_Y + 1.4),
@@ -15078,10 +15296,8 @@
         // Coats: Queens swaps the plain grey for the three-patch "calico" (a
         // Queens-only coat, like the Bronx's "mott").
         if (isQueensLevel()) {
-          // The cemetery block has no corner store (and no cats): keep it out of the pool.
-          const active = [1, 2, 3, 4, 5].filter(
-            (i) => i !== QUEENS_CEMETERY_BLOCK,
-          );
+          // Cats are welcome on the cemetery block too (cats love graveyards) — include it
+          const active = [1, 2, 3, 4, 5];
           for (let i = active.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = active[i];
@@ -16065,7 +16281,10 @@
       const HP_HIT_JACKER = 2; // bumping the jackhammer guy does minor damage (the buzz, not a beatdown)
       const HP_HIT_SCHOLAR = 2; // bumping the Flatbush scholar offends him - a light bump (respect the observant citizen)
       const HP_HIT_BUMPER = 1; // a casual arcade bump with a walking civilian (ped, dogwalker, hooker, skater...) - very minor, just a nick
-      const HP_HIT_GHOST = 2; // being touched by a Maspeth cemetery ghost is a chilling minor hit (the scare, not a beatdown)
+      const HP_HIT_GHOST = 6; // a Maspeth cemetery ghost touch is DANGEROUS — a real chill to the bone (heavier than a hazard, lighter than a vehicle)
+      const HP_GHOST_STREET = 4; // touching a ghost OUT IN THE STREET on the cemetery block is EVEN MORE dangerous (the dead claim the road) — added on top of HP_HIT_GHOST
+      const HP_HIT_RAVEN = 4; // the cemetery raven's swoop strike — a fast, sharp hit (the beak, not a beatdown)
+      const HP_HIT_GHOSTARM = 4; // a Maspeth spectral arm reaches out of the ground and GRABS the worker — a chilly, sharp yank (matches the raven's light strike)
       // The Maspeth cemetery ghost's creepy lines — it drops them as it drifts past the
       // worker (proximity) AND when it touches him (the scare exchange in collideCreatures).
       const GHOST_LINES = [
@@ -16075,6 +16294,13 @@
         "You're killing me!",
         "Boo!",
         "Have you seen my child?",
+      ];
+      // The ghost's STREET lines — when it touches the worker OUT IN THE STREET (it claims the road)
+      const GHOST_STREET_LINES = [
+        "The street is OURS!",
+        "You're walking on our road!",
+        "Stay off our asphalt, living!",
+        "We died on this street!",
       ];
       // The scholar's "wise sayings": Yiddish proverbs he drops on the worker the moment they bump (see collideCreatures).
       const SCHOLAR_SAYINGS = [
@@ -17342,6 +17568,33 @@
                 WORKER_GENDER,
                 "worker",
               );
+            } else if (hz.type === "ghoststone") {
+              // Maspeth ghost HEADSTONE / SKULL PILE: SOLID — the worker can't pass through,
+              // he gets shoved back and has to go AROUND it. No damage, just the line.
+              p.wx -= 0.85;
+              Voice.say(
+                "They only moved the headstones!",
+                3,
+                0.9,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+            } else if (hz.type === "ghostarm") {
+              // Maspeth spectral ARM reaches out of the ground and GRABS the worker: damage +
+              // a chilly scare (no shove — it's not a wall, the hand just yanks him).
+              hurtNPC(HP_HIT_GHOSTARM, "ghost");
+              doStun(0.5, "scare");
+              Voice.say(
+                "Get those hands off me!",
+                2.5,
+                0.9,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
             } else {
               doStun(0.8, "trip");
               if (hz.yellow)
@@ -17618,13 +17871,17 @@
           if (c.type === "ghost" || c.ghost) {
             // ===== MASPETH CEMETERY GHOST =====
             // Not SOLID: it phases right through the worker and HE is the one who gets
-            // scared — a chilling line, a jump (stun), and a chill to the bone (2 HP),
-            // tagged to the ghost for the "Failure to respect the dearly departed" stamp.
-            // The ghostCd cooldown keeps one ghost from draining him frame-by-frame.
+            // scared — a chilling line, a jump (stun), and a chill to the bone
+            // (HP_HIT_GHOST), tagged to the ghost for the "Failure to respect the dearly
+            // departed" stamp. OUT IN THE STREET the touch is EVEN WORSE (HP_GHOST_STREET
+            // extra + a longer freeze) — the streets are DANGEROUS on the cemetery block:
+            // the dead claim the road. The ghostCd cooldown keeps one ghost from draining
+            // him frame-by-frame.
             if (c.ghostCd <= 0) {
               c.ghostCd = 1.8;
+              const onStreet = c.wy < 0.35; // out in the street, in front of the curb
               Voice.say(
-                pick(GHOST_LINES),
+                onStreet ? pick(GHOST_STREET_LINES) : pick(GHOST_LINES),
                 2.4,
                 0.8,
                 c.wx,
@@ -17633,7 +17890,7 @@
                 "ghost",
               );
               Voice.say(
-                "Aaagh! A ghost!",
+                onStreet ? "NO! The street's ALL GHOSTS!?" : "Aaagh! A ghost!",
                 2.2,
                 1.4,
                 p.wx,
@@ -17642,8 +17899,8 @@
                 "worker",
                 "burst",
               );
-              doStun(0.55, "scare"); // he freezes for a second, white-knuckling the broom
-              hurtNPC(HP_HIT_GHOST, "ghost");
+              doStun(onStreet ? 0.8 : 0.55, "scare"); // he freezes for a second, white-knuckling the broom
+              hurtNPC(onStreet ? HP_HIT_GHOST + HP_GHOST_STREET : HP_HIT_GHOST, "ghost");
             }
             return; // the ghost passes THROUGH: no bounce-back, no shove
           }
@@ -18984,6 +19241,37 @@
         return stop;
       }
       function updateCreatures(dt) {
+        // ===== Maspeth ghost spawner (once per frame) =====
+        // A new ghost drifts in every few seconds — somewhere on the block, out in the
+        // street, or on the sidewalk — and fades in, until the pack hits GHOST_CAP.
+        if (isQueensLevel() && state === "play") {
+          ghostSpawnT -= dt;
+          if (ghostSpawnT <= 0) {
+            let ghosts = 0;
+            for (let k = 0; k < creatures.length; k++)
+              if (creatures[k].type === "ghost") ghosts++;
+            if (ghosts < GHOST_CAP) spawnCemeteryGhost();
+            ghostSpawnT = R(4, 8);
+          }
+        }
+        // ===== Maspeth spectral street arms: the ghostly hands GROPE the ground & air =====
+        // The arms are static hazards (see buildCemeteryStreetGhosts); here we animate them
+        // so each hand SEARCHES for something to grab — it sweeps around (rotation.z), leans
+        // forward & back (rotation.x), and dips toward the ground / rises into the air
+        // (reach). A restless, feeling-around groping — NOT just a wave.
+        if (isQueensLevel()) {
+          const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
+          for (let ai = 0; ai < GHOST_ARMS.length; ai++) {
+            const A = GHOST_ARMS[ai];
+            A.g.rotation.z = Math.sin(at * 0.8 + A.phase) * 1.0; // wide side-to-side sweep (searching)
+            if (A.g.userData.arm) {
+              A.g.userData.arm.rotation.x =
+                0.2 + Math.sin(at * 1.2 + A.phase * 0.7) * 0.42; // lean forward & back
+              A.g.userData.arm.position.z =
+                0.05 + Math.sin(at * 1.7 + A.phase * 1.3) * 0.16; // dip to the ground / rise into the air
+            }
+          }
+        }
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
@@ -19285,16 +19573,23 @@
               break;
             }
             case "ghost": {
-              // Maspeth cemetery ghost: a slow, drifting float. It picks a wander target
-              // anywhere on its block — the sidewalk, the street edge, or INSIDE the
-              // cemetery (ghosts don't respect fences) — and glides toward it. It bobs
-              // in the air, faces its travel, and drops a creepy line when the worker
-              // gets close (the touch exchange lives in collideCreatures).
+              // Maspeth cemetery ghost: a slow, drifting float. It exists ONLY on the
+              // cemetery block (never a neighbor block) and roams the STREET (55%) and the
+              // SIDEWALK in front of the cemetery — the whole walkable band out front, NOT
+              // the graveyard itself (it stays in front of the iron fence). It bobs in the
+              // air, faces its travel, and drops a creepy line when the worker gets close.
+              // Normal NPCs just walk right through it; only the worker feels the chill (the
+              // touch exchange lives in collideCreatures).
+              // fade in over ~1s (c.fade ramps 0 -> 1); a recycled ghost re-fades
+              if (c.ghostMat) {
+                c.fade = Math.min(1, (c.fade || 0) + dt / 1.0);
+                c.ghostMat.opacity = 0.45 * c.fade;
+              }
               c.tyT -= dt;
               if (c.tyT <= 0) {
                 c.tyT = R(3, 7);
-                c.ty = R(0.6, CEM_BACK_Y - 0.6); // sidewalk / curb / street edge / behind the fence
-                c.tx = R(QUEENS_CEMETERY_X + 3, QUEENS_CEMETERY_X + BLOCK_W - 3);
+                c.ty = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6); // 55% out in the street, the rest on the sidewalk (never the graveyard)
+                c.tx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // ONLY the cemetery block
               }
               const gx = c.tx - c.wx,
                 gy = c.ty - c.wy;
@@ -19304,8 +19599,8 @@
                 c.wy += (gy / gd) * c.sp * 0.7 * dt;
                 c.dir = gx >= 0 ? 1 : -1;
               }
-              c.wx = clamp(c.wx, QUEENS_CEMETERY_X + 2, QUEENS_CEMETERY_X + BLOCK_W - 2);
-              c.wy = clamp(c.wy, 0.4, CEM_BACK_Y - 0.4);
+              c.wx = clamp(c.wx, QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W); // the ghost exists ONLY on the cemetery block
+              c.wy = clamp(c.wy, -1.9, CEM_FENCE_Y - 0.5); // the ghosts stay on the street + sidewalk, in front of the fence
               if (c.g) {
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the drift
                 c.hopT = (c.hopT || 0) + dt;
@@ -19330,15 +19625,108 @@
                   "ghost",
                 );
               }
-              // Ghosts are BLOCK-BOUND (like the bodega cat): when they drift too far
-              // behind/ahead of the worker they respawn INSIDE the cemetery, not at
-              // p.wx ± 38 (the block clamp would just snap a far respawn right back).
+              // Off-screen recycling: the ghost reappears somewhere in the cemetery's
+              // home zone (the STREET + SIDEWALK out front, on the block itself) — NOT at
+              // p.wx ± 38, which would fling a cemetery ghost down to a far block and break
+              // the "these are the cemetery's ghosts" theme.
               if (tx > 55 || tx < -58) {
-                c.wx = R(QUEENS_CEMETERY_X + 3, QUEENS_CEMETERY_X + BLOCK_W - 3);
-                c.wy = R(1, 9);
+                c.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W);
+                c.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6);
                 c.tx = c.wx;
                 c.ty = c.wy;
                 c.tyT = R(2, 6);
+                c.fade = 0; // drift back in from nothing at the new spot
+              }
+              break;
+            }
+            case "raven": {
+              // Maspeth cemetery raven: a FLYING menace. It CIRCLES the sky above the block's
+              // street + sidewalk; when the worker is under its path (and the cooldown is done)
+              // it DIVES down onto his HEAD for ONE hit, then CLIMBS back up to keep circling.
+              // The wings beat hard while diving, relax while circling.
+              const RAV = c.g && c.g.userData ? c.g.userData.rav : null;
+              const rdx = p.wx - c.wx,
+                rdy = p.wy - c.wy;
+              const rd = Math.hypot(rdx, rdy); // horizontal distance to the worker
+              const headZ = GZ + 1.7; // the top of the worker's head
+              if (c.ravState === "circling") {
+                // circle the sky above the street + sidewalk band
+                c.cirAngle += dt * 0.45;
+                c.wx = c.cirCx + Math.cos(c.cirAngle) * c.cirRx;
+                c.wy = c.cirCy + Math.sin(c.cirAngle) * c.cirRy;
+                c.dir = -Math.sin(c.cirAngle) >= 0 ? 1 : -1; // face the travel
+                c.hopT += dt;
+                if (c.g) {
+                  c.g.position.z = c.cirZ + Math.sin(c.cirAngle * 2) * 0.35; // gentle bob
+                  c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+                }
+                if (RAV) {
+                  const f = Math.sin(c.hopT * 13) * 0.45; // relaxed flap
+                  RAV.wingL.rotation.y = 0.3 + f;
+                  RAV.wingR.rotation.y = -0.3 - f;
+                }
+                c.ravCd -= dt;
+                if (state === "play" && c.ravCd <= 0 && rd < 20) {
+                  c.ravState = "diving";
+                  c.ravStruck = false;
+                  c.ravT = 0;
+                }
+              } else if (c.ravState === "diving") {
+                // DIVES straight down onto the worker's head, wings beating hard
+                const dz = headZ - (c.g ? c.g.position.z : c.cirZ);
+                const hd = Math.hypot(rdx, rdy, dz);
+                if (hd > 0.3) {
+                  c.wx += (rdx / hd) * c.sp * dt;
+                  c.wy += (rdy / hd) * c.sp * dt;
+                  if (c.g) c.g.position.z += (dz / hd) * c.sp * dt;
+                }
+                c.dir = rdx >= 0 ? 1 : -1;
+                c.ravT += dt;
+                c.hopT += dt;
+                if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+                if (RAV) {
+                  const f = Math.sin(c.hopT * 26) * 0.9; // frantic flap
+                  RAV.wingL.rotation.y = 0.3 + f;
+                  RAV.wingR.rotation.y = -0.3 - f;
+                }
+                // strike the head (ONE hit), then climb back up
+                if (hd < 1.3 || c.ravT > 2.0) {
+                  c.ravState = "returning";
+                  c.ravT = 0;
+                  if (!c.ravStruck && hd < 2.2) {
+                    c.ravStruck = true;
+                    Voice.say("Caw! Caw!", 1.2, 1.4, c.wx, c.wy, "male", "raven");
+                    doStun(0.4, "scare");
+                    hurtNPC(HP_HIT_RAVEN, "raven");
+                  }
+                }
+              } else {
+                // returning: climb back up to the orbit and rejoin the circle
+                c.cirAngle += dt * 0.45;
+                const nx = c.cirCx + Math.cos(c.cirAngle) * c.cirRx;
+                const ny = c.cirCy + Math.sin(c.cirAngle) * c.cirRy;
+                const qx = nx - c.wx,
+                  qy = ny - c.wy,
+                  qz = c.cirZ - (c.g ? c.g.position.z : c.cirZ);
+                const qd = Math.hypot(qx, qy, qz);
+                if (qd > 0.3) {
+                  c.wx += (qx / qd) * c.sp * dt;
+                  c.wy += (qy / qd) * c.sp * dt;
+                  if (c.g) c.g.position.z += (qz / qd) * c.sp * dt;
+                }
+                c.dir = qx >= 0 ? 1 : -1;
+                c.hopT += dt;
+                if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+                if (RAV) {
+                  const f = Math.sin(c.hopT * 18) * 0.6;
+                  RAV.wingL.rotation.y = 0.3 + f;
+                  RAV.wingR.rotation.y = -0.3 - f;
+                }
+                if (Math.abs((c.g ? c.g.position.z : c.cirZ) - c.cirZ) < 0.6) {
+                  // back up in the sky: the next circling tick re-snaps it onto the orbit
+                  c.ravState = "circling";
+                  c.ravCd = R(6, 10); // rest before the next dive
+                }
               }
               break;
             }
@@ -21722,40 +22110,12 @@
               break;
             }
           }
-          // ===== Maspeth cemetery NO-GO ZONE (final word, after ALL movement) =====
-          // Only ghosts + rats may be on the cemetery block (the raven is static
-          // scenery; the ghostly homeowner counts as a ghost). Anything else that
-          // drifted, walked or recycled onto it is snapped back to the edge it
-          // came from and turned to face AWAY, so the sidewalk in front of the
-          // iron fence stays clear of the living. Road vehicles are exempt —
-          // the street in front of the cemetery stays open to traffic.
-          if (
-            isQueensLevel() &&
-            c.type !== "ghost" &&
-            c.type !== "rat" &&
-            c.type !== "car" &&
-            c.type !== "moto" &&
-            c.type !== "bike" &&
-            c.type !== "ebike" &&
-            !c.ghost &&
-            c.wx > QUEENS_CEMETERY_X &&
-            c.wx < QUEENS_CEMETERY_X + BLOCK_W
-          ) {
-            const cMid = QUEENS_CEMETERY_X + BLOCK_W / 2;
-            c.wx = c.wx < cMid ? QUEENS_CEMETERY_X : QUEENS_CEMETERY_X + BLOCK_W;
-            if (typeof c.dir === "number")
-              c.dir = c.wx < cMid ? -1 : 1; // face away from the cemetery
-            // a raccoon's wander target inside the block drags it straight back
-            if (
-              typeof c.tx === "number" &&
-              c.tx > QUEENS_CEMETERY_X &&
-              c.tx < QUEENS_CEMETERY_X + BLOCK_W
-            )
-              c.tx =
-                c.wx < cMid
-                  ? QUEENS_CEMETERY_X - 5
-                  : QUEENS_CEMETERY_X + BLOCK_W + 5;
-          }
+          // ===== Maspeth cemetery: the block is OPEN to the living (NO no-go zone) =====
+          // Peds, raccoons, cats, leashed dogs and the Polish ladies all roam the
+          // cemetery's sidewalk and street — the worker has to dodge EVERYONE, dead or
+          // alive. Nothing is snapped away from the block anymore; the only thing that
+          // keeps the worker out of the graveyard itself is the iron fence (the cemFence
+          // clamp in updatePlayer). Road traffic, ghosts and rats were always free here.
           c.g.position.x = c.wx;
           c.g.position.y = c.wy;
           if (
@@ -21764,7 +22124,8 @@
             c.type !== "raccoon" &&
             c.type !== "pigeon" &&
             c.type !== "skater" &&
-            c.type !== "jacker"
+            c.type !== "jacker" &&
+            c.type !== "raven"
           )
             c.g.position.z = GZ;
           // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob

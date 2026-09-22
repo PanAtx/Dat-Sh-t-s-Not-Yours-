@@ -1,15 +1,23 @@
 // _queens_cemetery_chk.js — verify the Maspeth 5th block CEMETERY in index.html:
 //   - constants (block index 1 / x 96 — TEMP testing position, real home is index 4 / x 384; fence line 5.4, back edge 12.0)
 //   - builders: makeHeadstone, makeDeadTree, makeRaven, makeCemeteryFence,
-//     buildCemeteryBlock (fence + stones + monuments + trees + raven)
-//   - ghost helpers (ghostifyPerson transparent blue, makeGhostPerson)
+//     buildCemeteryBlock (fence + stones + monuments + trees; records RAVEN_PERCH)
+//   - ghost helpers (ghostifyPerson transparent blue, makeGhostPerson w/ own material)
 //   - ghostly treasure kinds 38/39/40 + spawnGhostTreasure (floating bob)
-//   - addCreature case "ghost" + ghostified cemetery homeowner
-//   - updateCreatures case "ghost" (drift, float, creepy lines, block-bound)
+//   - addCreature case "ghost" + case "raven" + ghostified cemetery homeowner
+//   - updateCreatures case "ghost" (fade-in, drift, float, creepy lines, roam the STREET +
+//     SIDEWALK in front of the fence — NEVER the graveyard)
+//     + case "raven" (circling the sky -> diving onto the worker's head -> climbing back)
+//     + ghost spawner timer
 //   - collideCreatures ghost branch (scare + HP drain, NOT solid, cooldown)
 //   - worker fence clamp (impassable) + front & side fence (open green back, corners cornered)
-//   - block suppression (no houses/stores/garbage/dogs/ladies; sidewalk trees now line the curb)
-//   - cemetery rats + 5 ghosts + 5 floating treasures in spawnWorld
+//   - block OPEN to the living (no no-go zone; peds/animals/dogs/ladies roam it;
+//     only curb garbage + regular treasure are suppressed by !b.cemetery)
+//   - CROWDED ghost pack (20 seeds, topped up to GHOST_CAP=36, 55% street bias, ghosts
+//     exist ONLY on the cemetery block) + 3 rats + 10 treasures + raven
+//   - STREET GHOSTS: spectral arms (grab -> HP_HIT_GHOSTARM damage), ghost headstones +
+//     skull piles (SOLID obstacles the worker goes around, "They only moved the headstones!"),
+//     placed on the street + sidewalk by buildCemeteryStreetGhosts, arms animated in updateCreatures
 //   - "Failure to respect the dearly departed" write-up + ghost bubble style
 'use strict';
 const fs = require('fs');
@@ -165,18 +173,18 @@ const cemBlock = (() => {
   }
 })();
 check(
-  'buildCemeteryBlock assembles fence + 10 headstones + 3 monuments + 4 dead trees + raven',
+  'buildCemeteryBlock assembles fence + 10 headstones + 3 monuments + 4 dead trees and records the raven PERCH (RAVEN_PERCH)',
   cemBlock.length > 0 &&
     cemBlock.indexOf('makeCemeteryFence(BLOCK_W)') >= 0 &&
     cemBlock.indexOf('for (let i = 0; i < 10; i++)') >= 0 &&
     cemBlock.indexOf('for (let m = 0; m < 3; m++)') >= 0 &&
     cemBlock.indexOf('for (let t = 0; t < 4; t++)') >= 0 &&
-    cemBlock.indexOf('makeRaven()') >= 0 &&
+    cemBlock.indexOf('RAVEN_PERCH') >= 0 &&
     cemBlock.indexOf('QUEENS_CEMETERY_X') >= 0
 );
 check(
-  'the raven perches ON a headstone (stone userData.top + GZ offset)',
-  cemBlock.indexOf('GZ + per.top + 0.02') >= 0
+  'the raven PERCH is a headstone (RAVEN_PERCH = {x, y, top} from a random stone — the raven itself is a creature)',
+  cemBlock.indexOf('RAVEN_PERCH = { x: per.x, y: per.y, top: per.top }') >= 0
 );
 check(
   'the fence runs along the sidewalk (front, BLOCK_W) + both sides (CEM_BACK_Y-CEM_FENCE_Y, parallel to the cross street) — the BACK is open green grass (no back wall)',
@@ -348,11 +356,9 @@ check(
   addSec.indexOf('if (c.ghost) ghostifyPerson(c.data.g)') >= 0
 );
 check(
-  'addCreature re-rolls spawns OFF the cemetery block (only ghosts + rats + the ghost homeowner may land on it)',
-  addSec.indexOf('Maspeth cemetery: the block is reserved for ghosts + rats') >= 0 &&
-    addSec.indexOf('while (c.wx > c0 && c.wx < c1 && tries < 8)') >= 0 &&
-    addSec.indexOf('type !== "ghost"') >= 0 &&
-    addSec.indexOf('type !== "rat"') >= 0
+  'the cemetery block is OPEN to the living in addCreature (no spawn re-roll; only garbage/treasure are gated by !b.cemetery)',
+  addSec.indexOf('the block is OPEN to the living') >= 0 &&
+    addSec.indexOf('while (c.wx > c0 && c.wx < c1 && tries < 8)') < 0
 );
 
 // ================= 6. updateCreatures (the ghost's AI) =================
@@ -366,9 +372,11 @@ const ghostCaseSrc = (() => {
 })();
 check('updateCreatures has case "ghost" (the wander AI)', ghostCaseSrc.length > 0);
 check(
-  'ghost AI: wanders the sidewalk AND behind the fence (ty up to CEM_BACK_Y)',
-  ghostCaseSrc.indexOf('c.ty = R(0.6, CEM_BACK_Y - 0.6)') >= 0 &&
-    ghostCaseSrc.indexOf('QUEENS_CEMETERY_X + 3, QUEENS_CEMETERY_X + BLOCK_W - 3') >= 0
+  'ghost AI: roams the STREET (55%) + sidewalk in front of the fence, exists ONLY on the cemetery block (never the graveyard, never a neighbor block)',
+  ghostCaseSrc.indexOf('Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
+    ghostCaseSrc.indexOf('c.tx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
+    ghostCaseSrc.indexOf('QUEENS_CEMETERY_X - 120') < 0 &&
+    ghostCaseSrc.indexOf('CEM_BACK_Y') < 0
 );
 check(
   'ghost AI: floats (bob on c.g.position.z), faces drift, walks its limbs (animParts)',
@@ -383,42 +391,29 @@ check(
     ghostCaseSrc.indexOf('Math.abs(c.wx - p.wx) < 9') >= 0
 );
 check(
-  'ghost AI: block-bound recycle (respawns inside the cemetery, never p.wx ± 38)',
+  'ghost AI: off-screen recycle respawns on the street + sidewalk, ONLY on the cemetery block (NEVER the graveyard, never p.wx ± 38)',
   ghostCaseSrc.indexOf('if (tx > 55 || tx < -58)') >= 0 &&
-    ghostCaseSrc.indexOf('R(QUEENS_CEMETERY_X + 3, QUEENS_CEMETERY_X + BLOCK_W - 3)') >= 0 &&
+    ghostCaseSrc.indexOf('c.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
+    ghostCaseSrc.indexOf('Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
     ghostCaseSrc.indexOf('p.wx - 38') < 0
 );
 check(
   'ghostCd ticks down per frame (so a ghost can scare again after the cooldown)',
-  src.slice(ucStart, ucStart + 400).indexOf('if (c.ghostCd > 0) c.ghostCd -= dt') >= 0
+  src.slice(ucStart, ucStart + 2400).indexOf('if (c.ghostCd > 0) c.ghostCd -= dt') >= 0
 );
 check(
   'cemetery rats scurry the graveyard grass (cemRat band, behind the fence)',
   /c\.cemRat \? CEM_FENCE_Y \+ 0\.6 : 0\.8/.test(src) && /c\.cemRat \? CEM_BACK_Y - 0\.6 : 2\.2/.test(src)
 );
 check(
-  'cemetery NO-GO ZONE in updateCreatures: only ghosts + rats (+ ghost homeowner) stay on the block, everything else snaps to the nearer edge and faces away (road vehicles exempt)',
-  (() => {
-    const iNo = src.indexOf('Maspeth cemetery NO-GO ZONE');
-    const iEnd = src.indexOf('separateVehicles(vehicleList, dt)');
-    if (iNo < 0 || iEnd < 0) return false;
-    const sec = src.slice(iNo, iEnd);
-    return (
-      iNo > ucStart &&
-      iNo < iEnd &&
-      sec.indexOf('c.type !== "ghost"') >= 0 &&
-      sec.indexOf('c.type !== "rat"') >= 0 &&
-      sec.indexOf('c.type !== "car"') >= 0 &&
-      sec.indexOf('c.type !== "moto"') >= 0 &&
-      sec.indexOf('c.type !== "bike"') >= 0 &&
-      sec.indexOf('c.type !== "ebike"') >= 0 &&
-      sec.indexOf('c.dir = c.wx < cMid ? -1 : 1') >= 0
-    );
-  })()
+  'cemetery has NO no-go zone in updateCreatures: the living roam the block (nothing snapped away; the worker is kept out of the graveyard only by the fence)',
+  src.indexOf('Maspeth cemetery: the block is OPEN to the living (NO no-go zone)') >= 0 &&
+    src.indexOf('c.dir = c.wx < cMid ? -1 : 1') < 0
 );
 check(
-  'bodega cat pool excludes the cemetery block (no store, no cats there)',
-  src.indexOf('[1, 2, 3, 4, 5].filter(\n            (i) => i !== QUEENS_CEMETERY_BLOCK') >= 0
+  'bodega cat pool INCLUDES the cemetery block (cats roam the block too)',
+  src.indexOf('const active = [1, 2, 3, 4, 5];') >= 0 &&
+    src.indexOf('i !== QUEENS_CEMETERY_BLOCK') < 0
 );
 
 // ================= 7. collideCreatures (the scare) =================
@@ -435,16 +430,19 @@ check(
   ghostBumpSrc.indexOf('if (c.type === "ghost" || c.ghost) {') === 0
 );
 check(
-  'ghost touch: 2 HP chill tagged to "ghost" (the write-up cause)',
-  ghostBumpSrc.indexOf('hurtNPC(HP_HIT_GHOST, "ghost")') >= 0
+  'ghost touch: sidewalk 6 HP chill / STREET 6+4=10 HP (HP_GHOST_STREET extra), tagged to "ghost" (the write-up cause)',
+  ghostBumpSrc.indexOf('onStreet ? HP_HIT_GHOST + HP_GHOST_STREET : HP_HIT_GHOST') >= 0 &&
+    ghostBumpSrc.indexOf('"ghost")') >= 0
 );
 check(
-  'ghost touch: the worker is SCARED (doStun 0.55 "scare")',
-  ghostBumpSrc.indexOf('doStun(0.55, "scare")') >= 0
+  'ghost touch: the worker is SCARED (doStun 0.55 "scare" on the walk, a LONGER 0.8s freeze in the street)',
+  ghostBumpSrc.indexOf('doStun(onStreet ? 0.8 : 0.55, "scare")') >= 0
 );
 check(
-  'ghost touch: chilling line (GHOST_LINES, "ghost" bubble) + worker yelp "Aaagh! A ghost!"',
-  ghostBumpSrc.indexOf('pick(GHOST_LINES)') >= 0 && ghostBumpSrc.indexOf('"Aaagh! A ghost!"') >= 0
+  'ghost touch: street ghosts claim the road — street lines (GHOST_STREET_LINES) + worker yelp "NO! The street\'s ALL GHOSTS!?"',
+  ghostBumpSrc.indexOf('pick(GHOST_STREET_LINES)') >= 0 &&
+    ghostBumpSrc.indexOf('const onStreet = c.wy < 0.35') >= 0 &&
+    ghostBumpSrc.indexOf("NO! The street's ALL GHOSTS!?") >= 0
 );
 check(
   'ghost touch: cooldown 1.8s (no frame-by-frame drain)',
@@ -458,7 +456,26 @@ check(
   'ghost collision radius 1.0 (a floating touch has a little reach)',
   src.slice(ccStart, ccStart + 5000).indexOf('c.type === "ghost") rad = 1.0') >= 0
 );
-check('HP_HIT_GHOST is the MINOR ghost damage (2, lighter than a hazard)', /const HP_HIT_GHOST = 2;/.test(src));
+check('HP_HIT_GHOST is the DANGEROUS ghost damage (6, heavier than a hazard, lighter than a vehicle)', /const HP_HIT_GHOST = 6;/.test(src));
+check(
+  'HP_GHOST_STREET: touching a ghost OUT IN THE STREET does EVEN MORE damage (4 extra HP, on top of HP_HIT_GHOST)',
+  /const HP_GHOST_STREET = 4;/.test(src)
+);
+check(
+  'GHOST_STREET_LINES: the street ghost claims the road (ours / our road / asphalt / died on this street)',
+  (() => {
+    const i = src.indexOf('const GHOST_STREET_LINES = [');
+    if (i < 0) return false;
+    const j = src.indexOf('];', i);
+    const s = src.slice(i, j);
+    return (
+      s.indexOf('"The street is OURS!"') >= 0 &&
+      s.indexOf('"You\'re walking on our road!"') >= 0 &&
+      s.indexOf('"Stay off our asphalt, living!"') >= 0 &&
+      s.indexOf('"We died on this street!"') >= 0
+    );
+  })()
+);
 check(
   'GHOST_LINES has ALL six creepy lines (Play with us / Redrum / More brains / killing me / Boo / my child)',
   (() => {
@@ -560,22 +577,20 @@ check(
   src.indexOf('blkIdx !== QUEENS_CEMETERY_BLOCK &&') >= 0
 );
 check(
-  'leashed dogs skip the cemetery block (while-loop re-roll)',
-  /while \(isQueensLevel\(\) && b\.blockX === QUEENS_CEMETERY_X\)/.test(src)
+  'leashed dogs roam the cemetery block too (the while-loop re-roll is gone)',
+  /while \(isQueensLevel\(\) && b\.blockX === QUEENS_CEMETERY_X\)/.test(src) === false
 );
 check(
-  'Polish ladies skip the cemetery block (filter excludes QUEENS_CEMETERY_X)',
-  src.indexOf('b.x !== QUEENS_CEMETERY_X') >= 0
+  'Polish ladies walk the cemetery block too (the filter no longer excludes QUEENS_CEMETERY_X)',
+  src.indexOf('b.x !== QUEENS_CEMETERY_X') < 0
 );
 
 // ================= 10. SPAWNWORLD RESIDENTS =================
 const swIdx = src.indexOf('function spawnWorld(');
 const swSec = src.slice(swIdx, swIdx + 26000);
 check(
-  'spawnWorld: 5 ghosts on the cemetery block (block-bound wx/wy, random facing)',
-  swSec.indexOf('for (let gi = 0; gi < 5; gi++)') >= 0 &&
-    swSec.indexOf('addCreature("ghost")') >= 0 &&
-    swSec.indexOf('gh.blockMinX = QUEENS_CEMETERY_X + 5') >= 0
+  'spawnWorld: seeds a CROWDED pack of 20 ghosts via spawnCemeteryGhost (they fade in) + the spawner tops them up to GHOST_CAP',
+  swSec.indexOf('for (let gi = 0; gi < 20; gi++) spawnCemeteryGhost()') >= 0
 );
 check(
   'spawnWorld: 3 cemetery rats (cemRat, behind the fence line)',
@@ -584,14 +599,109 @@ check(
     swSec.indexOf('R(CEM_FENCE_Y + 0.8, CEM_BACK_Y - 0.8)') >= 0
 );
 check(
-  'spawnWorld: 5 floating ghostly treasures just behind the fence (kinds 38/39/40)',
-  swSec.indexOf('for (let ti = 0; ti < 5; ti++)') >= 0 &&
+  'spawnWorld: 10 floating ghostly treasures just behind the fence (kinds 38/39/40)',
+  swSec.indexOf('for (let ti = 0; ti < 10; ti++)') >= 0 &&
     swSec.indexOf('spawnGhostTreasure(') >= 0 &&
     swSec.indexOf('R(CEM_FENCE_Y + 0.4, CEM_FENCE_Y + 1.4)') >= 0
 );
 check(
+  'spawnWorld: the raven is spawned as a creature (addCreature("raven"), gated on RAVEN_PERCH)',
+  swSec.indexOf('if (RAVEN_PERCH) addCreature("raven")') >= 0
+);
+check(
   'spawnWorld: the cemetery homeowner is GHOSTLY (ghost: bx === QUEENS_CEMETERY_X)',
   swSec.indexOf('ghost: bx === QUEENS_CEMETERY_X') >= 0
+);
+
+// ================= 10b. RANDOM GHOST SPAWNS + FADE-IN + RAVEN SWOOP =================
+check(
+  'spawnCemeteryGhost spawns a ghost on the STREET (55%) + SIDEWALK, ONLY on the cemetery block (in front of the fence) and fades it in (fade = 0)',
+  (() => {
+    const i = src.indexOf('function spawnCemeteryGhost()');
+    if (i < 0) return false;
+    const sec = src.slice(i, i + 700);
+    return (
+      sec.indexOf('addCreature("ghost")') >= 0 &&
+      sec.indexOf('gh.wx = R(QUEENS_CEMETERY_X, QUEENS_CEMETERY_X + BLOCK_W)') >= 0 &&
+      sec.indexOf('gh.wy = Math.random() < 0.55 ? R(-1.6, 0.3) : R(0.6, CEM_FENCE_Y - 0.6)') >= 0 &&
+      sec.indexOf('gh.fade = 0') >= 0
+    );
+  })()
+);
+check(
+  'ghost spawner timer tops the pack up to GHOST_CAP (spawnCemeteryGhost when below cap)',
+  src.indexOf('if (ghosts < GHOST_CAP) spawnCemeteryGhost()') >= 0 &&
+    src.indexOf('let ghostSpawnT = 3') >= 0 &&
+    src.indexOf('const GHOST_CAP = 36') >= 0
+);
+check(
+  'each ghost has its OWN material so it can fade in independently (makeGhostPerson -> d.ghostMat)',
+  (() => {
+    const i = src.indexOf('function makeGhostPerson(');
+    if (i < 0) return false;
+    const sec = src.slice(i, i + 600);
+    return sec.indexOf('d.ghostMat = makeGhostMat()') >= 0 && sec.indexOf('d.ghostMat.opacity = 0') >= 0;
+  })()
+);
+check(
+  'ghost fade-in: updateCreatures ramps c.fade and sets ghostMat.opacity = 0.45 * fade',
+  ghostCaseSrc.indexOf('c.ghostMat.opacity = 0.45 * c.fade') >= 0 &&
+    ghostCaseSrc.indexOf('c.fade = Math.min(1, (c.fade || 0) + dt / 1.0)') >= 0
+);
+check(
+  'recycled ghosts re-fade in (c.fade = 0 on off-screen recycle)',
+  ghostCaseSrc.indexOf('c.fade = 0; // drift back in from nothing at the new spot') >= 0
+);
+check(
+  'addCreature has case "raven" (makeRaven, circling state, orbit params above the street + walk)',
+  (() => {
+    const i = addSec.indexOf('case "raven":');
+    if (i < 0) return false;
+    const sec = addSec.slice(i, i + 1400);
+    return (
+      sec.indexOf('c.data = makeRaven()') >= 0 &&
+      sec.indexOf('c.ravState = "circling"') >= 0 &&
+      sec.indexOf('c.cirCx = QUEENS_CEMETERY_X + BLOCK_W / 2') >= 0 &&
+      sec.indexOf('c.cirZ = GZ + 5.2') >= 0
+    );
+  })()
+);
+check(
+  'raven AI in updateCreatures: circling -> diving (onto the head) -> returning (climbs back up)',
+  (() => {
+    const i = src.indexOf('case "raven": {');
+    if (i < 0) return false;
+    const sec = src.slice(i, i + 4600);
+    return (
+      sec.indexOf('c.ravState === "circling"') >= 0 &&
+      sec.indexOf('c.ravState === "diving"') >= 0 &&
+      sec.indexOf('c.ravState = "returning"') >= 0 &&
+      sec.indexOf('RAV.wingL.rotation.y') >= 0 &&
+      sec.indexOf('rd < 20') >= 0
+    );
+  })()
+);
+check(
+  'raven dive: one hit per dive (ravStruck gate) -> HP_HIT_RAVEN + scare + "Caw! Caw!"',
+  (() => {
+    const i = src.indexOf('case "raven": {');
+    if (i < 0) return false;
+    const sec = src.slice(i, i + 4600);
+    return (
+      sec.indexOf('if (!c.ravStruck && hd < 2.2)') >= 0 &&
+      sec.indexOf('hurtNPC(HP_HIT_RAVEN, "raven")') >= 0 &&
+      sec.indexOf('doStun(0.4, "scare")') >= 0 &&
+      sec.indexOf('Caw! Caw!') >= 0
+    );
+  })()
+);
+check(
+  'HP_HIT_RAVEN is the raven swoop damage (4)',
+  src.indexOf('const HP_HIT_RAVEN = 4') >= 0
+);
+check(
+  'the raven keeps its flight height (excluded from the ground-z reset)',
+  src.indexOf('c.type !== "raven"') >= 0
 );
 
 // ================= 11. WRITE-UP + BUBBLE STYLE =================
@@ -616,7 +726,7 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
   const animParts = () => {};
   const said = [];
   const Voice = { say: (t) => said.push(t) };
-  const CEM_BACK_Y = 12.0;
+  const CEM_FENCE_Y = 5.4;
   const QUEENS_CEMETERY_X = 96; // TEMP testing position (real: 384)
   const BLOCK_W = 96;
   const GZ = 0.3;
@@ -643,7 +753,7 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
     'clamp',
     'animParts',
     'Voice',
-    'CEM_BACK_Y',
+    'CEM_FENCE_Y',
     'QUEENS_CEMETERY_X',
     'BLOCK_W',
     'GZ',
@@ -658,16 +768,20 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
   try {
     for (let i = 0; i < 200; i++) {
       const tx = c.wx - p.wx;
-      stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_BACK_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx);
-      if (c.wx < QUEENS_CEMETERY_X + 2 - 1e-6 || c.wx > QUEENS_CEMETERY_X + BLOCK_W - 2 + 1e-6)
-        throw new Error('x escaped the block: ' + c.wx);
-      if (c.wy < 0.4 - 1e-6 || c.wy > CEM_BACK_Y - 0.4 + 1e-6) throw new Error('y escaped: ' + c.wy);
+      stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_FENCE_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx);
+      if (c.wx < QUEENS_CEMETERY_X - 1e-6 || c.wx > QUEENS_CEMETERY_X + BLOCK_W + 1e-6)
+        throw new Error('x escaped the cemetery block: ' + c.wx);
+      if (c.wy < -1.9 - 1e-6 || c.wy > CEM_FENCE_Y - 0.5 + 1e-6) throw new Error('y escaped: ' + c.wy);
     }
   } catch (e) {
     aiOk = false;
     aiMsg = e.message;
   }
-  check('ghost stays INSIDE the cemetery block + y band for 200 simulated frames', aiOk, aiMsg);
+  check(
+    'ghost stays INSIDE the cemetery block (street + sidewalk only — NEVER the graveyard, NEVER a neighbor block) for 200 simulated frames',
+    aiOk,
+    aiMsg
+  );
   check(
     'ghost drifted toward its target (moved off its spawn spot)',
     Math.abs(c.wx - (QUEENS_CEMETERY_X + 10)) > 1 || Math.abs(c.wy - 2) > 0.5
@@ -677,6 +791,97 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
     'ghost spoke a creepy line while near the worker',
     said.length > 0 && GHOST_LINES.indexOf(said[0]) >= 0,
     'said=' + JSON.stringify(said)
+  );
+}
+
+// ================= 12b. FUNCTIONAL: the raven's swoop, simulated =================
+console.log('');
+console.log('[functional] raven AI (circling -> diving onto the head -> returning, run in a harness)');
+{
+  const ravenCaseSrc = (() => {
+    const i = src.indexOf('case "raven": {');
+    const j = src.indexOf('case "cat":', i);
+    if (i < 0 || j < 0) return '';
+    return src.slice(i, j);
+  })();
+  check('updateCreatures has case "raven" (extractable state machine)', ravenCaseSrc.length > 0);
+  const R = (a, b) => (a + b) / 2; // deterministic: R(6,10) lands at the band center
+  const GZ = 0.3;
+  const QUEENS_CEMETERY_X = 96; // TEMP testing position (real: 384)
+  const BLOCK_W = 96;
+  const recR = { hurt: 0, dmg: 0, cause: null, stuns: 0, said: [] };
+  const VoiceR = { say: (t, dur, pitch, x, y, g, sp) => recR.said.push({ t, sp }) };
+  const hurtR = (a, cause) => {
+    recR.hurt++;
+    recR.dmg += a;
+    recR.cause = cause;
+  };
+  const stunR = (d, t) => {
+    recR.stuns++;
+  };
+  const cirCx = QUEENS_CEMETERY_X + BLOCK_W / 2;
+  const cirZ = GZ + 5.2;
+  const ravenC = {
+    type: 'raven',
+    sp: 10,
+    dir: 1,
+    ravState: 'circling',
+    ravCd: 0, // ready to dive immediately
+    ravStruck: false,
+    ravT: 0,
+    hopT: 0,
+    cirCx,
+    cirCy: 1.5,
+    cirRx: 30,
+    cirRy: 3.0,
+    cirZ,
+    cirAngle: 2.5, // starts near the worker so it dives right away
+    wx: cirCx + Math.cos(2.5) * 30,
+    wy: 1.5 + Math.sin(2.5) * 3.0,
+    g: {
+      userData: { rav: { wingL: { rotation: {} }, wingR: { rotation: {} } } },
+      position: { z: cirZ },
+      rotation: { z: 0 },
+    },
+  };
+  const pR = { wx: QUEENS_CEMETERY_X + 40, wy: 3 }; // worker on the sidewalk, in front of the fence
+  const stepRaven = new Function(
+    'c',
+    'dt',
+    'p',
+    'state',
+    'Voice',
+    'doStun',
+    'hurtNPC',
+    'HP_HIT_RAVEN',
+    'R',
+    'GZ',
+    'switch (c.type) {\n' + ravenCaseSrc + '\n}',
+  );
+  let diveSeen = false;
+  let circledAgain = false;
+  for (let i = 0; i < 900; i++) {
+    stepRaven(ravenC, 0.1, pR, 'play', VoiceR, stunR, hurtR, 4, R, GZ);
+    if (ravenC.ravState === 'diving') diveSeen = true;
+    if (i > 12 && ravenC.ravState === 'circling') {
+      circledAgain = true;
+      break;
+    }
+  }
+  check("raven: DIVES down onto the worker's head when he is under its circle", diveSeen);
+  check(
+    'raven: strikes the worker EXACTLY ONCE (4 HP, cause "raven") + scare + "Caw! Caw!"',
+    recR.hurt === 1 &&
+      recR.dmg === 4 &&
+      recR.cause === 'raven' &&
+      recR.stuns === 1 &&
+      recR.said.some((v) => v.t === 'Caw! Caw!'),
+    'rec=' + JSON.stringify(recR)
+  );
+  check(
+    'raven: CLIMBS BACK up to the sky and resumes circling (no repeat strike in one dive)',
+    circledAgain && ravenC.ravState === 'circling' && ravenC.g.position.z > GZ + 4.0,
+    'z=' + ravenC.g.position.z + ' state=' + ravenC.ravState
   );
 }
 
@@ -697,28 +902,32 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   };
   const pick = (a) => a[0];
   const GHOST_LINES = ['Play with us and stay with us', 'Redrum'];
-  const HP_HIT_GHOST = 2;
+  const GHOST_STREET_LINES = ['The street is OURS!', 'We died on this street!'];
+  const HP_HIT_GHOST = 6;
+  const HP_GHOST_STREET = 4;
   const WORKER_GENDER = 'male';
   const p = { wx: 432, wy: 5.1 };
-  const runTouch = (c, hurt) => {
+  const runTouch = (c, pp, voice, stun, hurt) => {
     const fn = new Function(
       'c',
       'p',
       'Voice',
       'pick',
       'GHOST_LINES',
+      'GHOST_STREET_LINES',
       'doStun',
       'hurtNPC',
       'HP_HIT_GHOST',
+      'HP_GHOST_STREET',
       'WORKER_GENDER',
       ghostBumpSrc,
     );
-    fn(c, p, Voice, pick, GHOST_LINES, doStun, hurt, HP_HIT_GHOST, WORKER_GENDER);
+    fn(c, pp, voice, pick, GHOST_LINES, GHOST_STREET_LINES, stun, hurt, HP_HIT_GHOST, HP_GHOST_STREET, WORKER_GENDER);
   };
-  const g1 = { type: 'ghost', ghostCd: 0, wx: 432.2, wy: 5.2, gender: 'female' };
+  const g1 = { type: 'ghost', ghostCd: 0, wx: 432.2, wy: 5.2, gender: 'female' }; // on the SIDEWALK
   const wxBefore = p.wx;
-  runTouch(g1, hurtNPC);
-  check('ghost touch: 2 HP drained, tagged to the "ghost" cause', rec.hurt === 1 && rec.dmg === 2 && rec.cause === 'ghost');
+  runTouch(g1, p, Voice, doStun, hurtNPC);
+  check('ghost touch (SIDEWALK): 6 HP drained, tagged to the "ghost" cause', rec.hurt === 1 && rec.dmg === 6 && rec.cause === 'ghost');
   check('ghost touch: the worker got SCARED (one stun)', rec.stuns === 1);
   check(
     'ghost touch: the ghost spoke a creepy line in a "ghost" bubble + the worker yelled',
@@ -728,9 +937,33 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
   check('ghost touch: NOT solid — the worker was NOT pushed (wx unchanged)', p.wx === wxBefore);
   // cooldown: an immediate re-touch does nothing
   rec.hurt = 0;
-  runTouch(g1, hurtNPC);
+  runTouch(g1, p, Voice, doStun, hurtNPC);
   check('ghost touch: cooldown — an immediate re-touch re-damages NOTHING', rec.hurt === 0);
-  // the ghostified HOMEOWNER gets the ghost treatment too
+  // OUT IN THE STREET: the touch is EVEN WORSE (6 + 4 = 10 HP)
+  const saidStreet = [];
+  const VoiceStreet = { say: (t, dur, pitch, x, y, g, sp) => saidStreet.push({ t, sp }) };
+  const recS = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
+  const stunS = (d, t) => {
+    recS.stuns++;
+  };
+  const hurtS = (a, cause) => {
+    recS.hurt++;
+    recS.dmg += a;
+    recS.cause = cause;
+  };
+  const pS = { wx: 432, wy: 0.0 }; // worker out in the street
+  const gStreet = { type: 'ghost', ghostCd: 0, wx: 432.2, wy: -0.4, gender: 'male' }; // ghost OUT IN THE STREET
+  runTouch(gStreet, pS, VoiceStreet, stunS, hurtS);
+  check(
+    'STREET ghost touch: EVEN MORE damage (6 + 4 = 10 HP) tagged to the "ghost" cause',
+    recS.hurt === 1 && recS.dmg === 10 && recS.cause === 'ghost'
+  );
+  check(
+    'STREET ghost touch: the ghost claims the road (street line) + the worker yells the street yelp',
+    saidStreet.some((v) => GHOST_STREET_LINES.indexOf(v.t) >= 0 && v.sp === 'ghost') &&
+      saidStreet.some((v) => v.t === "NO! The street's ALL GHOSTS!?" && v.sp === 'worker')
+  );
+  // the ghostified HOMEOWNER gets the ghost treatment too (sidewalk spot = 6 HP)
   const rec2 = { hurt: 0, dmg: 0, cause: null };
   const hurt2 = (a, cause) => {
     rec2.hurt++;
@@ -738,10 +971,10 @@ console.log('[functional] ghost touch (the real collideCreatures branch, run in 
     rec2.cause = cause;
   };
   const ho = { type: 'homeowner', ghost: true, ghostCd: 0, wx: 432.2, wy: 5.2, gender: 'male' };
-  runTouch(ho, hurt2);
+  runTouch(ho, p, Voice, doStun, hurt2);
   check(
-    'ghostified HOMEOWNER touch: same 2 HP "ghost" scare (not the 1 HP civilian bump)',
-    rec2.hurt === 1 && rec2.dmg === 2 && rec2.cause === 'ghost'
+    'ghostified HOMEOWNER touch: same 6 HP "ghost" scare (not the 1 HP civilian bump)',
+    rec2.hurt === 1 && rec2.dmg === 6 && rec2.cause === 'ghost'
   );
 }
 
@@ -767,6 +1000,148 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
   const p3 = { wx: 250, wy: 5.3 }; // past the fence x-range: free (real: 490)
   fn(p3, blocks, clamp);
   check('outside the fence x-range the cemetery wall does not apply', p3.wy === 5.3);
+}
+
+// ================= 15. STREET GHOSTS (arms / headstones / skull piles) =================
+console.log('');
+console.log('[static] street ghost builders + hazards + collideStatic branches');
+{
+  const armSrc = extract('makeGhostArm');
+  check(
+    'makeGhostArm: a clawed hand (5 fingers) reaches UP out of a spectral mound (animated arm ref)',
+    armSrc.indexOf('for (let i = 0; i < 5; i++)') >= 0 &&
+      armSrc.indexOf('g.userData.arm = arm') >= 0 &&
+      armSrc.indexOf('CY(0.016, 0.024, 0.16, mat, 5)') >= 0
+  );
+  const hsSrc = extract('makeGhostHeadstone');
+  check(
+    'makeGhostHeadstone: a ghostly rounded slab (plinth + slab + rounded cap)',
+    hsSrc.indexOf('plinth') >= 0 &&
+      hsSrc.indexOf('slab') >= 0 &&
+      hsSrc.indexOf('cap.rotation.z = Math.PI / 2') >= 0
+  );
+  const skullSrc = extract('makeSkullPile');
+  check(
+    'makeSkullPile: a mound + HIGH-POLY skulls (SPH 24x18 cranium, jaw, teeth, dark sockets/nose) that read as REAL skulls',
+    skullSrc.indexOf('mound') >= 0 &&
+      skullSrc.indexOf('skull(') >= 0 &&
+      skullSrc.indexOf('SPH(r, mat, 24, 18)') >= 0 &&
+      skullSrc.indexOf('chin') >= 0 &&
+      skullSrc.indexOf('tooth') >= 0 &&
+      skullSrc.indexOf('0x0a1020') >= 0
+  );
+  const matSrc = extract('makeGhostObjectMat');
+  check(
+    'makeGhostObjectMat: one shared TRANSLUCENT spectral material (opacity 0.5, depthWrite off)',
+    matSrc.indexOf('opacity: 0.5') >= 0 && matSrc.indexOf('depthWrite: false') >= 0
+  );
+  const placeSrc = extract('buildCemeteryStreetGhosts');
+  check(
+    'buildCemeteryStreetGhosts: ARMS registered as "ghostarm" hazards (grab range r 0.55)',
+    placeSrc.indexOf('"ghostarm"') >= 0 && placeSrc.indexOf('0.55') >= 0
+  );
+  check(
+    'buildCemeteryStreetGhosts: HEADSTONES + SKULL PILES registered as SOLID "ghoststone" hazards',
+    placeSrc.indexOf('makeGhostHeadstone()') >= 0 &&
+      placeSrc.indexOf('makeSkullPile()') >= 0 &&
+      placeSrc.indexOf('"ghoststone"') >= 0
+  );
+  check(
+    'buildCemeteryStreetGhosts: objects added to groundGroup AND pushed to the block hazards',
+    placeSrc.indexOf('groundGroup.add(g)') >= 0 &&
+      placeSrc.indexOf('b.hazards.push(') >= 0
+  );
+  check(
+    'buildCemeteryStreetGhosts: called for the cemetery block cell (houseIdx === 0)',
+    src.indexOf('buildCemeteryStreetGhosts(b);') >= 0
+  );
+  check(
+    'HP_HIT_GHOSTARM = 4 (a spectral grab — the raven\'s light-strike weight)',
+    /HP_HIT_GHOSTARM = 4;/.test(src)
+  );
+  const cs = extract('collideStatic');
+  check(
+    'collideStatic: "ghoststone" is SOLID (worker shoved back, NO damage) + "They only moved the headstones!"',
+    cs.indexOf('hz.type === "ghoststone"') >= 0 &&
+      cs.indexOf('p.wx -= 0.85') >= 0 &&
+      cs.indexOf('They only moved the headstones!') >= 0
+  );
+  check(
+    'collideStatic: "ghostarm" GRABS the worker (HP_HIT_GHOSTARM "ghost" damage + scare + line)',
+    cs.indexOf('hz.type === "ghostarm"') >= 0 &&
+      cs.indexOf('hurtNPC(HP_HIT_GHOSTARM, "ghost")') >= 0 &&
+      cs.indexOf('Get those hands off me!') >= 0
+  );
+  check(
+    'the spectral arms are ANIMATED (reach + sway) every frame in updateCreatures',
+    src.indexOf('GHOST_ARMS.length') >= 0 &&
+      src.indexOf('A.g.userData.arm.position.z') >= 0
+  );
+}
+
+console.log('');
+console.log('[functional] street ghost hazards (the real collideStatic, run in a harness)');
+{
+  const csSrc = extract('collideStatic');
+  const runHazard = (hzType, r) => {
+    const said = [];
+    const rec = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
+    const p = { wx: 144, wy: 0.2, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0 };
+    const blocks = [
+      { hazards: [{ wx: 144, wy: 0.2, r: r, type: hzType, drop: 0, cd: 0 }] },
+    ];
+    const Voice = { say: (t, dur, vol, x, y, g, sp) => said.push({ t: t, sp: sp }) };
+    const hurtNPC = (a, cause) => {
+      rec.hurt++;
+      rec.dmg += a;
+      rec.cause = cause;
+    };
+    const doStun = (d, type) => {
+      rec.stuns++;
+    };
+    const fn = new Function(
+      'state',
+      'p',
+      'blocks',
+      'Voice',
+      'hurtNPC',
+      'doStun',
+      'WORKER_GENDER',
+      'HP_HIT_GHOSTARM',
+      'HP_HIT_HAZARD',
+      'footDist',
+      'dropCarried',
+      'carry',
+      'dt',
+      csSrc + '\n collideStatic(dt);',
+    );
+    fn('play', p, blocks, Voice, hurtNPC, doStun, 'male', 4, 5, 0, function () {}, 'none', 0.016);
+    return { said: said, rec: rec, p: p };
+  };
+  // ghoststone (headstone / skull pile): SOLID, no damage, the line
+  const gs = runHazard('ghoststone', 0.85);
+  check(
+    'ghoststone touch: the worker is SHOVEd back (wx decreased) — he must go AROUND it',
+    gs.p.wx < 144,
+    'wx=' + gs.p.wx
+  );
+  check('ghoststone touch: NO damage (an obstacle, not a hit)', gs.rec.hurt === 0);
+  check(
+    'ghoststone touch: the worker says "They only moved the headstones!"',
+    gs.said.some((v) => v.t === 'They only moved the headstones!' && v.sp === 'worker')
+  );
+  // ghostarm: damage + scare, no shove (it grabs, it doesn't wall)
+  const ga = runHazard('ghostarm', 0.55);
+  check(
+    'ghostarm touch: HP_HIT_GHOSTARM (4) damage tagged to the "ghost" cause',
+    ga.rec.hurt === 1 && ga.rec.dmg === 4 && ga.rec.cause === 'ghost'
+  );
+  check(
+    'ghostarm touch: the worker got a scare stun + yelled "Get those hands off me!"',
+    ga.rec.stuns === 1 &&
+      ga.said.some((v) => v.t === 'Get those hands off me!' && v.sp === 'worker')
+  );
+  check('ghostarm touch: NOT a wall — the worker was NOT shoved (wx unchanged)', ga.p.wx === 144);
 }
 
 console.log('');
