@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.209</div>
+          <div id="app-version" class="menu-version">v1.0.210</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.209';
+      const APP_VERSION = '1.0.210';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -18430,10 +18430,6 @@
               // NEVER leaves the block they spawned on (never crosses the street):
               // x is clamped to blockMinX..blockMaxX — when the worker is past the
               // block they stand at the edge, facing them, pitching while in earshot.
-              // ALWAYS faces the worker in 3D: full continuous rotation around the
-              // vertical axis (any angle) — so he walks straight at you from any
-              // direction, or straight back away from you, never sliding sideways.
-              c.g.rotation.z = Math.atan2(hdy, hdx);
               // CLOSING PITCH: the worker crossed the far edge of his block — one
               // last line, then hands on hips for the rest of the shift.
               if (!c.bye && p.wx > c.blockMaxX + 2) {
@@ -18453,6 +18449,10 @@
               const hdx = p.wx - c.wx,
                 hdy = p.wy - c.wy;
               const hdist = Math.sqrt(hdx * hdx + hdy * hdy) || 1;
+              // ALWAYS faces the worker in 3D: full continuous rotation around the
+              // vertical axis (any angle) — so he walks straight at you from any
+              // direction, or straight back away from you, never sliding sideways.
+              c.g.rotation.z = Math.atan2(hdy, hdx);
               if (c.cool > 0) {
                 // REST: hands folded at the chest (arms bent FORWARD), chest out,
                 // slow drift back to the block's middle — FEET moving (animParts),
