@@ -2126,7 +2126,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.203</div>
+          <div id="app-version" class="menu-version">v1.0.205</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2250,7 +2250,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.203';
+      const APP_VERSION = '1.0.205';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2531,6 +2531,9 @@
             if (day === 4 && t === "hooker") base = 0;
             // Bronx (Mott Haven, d2): no breakers - no dance crews on these streets.
             if (day === 2 && t === "breaker") base = 0;
+            // Queens (Maspeth): no breakers - the nosy homeowner shadows the streets
+            // instead (spawned by the Queens block, one per level).
+            if (isQueensLevel() && t === "breaker") base = 0;
             // No skateboarders on the Manhattan days (Uptown d1, Harlem d6) or Bed-Stuy (d7).
             if (t === "skater" && (day === 1 || day === 6 || day === 7))
               base = 0;
@@ -4048,6 +4051,43 @@
         "Ostatnie ostrzeżenie, brudniku!",
         "Moja siostra jest niewinna, a ty — szmatko!",
         "Twoja matka by się wstydziła!",
+      ];
+      // The nosy Maspeth homeowner: 32 STUPID questions, cycled as they shadow the
+      // worker around 3-4 houses (pickup days/times, what counts as trash, the dead
+      // rat, how much is allowed, when they're coming back, ...).
+      const HOMEOWNER_QUESTIONS = [
+        "Do you pick up on Tuesday, or is it Tuesday AND Thursday?",
+        "What happens if I put my trash out the night before?",
+        "Can I put a whole mattress out on a regular pickup day?",
+        "Who do I call if I find a dead rat in my yard?",
+        "Is it okay to put paint cans in the regular trash?",
+        "How much trash am I allowed to put out before you fine me?",
+        "Are you coming again tomorrow, or is that next week?",
+        "Do you guys pick up on Christmas? Asking for a friend.",
+        "Can I bag my whole garage sale into ONE garbage bag?",
+        "What's the deal with the green bin? My neighbor has a green bin.",
+        "If I cut my trash into smaller pieces, does it count as less?",
+        "Do you take out refrigerators, or is that a special service?",
+        "Can I put out a live ferret in a box? He's not even trash.",
+        "Why did you miss my cans last time? I was watching.",
+        "Is a whole oak tree 'bulky waste'? It fell in my yard.",
+        "What time EXACTLY are you coming by my house?",
+        "Can I double-bag my trash so it smells nicer for you guys?",
+        "Do you take out car batteries, or is that illegal?",
+        "If I put my bins out with the lids off, does that count as extra?",
+        "How do I report a raccoon that steals my bags?",
+        "Is a 50-gallon fish tank 'trash' or is that 'heavy glass'?",
+        "Can I put out a lawnmower with gas still in it?",
+        "Do you guys pick up in the rain? It's raining. I can see it.",
+        "What's the fee for one extra bag? I have seven extra bags.",
+        "If my neighbor's dog eats my trash, who's responsible?",
+        "Can I put out a broken TV with the screen still on?",
+        "Do you take out Christmas trees in July? I'm planning ahead.",
+        "Is a pile of leaves 'trash' or a separate department?",
+        "Why do you have a truck? Can it fit my whole shed?",
+        "Can I put out my old mattress with the stains still on it?",
+        "Do you pick up when I'm not home? What if my dog is out?",
+        "Are you sure that's a garbage truck? It's very big.",
       ];
       function disposeObj(o) {
         o.traverse((ch) => {
@@ -13119,6 +13159,23 @@
               hair: pick(HAIRS),
             });
             break;
+          case "homeowner":
+            // The nosy Maspeth homeowner (male or female, MIXED): follows the worker
+            // around 3-4 houses asking stupid trash questions, both arms waving. See
+            // the "homeowner" case in updateCreatures for the follow/wave behavior.
+            c.wy = R(1.6, 3.8);
+            c.cd = 0;
+            c.askCd = 0.8; // first question lands right away
+            c.cool = 0; // 0 = following; >0 = resting before the next shadowing run
+            c.followed = 0; // distance shadowed this run
+            c.followMax = R(24, 32); // 3-4 houses of following, then a breather
+            c.waveT = R(0, 6.28);
+            c.data = makePerson({
+              shirt: pick(SHIRTS),
+              pants: pick(PANTS),
+              hair: pick(HAIRS),
+            });
+            break;
           case "crazy":
             c.wy = R(1.2, 4.2);
             c.sp = 0.4;
@@ -14045,6 +14102,15 @@
               pb.g.position.set(pb.wx, pb.wy, GZ);
             }
           }
+          // The nosy homeowner: ONE per Maspeth level — shadows the worker around
+          // 3-4 houses asking stupid trash questions, both arms waving. Spawns
+          // just ahead of the worker's start.
+          {
+            const ho = addCreature("homeowner");
+            ho.wx = PLAYER_START_X + R(20, 40);
+            ho.wy = R(1.6, 3.8);
+            ho.g.position.set(ho.wx, ho.wy, GZ);
+          }
         }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
         // driveways that the doghouses did NOT take. They run AFTER the doghouse loop above
@@ -14893,6 +14959,7 @@
             c.type === "hooker" ||
             c.type === "polish" ||
             c.type === "polishboy" ||
+            c.type === "homeowner" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -15593,6 +15660,12 @@
       // a "community institution" who was due full respect at all times, and the
       // corner-store panhandler was a citizen who was due care.
       const WRITEUP_REASONS = {
+        // --- the nosy Maspeth homeowner: the worker's most persistent "customer" ---
+        homeowner: [
+          "Failure to acknowledge a concerned homeowner",
+          "The homeowner's right to ask was not honored",
+          "Failure to answer questions about the trash schedule",
+        ],
         // --- the street machines: each one keeps its own lane ---
         car: [
           "Failure to give right of way",
@@ -16694,6 +16767,7 @@
           else if (c.type === "ped" || c.type === "lady") rad = 0.85;
           else if (c.type === "dogwalker") rad = 0.95;
           else if (c.type === "breaker") rad = 1.2;
+          else if (c.type === "homeowner") rad = 0.85;
           else if (c.type === "yeller") rad = 0.95;
           else if (c.type === "jacker") rad = 0.95;
           else if (
@@ -16865,6 +16939,7 @@
             c.type === "hooker" ||
             c.type === "polish" ||
             c.type === "polishboy" ||
+            c.type === "homeowner" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -17005,6 +17080,16 @@
                     c.wy,
                     c.gender,
                     "lady",
+                  );
+                else if (c.type === "homeowner")
+                  Voice.say(
+                    "Hey! Watch it — this is MY property!",
+                    3,
+                    1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
                   );
                 else
                   Voice.say(
@@ -18273,6 +18358,62 @@
                 }
                 animParts(c, sp * dt * 2.2);
                 if (c.g) c.g.rotation.z = L.dir >= 0 ? 0 : Math.PI;
+              }
+              c.cd -= dt;
+              break;
+            }
+            case "homeowner": {
+              // The nosy Maspeth homeowner: FOLLOWS the worker around 3-4 houses,
+              // both arms WAVING, asking a stream of stupid trash questions; then
+              // rests a few seconds and shadows the worker again. Always on the
+              // sidewalk, always facing the worker.
+              c.askCd -= dt;
+              const hdx = p.wx - c.wx,
+                hdy = p.wy - c.wy;
+              const hdist = Math.sqrt(hdx * hdx + hdy * hdy) || 1;
+              if (c.g) c.g.rotation.z = hdx >= 0 ? 0 : Math.PI; // face the worker
+              if (c.cool > 0) {
+                // Resting: stand, huff, arms drop
+                c.cool -= dt;
+                if (c.parts) {
+                  c.parts.armL.rotation.x = 0;
+                  c.parts.armR.rotation.x = 0;
+                }
+              } else {
+                // Follow: close in until 2.2u away, then keep pace
+                if (hdist > 2.2) {
+                  const hsp = 2.6; // a determined follow-walk
+                  c.wx += (hdx / hdist) * hsp * dt;
+                  c.wy = clamp(c.wy + (hdy / hdist) * hsp * dt, 1.2, 4.4);
+                  c.followed += hsp * dt;
+                  animParts(c, hsp * dt * 2.4);
+                }
+                // Waving both arms while following (the signature move)
+                c.waveT += dt;
+                if (c.parts) {
+                  c.parts.armL.rotation.x = 1.35 + Math.sin(c.waveT * 7) * 0.45;
+                  c.parts.armR.rotation.x =
+                    1.35 + Math.sin(c.waveT * 7 + 1.5) * 0.45;
+                }
+                // A stupid question every few seconds while in earshot
+                if (c.askCd <= 0 && hdist < 26) {
+                  Voice.say(
+                    pick(HOMEOWNER_QUESTIONS),
+                    3.4,
+                    1.0,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  c.askCd = R(2.4, 3.6);
+                }
+                // 3-4 houses (24-32u) of shadowing and they're done - take a breather
+                if (c.followed >= c.followMax) {
+                  c.followed = 0;
+                  c.followMax = R(24, 32);
+                  c.cool = R(5, 8);
+                }
               }
               c.cd -= dt;
               break;
