@@ -335,20 +335,22 @@ check(
   mGP.length > 0 && mGP.indexOf('makePerson(') >= 0 && mGP.indexOf('ghostifyPerson') >= 0
 );
 
-// ================= 4. GHOSTLY TREASURES (kinds 38/39/40) =================
+// ================= 4. GHOSTLY TREASURES (kinds 38/39/40/41) =================
 const mtEnd = src.indexOf('// ==================== HOUSES, MAILBOXES, TREES');
 const treasureSec = src.slice(src.indexOf('function makeTreasure('), mtEnd > 0 ? mtEnd : undefined);
 check(
-  'makeTreasure has ghostly kinds 38 (jewelry), 39 (pocket watch), 40 (gold coins)',
+  'makeTreasure has ghostly kinds 38 (gold ring), 39 (pocket watch), 40 (gold coins), 41 (gold teeth)',
   treasureSec.indexOf('kind === 38') >= 0 &&
     treasureSec.indexOf('kind === 39') >= 0 &&
-    treasureSec.indexOf('kind === 40') >= 0
+    treasureSec.indexOf('kind === 40') >= 0 &&
+    treasureSec.indexOf('kind === 41') >= 0
 );
 check(
   'TREASURE_NAMES names the ghostly finds',
-  src.indexOf('38: "Ghostly jewelry!"') >= 0 &&
+  src.indexOf('38: "Ghostly gold ring!"') >= 0 &&
     src.indexOf('39: "Ghostly pocket watch!"') >= 0 &&
-    src.indexOf('40: "Ghostly gold coins!"') >= 0
+    src.indexOf('40: "Ghostly gold coins!"') >= 0 &&
+    src.indexOf('41: "Ghostly gold teeth!"') >= 0
 );
 const sGT = (() => {
   try {
@@ -358,9 +360,9 @@ const sGT = (() => {
   }
 })();
 check(
-  'spawnGhostTreasure: floating (baseLift 1.0), $100-$200, type "treasure", kinds 38/39/40 only',
+  'spawnGhostTreasure: floating (baseLift 1.0), $100-$200, type "treasure", kinds 38/39/40/41',
   sGT.length > 0 &&
-    sGT.indexOf('pick([38, 39, 40])') >= 0 &&
+    sGT.indexOf('pick([38, 39, 40, 41])') >= 0 &&
     sGT.indexOf('baseLift: baseLift') >= 0 &&
     sGT.indexOf('val: 100 + 50') >= 0 &&
     sGT.indexOf('type: "treasure"') >= 0
@@ -638,10 +640,11 @@ check(
     swSec.indexOf('R(CEM_FENCE_Y + 0.8, CEM_BACK_Y - 0.8)') >= 0
 );
 check(
-  'spawnWorld: 10 floating ghostly treasures just behind the fence (kinds 38/39/40)',
+  'spawnWorld: 20 floating ghostly treasures — 10 just behind the fence + 10 out on the street/sidewalk',
   swSec.indexOf('for (let ti = 0; ti < 10; ti++)') >= 0 &&
     swSec.indexOf('spawnGhostTreasure(') >= 0 &&
-    swSec.indexOf('R(CEM_FENCE_Y + 0.4, CEM_FENCE_Y + 1.4)') >= 0
+    swSec.indexOf('R(CEM_FENCE_Y + 0.4, CEM_FENCE_Y + 1.4)') >= 0 &&
+    swSec.indexOf('R(-8.8, 4.7)') >= 0
 );
 check(
   'spawnWorld: the raven is spawned as a creature (addCreature("raven"), gated on RAVEN_PERCH)',
@@ -671,11 +674,30 @@ check(
   })()
 );
 check(
-  'ghost spawner timer tops the pack up to GHOST_CAP (spawnCemeteryGhost when below cap) on the 75-slot grid',
+  'ghost spawner timer tops the pack up to GHOST_CAP (spawnCemeteryGhost when below cap) on the 75-slot grid + 4 right-edge barrier',
   src.indexOf('if (ghosts < GHOST_CAP) spawnCemeteryGhost()') >= 0 &&
     src.indexOf('let ghostSpawnT = 3') >= 0 &&
-    src.indexOf('const GHOST_CAP = 75') >= 0 &&
+    src.indexOf('const GHOST_CAP = 79') >= 0 &&
     src.indexOf('const GHOST_SLOTS = 75') >= 0
+);
+check(
+  'spawnCemeteryRightEdgeGhosts: a RIGHT-EDGE barrier — 4 extra ghosts (2 street + 2 sidewalk) huddle in the last slot column (just inside the right edge, where the sidewalk meets the curb), facing left so the worker can\'t slip past',
+  (() => {
+    const re = (() => {
+      try {
+        return extract('spawnCemeteryRightEdgeGhosts');
+      } catch (e) {
+        return '';
+      }
+    })();
+    return (
+      re.length > 0 &&
+      re.indexOf('const rightSlot = GHOST_SLOTS - 1') >= 0 &&
+      re.indexOf('ghostSlotX(rightSlot)') >= 0 &&
+      re.indexOf('gh.dir = -1') >= 0 &&
+      swSec.indexOf('spawnCemeteryRightEdgeGhosts()') >= 0
+    );
+  })()
 );
 check(
   'ghost AI: each ghost drifts ONLY inside its own slot column + its own zone band (street ghosts never touch the sidewalk, sidewalk ghosts never touch the street)',
