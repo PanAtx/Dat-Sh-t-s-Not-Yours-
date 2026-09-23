@@ -2131,7 +2131,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.223</div>
+          <div id="app-version" class="menu-version">v1.0.224</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2255,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.223';
+      const APP_VERSION = '1.0.224';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -7747,11 +7747,12 @@
           });
         return GHOST_OBJECT_MAT;
       }
-      // A spectral arm + GRABBING hand reaching UP out of a small mound of spectral
+      // A spectral arm + OPEN hand reaching UP out of a small mound of spectral
       // earth. Origin at the ground point; userData.arm is the animated arm group (the
-      // reach). The hand has FIVE fingers, each read as a curl from above: a proximal
-      // segment reaches OUT from the palm, a distal segment FOLDS BACK toward the palm
-      // center, and a fingertip curls in — a claw closing on whatever's under it.
+      // reach). The hand is the classic ghost-hand-out-of-the-ground: a flat oval
+      // palm with FIVE STRAIGHT, STRETCHED fingers fanning out of it — middle longest,
+      // ring/index in between, pinky shortest, thumb set wide to the side — each a
+      // straight shaft ending in a rounded fingertip (the classic "hand sticking out").
       function makeGhostArm() {
         const mat = makeGhostObjectMat();
         const g = new THREE.Group();
@@ -7768,35 +7769,34 @@
         fore.rotation.x = Math.PI / 2;
         fore.position.z = 0.55;
         arm.add(fore);
-        const palm = SP(0.1, mat);
-        palm.scale.set(1, 1, 0.8); // a real palm, not a ball
-        palm.position.z = 0.76;
+        const palm = SP(0.13, mat);
+        palm.scale.set(1.25, 0.95, 0.5); // a real palm: long, flat, oval — NOT a ball
+        palm.position.z = 0.74;
         arm.add(palm);
-        // Five grabbing fingers: four fan the +x side (±60°), the thumb grips from
-        // the opposite side. From above each finger reads as a curl closing on the
-        // palm — the claw is GRABBING, not fanning.
-        const finger = (a, thumb) => {
+        // Five STRAIGHT stretched fingers fanned out of the palm (read from above):
+        // angles in degrees, middle finger longest, pinky shortest, thumb set wide to
+        // the side — each finger = a straight tapered shaft + a rounded fingertip.
+        const FINGERS = [
+          { a: -58, len: 0.3, r: 0.03 }, // pinky: shortest
+          { a: -26, len: 0.38, r: 0.034 }, // ring
+          { a: 6, len: 0.42, r: 0.034 }, // middle: longest
+          { a: 36, len: 0.36, r: 0.033 }, // index
+          { a: -104, len: 0.26, r: 0.04, wide: true }, // thumb: set wide to the side
+        ];
+        for (let i = 0; i < 5; i++) {
+          const f = FINGERS[i];
+          const a = (f.a * Math.PI) / 180;
           const ux = Math.cos(a),
             uy = Math.sin(a);
-          const r1 = thumb ? 0.017 : 0.014,
-            r2 = thumb ? 0.024 : 0.02,
-            rp = thumb ? 0.125 : 0.115,
-            rf = thumb ? 0.145 : 0.13,
-            rt = thumb ? 0.1 : 0.09;
-          const prox = CY(r1, r2, 0.12, mat, 6); // reaches OUT from the palm
-          prox.rotation.z = a - Math.PI / 2; // axis along the radial direction
-          prox.position.set(ux * rp, uy * rp, thumb ? 0.68 : 0.74);
-          arm.add(prox);
-          const dist = CY(r1, r2, 0.11, mat, 6); // FOLDS BACK toward the palm center
-          dist.rotation.z = a - Math.PI / 2;
-          dist.position.set(ux * rf, uy * rf, thumb ? 0.6 : 0.66);
-          arm.add(dist);
-          const tip = SP(thumb ? 0.024 : 0.02, mat, 6); // curled fingertip, closing
-          tip.position.set(ux * rt, uy * rt, thumb ? 0.57 : 0.63);
+          const base = f.wide ? 0.1 : 0.08; // where the finger leaves the palm
+          const shaft = CY(f.r * 0.85, f.r, f.len, mat, 6); // straight, stretched OUT
+          shaft.rotation.z = a - Math.PI / 2; // axis along the radial direction
+          shaft.position.set(ux * (base + f.len / 2), uy * (base + f.len / 2), 0.76);
+          arm.add(shaft);
+          const tip = SP(f.r * 0.95, mat, 6); // rounded fingertip, reaching
+          tip.position.set(ux * (base + f.len), uy * (base + f.len), 0.77);
           arm.add(tip);
-        };
-        const ANGLES = [-60, -20, 20, 60, 180];
-        for (let i = 0; i < 5; i++) finger((ANGLES[i] * Math.PI) / 180, i === 4);
+        }
         arm.position.z = 0.04;
         arm.rotation.x = 0.18; // leans up out of the mound
         g.add(arm);

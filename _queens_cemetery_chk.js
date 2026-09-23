@@ -1087,12 +1087,12 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
 {
   const armSrc = extract('makeGhostArm');
   check(
-    'makeGhostArm: a GRABBING hand (5 curled fingers — out, fold back, fingertip — 4 fan + thumb) reaches UP out of a spectral mound (animated arm ref)',
+    'makeGhostArm: an OPEN hand (5 STRAIGHT stretched fingers fanned out — middle longest, pinky shortest, thumb set wide) reaches UP out of a spectral mound (animated arm ref)',
     armSrc.indexOf('for (let i = 0; i < 5; i++)') >= 0 &&
       armSrc.indexOf('g.userData.arm = arm') >= 0 &&
-      armSrc.indexOf('const finger = (a, thumb) =>') >= 0 &&
+      armSrc.indexOf('const FINGERS = [') >= 0 &&
       armSrc.indexOf('tip.position.set') >= 0 &&
-      armSrc.indexOf('ANGLES') >= 0
+      armSrc.indexOf('middle: longest') >= 0
   );
   check(
     'spectral CURB FOG: a full-block mist band (y 0.45) + drifting wisps mark the street/sidewalk ghost-zone boundary (decoration only, no shadows, no hazard)',
