@@ -240,6 +240,13 @@ check(
     /SPH\(0\.04, M\(0xd8dce2\)\)/.test(fnSrc) && /CW = 0\.5,/.test(fnSrc),
 );
 check(
+  'cloth attaches at the pole SIDE (hoist edge at the pole, flag flies off to one side)',
+  (fnSrc.match(/const fSide = Math\.random\(\) < 0\.5 \? -1 : 1;/g) || []).length === 2 &&
+    /fx \+ fSide \* \(CW \/ 2\)/.test(fnSrc) &&
+    /fx \+ fSide \* \(\(CW \* 0\.45\) \/ 2\)/.test(fnSrc) &&
+    !/clothPlane\(CW, sh, red, fx,/.test(fnSrc),
+);
+check(
   'flags sit in the FRONT LAWN beside the walkway (cottage in front of the landing, colonial in front of the stoop)',
   /addGardenFlag\([\s\S]{0,120}?-d \/ 2 - 1\.5/.test(fnSrc) &&
     /addGardenFlag\([\s\S]{0,120}?-d \/ 2 - 2\.7/.test(fnSrc),
@@ -292,6 +299,12 @@ check(
   'flag: US cloth = 3 stripes + canton (4 zero-thickness planes, standing in the X-Z plane)',
   flagPlanes.length === 4 &&
     flagPlanes.every((p) => Math.abs(p.rotation.x + Math.PI / 2) < 1e-9),
+);
+check(
+  'flag: US cloth hoist at the pole (no plane centered on the pole, all offset to one side)',
+  flagPlanes.length === 4 &&
+    flagPlanes.every((p) => Math.abs(p.position.x - poleMesh.position.x) > 0.05) &&
+    flagPlanes.every((p) => Math.sign(p.position.x) === Math.sign(flagPlanes[0].position.x)),
 );
 const flaggedIE = buildFlagged(0.75);
 check('flag: Ireland house records userData.flag.kind = "IE" (3 tricolor planes)', flaggedIE.userData.flag && flaggedIE.userData.flag.kind === 'IE' && (() => {

@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.233</div>
+          <div id="app-version" class="menu-version">v1.0.234</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.233';
+      const APP_VERSION = '1.0.234';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11172,28 +11172,33 @@
             const red = flagM(0xb22234),
               white = flagM(0xffffff),
               blue = flagM(0x3c3b6e);
-            clothPlane(CW, sh, red, fx, ty, top - sh / 2); // top red stripe
-            clothPlane(CW, sh, white, fx, ty, top - sh * 1.5); // middle white stripe
-            clothPlane(CW, sh, red, fx, ty, top - sh * 2.5); // bottom red stripe
-            const cSide = Math.random() < 0.5 ? -1 : 1;
+            // The cloth attaches at the pole's SIDE (the hoist): one edge sits
+            // right at the pole and the flag flies off to one side or the other
+            const fSide = Math.random() < 0.5 ? -1 : 1;
+            const cx = fx + fSide * (CW / 2);
+            clothPlane(CW, sh, red, cx, ty, top - sh / 2); // top red stripe
+            clothPlane(CW, sh, white, cx, ty, top - sh * 1.5); // middle white stripe
+            clothPlane(CW, sh, red, cx, ty, top - sh * 2.5); // bottom red stripe
             clothPlane(
               CW * 0.45,
               2 * sh + 0.01,
               blue,
-              fx + cSide * (CW / 2 - (CW * 0.45) / 2),
-              ty - 0.015, // canton sits just in front of the stripes (no z-fight)
+              fx + fSide * ((CW * 0.45) / 2), // canton in the hoist corner (at the pole)
+              ty - 0.015,
               top - sh,
             );
           } else {
             // Ireland: green / white / orange. Italy: green / white / red.
             const bandCols =
               kind === "IE" ? [0x169b62, 0xffffff, 0xff883e] : [0x009246, 0xffffff, 0xce2b37];
+            const fSide = Math.random() < 0.5 ? -1 : 1;
             for (let bi = 0; bi < 3; bi++) {
+              // first band's edge at the pole, bands continue away from it
               clothPlane(
                 CW / 3,
                 CH,
                 flagM(bandCols[bi]),
-                fx + (bi - 1) * (CW / 3),
+                fx + fSide * ((CW / 3) * bi + CW / 6),
                 ty,
                 top - CH / 2,
               );
