@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.230</div>
+          <div id="app-version" class="menu-version">v1.0.231</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.230';
+      const APP_VERSION = '1.0.231';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11343,14 +11343,10 @@
             const side = i < 3 ? -1 : 1;
             addTulip(side * R(w * 0.33, w * 0.47), -d / 2 - R(1.0, 2.6));
           }
-          // Porch flag: 45° pole off the front eave of the roof (above the door,
-          // clear of the windows), mostly US + occasional Ireland / Italy.
+          // Porch flag: 45° pole off the front eave, right above the door
+          // (clear of the windows), mostly US + occasional Ireland / Italy.
           if (Math.random() < 0.85)
-            addFrontFlag(
-              (Math.random() < 0.5 ? -1 : 1) * w * 0.28,
-              -d / 2 - 0.3,
-              0.3 + h + 0.42,
-            );
+            addFrontFlag(0, -d / 2 - 0.3, 0.3 + h + 0.42);
           g.traverse((o) => {
             if (o.isMesh) o.castShadow = false;
           });
