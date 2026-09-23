@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.229</div>
+          <div id="app-version" class="menu-version">v1.0.230</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.229';
+      const APP_VERSION = '1.0.230';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11137,6 +11137,65 @@
           center.castShadow = false;
           g.add(center);
         };
+        // Porch flags (New Dorp loves flags): a flagpole bracketed onto the house,
+        // tilted 45° out toward the street, with the cloth hanging from the tip.
+        // Mostly US flags, with the occasional Ireland / Italy one in the mix.
+        // (mx, my, mz) is the bracket mount point in house-local space.
+        const addFrontFlag = (mx, my, mz) => {
+          const kindRoll = Math.random();
+          const kind = kindRoll < 0.7 ? "US" : kindRoll < 0.85 ? "IE" : "IT";
+          g.userData.flag = { kind };
+          const poleG = new THREE.Group();
+          poleG.position.set(mx, my, mz);
+          poleG.rotation.x = Math.PI / 4; // 45° from vertical, top toward the street (-y)
+          const poleL = 1.9;
+          const pole = CY(0.04, 0.032, poleL, M(0xc8cdd4));
+          pole.position.z = poleL / 2;
+          poleG.add(pole);
+          const fin = SPH(0.055, M(0xd8dce2));
+          fin.position.z = poleL + 0.04;
+          poleG.add(fin);
+          g.add(poleG);
+          // Flag tip in house-local space (45° => equal -y / +z offsets)
+          const k = poleL * Math.SQRT1_2;
+          const ty = my - k,
+            tz = mz + k;
+          const CW = 0.8,
+            CD = 0.55,
+            CH = 0.55; // width (x) / depth (y, out from the pole) / height (z)
+          if (kind === "US") {
+            const sh = CH / 3;
+            const s1 = BX(CW, CD, sh, M(0xb22234)); // top red stripe
+            s1.position.set(mx, ty - CD / 2, tz - sh / 2);
+            g.add(s1);
+            const s2 = BX(CW, CD, sh, M(0xffffff)); // middle white stripe
+            s2.position.set(mx, ty - CD / 2, tz - sh - sh / 2);
+            g.add(s2);
+            const s3 = BX(CW, CD, sh, M(0xb22234)); // bottom red stripe
+            s3.position.set(mx, ty - CD / 2, tz - 2 * sh - sh / 2);
+            g.add(s3);
+            const cant = BX(CW * 0.45, 0.14, 2 * sh + 0.02, M(0x3c3b6e)); // canton
+            const cSide = Math.random() < 0.5 ? -1 : 1;
+            cant.position.set(
+              mx + cSide * (CW / 2 - (CW * 0.45) / 2),
+              ty - 0.07,
+              tz - sh,
+            );
+            g.add(cant);
+          } else {
+            // Ireland: green / white / orange. Italy: green / white / red.
+            const bandCols =
+              kind === "IE"
+                ? [M(0x169b62), M(0xffffff), M(0xff883e)]
+                : [M(0x009246), M(0xffffff), M(0xce2b37)];
+            const bw = CD / 3;
+            for (let bi = 0; bi < 3; bi++) {
+              const band = BX(CW, bw, CH, bandCols[bi]);
+              band.position.set(mx, ty - bw * bi - bw / 2, tz - CH / 2);
+              g.add(band);
+            }
+          }
+        };
 
         if (Math.random() >= 0.5) {
           // ---- VARIANT A: QUEENS-style compact ranch cottage ----
@@ -11284,6 +11343,14 @@
             const side = i < 3 ? -1 : 1;
             addTulip(side * R(w * 0.33, w * 0.47), -d / 2 - R(1.0, 2.6));
           }
+          // Porch flag: 45° pole off the front eave of the roof (above the door,
+          // clear of the windows), mostly US + occasional Ireland / Italy.
+          if (Math.random() < 0.85)
+            addFrontFlag(
+              (Math.random() < 0.5 ? -1 : 1) * w * 0.28,
+              -d / 2 - 0.3,
+              0.3 + h + 0.42,
+            );
           g.traverse((o) => {
             if (o.isMesh) o.castShadow = false;
           });
@@ -11439,6 +11506,10 @@
           const side = i < 3 ? -1 : 1;
           addTulip(side * R(w * 0.15, w * 0.4), -R(4.7, 5.1));
         }
+        // Porch flag: 45° pole off the gable peak (the classic colonial look),
+        // mostly US + occasional Ireland / Italy.
+        if (Math.random() < 0.85)
+          addFrontFlag(0, -d / 2 - 0.25, 0.3 + h + h * 0.22 + 0.08);
         g.traverse((o) => {
           if (o.isMesh) o.castShadow = false;
         });

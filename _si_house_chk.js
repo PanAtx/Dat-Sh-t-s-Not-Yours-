@@ -196,5 +196,77 @@ check(
   /const isSidewalkTree =[\s\S]{0,300}?borough === "STATEN ISLAND"/.test(src),
 );
 
+// ---- (6) Porch flags: 45° flagpole on the house, mostly US + occasional IE/IT ----
+check(
+  'flag system: addFrontFlag helper with a 45° pole tilt (rotation.x = PI/4)',
+  /const addFrontFlag = \(mx, my, mz\) => \{/.test(fnSrc) &&
+    /poleG\.rotation\.x = Math\.PI \/ 4/.test(fnSrc),
+);
+check(
+  'flag mix: mostly US (70%), occasional Ireland (15%), occasional Italy (15%)',
+  /kindRoll < 0\.7 \? "US" : kindRoll < 0\.85 \? "IE" : "IT"/.test(fnSrc),
+);
+check(
+  'flags spawn on most houses (0.85 gate) in BOTH house variants',
+  (fnSrc.match(/if \(Math\.random\(\) < 0\.85\)\s*addFrontFlag\(/g) || []).length === 2,
+);
+check(
+  'flag cloth colors: US red/white/blue + Irish green-white-orange + Italian green-white-red',
+  fnSrc.indexOf('M(0xb22234)') >= 0 && fnSrc.indexOf('M(0x3c3b6e)') >= 0 &&
+    fnSrc.indexOf('M(0x169b62)') >= 0 && fnSrc.indexOf('M(0xff883e)') >= 0 &&
+    fnSrc.indexOf('M(0x009246)') >= 0 && fnSrc.indexOf('M(0xce2b37)') >= 0,
+);
+check(
+  'pole geometry: 1.9u silver cylinder + finial ball, cloth 0.8 x 0.55 hanging from the tip',
+  /const poleL = 1\.9;/.test(fnSrc) && /CY\(0\.04, 0\.032, poleL, M\(0xc8cdd4\)\)/.test(fnSrc) &&
+    /SPH\(0\.055, M\(0xd8dce2\)\)/.test(fnSrc) && /CW = 0\.8,/.test(fnSrc),
+);
+
+// Deterministic flagged builds (COLONIAL variant): scripted random sequence
+// covers body color, variant gate, 6 tulip colors, then the flag's own rolls
+// (spawn < 0.85, kind roll, canton side). The colonial pole mounts at the gable
+// peak, so there is no left/right side roll before the kind roll.
+function buildFlagged(kindRoll) {
+  const seq = [
+    0.1, 0.1, // color, variant gate (0.1 < 0.5 -> colonial)
+    0.9, 0.1, 0.2, 0.3, 0.4, 0.5, // 6 tulip colors
+    0.1, // < 0.85 -> a flag is spawned
+    kindRoll,
+    0.2, // canton side (US only)
+  ];
+  let i = 0;
+  const realRandom = Math.random;
+  Math.random = () => (i < seq.length ? seq[i++] : realRandom());
+  try {
+    return makeStatenHouse();
+  } finally {
+    Math.random = realRandom;
+  }
+}
+const flaggedUS = buildFlagged(0.1);
+check('flag: US house records userData.flag.kind = "US"', flaggedUS.userData.flag && flaggedUS.userData.flag.kind === 'US');
+const tiltGrp = flaggedUS.children.find(
+  (c) => c.rotation && Math.abs(c.rotation.x - Math.PI / 4) < 1e-9,
+);
+check('flag: tilted pole group at 45° (rotation.x = PI/4) exists on the house', !!tiltGrp);
+check(
+  'flag: pole group holds the pole cylinder (centered at poleL/2) + finial ball',
+  !!tiltGrp && tiltGrp.children.length === 2 &&
+    tiltGrp.children[0]._kind === 'cyl' && Math.abs(tiltGrp.children[0].position.z - 0.95) < 1e-9 &&
+    tiltGrp.children[1]._kind === 'sph',
+);
+const afterPole = tiltGrp ? flaggedUS.children.slice(flaggedUS.children.indexOf(tiltGrp) + 1) : [];
+check('flag: US cloth = 3 stripes + canton (4 boxes after the pole group)', afterPole.filter((c) => c._kind === 'box').length === 4);
+const flaggedIE = buildFlagged(0.75);
+check('flag: Ireland house records userData.flag.kind = "IE" (3 tricolor bands)', flaggedIE.userData.flag && flaggedIE.userData.flag.kind === 'IE' && (() => {
+  const t = flaggedIE.children.find((c) => c.rotation && Math.abs(c.rotation.x - Math.PI / 4) < 1e-9);
+  return t && flaggedIE.children.slice(flaggedIE.children.indexOf(t) + 1).filter((c) => c._kind === 'box').length === 3;
+})());
+const flaggedIT = buildFlagged(0.9);
+check('flag: Italy house records userData.flag.kind = "IT" (3 tricolor bands)', flaggedIT.userData.flag && flaggedIT.userData.flag.kind === 'IT' && (() => {
+  const t = flaggedIT.children.find((c) => c.rotation && Math.abs(c.rotation.x - Math.PI / 4) < 1e-9);
+  return t && flaggedIT.children.slice(flaggedIT.children.indexOf(t) + 1).filter((c) => c._kind === 'box').length === 3;
+})());
+
 console.log(ok ? '\nSTATEN ISLAND HOUSE CHECKS PASSED' : '\nFAILURES DETECTED');
 process.exit(ok ? 0 : 1);
