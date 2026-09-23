@@ -54,7 +54,7 @@ const caseText = extractLeashDogCase();
 // (state / clamp / workerMaxY / hurtNPC / doStun / dropBloodSplatter / WORKER_GENDER /
 // HP_HIT_HAZARD); we supply them here, and `rec` lets a test record whether a bite
 // actually fired (hurt / stun / blood / speech).
-function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
+function runLeashDogCase(c, flatbush, flatbushDriveways, rec, isStaten){
   rec = rec || {}; rec.lines = rec.lines || [];
   const state = 'play';
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -65,12 +65,12 @@ function runLeashDogCase(c, flatbush, flatbushDriveways, rec){
   const doStun = () => { rec.stun = (rec.stun || 0) + 1; };
   const dropBloodSplatter = () => { rec.blood = (rec.blood || 0) + 1; };
   const VoiceRec = { say: function(line){ rec.lines.push(line); } };
-  const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
+  const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'isStatenIslandLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
     'isBronxLevel', 'dogStopY', 'isQueensLevel', // Bronx + Queens feature globals (injected false here — non-Bronx/Queens tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
-  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, VoiceRec, flatbushDriveways,
+  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => flatbush, () => !!isStaten, VoiceRec, flatbushDriveways,
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
     () => false, () => 7.5, function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; },
     function makePostMesh(){ return { position: { set(){} }, parent: null }; },
@@ -94,8 +94,8 @@ function makeFlatbushDog(anchorX, anchorY){
   return c;
 }
 
-// ---- 1) Flatbush: exactly 3 dogs spawn ----
-check('Flatbush spawns 3 leashdogs (dogCount)', /dogCount\s*=\s*isFlatbushLevel\(\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(src));
+// ---- 1) Flatbush + Staten Island: exactly 3 dogs spawn ----
+check('Flatbush + Staten Island spawn 3 leashdogs (dogCount)', /dogCount\s*=\s*\(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(src));
 
 // ---- 2) Flatbush: off-screen dog does NOT get teleported (stays on its driveway) ----
 let flatbushOk = true; let detail = '';
@@ -111,6 +111,19 @@ for (let t = 0; t < 2000; t++){
 }
 check('Flatbush leashdog stays STATIC off-screen (no teleport, house never removed) across 2000 trials', flatbushOk, detail);
 
+// ---- 2b) Staten Island: same driveway doghouses -> dog stays STATIC off-screen too ----
+let siStaticOk = true; let siStaticDetail = '';
+for (let t = 0; t < 2000; t++){
+  const ax = 200, ay = 6.5;                       // a fixed driveway spawn, mid-route
+  const c = makeFlatbushDog(ax, ay);
+  p.wx = c.wx + 70;                               // worker far AHEAD -> tx = c.wx - p.wx < -55
+  runLeashDogCase(c, false, [], undefined, true); // flatbush = false, statenIsland = true
+  const sameAnchor = Math.abs(c.anchorX - ax) < 1e-9 && Math.abs(c.anchorY - ay) < 1e-9;
+  const sameHouse  = c.houseG.parent === dynamicGroup;
+  if (!(sameAnchor && sameHouse)){ siStaticOk = false; siStaticDetail = 'anchor=(' + c.anchorX + ',' + c.anchorY + ') expected=(' + ax + ',' + ay + ')'; break; }
+}
+check('Staten Island leashdog stays STATIC off-screen (no teleport, house never removed) across 2000 trials', siStaticOk, siStaticDetail);
+
 // ---- 3) Other levels: recycling still works (anchor moves ahead of the player) ----
 let otherOk = true; let otherDetail = '';
 for (let t = 0; t < 500; t++){
@@ -123,7 +136,9 @@ check('non-Flatbush leashdog still recycles ahead of the player (regression guar
 
 // ---- 4) The old Flatbush teleport branch is gone from updateCreatures ----
 check('updateCreatures no longer references flatbushDriveways', caseText.indexOf('flatbushDriveways') < 0);
-check('leashdog recycle guard now excludes Flatbush', /c\.wx\s*-\s*p\.wx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)/.test(caseText));
+check('leashdog recycle guard now excludes Flatbush + Staten Island (driveway dogs stay put)', /c\.wx\s*-\s*p\.wx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)\s*&&\s*!isStatenIslandLevel\(\)/.test(caseText));
+check('driveway collection covers Staten Island', /flatbushDriveways = \[\];\s*if \(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)/.test(src));
+check('doghouse placement branch covers Staten Island (shares Flatbush driveway placement)', src.indexOf('} else if (isFlatbushLevel() || isStatenIslandLevel()) {') >= 0);
 
 // ---- 5) BITE: a leashed dog that the worker lingers in range of (dWorker < 0.85)
 // latches on: it damages (HP_HIT_HAZARD), stuns, knocks the worker back away from the

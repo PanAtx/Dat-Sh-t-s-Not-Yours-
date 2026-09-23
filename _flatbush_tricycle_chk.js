@@ -91,7 +91,7 @@ check('driveway tricycles consume leftover flatbushDriveways (splice)', /flatbus
 check('each driveway tricycle is flagged isDrivewayTric', /dt\.isDrivewayTric = true;/.test(src));
 // The spawn loop must come AFTER the doghouse loop (which splices 3), so no overlap.
 check('driveway-tricycle spawn runs after the doghouse loop (no doghouse overlap)',
-  src.indexOf('dt.isDrivewayTric = true') > src.indexOf('const dogCount = isFlatbushLevel()'));
+  src.indexOf('dt.isDrivewayTric = true') > src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())'));
 // ---- 2) Behavior: worker approaches -> kid attacks + bumps, but stays out of the street ----
 function runApproach(){
   const voices = []; const hits = [];

@@ -159,7 +159,7 @@ for (let blx = 0; blx < 800; blx += 96) {
 }
 check('Maspeth leashed dog: post is in front of a house on the front-yard GRASS (y 4.2..5.2, off the doormat/landing in x AND y, home never over the mat) or at the CURB on the sidewalk (y 0.85..1.05, in frontage); never a corner cell / intersection (' + dogQN + ' spots)', dogQOk, dogQWorst ? JSON.stringify(dogQWorst) : '');
 check('Maspeth leashed dog: spawnWorld routes Queens to queensDogSpot + a cast-iron POST (makePostMesh) tied HIGH (tieQueensLeashChain z 1.5), with NO doghouse and NO tree in the branch', (() => {
-  const j = src.indexOf('borough === "QUEENS"', src.indexOf('const dogCount = isFlatbushLevel()'));
+  const j = src.indexOf('borough === "QUEENS"', src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())'));
   if (j < 0) return false;
   const seg = src.slice(j, j + 2000);
   return seg.indexOf('queensDogSpot(ld, b.blockX)') >= 0 && seg.indexOf('makePostMesh()') >= 0 && seg.indexOf('tieQueensLeashChain(') >= 0 && /1\.5,\s*ld\.wx/.test(seg) && seg.indexOf('houseG') < 0 && seg.indexOf('makeSidewalkTree') < 0 && seg.indexOf('makeQueensDogHouse') < 0 && seg.indexOf('makeDogHouse') < 0;
@@ -209,7 +209,7 @@ check('Maspeth leashed dog: recycle target lands >= 50u ahead of the player (off
 })());
 // ---- (3c) Maspeth leashed dog RATE: 4 per level (unchanged from the doghouse era) ----
 check('Maspeth leashed dog rate: scaled by week score ($5000+ = 4 dogs, else 2)', (() => {
-  const i = src.indexOf('const dogCount = isFlatbushLevel()');
+  const i = src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())');
   if (i < 0) return false;
   const seg = src.slice(i, i + 460);
   return (

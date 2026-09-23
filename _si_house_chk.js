@@ -170,5 +170,31 @@ check(
   /function creatureMaxY\(\)[\s\S]*?isStatenIslandLevel\(\)\) return 5\.0;/.test(src),
 );
 
+// ---- (5) Flatbush-style driveways + doghouses on Staten Island ----
+check(
+  'driveway slab gate includes STATEN ISLAND (same 3.0u concrete slab + center line as Flatbush)',
+  /\(borough === "BROOKLYN" \|\| borough === "STATEN ISLAND"\)[\s\S]{0,120}?BX\(3\.0, 8\.0, 0\.08, M\(0x9a9a9a\)\)/.test(src),
+);
+check(
+  'driveway collection (flatbushDriveways) runs for Staten Island',
+  /flatbushDriveways = \[\];\s*if \(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)/.test(src),
+);
+check(
+  'Staten Island spawns 3 doghouses (dogCount shares the Flatbush 3)',
+  /const dogCount = \(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)\s*\?\s*3/.test(src),
+);
+check(
+  'doghouse placement branch: Staten Island uses the Flatbush driveway placement (middle of the driveway, near the sidewalk)',
+  src.indexOf('} else if (isFlatbushLevel() || isStatenIslandLevel()) {') >= 0,
+);
+check(
+  'leashdog off-screen recycle guard excludes Staten Island (doghouses stay put)',
+  /c\.wx\s*-\s*p\.wx\s*<\s*-55\s*&&\s*!isFlatbushLevel\(\)\s*&&\s*!isStatenIslandLevel\(\)/.test(src),
+);
+check(
+  'Staten Island trees are SIDEWALK trees (keeps the driveway band clear of lawn trees)',
+  /const isSidewalkTree =[\s\S]{0,300}?borough === "STATEN ISLAND"/.test(src),
+);
+
 console.log(ok ? '\nSTATEN ISLAND HOUSE CHECKS PASSED' : '\nFAILURES DETECTED');
 process.exit(ok ? 0 : 1);

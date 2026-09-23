@@ -146,12 +146,12 @@ function runLeashDogCase(c, manhattan, rec){
   function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; }
   function makePostMesh(){ return { position: { set(){} }, parent: null }; }
   const BLOCK_W = 80;             // mirrors index.html (10 houses x 8u)
-  const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
+  const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'isStatenIslandLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
     'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W',
     'isBronxLevel', 'dogStopY', 'isQueensLevel', // Bronx + Queens feature globals (injected false here — non-Bronx/Queens tests)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
-  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, VoiceRec, [],
+  return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, () => false, VoiceRec, [],
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
     () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W,
     () => false, () => Infinity, () => false);
@@ -201,7 +201,7 @@ function runLeashDogCase(c, manhattan, rec){
   check('bite respects i-frames on Manhattan too (invuln absorbs it)', (() => {
     const d = makeManhattanDog(2, 2.6);
     const pp = { wx: 2.6, wy: 1.0, invuln: 999, immuneT: 999, bloodSteps: 0 };
-    const fn2 = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'Voice', 'flatbushDriveways',
+    const fn2 = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'isStatenIslandLevel', 'Voice', 'flatbushDriveways',
       'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
       'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain',
       'isBronxLevel', 'dogStopY', // Bronx feature globals (injected false/Infinity here — non-Bronx tests)
@@ -209,7 +209,7 @@ function runLeashDogCase(c, manhattan, rec){
     let bites = 0, blood = 0;
     const lines = [];
     for (let t = 0; t < 400; t++){
-      fn2(d, pp, 0.016, R, GZ, dynamicGroup, () => false, { say(l){ lines.push(l); } }, [],
+      fn2(d, pp, 0.016, R, GZ, dynamicGroup, () => false, () => false, { say(l){ lines.push(l); } }, [],
         'play', (v, lo, hi) => Math.min(hi, Math.max(lo, v)), () => 5.0,
         (a) => { bites++; }, () => {}, () => { blood++; }, 'male', 5,
         () => true, () => 4.8, () => ({ position: { set(){} }, parent: null }), () => ({ position: { set(){} }, parent: null }), tieLeashChain,
@@ -325,8 +325,8 @@ function runLeashDogCase(c, manhattan, rec){
 }
 
 // ---- 5) Source-level checks on the real placement + AI code ----
-const manBlock = src.slice(src.indexOf('if (isManhattanLevel()) {', src.indexOf('const dogCount = isFlatbushLevel()')),
-                            src.indexOf('} else if (isFlatbushLevel()) {'));
+const manBlock = src.slice(src.indexOf('if (isManhattanLevel()) {', src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())')),
+                            src.indexOf('} else if (isFlatbushLevel() || isStatenIslandLevel()) {'));
 check('spawnWorld (Manhattan): anchor is a real fixture - tree OR fence post',
   manBlock.indexOf('makeSidewalkTree()') >= 0 && manBlock.indexOf('makePostMesh()') >= 0);
 check('spawnWorld (Manhattan): fixture placed AT THE CURB (y 0.85..1.05) at the anchor',

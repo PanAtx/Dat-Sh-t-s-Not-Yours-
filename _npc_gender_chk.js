@@ -24,7 +24,7 @@ const p = { wx: 0, wy: 0 };   // player position — addCreature scatters creatu
 const creatures = [];
 const dynamicGroup = { add(){} };
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
-const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false;
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false, isStatenIslandLevel = () => false;
 const isQueensLevel = () => false, QUEENS_CEMETERY_X = 384, BLOCK_W = 96; // cemetery no-go stubs (never active in this harness)
 const dummyPerson = { g: { position: { set(){} }, userData: {} }, legL: {} };
 global.makePerson = () => dummyPerson;

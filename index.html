@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.228</div>
+          <div id="app-version" class="menu-version">v1.0.229</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.228';
+      const APP_VERSION = '1.0.229';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15173,12 +15173,16 @@
             (houseIdx === 0 || houseIdx === QUEENS_HOUSES_PER_BLOCK - 1)
           )
         ) {
-          // Manhattan, Flatbush, Bronx, and Maspeth: trees are on the sidewalk near the curb.
+          // Manhattan, Flatbush, Bronx, Maspeth, Staten Island: trees are on the sidewalk near the curb.
           // The other boroughs plant them out in the front-lawn grass.
+          // Staten Island: sidewalk trees keep the lawn band clear — the concrete driveways
+          // run the full lawn depth between every pair of houses, so a lawn tree would sit
+          // right on top of one.
           const isSidewalkTree =
             isManhattanLevel() ||
             borough === "BROOKLYN" ||
             borough === "THE BRONX" ||
+            borough === "STATEN ISLAND" ||
             isQueensBlock;
           const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
           const tx = isQueensBlock ? R(0.7, cellW - 0.7) : R(1, 6),
@@ -15198,8 +15202,13 @@
           isQueensBlock ? QUEENS_HOUSES_PER_BLOCK - 1 : HOUSES_PER_BLOCK - 1,
         );
         if (mb) addMailbox(b, baseX + (mb === 1 ? 2.4 : 5.6), 1.5);
-        // Brooklyn Flatbush: concrete driveway between houses (at the boundary between this house and the next)
-        if (borough === "BROOKLYN" && houseIdx < HOUSES_PER_BLOCK - 1) {
+        // Brooklyn Flatbush + Staten Island: concrete driveway between houses (at the
+        // boundary between this house and the next). Staten Island uses the exact same
+        // 3.0u-wide slab + center line — the doghouses below anchor to these spots.
+        if (
+          (borough === "BROOKLYN" || borough === "STATEN ISLAND") &&
+          houseIdx < HOUSES_PER_BLOCK - 1
+        ) {
           const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
           drv.position.set(8.0, 9.0, GZ);
           drv.castShadow = false;
@@ -15397,10 +15406,10 @@
         // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
         // instead of having a doghouse (no front lawns in Manhattan).
         // Spawn 3 doghouses on Flatbush, 1 on other levels
-        // Collect driveway locations for Flatbush doghouse spawning (driveways are at
-        // the boundary between houses, so they exist after houses 0-8, not after house 9)
+        // Collect driveway locations for Flatbush / Staten Island doghouse spawning (driveways
+        // are at the boundary between houses, so they exist after houses 0-8, not after house 9)
         flatbushDriveways = [];
-        if (isFlatbushLevel()) {
+        if (isFlatbushLevel() || isStatenIslandLevel()) {
           for (const b of blocks) {
             const houseIdxInBlock = Math.floor((b.worldX - b.blockX) / BW);
             if (houseIdxInBlock < HOUSES_PER_BLOCK - 1) {
@@ -15408,7 +15417,7 @@
             }
           }
         }
-        const dogCount = isFlatbushLevel()
+        const dogCount = (isFlatbushLevel() || isStatenIslandLevel())
           ? 3
           : isBronxLevel()
             ? bronxDogBlocks.length // one leashed dog per active block
@@ -15480,9 +15489,9 @@
                 ld.homeY - ld.anchorY,
                 ld.homeX - ld.anchorX,
               );
-            } else if (isFlatbushLevel()) {
-              // Brooklyn Flatbush: doghouse goes in the center of a concrete driveway
-              // between two houses. Pick a unique driveway for each dog.
+            } else if (isFlatbushLevel() || isStatenIslandLevel()) {
+              // Flatbush + Staten Island: doghouse goes in the center of a concrete
+              // driveway between two houses. Pick a unique driveway for each dog.
               const drivewayIdx = Math.floor(
                 Math.random() * flatbushDriveways.length,
               );
@@ -22710,7 +22719,11 @@
               // to a new position ahead of the route BEFORE the dog tries to move. This
               // prevents the leash from stretching across the screen when the dog is far
               // from its anchor and tries to lunge at the worker.
-              if (c.wx - p.wx < -55 && !isFlatbushLevel()) {
+              if (
+                c.wx - p.wx < -55 &&
+                !isFlatbushLevel() &&
+                !isStatenIslandLevel()
+              ) {
                 if (isQueensLevel()) {
                   // Queens (Maspeth): recycle ahead of the route to a random house's
                   // frontage — front-yard lawn post or curb post (same spot rules as

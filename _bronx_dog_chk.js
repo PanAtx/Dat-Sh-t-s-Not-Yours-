@@ -74,12 +74,12 @@ function extractLeashDogCase(){
   return src.slice(start, i+1);
 }
 const caseText = extractLeashDogCase();
-check('AI case routes Bronx through the Manhattan path', /if \(c\.wx - p\.wx < -55 && !isFlatbushLevel\(\)\) \{\s*(?:if \(isQueensLevel\(\)\) \{[\s\S]*?\} )?else if \(isManhattanLevel\(\) \|\| isBronxLevel\(\)/.test(caseText));
+check('AI case routes Bronx through the Manhattan path', /if \(\s*c\.wx - p\.wx < -55 &&\s*!isFlatbushLevel\(\) &&\s*!isStatenIslandLevel\(\)\s*\) \{\s*(?:if \(isQueensLevel\(\)\) \{[\s\S]*?\} )?else if \(isManhattanLevel\(\) \|\| isBronxLevel\(\)/.test(caseText));
 check('AI case clamps Bronx movement target to wy>=0.85', /isManhattanLevel\(\) \|\| isBronxLevel\(\)\)\s*\{\s*gy = Math\.max\(0\.85, gy\)/.test(caseText));
 check('AI case ties Bronx chain HIGH (z 1.5) like Manhattan', /isManhattanLevel\(\) \|\| isBronxLevel\(\)( \|\| isQueensLevel\(\))?\) \? 1\.5/.test(caseText));
 
 // ---- BRONX: one dog per active block + curb/stoop placement + wall-stop climb ----
-check('Bronx spawns ONE leashed dog per active block', /dogCount\s*=\s*isFlatbushLevel\(\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(spawnWorld));
+check('Bronx spawns ONE leashed dog per active block', /dogCount\s*=\s*\(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(spawnWorld));
 check('Bronx placement offers a stoop anchor (bronxStairHouse + anchorType "stoop")', bronxPlace.body.indexOf('bronxStairHouse') >= 0 && bronxPlace.body.indexOf('"stoop"') >= 0);
 check('Bronx placement offers a curb anchor (anchorType "curb")', bronxPlace.body.indexOf('"curb"') >= 0);
 check('Bronx movement clamps the dog to the building wall stop line (dogStopY)', /if \(isBronxLevel\(\)\) gy = Math\.min\(gy, dogStopY\(gx\)\)/.test(caseText));
@@ -138,6 +138,7 @@ const wrap = 'switch(c.type){' + caseText + '}';
 function runLeashDogCase(c, lvl){
   global.c = c;
   global.isFlatbushLevel = () => !!lvl.flatbush;
+  global.isStatenIslandLevel = () => !!lvl.staten;
   global.isManhattanLevel = () => !!lvl.manhattan;
   global.DOG_PALETTES = { yellow: { fur: 0xdbc480, ear: 0xc4a84e, nose: 0x14100e, tag: 0xc0c0c0 }, darkbrown: { fur: 0x4a2c18, ear: 0x3a2010, nose: 0x14100e, tag: 0xc0c0c0 }, husky: { fur: 0xe0e4e8, ear: 0x888888, nose: 0x14100e, tag: 0xc0c0c0 }, spotted: { fur: 0xf0f0f0, spot: 0x141414, ear: 0xe0e0e0, nose: 0x14100e, tag: 0xc0c0c0 } };
 global.isBronxLevel = () => !!lvl.bronx;

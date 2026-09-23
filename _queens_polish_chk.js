@@ -179,7 +179,7 @@ check('spawn: one nice Polish boy per Queens level, loitering in front of a corn
 
 // ================= 8. DOG COUNT SCALED BY SCORE =================
 const dogSec = (() => {
-  const i = src.indexOf('const dogCount = isFlatbushLevel()');
+  const i = src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())');
   if (i < 0) return '';
   return src.slice(i, i + 380);
 })();
