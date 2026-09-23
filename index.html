@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.240</div>
+          <div id="app-version" class="menu-version">v1.0.241</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.240';
+      const APP_VERSION = '1.0.241';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15268,13 +15268,17 @@
         b.group.add(joint);
         // static hazards — Maspeth keeps them inside the narrower 6.4u cell
         const hzX = (m) => baseX + (isQueensBlock ? R(m, cellW - m) : R(m, 6));
+        // Staten Island (New Dorp): a CLEAN street — no empty/piss bottles and no
+        // loose litter wrappers (fresh SI-specific dressing is coming for the street).
+        // The bottle roll falls through to the pothole branch, so hazard density is kept.
+        const siClean = borough === "STATEN ISLAND";
         const hr = Math.random();
-        if (hr < 0.28) addBottles(b, hzX(1), R(1.5, 4.5));
+        if (hr < 0.28 && !siClean) addBottles(b, hzX(1), R(1.5, 4.5));
         else if (hr < 0.46) addPothole(b, hzX(1.5), R(-8, -3));
         else if (hr < 0.58) addHydrant(b, hzX(1.5), 0.8);
         else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));
         // loose food wrappers on the street next to the sidewalk (litter dressing)
-        if (Math.random() < 0.65) addWrapper(b, hzX(1), R(-2.5, -0.7));
+        if (Math.random() < 0.65 && !siClean) addWrapper(b, hzX(1), R(-2.5, -0.7));
         // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
         if (Math.random() < 0.15) addDogShit(b, hzX(1), R(0, 4.8));
         // sidewalk trees (registered in b.trees so NPC walkers route around them —
