@@ -1,22 +1,36 @@
 Whenever a task requires implementation:
+
 1. Begin your response by outlining a brief plan and listing the files you will touch.
 2. Immediately begin implementing the changes and applying edits in the same turn.
 3. Do not ask for confirmation before beginning implementation unless critical requirements are ambiguous.
 
+# CONTEXT COMPACTING PROTOCOL
+
+- **Before Starting a Task:** If the active conversation history is long or cluttered with old iterations, summarize the current workspace state and goal in your initial plan.
+- **After Complening a Task:** Once the task is fully finished, evaluate context weight. If necessary, summarize key architectural decisions and modified files to prepare for a clean continuation.
+
 When Cline is completely done with a prompt (the task is finished and the final answer has been written), play a beep sound to alert the user that the work is complete.
+
 - Do this by running a non-interactive shell command that emits a terminal bell, e.g. `powershell -NoProfile -Command "[console]::beep(1200, 350); [console]::beep(1600, 250)"`.
 - This is a courtesy alert only: do not stop, ask, or wait for anything before playing it, and do not play it mid-task or after every tool call. Play it exactly once, at the very end of a completed task.
 - If a beep is not possible in the current environment, mention that the task is complete so the user still gets the signal.
 
 # INTERACTIVE CREATIVE ADDITIONS PROTOCOL
+
 At the absolute end of every single response, you MUST provide exactly 3 creative, context-specific follow-up suggestions to expand on what the user just asked you to build or create. You must format these suggestions inside standard markdown text or markdown code blocks so they are immediately actionable for the user.
 
 Format the section precisely like this:
 
 ---
+
 💡 **Creative Next Steps & Ideas:**
+
 1. **[Add complementary elements]:** "Would you like me to add motorcycles, scooters, or bikes to the screen to accompany the car?"
 2. **[Enhance the environment]:** "Should we generate a scenic backdrop, like a neon-lit cyberpunk cityscape or a desert highway?"
 3. **[Introduce interactive behavior]:** "Would you like to add animations or a physics engine so the vehicles can move?"
 
 To make these instantly executable for the user, format specific file actions or terminal generation scripts inside code blocks immediately following the list if applicable. Always dynamically change these 3 options based entirely on the user's input (e.g., if they ask for a webpage layout, suggest color themes, dark modes, or interactive widgets).
+
+# FILE FOCUS PROTOCOL
+
+- As the absolute final step of any task modifying `index.html`, you MUST explicitly open it using the view/edit tool or run `code -r index.html` in the terminal to ensure it is the active editor tab before ending the task.

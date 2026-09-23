@@ -1,0 +1,174 @@
+// _si_house_chk.js — verify the Staten Island (New Dorp) house builder:
+// 1) all inline scripts in index.html still parse,
+// 2) HOUSE_TPLS maps "STATEN ISLAND" to makeStatenHouse (not the generic makeHouse),
+// 3) both variants build headless and honor the collision contract
+//    (userData.step, userData.stairs on the colonial, thin buildingFront stop line),
+// 4) every mesh has castShadow = false,
+// 5) NO corner stores on the level: the store gate never matches borough
+//    "STATEN ISLAND" and the ground path stays the plain green-lawns branch.
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+let src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+let ok = true;
+const check = (label, cond, extra) => {
+  console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label + (extra ? '  [' + extra + ']' : ''));
+  if (!cond) ok = false;
+};
+
+// ---- (1) syntax: parse every inline <script> ----
+const scripts = [];
+const re = /<script>([\s\S]*?)<\/script>/g;
+let m;
+while ((m = re.exec(src)) !== null) scripts.push(m[1]);
+let synOk = scripts.length > 0;
+for (const s of scripts) {
+  try {
+    new vm.Script(s);
+  } catch (e) {
+    synOk = false;
+    console.log('  script error: ' + e.message);
+  }
+}
+check('inline script(s) parse (' + scripts.length + ')', synOk);
+
+// ---- (2) registry wiring ----
+check(
+  'HOUSE_TPLS: STATEN ISLAND -> makeStatenHouse',
+  /"STATEN ISLAND":\s*makeStatenHouse,/.test(src),
+);
+check(
+  'HOUSE_TPLS: no borough left on the generic makeHouse',
+  !/:\s*makeHouse,/.test(src),
+);
+check(
+  'isStatenIslandLevel() helper exists and gates on the borough name',
+  /function isStatenIslandLevel\(\)\s*\{[\s\S]*?borough === "STATEN ISLAND";/.test(src),
+);
+
+// ---- (3) headless build of both variants ----
+function grabFn(name) {
+  const i = src.indexOf('function ' + name + '(');
+  if (i < 0) return null;
+  let depth = 0, started = false;
+  for (let j = i; j < src.length; j++) {
+    if (src[j] === '{') { depth++; started = true; }
+    else if (src[j] === '}') {
+      depth--;
+      if (started && depth === 0) return src.slice(i, j + 1);
+    }
+  }
+  return null;
+}
+const fnSrc = grabFn('makeStatenHouse');
+check('makeStatenHouse extracted', !!fnSrc, fnSrc ? fnSrc.length + ' chars' : 'missing');
+
+const M = (color) => ({ color });
+const R = (a, b) => a; // deterministic (returns the low bound)
+function BX(w, h, d, mat) {
+  return {
+    _kind: 'box', _ext: [w, h, d], _mat: mat,
+    position: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+  };
+}
+function CY(r1, r2, h, mat, s) {
+  return {
+    _kind: 'cyl',
+    position: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+  };
+}
+function SPH(r, mm) {
+  return {
+    _kind: 'sph',
+    position: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+  };
+}
+class Group {
+  constructor() {
+    this.position = { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } };
+    this.rotation = { x: 0, y: 0, z: 0 };
+    this.scale = { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } };
+    this.children = [];
+    this.userData = {};
+    this.isMesh = false;
+  }
+  add(c) { this.children.push(c); }
+  traverse(fn) { fn(this); this.children.forEach((c) => fn(c)); }
+}
+const THREE = {
+  Group,
+  MeshLambertMaterial: function (opts) { this.color = opts && opts.color; },
+};
+const factory = new Function('THREE', 'M', 'BX', 'CY', 'SPH', 'R', fnSrc + '\nreturn makeStatenHouse;');
+const makeStatenHouse = factory(THREE, M, BX, CY, SPH, R);
+
+// Force the variant with a scripted Math.random sequence:
+// call #1 = body color pick, call #2 = the `Math.random() >= 0.5` variant gate,
+// call #3 = porch-light gate (0.9 keeps the light OFF -> no glow branch in Node).
+function build(variantIsCottage) {
+  const seq = [0.1, variantIsCottage ? 0.9 : 0.1, 0.9];
+  let i = 0;
+  const realRandom = Math.random;
+  Math.random = () => (i < seq.length ? seq[i++] : realRandom());
+  try {
+    return makeStatenHouse();
+  } finally {
+    Math.random = realRandom;
+  }
+}
+const allMeshesNoCast = (g) => {
+  let bad = 0;
+  g.traverse((o) => { if (o.isMesh && o.castShadow !== false) bad++; });
+  return bad === 0;
+};
+
+const cottage = build(true);
+check('cottage: builds a group with children', cottage.children.length > 0, cottage.children.length + ' children');
+check('cottage: thin landing step top = 0.36', cottage.userData.step && cottage.userData.step.top === 0.36, JSON.stringify(cottage.userData.step && { top: cottage.userData.step.top, hw: cottage.userData.step.hw }));
+check('cottage: NO stairs array (ground-level door)', !cottage.userData.stairs);
+check('cottage: thin buildingFront stop line (hd: 0)', cottage.userData.buildingFront && cottage.userData.buildingFront.hd === 0, JSON.stringify(cottage.userData.buildingFront));
+check('cottage: no mesh casts a shadow', allMeshesNoCast(cottage));
+const W0 = 4.8; // deterministic low bound of R(4.8, 5.4) -> colonial width
+const colonial = build(false);
+check('colonial: builds a group with children', colonial.children.length > 0, colonial.children.length + ' children');
+check('colonial: porch landing step top = 0.3 + 0.7 + 0.06 = 1.06', colonial.userData.step && colonial.userData.step.top === 1.06, JSON.stringify(colonial.userData.step && { top: colonial.userData.step.top }));
+check('colonial: exactly 3 walkable step boxes', Array.isArray(colonial.userData.stairs) && colonial.userData.stairs.length === 3, 'got ' + (colonial.userData.stairs ? colonial.userData.stairs.length : 0));
+if (Array.isArray(colonial.userData.stairs)) {
+  const tops = colonial.userData.stairs.map((s) => s.top);
+  check('colonial: stair tops descend toward the sidewalk (1.02 / 0.78 / 0.54)', tops[0] === 1.02 && tops[1] === 0.78 && tops[2] === 0.54, JSON.stringify(tops));
+  const hwOk = colonial.userData.stairs.every((s) => Math.abs(s.hw - (W0 * 0.8 * 0.45) / 2 - 0.1) < 1e-6);
+  check('colonial: stair hw matches the VISUAL step width (porchW*0.45/2 + 0.1)', hwOk, JSON.stringify(colonial.userData.stairs.map((s) => s.hw)));
+}
+check('colonial: thin stop line at the porch outer face (hd: 0)', colonial.userData.buildingFront && colonial.userData.buildingFront.hd === 0, JSON.stringify(colonial.userData.buildingFront));
+check('colonial: no mesh casts a shadow', allMeshesNoCast(colonial));
+
+// ---- (4) NO corner stores on Staten Island ----
+check(
+  'spawnWorld: store gate never sets isStore for STATEN ISLAND',
+  !/borough === "STATEN ISLAND"[\s\S]{0,300}?isStore: true/.test(src),
+);
+check('no store name pool for STATEN ISLAND', !/STATEN ISLAND[\s\S]{0,120}?shuffleStoreNames/.test(src));
+check(
+  'ground path: Staten Island stays on the plain green-lawns branch (no concrete store aprons)',
+  /Non-Manhattan path: green lawns/.test(src) &&
+    !/STATEN ISLAND[\s\S]{0,120}?groundStrip\(/.test(src),
+);
+check(
+  'spawnMaxY caps Staten Island curb items at the sidewalk zone (5.0)',
+  /function spawnMaxY\(\)[\s\S]*?isStatenIslandLevel\(\)\) return 5\.0;/.test(src),
+);
+check(
+  'creatureMaxY keeps Staten Island critters off the porch band (5.0)',
+  /function creatureMaxY\(\)[\s\S]*?isStatenIslandLevel\(\)\) return 5\.0;/.test(src),
+);
+
+console.log(ok ? '\nSTATEN ISLAND HOUSE CHECKS PASSED' : '\nFAILURES DETECTED');
+process.exit(ok ? 0 : 1);

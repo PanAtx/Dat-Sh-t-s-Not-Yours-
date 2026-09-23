@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.227</div>
+          <div id="app-version" class="menu-version">v1.0.228</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.227';
+      const APP_VERSION = '1.0.228';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2368,15 +2368,19 @@
         if (isManhattanLevel()) return 4.8;
         if (isFlatbushLevel()) return 5.0;
         if (isBronxLevel()) return 4.8;
+        if (isStatenIslandLevel()) return 5.0;
         return 7.5;
       }
       // Spawn y-range for curb items, bonuses, powerups: sidewalk only in Manhattan.
       // Flatbush: sidewalk only (no front-lawn spawning — porch and steps clip items).
       // Bronx: sidewalk only (no front lawn).
+      // Staten Island: sidewalk zone only — the colonial porches + cottage landings
+      // occupy the front-lawn band, so curb items spawn on the walk (y 0.5..5.0).
       function spawnMaxY() {
         if (isManhattanLevel()) return 4.8;
         if (isFlatbushLevel()) return 5.0;
         if (isBronxLevel()) return 4.8;
+        if (isStatenIslandLevel()) return 5.0;
         return 7.0;
       }
       const ANALOG_RESP = 0.55; // analog response exponent (concave: rises fast, eases to full speed)
@@ -2453,7 +2457,7 @@
         { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 4; // which day a fresh week begins on (4 = Thursday, Queens / Maspeth). TEMP: set to 4 to develop level 4 — flip back to 1 to ship the full Mon..Sun week
+      const START_LEVEL = 5; // which day a fresh week begins on (5 = Friday, Staten Island / New Dorp). TEMP: set to 5 to develop level 5 — flip back to 1 to ship the full Mon..Sun week
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -11063,48 +11067,381 @@
         };
         return g;
       }
+      // ==================== STATEN ISLAND HOUSE (level 5 — Friday, New Dorp) ====================
+      // Staten Island has NO corner stores — every corner on the route is a residence.
+      // The street is a 50/50 mix of two styles borrowed from other boroughs:
+      //   A) QUEENS-style compact ranch cottage: single story, wide overhanging roof,
+      //      thin concrete landing, porch bulb (30% lit with a downward glow wash),
+      //      white-trim windows with muntins, tulip beds flanking the door.
+      //   B) FLATBUSH-style two-story colonial: A-frame gable roof, elevated brick porch
+      //      with 3 walkable steps (userData.stairs) and solid step backings, elevated
+      //      door on the porch, two floors of windows, front-yard flowers past the steps.
+      // Each variant exposes the same collision contract as its donor: userData.step
+      // (landing top for stepTopAt), userData.stairs (colonial), and a thin
+      // userData.buildingFront stop line so the worker reaches the door but never
+      // clips through the front face. Edit freely here — changes stay in New Dorp and
+      // will NOT affect Queens, Flatbush, or any other neighborhood.
       function makeStatenHouse() {
         const g = new THREE.Group();
-        const cols = [0x9a8a7a, 0x8a7a6a, 0xaa9a8a];
+        const cols = [
+          0x8a5a3b, 0x9c7a4d, // cedar shingle browns
+          0x8c3830, 0x7a3b34, // traditional brick red
+          0xe8e4d8, 0xf0ede6, // colonial cream / linen white
+          0x4a6a9a, 0x5d7386, // Cape Cod slate blue
+          0x4a7a52, 0x5d7a64, // sage / moss green
+          0x9a948a, // weathered stone grey
+        ];
         const col = cols[(Math.random() * cols.length) | 0];
-        const w = 10.0,
-          d = 6.0,
-          h = 3.5;
+        const flowerColors = [
+          0xe94560, 0xf9c74f, 0xff6b6b, 0xff9ff3, 0xffffff, 0x54a0ff, 0xffd700,
+          0xc05ac0,
+        ];
+        const wm = new THREE.MeshLambertMaterial({
+          color: 0x9fd0e8,
+          emissive: 0x24434f,
+          emissiveIntensity: 0.7,
+        });
+        const muntinM = M(0x8a8a8a);
+        // One tulip cluster (stem + 3 petals + tips + center) at house-local (fx, fy).
+        const addTulip = (fx, fy) => {
+          const stem = CY(0.028, 0.022, 0.26, M(0x2d6a4f), 5);
+          stem.rotation.x = Math.PI / 2;
+          stem.position.set(fx, fy, 0.43);
+          stem.castShadow = false;
+          g.add(stem);
+          const flowerColor =
+            flowerColors[(Math.random() * flowerColors.length) | 0];
+          const petalMat = M(flowerColor);
+          for (let p = 0; p < 3; p++) {
+            const angle = (p / 3) * Math.PI * 2;
+            const petal = SPH(0.07, petalMat);
+            petal.position.set(
+              fx + Math.cos(angle) * 0.05,
+              fy + Math.sin(angle) * 0.05,
+              0.55,
+            );
+            petal.scale.set(1.35, 1.35, 1.0);
+            petal.castShadow = false;
+            g.add(petal);
+            const tip = SPH(0.045, petalMat);
+            tip.position.set(
+              fx + Math.cos(angle) * 0.03,
+              fy + Math.sin(angle) * 0.03,
+              0.6,
+            );
+            tip.castShadow = false;
+            g.add(tip);
+          }
+          const center = SPH(0.05, M(0x8b6914));
+          center.position.set(fx, fy, 0.57);
+          center.castShadow = false;
+          g.add(center);
+        };
+
+        if (Math.random() >= 0.5) {
+          // ---- VARIANT A: QUEENS-style compact ranch cottage ----
+          const w = R(3.6, 4.6),
+            d = R(3.4, 4.2),
+            h = R(3.0, 4.4);
+          // House body sits ON TOP of the grass (z=0.3) — no z-fight with the lawn strip.
+          const body = BX(w, d, h, M(col));
+          body.position.z = 0.3 + h / 2;
+          body.receiveShadow = false;
+          g.add(body);
+          const roof = BX(w + 0.8, d + 0.8, 0.4, M(0x2e2a26));
+          roof.position.z = 0.3 + h + 0.2;
+          g.add(roof);
+          // Door: flush with the wall, with frame and doorknob
+          const doorW = 0.9,
+            doorH = 1.7,
+            doorT = 0.08;
+          const doorFrame = BX(doorW + 0.12, 0.1, doorH + 0.06, M(0x2e2820));
+          doorFrame.position.set(0, -d / 2 + 0.01, 0.3 + doorH / 2 + 0.03);
+          g.add(doorFrame);
+          const door = BX(doorW, doorT, doorH, M(0x3a2c20));
+          door.position.set(0, -d / 2 - 0.01, 0.3 + doorH / 2);
+          g.add(door);
+          const handle = SPH(
+            0.045,
+            new THREE.MeshLambertMaterial({
+              color: 0xcccccc,
+              emissive: 0x444444,
+              emissiveIntensity: 0.4,
+            }),
+          );
+          handle.position.set(0.32, -d / 2 - 0.04, 0.3 + 0.9);
+          g.add(handle);
+          // Two front windows with white frames and grey muntin cross bars
+          for (let i = 0; i < 2; i++) {
+            const side = i === 0 ? -1 : 1;
+            const winX = side * w * 0.3;
+            const winFrame = BX(0.86, 0.11, 0.86, M(0xffffff));
+            winFrame.position.set(winX, -d / 2 + 0.01, 0.3 + h * 0.6);
+            g.add(winFrame);
+            const win = BX(0.78, 0.06, 0.78, wm);
+            win.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
+            g.add(win);
+            const muntinV = BX(0.08, 0.08, 0.76, muntinM);
+            muntinV.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
+            g.add(muntinV);
+            const muntinH = BX(0.76, 0.08, 0.08, muntinM);
+            muntinH.position.set(winX, -d / 2 - 0.01, 0.3 + h * 0.6);
+            g.add(muntinH);
+          }
+          // Side window on the sidewalk-facing flank
+          const winSFrame = BX(0.11, 0.86, 0.86, M(0xffffff));
+          winSFrame.position.set(w / 2 + 0.01, 0, 0.3 + h * 0.6);
+          g.add(winSFrame);
+          const winS = BX(0.06, 0.78, 0.78, wm);
+          winS.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
+          g.add(winS);
+          const muntinV2 = BX(0.08, 0.76, 0.08, muntinM);
+          muntinV2.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
+          g.add(muntinV2);
+          const muntinH2 = BX(0.08, 0.08, 0.76, muntinM);
+          muntinH2.position.set(w / 2 - 0.01, 0, 0.3 + h * 0.6);
+          g.add(muntinH2);
+          // Wall-mounted porch light above the door: only ~30% of houses have it ON;
+          // the rest keep a dim unlit bulb so the row never reads uniform.
+          const porchLightOn = Math.random() < 0.3;
+          const bracket = BX(0.06, 0.08, 0.18, M(0x333333));
+          bracket.position.set(0, -d / 2 - 0.03, 0.3 + 1.92);
+          g.add(bracket);
+          const bulb = SPH(
+            0.065,
+            new THREE.MeshLambertMaterial({
+              color: porchLightOn ? 0xffffcc : 0x9a9484,
+              emissive: porchLightOn ? 0xffff66 : 0x000000,
+              emissiveIntensity: porchLightOn ? 4.5 : 0,
+            }),
+          );
+          bulb.position.set(0, -d / 2 - 0.03, 0.3 + 1.82);
+          g.add(bulb);
+          // Lit houses get the additive downward glow pool, flickered per-frame by
+          // updateBulbGlow() (reads g.userData.glow + flickerPhase/flickerSpeed).
+          if (
+            porchLightOn &&
+            typeof document !== "undefined" &&
+            THREE.Sprite &&
+            THREE.CanvasTexture
+          ) {
+            const glowCanvas = (function () {
+              const c = document.createElement("canvas");
+              c.width = 128;
+              c.height = 128;
+              const ctx = c.getContext("2d");
+              const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+              grad.addColorStop(0, "rgba(255,255,200,1)");
+              grad.addColorStop(0.3, "rgba(255,240,150,0.6)");
+              grad.addColorStop(0.7, "rgba(255,220,100,0.18)");
+              grad.addColorStop(1, "rgba(255,210,90,0)");
+              ctx.fillStyle = grad;
+              ctx.fillRect(0, 0, 128, 128);
+              return new THREE.CanvasTexture(c);
+            })();
+            const glow = new THREE.Sprite(
+              new THREE.SpriteMaterial({
+                map: glowCanvas,
+                color: 0xffe680,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.55,
+                depthWrite: false,
+              }),
+            );
+            glow.userData.aw = 0.8;
+            glow.userData.ah = 1.45;
+            glow.scale.set(1.12, 2.03, 1);
+            glow.position.set(0, -d / 2 - 0.02, 0.3 + 1.1);
+            g.add(glow);
+            g.userData.glow = glow;
+          }
+          g.userData.flickerPhase = Math.random() * 100;
+          g.userData.flickerSpeed = 0.6 + Math.random() * 0.9;
+          // Thin concrete landing in front of the door (top 0.36, just above the 0.3 lawn)
+          const step = BX(2.5, 1.0, 0.06, M(0x9a948a));
+          step.position.set(0, -d / 2 - 0.6, 0.33);
+          step.castShadow = false;
+          step.receiveShadow = true;
+          g.add(step);
+          g.userData.step = {
+            cx: 0,
+            cy: -d / 2 - 0.6,
+            hw: 1.25,
+            hd: 0.5,
+            top: 0.33 + 0.03,
+          };
+          // Thin stop line at the front face — the worker reaches the door, never clips the wall
+          g.userData.buildingFront = {
+            hw: w / 2,
+            cy: -d / 2,
+            hd: 0,
+            stoopX: 0,
+            stoopHw: 0,
+          };
+          // Tulip beds flanking the door (3 left, 3 right) on the front lawn
+          for (let i = 0; i < 6; i++) {
+            const side = i < 3 ? -1 : 1;
+            addTulip(side * R(w * 0.33, w * 0.47), -d / 2 - R(1.0, 2.6));
+          }
+          g.traverse((o) => {
+            if (o.isMesh) o.castShadow = false;
+          });
+          return g;
+        }
+
+        // ---- VARIANT B: FLATBUSH-style two-story colonial ----
+        const w = R(4.8, 5.4),
+          d = R(4.2, 4.8),
+          h = R(4.8, 5.5);
         const body = BX(w, d, h, M(col));
         body.position.z = 0.3 + h / 2;
+        body.receiveShadow = false;
         g.add(body);
-        const roof = BX(w + 0.5, d + 0.5, 0.3, M(0x2a2a2a));
-        roof.position.z = 0.3 + h + 0.15;
-        g.add(roof);
-        const winM = new THREE.MeshLambertMaterial({
-          color: 0x8cc0e8,
-          emissive: 0x1a3a4f,
-          emissiveIntensity: 0.4,
-        });
-        for (let floor = 0; floor < 2; floor++) {
-          const fy = 0.3 + 1.0 + floor * 1.3;
-          for (let x = -1; x <= 1; x += 2) {
-            const frame = BX(0.8, 0.1, 1.1, M(0x1a1a1a));
-            frame.position.set(x * w * 0.22, -d / 2 + 0.04, fy);
-            g.add(frame);
-            const glass = BX(0.7, 0.04, 1.0, winM);
-            glass.position.set(x * w * 0.22, -d / 2 - 0.05, fy);
-            g.add(glass);
-          }
+        // A-frame gable roof (two angled slabs meeting at the ridge)
+        const roofMat = M(0x2e2a26);
+        const roofAngle = Math.atan2(h * 0.45, w * 0.55);
+        const roofLen = (w * 0.55) / Math.cos(roofAngle);
+        const roofL = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
+        roofL.position.set(0, 0, 0.3 + h + h * 0.22);
+        roofL.rotation.z = roofAngle;
+        g.add(roofL);
+        const roofR = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
+        roofR.position.set(0, 0, 0.3 + h + h * 0.22);
+        roofR.rotation.z = -roofAngle;
+        g.add(roofR);
+        // Elevated front porch (solid brick base with cement top slab)
+        const porchW = w * 0.8;
+        const porchD = 1.2;
+        const porchH = 0.7;
+        const porchBase = BX(porchW, porchD, porchH, M(0x8b5a3a));
+        porchBase.position.set(0, -d / 2 - porchD / 2, 0.3 + porchH / 2);
+        porchBase.receiveShadow = true;
+        g.add(porchBase);
+        const porchTop = BX(porchW + 0.1, porchD + 0.1, 0.12, M(0x9a948a));
+        porchTop.position.set(0, -d / 2 - porchD / 2, 0.3 + porchH + 0.06);
+        porchTop.receiveShadow = true;
+        g.add(porchTop);
+        // Brick steps leading up to the porch (s=0 top step, s=2 bottom step)
+        const stepMat = M(0x8b5a3a);
+        const stepW = porchW * 0.45;
+        const stepD = 0.4;
+        const stepH = 0.24;
+        for (let s = 0; s < 3; s++) {
+          const step = BX(stepW, stepD, stepH, stepMat);
+          step.position.set(
+            0,
+            -d / 2 - porchD - (s + 0.5) * stepD,
+            0.3 + (2 - s) * stepH + stepH / 2,
+          );
+          step.castShadow = false;
+          step.receiveShadow = true;
+          g.add(step);
         }
-        const porch = BX(w * 0.8, 1.0, 0.1, M(0x8a7a6a));
-        porch.position.set(0, -d / 2 - 0.5, 0.3 + 0.55);
-        g.add(porch);
-        const door = BX(0.9, 0.1, 1.7, M(0x4a3a2a));
-        door.position.set(0, -d / 2 + 0.05, 0.3 + 1.55);
+        // Solid darker-brick backing under the two upper steps so the stoop doesn't float
+        const stepBackingMat = M(0x74482d);
+        for (let s = 0; s < 2; s++) {
+          const backingH = (2 - s) * stepH;
+          const backing = BX(stepW, stepD, backingH, stepBackingMat);
+          backing.position.set(
+            0,
+            -d / 2 - porchD - (s + 0.5) * stepD,
+            0.3 + backingH / 2 - 0.005,
+          );
+          backing.castShadow = false;
+          backing.receiveShadow = true;
+          g.add(backing);
+        }
+        // Elevated door on the porch (door bottom above porch level) with frame + knob
+        const doorW = 0.9,
+          doorH = 1.7,
+          doorT = 0.08;
+        const doorFrame = BX(doorW + 0.12, 0.1, doorH + 0.06, M(0x2e2820));
+        doorFrame.position.set(
+          0,
+          -d / 2 + 0.01,
+          0.3 + porchH + 0.25 + doorH / 2 + 0.03,
+        );
+        g.add(doorFrame);
+        const door = BX(doorW, doorT, doorH, M(0x3a2c20));
+        door.position.set(0, -d / 2 - 0.01, 0.3 + porchH + 0.25 + doorH / 2);
         g.add(door);
-        // Door step area data for stepTopAt()
+        const handle = SPH(
+          0.045,
+          new THREE.MeshLambertMaterial({
+            color: 0xcccccc,
+            emissive: 0x444444,
+            emissiveIntensity: 0.4,
+          }),
+        );
+        handle.position.set(0.32, -d / 2 - 0.04, 0.3 + porchH + 0.25 + 0.9);
+        g.add(handle);
+        // Two floors of double windows (raised so the first floor clears the porch)
+        for (let floor = 0; floor < 2; floor++) {
+          const fy = 0.3 + 2.2 + floor * 1.8;
+          for (let i = 0; i < 2; i++) {
+            const side = i === 0 ? -1 : 1;
+            const winX = side * w * 0.3;
+            const winFrame = BX(0.86, 0.11, 0.86, M(0xffffff));
+            winFrame.position.set(winX, -d / 2 + 0.01, fy);
+            g.add(winFrame);
+            const win = BX(0.78, 0.06, 0.78, wm);
+            win.position.set(winX, -d / 2 - 0.01, fy);
+            g.add(win);
+            const muntinV = BX(0.08, 0.08, 0.76, muntinM);
+            muntinV.position.set(winX, -d / 2 - 0.01, fy);
+            g.add(muntinV);
+            const muntinH = BX(0.76, 0.08, 0.08, muntinM);
+            muntinH.position.set(winX, -d / 2 - 0.01, fy);
+            g.add(muntinH);
+          }
+          // Side windows on the sidewalk-facing flank
+          const winSFrame = BX(0.11, 0.86, 0.86, M(0xffffff));
+          winSFrame.position.set(w / 2 + 0.01, 0, fy);
+          g.add(winSFrame);
+          const winS = BX(0.06, 0.78, 0.78, wm);
+          winS.position.set(w / 2 - 0.01, 0, fy);
+          g.add(winS);
+        }
+        // Porch landing step data (top of the cement slab) for stepTopAt()
         g.userData.step = {
-          hw: w * 0.35,
-          cy: -d / 2 - 0.5,
-          hd: 0.4,
-          top: 0.36,
+          cx: 0,
+          cy: -d / 2 - porchD / 2,
+          hw: porchW / 2 + 0.3,
+          hd: porchD / 2 + 0.4,
+          top: 0.3 + porchH + 0.06,
         };
+        // Per-step collision boxes: hw matches the VISUAL step width (stepW = porchW*0.45),
+        // so the worker climbs on the brick and never stands in mid-air beside the stoop.
+        g.userData.stairs = [];
+        for (let s = 0; s < 3; s++) {
+          const stepY = -d / 2 - porchD - (s + 0.5) * stepD;
+          const stepTop = 0.3 + (2 - s) * stepH + stepH;
+          g.userData.stairs.push({
+            cx: 0,
+            cy: stepY,
+            hw: stepW / 2 + 0.1,
+            hd: stepD + 0.2,
+            top: stepTop,
+          });
+        }
+        // Stop line at the porch's outer face (the nearest solid face): the worker walks up
+        // the stairs to the porch edge and is held a body-width short of the brick base.
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2 - porchD,
+          hd: 0,
+          stoopX: 0,
+          stoopHw: stepW / 2,
+        };
+        // Front-yard tulips in the grass between the steps and the sidewalk
+        for (let i = 0; i < 6; i++) {
+          const side = i < 3 ? -1 : 1;
+          addTulip(side * R(w * 0.15, w * 0.4), -R(4.7, 5.1));
+        }
+        g.traverse((o) => {
+          if (o.isMesh) o.castShadow = false;
+        });
         return g;
       }
       function isManhattanLevel() {
@@ -11123,6 +11460,10 @@
         if (!LEVEL_DAYS[level - 1]) return false;
         return LEVEL_DAYS[level - 1].borough === "QUEENS";
       }
+      function isStatenIslandLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
+        return LEVEL_DAYS[level - 1].borough === "STATEN ISLAND";
+      }
 
       // ==================== HOUSE TEMPLATE REGISTRY ====================
       // Maps each borough's name (from LEVEL_DAYS) to the builder function that
@@ -11135,7 +11476,7 @@
         MANHATTAN: makeBrownstone, // tall 4-story brick buildings, high stoops
         "THE BRONX": makeBronxApartment, // dedicated 3-story Bronx apartment block (isolated from Manhattan brownstones)
         QUEENS: makeQueensHouse, // level 4 (Thursday, Maspeth) — dedicated Queens layout (own copy, won't leak to other neighborhoods)
-        "STATEN ISLAND": makeHouse, // small house with flowers (old template, customize later)
+        "STATEN ISLAND": makeStatenHouse, // level 5 (Friday, New Dorp) — 50/50 mix of Queens cottages + Flatbush colonials, NO corner stores
         BROOKLYN: makeBrooklynFlatbushHouse, // Queens-style houses for the Flatbush level (day 3)
       };
 
