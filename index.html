@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.232</div>
+          <div id="app-version" class="menu-version">v1.0.233</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.232';
+      const APP_VERSION = '1.0.233';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11146,48 +11146,57 @@
           const kind = kindRoll < 0.7 ? "US" : kindRoll < 0.85 ? "IE" : "IT";
           g.userData.flag = { kind };
           const poleL = 1.15;
-          const pole = CY(0.028, 0.022, poleL, M(0xc8cdd4));
+          const pole = CY(0.022, 0.03, poleL, M(0xc8cdd4));
+          pole.rotation.x = Math.PI / 2; // stand it up: cylinder axis Y -> Z (lawn is flat in X/Y)
           pole.position.set(fx, fy, 0.3 + poleL / 2);
           g.add(pole);
           const fin = SPH(0.04, M(0xd8dce2));
           fin.position.set(fx, fy, 0.3 + poleL + 0.03);
           g.add(fin);
-          // Cloth on top, flowing out toward the street (-y), hanging from the tip
-          const ty = fy - 0.02,
-            tz = 0.3 + poleL - 0.02;
+          // Cloth on top, flowing out toward the street (-y), hanging from the tip.
+          // 2D: zero-thickness planes standing in the X-Z plane (face ±Y), DoubleSide.
+          const top = 0.3 + poleL - 0.02,
+            ty = fy - 0.02;
           const CW = 0.5,
-            CD = 0.35,
-            CH = 0.35; // width (x) / depth (y, out from the pole) / height (z)
+            CH = 0.35; // width (x) / height (z, vertical)
+          const clothPlane = (pw, ph, mat, px, py, pz) => {
+            const p = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), mat);
+            p.rotation.x = -Math.PI / 2;
+            p.position.set(px, py, pz);
+            p.castShadow = false;
+            g.add(p);
+          };
+          const flagM = (c) => M(c, { side: THREE.DoubleSide });
           if (kind === "US") {
             const sh = CH / 3;
-            const s1 = BX(CW, CD, sh, M(0xb22234)); // top red stripe
-            s1.position.set(fx, ty - CD / 2, tz - sh / 2);
-            g.add(s1);
-            const s2 = BX(CW, CD, sh, M(0xffffff)); // middle white stripe
-            s2.position.set(fx, ty - CD / 2, tz - sh - sh / 2);
-            g.add(s2);
-            const s3 = BX(CW, CD, sh, M(0xb22234)); // bottom red stripe
-            s3.position.set(fx, ty - CD / 2, tz - 2 * sh - sh / 2);
-            g.add(s3);
-            const cant = BX(CW * 0.45, 0.1, 2 * sh + 0.02, M(0x3c3b6e)); // canton
+            const red = flagM(0xb22234),
+              white = flagM(0xffffff),
+              blue = flagM(0x3c3b6e);
+            clothPlane(CW, sh, red, fx, ty, top - sh / 2); // top red stripe
+            clothPlane(CW, sh, white, fx, ty, top - sh * 1.5); // middle white stripe
+            clothPlane(CW, sh, red, fx, ty, top - sh * 2.5); // bottom red stripe
             const cSide = Math.random() < 0.5 ? -1 : 1;
-            cant.position.set(
+            clothPlane(
+              CW * 0.45,
+              2 * sh + 0.01,
+              blue,
               fx + cSide * (CW / 2 - (CW * 0.45) / 2),
-              ty - 0.05,
-              tz - sh,
+              ty - 0.015, // canton sits just in front of the stripes (no z-fight)
+              top - sh,
             );
-            g.add(cant);
           } else {
             // Ireland: green / white / orange. Italy: green / white / red.
             const bandCols =
-              kind === "IE"
-                ? [M(0x169b62), M(0xffffff), M(0xff883e)]
-                : [M(0x009246), M(0xffffff), M(0xce2b37)];
-            const bw = CD / 3;
+              kind === "IE" ? [0x169b62, 0xffffff, 0xff883e] : [0x009246, 0xffffff, 0xce2b37];
             for (let bi = 0; bi < 3; bi++) {
-              const band = BX(CW, bw, CH, bandCols[bi]);
-              band.position.set(fx, ty - bw * bi - bw / 2, tz - CH / 2);
-              g.add(band);
+              clothPlane(
+                CW / 3,
+                CH,
+                flagM(bandCols[bi]),
+                fx + (bi - 1) * (CW / 3),
+                ty,
+                top - CH / 2,
+              );
             }
           }
         };

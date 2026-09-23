@@ -106,6 +106,16 @@ class Group {
 const THREE = {
   Group,
   MeshLambertMaterial: function (opts) { this.color = opts && opts.color; },
+  Mesh: function (geo, mat) {
+    return {
+      _kind: 'plane', _mat: mat,
+      position: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+      rotation: { x: 0, y: 0, z: 0 },
+      scale: { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
+    };
+  },
+  PlaneGeometry: function (w, h) { this.w = w; this.h = h; },
+  DoubleSide: 2,
 };
 const factory = new Function('THREE', 'M', 'BX', 'CY', 'SPH', 'R', fnSrc + '\nreturn makeStatenHouse;');
 const makeStatenHouse = factory(THREE, M, BX, CY, SPH, R);
@@ -198,8 +208,9 @@ check(
 
 // ---- (6) Garden flags: small flag planted in the front lawn, mostly US + occasional IE/IT ----
 check(
-  'flag system: addGardenFlag plants a VERTICAL pole in the lawn (base at z=0.3)',
+  'flag system: addGardenFlag plants an UPRIGHT pole (cylinder rotated PI/2 so Y axis -> Z up)',
   /const addGardenFlag = \(fx, fy\) => \{/.test(fnSrc) &&
+    /pole\.rotation\.x = Math\.PI \/ 2/.test(fnSrc) &&
     /pole\.position\.set\(fx, fy, 0\.3 \+ poleL \/ 2\)/.test(fnSrc),
 );
 check(
@@ -212,13 +223,20 @@ check(
 );
 check(
   'flag cloth colors: US red/white/blue + Irish green-white-orange + Italian green-white-red',
-  fnSrc.indexOf('M(0xb22234)') >= 0 && fnSrc.indexOf('M(0x3c3b6e)') >= 0 &&
-    fnSrc.indexOf('M(0x169b62)') >= 0 && fnSrc.indexOf('M(0xff883e)') >= 0 &&
-    fnSrc.indexOf('M(0x009246)') >= 0 && fnSrc.indexOf('M(0xce2b37)') >= 0,
+  ['0xb22234', '0x3c3b6e', '0x169b62', '0xff883e', '0x009246', '0xce2b37'].every(
+    (c) => fnSrc.indexOf(c) >= 0,
+  ),
 );
 check(
-  'pole geometry: 1.15u silver garden pole + finial ball, small cloth 0.5 x 0.35 on top',
-  /const poleL = 1\.15;/.test(fnSrc) && /CY\(0\.028, 0\.022, poleL, M\(0xc8cdd4\)\)/.test(fnSrc) &&
+  'cloth is 2D: zero-thickness DoubleSide planes (NOT boxes), standing in the X-Z plane (rotation.x = -PI/2)',
+  /new THREE\.PlaneGeometry\(pw, ph\)/.test(fnSrc) &&
+    /p\.rotation\.x = -Math\.PI \/ 2/.test(fnSrc) &&
+    /side: THREE\.DoubleSide/.test(fnSrc) &&
+    !/BX\(CW,/.test(fnSrc),
+);
+check(
+  'pole geometry: 1.15u silver tapered garden pole + finial ball, cloth 0.5 x 0.35 on top',
+  /const poleL = 1\.15;/.test(fnSrc) && /CY\(0\.022, 0\.03, poleL, M\(0xc8cdd4\)\)/.test(fnSrc) &&
     /SPH\(0\.04, M\(0xd8dce2\)\)/.test(fnSrc) && /CW = 0\.5,/.test(fnSrc),
 );
 check(
@@ -259,8 +277,8 @@ const poleMesh = flaggedUS.children.find(
   (c) => c._kind === 'cyl' && Math.abs(c.position.z - (0.3 + 1.15 / 2)) < 1e-9,
 );
 check(
-  'flag: garden pole planted in the lawn (cylinder base z=0.3, top at 1.45), beside the stoop',
-  !!poleMesh && poleMesh.rotation.x === 0 &&
+  'flag: garden pole UPRIGHT in the lawn (base z=0.3, top 1.45, rotated PI/2), beside the stoop',
+  !!poleMesh && Math.abs(poleMesh.rotation.x - Math.PI / 2) < 1e-9 &&
     Math.abs(Math.abs(poleMesh.position.x) - 1.7) < 1e-9 &&
     Math.abs(poleMesh.position.y + 4.8) < 1e-9,
 );
@@ -269,16 +287,21 @@ const finMesh = flaggedUS.children.find(
 );
 check('flag: finial ball at the pole tip (z = 1.48)', !!finMesh);
 const afterPole = poleMesh ? flaggedUS.children.slice(flaggedUS.children.indexOf(poleMesh) + 1) : [];
-check('flag: US cloth = 3 stripes + canton (4 boxes after the pole)', afterPole.filter((c) => c._kind === 'box').length === 4);
+const flagPlanes = afterPole.filter((c) => c._kind === 'plane');
+check(
+  'flag: US cloth = 3 stripes + canton (4 zero-thickness planes, standing in the X-Z plane)',
+  flagPlanes.length === 4 &&
+    flagPlanes.every((p) => Math.abs(p.rotation.x + Math.PI / 2) < 1e-9),
+);
 const flaggedIE = buildFlagged(0.75);
-check('flag: Ireland house records userData.flag.kind = "IE" (3 tricolor bands)', flaggedIE.userData.flag && flaggedIE.userData.flag.kind === 'IE' && (() => {
+check('flag: Ireland house records userData.flag.kind = "IE" (3 tricolor planes)', flaggedIE.userData.flag && flaggedIE.userData.flag.kind === 'IE' && (() => {
   const p = flaggedIE.children.find((c) => c._kind === 'cyl' && Math.abs(c.position.z - (0.3 + 1.15 / 2)) < 1e-9);
-  return p && flaggedIE.children.slice(flaggedIE.children.indexOf(p) + 1).filter((c) => c._kind === 'box').length === 3;
+  return p && flaggedIE.children.slice(flaggedIE.children.indexOf(p) + 1).filter((c) => c._kind === 'plane').length === 3;
 })());
 const flaggedIT = buildFlagged(0.9);
-check('flag: Italy house records userData.flag.kind = "IT" (3 tricolor bands)', flaggedIT.userData.flag && flaggedIT.userData.flag.kind === 'IT' && (() => {
+check('flag: Italy house records userData.flag.kind = "IT" (3 tricolor planes)', flaggedIT.userData.flag && flaggedIT.userData.flag.kind === 'IT' && (() => {
   const p = flaggedIT.children.find((c) => c._kind === 'cyl' && Math.abs(c.position.z - (0.3 + 1.15 / 2)) < 1e-9);
-  return p && flaggedIT.children.slice(flaggedIT.children.indexOf(p) + 1).filter((c) => c._kind === 'box').length === 3;
+  return p && flaggedIT.children.slice(flaggedIT.children.indexOf(p) + 1).filter((c) => c._kind === 'plane').length === 3;
 })());
 
 console.log(ok ? '\nSTATEN ISLAND HOUSE CHECKS PASSED' : '\nFAILURES DETECTED');
