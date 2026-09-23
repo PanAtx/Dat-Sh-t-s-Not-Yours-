@@ -160,6 +160,54 @@ if (Array.isArray(colonial.userData.stairs)) {
 }
 check('colonial: thin stop line at the porch outer face (hd: 0)', colonial.userData.buildingFront && colonial.userData.buildingFront.hd === 0, JSON.stringify(colonial.userData.buildingFront));
 check('colonial: no mesh casts a shadow', allMeshesNoCast(colonial));
+  check('colonial: no mesh casts a shadow', allMeshesNoCast(colonial));
+
+// ---- (3b) worker stands ON each brick step — no floating over the stoop ----
+// Run the REAL stepTopAt (from index.html) over the world-space bands that
+// makeBlockContents computes for this colonial, and verify the worker's feet land
+// on each step's VISUAL top — the porch-top (1.06) lift must end at the porch face.
+{
+  const GZ = 0.3;
+  const HOUSE_Y = 10.5; // makeBlockContents default (Staten Island uses the default)
+  const houseX = 4.0; // hg.position.x for regular houses
+  const stLocal = colonial.userData.step;
+  const landing = {
+    x0: houseX + (stLocal.cx || 0) - stLocal.hw,
+    x1: houseX + (stLocal.cx || 0) + stLocal.hw,
+    y0: HOUSE_Y + stLocal.cy - stLocal.hd,
+    y1: HOUSE_Y + stLocal.cy + stLocal.hd,
+    top: stLocal.top,
+  };
+  const stairs = colonial.userData.stairs.map((st) => {
+    const cx = st.cx || 0;
+    return {
+      x0: houseX + cx - st.hw,
+      x1: houseX + cx + st.hw,
+      y0: HOUSE_Y + st.cy - st.hd,
+      y1: HOUSE_Y + st.cy + st.hd,
+      top: st.top,
+    };
+  });
+  const blocks = [{ house: { step: landing }, stairs }];
+  const stSrc = grabFn('stepTopAt');
+  check('stepTopAt extracted', !!stSrc, stSrc ? stSrc.length + ' chars' : 'missing');
+  const stepTopAt = new Function('blocks', 'GZ', stSrc + '\nreturn stepTopAt;')(blocks, GZ);
+  // Deterministic colonial (R -> low bounds: d = 4.2, w = 4.8): house front face at
+  // 10.5 - 2.1 = 8.4, porch face (F) at 7.2. World step centers: s0 7.0, s1 6.6, s2 6.2.
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  check('landing lift band ends EXACTLY at the porch face (y0 = 7.2)', near(landing.y0, 7.2), 'y0 = ' + landing.y0);
+  check('on top step (y 7.0) -> 1.02 (top step brick, not porch height)', near(stepTopAt(4, 7.0), 1.02), String(stepTopAt(4, 7.0)));
+  check('just off the porch face (y 7.1) -> 1.02 (lift does not spill onto the steps)', near(stepTopAt(4, 7.1), 1.02), String(stepTopAt(4, 7.1)));
+  check('on top step front half (y 6.9) -> 1.02 (was floating at landing height before)', near(stepTopAt(4, 6.9), 1.02), String(stepTopAt(4, 6.9)));
+  check('on middle step (y 6.6) -> 0.78 (was lifted to the top step 1.02 before)', near(stepTopAt(4, 6.6), 0.78), String(stepTopAt(4, 6.6)));
+  check('on middle step front half (y 6.5) -> 0.78 (was floating at 1.02 before)', near(stepTopAt(4, 6.5), 0.78), String(stepTopAt(4, 6.5)));
+  check('on bottom step (y 6.2) -> 0.54 (was lifted to the middle step 0.78 before)', near(stepTopAt(4, 6.2), 0.54), String(stepTopAt(4, 6.2)));
+  check('on bottom step front half (y 6.1) -> 0.54 (was floating at 0.78 before)', near(stepTopAt(4, 6.1), 0.54), String(stepTopAt(4, 6.1)));
+  check('in the grass in front of the stoop (y 5.8) -> flat ground GZ (was 0.54 before)', near(stepTopAt(4, 5.8), GZ), String(stepTopAt(4, 5.8)));
+  check('on the porch (y 7.8) -> 1.06', near(stepTopAt(4, 7.8), 1.06), String(stepTopAt(4, 7.8)));
+  check('beside the stoop (x 2.0, y 6.9) -> flat ground GZ', near(stepTopAt(2.0, 6.9), GZ), String(stepTopAt(2.0, 6.9)));
+}
+
 
 // ---- (4) NO corner stores on Staten Island ----
 check(

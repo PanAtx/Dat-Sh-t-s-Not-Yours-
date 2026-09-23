@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.237</div>
+          <div id="app-version" class="menu-version">v1.0.238</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.237';
+      const APP_VERSION = '1.0.238';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -8915,13 +8915,17 @@
           winS.position.set(w / 2 - 0.01, 0, fy);
           g.add(winS);
         }
-        // Step footprint for collision (porch landing)
-        // Enlarged to account for worker radius (0.5) - prevent falling through at edges
+        // Step footprint for collision (porch landing).
+        // hd is EXACTLY the porch depth (porchD/2 around its center): the lift band must
+        // end at the porch's front edge. A wider band (porchD/2 + 0.4, copied for the
+        // worker radius) pushed the porch-top lift OUT over the brick steps — stepTopAt
+        // takes the MAX of overlapping bands, so the worker popped to porch height while
+        // standing on the 0.78/1.02 steps (feet floating above the brick).
         g.userData.step = {
           cx: 0,
           cy: -d / 2 - porchD / 2,
           hw: porchW / 2 + 0.3,
-          hd: porchD / 2 + 0.4,
+          hd: porchD / 2,
           top: 0.3 + porchH + 0.06,
         };
         // Individual step collision data (for walking up the stairs).
@@ -8930,9 +8934,9 @@
         // porchW/2 + 0.3 here (a pattern copied from full-width porches), which made
         // the collision ~2.5x wider than the brick steps, so the sanitation worker
         // stood in mid-air on the sides of the stoop. Tightening hw to the real step
-        // width keeps him on the brick. Depth (hd = stepD+0.2) still overlaps between
-        // steps, so the ramp stays gap-free. Lives only in makeBrooklynFlatbushHouse,
-        // so no other level is touched.
+        // width keeps him on the brick. hd is EXACTLY the visual tread depth (stepD/2):
+        // contiguous (gap-free) but non-overlapping bands, so stepTopAt's MAX returns
+        // each step's OWN top instead of the step above (which left him floating).
         g.userData.stairs = [];
         for (let s = 0; s < 3; s++) {
           const stepY = -d / 2 - porchD - (s + 0.5) * stepD;
@@ -8941,7 +8945,7 @@
             cx: 0,
             cy: stepY,
             hw: stepW / 2 + 0.1, // visual step half-width + tiny margin; NOT the full porch
-            hd: stepD + 0.2,
+            hd: stepD / 2,
             top: stepTop,
           });
         }
@@ -11492,16 +11496,25 @@
           winS.position.set(w / 2 - 0.01, 0, fy);
           g.add(winS);
         }
-        // Porch landing step data (top of the cement slab) for stepTopAt()
+        // Porch landing step data (top of the cement slab) for stepTopAt().
+        // hd is EXACTLY the porch depth (porchD/2 around its center): the lift band must
+        // end at the porch's front edge. An earlier copy used porchD/2 + 0.4, which pushed
+        // the 1.06 porch-top band OUT over the brick steps — and stepTopAt takes the MAX of
+        // overlapping bands, so the worker popped up to porch height while standing on the
+        // 0.78/1.02 steps (feet floating ~0.3u above the brick).
         g.userData.step = {
           cx: 0,
           cy: -d / 2 - porchD / 2,
           hw: porchW / 2 + 0.3,
-          hd: porchD / 2 + 0.4,
+          hd: porchD / 2,
           top: 0.3 + porchH + 0.06,
         };
         // Per-step collision boxes: hw matches the VISUAL step width (stepW = porchW*0.45),
         // so the worker climbs on the brick and never stands in mid-air beside the stoop.
+        // hd is EXACTLY the visual tread depth (stepD/2): the three bands are contiguous
+        // (gap-free) but never overlap, so stepTopAt's MAX of overlapping bands returns
+        // each step's OWN top. Wider bands (stepD + 0.2) spilled up over the step above,
+        // lifting the worker to the higher step's height (and into the grass out front).
         g.userData.stairs = [];
         for (let s = 0; s < 3; s++) {
           const stepY = -d / 2 - porchD - (s + 0.5) * stepD;
@@ -11510,7 +11523,7 @@
             cx: 0,
             cy: stepY,
             hw: stepW / 2 + 0.1,
-            hd: stepD + 0.2,
+            hd: stepD / 2,
             top: stepTop,
           });
         }
