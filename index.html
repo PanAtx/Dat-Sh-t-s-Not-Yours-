@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.238</div>
+          <div id="app-version" class="menu-version">v1.0.240</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.238';
+      const APP_VERSION = '1.0.240';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2571,6 +2571,10 @@
             // Queens (Maspeth): no breakers - the nosy homeowner shadows the streets
             // instead (spawned by the Queens block, one per level).
             if (isQueensLevel() && t === "breaker") base = 0;
+            // Staten Island (New Dorp, d5): no fentanyl addicts, no breakers, no
+            // hookers — fresh Staten Island-specific NPCs are coming for this street.
+            if (day === 5 && (t === "yeller" || t === "breaker" || t === "hooker"))
+              base = 0;
             // No skateboarders on the Manhattan days (Uptown d1, Harlem d6) or Bed-Stuy (d7).
             if (t === "skater" && (day === 1 || day === 6 || day === 7))
               base = 0;

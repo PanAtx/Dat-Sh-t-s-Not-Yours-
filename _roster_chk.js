@@ -81,7 +81,16 @@ check('Bronx two-wheeler override only touches d2 (d1 stays at 0; d3-d7 sit at t
 check('Bronx (d2) has no breaker (npcCounts(2).breaker === 0)', npcCounts(2).breaker === 0, 'breaker=' + npcCounts(2).breaker);
 // ---- Queens/Maspeth (d4): the isQueensLevel gate zeroes breakers entirely ----
 check('Queens/Maspeth (d4) has no breaker (isQueensLevel gate)', npcCounts(4).breaker === 0, 'breaker=' + npcCounts(4).breaker);
-[1, 3, 5, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
+[1, 3, 6, 7].forEach(d => check('day ' + d + ' keeps the breaker', npcCounts(d).breaker === BASE_NPC_COUNTS.breaker));
+// ---- Staten Island/New Dorp (d5): no fentanyl addicts (yeller), no breakers, no hookers ----
+// Fresh SI-specific NPCs are coming to replace them on this street.
+check('Staten Island (d5) has no fentanyl addict (npcCounts(5).yeller === 0)', npcCounts(5).yeller === 0, 'yeller=' + npcCounts(5).yeller);
+check('Staten Island (d5) has no breaker (npcCounts(5).breaker === 0)', npcCounts(5).breaker === 0, 'breaker=' + npcCounts(5).breaker);
+check('Staten Island (d5) has no hooker (npcCounts(5).hooker === 0)', npcCounts(5).hooker === 0, 'hooker=' + npcCounts(5).hooker);
+// The SI override only touches d5: every other day keeps its existing roster for these types.
+// (yeller is also zero on Flatbush d3; breaker on Bronx d2 + Queens d4; hooker on Flatbush d3 + Queens d4 — all pre-existing.)
+[1, 2, 4, 6, 7].forEach(d => check('day ' + d + ' keeps the fentanyl addict (yeller)', npcCounts(d).yeller === BASE_NPC_COUNTS.yeller));
+[1, 2, 6, 7].forEach(d => check('day ' + d + ' keeps the hooker', npcCounts(d).hooker === BASE_NPC_COUNTS.hooker));
 
 console.log(ok ? '\nROSTER CHECKS PASSED' : '\nROSTER CHECKS FAILED');
 process.exit(ok ? 0 : 1);
