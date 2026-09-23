@@ -109,6 +109,7 @@ const THREE = {
   Mesh: function (geo, mat) {
     return {
       _kind: 'plane', _mat: mat,
+      _w: geo && geo.w, _h: geo && geo.h,
       position: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
       rotation: { x: 0, y: 0, z: 0 },
       scale: { x: 1, y: 1, z: 1, set(a, b, c) { this.x = a; this.y = b; this.z = c; } },
@@ -243,8 +244,14 @@ check(
   'cloth attaches at the pole SIDE (hoist edge at the pole, flag flies off to one side)',
   (fnSrc.match(/const fSide = Math\.random\(\) < 0\.5 \? -1 : 1;/g) || []).length === 2 &&
     /fx \+ fSide \* \(CW \/ 2\)/.test(fnSrc) &&
-    /fx \+ fSide \* \(\(CW \* 0\.45\) \/ 2\)/.test(fnSrc) &&
-    !/clothPlane\(CW, sh, red, fx,/.test(fnSrc),
+    /const cW = CW \* 0\.45,/.test(fnSrc) && /fx \+ fSide \* \(cW \/ 2\)/.test(fnSrc),
+);
+check(
+  'US flag: 13 red/white stripes (start & end red) + canton over top 7 stripes + very tiny white stars',
+  /for \(let si = 0; si < 13; si\+\+\)/.test(fnSrc) &&
+    /si % 2 === 0 \? red : white/.test(fnSrc) &&
+    /cH = 7 \* sh \+ 0\.012/.test(fnSrc) &&
+    /starS = 0\.008/.test(fnSrc) && /rowCols = \[5, 4, 5, 4, 5\]/.test(fnSrc),
 );
 check(
   'flags sit in the FRONT LAWN beside the walkway (cottage in front of the landing, colonial in front of the stoop)',
@@ -294,17 +301,35 @@ const finMesh = flaggedUS.children.find(
 );
 check('flag: finial ball at the pole tip (z = 1.48)', !!finMesh);
 const afterPole = poleMesh ? flaggedUS.children.slice(flaggedUS.children.indexOf(poleMesh) + 1) : [];
-const flagPlanes = afterPole.filter((c) => c._kind === 'plane');
+const usStripes = afterPole.filter((c) => c._kind === 'plane' && c._w === 0.5);
+const usCanton = afterPole.filter(
+  (c) => c._kind === 'plane' && Math.abs(c._w - 0.225) < 1e-9,
+);
+const usStars = afterPole.filter((c) => c._kind === 'plane' && c._w === 0.008);
 check(
-  'flag: US cloth = 3 stripes + canton (4 zero-thickness planes, standing in the X-Z plane)',
-  flagPlanes.length === 4 &&
-    flagPlanes.every((p) => Math.abs(p.rotation.x + Math.PI / 2) < 1e-9),
+  'flag: US cloth = 13 red/white stripes + blue canton (zero-thickness planes in the X-Z plane)',
+  usStripes.length === 13 &&
+    usCanton.length === 1 &&
+    [...usStripes, ...usCanton].every((p) => Math.abs(p.rotation.x + Math.PI / 2) < 1e-9),
 );
 check(
-  'flag: US cloth hoist at the pole (no plane centered on the pole, all offset to one side)',
-  flagPlanes.length === 4 &&
-    flagPlanes.every((p) => Math.abs(p.position.x - poleMesh.position.x) > 0.05) &&
-    flagPlanes.every((p) => Math.sign(p.position.x) === Math.sign(flagPlanes[0].position.x)),
+  'flag: US canton sits over the top 7 stripes, in the hoist corner at the pole',
+  usCanton.length === 1 &&
+    Math.abs(usCanton[0].position.z - (1.43 - (7 * (0.35 / 13) + 0.012) / 2)) < 1e-9 &&
+    Math.abs(Math.abs(usCanton[0].position.x) - Math.abs(poleMesh.position.x + Math.sign(poleMesh.position.x) * 0.1125)) < 1e-9,
+);
+check(
+  'flag: US canton carries very tiny white stars (23 staggered dots in front of the canton)',
+  usStars.length === 23 &&
+    usStars.every((s) => Math.abs(s.position.y - (poleMesh.position.y - 0.042)) < 1e-9) &&
+    usStars.every((s) => Math.abs(s.position.x - usCanton[0].position.x) < 0.1),
+);
+const clothPlanes = afterPole.filter((c) => c._kind === 'plane' && c._w >= 0.2);
+check(
+  'flag: US cloth hoist at the pole (no cloth plane centered on the pole, all offset to one side)',
+  clothPlanes.length === 14 &&
+    clothPlanes.every((p) => Math.abs(p.position.x - poleMesh.position.x) > 0.05) &&
+    clothPlanes.every((p) => Math.sign(p.position.x) === Math.sign(clothPlanes[0].position.x)),
 );
 const flaggedIE = buildFlagged(0.75);
 check('flag: Ireland house records userData.flag.kind = "IE" (3 tricolor planes)', flaggedIE.userData.flag && flaggedIE.userData.flag.kind === 'IE' && (() => {
