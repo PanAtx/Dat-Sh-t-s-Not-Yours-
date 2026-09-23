@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.226</div>
+          <div id="app-version" class="menu-version">v1.0.227</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.226';
+      const APP_VERSION = '1.0.227';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2346,8 +2346,8 @@
       // it: green grass, headstones, monuments, scary dead trees, a black raven.
       // The block's only living NPCs are the rats — everything else walking around
       // is a bluish, transparent ghost (the annoying homeowner is a ghost there too).
-      const QUEENS_CEMETERY_BLOCK = 1; // TEMP TESTING: 2nd block (restore to 4 = the 5th block when done)
-      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 96 (temp) / 384 (real)
+      const QUEENS_CEMETERY_BLOCK = 4; // the 5th block (x=384) — the worker walks the full route to reach it
+      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 384
       const CEM_FENCE_Y = 5.4; // iron fence line: right up against the sidewalk edge (y 5.0)
       const CEM_BACK_Y = 12.0; // back edge of the cemetery grass
       // 8 intersections (cross-streets), each starting 80u into its preceding segment:
@@ -2761,6 +2761,7 @@
         renderer,
         dirLight;
       let flatbushDriveways = []; // Flatbush doghouse locations (driveways between houses)
+      let livePiles = []; // wx positions of dog-walker-dropped piles (idea 3: cap the live ones on-screen)
       const keys = {};
       const gp = {
         f: 0,
@@ -3326,6 +3327,11 @@
           this.ensure();
           this.noise(0.32, "lowpass", 260, 0.9);
           this.tone("sine", 110, 52, 0.26, 0.7);
+        },
+        playPlopSound() {
+          this.ensure();
+          this.tone("sine", 210, 52, 0.16, 0.8); // a quick low wet "plop"
+          this.noise(0.09, "lowpass", 520, 0.35); // a soft wet splash
         },
         playCanDropSound() {
           this.ensure();
@@ -7474,22 +7480,25 @@
             g.add(coin);
           }
         } else if (kind === 41) {
-          // ghostly gold teeth — a little cluster of glowing gold teeth (cemetery find)
+          // ghostly gold TOOTH — a single glowing gold molar (cemetery find).
+          // Just ONE tooth: back then a gold tooth was a luxury, so most people
+          // had only one in their mouth. It "came from a burial."
           const ghT = MS(0xf5d76a, {
             emissive: 0xd8a830,
             emissiveIntensity: 0.8,
             transparent: true,
             opacity: 0.95,
           });
-          for (let ti = 0; ti < 5; ti++) {
-            // each tooth: a small tapered cylinder (wider at the gum, narrower at the tip), pointing up (Z)
-            const tooth = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.12, 8), ghT);
-            tooth.rotation.x = Math.PI / 2; // cylinder axis (Y) -> vertical Z (the tooth points up)
-            const off = ti - 2; // -2, -1, 0, 1, 2
-            tooth.position.set(off * 0.055, off * off * 0.008, 0.06); // the arc curves back in Y
-            tooth.rotation.z = off * 0.12; // slight tilt (the outer teeth lean out)
-            g.add(tooth);
-          }
+          // the crown (the gold cap): a slightly wider short cylinder at the top
+          const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.046, 0.07, 12), ghT);
+          crown.rotation.x = Math.PI / 2; // cylinder axis (Y) -> vertical Z (the tooth points up)
+          crown.position.z = 0.12;
+          g.add(crown);
+          // the root: a tapered cylinder below the crown, narrowing toward the tip
+          const root = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.012, 0.11, 10), ghT);
+          root.rotation.x = Math.PI / 2;
+          root.position.z = 0.055; // below the crown; the tip points down (-Z)
+          g.add(root);
         }
         return g;
       }
@@ -7844,9 +7853,12 @@
           GHOST_OBJECT_MAT = new THREE.MeshLambertMaterial({
             color: 0x9cc0ff,
             emissive: 0x2a4a8a,
-            emissiveIntensity: 0.45,
+            // Kept LOW on purpose: the body's uniform glow is reduced so the object
+            // reads as a distinct form, and the BLUE AURA (see makeGhostAuraMat) is
+            // the dominant glow — an aura, not a blur.
+            emissiveIntensity: 0.3,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.6, // a bit more solid than before (0.5) — the form is distinct
             depthWrite: false,
             // FrontSide (not DoubleSide): these are closed meshes, and with depthWrite
             // off, DoubleSide renders BOTH faces of each thin box at ~the same depth,
@@ -7854,6 +7866,71 @@
             side: THREE.FrontSide,
           });
         return GHOST_OBJECT_MAT;
+      }
+      // BLUE AURA: a fresnel RIM-glow that hugs the silhouette of the spectral street
+      // objects. The body material alone reads as a soft BLUR (a uniform translucent
+      // glow with no distinct edges); the aura adds a distinct BLUE RIM that is bright
+      // at the edges (where the surface normal is perpendicular to the view) and fades
+      // to nothing toward the center — so the ghost reads as a solid form wrapped in a
+      // blue aura, not a smudge. Rendered as a slightly enlarged BackSide shell with
+      // additive blending (no depth write, so it never z-fights the body).
+      let GHOST_AURA_MAT = null;
+      function makeGhostAuraMat() {
+        if (!GHOST_AURA_MAT)
+          GHOST_AURA_MAT = new THREE.ShaderMaterial({
+            uniforms: {
+              uColor: { value: new THREE.Color(0x3f86ff) }, // vivid spectral blue
+              uIntensity: { value: 1.1 },
+              uPower: { value: 2.4 },
+            },
+            vertexShader:
+              "varying vec3 vNormal;\n" +
+              "varying vec3 vViewDir;\n" +
+              "void main() {\n" +
+              "  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);\n" +
+              "  vNormal = normalize(normalMatrix * normal);\n" +
+              "  vViewDir = normalize(-mvPosition.xyz);\n" +
+              "  gl_Position = projectionMatrix * mvPosition;\n" +
+              "}",
+            fragmentShader:
+              "uniform vec3 uColor;\n" +
+              "uniform float uIntensity;\n" +
+              "uniform float uPower;\n" +
+              "varying vec3 vNormal;\n" +
+              "varying vec3 vViewDir;\n" +
+              "void main() {\n" +
+              "  float rim = 1.0 - abs(dot(normalize(vNormal), normalize(vViewDir)));\n" +
+              "  rim = pow(rim, uPower);\n" +
+              "  gl_FragColor = vec4(uColor * rim * uIntensity, rim);\n" +
+              "}",
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
+            depthWrite: false,
+          });
+        return GHOST_AURA_MAT;
+      }
+      // Wrap a group's meshes in the blue aura: each mesh gets a slightly enlarged
+      // CHILD shell (same geometry, the shared aura material). Being a child, the
+      // shell inherits the mesh's transform + per-part scale and follows the arm /
+      // finger animation for free. Meshes marked userData.aura === false (the tiny
+      // skull teeth / eyes / nose / chin) are skipped to keep the draw-call count down.
+      function addGhostAura(g, factor) {
+        const auraMat = makeGhostAuraMat();
+        const meshes = [];
+        g.traverse((o) => {
+          if (o.isMesh && o.userData.aura !== false && o.userData.isAura !== true)
+            meshes.push(o);
+        });
+        for (let i = 0; i < meshes.length; i++) {
+          const m = meshes[i];
+          const shell = new THREE.Mesh(m.geometry, auraMat);
+          shell.scale.setScalar(factor); // enlarge relative to the mesh's local space
+          shell.castShadow = false; // spectral: the aura casts no shadow
+          shell.renderOrder = 1; // render AFTER the alpha-blended body so the additive glow sits on top
+          shell.userData.isAura = true; // never double-wrap a shell
+          m.add(shell);
+        }
       }
       // A spectral arm + OPEN hand reaching UP out of a small mound of spectral
       // earth. Origin at the ground point; userData.arm is the animated arm group (the
@@ -7960,6 +8037,10 @@
         arm.rotation.x = 0.18; // leans up out of the mound
         g.add(arm);
         g.userData.arm = arm;
+        g.traverse((o) => {
+          if (o.isMesh) o.castShadow = false; // spectral: the arm casts NO shadow
+        });
+        addGhostAura(g, 1.2); // the BLUE AURA hugs the arm's silhouette (not a blur)
         return g;
       }
       // A spectral headstone (a ghostly rounded slab) — a SOLID street/sidewalk obstacle.
@@ -7981,6 +8062,10 @@
         // street instead of a plumb rounded top.)
         cap.position.z = 0.16 + 1.05;
         g.add(cap);
+        g.traverse((o) => {
+          if (o.isMesh) o.castShadow = false; // spectral: the headstone casts NO shadow
+        });
+        addGhostAura(g, 1.2); // the BLUE AURA hugs the headstone's silhouette
         return g;
       }
       // A spectral pile of skulls — a SOLID street/sidewalk obstacle.
@@ -8003,18 +8088,22 @@
           for (const ex of [-r * 0.38, r * 0.38]) {
             const e = SP(r * 0.24, eye, 16); // dark eye sockets
             e.position.set(ex, r * 0.18, r * 0.62);
+            e.userData.aura = false; // tiny part: skip the aura (draw-call savings)
             s.add(e);
           }
           const nose = BX(r * 0.14, r * 0.2, r * 0.22, eye); // dark nasal notch between the eyes
           nose.position.set(0, -r * 0.12, r * 0.66);
+          nose.userData.aura = false;
           s.add(nose);
           for (let t = 0; t < 6; t++) {
             const tooth = BX(r * 0.16, r * 0.14, r * 0.12, mat); // a row of teeth along the lower face
             tooth.position.set((t - 2.5) * r * 0.22, -r * 0.52, r * 0.3);
+            tooth.userData.aura = false;
             s.add(tooth);
           }
           const chin = BX(r * 0.5, r * 0.3, r * 0.3, mat); // the jaw / chin
           chin.position.set(0, -r * 0.78, r * 0.1);
+          chin.userData.aura = false;
           s.add(chin);
           return s;
         };
@@ -8029,6 +8118,7 @@
         place(-0.24, 0.03, 0.16, 0.14, -0.6);
         place(0.06, 0.16, 0.3, 0.12, 2.2);
         place(-0.05, -0.22, 0.1, 0.11, 1.3); // one tumbled out in front of the pile
+        addGhostAura(g, 1.2); // the BLUE AURA wraps the mound + crania (tiny parts skipped)
         return g;
       }
       // GHOST_ARMS: the live spectral arms (animated every frame in updateCreatures).
@@ -8041,8 +8131,13 @@
         if (!GHOST_OBJECT_MAT) return;
         const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
         const s = Math.sin(at * 0.5); // slow otherworldly breathing (period ~12.6s)
-        GHOST_OBJECT_MAT.emissiveIntensity = 0.55 + 0.18 * s; // 0.37 .. 0.73 — a subtle glow pulse
-        GHOST_OBJECT_MAT.opacity = 0.46 + 0.04 * (0.5 + 0.5 * s); // 0.46 .. 0.50 — a faint shimmer
+        // Body: a LOW, subtle uniform glow (kept well under the old 0.37..0.73 so the
+        // object reads as a distinct form, not a blur).
+        GHOST_OBJECT_MAT.emissiveIntensity = 0.3 + 0.12 * s; // 0.18 .. 0.42
+        GHOST_OBJECT_MAT.opacity = 0.58 + 0.04 * (0.5 + 0.5 * s); // 0.58 .. 0.62
+        // Aura: the BLUE RIM breathes a little MORE than the body, so the aura is the
+        // dominant, living glow (the "afterlife" pulse now lives in the rim, not the blur).
+        if (GHOST_AURA_MAT) GHOST_AURA_MAT.uniforms.uIntensity.value = 1.0 + 0.4 * s; // 0.6 .. 1.4
       }
       // Animate the Maspeth spectral street arms: each hand sweeps, leans, dips, and
       // CLENCHES its fingers open & closed as it gropes for something to GRAB. Called
@@ -8114,36 +8209,6 @@
       // negative-y road (curb top ~ y 0.35); the sidewalk is y ~0.5..5.0 (fence at 5.4).
       function buildCemeteryStreetGhosts(b) {
         const bx = QUEENS_CEMETERY_X;
-        // --- SPECTRAL CURB FOG: a faint ghostly mist line runs the FULL block length
-        // along the curb (y ~0.45, between the street ghosts and the sidewalk ghosts) —
-        // the visible boundary of the two ghost zones. Pure decoration: no hazard,
-        // no shadows, nothing to hit.
-        const fogMat = new THREE.MeshLambertMaterial({
-          color: 0xa8ccff,
-          emissive: 0x24466e,
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.14,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        });
-        const fogBand = BX(BLOCK_W, 0.8, 0.02, fogMat);
-        fogBand.castShadow = false;
-        fogBand.position.set(bx + BLOCK_W / 2, 0.45, GZ + 0.02);
-        groundGroup.add(fogBand);
-        // drifting wisps along the line (flattened spectral blobs, staggered so the
-        // fog reads as moving, not painted)
-        for (let i = 0; i < 10; i++) {
-          const wisp = SP(0.9, fogMat, 8);
-          wisp.castShadow = false;
-          wisp.scale.set(1.8, 0.55, 0.14);
-          wisp.position.set(
-            bx + 4 + i * ((BLOCK_W - 8) / 9) + R(-1.5, 1.5),
-            0.45 + R(-0.15, 0.15),
-            GZ + 0.03,
-          );
-          groundGroup.add(wisp);
-        }
         const place = (g, wx, wy, type, r) => {
           g.position.set(wx, wy, GZ);
           groundGroup.add(g);
@@ -10777,28 +10842,37 @@
         // coords assume the facade at y = -2.4 (d/2 = 2.4) facing -Y; the display
         // window is centered at z = 0.3 + 1.15, so the poster sits at z 1.45.
         const g = new THREE.Group();
+        // The poster sits IN FRONT of the red frame. The paper's front face must be
+        // clearly ahead of the border's front face (no co-planar faces -> no Z-fighting).
         const paper = BX(1.05, 0.03, 0.85, M(0xf2ead8));
-        paper.position.set(0, -2.52, 1.45);
+        paper.position.set(0, -2.54, 1.45); // front face y -2.555 (border's is -2.535)
         g.add(paper);
         const border = BX(1.15, 0.02, 0.95, M(0x8a2d4e));
         border.position.set(0, -2.525, 1.45);
         g.add(border);
-        // THE EMBLEM: pickle (a small green capsule) or pierogi (a pale pinched half-moon)
+        // THE EMBLEM: a pickle (a LONG, THIN green capsule + a distinct stem) or a
+        // pierogi (a pale pinched half-moon with a crimped edge), random per store.
         if (food === "pierogi") {
           const dumpling = SPH(0.13, M(0xe8d5a0));
           dumpling.scale.set(1.5, 0.7, 0.9);
           dumpling.position.set(0, -2.56, 1.45);
           g.add(dumpling);
-          const pleat = BX(0.38, 0.03, 0.03, M(0xc9b07a));
-          pleat.position.set(0, -2.56, 1.56);
-          g.add(pleat); // the pinched edge
+          // the crimped (pinched) edge: a row of small dough bumps, not one flat strip
+          for (let i = 0; i < 5; i++) {
+            const bump = SPH(0.035, M(0xd8c08a));
+            bump.position.set(-0.15 + i * 0.075, -2.56, 1.56);
+            g.add(bump);
+          }
         } else {
-          const pickle = SPH(0.11, M(0x5a8a3a));
-          pickle.scale.set(0.8, 0.7, 1.7);
+          // a long, thin capsule (length:width ~3.4, not a round pepper) in a
+          // brighter pickle green, with a distinct stalk at the top
+          const pickle = SPH(0.11, M(0x7aa52a));
+          pickle.scale.set(0.6, 0.55, 2.4);
           pickle.position.set(0, -2.56, 1.45);
           g.add(pickle);
-          const stem = BX(0.03, 0.02, 0.08, M(0x3a5a1a));
-          stem.position.set(0, -2.56, 1.66);
+          const stem = CY(0.015, 0.022, 0.09, M(0x4a7a1a), 8);
+          stem.rotation.x = Math.PI / 2; // cylinder axis (Y) -> vertical Z (the stem points up)
+          stem.position.set(0, -2.56, 1.72);
           g.add(stem);
         }
         return g;
@@ -11088,9 +11162,9 @@
       }
       function addDogShit(b, wx, wy) {
         const g = makeDogShit();
-        // If on the curb (wy < 0.8), lift it to the curb top so it's visible
-        // Curb top is at z = 0.35, so lift by 0.34 above GZ
-        const z = wy < 0.8 ? GZ + 0.34 : GZ;
+        // If on the curb (wy < 0.8), lift it to sit ON the curb top (world z = 0.35,
+        // i.e. GZ + 0.05) so it rests on the curb rather than hovering above it.
+        const z = wy < 0.8 ? GZ + 0.05 : GZ;
         g.position.set(wx - b.worldX, wy, z);
         g.rotation.z = Math.random() * Math.PI * 2;
         b.group.add(g);
@@ -11238,39 +11312,57 @@
         return d;
       }
       // ===== Cemetery ghost population: EVENLY DISTRIBUTED (SLOT GRID) across the
-      // street + sidewalk. The block is divided into GHOST_SLOTS columns; each ghost
-      // owns one slot — EVEN slots out in the STREET (full width, through the truck
-      // lane), ODD slots on the SIDEWALK. With 75 ghosts on 75 slots EVERY slot is
-      // occupied: a perfect 50/50 checkerboard (38 street / 37 walk) lining the whole
-      // block edge to edge, so every stretch of block has the same ghost density on
-      // BOTH the road and the walk — the street never clumps while the sidewalk sits
-      // empty (and vice versa). Ghosts drift only inside their own column + zone band
-      // (see case "ghost"). A spawner timer tops the pack up to GHOST_CAP; off-screen
-      // ghosts re-take the NEXT slot (round-robin) and fade in again.
-      let ghostSpawnT = 3;
-      const GHOST_CAP = 79; // a HORDE across the whole street + sidewalk — very hard for the worker to traverse (75 slot-grid + 4 right-edge barrier)
-      const GHOST_SLOTS = 75; // one slot per ~1.3u across the block; EVEN slot = street, ODD slot = sidewalk (fills exactly at the 75 slot-grid ghosts)
+      // street + curb + sidewalk. The block is divided into GHOST_SLOTS columns; each
+      // ghost owns one slot — slots cycle STREET / CURB / SIDEWALK (slot % 3) so no
+      // lane is ever empty. Only GHOST_CAP of the 75 slots are ever occupied
+      // (round-robin), so the street stays OPEN — roughly one ghost per ~4u, evenly
+      // 1/3 across the road, the curb line and the walk (no clumps, no wall). Ghosts
+      // drift SLOWLY (barely-moving obstacles) inside their own column + zone band
+      // (see case "ghost"). A FAST-FILL spawner tops the pack up to GHOST_CAP as each
+      // column scrolls into view (up to 4 ghosts per tick, ghosts fade in in ~0.3s),
+      // so the visible screen is never empty; off-screen ghosts re-take the NEXT slot
+      // (round-robin) and fade in again.
+      let ghostSpawnT = 0.2; // first fill tick fires almost immediately (the burst covers frame 1)
+      const GHOST_CAP = 45; // the visible screen stays FULL: 45 of the 75 slots occupied (~1 ghost per ~2u) — a dense, dodgeable drift, never a wall
+      const GHOST_SLOTS = 75; // one slot per ~1.3u across the block; slot % 3 = street / curb / sidewalk (only GHOST_CAP of the 75 slots are ever occupied)
       let GHOST_SLOT_CURSOR = 0; // round-robin: each new ghost takes the next slot
+      let GHOST_RIGHT_EDGE_SPAWNED = false; // the right-edge barrier is deferred to the spawner's first tick
       function ghostSlotX(slot) {
         return QUEENS_CEMETERY_X + (slot + 0.5) * (BLOCK_W / GHOST_SLOTS);
       }
+      // The ghost spawner only runs while the worker is ON (or just reaching) the
+      // cemetery block, so the pack is built LIVE as he traverses — never pre-spawned
+      // into a wall at the entrance. A small lead margin (8u) lets the first ghosts
+      // start fading in just as he reaches the block edge.
+      function workerOnCemeteryBlock() {
+        return (
+          p.wx >= QUEENS_CEMETERY_X - 8 &&
+          p.wx <= QUEENS_CEMETERY_X + BLOCK_W + 8
+        );
+      }
       function spawnCemeteryGhost() {
         const gh = addCreature("ghost");
+        // Spawn AHEAD of the worker (to the right) for visibility during forward traversal.
+        const relX = p.wx - QUEENS_CEMETERY_X;
+        const slotWidth = BLOCK_W / GHOST_SLOTS;
+        const slotAhead = Math.min(GHOST_SLOTS - 1, Math.max(0, Math.floor(relX / slotWidth - 0.5) + 1));
+        const cursorSlot = GHOST_SLOT_CURSOR % GHOST_SLOTS;
+        if (cursorSlot < slotAhead) GHOST_SLOT_CURSOR = slotAhead;
         const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;
         GHOST_SLOT_CURSOR++;
         gh.slot = slot;
-        gh.zone = slot % 2 === 0 ? -1 : 1; // EVEN slot -> STREET, ODD slot -> SIDEWALK (50/50 by construction)
-        gh.wx = ghostSlotX(slot) + R(-0.4, 0.4); // ONLY the cemetery block (its own column)
-        gh.wy = gh.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7); // street: full width, through the truck lane / sidewalk: up to the fence
-        gh.dir = Math.random() < 0.5 ? -1 : 1;
+        gh.zone = slot % 3 === 0 ? -1 : slot % 3 === 1 ? 0 : 1; // -1 street / 0 curb / 1 sidewalk (slot grid cycles all three)
+        gh.wx = ghostSlotX(slot) + R(-0.4, 0.4);
+        gh.wy = gh.zone < 0 ? R(-8.8, -0.5) : gh.zone === 0 ? R(-0.5, 0.8) : R(0.8, 4.7); // street full width / curb line / sidewalk up to the fence
+        gh.dir = -1;
         gh.tx = ghostSlotX(slot);
         gh.ty = gh.wy;
         gh.tyT = R(2, 6);
-        gh.fade = 0; // fade in from nothing
+        gh.fade = 0;
         gh.g.position.set(gh.wx, gh.wy, GZ);
         return gh;
       }
-      // ===== RIGHT-EDGE GHOST BARRIER: a few EXTRA ghosts huddle at the RIGHT end of
+      // ===== RIGHT-EDGE GHOST BARRIER: a couple EXTRA ghosts huddle at the RIGHT end of
       // the block (where the sidewalk meets the curb on the right side of the screen),
       // on BOTH the street and the walk. They sit in the last slot column (just inside
       // the right edge), so the worker can't simply slip around the cemetery on the
@@ -11280,8 +11372,6 @@
         const rightSlot = GHOST_SLOTS - 1; // the last column (just inside the right edge)
         const layout = [
           { zone: -1 }, // street
-          { zone: -1 }, // street
-          { zone: 1 }, // sidewalk
           { zone: 1 }, // sidewalk
         ];
         for (let i = 0; i < layout.length; i++) {
@@ -12058,6 +12148,7 @@
         dog.position.set(0.45, -0.55, 0);
         person.g.add(dog);
         person.g.userData.dog = dog.userData.dog; // expose pivots on the root group for the bark animation
+        person.g.userData.dogMesh = dog; // expose the mesh so the "squat" beat can lower/bend it
         // leash: from the walker's outstretched hand (right side) to the dog's neck
         const leash = BX(0.02, 0.02, 0.81, M(0x2a2320));
         leash.rotation.y = 2.52;
@@ -14127,6 +14218,7 @@
             c.wy = R(1.0, creatureMaxY());
             c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
             c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
+            c.poopCd = R(10, 25); // seconds until the pup drops a fresh pile (idea 3)
             c.data = makeDogWalker();
             break;
           case "rc":
@@ -14253,7 +14345,7 @@
             // iron fence (ghosts don't respect fences). Touching one scares the
             // worker and drains his health (see collideCreatures).
             c.wy = R(1, 9);
-            c.sp = R(0.7, 1.3);
+            c.sp = R(0.3, 0.55); // a VERY slow drift — the ghosts are obstacles, not threats
             c.dir = Math.random() < 0.5 ? -1 : 1;
             c.ty = c.wy; // the wander target y (sidewalk / street / cemetery)
             c.tyT = R(2, 6); // how long until the ghost picks a new wander target
@@ -14515,7 +14607,16 @@
             x0: baseX + 0.2,
             x1: baseX + cellW - 0.2,
             y: CEM_FENCE_Y,
+            yBack: CEM_BACK_Y, // the two side fences run from the front line up to here
           };
+          // The two side fences (parallel to the cross street) close the block's left
+          // and right edges: the worker bumps into them like walls too.
+          if (houseIdx === 0) b.cemFence.sideLeft = baseX; // left side fence at x = block start
+          if (
+            houseIdx ===
+            (isQueensBlock ? QUEENS_HOUSES_PER_BLOCK - 1 : HOUSES_PER_BLOCK - 1)
+          )
+            b.cemFence.sideRight = baseX + cellW; // right side fence at x = block end
           if (houseIdx === 0) {
             groundGroup.add(
               buildCemeteryBlock(),
@@ -15314,8 +15415,10 @@
             // WELCOME here too — peds, animals, dogs and the Polish ladies all walk the
             // sidewalk in front of the fence, so the worker has to dodge EVERYONE, dead
             // or alive. The block's ONLY finds are the floating ghostly treasures.
-            for (let gi = 0; gi < 40; gi++) spawnCemeteryGhost(); // seed a CROWDED street + walk (fades in); the spawner tops it up to GHOST_CAP
-            spawnCemeteryRightEdgeGhosts(); // a few EXTRA ghosts huddle at the RIGHT edge (sidewalk meets the curb) — the worker can't slip past on the right
+            // NO pre-spawned ghosts: the pack is built LIVE by the spawner (gated on the
+            // worker being on the cemetery block) so the worker never faces a wall at the
+            // entrance — the ghosts fade in as he traverses (see the Maspeth ghost spawner).
+            // The right-edge barrier is also deferred to the spawner's first tick.
             for (let ri = 0; ri < 3; ri++) {
               const rt = addCreature("rat");
               rt.cemRat = true; // lives behind the fence (cemetery grass band)
@@ -16521,7 +16624,7 @@
         38: "Ghostly gold ring!",
         39: "Ghostly pocket watch!",
         40: "Ghostly gold coins!",
-        41: "Ghostly gold teeth!",
+        41: "Ghostly gold tooth!",
       };
       // The named mongo scrap the worker hauls in — each is spoken + shown under "MONGO!".
       const MONGO_NAMES = {
@@ -16591,7 +16694,10 @@
       function spawnGhostTreasure(wx, wy, kind) {
         const k = kind != null ? kind : pick([38, 39, 40, 41]);
         const g = makeTreasure(k);
-        const baseLift = 1.0; // floating: well above the fence's footing
+        // Floating, but LOW — hugging the ground so it reads as a spectral find
+        // drifting just off the street/sidewalk (not high in the air). The group's
+        // base ends up at GZ + 0.15 + 0.35 = 0.50u (bobs 0.32..0.68), a low float.
+        const baseLift = 0.15;
         g.position.set(wx, wy, GZ + baseLift);
         dynamicGroup.add(g);
         bonuses.push({
@@ -17963,7 +18069,16 @@
               continue; // solid: skip the one-shot cooldown-gated logic below
             }
             if (hz.cd > 0) continue;
-            if (d2 > hz.r * hz.r) continue;
+            // The POOP uses a WIDE trigger: the worker "steps in it" when they walk
+            // over the pile's X position anywhere on the sidewalk (wy 0..4.8). A plain
+            // 0.65u circle misses whenever the worker's lateral lane is offset from the
+            // pile, so the trail would only fire "sometimes". (Detection is 2D wx/wy —
+            // the pile's visual z-height never factors in.)
+            const inRange =
+              hz.type === "poop"
+                ? Math.abs(hz.wx - p.wx) < 1.1 && p.wy >= -0.5 && p.wy <= 5.5
+                : d2 <= hz.r * hz.r;
+            if (!inRange) continue;
             hz.cd = 1.4;
             if (hz.type === "poop") {
               Voice.say(
@@ -18548,9 +18663,10 @@
         // Both are more opaque than a bare print so the trail reads clearly.
         const col = isBlood ? 0x990000 : 0x3a2410;
         const op = isBlood ? 0.92 : 0.85;
-        // If on the curb (wy < 0.8), lift footprints to curb top so they're visible
-        // Curb top is at z = 0.35, so lift by 0.34 above GZ
-        const footZ = p.wy < 0.8 ? GZ + 0.34 + 0.02 : GZ + 0.02;
+        // If on the curb (wy < 0.8), lift footprints to sit ON the curb top so they're
+        // visible. The curb top is at world z = 0.35 = GZ + 0.05 (GZ = 0.3), so lift by
+        // 0.05 above GZ (NOT 0.34 — that old value assumed GZ = 0 and hovered 0.31u high).
+        const footZ = p.wy < 0.8 ? GZ + 0.05 + 0.02 : GZ + 0.02;
         let g;
         if (isBlood) {
           // a small round drop of blood. The ground is the XY plane with Z = up, so a
@@ -18589,9 +18705,9 @@
       // block. Reuses the footprints array/lifecycle so it fades on the same 7s schedule.
       function dropBloodSplatter(wx, wy) {
         const n = (3 + Math.random() * 2) | 0; // 3-4 smears
-        // If on the curb (wy < 0.8), lift blood to curb top so it's visible
-        // Curb top is at z = 0.35, so lift by 0.34 above GZ
-        const baseZ = wy < 0.8 ? GZ + 0.34 : GZ;
+        // If on the curb (wy < 0.8), lift blood to sit ON the curb top so it's visible.
+        // The curb top is at world z = 0.35 = GZ + 0.05 (GZ = 0.3) — lift by 0.05, not 0.34.
+        const baseZ = wy < 0.8 ? GZ + 0.05 : GZ;
         for (let i = 0; i < n; i++) {
           const a = R(0, Math.PI * 2);
           const r = R(0, 0.35);
@@ -18746,6 +18862,24 @@
           if (!b.cemFence) continue;
           const cf = b.cemFence;
           const stopY = cf.y - FENCE_STOP; // his center may never cross the fence line
+          // === SIDE FENCES (left / right edges, parallel to the cross street) ===
+          // While he's in the cross-street band (past the front fence line, up to the
+          // back edge), the side fences are solid walls: he STOPS IN PLACE a body-width
+          // off the fence face — his wy is untouched, so there is no teleport to the
+          // front sidewalk (the old bug: crossing a side fence tripped the front clamp
+          // and snapped him back down to the curb). Each fence is a FINITE segment:
+          // the clamp only applies near its own face (overlapping it, or up to
+          // SIDE_REACH past it to catch a one-step diagonal overshoot), so a worker
+          // standing on the far cross street is never yanked across the block.
+          const SIDE_REACH = 1.5; // ~140ms frame at top speed (10.7 u/s) — max realistic overshoot past the face
+          if (cf.sideLeft != null && p.wy >= stopY && p.wy <= cf.yBack) {
+            if (p.wx > cf.sideLeft - FENCE_STOP && p.wx < cf.sideLeft + SIDE_REACH)
+              p.wx = cf.sideLeft - FENCE_STOP;
+          }
+          if (cf.sideRight != null && p.wy >= stopY && p.wy <= cf.yBack) {
+            if (p.wx < cf.sideRight + FENCE_STOP && p.wx > cf.sideRight - SIDE_REACH)
+              p.wx = cf.sideRight + FENCE_STOP;
+          }
           if (p.wx < cf.x0 || p.wx > cf.x1) continue;
           if (p.wy < stopY) continue;
           p.wy = stopY; // at the fence: hard stop right on the line
@@ -19651,17 +19785,39 @@
       }
       function updateCreatures(dt) {
         // ===== Maspeth ghost spawner (once per frame) =====
-        // A new ghost drifts in every few seconds on the NEXT slot of the street/sidewalk
-        // slot grid (round-robin keeps the pack evenly spread 50/50 between the street
-        // and the walk) and fades in, until the pack hits GHOST_CAP.
-        if (isQueensLevel() && state === "play") {
+        // The spawner FILLS THE VISIBLE SCREEN: every tick it tops up to 4 ghosts on
+        // the NEXT slots of the street/curb/sidewalk slot grid (round-robin keeps the
+        // pack evenly spread 1/3 across all three lanes) as each column comes into
+        // view, until the pack hits GHOST_CAP. Ghosts fade in FAST (0.3s) so the block
+        // reads as populated the moment the player sees it.
+        // GATED on the worker being ON the cemetery block (workerOnCemeteryBlock), so
+        // the pack is built LIVE as he traverses — never pre-spawned into a wall at the
+        // entrance. The right-edge barrier spawns on the FIRST tick (once only).
+        if (isQueensLevel() && state === "play" && workerOnCemeteryBlock()) {
+          if (!GHOST_RIGHT_EDGE_SPAWNED) {
+            spawnCemeteryRightEdgeGhosts(); // the right-edge barrier fades in as he arrives
+            GHOST_RIGHT_EDGE_SPAWNED = true;
+            // Burst on arrival: a few ghosts immediately (ahead of the worker) so the
+            // very first frames of the block are already populated.
+            for (let b = 0; b < 3; b++) {
+              let g0 = 0;
+              for (let k = 0; k < creatures.length; k++)
+                if (creatures[k].type === "ghost") g0++;
+              if (g0 < GHOST_CAP) spawnCemeteryGhost();
+            }
+          }
           ghostSpawnT -= dt;
           if (ghostSpawnT <= 0) {
             let ghosts = 0;
             for (let k = 0; k < creatures.length; k++)
               if (creatures[k].type === "ghost") ghosts++;
-            if (ghosts < GHOST_CAP) spawnCemeteryGhost();
-            ghostSpawnT = R(2, 5); // restock the horde fast — the street stays packed
+            // Top up up to 4 ghosts per tick — the pack races ahead of the worker so
+            // every newly-visible column already has a ghost (no empty street/walk).
+            for (let t = 0; t < 4 && ghosts < GHOST_CAP; t++) {
+              if (ghosts < GHOST_CAP) spawnCemeteryGhost();
+              ghosts++;
+            }
+            ghostSpawnT = R(0.1, 0.25); // fast fill — the block fills in as it scrolls into view
           }
         }
         // ===== Maspeth spectral street arms: the ghostly hands GROPE the ground & air =====
@@ -19924,14 +20080,72 @@
               c.wy = Math.min(c.wy, pedTop); // never wander up onto a stoop
               animParts(c, pedSp * dt * 2.2);
               if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              // Idea 3 (visible beat): the pup squats (crouches) before dropping a fresh
+              // pile — a LIVE hazard the worker can step in. Only while the walker is
+              // on-screen, the pile won't spawn right on top of the worker, and the
+              // live-pile cap (max 3 on-screen) isn't hit.
+              if (c.squatT > 0) {
+                // the squat beat: lower the body + bend the legs + drop the head (0 -> 1 -> 0)
+                c.squatT -= dt;
+                const sq = Math.max(0, Math.sin(Math.PI * (1 - c.squatT / 0.6)));
+                const dogMesh = c.g.userData.dogMesh;
+                const dogParts = c.g.userData.dog;
+                if (dogMesh) dogMesh.position.z = -sq * 0.08;
+                if (dogParts) {
+                  dogParts.legFL.rotation.x = sq * 0.4;
+                  dogParts.legFR.rotation.x = sq * 0.4;
+                  dogParts.legHL.rotation.x = -sq * 0.4;
+                  dogParts.legHR.rotation.x = -sq * 0.4;
+                  dogParts.headPivot.rotation.x = sq * 0.3;
+                }
+                if (c.squatT <= 0) {
+                  // squat done: restore the dog, then drop the pile (with the cap) + plop
+                  if (dogMesh) dogMesh.position.z = 0;
+                  if (dogParts) {
+                    dogParts.legFL.rotation.x = 0;
+                    dogParts.legFR.rotation.x = 0;
+                    dogParts.legHL.rotation.x = 0;
+                    dogParts.legHR.rotation.x = 0;
+                    dogParts.headPivot.rotation.x = 0;
+                  }
+                  // prune live piles now far behind the worker (they'll never come back on-screen)
+                  livePiles = livePiles.filter((w) => w >= p.wx - 60);
+                  const onScreen = livePiles.filter(
+                    (w) => Math.abs(w - p.wx) < 40,
+                  ).length;
+                  const pileWx = c.wx + c.dir * 0.45;
+                  const pileWy = clamp(c.wy - c.dir * 0.55, 0.5, 4.8);
+                  if (Math.abs(pileWx - p.wx) > 2 && onScreen < 3) {
+                    for (let i = 0; i < blocks.length; i++) {
+                      const cell = blocks[i];
+                      if (pileWx >= cell.worldX && pileWx < cell.worldX + BW) {
+                        addDogShit(cell, pileWx, pileWy);
+                        livePiles.push(pileWx);
+                        break;
+                      }
+                    }
+                    SFX.playPlopSound();
+                  }
+                  c.poopCd = R(25, 45); // next squat+drop in 25-45s
+                }
+              } else {
+                c.poopCd -= dt;
+                if (c.poopCd <= 0 && state === "play" && Math.abs(tx) < 5) {
+                  c.squatT = 0.6; // start the squat (the visible beat before the drop)
+                }
+              }
               if (tx > 55) {
                 c.wx = p.wx - 38;
                 c.wy = R(1, 4);
                 c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
+                c.poopCd = R(10, 25); // reset the drop timer on recycle
+                c.squatT = 0; // reset the squat (in case it was in progress)
               } else if (tx < -58) {
                 c.wx = p.wx + 42;
                 c.wy = R(1, 4);
                 c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
+                c.poopCd = R(10, 25); // reset the drop timer on recycle
+                c.squatT = 0; // reset the squat (in case it was in progress)
               }
               c.cd -= dt;
               if (state === "play" && c.cd <= 0 && Math.abs(tx) < 5) {
@@ -19981,7 +20195,7 @@
               // worker feels the chill (the touch exchange lives in collideCreatures).
               // It fades in over ~1s (c.fade ramps 0 -> 1); a recycled ghost re-fades.
               if (c.ghostMat) {
-                c.fade = Math.min(1, (c.fade || 0) + dt / 1.0);
+                c.fade = Math.min(1, (c.fade || 0) + dt / 0.3); // fast fade-in (~0.3s) so ghosts are visible the moment their column scrolls into view
                 // Afterlife glow: a slow, per-ghost PHASED breathing of the emissive
                 // light (+ a faint opacity shimmer) so the pack shimmers out of sync —
                 // each spirit pulses on its own gentle rhythm.
@@ -19995,7 +20209,7 @@
               if (c.tyT <= 0) {
                 c.tyT = R(3, 7);
                 c.tx = ghostSlotX(c.slot) + R(-0.45, 0.45); // stay inside its own column
-                c.ty = c.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7); // roam its own zone band (street full width / sidewalk)
+                c.ty = c.zone < 0 ? R(-8.8, -0.5) : c.zone === 0 ? R(-0.5, 0.8) : R(0.8, 4.7); // roam its own zone band (street / curb / sidewalk)
               }
               const gx = c.tx - c.wx,
                 gy = c.ty - c.wy;
@@ -20007,7 +20221,7 @@
               }
               const slotX = ghostSlotX(c.slot);
               c.wx = clamp(c.wx, slotX - BLOCK_W / GHOST_SLOTS / 2, slotX + BLOCK_W / GHOST_SLOTS / 2); // stays on its own slot column (the block)
-              c.wy = clamp(c.wy, c.zone < 0 ? -9.2 : 0.6, c.zone < 0 ? 0.3 : CEM_FENCE_Y - 0.5); // stays in its own zone: street OR sidewalk
+              c.wy = clamp(c.wy, c.zone < 0 ? -9.2 : c.zone === 0 ? -0.5 : 0.8, c.zone < 0 ? -0.5 : c.zone === 0 ? 0.8 : CEM_FENCE_Y - 0.5); // stays in its own zone: street / curb / sidewalk
               if (c.g) {
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI; // face the drift
                 c.hopT = (c.hopT || 0) + dt;
@@ -20033,16 +20247,16 @@
                 );
               }
               // Off-screen recycling: the ghost re-takes the NEXT slot (round-robin,
-              // keeping the street/sidewalk pack evenly spread as the worker passes) and
+              // keeping the street/curb/sidewalk pack evenly spread as the worker passes) and
               // re-fades in. It NEVER flings to p.wx ± 38 (that would leave the block
               // and break the "these are the cemetery's ghosts" theme).
               if (tx > 55 || tx < -58) {
                 const slot = GHOST_SLOT_CURSOR % GHOST_SLOTS;
                 GHOST_SLOT_CURSOR++;
                 c.slot = slot;
-                c.zone = slot % 2 === 0 ? -1 : 1;
+                c.zone = slot % 3 === 0 ? -1 : slot % 3 === 1 ? 0 : 1;
                 c.wx = ghostSlotX(slot) + R(-0.4, 0.4);
-                c.wy = c.zone < 0 ? R(-8.8, -0.5) : R(0.8, 4.7);
+                c.wy = c.zone < 0 ? R(-8.8, -0.5) : c.zone === 0 ? R(-0.5, 0.8) : R(0.8, 4.7);
                 c.tx = c.wx;
                 c.ty = c.wy;
                 c.tyT = R(2, 6);
