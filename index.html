@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.235</div>
+          <div id="app-version" class="menu-version">v1.0.236</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.235';
+      const APP_VERSION = '1.0.236';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11577,6 +11577,16 @@
       };
 
       // ==================== CREATURE / VEHICLE BUILDERS ====================
+      // The driveway slabs (Flatbush + Staten Island) sit 0.04u above GZ — the 0.08u slab
+      // is centered on GZ, so its top is at GZ + 0.04. Slabs are 3.0u wide, centered on
+      // each block boundary. Ground dressing (dog-shit piles, the brown footprint trail,
+      // blood smears) must sit at the slab top there, or it buries inside the concrete
+      // and is invisible.
+      function groundZAt(wx, wy) {
+        const r = Math.abs(wx % BW);
+        const d = Math.min(r, BW - r); // distance to the nearest block boundary (slab center)
+        return wy >= 5 && wy <= 13 && d <= 1.5 ? GZ + 0.04 : GZ;
+      }
       // Random piles of dog shit on the sidewalk: step in one and the worker yells, then
       // leaves a brown trail of footprints for a while (see dropFootprint / updateFootprints)
       function makeDogShit() {
@@ -11600,8 +11610,9 @@
       function addDogShit(b, wx, wy) {
         const g = makeDogShit();
         // If on the curb (wy < 0.8), lift it to sit ON the curb top (world z = 0.35,
-        // i.e. GZ + 0.05) so it rests on the curb rather than hovering above it.
-        const z = wy < 0.8 ? GZ + 0.05 : GZ;
+        // i.e. GZ + 0.05) so it rests on the curb rather than hovering above it. On a
+        // driveway slab, lift it to the slab top (groundZAt) so it doesn't bury.
+        const z = wy < 0.8 ? GZ + 0.05 : groundZAt(wx, wy);
         g.position.set(wx - b.worldX, wy, z);
         g.rotation.z = Math.random() * Math.PI * 2;
         b.group.add(g);
@@ -15314,6 +15325,14 @@
           const line = BX(0.15, 7.0, 0.005, M(0x79818a));
           line.position.set(8.0, 9.0, GZ + 0.045);
           b.group.add(line);
+          // Dog-shit pile on the slab: the dogs are chained on these very driveways and
+          // the worker rides up onto the slab (to the doghouses), so this is where the
+          // "dog shit!" yell + brown footprint trail happens most. Piles stay off the
+          // doghouse center (local 8.0, 6.5) and inside the worker's reach (wy <= 8.0).
+          if (Math.random() < 0.4) {
+            const ds = Math.random() < 0.5 ? R(6.7, 7.6) : R(8.4, 9.3);
+            addDogShit(b, b.worldX + ds, R(5.4, 7.5));
+          }
         }
       }
       // ==================== BRONX LEASHED-DOG HELPERS ====================
@@ -18518,11 +18537,17 @@
             // The POOP uses a WIDE trigger: the worker "steps in it" when they walk
             // over the pile's X position anywhere on the sidewalk (wy 0..4.8). A plain
             // 0.65u circle misses whenever the worker's lateral lane is offset from the
-            // pile, so the trail would only fire "sometimes". (Detection is 2D wx/wy —
-            // the pile's visual z-height never factors in.)
+            // pile, so the trail would only fire "sometimes". Driveway-slab piles
+            // (wy > 4.8) trigger on the pile's own depth band instead — the worker is
+            // riding up onto the slab (to the doghouses), so snap to the pile's wy.
+            // (Detection is 2D wx/wy — the pile's visual z-height never factors in.)
             const inRange =
               hz.type === "poop"
-                ? Math.abs(hz.wx - p.wx) < 1.1 && p.wy >= -0.5 && p.wy <= 5.5
+                ? Math.abs(hz.wx - p.wx) < 1.1 &&
+                  p.wy >= -0.5 &&
+                  (hz.wy <= 4.8
+                    ? p.wy <= 5.5 // sidewalk/curb pile: wide lateral trigger
+                    : Math.abs(p.wy - hz.wy) < 1.1) // slab pile: near the pile's own depth
                 : d2 <= hz.r * hz.r;
             if (!inRange) continue;
             hz.cd = 1.4;
@@ -19112,7 +19137,9 @@
         // If on the curb (wy < 0.8), lift footprints to sit ON the curb top so they're
         // visible. The curb top is at world z = 0.35 = GZ + 0.05 (GZ = 0.3), so lift by
         // 0.05 above GZ (NOT 0.34 — that old value assumed GZ = 0 and hovered 0.31u high).
-        const footZ = p.wy < 0.8 ? GZ + 0.05 + 0.02 : GZ + 0.02;
+        // On the driveway slab, lift to the slab top (GZ + 0.04, via groundZAt) so the
+        // brown trail shows on the concrete instead of burying inside it.
+        const footZ = (p.wy < 0.8 ? GZ + 0.05 : groundZAt(p.wx, p.wy)) + 0.02;
         let g;
         if (isBlood) {
           // a small round drop of blood. The ground is the XY plane with Z = up, so a
@@ -19153,7 +19180,8 @@
         const n = (3 + Math.random() * 2) | 0; // 3-4 smears
         // If on the curb (wy < 0.8), lift blood to sit ON the curb top so it's visible.
         // The curb top is at world z = 0.35 = GZ + 0.05 (GZ = 0.3) — lift by 0.05, not 0.34.
-        const baseZ = wy < 0.8 ? GZ + 0.05 : GZ;
+        // On the driveway slab, lift to the slab top (groundZAt) so it shows on the concrete.
+        const baseZ = wy < 0.8 ? GZ + 0.05 : groundZAt(wx, wy);
         for (let i = 0; i < n; i++) {
           const a = R(0, Math.PI * 2);
           const r = R(0, 0.35);
