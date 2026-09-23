@@ -1514,15 +1514,32 @@
         background: #ff3b4a;
         color: #fff;
         border: none;
-        padding: 12px 20px 13px;
-        font-size: 19px;
+        /* Bigger than the plain bubble on purpose: the jagged star clip-path
+           carves away the corners, so the text needs generous padding to sit
+           safely inside the star. Long burst lines ("NO! The street's ALL
+           GHOSTS!?", "Hey dont do that!") would otherwise get clipped by the
+           spikes. The safe (inscribed) area of this 12-point star is ~79% of
+           the box radius in both axes, so the text block must stay inside
+           that — hence the fatter vertical padding (26px top/bottom) and
+           wider horizontal padding (48px). */
+        padding: 26px 48px 26px;
+        font-size: 18px;
+        line-height: 1.2;
         letter-spacing: 1.5px;
+        /* Long burst lines wrap to two lines instead of being cut off by the
+           spikes: the star grows taller (the clip-path scales with the box),
+           keeping the text safely inside the inscribed area. */
+        white-space: normal;
+        max-width: 260px;
         box-shadow: none;
+        /* Fatter 12-point star (inner valleys at ~86% of the tip radius) so the
+           inscribed area is big enough for the longest "OW!"/"POW!" lines to
+           fit without being cut off by the spikes. */
         clip-path: polygon(
-          50% 0, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
-          100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
-          50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
-          0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%
+          50% 0, 61.1% 8.5%, 75% 6.7%, 80.4% 19.6%, 93.3% 25%, 91.5% 38.9%,
+          100% 50%, 91.5% 61.1%, 93.3% 75%, 80.4% 80.4%, 75% 93.3%, 61.1% 91.5%,
+          50% 100%, 38.9% 91.5%, 25% 93.3%, 19.6% 80.4%, 6.7% 75%, 8.5% 61.1%,
+          0% 50%, 8.5% 38.9%, 6.7% 25%, 19.6% 19.6%, 25% 6.7%, 38.9% 8.5%
         );
         filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.45));
         animation: burstPop 0.22s cubic-bezier(0.2, 1.6, 0.4, 1) forwards;
@@ -2131,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.224</div>
+          <div id="app-version" class="menu-version">v1.0.225</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2255,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.224';
+      const APP_VERSION = '1.0.225';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5101,12 +5118,14 @@
           g.add(model);
           // Fill it with litter that spills over the rim. It's a child of the basket
           // group, so it rides along when carried and tossed; we just hide it on dump.
-          // The TWO corners flanking the Maspeth cemetery (the approach + departure
-          // intersections of the 5th block) are filled with skulls and bones instead.
+          // Only the baskets at the cemetery block's OWN two corners (the approach +
+          // departure corners of the 5th block) are filled with skulls and bones. The
+          // baskets at the ADJACENT blocks' corners (one full intersection-width further
+          // out) stay normal litter — the bones belong to the cemetery, not its neighbors.
           const bone =
             isQueensLevel() &&
-            home.wx >= QUEENS_CEMETERY_X - IW &&
-            home.wx <= QUEENS_CEMETERY_X + BLOCK_W + IW;
+            home.wx >= QUEENS_CEMETERY_X - IW / 2 &&
+            home.wx <= QUEENS_CEMETERY_X + BLOCK_W + IW / 2;
           const trash = buildLitterTrash(bone);
           trash.position.set(0, 0, 0);
           g.add(trash);
@@ -5117,6 +5136,7 @@
             state: "placed",
             g: g,
             trash: trash,
+            bone: bone, // the Maspeth cemetery-corner baskets are full of skulls + bones
             hx: home.wx,
             hy: home.wy,
             wx: home.wx,
@@ -7662,6 +7682,68 @@
         }
         return g;
       }
+      function makeCemeterySignMaterial() {
+        // The "Mount Mongo Cemetery" plaque face: a near-black board with a brass
+        // double border and the name in gold serif lettering. Node-safe -> a plain
+        // dark material (no DOM in the smoke tests).
+        if (typeof document === "undefined" || !THREE.CanvasTexture) {
+          return M(0x14140f);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = 1024;
+        canvas.height = 160;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#14140f";
+        ctx.fillRect(0, 0, 1024, 160);
+        ctx.strokeStyle = "#b8963e";
+        ctx.lineWidth = 6;
+        ctx.strokeRect(10, 10, 1004, 140);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(24, 24, 976, 112);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#d4b86a";
+        let fs = 84;
+        ctx.font = "bold " + fs + "px Georgia, 'Times New Roman', serif";
+        while (ctx.measureText("Mount Mongo Cemetery").width > 940 && fs > 20) {
+          fs--;
+          ctx.font = "bold " + fs + "px Georgia, 'Times New Roman', serif";
+        }
+        ctx.fillText("Mount Mongo Cemetery", 512, 84);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        return new THREE.MeshLambertMaterial({
+          map: texture,
+          emissiveMap: texture,
+          emissive: 0xffffff,
+          emissiveIntensity: 0.25,
+        });
+      }
+      function makeCemeterySign() {
+        // A "Mount Mongo Cemetery" plaque hung on the FRONT face of the iron fence,
+        // facing the sidewalk (-Y). Origin at the plaque center ON the fence face
+        // (local y=0); the plaque hangs just in front of it (negative y). Z-UP.
+        const g = new THREE.Group();
+        const iron = MS(0x101014, { metalness: 0.55, roughness: 0.5 });
+        const frame = BX(
+          9.4,
+          0.1,
+          1.6,
+          MS(0x1a1a14, { metalness: 0.6, roughness: 0.5 }),
+        );
+        frame.position.set(0, -0.12, 1.3);
+        g.add(frame);
+        const face = BX(9, 0.06, 1.4, makeCemeterySignMaterial());
+        face.position.set(0, -0.19, 1.3);
+        g.add(face);
+        // two mounting brackets tie the plaque to the fence bars behind it
+        for (const sx of [-3.5, 3.5]) {
+          const br = BX(0.2, 0.14, 0.4, iron);
+          br.position.set(sx, -0.03, 1.3);
+          g.add(br);
+        }
+        return g;
+      }
       function buildCemeteryBlock() {
         // The whole cemetery as ONE world group (absolute positions): the iron fence
         // along the sidewalk (front) + both sides (back is open green grass), a scatter
@@ -7676,6 +7758,12 @@
         const fence = makeCemeteryFence(BLOCK_W);
         fence.position.set(bx, CEM_FENCE_Y, GZ); // footing stands ON the ground
         g.add(fence);
+        // The "Mount Mongo Cemetery" sign: hung on the FRONT fence, centered, facing
+        // the sidewalk. The fence face is at local y=0 (world y CEM_FENCE_Y); the
+        // plaque hangs just in front of it (negative y = the walk side).
+        const sign = makeCemeterySign();
+        sign.position.set(bx + BLOCK_W / 2, CEM_FENCE_Y, GZ);
+        g.add(sign);
         // The two side walls close the front-to-back edges. Every wall carries posts
         // at both its ends (see makeCemeteryFence), so the front corners are cornered
         // with no gaps and each side run terminates cleanly at the back edge.
@@ -7743,15 +7831,18 @@
             transparent: true,
             opacity: 0.5,
             depthWrite: false,
-            side: THREE.DoubleSide,
+            // FrontSide (not DoubleSide): these are closed meshes, and with depthWrite
+            // off, DoubleSide renders BOTH faces of each thin box at ~the same depth,
+            // so they Z-fight (flicker). FrontSide renders only the outward faces.
+            side: THREE.FrontSide,
           });
         return GHOST_OBJECT_MAT;
       }
       // A spectral arm + OPEN hand reaching UP out of a small mound of spectral
       // earth. Origin at the ground point; userData.arm is the animated arm group (the
       // reach). The hand is the classic ghost-hand-out-of-the-ground: a flat oval
-      // palm with FIVE STRAIGHT, STRETCHED fingers fanning out of it — middle longest,
-      // ring/index in between, pinky shortest, thumb set wide to the side — each a
+      // palm with FIVE STRAIGHT, STRETCHED fingers fanning out of it — the four fingers (middle longest,
+      // ring/index in between, pinky shortest), with a SMALL thumb set wide to the side — each a
       // straight shaft ending in a rounded fingertip (the classic "hand sticking out").
       function makeGhostArm() {
         const mat = makeGhostObjectMat();
@@ -7773,29 +7864,80 @@
         palm.scale.set(1.25, 0.95, 0.5); // a real palm: long, flat, oval — NOT a ball
         palm.position.z = 0.74;
         arm.add(palm);
-        // Five STRAIGHT stretched fingers fanned out of the palm (read from above):
-        // angles in degrees, middle finger longest, pinky shortest, thumb set wide to
-        // the side — each finger = a straight tapered shaft + a rounded fingertip.
+        // Each finger is a two-segment "C" that points UP and curls INWARD, so the
+        // open hand reads as a GRABbing claw: a lower (proximal) shaft that rises
+        // and leans slightly OUT, then an upper (distal) shaft that bends back toward
+        // the palm, ending in a rounded fingertip. The four fingers are grouped
+        // (middle longest, ring/index in between, pinky shortest) and the THUMB is
+        // small, set wide to the side, and curls in too.
         const FINGERS = [
-          { a: -58, len: 0.3, r: 0.03 }, // pinky: shortest
-          { a: -26, len: 0.38, r: 0.034 }, // ring
-          { a: 6, len: 0.42, r: 0.034 }, // middle: longest
-          { a: 36, len: 0.36, r: 0.033 }, // index
-          { a: -104, len: 0.26, r: 0.04, wide: true }, // thumb: set wide to the side
+          { a: -40, len: 0.39, r: 0.031 }, // index: NORMAL sized, sits next to the thumb
+          { a: -15, len: 0.4, r: 0.032 }, // ring
+          { a: 5, len: 0.42, r: 0.032 }, // middle: longest
+          { a: 30, len: 0.24, r: 0.024 }, // pinky: THIN + SHORT, farthest from the thumb
+          { a: -112, len: 0.18, r: 0.042, wide: true }, // thumb: SHORT + FAT, set wide to the side
         ];
+        const CMAX = [0.95, 0.92, 1.0, 0.85, 0.9]; // per-finger curl multiplier (middle curls tightest)
+        const YUP = new THREE.Vector3(0, 1, 0);
+        g.userData.fingers = []; // per-finger refs for the clench animation (updateCreatures)
         for (let i = 0; i < 5; i++) {
           const f = FINGERS[i];
           const a = (f.a * Math.PI) / 180;
           const ux = Math.cos(a),
             uy = Math.sin(a);
-          const base = f.wide ? 0.1 : 0.08; // where the finger leaves the palm
-          const shaft = CY(f.r * 0.85, f.r, f.len, mat, 6); // straight, stretched OUT
-          shaft.rotation.z = a - Math.PI / 2; // axis along the radial direction
-          shaft.position.set(ux * (base + f.len / 2), uy * (base + f.len / 2), 0.76);
-          arm.add(shaft);
+          const base = f.wide ? 0.12 : 0.1; // where the finger leaves the palm
+          const z0 = 0.76; // finger base height (just above the palm)
+          const upLen = f.len * 0.6; // lower (proximal) segment
+          const curlLen = f.len * 0.4; // upper (distal) segment
+          const outA = 0.15; // lower segment leans slightly OUT (rad)
+          const inA = 0.4; // upper segment curls IN toward the palm (rad)
+          // Lower segment: base B -> knuckle M (up + slightly outward).
+          const Bx = ux * base,
+            By = uy * base;
+          const Mx = ux * (base + upLen * Math.sin(outA)),
+            My = uy * (base + upLen * Math.sin(outA)),
+            Mz = z0 + upLen * Math.cos(outA);
+          const low = CY(f.r * 0.9, f.r, upLen, mat, 6);
+          low.position.set((Bx + Mx) / 2, (By + My) / 2, (z0 + Mz) / 2);
+          low.quaternion.setFromUnitVectors(
+            YUP,
+            new THREE.Vector3(Mx - Bx, My - By, Mz - z0).normalize()
+          );
+          arm.add(low);
+          // Upper segment: knuckle M -> fingertip T (curling IN toward the center).
+          const Tx = Mx - curlLen * ux * Math.sin(inA),
+            Ty = My - curlLen * uy * Math.sin(inA),
+            Tz = Mz + curlLen * Math.cos(inA);
+          const upSeg = CY(f.r * 0.8, f.r * 0.92, curlLen, mat, 6);
+          upSeg.position.set((Mx + Tx) / 2, (My + Ty) / 2, (Mz + Tz) / 2);
+          upSeg.quaternion.setFromUnitVectors(
+            YUP,
+            new THREE.Vector3(Tx - Mx, Ty - My, Tz - Mz).normalize()
+          );
+          arm.add(upSeg);
+          const knuckle = SP(f.r * 1.05, mat, 6); // rounded knuckle at the bend
+          knuckle.position.set(Mx, My, Mz);
+          arm.add(knuckle);
           const tip = SP(f.r * 0.95, mat, 6); // rounded fingertip, reaching
-          tip.position.set(ux * (base + f.len), uy * (base + f.len), 0.77);
+          tip.position.set(Tx, Ty, Tz);
           arm.add(tip);
+          // store the upper segment + tip + knuckle point + per-finger curl
+          // variation (cmax = how tight this finger curls, poff = a small phase
+          // stagger) so animateGhostArms can re-curl each finger (open <-> tight
+          // grab) around the knuckle.
+          g.userData.fingers.push({
+            ux,
+            uy,
+            curlLen,
+            Mx,
+            My,
+            Mz,
+            upper: upSeg,
+            tip,
+            cmax: CMAX[i],
+            poff: i * 0.06,
+            thumb: !!f.wide, // the wide thumb curls in from the SIDE (opposing grip)
+          });
         }
         arm.position.z = 0.04;
         arm.rotation.x = 0.18; // leans up out of the mound
@@ -7814,7 +7956,12 @@
         slab.position.z = 0.16 + 1.05 / 2;
         g.add(slab);
         const cap = CY(0.37, 0.37, 0.2, mat, 12);
-        cap.rotation.z = Math.PI / 2; // rounded top
+        // No rotation: the cylinder's axis is already along Y (the default), so its
+        // round cross-section lies in the X-Z plane — plumb with the slab's face
+        // (0.74 wide X x 1.05 tall Z). The rounded top sits flat on the slab and
+        // bulges up (+Z) like a real headstone's arched top. (Rotating it around Z
+        // would swing its axis toward X, making it read as a flat circle from the
+        // street instead of a plumb rounded top.)
         cap.position.z = 0.16 + 1.05;
         g.add(cap);
         return g;
@@ -7869,6 +8016,82 @@
       }
       // GHOST_ARMS: the live spectral arms (animated every frame in updateCreatures).
       let GHOST_ARMS = [];
+      // Afterlife glow for the STATIC spectral street objects (arms, headstones, skull
+      // piles) — they all share GHOST_OBJECT_MAT, so this makes the whole cemetery
+      // BREATHE in unison: a slow, subtle pulse of the emissive light (+ a faint
+      // opacity shimmer). Called every frame from updateCreatures (Queens level only).
+      function animateGhostGlow() {
+        if (!GHOST_OBJECT_MAT) return;
+        const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
+        const s = Math.sin(at * 0.5); // slow otherworldly breathing (period ~12.6s)
+        GHOST_OBJECT_MAT.emissiveIntensity = 0.55 + 0.18 * s; // 0.37 .. 0.73 — a subtle glow pulse
+        GHOST_OBJECT_MAT.opacity = 0.46 + 0.04 * (0.5 + 0.5 * s); // 0.46 .. 0.50 — a faint shimmer
+      }
+      // Animate the Maspeth spectral street arms: each hand sweeps, leans, dips, and
+      // CLENCHES its fingers open & closed as it gropes for something to GRAB. Called
+      // every frame from updateCreatures (only on the Queens level).
+      function animateGhostArms() {
+        const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
+        const _up = new THREE.Vector3(0, 1, 0);
+        const _dir = new THREE.Vector3();
+        for (let ai = 0; ai < GHOST_ARMS.length; ai++) {
+          const A = GHOST_ARMS[ai];
+          A.g.rotation.z = Math.sin(at * 0.8 + A.phase) * 1.0; // wide side-to-side sweep (searching)
+          if (A.g.userData.arm) {
+            A.g.userData.arm.rotation.x =
+              0.2 + Math.sin(at * 1.2 + A.phase * 0.7) * 0.42; // lean forward & back
+            A.g.userData.arm.position.z =
+              0.05 + Math.sin(at * 1.7 + A.phase * 1.3) * 0.16; // dip to the ground / rise into the air
+          }
+          // Fingers CLENCH open & closed — the hand gropes for something to GRAB.
+          // The lower segment stays put; the upper segment re-curls around the
+          // knuckle each frame, curling in TIGHT (tips wrap to the center) as it
+          // snaps closed, SEIZES (holds the grip for a dwell beat), then releases.
+          const F = A.g.userData.fingers;
+          if (F && F.length) {
+            for (let fi = 0; fi < F.length; fi++) {
+              const f = F[fi];
+              // The hand WANTS to grab: it opens to reach, snaps closed (squeeze),
+              // then HOLDS the grip (a "catch") for a dwell beat so it reads as
+              // SEIZING whatever it grabs, before releasing. sRaw is the smooth
+              // 0..1 cycle; the (1 - x)^1.4 shape biases it toward the clenched
+              // pose, and the peak is LOCKED (s = 1) for the "catch" beat.
+              const th = at * 2.8 + A.phase * 0.9 + (f.poff || 0); // faster grab cycle
+              const sRaw = 0.5 + 0.5 * Math.sin(th);
+              let s = 1 - Math.pow(1 - sRaw, 1.4); // quick squeeze closed
+              if (sRaw > 0.88) s = 1; // squeeze-and-hold "catch": lock the grip at the peak
+              const curl = 0.25 + (2.3 - 0.25) * s * (f.cmax || 1); // open .. tight grab
+              const sC = Math.sin(curl),
+                cC = Math.cos(curl);
+              if (f.thumb) {
+                // OPPOSING thumb: curl in from the SIDE — rotate the upper segment
+                // around a LATERAL axis (perpendicular to the radial) so it sweeps
+                // ACROSS to meet the other fingertips, instead of curling radially
+                // in with them.
+                const lx = -f.uy,
+                  ly = f.ux; // lateral direction (toward the fingers)
+                const Tx = f.Mx + f.curlLen * lx * sC;
+                const Ty = f.My + f.curlLen * ly * sC;
+                const Tz = f.Mz + f.curlLen * cC;
+                f.upper.position.set((f.Mx + Tx) / 2, (f.My + Ty) / 2, (f.Mz + Tz) / 2);
+                _dir.set(lx * sC, ly * sC, cC);
+                f.upper.quaternion.setFromUnitVectors(_up, _dir);
+                f.tip.position.set(Tx, Ty, Tz);
+              } else {
+                // Standard radial curl (the four fingers): tips wrap to the center.
+                const Tx = f.Mx - f.curlLen * f.ux * sC;
+                const Ty = f.My - f.curlLen * f.uy * sC;
+                const Tz = f.Mz + f.curlLen * cC;
+                f.upper.position.set((f.Mx + Tx) / 2, (f.My + Ty) / 2, (f.Mz + Tz) / 2);
+                _dir.set(-f.ux * sC, -f.uy * sC, cC);
+                f.upper.quaternion.setFromUnitVectors(_up, _dir);
+                f.tip.position.set(Tx, Ty, Tz);
+              }
+            }
+          }
+        }
+      }
+
       // Places the street ghosts on the cemetery block's STREET + SIDEWALK and registers each
       // as a hazard on the block. bx = the block's world X (QUEENS_CEMETERY_X). Street is the
       // negative-y road (curb top ~ y 0.35); the sidewalk is y ~0.5..5.0 (fence at 5.4).
@@ -13994,6 +14217,7 @@
             c.data = makeGhostPerson();
             c.fade = 0; // fade in from nothing (updateCreatures ramps c.fade -> 1)
             c.ghostMat = c.data.ghostMat; // its OWN material so it can fade independently
+            c.glowPhase = Math.random() * Math.PI * 2; // per-ghost afterlife-glow phase (out-of-sync breathing)
             break;
           case "raven":
             // Maspeth cemetery raven: a FLYING menace. It circles the sky above the block's
@@ -16052,10 +16276,18 @@
         if (!line) return;
         Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER, "worker");
       }
+      // The worker's one-line reaction to picking up a litter basket that's FULL
+      // of bones (the Maspeth cemetery-corner baskets). Randomly one of two lines.
+      function speakBoneBasket() {
+        const line =
+          Math.random() < 0.5 ? "It's full of bones!" : "There's a skull in here!";
+        Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER, "worker");
+      }
       function pickUp(item) {
         if (item.kind === "litterbasket" && item.state === "placed") {
           carry = "litterBasket";
           item.state = "carried";
+          if (item.bone) speakBoneBasket(); // the cemetery-corner basket: full of bones
         } else if (item.kind === "can" && item.state === "droppedEmpty") {
           carry = "canEmpty";
           item.state = "carriedEmpty";
@@ -17643,10 +17875,40 @@
         for (let i = 0; i < blocks.length; i++) {
           for (const hz of blocks[i].hazards) {
             hz.cd -= dt;
-            if (hz.cd > 0) continue;
             const dx = hz.wx - p.wx,
               dy = hz.wy - p.wy;
-            if (dx * dx + dy * dy > hz.r * hz.r) continue;
+            const d2 = dx * dx + dy * dy;
+            // Maspeth ghost HEADSTONE / SKULL PILE: SOLID — the worker can't pass
+            // through. A CONTINUOUS push-out along the overlap direction (works from
+            // ANY side, not just X) so he has to go AROUND it. Dead-center (d~0)
+            // falls back to the classic X shove. No damage, just the line (cooldown-gated).
+            if (hz.type === "ghoststone") {
+              if (d2 <= hz.r * hz.r) {
+                const d = Math.sqrt(d2);
+                if (d > 0.001) {
+                  const push = hz.r - d; // how deep the overlap is
+                  p.wx -= (dx / d) * push; // push AWAY from the hazard (dx = worker->hazard)
+                  p.wy -= (dy / d) * push;
+                } else {
+                  p.wx -= 0.85; // dead-center fallback (matches the classic shove)
+                }
+                if (hz.cd <= 0) {
+                  hz.cd = 1.4;
+                  Voice.say(
+                    "They only moved the headstones!",
+                    3,
+                    0.9,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                }
+              }
+              continue; // solid: skip the one-shot cooldown-gated logic below
+            }
+            if (hz.cd > 0) continue;
+            if (d2 > hz.r * hz.r) continue;
             hz.cd = 1.4;
             if (hz.type === "poop") {
               Voice.say(
@@ -17666,19 +17928,6 @@
               doStun(0.8, "hit");
               Voice.say(
                 "OW! My shin!",
-                3,
-                0.9,
-                p.wx,
-                p.wy,
-                WORKER_GENDER,
-                "worker",
-              );
-            } else if (hz.type === "ghoststone") {
-              // Maspeth ghost HEADSTONE / SKULL PILE: SOLID — the worker can't pass through,
-              // he gets shoved back and has to go AROUND it. No damage, just the line.
-              p.wx -= 0.85;
-              Voice.say(
-                "They only moved the headstones!",
                 3,
                 0.9,
                 p.wx,
@@ -19361,22 +19610,11 @@
           }
         }
         // ===== Maspeth spectral street arms: the ghostly hands GROPE the ground & air =====
-        // The arms are static hazards (see buildCemeteryStreetGhosts); here we animate them
-        // so each hand SEARCHES for something to grab — it sweeps around (rotation.z), leans
-        // forward & back (rotation.x), and dips toward the ground / rises into the air
-        // (reach). A restless, feeling-around groping — NOT just a wave.
+        // Animate the arms + their fingers (see animateGhostArms): each hand sweeps, leans,
+        // dips, and CLENCHES its fingers open & closed as it gropes for something to grab.
         if (isQueensLevel()) {
-          const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
-          for (let ai = 0; ai < GHOST_ARMS.length; ai++) {
-            const A = GHOST_ARMS[ai];
-            A.g.rotation.z = Math.sin(at * 0.8 + A.phase) * 1.0; // wide side-to-side sweep (searching)
-            if (A.g.userData.arm) {
-              A.g.userData.arm.rotation.x =
-                0.2 + Math.sin(at * 1.2 + A.phase * 0.7) * 0.42; // lean forward & back
-              A.g.userData.arm.position.z =
-                0.05 + Math.sin(at * 1.7 + A.phase * 1.3) * 0.16; // dip to the ground / rise into the air
-            }
-          }
+          animateGhostArms();
+          animateGhostGlow(); // the static spectral objects breathe (afterlife glow)
         }
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
@@ -19689,7 +19927,14 @@
               // It fades in over ~1s (c.fade ramps 0 -> 1); a recycled ghost re-fades.
               if (c.ghostMat) {
                 c.fade = Math.min(1, (c.fade || 0) + dt / 1.0);
-                c.ghostMat.opacity = 0.45 * c.fade;
+                // Afterlife glow: a slow, per-ghost PHASED breathing of the emissive
+                // light (+ a faint opacity shimmer) so the pack shimmers out of sync —
+                // each spirit pulses on its own gentle rhythm.
+                const gAt =
+                  (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
+                const gp = 0.5 + 0.5 * Math.sin(gAt * 0.6 + (c.glowPhase || 0));
+                c.ghostMat.emissiveIntensity = 0.5 + 0.3 * gp; // 0.5 .. 0.8 subtle glow
+                c.ghostMat.opacity = 0.45 * c.fade * (0.85 + 0.15 * gp); // faint shimmer on top of the fade
               }
               c.tyT -= dt;
               if (c.tyT <= 0) {
@@ -22371,10 +22616,18 @@
         };
       }
       const BUBBLE_LINE_STEP = 42;
-      function bubbleBounds(sx, sy, text, line) {
+      function bubbleBounds(sx, sy, text, line, isBurst) {
         const estChars = Math.max(4, text.length);
-        const w = estChars * 10 + 20;
-        const h = 30;
+        // Plain bubble: 16px Bangers ≈ 10px/char + 20px padding. Burst: 18px
+        // Bangers + 1.5px letter-spacing ≈ 12px/char + 96px padding, capped at
+        // the wrap width (260px content + 96px padding = 356px box).
+        const w = isBurst
+          ? Math.min(estChars * 12 + 96, 356)
+          : estChars * 10 + 20;
+        // The POW! burst is ~74px tall (fat padding + 18px Bangers text), not
+        // the plain bubble's 30px — using the real height keeps stacked
+        // bubbles from overlapping a burst.
+        const h = isBurst ? 74 : 30;
         return {
           x: sx - w * 0.5,
           y: sy - h - line * BUBBLE_LINE_STEP,
@@ -22390,9 +22643,9 @@
           a.y + a.h > b.y
         );
       }
-      function findFreeBubbleLine(sx, sy, text) {
+      function findFreeBubbleLine(sx, sy, text, isBurst) {
         for (let line = 0; line < 4; line++) {
-          const self = bubbleBounds(sx, sy, text, line);
+          const self = bubbleBounds(sx, sy, text, line, isBurst);
           let free = true;
           for (const b of speechBubbles) {
             if (b.lockedX === null || b.lockedY === null) continue;
@@ -22401,6 +22654,7 @@
               b.lockedY,
               b.text,
               b.offsetLine,
+              b.burst,
             );
             if (rectsOverlap(self, other)) {
               free = false;
@@ -22435,11 +22689,10 @@
         // POW! burst: the worker's "OW!" hit lines (driveway-tricycle lunge,
         // hydrant shin-bonk, pitbull bite...) and anything explicitly flagged
         // with style "burst" get the jagged comic burst instead of the plain bubble.
-        if (
+        const isBurst =
           style === "burst" ||
-          (speaker === "worker" && /^ow/i.test(String(text).trim()))
-        )
-          cls += " bub-burst";
+          (speaker === "worker" && /^ow/i.test(String(text).trim()));
+        if (isBurst) cls += " bub-burst";
         el.className = cls;
         el.textContent = text;
         document.body.appendChild(el);
@@ -22447,7 +22700,7 @@
           x: innerWidth / 2,
           y: innerHeight * 0.3,
         };
-        const offsetLine = findFreeBubbleLine(s.x, s.y, text);
+        const offsetLine = findFreeBubbleLine(s.x, s.y, text, isBurst);
         speechBubbles.push({
           el: el,
           wx: wx,
@@ -22459,6 +22712,7 @@
           lockedY: s.y,
           offsetLine: offsetLine,
           speaker: speaker,
+          burst: isBurst,
         });
       }
       function updateBubbles(dt) {

@@ -59,7 +59,7 @@ function disposeObj(){ calls.dispose++; }
 function resetCalls(){ calls.score=0; calls.deposit=0; calls.dispose=0; calls.voices.length=0; }
 
 // ---- build the real logic closure --------------------------------------------------
-const fns = ['nearHopper','nearHopperLitter','attachCarried','pickUp','dumpLitterBasket','updateFlyingBaskets',
+const fns = ['nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets',
   'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
@@ -208,6 +208,62 @@ check('resetLitterBaskets -> all 11 restored "placed" on groundGroup, in-flight 
     assert.strictEqual(b.g.parent, groundGroup);
     assert.ok(b.trash && b.trash.visible === true, 'fresh shift: every basket refilled with visible trash');
   }
+});
+
+// ---- 8) picking up a BONES basket (Maspeth cemetery corner) -> a bones line -------
+check('picking up a BONES basket -> the worker says a bones line ("It\'s full of bones!" / "There\'s a skull in here!")', ()=>{
+  resetCalls();
+  const b = api.baskets()[0];
+  b.bone = true; // simulate the Maspeth cemetery-corner basket (full of skulls + bones)
+  b.state = 'placed';
+  p.wx = b.hx; p.wy = b.hy;
+  api.pickUp(b);
+  const lines = ['It\'s full of bones!', 'There\'s a skull in here!'];
+  assert.strictEqual(api.carry(), 'litterBasket');
+  assert.ok(lines.includes(calls.voices[calls.voices.length - 1]), 'bones line said, got: ' + JSON.stringify(calls.voices));
+});
+
+// ---- 8b) picking up a NORMAL basket -> NO bones line ------------------------------
+check('picking up a NORMAL basket (no bones) -> NO bones line is said', ()=>{
+  resetCalls();
+  const b = api.baskets()[1];
+  b.bone = false; // a regular litter basket
+  b.state = 'placed';
+  p.wx = b.hx; p.wy = b.hy;
+  api.pickUp(b);
+  const lines = ['It\'s full of bones!', 'There\'s a skull in here!'];
+  assert.strictEqual(api.carry(), 'litterBasket');
+  assert.ok(!calls.voices.some(v => lines.includes(v)), 'no bones line for a normal basket, got: ' + JSON.stringify(calls.voices));
+});
+
+// ---- 8c) the BONES flag is only true at the cemetery block's OWN corners --------
+// Runs the REAL resetLitterBaskets with isQueensLevel=true + real positions, so it
+// proves the narrow (± IW/2) range flags only the two baskets on the cemetery block's
+// own corners, and leaves the ADJACENT blocks' corners (one intersection-width out) normal.
+check('bone flag -> only the cemetery block\'s own two corners are bones (adjacent blocks\' corners stay normal)', ()=>{
+  const REAL_XS = [80, 176, 272, 368, 464, 560, 656, 752];
+  const apiQ = new Function(
+    'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
+    'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
+    'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W',
+    'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
+    'function tossBag(){} function dumpCan(){}\n' +
+    fns + '\n' +
+    'return { resetLitterBaskets, placeLitterBasket, baskets:()=>litterBaskets };'
+  )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
+    CROSS_W, IW, REAL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, () => WORKER_MAX_Y,
+    dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => true, 384, 80);
+  apiQ.placeLitterBasket();
+  const bs = apiQ.baskets();
+  assert.strictEqual(bs.length, 11, '11 baskets placed');
+  const boneBaskets = bs.filter(b => b.bone);
+  assert.strictEqual(boneBaskets.length, 2, 'exactly 2 bones baskets (the cemetery block\'s own two corners)');
+  const boneXs = boneBaskets.map(b => b.wx).sort((a, b) => a - b);
+  assert.deepStrictEqual(boneXs, [382, 466], 'bones baskets are at the cemetery block\'s own corners (x=382 approach, x=466 departure)');
+  const b370 = bs.find(b => b.wx === 370);
+  const b478 = bs.find(b => b.wx === 478);
+  assert.ok(b370 && b370.bone === false, 'Block 4 corner (x=370) is normal, not bones');
+  assert.ok(b478 && b478.bone === false, 'Block 6 corner (x=478) is normal, not bones');
 });
 
 console.log('\n' + pass + ' litter-basket checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));

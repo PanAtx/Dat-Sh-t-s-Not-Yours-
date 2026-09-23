@@ -202,6 +202,41 @@ check(
   'the fence corners are cornered: makeCemeteryFence plants a post at BOTH ends (postAt(0) + postAt(len)) so the walls meet',
   fence.indexOf('postAt(0)') >= 0 && fence.indexOf('postAt(len)') >= 0
 );
+// ---- the "Mount Mongo Cemetery" sign (hung on the front iron fence) ----
+const signMat = (() => {
+  try {
+    return extract('makeCemeterySignMaterial');
+  } catch (e) {
+    return '';
+  }
+})();
+check(
+  'makeCemeterySignMaterial: a canvas-texture plaque with the "Mount Mongo Cemetery" name (Node-safe -> plain dark material)',
+  signMat.length > 0 &&
+    signMat.indexOf('Mount Mongo Cemetery') >= 0 &&
+    signMat.indexOf('THREE.CanvasTexture') >= 0 &&
+    signMat.indexOf('typeof document === "undefined"') >= 0
+);
+const cemSign = (() => {
+  try {
+    return extract('makeCemeterySign');
+  } catch (e) {
+    return '';
+  }
+})();
+check(
+  'makeCemeterySign: a plaque (frame + text face + mounting brackets) hung on the fence face, facing the sidewalk (-Y)',
+  cemSign.length > 0 &&
+    cemSign.indexOf('makeCemeterySignMaterial()') >= 0 &&
+    cemSign.indexOf('position.set(0, -0.12, 1.3)') >= 0 &&
+    cemSign.indexOf('position.set(0, -0.19, 1.3)') >= 0
+);
+check(
+  'buildCemeteryBlock: the "Mount Mongo Cemetery" sign is hung CENTERED on the FRONT fence (bx + BLOCK_W/2, CEM_FENCE_Y, GZ)',
+  cemBlock.indexOf('const sign = makeCemeterySign()') >= 0 &&
+    cemBlock.indexOf('sign.position.set(bx + BLOCK_W / 2, CEM_FENCE_Y, GZ)') >= 0
+);
+
 
 // ================= 2b. ORIENTATION: everything STANDS UP (Z is the vertical axis) =================
 {
@@ -1111,10 +1146,13 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
   );
   const hsSrc = extract('makeGhostHeadstone');
   check(
-    'makeGhostHeadstone: a ghostly rounded slab (plinth + slab + rounded cap)',
+    'makeGhostHeadstone: a ghostly rounded slab (plinth + slab + rounded cap plumb with the slab face)',
     hsSrc.indexOf('plinth') >= 0 &&
       hsSrc.indexOf('slab') >= 0 &&
-      hsSrc.indexOf('cap.rotation.z = Math.PI / 2') >= 0
+      hsSrc.indexOf('cap.position.z = 0.16 + 1.05') >= 0 &&
+      // cap must NOT be Z-rotated: the cylinder axis stays along Y so the round
+      // top is plumb with the slab face (a Z rotation made it a flat circle)
+      hsSrc.indexOf('cap.rotation.z = Math.PI / 2') < 0
   );
   const skullSrc = extract('makeSkullPile');
   check(
@@ -1130,6 +1168,28 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
   check(
     'makeGhostObjectMat: one shared TRANSLUCENT spectral material (opacity 0.5, depthWrite off)',
     matSrc.indexOf('opacity: 0.5') >= 0 && matSrc.indexOf('depthWrite: false') >= 0
+  );
+  // ===== Afterlife glow: the ghosts BREATHE (a subtle, slow emissive pulse) =====
+  const glowSrc = extract('animateGhostGlow');
+  check(
+    'animateGhostGlow: pulses the SHARED GHOST_OBJECT_MAT emissive + opacity (static objects breathe in unison)',
+    glowSrc.indexOf('GHOST_OBJECT_MAT.emissiveIntensity') >= 0 &&
+      glowSrc.indexOf('GHOST_OBJECT_MAT.opacity') >= 0 &&
+      glowSrc.indexOf('Math.sin') >= 0
+  );
+  check(
+    'animateGhostGlow: called every frame on the Queens level (alongside animateGhostArms)',
+    src.indexOf('animateGhostGlow()') >= 0 && src.indexOf('animateGhostArms()') >= 0
+  );
+  const ghostUpdSrc = (function () {
+    const i = src.indexOf('case "ghost": {');
+    return i < 0 ? '' : src.slice(i, i + 2600);
+  })();
+  check(
+    'wandering ghosts: per-ghost PHASED afterlife glow (emissiveIntensity pulse; glowPhase assigned + used)',
+    ghostUpdSrc.indexOf('c.ghostMat.emissiveIntensity') >= 0 &&
+      ghostUpdSrc.indexOf('glowPhase') >= 0 &&
+      src.indexOf('c.glowPhase = Math.random() * Math.PI * 2') >= 0
   );
   const placeSrc = extract('buildCemeteryStreetGhosts');
   check(
@@ -1179,6 +1239,12 @@ console.log('[static] street ghost builders + hazards + collideStatic branches')
     cs.indexOf('hz.type === "ghoststone"') >= 0 &&
       cs.indexOf('p.wx -= 0.85') >= 0 &&
       cs.indexOf('They only moved the headstones!') >= 0
+  );
+  check(
+    'collideStatic: "ghoststone" is a CONTINUOUS SOLID push-out — pushed along the OVERLAP direction in BOTH x and y (not X-only), so the worker can\'t pass through from any side',
+    cs.indexOf('const push = hz.r - d') >= 0 &&
+      cs.indexOf('p.wx -= (dx / d) * push') >= 0 &&
+      cs.indexOf('p.wy -= (dy / d) * push') >= 0
   );
   check(
     'collideStatic: "ghostarm" GRABS the worker (HP_HIT_GHOSTARM "ghost" damage + scare + line)',
@@ -1317,6 +1383,55 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
       ga.said.some((v) => v.t === 'Get those hands off me!' && v.sp === 'worker')
   );
   check('ghostarm touch: NOT a wall — the worker was NOT shoved (wx unchanged)', ga.p.wx === 144);
+
+  // ghoststone approached from the SIDE (worker offset in Y): the worker is pushed
+  // OUT in Y (away from the hazard) — proving it's a directional SOLID push, not X-only.
+  const gsSide = (function () {
+    const said = [];
+    const rec = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
+    const p = { wx: 144, wy: 0.2 + 0.5, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0 }; // 0.5u "south" of the hazard
+    const blocks = [
+      { hazards: [{ wx: 144, wy: 0.2, r: 0.85, type: 'ghoststone', drop: 0, cd: 0 }] },
+    ];
+    const Voice = { say: (t, dur, vol, x, y, g, sp) => said.push({ t: t, sp: sp }) };
+    const hurtNPC = (a, cause) => {
+      rec.hurt++;
+      rec.dmg += a;
+      rec.cause = cause;
+    };
+    const doStun = (d, type) => {
+      rec.stuns++;
+    };
+    const fn = new Function(
+      'state',
+      'p',
+      'blocks',
+      'Voice',
+      'hurtNPC',
+      'doStun',
+      'WORKER_GENDER',
+      'HP_HIT_GHOSTARM',
+      'HP_HIT_HAZARD',
+      'footDist',
+      'dropCarried',
+      'carry',
+      'dt',
+      csSrc + '\n collideStatic(dt);',
+    );
+    fn('play', p, blocks, Voice, hurtNPC, doStun, 'male', 4, 5, 0, function () {}, 'none', 0.016);
+    return { said: said, rec: rec, p: p };
+  })();
+  check(
+    'ghoststone approached from the SIDE: the worker is pushed OUT in Y (wy increased, away from the hazard) — solid from any side',
+    gsSide.p.wy > 0.2 + 0.5,
+    'wy=' + gsSide.p.wy
+  );
+  check(
+    'ghoststone approached from the SIDE: NO X shove (wx unchanged, since dx=0) — proves a directional push, not X-only',
+    Math.abs(gsSide.p.wx - 144) < 1e-6,
+    'wx=' + gsSide.p.wx
+  );
+  check('ghoststone side approach: NO damage (an obstacle, not a hit)', gsSide.rec.hurt === 0);
 }
 
 console.log('');
