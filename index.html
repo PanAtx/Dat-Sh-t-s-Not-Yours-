@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.247</div>
+          <div id="app-version" class="menu-version">v1.0.248</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.247';
+      const APP_VERSION = '1.0.248';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4938,10 +4938,11 @@
       //     native front (-Y) maps straight to game -Y (the street), so the car faces OUT of
       //     the driveway like a real parked car. (Traffic cars use rotation.z = PI/2 to put
       //     the front on +X — the parked car must NOT get that rotation.)
-      //   * SCALE: CARWASH_CAR_SCALE = 0.75 shrinks the 4.66u-long car to ~3.5u long x
-      //     ~1.57u wide — it fits the 3.0u-wide concrete driveway slab with room to spare,
-      //     and its rear (parked center y≈6.2 + ~1.7u) clears the house front face at y≈8.1.
-      const CARWASH_CAR_SCALE = 0.75;
+      //   * SCALE: CARWASH_CAR_SCALE = 0.9 shrinks the 4.66u-long car to ~4.2u long x
+      //     ~1.88u wide — a big sedan that still fits the 3.0u-wide concrete driveway
+      //     slab (the slab runs 8u deep, so there's room), and its rear (parked center
+      //     y≈6.0 + ~2.1u) just clears the house front face at y≈8.1.
+      const CARWASH_CAR_SCALE = 0.9;
       function makeParkedCar(colorHex) {
         if (CAR_TPL) {
           const g = new THREE.Group();
@@ -15145,8 +15146,12 @@
             // sedan in a Block 2 driveway. He STAYS PUT beside the car (the spawn block
             // sets his spot), scrubs the panel with his hose, and SPRAYS the worker if he
             // gets too close. See the "carwasher" case in updateCreatures for the spray
-            // mechanic. Bucket + sponge + coiled hose at his feet, nozzle in the right
-            // hand (the water-spray cone hangs off the arm so it follows the scrubbing).
+            // mechanic. The soapy bucket + sponge sit SET DOWN on the driveway in their
+            // own group (NOT a child of his body — they stay put while he turns to face
+            // the worker). The hose is a LONG GREENISH ROPE: it plugs into a faucet on
+            // the house (the spawn block sets c.hose.anchor) and ends at the nozzle in
+            // his right hand — the segments are re-laid every frame in updateCreatures
+            // (sagging bezier) so the rope follows his hand.
             c.sp = 0; // static: guards his driveway, never wanders
             c.scrubT = R(0, 6.28); // scrub phase
             c.sprayCd = 0; // >0 = recharging after a blast
@@ -15159,15 +15164,17 @@
                 hair: pick(HAIRS),
                 cap: true,
               });
-              // The BUCKET of soapy water at his feet + a yellow sponge + a coiled hose
-              const bucketM = M(0x4a90c2);
+              // The BUCKET of soapy water + sponge: set down on the driveway at a FIXED
+              // world spot (its own group in dynamicGroup, NOT parented to d.g) so it
+              // does NOT rotate with him when he turns to face the worker.
+              const bucketG = new THREE.Group();
               const bucket = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.2, 0.16, 0.3, 10),
-                bucketM,
+                M(0x4a90c2),
               );
-              bucket.position.set(0.52, 0, 0.28);
+              bucket.position.set(0, 0.15, 0);
               bucket.castShadow = true;
-              d.g.add(bucket);
+              bucketG.add(bucket);
               const soapy = new THREE.Mesh(
                 new THREE.CircleGeometry(0.17, 10),
                 new THREE.MeshLambertMaterial({
@@ -15175,18 +15182,27 @@
                   side: THREE.DoubleSide,
                 }),
               );
-              soapy.position.set(0.52, 0, 0.44);
-              d.g.add(soapy);
+              soapy.position.set(0, 0.31, 0);
+              bucketG.add(soapy);
               const sponge = BX(0.16, 0.12, 0.06, M(0xf2c230));
-              sponge.position.set(0.62, 0.1, 0.46);
+              sponge.position.set(0.16, 0.22, 0.18);
               sponge.rotation.z = 0.5;
-              d.g.add(sponge);
-              const coil = new THREE.Mesh(
-                new THREE.TorusGeometry(0.16, 0.03, 6, 12),
-                M(0x3a3f45),
-              );
-              coil.position.set(0.9, 0, 0.05);
-              d.g.add(coil); // the hose runs from the coil to his hand
+              bucketG.add(sponge);
+              bucketG.position.set(c.wx + 0.55, c.wy + 0.3, GZ + 0.04);
+              dynamicGroup.add(bucketG);
+              // The HOSE: a long greenish rubber rope from the house faucet to his hand.
+              // Built as a chain of unit-length segments (one shared material); the
+              // updateCreatures case re-lays them each frame along a sagging curve.
+              const hoseMat = M(0x2f7a3d);
+              c.hose = { segs: [], anchor: null };
+              for (let hs = 0; hs < 10; hs++) {
+                const hseg = new THREE.Mesh(
+                  new THREE.CylinderGeometry(0.03, 0.03, 1, 6),
+                  hoseMat,
+                );
+                dynamicGroup.add(hseg);
+                c.hose.segs.push(hseg);
+              }
               // The NOZZLE in the right hand (child of the arm pivot — it follows the
               // scrubbing sweep) + the water-spray cone (hidden until a blast fires).
               // The arm hangs along local -Z, so the nozzle points down-forward at the
@@ -15221,6 +15237,7 @@
               d.armR.rotation.x = -0.5; // resting pose: nozzle down on the car panel
               c.data = d.g;
               c.spray = spray; // updateCreatures toggles it during a blast
+              c.nozzle = nozzle; // updateCreatures reads its world position (hose end + jet origin)
             }
             break;
           case "crazy":
@@ -15911,12 +15928,14 @@
         // The Staten Island CAR WASH (New Dorp, day 5): a guy washing his parked sedan
         // in a driveway on BLOCK 2 (the second block — parked dead-center of the block
         // at x = 96 + 8*5 = 136 so it's easy to reach for testing). The sedan is the
-        // traffic car.glb model, rotated nose-to-street and scaled to fit the 3.0u-wide
-        // driveway slab (see makeParkedCar). The washer stands on the street side of the
-        // car; if the worker gets too close (CARWASH_SPRAY_R) he gets sprayed with the
-        // hose (see the "carwasher" case in updateCreatures). The driveway is reserved
-        // here (spliced out of flatbushDriveways) so a doghouse or driveway tricycle
-        // can never take the same slab.
+        // traffic car.glb model, rotated nose-to-street and scaled 0.9 (a big sedan
+        // that still fits the 3.0u-wide driveway slab — see makeParkedCar). The washer
+        // stands on the street side of the car; his hose runs from a faucet on the
+        // house to the nozzle in his hand, and if the worker gets too close
+        // (CARWASH_SPRAY_R) he gets sprayed (see the "carwasher" case in
+        // updateCreatures). The driveway is reserved here (spliced out of
+        // flatbushDriveways) so a doghouse or driveway tricycle can never take the
+        // same slab.
         if (isStatenIslandLevel()) {
           const carwashDrivewayX = LEVEL_BLOCKS[1].x + 8 * 5; // Block 2, 5th driveway = block center (x 136)
           const reserved = flatbushDriveways.indexOf(carwashDrivewayX);
@@ -15926,14 +15945,32 @@
           cw.wy = 4.5; // front-lawn edge — inside the worker's reach (workerMaxY = 8)
           cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
           cw.g.position.set(cw.wx, cw.wy, GZ);
+          // The FAUCET on the house face (top of the slab) — the end the hose rope plugs
+          // into (updateCreatures re-lays the rope from this anchor to his hand).
+          const cwFaucetX = carwashDrivewayX + 1.35;
+          const cwFaucetY = 7.9;
+          const fpipe = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.045, 0.045, 0.34, 8),
+            M(0x5b6167),
+          );
+          fpipe.position.set(cwFaucetX, cwFaucetY, 0.55);
+          fpipe.castShadow = true;
+          dynamicGroup.add(fpipe);
+          const fspout = new THREE.Mesh(
+            new THREE.SphereGeometry(0.06, 8, 6),
+            M(0x454a50),
+          );
+          fspout.position.set(cwFaucetX, cwFaucetY - 0.17, 0.55);
+          dynamicGroup.add(fspout);
+          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY - 0.17, z: 0.55 };
           const cwCarColor = pick(CAR_COLORS);
           const cwCar = makeParkedCar(cwCarColor);
-          cwCar.position.set(carwashDrivewayX, 6.2, GZ + 0.04); // centered on the slab (slab top), rear clears the house face
+          cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04); // centered on the slab (slab top), nose just past the slab front edge
           dynamicGroup.add(cwCar);
           parkedCar = {
             g: cwCar,
             x: carwashDrivewayX,
-            y: 6.2,
+            y: 6.0,
             z: GZ + 0.04,
             colorHex: cwCarColor,
             gltf: !!CAR_TPL,
@@ -15943,8 +15980,8 @@
           const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
           b2record.hazards.push({
             wx: carwashDrivewayX,
-            wy: 6.2,
-            r: 2.1,
+            wy: 6.0,
+            r: 2.3,
             type: "parkedcar",
             drop: 0,
             cd: 0,
@@ -16951,6 +16988,43 @@
           });
         }
       }
+      // The hose JET: a stream of droplets that flies out of the NOZZLE and lands on
+      // the worker — droplets are staggered along the flight path (a stream, not a
+      // puff), each one launched from the nozzle height (bz) with the arc's gravity.
+      // Rides the dust-particle pipeline.
+      function spawnWaterJet(nx, ny, wx, wy) {
+        const count = 8;
+        const dx = wx - nx,
+          dy = wy - ny;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        for (let i = 0; i < count; i++) {
+          const g = new THREE.Group();
+          const dMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05, 6, 5),
+            new THREE.MeshLambertMaterial({
+              color: 0x9fd8ff,
+              transparent: true,
+              opacity: 0.85,
+            }),
+          );
+          g.add(dMesh);
+          dynamicGroup.add(g);
+          const t = i / count; // staggered along the flight path
+          const spd = 0.9 + R(0, 0.5);
+          dustParticles.push({
+            g: g,
+            wx: nx + dx * t * 0.7,
+            wy: ny + dy * t * 0.7,
+            vx: dx * spd,
+            vy: dy * spd,
+            vz: 0,
+            bz: 0.62, // nozzle height — gravity (vz) brings the droplet down
+            life: 0.5,
+            decay: (0.5 * spd) / (1 - t * 0.7), // tuned so each drop lands on the worker
+            rotSpeed: 0,
+          });
+        }
+      }
       // ==================== CONCRETE GRIT (jackhammer chipping the sidewalk) ====================
       function spawnGravelBits(wx, wy) {
         // A small shower of concrete fragments at the chisel tip: lots of TINY bits,
@@ -17754,11 +17828,11 @@
       const HP_HIT_CARWASH = 3;
       const CARWASH_SPRAY_R = 3.2; // the hose's reach: worker this close to the car washer gets sprayed
       const CARWASH_SPRAY_LINES = [
+        "Don't touch the car!",
+        "Get away from the car!",
         "Hey! I'm washing my car!",
         "Not today, DSNY!",
-        "This one's got a fresh coat of wax!",
-        "You got me soaking wet!",
-        "Back off from my sedan!",
+        "Keep your hands off my sedan!",
       ];
       const CARWASH_WORKER_LINES = [
         "Oh! Soaking wet!",
@@ -17773,6 +17847,10 @@
         "This one's a 2008. Still runs like a dream.",
         "You from the city, huh? Come take a look at the shine!",
       ];
+      // The car washer's hose rope: a shared unit-up vector + scratch dir for laying
+      // the hose segments (cylinder local +Y -> segment direction) each frame.
+      const HOS_UP = new THREE.Vector3(0, 1, 0);
+      const HOS_DIR = new THREE.Vector3();
       // The Maspeth cemetery ghost's creepy lines — it drops them as it drifts past the
       // worker (proximity) AND when it touches him (the scare exchange in collideCreatures).
       const GHOST_LINES = [
@@ -18061,11 +18139,8 @@
         karen: ["Failed to obligate a disgruntled homeowner"],
         // --- the Staten Island housewife: the worker's most enthusiastic fan ---
         housewife: ["Failure to Dump the Load"],
-        // --- the Staten Island car washer: his sedan is freshly waxed ---
-        carwasher: [
-          "Failure to respect a freshly waxed sedan",
-          "Interference with a sanctioned driveway car wash",
-        ],
+        // --- the Staten Island car washer: you got in the way of his wash ---
+        carwasher: ["Failed to clean the route or car"],
         // --- the Maspeth cemetery ghosts: the dead are due their rest ---
         ghost: [
           "Failure to respect the dearly departed",
@@ -21391,6 +21466,55 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
+              // Re-lay the HOSE ROPE: a sagging green line from the house faucet
+              // (c.hose.anchor, set by the spawn block) to the nozzle in his hand —
+              // the hand moves as he turns/sweeps, so the rope is re-laid EVERY frame
+              // (quadratic bezier: the midpoint droops with distance = real-hose sag).
+              if (c.hose && c.hose.anchor && c.nozzle) {
+                const hw = new THREE.Vector3();
+                c.nozzle.getWorldPosition(hw);
+                const ax = c.hose.anchor.x,
+                  ay = c.hose.anchor.y,
+                  az = c.hose.anchor.z || 0.55;
+                const hx = hw.x,
+                  hy = hw.y,
+                  hz = Math.max(0.4, hw.z);
+                const md =
+                  Math.sqrt((hx - ax) * (hx - ax) + (hy - ay) * (hy - ay)) || 1;
+                const sag = 0.12 + md * 0.2;
+                const bx = (ax + hx) / 2,
+                  by = (ay + hy) / 2,
+                  bz = Math.max(az, hz) - sag;
+                const segs = c.hose.segs;
+                for (let hs = 0; hs < segs.length; hs++) {
+                  const t0 = hs / segs.length,
+                    t1 = (hs + 1) / segs.length;
+                  const u0 = 1 - t0,
+                    u1 = 1 - t1;
+                  const q0x = u0 * u0 * ax + 2 * u0 * t0 * bx + t0 * t0 * hx,
+                    q0y = u0 * u0 * ay + 2 * u0 * t0 * by + t0 * t0 * hy,
+                    q0z = u0 * u0 * az + 2 * u0 * t0 * bz + t0 * t0 * hz,
+                    q1x = u1 * u1 * ax + 2 * u1 * t1 * bx + t1 * t1 * hx,
+                    q1y = u1 * u1 * ay + 2 * u1 * t1 * by + t1 * t1 * hy,
+                    q1z = u1 * u1 * az + 2 * u1 * t1 * bz + t1 * t1 * hz;
+                  const dx = q1x - q0x,
+                    dy = q1y - q0y,
+                    dz = q1z - q0z;
+                  const len =
+                    Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+                  const sg = segs[hs];
+                  sg.position.set(
+                    (q0x + q1x) / 2,
+                    (q0y + q1y) / 2,
+                    (q0z + q1z) / 2,
+                  );
+                  sg.scale.set(1, len, 1);
+                  sg.quaternion.setFromUnitVectors(
+                    HOS_UP,
+                    HOS_DIR.set(dx / len, dy / len, dz / len),
+                  );
+                }
+              }
               // THE SPRAY: worker inside the hose's reach -> soak him (cooldown-gated,
               // respects i-frames / Monster immunity — hurtNPC re-checks too)
               if (
@@ -21407,6 +21531,12 @@
                 hurtNPC(HP_HIT_CARWASH, "carwasher");
                 doStun(0.3, "hit");
                 spawnWaterSplash(p.wx, p.wy);
+                // The WATER JET: droplets fly out of the nozzle and land on the worker
+                if (c.nozzle) {
+                  const jp = new THREE.Vector3();
+                  c.nozzle.getWorldPosition(jp);
+                  spawnWaterJet(jp.x, jp.y, p.wx, p.wy);
+                }
                 Voice.say(
                   pick(CARWASH_SPRAY_LINES),
                   2.6,

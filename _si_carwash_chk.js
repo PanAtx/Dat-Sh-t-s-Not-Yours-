@@ -2,19 +2,22 @@
 // index.html — a parked sedan in a Block 2 driveway + the guy washing it with a
 // hose who sprays the worker when he gets too close:
 //   - parked car: car.glb template (traffic pipeline), ROTATED nose-to-street
-//     (rotation.z = 0, NOT the PI/2 traffic rotation) and SCALED (0.75) to fit
-//     the 3.0u-wide driveway slab; procedural box-sedan fallback; GLTF hot-swap
+//     (rotation.z = 0, NOT the PI/2 traffic rotation) and SCALED (0.9, a big sedan)
+//     to fit the 3.0u-wide driveway slab; procedural box-sedan fallback; GLTF hot-swap
 //   - parked spot: Block 2 (the second block), center driveway x = 96 + 8*5 = 136,
-//     y 6.2 on the slab top, SI-gated only, driveway reserved from the doghouse
+//     y 6.0 on the slab top, SI-gated only, driveway reserved from the doghouse
 //     pool, SOLID push-out hazard (no walking through the car)
-//   - carwasher NPC: static (stays put), makePerson + bucket/sponge/coil/nozzle +
+//   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
+//     group — they do not rotate with him) + LONG GREEN HOSE ROPE from the house
+//     faucet to the nozzle in his hand (re-laid each frame, sagging bezier) +
 //     hidden spray cone; MALE gender
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
-//     knockback + hose SFX + blue splash + lines (CD-gated, i-frame safe)
+//     knockback + hose SFX + water jet from the nozzle + blue splash + lines
+//     ("Don't touch the car!" / "Get away from the car!") (CD-gated, i-frame safe)
 //   - bump: arcade bump (1HP) "Watch the hose!", collision radius 0.85,
 //     flying-can hittable, pedestrians route around him (AVOID_TYPES)
-//   - WRITTEN UP!: "Failure to respect a freshly waxed sedan"
-//   - SFX.playHoseSplash + spawnWaterSplash
+//   - WRITTEN UP!: "Failed to clean the route or car"
+//   - SFX.playHoseSplash + spawnWaterSplash + spawnWaterJet
 'use strict';
 const fs = require("fs");
 const vm = require("vm");
@@ -61,6 +64,18 @@ check(
   })()
 );
 check(
+  'CARWASH_SPRAY_LINES: includes "Don\'t touch the car!" + "Get away from the car!"',
+  (() => {
+    const i = src.indexOf("const CARWASH_SPRAY_LINES = [");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 400);
+    return (
+      seg.indexOf("Don't touch the car!") >= 0 &&
+      seg.indexOf("Get away from the car!") >= 0
+    );
+  })()
+);
+check(
   "CARWASH_WORKER_LINES: 4+ soaked yelps (worker side of the spray)",
   (() => {
     const i = src.indexOf("const CARWASH_WORKER_LINES = [");
@@ -93,8 +108,8 @@ check(
   src.indexOf("function makeParkedCar(") >= 0
 );
 check(
-  "CARWASH_CAR_SCALE = 0.75 — shrinks the 4.66u car to fit the 3.0u-wide driveway slab",
-  /const CARWASH_CAR_SCALE = 0\.75;/.test(src)
+  "CARWASH_CAR_SCALE = 0.9 — a big sedan (4.2u long x 1.88u wide) that fits the 3.0u-wide driveway slab",
+  /const CARWASH_CAR_SCALE = 0\.9;/.test(src)
 );
 check(
   "GLTF path: cloned from CAR_TPL with unique Body paint (same as traffic cars)",
@@ -195,27 +210,40 @@ check(
   })()
 );
 check(
-  "spawn: the car sits centered on the slab top (y 6.2, GZ + 0.04)",
+  "spawn: the car sits centered on the slab top (y 6.0, GZ + 0.04)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 4400);
     return (
-      seg.indexOf("cwCar.position.set(carwashDrivewayX, 6.2, GZ + 0.04)") >= 0 &&
+      seg.indexOf("cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04)") >= 0 &&
       seg.indexOf("dynamicGroup.add(cwCar)") >= 0
     );
   })()
 );
 check(
-  "spawn: the sedan registers a SOLID 'parkedcar' hazard (push-out, r 2.1)",
+  "spawn: the sedan registers a SOLID 'parkedcar' hazard (push-out, r 2.3)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 4400);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
-      seg.indexOf("r: 2.1") >= 0 &&
+      seg.indexOf("r: 2.3") >= 0 &&
       seg.indexOf("b2record.hazards.push") >= 0
+    );
+  })()
+);
+check(
+  "spawn: a FAUCET on the house face anchors the hose (cw.hose.anchor set)",
+  (() => {
+    const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 4400);
+    return (
+      seg.indexOf("cwFaucetX") >= 0 &&
+      seg.indexOf("cw.hose.anchor = {") >= 0 &&
+      seg.indexOf("dynamicGroup.add(fpipe)") >= 0
     );
   })()
 );
@@ -226,34 +254,61 @@ check(
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 900);
+    const seg = src.slice(i, i + 1400);
     return seg.indexOf("c.sp = 0") >= 0;
   })()
 );
 check(
-  "addCreature: makePerson work-tee model + bucket + sponge + coiled hose",
+  "addCreature: makePerson work-tee model + FIXED bucket group (not parented to his body)",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5200);
     return (
       seg.indexOf("makePerson({") >= 0 &&
       seg.indexOf("CylinderGeometry(0.2, 0.16, 0.3, 10)") >= 0 &&
-      seg.indexOf("TorusGeometry(0.16, 0.03, 6, 12)") >= 0
+      seg.indexOf("const bucketG = new THREE.Group()") >= 0 &&
+      seg.indexOf("bucketG.add(bucket)") >= 0 &&
+      seg.indexOf("dynamicGroup.add(bucketG)") >= 0
     );
   })()
 );
 check(
-  "addCreature: nozzle in the right hand + hidden water-spray cone (c.spray)",
+  "addCreature: LONG GREEN HOSE ROPE (10 unit segments, 0x2f7a3d) from the house faucet to his hand",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5200);
+    return (
+      seg.indexOf("CylinderGeometry(0.03, 0.03, 1, 6)") >= 0 &&
+      seg.indexOf("0x2f7a3d") >= 0 &&
+      seg.indexOf("c.hose = { segs: [], anchor: null }") >= 0 &&
+      seg.indexOf("c.hose.segs.push(hseg)") >= 0
+    );
+  })()
+);
+check(
+  "addCreature: NO torus coil (the hose is a rope from the house, not a ring)",
+  (() => {
+    const i = src.indexOf('case "carwasher":');
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 5200);
+    const j = seg.indexOf("case \"crazy\":");
+    return seg.indexOf("TorusGeometry") < 0 || (j >= 0 && seg.indexOf("TorusGeometry") > j);
+  })()
+);
+check(
+  "addCreature: nozzle in the right hand + hidden water-spray cone (c.spray, c.nozzle)",
+  (() => {
+    const i = src.indexOf('case "carwasher":');
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 5200);
     return (
       seg.indexOf("d.armR.add(nozzle)") >= 0 &&
       seg.indexOf("ConeGeometry(0.5, 1.6, 8, 1, true)") >= 0 &&
       seg.indexOf("d.armR.add(spray)") >= 0 &&
       seg.indexOf("c.spray = spray") >= 0 &&
+      seg.indexOf("c.nozzle = nozzle") >= 0 &&
       seg.indexOf("spray.visible = false") >= 0
     );
   })()
@@ -293,7 +348,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 6000);
     return (
       seg.indexOf('state === "play"') >= 0 &&
       seg.indexOf("c.sprayCd <= 0") >= 0 &&
@@ -308,7 +363,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 6000);
     return (
       seg.indexOf('hurtNPC(HP_HIT_CARWASH, "carwasher")') >= 0 &&
       seg.indexOf('doStun(0.3, "hit")') >= 0
@@ -316,14 +371,15 @@ check(
   })()
 );
 check(
-  "update: the blast plays the hose SFX + splashes blue droplets on the worker",
+  "update: the blast plays the hose SFX + splashes blue droplets + fires the WATER JET from the nozzle",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 6000);
     return (
       seg.indexOf("SFX.playHoseSplash()") >= 0 &&
-      seg.indexOf("spawnWaterSplash(p.wx, p.wy)") >= 0
+      seg.indexOf("spawnWaterSplash(p.wx, p.wy)") >= 0 &&
+      seg.indexOf("spawnWaterJet(jp.x, jp.y, p.wx, p.wy)") >= 0
     );
   })()
 );
@@ -332,7 +388,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 6400);
     return (
       seg.indexOf("p.wx += (cdx / kd) * 1.0") >= 0 &&
       seg.indexOf("clamp(p.wy + (cdy / kd) * 0.8, -9.4, workerMaxY())") >= 0
@@ -352,11 +408,26 @@ check(
   })()
 );
 check(
+  "update: the HOSE ROPE is re-laid EVERY frame — sagging bezier from the house faucet to the nozzle in his hand",
+  (() => {
+    const i = src.indexOf(UMARK);
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 4400);
+    return (
+      seg.indexOf("c.hose.anchor") >= 0 &&
+      seg.indexOf("c.nozzle.getWorldPosition(hw)") >= 0 &&
+      seg.indexOf("const sag = 0.12 + md * 0.2") >= 0 &&
+      seg.indexOf("sg.quaternion.setFromUnitVectors(") >= 0 &&
+      seg.indexOf("HOS_UP") >= 0
+    );
+  })()
+);
+check(
   "update: idle car talk in earshot (cdist < 14, 6-11s cooldown)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4000);
+    const seg = src.slice(i, i + 6600);
     return (
       seg.indexOf("cdist < 14") >= 0 &&
       seg.indexOf("c.sayCd = R(6, 11)") >= 0 &&
@@ -424,7 +495,7 @@ check(
 
 // ================= 9. WRITTEN UP! =================
 check(
-  'WRITTEN UP!: "Failure to respect a freshly waxed sedan" (+ the car-wash one)',
+  'WRITTEN UP!: "Failed to clean the route or car" (the car washer)',
   (() => {
     const i = src.indexOf("const WRITEUP_REASONS = {");
     if (i < 0) return false;
@@ -432,8 +503,7 @@ check(
     const j = seg.indexOf("carwasher: [");
     return (
       j >= 0 &&
-      seg.indexOf("Failure to respect a freshly waxed sedan", j) >= 0 &&
-      seg.indexOf("Interference with a sanctioned driveway car wash", j) >= 0
+      seg.indexOf("Failed to clean the route or car", j) >= 0
     );
   })()
 );
@@ -455,6 +525,19 @@ check(
     if (i < 0) return false;
     const seg = src.slice(i, i + 1400);
     return seg.indexOf("0x9fd8ff") >= 0 && seg.indexOf("dustParticles.push") >= 0;
+  })()
+);
+check(
+  "spawnWaterJet: staggered droplet stream from the nozzle to the worker (bz = nozzle height)",
+  (() => {
+    const i = src.indexOf("function spawnWaterJet(");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 1600);
+    return (
+      seg.indexOf("0x9fd8ff") >= 0 &&
+      seg.indexOf("dustParticles.push") >= 0 &&
+      seg.indexOf("bz: 0.62") >= 0
+    );
   })()
 );
 check(
