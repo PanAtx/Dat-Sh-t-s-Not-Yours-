@@ -393,7 +393,7 @@ check(
   })()
 );
 check(
-  "spawnHoseSpray: the particle SPRAY FAN — mist + core drops emitted per frame along the aim with a perpendicular spread, an upward kick, and the dust pipeline's gravity (nozzle height via bz)",
+  "spawnHoseSpray: the particle MIST FAN — fine drops emitted per frame from the SAME single nozzle point as the jet, aim + perpendicular spread, upward kick, nozzle height via bz",
   (() => {
     const i = src.indexOf("function spawnHoseSpray(");
     if (i < 0) return false;
@@ -643,15 +643,28 @@ check(
   })()
 );
 check(
-  "spawnWaterJet: staggered droplet stream from the nozzle to the worker (launch height = nozzle z)",
+  "spawnWaterJet: a SINGLE-point stream — EVERY drop leaves the nozzle tip (wx: nx) at a staggered SPEED, timed to land on the worker, launched at nozzle height",
   (() => {
     const i = src.indexOf("function spawnWaterJet(");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 1600);
+    const seg = src.slice(i, i + 2400);
     return (
-      seg.indexOf("0x9fd8ff") >= 0 &&
-      seg.indexOf("dustParticles.push") >= 0 &&
-      seg.indexOf("nzz || 0.62") >= 0
+      seg.indexOf("wx: nx, // SINGLE spawn point: the nozzle tip") >= 0 &&
+      seg.indexOf("d / (flight * (1 - t * 0.4))") >= 0 &&
+      seg.indexOf("bz: baseZ") >= 0 &&
+      seg.indexOf("shrink: true") >= 0
+    );
+  })()
+);
+check(
+  "dust pipeline: the shrink flag makes water droplets SHRINK in flight (dust puffs still grow)",
+  (() => {
+    const i = src.indexOf("function updateDustParticles(");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 1400);
+    return (
+      seg.indexOf("p.shrink") >= 0 &&
+      seg.indexOf("Math.max(0.15, p.life)") >= 0
     );
   })()
 );
