@@ -91,7 +91,7 @@ global.blocks = [];
 global.creatures = [];
 global.litterBaskets = [];
 global.parkedCar = null; // the Staten Island parked sedan (null = off-island, no-op — same as the game)
-global.ParkedCarR = 3.0;
+global.ParkedCarR = 2.3;
 eval(extractFn('npcWalkAroundObstacles'));
 
 const dt = 0.016;
@@ -145,7 +145,7 @@ reset(); global.parkedCar = { wx: 11, wy: 6.0 };
   const c = { type: 'ped', wx: 8, wy: 4.5, dir: 1, __yMin: 0.8, __yMax: 5.0 }, startWy = c.wy;
   stepN(c, 200);
   check('parked sedan ahead: walker routes AROUND the car', Math.abs(c.wy - startWy) > 1.0, 'wy ' + startWy + ' -> ' + c.wy.toFixed(2));
-  check('parked sedan ahead: swings clear to the street side', c.wy < 6.0 - 3.0, 'wy=' + c.wy.toFixed(2));
+  check('parked sedan ahead: the walker stops BEFORE the car\'s nose plane (no clip)', c.wy < 6.0 - 2.1 - 0.5, 'wy=' + c.wy.toFixed(2));
   check('parked sedan ahead: stays in band', inBand(c), 'wy=' + c.wy.toFixed(2));
 }
 global.parkedCar = null;

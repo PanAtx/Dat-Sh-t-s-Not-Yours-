@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.269</div>
+          <div id="app-version" class="menu-version">v1.0.270</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.269';
+      const APP_VERSION = '1.0.270';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -16002,15 +16002,18 @@
             y0: 3.6,
             y1: 8.4,
           };
-          // The sedan is SOLID: the worker can't walk through the car (a push-out circle
-          // covering the parked body — the 0.9-scaled body's CORNERS sit 2.67u from
-          // center, so r must clear that; the slab is wide enough to go around it).
-          // ParkedCarR is shared: the same value feeds the NPC walk-around below.
+          // The sedan is SOLID: the worker can't walk through the car. Its push-out is a
+          // ROUNDED-RECT, not a circle: the 0.9-scaled body is a long slab (4.2u long x
+          // 1.88u wide, corners 2.30u from center), so a circle either clips the corners
+          // (r < 2.30) or floats ~2u off the narrow sides (r >= 2.30). hx/hy are the body's
+          // half-extents, m is a small clearance margin around the paint.
           const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
           b2record.hazards.push({
             wx: carwashDrivewayX,
             wy: 6.0,
-            r: ParkedCarR,
+            hx: 0.95, // half the 1.88u-wide body
+            hy: 2.1, // half the 4.2u-long body
+            m: 0.18, // clearance margin around the paint
             type: "parkedcar",
             drop: 0,
             cd: 0,
@@ -19350,18 +19353,32 @@
               continue; // solid: skip the one-shot cooldown-gated logic below
             }
             // The Staten Island PARKED SEDAN (the car washer's driveway car): SOLID —
-            // the worker can't walk through the car. Same continuous push-out as the
-            // cemetery headstones (from ANY side, no damage — the slab is wide enough
-            // to go around), plus a cooldown-gated "hey" from the car washer.
+            // the worker can't walk through the car. Push-out is a ROUNDED-RECT on the
+            // slab itself: the 0.9-scaled body is a long slab (4.2u long x 1.88u wide),
+            // so a circle either clips the corners or floats ~2u off the narrow sides.
+            // We push out from the NEAREST POINT on the slab's rectangle (+ a small
+            // margin), so the worker can stand right up against the paint. From ANY
+            // side, no damage (the slab is wide enough to go around), plus a
+            // cooldown-gated "hey" from the car washer.
             if (hz.type === "parkedcar") {
-              if (d2 <= hz.r * hz.r) {
-                const d = Math.sqrt(d2);
-                if (d > 0.001) {
-                  const push = hz.r - d; // how deep the overlap is
-                  p.wx -= (dx / d) * push; // push AWAY from the car (dx = worker->car)
-                  p.wy -= (dy / d) * push;
+              const px = p.wx - hz.wx,
+                py = p.wy - hz.wy; // worker relative to car center
+              const cx = Math.max(-hz.hx, Math.min(hz.hx, px)); // nearest point on the slab
+              const cy = Math.max(-hz.hy, Math.min(hz.hy, py));
+              const vx = px - cx,
+                vy = py - cy;
+              const dv = Math.sqrt(vx * vx + vy * vy);
+              if (dv < hz.m) {
+                if (dv > 0.001) {
+                  const push = hz.m - dv;
+                  p.wx += (vx / dv) * push; // out of the margin band, away from the paint
+                  p.wy += (vy / dv) * push;
                 } else {
-                  p.wx -= 0.85; // dead-center fallback (matches the classic shove)
+                  // dead INSIDE the slab — eject through the nearest face
+                  const ex = hz.hx - Math.abs(px),
+                    ey = hz.hy - Math.abs(py);
+                  if (ex < ey) p.wx += (px >= 0 ? 1 : -1) * (ex + hz.m);
+                  else p.wy += (py >= 0 ? 1 : -1) * (ey + hz.m);
                 }
                 if (hz.cd <= 0) {
                   hz.cd = 1.4;
@@ -20826,7 +20843,7 @@
       // only runs when a vehicle-escape (npcRoadRules, c.yieldLane) is NOT in progress,
       // so the two steering systems never fight over c.wy.
       const WALKER_R = 0.5; // half-width of a pedestrian used for avoidance clearance
-      const ParkedCarR = 3.0; // the parked sedan's solid radius — covers the 0.9-scaled body's CORNERS (2.67u from center); the worker's push-out and the NPC walk-around both use it
+      const ParkedCarR = 2.3; // the parked sedan's CIRCUMRADIUS (the 0.9-scaled body is 4.2u long x 1.88u wide, corners 2.30u from center) — the NPC walk-around's circle. The WORKER's push-out is a rounded-RECT on the slab itself (hz.hx/hy/m) so it hugs the paint instead of floating off the sides
       const AVOID_TYPES = {
         // movable obstacles a walker slips around (vehicles are excluded — those are
         ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, // handled by

@@ -235,21 +235,23 @@ check(
   })()
 );
 check(
-  "spawn: the sedan registers a SOLID 'parkedcar' hazard (push-out, r = ParkedCarR — covers the body's corners)",
+  "spawn: the sedan registers a SOLID 'parkedcar' hazard (rounded-rect push-out: hx/hy half-extents + margin m)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 7600);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
-      seg.indexOf("r: ParkedCarR") >= 0 &&
+      seg.indexOf("hx: 0.95") >= 0 &&
+      seg.indexOf("hy: 2.1") >= 0 &&
+      seg.indexOf("m: 0.18") >= 0 &&
       seg.indexOf("b2record.hazards.push") >= 0
     );
   })()
 );
 check(
-  "ParkedCarR = 3.0: the sedan's shared solid radius (the 0.9-scaled body's corners sit 2.67u from center — the old 2.3 circle let the worker slip through the corners)",
-  /const ParkedCarR = 3\.0;/.test(src)
+  "ParkedCarR = 2.3: the sedan's CIRCUMRADIUS (0.9-scaled body 4.2u x 1.88u, corners 2.30u from center) — the NPC walk-around's circle; the worker's push-out hugs the slab via hx/hy/m",
+  /const ParkedCarR = 2\.3;/.test(src)
 );
 check(
   "npcWalkAroundObstacles: Staten Island NPCs slip AROUND the parked sedan (consider(parkedCar, ParkedCarR) — null elsewhere, so no-op off-island)",
@@ -577,12 +579,17 @@ check(
 
 // ================= 7. SOLID CAR (collideStatic) =================
 check(
-  "collideStatic: 'parkedcar' is SOLID (continuous push-out from any side, no damage)",
+  "collideStatic: 'parkedcar' is SOLID (rounded-rect push-out from the nearest point on the slab, from any side, no damage)",
   (() => {
     const i = src.indexOf('hz.type === "parkedcar"');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 1400);
-    return seg.indexOf("const push = hz.r - d") >= 0 && seg.indexOf("continue") >= 0;
+    const seg = src.slice(i, i + 2000);
+    return (
+      seg.indexOf("Math.max(-hz.hx, Math.min(hz.hx, px))") >= 0 &&
+      seg.indexOf("Math.max(-hz.hy, Math.min(hz.hy, py))") >= 0 &&
+      seg.indexOf("dv < hz.m") >= 0 &&
+      seg.indexOf("continue") >= 0
+    );
   })()
 );
 check(

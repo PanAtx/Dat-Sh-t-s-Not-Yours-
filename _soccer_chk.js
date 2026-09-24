@@ -455,7 +455,7 @@ console.log('[5] the crowd routes around the soccer kids');
   global.creatures = [{ type: 'soccer', wx: 11, wy: 1.5 }]; // the soccer kid ahead, in the lane
   global.litterBaskets = [];
   global.parkedCar = null; // the Staten Island parked sedan (null = off-island, no-op — same as the game)
-  global.ParkedCarR = 3.0;
+  global.ParkedCarR = 2.3;
   eval(extractFn('npcWalkAroundObstacles'));
   const c = { type: 'ped', wx: 8, wy: 2.0, dir: 1, __yMin: 0.8, __yMax: 5.0 };
   const startWy = c.wy;
