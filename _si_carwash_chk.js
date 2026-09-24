@@ -373,7 +373,7 @@ check(
   })()
 );
 check(
-  "addCreature: COAXIAL nozzle in the right hand (grip + brass tip rotated onto the reach axis) + spray cone (apex at the nozzle, WIDE base toward the worker)",
+  "addCreature: COAXIAL nozzle in the right hand (grip + brass tip rotated onto the reach axis) + hose/jet markers (the spray is now a per-frame particle fan, no cone mesh)",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
@@ -388,13 +388,23 @@ check(
       seg.indexOf("jetPt.position.set(0, -0.02, -0.66)") >= 0 &&
       seg.indexOf("c.hosePt = hosePt") >= 0 &&
       seg.indexOf("c.jetPt = jetPt") >= 0 &&
-      seg.indexOf("ConeGeometry(0.5, 1.6, 8, 1, true)") >= 0 &&
-      seg.indexOf("d.armR.add(spray)") >= 0 &&
-      seg.indexOf("c.spray = spray") >= 0 &&
-      seg.indexOf("c.nozzle = nozzle") >= 0 &&
-      seg.indexOf("spray.rotation.x = Math.PI / 2") >= 0 &&
-      seg.indexOf("spray.position.set(0, -0.02, -1.3)") >= 0 &&
-      seg.indexOf("spray.visible = false") >= 0
+      seg.indexOf("c.nozzle = nozzle") >= 0
+    );
+  })()
+);
+check(
+  "spawnHoseSpray: the particle SPRAY FAN — mist + core drops emitted per frame along the aim with a perpendicular spread, an upward kick, and the dust pipeline's gravity (nozzle height via bz)",
+  (() => {
+    const i = src.indexOf("function spawnHoseSpray(");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 1800);
+    return (
+      seg.indexOf("px = -uy") >= 0 &&
+      seg.indexOf("vx: ux * spd + px * lat") >= 0 &&
+      seg.indexOf("vy: uy * spd + py * lat") >= 0 &&
+      seg.indexOf("0xcfeeff") >= 0 &&
+      seg.indexOf("bz: nzz") >= 0 &&
+      seg.indexOf("dustParticles.push") >= 0
     );
   })()
 );
@@ -424,7 +434,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 2600);
+    const seg = src.slice(i, i + 3300);
     return seg.indexOf("Math.sin(c.scrubT * 2.2)") >= 0;
   })()
 );
@@ -482,14 +492,14 @@ check(
   })()
 );
 check(
-  "update: the spray cone is visible mid-blast, hidden while scrubbing",
+  "update: the SPRAY FAN emits from the nozzle every frame mid-blast, aimed at the worker (no static cone mesh toggled anymore)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 2800);
+    const seg = src.slice(i, i + 3200);
     return (
-      seg.indexOf("c.spray.visible = true") >= 0 &&
-      seg.indexOf("c.spray.visible = false") >= 0
+      seg.indexOf("spawnHoseSpray(js.x, js.y, js.z, adx / ad, ady / ad)") >= 0 &&
+      seg.indexOf("c.spray.visible") < 0
     );
   })()
 );
@@ -498,7 +508,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 2400);
+    const seg = src.slice(i, i + 3000);
     return (
       seg.indexOf("c.parts.armR.rotation.y = -1.8") >= 0 &&
       seg.indexOf("c.parts.armL.rotation.y = -1.2") >= 0 &&
