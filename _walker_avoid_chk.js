@@ -81,6 +81,7 @@ check('other pedestrians / animals are avoided (AVOID_TYPES)', avoidSrc.indexOf(
   check('AVOID_TYPES includes ' + t, new RegExp('\\b' + t + ':\\s*1,?').test(src)));
 check('trees are registered as avoidable obstacles (b.trees, world coords)', /b\.trees\.push\(\{ wx: baseX \+ tx, wy: ty \}\)/.test(src));
 check('a flat hazard (pothole/bottle "trip") is NOT treated as solid', /if \(hz\[j\]\.type === "hit"\) consider/.test(avoidSrc));
+check('the parked sedan (Staten Island) is avoided (parkedCar, ParkedCarR)', avoidSrc.indexOf('if (parkedCar) consider(parkedCar, ParkedCarR)') >= 0);
 
 console.log('[4] RUNTIME: a walker actually routes around obstacles, staying in the band');
 global.WALKER_R = 0.5;
@@ -89,6 +90,8 @@ global.AVOID_AHEAD = 6.0;
 global.blocks = [];
 global.creatures = [];
 global.litterBaskets = [];
+global.parkedCar = null; // the Staten Island parked sedan (null = off-island, no-op — same as the game)
+global.ParkedCarR = 3.0;
 eval(extractFn('npcWalkAroundObstacles'));
 
 const dt = 0.016;
@@ -135,6 +138,17 @@ reset(); global.litterBaskets.push({ state: 'placed', wx: 11, wy: 2.5 });
   stepN(c, 200);
   check('litter basket ahead: walker routes around it', Math.abs(c.wy - startWy) > 0.4, 'wy ' + startWy + ' -> ' + c.wy.toFixed(2));
 }
+// (f) the Staten Island parked sedan ABOVE the walkable band (real geometry: car wy 6.0,
+//     band 0.8..5.0) -> the walker swings to the street side and routes AROUND it
+reset(); global.parkedCar = { wx: 11, wy: 6.0 };
+{
+  const c = { type: 'ped', wx: 8, wy: 4.5, dir: 1, __yMin: 0.8, __yMax: 5.0 }, startWy = c.wy;
+  stepN(c, 200);
+  check('parked sedan ahead: walker routes AROUND the car', Math.abs(c.wy - startWy) > 1.0, 'wy ' + startWy + ' -> ' + c.wy.toFixed(2));
+  check('parked sedan ahead: swings clear to the street side', c.wy < 6.0 - 3.0, 'wy=' + c.wy.toFixed(2));
+  check('parked sedan ahead: stays in band', inBand(c), 'wy=' + c.wy.toFixed(2));
+}
+global.parkedCar = null;
 // (f) direction-aware: heading LEFT (-X) still avoids the obstacle to its left
 reset(); global.blocks.push({ hazards: [{ wx: 5, wy: 1.0, r: 0.75, type: 'hit' }], house: { bags: [], can: null } });
 {

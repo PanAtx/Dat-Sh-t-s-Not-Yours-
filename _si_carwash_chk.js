@@ -235,16 +235,38 @@ check(
   })()
 );
 check(
-  "spawn: the sedan registers a SOLID 'parkedcar' hazard (push-out, r 2.3)",
+  "spawn: the sedan registers a SOLID 'parkedcar' hazard (push-out, r = ParkedCarR — covers the body's corners)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 7600);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
-      seg.indexOf("r: 2.3") >= 0 &&
+      seg.indexOf("r: ParkedCarR") >= 0 &&
       seg.indexOf("b2record.hazards.push") >= 0
     );
+  })()
+);
+check(
+  "ParkedCarR = 3.0: the sedan's shared solid radius (the 0.9-scaled body's corners sit 2.67u from center — the old 2.3 circle let the worker slip through the corners)",
+  /const ParkedCarR = 3\.0;/.test(src)
+);
+check(
+  "npcWalkAroundObstacles: Staten Island NPCs slip AROUND the parked sedan (consider(parkedCar, ParkedCarR) — null elsewhere, so no-op off-island)",
+  (() => {
+    const i = src.indexOf("function npcWalkAroundObstacles(");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 2200);
+    return seg.indexOf("if (parkedCar) consider(parkedCar, ParkedCarR)") >= 0;
+  })()
+);
+check(
+  "parkedCar carries .wx/.wy walker-avoidance aliases (the avoidance loop reads those fields)",
+  (() => {
+    const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 7600);
+    return seg.indexOf("wx: carwashDrivewayX") >= 0 && seg.indexOf("wy: 6.0") >= 0;
   })()
 );
 check(

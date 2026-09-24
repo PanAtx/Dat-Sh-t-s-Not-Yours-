@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.268</div>
+          <div id="app-version" class="menu-version">v1.0.269</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.268';
+      const APP_VERSION = '1.0.269';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15988,6 +15988,8 @@
             z: GZ + 0.04,
             colorHex: cwCarColor,
             gltf: !!CAR_TPL,
+            wx: carwashDrivewayX, // walker-avoidance alias (npcWalkAroundObstacles reads .wx/.wy)
+            wy: 6.0,
           };
           // NO-SPAWN KEEPOUT around the sedan (registered NOW, before any other NPC
           // exists): the initial crowd's addCreature calls re-roll any default
@@ -16001,12 +16003,14 @@
             y1: 8.4,
           };
           // The sedan is SOLID: the worker can't walk through the car (a push-out circle
-          // covering the parked body; the slab is wide enough to go around it).
+          // covering the parked body — the 0.9-scaled body's CORNERS sit 2.67u from
+          // center, so r must clear that; the slab is wide enough to go around it).
+          // ParkedCarR is shared: the same value feeds the NPC walk-around below.
           const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
           b2record.hazards.push({
             wx: carwashDrivewayX,
             wy: 6.0,
-            r: 2.3,
+            r: ParkedCarR,
             type: "parkedcar",
             drop: 0,
             cd: 0,
@@ -20822,6 +20826,7 @@
       // only runs when a vehicle-escape (npcRoadRules, c.yieldLane) is NOT in progress,
       // so the two steering systems never fight over c.wy.
       const WALKER_R = 0.5; // half-width of a pedestrian used for avoidance clearance
+      const ParkedCarR = 3.0; // the parked sedan's solid radius — covers the 0.9-scaled body's CORNERS (2.67u from center); the worker's push-out and the NPC walk-around both use it
       const AVOID_TYPES = {
         // movable obstacles a walker slips around (vehicles are excluded — those are
         ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, // handled by
@@ -20870,6 +20875,10 @@
           const lb = litterBaskets[i];
           if (lb.state === "placed") consider(lb, 0.7);
         }
+        // The Staten Island PARKED SEDAN (the car-washer's driveway car): a big solid
+        // block sitting on the walkable band — the whole crowd slips around it like a
+        // tree, so no pedestrian ever clips the sedan (Staten Island only: null elsewhere).
+        if (parkedCar) consider(parkedCar, ParkedCarR);
         // Other pedestrians / street animals moving around on the same sidewalk.
         for (let i = 0; i < creatures.length; i++) {
           const o = creatures[i];
