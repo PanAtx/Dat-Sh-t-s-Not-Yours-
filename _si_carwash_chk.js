@@ -303,13 +303,13 @@ check(
   })()
 );
 check(
-  "addCreature: THICK RED GARDEN HOSE (18 unit segments, 0xc2452d — red pops against the dark green 0x4d7a3a lawn) from the house spigot to his fist",
+  "addCreature: RED GARDEN HOSE (18 unit segments, r 0.055, 0xc2452d — red pops against the dark green 0x4d7a3a lawn) from the house spigot to his fist",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
     const seg = src.slice(i, i + 5200);
     return (
-      seg.indexOf("CylinderGeometry(0.08, 0.08, 1, 8)") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.055, 0.055, 1, 8)") >= 0 &&
       seg.indexOf("0xc2452d") >= 0 &&
       seg.indexOf("c.hose = { segs: [], anchor: null }") >= 0 &&
       seg.indexOf("c.hose.segs.push(hseg)") >= 0
