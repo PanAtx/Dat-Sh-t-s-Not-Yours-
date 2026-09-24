@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.243</div>
+          <div id="app-version" class="menu-version">v1.0.245</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.243';
+      const APP_VERSION = '1.0.245';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4248,6 +4248,65 @@
         0x3f7ac0, // denim blue
       ];
       let karenOutfitQueue = [];
+      // The Staten Island HOUSEWIFE (New Dorp, day 5): an OVERLY FRIENDLY housewife
+      // who SHADOWS the worker around her even-numbered block — she wants to know
+      // how you're doing, what a great job, how big and strong you are, if you have
+      // a girlfriend, how lonely it gets, if you'd like her baked cookies, if you
+      // can clean her pipes, and that she's calling your boss to say how great
+      // you are. 32 overly-friendly (slightly too forward) lines, cycled as she
+      // follows. Same follow/wave behavior as the Karen and the Maspeth homeowner.
+      const HOUSEWIFE_LINES = [
+        "How's my favorite sanitation man doing today?",
+        "What a GREAT job you're doing! I'm so proud of you!",
+        "How strong are those arms, really? You could lift my whole car, couldn't you?",
+        "Do you have a girlfriend? The pretty girls always wander off.",
+        "It gets so LONELY in this house, you know.",
+        "Want some cookies? I baked a whole batch. Just for you.",
+        "My pipes have been clogged for WEEKS. You'd fix them, wouldn't you?",
+        "I was just thinking I'd call your boss and say how GREAT you are.",
+        "You look so handsome in that uniform.",
+        "Come by the house sometime. The heat's been working beautifully.",
+        "They say you can clean out ANY pipe in the city. Any size, is that true?",
+        "You must be so tired. I could make you a warm bath.",
+        "Why don't you have a wife? A woman like me would take care of you.",
+        "I saved you the last brownie. In a tin. With YOUR name on it.",
+        "Hubby's in Connecticut and this house feels so EMPTY.",
+        "You're so big and strong. Nobody on this street is like you.",
+        "Do you like it when a woman bakes for you? I mean it when I ask.",
+        "I've got a big pot of stew. Made with EXTRA love. Come taste it.",
+        "Your boss doesn't appreciate you. I would. I'm calling him to say so.",
+        "You work too hard, honey. Let me take care of you for a bit.",
+        "My pipes? They're a MESS. Only a strong man could fix them.",
+        "Can I walk with you a little while? I just like being near you.",
+        "You smell like fresh laundry and a hard day. I LOVE that.",
+        "Those cookies in the tin? They're yours. All of them. Forever.",
+        "Lonely nights. It's quiet when there's no strong man around.",
+        "I'm calling your boss. Telling him you're the BEST. And I know you.",
+        "Are your hands rough? I bet they're the sweetest hands.",
+        "Come in, come in! The door's open. It's ALWAYS open for you.",
+        "You're the first man in YEARS to make my heart flutter.",
+        "Finish that route and I'm making a CAKE. A big one. For you.",
+        "My pipes are clogged and my heart's empty. Only YOU can fix both.",
+        "You're not just cleaning my street, honey — you're cleaning up my LIFE.",
+      ];
+      // The housewife's CLOSING LINE — the one warm send-off when you walk out of
+      // her block for good (then she's done, waving from her spot for the shift).
+      const HOUSEWIFE_BYE = [
+        "Bye-bye, sweetie! Remember — the cookie tin is YOURS!",
+        "I'll be right here! The door is ALWAYS open for you!",
+        "Go finish that route! I'll be watching, and I'll be PROUD!",
+      ];
+      // Each Staten Island housewife wears a UNIQUE dress from this palette
+      // (shuffled into the queue per level, consumed one per block).
+      const HOUSEWIFE_OUTFITS = [
+        0xd98cae, // baby pink
+        0x9a7ab8, // lavender
+        0x5a9ac0, // sky blue
+        0xc9b458, // butter
+        0x7ab86a, // mint
+        0xa86a5a, // terracotta
+      ];
+      let housewifeOutfitQueue = [];
       function disposeObj(o) {
         o.traverse((ch) => {
           if (ch.geometry) ch.geometry.dispose();
@@ -14626,7 +14685,13 @@
         //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
         //   driver/rider (mixed), animals = neutral
         const MIXED = () => (Math.random() < 0.5 ? "male" : "female");
-        if (type === "lady" || type === "hooker" || type === "polish" || type === "karen")
+        if (
+          type === "lady" ||
+          type === "hooker" ||
+          type === "polish" ||
+          type === "karen" ||
+          type === "housewife"
+        )
           c.gender = "female";
         else if (
           type === "ped" ||
@@ -14948,6 +15013,31 @@
             c.data = makePerson({
               skirt: true, // the classic Karen dress
               shirt: c.outfit != null ? c.outfit : pick(KAREN_OUTFITS), // unique per block
+              hair: pick(HAIRS),
+            });
+            break;
+          case "housewife":
+            // The Staten Island housewife (New Dorp, day 5): an OVERLY FRIENDLY
+            // housewife who SHADOWS the worker around her even-numbered block —
+            // arms waving to the SIDES, cycling 32 overly-friendly (slightly too
+            // forward) HOUSEWIFE_LINES: how you're doing, what a great job, how big
+            // and strong, girlfriend, lonely, baked cookies, cleaning her pipes,
+            // calling the boss to praise him. STAYS ON HER BLOCK (blockMinX/blockMaxX
+            // clamp). Wears a UNIQUE dress (the spawn block feeds c.outfit). See the
+            // "housewife" case in updateCreatures for the follow/wave behavior.
+            c.wy = R(1.6, 3.8);
+            c.cd = 0;
+            c.askCd = 0.8; // first line lands right away
+            c.cool = 0; // 0 = following; >0 = resting before the next shadowing run
+            c.followed = 0; // distance shadowed this run
+            c.followMax = R(24, 32); // 3-4 houses of following, then a breather
+            c.waveT = R(0, 6.28);
+            c.pointT = 0; // >0 = her warm pointing gesture (lands with a line)
+            c.bye = false; // closing send-off fired (worker left her block for good)
+            c.data = makePerson({
+              skirt: true, // the classic housewife dress
+              shirt:
+                c.outfit != null ? c.outfit : pick(HOUSEWIFE_OUTFITS), // unique per block
               hair: pick(HAIRS),
             });
             break;
@@ -16038,6 +16128,33 @@
             k.g.position.set(k.wx, k.wy, GZ);
           }
         }
+        // The Staten Island HOUSEWIVES (New Dorp, day 5): ONE PER EVEN-NUMBERED
+        // BLOCK (blocks 2, 4, 6, 8 — x 96, 288, 480, 672). Each STAYS ON HER BLOCK
+        // (never crosses the street), wears a UNIQUE dress color, and shadows the
+        // worker around 3-4 houses with OVERLY FRIENDLY (slightly too forward)
+        // chatter: how you're doing, what a great job, how big and strong, do you
+        // have a girlfriend, how lonely it gets, baked cookies, cleaning her pipes,
+        // calling the boss to say how great he is. Touching her is a bump like any
+        // civilian: she says "I don't mind if you touch me!" and the worker mumbles
+        // "I didn't mean it"; if her bonks put him down the write-up reads
+        // "Failure to Dump the Load".
+        if (isStatenIslandLevel()) {
+          const hwBlocks = LEVEL_BLOCKS.filter((b, i) => (i + 1) % 2 === 0);
+          housewifeOutfitQueue = HOUSEWIFE_OUTFITS.slice().sort(
+            () => Math.random() - 0.5,
+          );
+          for (let i = 0; i < hwBlocks.length; i++) {
+            const bx = hwBlocks[i].x;
+            const hw = addCreature("housewife", {
+              outfit: housewifeOutfitQueue[i % housewifeOutfitQueue.length],
+            });
+            hw.wx = bx + R(20, 60); // in the middle of her own block
+            hw.wy = R(1.6, 3.8);
+            hw.blockMinX = bx + 4; // hard bounds: stays on this block
+            hw.blockMaxX = bx + 76;
+            hw.g.position.set(hw.wx, hw.wy, GZ);
+          }
+        }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
         // driveways that the doghouses did NOT take. They run AFTER the doghouse loop above
         // (which splices 3 of the 8 driveway entries) so they consume the LEFTOVER driveways
@@ -16888,6 +17005,7 @@
             c.type === "polishboy" ||
             c.type === "homeowner" ||
             c.type === "karen" ||
+            c.type === "housewife" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -17662,6 +17780,8 @@
         ],
         // --- the Staten Island Karen: a disgruntled homeowner with a phone ---
         karen: ["Failed to obligate a disgruntled homeowner"],
+        // --- the Staten Island housewife: the worker's most enthusiastic fan ---
+        housewife: ["Failure to Dump the Load"],
         // --- the Maspeth cemetery ghosts: the dead are due their rest ---
         ghost: [
           "Failure to respect the dearly departed",
@@ -18832,6 +18952,7 @@
           else if (c.type === "breaker") rad = 1.2;
           else if (c.type === "homeowner") rad = 0.85;
           else if (c.type === "karen") rad = 0.85;
+          else if (c.type === "housewife") rad = 0.85;
           else if (c.type === "yeller") rad = 0.95;
           else if (c.type === "jacker") rad = 0.95;
           else if (
@@ -19042,6 +19163,7 @@
             c.type === "polishboy" ||
             c.type === "homeowner" ||
             c.type === "karen" ||
+            c.type === "housewife" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -19183,6 +19305,28 @@
                     c.gender,
                     "ped",
                   );
+                else if (c.type === "housewife") {
+                  // The overly friendly housewife: she welcomes the "accident" and
+                  // the worker mumbles an apology — very minor 1HP (hurtNPC above).
+                  Voice.say(
+                    "I don't mind if you touch me!",
+                    3,
+                    1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  Voice.say(
+                    "I didn't mean it",
+                    2.4,
+                    1.1,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                }
                 else
                   Voice.say(
                     "Hey! Watch it!",
@@ -20752,6 +20896,110 @@
                     Math.random() < 0.5
                       ? pick(KAREN_QUESTIONS)
                       : pick(KAREN_COMPLAINTS),
+                    3.4,
+                    1.0,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  c.askCd = R(2.4, 3.6);
+                  c.pointT = 0.7;
+                }
+                // 3-4 houses (24-32u) of shadowing and she's done - take a breather
+                if (c.followed >= c.followMax) {
+                  c.followed = 0;
+                  c.followMax = R(24, 32);
+                  c.cool = R(5, 8);
+                }
+              }
+              // STAYS ON HER BLOCK: never cross the street / next block
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+              c.cd -= dt;
+              break;
+            }
+            case "housewife": {
+              // The Staten Island housewife (New Dorp) — an OVERLY FRIENDLY housewife
+              // who SHADOWS the worker around her even-numbered block: arms waving to
+              // the SIDES, cycling her 32 overly-friendly (slightly too forward)
+              // HOUSEWIFE_LINES (great job, big and strong, girlfriend, lonely, baked
+              // cookies, cleaning his pipes, calling the boss to praise him); then
+              // plants herself and shadows them again. NEVER leaves the block she
+              // spawned on (never crosses the street): x is clamped to
+              // blockMinX..blockMaxX — when the worker is past the block she stands at
+              // the edge, facing him, cooing while in earshot. CLOSING SEND-OFF: the
+              // worker crossed the far edge of her block — one warm last line, then
+              // she's done, waving from her spot for the rest of the shift.
+              if (!c.bye && p.wx > c.blockMaxX + 2) {
+                c.bye = true;
+                c.cool = 999;
+                Voice.say(
+                  pick(HOUSEWIFE_BYE),
+                  3.4,
+                  1.0,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "ped",
+                );
+              }
+              c.askCd -= dt;
+              const hwdx = p.wx - c.wx,
+                hwdy = p.wy - c.wy;
+              const hwDist = Math.sqrt(hwdx * hwdx + hwdy * hwdy) || 1;
+              // ALWAYS faces the worker in 3D: full continuous rotation around the
+              // vertical axis (any angle) — same as the Karen and the Maspeth
+              // homeowner.
+              c.g.rotation.z = Math.atan2(hwdy, hwdx);
+              if (c.cool > 0) {
+                // REST: hands folded at the chest, chest out, slow drift back to the
+                // block's middle — FEET moving (animParts), no sliding.
+                c.cool -= dt;
+                const hwCx = (c.blockMinX + c.blockMaxX) / 2;
+                if (Math.abs(hwCx - c.wx) > 3) {
+                  c.wx += Math.sign(hwCx - c.wx) * 0.8 * dt;
+                  animParts(c, 0.8 * dt * 2.4);
+                }
+                if (c.parts) {
+                  c.parts.armL.rotation.x = 0;
+                  c.parts.armR.rotation.x = 0;
+                  c.parts.armL.rotation.y = -1.9; // HANDS AT THE CHEST (bent FORWARD)
+                  c.parts.armR.rotation.y = -1.9;
+                  c.parts.upper.rotation.y = -0.05; // chest out, beaming
+                }
+              } else {
+                // FOLLOW: straight at the worker in 2D (any direction)
+                if (hwDist > 2.2) {
+                  const hwSp = 2.6; // a determined follow-walk
+                  c.wx += (hwdx / hwDist) * hwSp * dt;
+                  c.wy = clamp(c.wy + (hwdy / hwDist) * hwSp * dt, 1.2, 4.4);
+                  c.followed += hwSp * dt;
+                  animParts(c, hwSp * dt * 2.4);
+                }
+                // WINGS: arms out AT THE SIDES, flapping UP AND DOWN (the model's X
+                // rotation is the person's left-right axis — rotation.y swings arms
+                // forward/back, not sideways).
+                c.waveT += dt;
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06;
+                  const flap = 1.0 + Math.sin(c.waveT * 6) * 0.5;
+                  c.parts.armL.rotation.y = 0;
+                  c.parts.armR.rotation.y = 0;
+                  c.parts.armL.rotation.x = flap;
+                  c.parts.armR.rotation.x = -flap;
+                }
+                // POINT gesture while a line lands (arm out front, then back to wave)
+                if (c.pointT > 0) {
+                  c.pointT -= dt;
+                  if (c.parts) {
+                    c.parts.armR.rotation.x = -1.25;
+                    c.parts.armR.rotation.y = -1.55; // FORWARD (negative Y = +x)
+                  }
+                }
+                // The cooing: one of the 32 overly-friendly lines
+                if (c.askCd <= 0 && hwDist < 26) {
+                  Voice.say(
+                    pick(HOUSEWIFE_LINES),
                     3.4,
                     1.0,
                     c.wx,

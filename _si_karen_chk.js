@@ -108,7 +108,7 @@ check(
 );
 check(
   "karen is FEMALE (the female gender list)",
-  /type === "lady" \|\| type === "hooker" \|\| type === "polish" \|\| type === "karen"\)\s*\n\s*c\.gender = "female";/.test(src)
+  /type === "lady"[\s\S]{0,200}?type === "karen"[\s\S]{0,200}?"female"/.test(src)
 );
 
 // ================= 3. SPAWN: ONE PER ODD-NUMBERED SI BLOCK =================
