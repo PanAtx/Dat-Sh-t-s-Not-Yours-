@@ -8,13 +8,16 @@
 //     y 6.0 on the slab top, SI-gated only, driveway reserved from the doghouse
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
-//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a loose
-//     end lying on the front lawn (no spigot post), a LOOSE FREE-MOVING SPLINE
-//     (traveling two-harmonic wave + parabolic droop, sin envelope ZERO at the fist so
-//     the middle lies slithery on the grass while it stays taut into his hand) ending
-//     at a dark COUPLING collar parented to the fist (z -0.40, back of the nozzle
-//     grip); the jet leaves the nozzle tip (z -0.66); spray cone (apex at the nozzle,
-//     WIDE base toward the worker); MALE gender
+//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE plugged into the
+//     HOUSE SPIGOT on the front face of the house beside the driveway (wall flange +
+//     brass pipe + red valve wheel + coupling nut; c.hose.anchor at the outlet mouth),
+//     a LOOSE FREE-MOVING SPLINE (traveling two-harmonic wave + parabolic droop, sin
+//     envelope ZERO at the fist and the spigot end so the middle lies slithery on the
+//     lawn while it stays taut into his hand and the outlet) ending at a dark COUPLING
+//     collar parented to the fist (z -0.40, back of the nozzle grip); the NOZZLE grip
+//     + brass tip are COAXIAL with the arm reach axis (rotation.x = PI/2 — no crossbar
+//     in the fist); the jet leaves the nozzle tip (z -0.66); spray cone (apex at the
+//     nozzle, WIDE base toward the worker); MALE gender
 //   - a PUDDLE (translucent blue discs, z 0.355 above the sidewalk surface) sits on the
 //     sidewalk in front of the parked car
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
@@ -222,7 +225,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5600);
     return (
       seg.indexOf("cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04)") >= 0 &&
       seg.indexOf("dynamicGroup.add(cwCar)") >= 0
@@ -234,7 +237,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 6400);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
       seg.indexOf("r: 2.3") >= 0 &&
@@ -243,15 +246,18 @@ check(
   })()
 );
 check(
-  "spawn: the hose anchor is a GROUND POINT on the front lawn (no spigot post, cw.hose.anchor set)",
+  "spawn: the hose anchor is a HOUSE SPIGOT on the house's front face (flange + brass pipe + red valve wheel + outlet nut, cw.hose.anchor at the mouth)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5600);
     return (
-      seg.indexOf("carwashDrivewayX - 2.0") >= 0 &&
-      seg.indexOf("cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.36 }") >= 0 &&
-      seg.indexOf("fpipe") < 0
+      seg.indexOf("cwSpigotX") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.09, 0.09, 0.03, 10)") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.045, 0.045, 0.34, 8)") >= 0 &&
+      seg.indexOf("TorusGeometry(0.07, 0.018, 6, 12)") >= 0 &&
+      seg.indexOf("cw.hose.anchor = { x: cwSpigotX, y: cwSpigotY - 0.3, z: 0.62 }") >= 0 &&
+      seg.indexOf("groundGroup.add(cwSpigot)") >= 0
     );
   })()
 );
@@ -260,7 +266,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5400);
     return (
       seg.indexOf("0x4d9fc9") >= 0 &&
       seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.355)") >= 0 &&
@@ -295,7 +301,7 @@ check(
   })()
 );
 check(
-  "addCreature: THICK GREEN GARDEN HOSE (18 unit segments, 0x2f7a3d) from the lawn to his fist",
+  "addCreature: THICK GREEN GARDEN HOSE (18 unit segments, 0x2f7a3d) from the house spigot to his fist",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
@@ -319,13 +325,16 @@ check(
   })()
 );
 check(
-  "addCreature: nozzle in the right hand + spray cone (apex at the nozzle, WIDE base toward the worker)",
+  "addCreature: COAXIAL nozzle in the right hand (grip + brass tip rotated onto the reach axis) + spray cone (apex at the nozzle, WIDE base toward the worker)",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6600);
+    const seg = src.slice(i, i + 6900);
     return (
       seg.indexOf("d.armR.add(nozzle)") >= 0 &&
+      seg.indexOf("grip.rotation.x = Math.PI / 2") >= 0 &&
+      seg.indexOf("tip.rotation.x = Math.PI / 2") >= 0 &&
+      seg.indexOf("tip.position.z = -0.16") >= 0 &&
       seg.indexOf("CylinderGeometry(0.065, 0.065, 0.12, 8)") >= 0 &&
       seg.indexOf("hosePt.position.set(0, -0.02, -0.4)") >= 0 &&
       seg.indexOf("jetPt.position.set(0, -0.02, -0.66)") >= 0 &&
@@ -449,7 +458,7 @@ check(
   })()
 );
 check(
-  "update: the GARDEN HOSE is re-laid EVERY frame — LOOSE SPLINE (traveling wave + droop, envelope taut at the fist) from the lawn INTO the coupling (floor kept above ground)",
+  "update: the GARDEN HOSE is re-laid EVERY frame — LOOSE SPLINE (traveling wave + droop, envelope taut at the fist AND the house spigot) from the house spigot INTO the coupling (floor kept above ground)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;

@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.253</div>
+          <div id="app-version" class="menu-version">v1.0.255</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.253';
+      const APP_VERSION = '1.0.255';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15148,8 +15148,9 @@
             // gets too close. See the "carwasher" case in updateCreatures for the spray
             // mechanic. The soapy bucket + sponge sit SET DOWN on the driveway in their
             // own group (NOT a child of his body — they stay put while he turns to face
-            // the worker). The hose is a THICK GREEN GARDEN ROPE: it plugs into a lawn
-            // spigot on the front lawn (the spawn block sets c.hose.anchor) and ends at
+            // the worker). The hose is a THICK GREEN GARDEN ROPE: it plugs into the
+            // HOUSE SPIGOT on the front face of the house beside the driveway (the
+            // spawn block sets c.hose.anchor at the outlet mouth) and ends at
             // the nozzle in his right hand — the segments are re-laid every frame in
             // updateCreatures (sagging bezier) so the hose moves when he moves.
             c.sp = 0; // static: guards his driveway, never wanders
@@ -15205,19 +15206,21 @@
               }
               // The NOZZLE in the right hand (child of the arm pivot — it follows the
               // scrubbing sweep) + the water-spray cone (hidden until a blast fires).
-              // The arm hangs along local -Z, so the nozzle points down-forward at the
-              // car panel when the arm is at rest.
+              // The arm reaches along local -Z, so grip and tip are rotated ONTO the
+              // reach axis (coaxial with the hose coupling — no crossbar in the fist).
               const nozzle = new THREE.Group();
               const grip = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.035, 0.035, 0.22, 8),
                 M(0x23262b),
               );
+              grip.rotation.x = Math.PI / 2; // COAXIAL with the arm reach (-Z), inside the fist
               nozzle.add(grip);
               const tip = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.02, 0.028, 0.1, 8),
                 MS(0xb08d3a),
               );
-              tip.position.z = -0.14;
+              tip.rotation.x = Math.PI / 2; // brass mouth along -Z
+              tip.position.z = -0.16; // past the front of the grip
               nozzle.add(tip);
               nozzle.position.set(0, -0.02, -0.5); // the hand (makePerson's hand box is at z -0.5)
               d.armR.add(nozzle);
@@ -15966,12 +15969,55 @@
           cw.wy = 4.5; // front-lawn edge — inside the worker's reach (workerMaxY = 8)
           cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
           cw.g.position.set(cw.wx, cw.wy, GZ);
-          // The HOSE ANCHOR on the front lawn (street-side corner of the slab) — the
-          // loose end of the garden hose lies on the grass at this ground point (no
-          // spigot post). updateCreatures re-lays the hose from here to his fist.
-          const cwFaucetX = carwashDrivewayX - 2.0;
-          const cwFaucetY = 5.4;
-          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.36 };
+          // The HOUSE SPIGOT: a real outdoor faucet mounted on the FRONT FACE of the
+          // house beside the driveway (that house's center is x 132, right wall at
+          // ~134.5; the face is y ~8.0-8.4 by variant, so 8.3 hugs the siding).
+          // Wall flange + brass pipe + red valve wheel on top + coupling nut at the
+          // outlet mouth. The hose ANCHOR is the outlet mouth (z 0.62 on the wall):
+          // updateCreatures re-lays the hose from here, down across the lawn, into
+          // his fist.
+          const cwSpigotX = carwashDrivewayX - 2.0; // 134.0: on the house face, clear of the car (x 135.06+)
+          const cwSpigotY = 8.3; // house front face (y ~8.0-8.4 by variant)
+          const cwSpigot = new THREE.Group();
+          const spFlange = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.09, 0.03, 10),
+            MS(0xb08d3a),
+          );
+          spFlange.rotation.x = Math.PI / 2; // disc flat against the wall (axis along Y)
+          spFlange.position.y = 0.02; // half-buried in the siding
+          cwSpigot.add(spFlange);
+          const spPipe = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.045, 0.045, 0.34, 8),
+            MS(0xb08d3a),
+          );
+          spPipe.rotation.x = Math.PI / 2;
+          spPipe.position.y = -0.12; // 0.34 long: 0.10 into the wall, 0.24 out to the street
+          spPipe.castShadow = true;
+          cwSpigot.add(spPipe);
+          const spStem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.016, 0.016, 0.1, 6),
+            M(0x8a8f94),
+          );
+          spStem.position.set(0, -0.08, 0.05); // valve stem up out of the pipe
+          cwSpigot.add(spStem);
+          const spWheel = new THREE.Mesh(
+            new THREE.TorusGeometry(0.07, 0.018, 6, 12),
+            M(0xc0392b),
+          );
+          spWheel.rotation.x = Math.PI / 2; // classic red wheel lying flat on top
+          spWheel.position.set(0, -0.08, 0.1);
+          cwSpigot.add(spWheel);
+          const spNut = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.055, 0.055, 0.05, 8),
+            MS(0xb08d3a),
+          );
+          spNut.rotation.x = Math.PI / 2; // hose coupling nut at the outlet mouth
+          spNut.position.y = -0.29;
+          cwSpigot.add(spNut);
+          cwSpigot.position.set(cwSpigotX, cwSpigotY, 0.62);
+          groundGroup.add(cwSpigot);
+          // The hose plugs into the outlet mouth:
+          cw.hose.anchor = { x: cwSpigotX, y: cwSpigotY - 0.3, z: 0.62 };
           // The PUDDLE on the sidewalk in front of the parked car — wash runoff
           // (flattened translucent blue discs hugging the concrete, y 0.5..5.0 walk;
           // z 0.355 sits ABOVE the sidewalk surface ~0.32-0.335 so it can't z-fight).
@@ -21509,13 +21555,14 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
-              // Re-lay the GARDEN HOSE: a LOOSE, FREE-MOVING SPLINE from the loose end
-              // on the lawn (c.hose.anchor) to the COUPLING in his fist (c.hosePt).
-              // Each sample along the anchor->hand line gets a traveling wave offset
-              // (two harmonics crawling slowly) + a parabolic droop, both scaled by a
-              // sin envelope that is ZERO at the fist (and at the lawn end) — so the
-              // middle of the hose lies loose and slithery on the grass while it stays
-              // taut into his hand. Re-laid EVERY frame because his hand moves.
+              // Re-lay the GARDEN HOSE: a LOOSE, FREE-MOVING SPLINE from the HOUSE
+              // SPIGOT on the front face (c.hose.anchor, z ~0.62 on the wall) to the
+              // COUPLING in his fist (c.hosePt). Each sample along the spigot->hand
+              // line gets a traveling wave offset (two harmonics crawling slowly) + a
+              // parabolic droop, both scaled by a sin envelope that is ZERO at the
+              // fist (and at the spigot end) — so the middle of the hose lies loose
+              // and slithery on the lawn while it stays taut into his hand and the
+              // outlet. Re-laid EVERY frame because his hand moves.
               if (c.hose && c.hose.anchor && c.hosePt) {
                 const hw = new THREE.Vector3();
                 c.hosePt.getWorldPosition(hw);
