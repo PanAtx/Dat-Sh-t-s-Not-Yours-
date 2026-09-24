@@ -210,14 +210,15 @@ check(
   })()
 );
 check(
-  "spawn: the washer stands on the street side of the car (x - 1.7, y 4.5)",
+  "spawn: the washer stands on the street side of the car (x - 1.7, y 4.5) — passed as spawn opts so the BUCKET (placed at c.wx inside addCreature) lands on the driveway",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 4400);
     return (
-      seg.indexOf("cw.wx = carwashDrivewayX - 1.7") >= 0 &&
-      seg.indexOf("cw.wy = 4.5") >= 0
+      seg.indexOf('addCreature("carwasher", {') >= 0 &&
+      seg.indexOf("wx: carwashDrivewayX - 1.7") >= 0 &&
+      seg.indexOf("wy: 4.5") >= 0
     );
   })()
 );
@@ -226,7 +227,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5600);
+    const seg = src.slice(i, i + 6500);
     return (
       seg.indexOf("cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04)") >= 0 &&
       seg.indexOf("dynamicGroup.add(cwCar)") >= 0
@@ -386,7 +387,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6300);
+    const seg = src.slice(i, i + 7200);
     return (
       seg.indexOf('state === "play"') >= 0 &&
       seg.indexOf("c.sprayCd <= 0") >= 0 &&
@@ -401,7 +402,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6500);
+    const seg = src.slice(i, i + 7400);
     return (
       seg.indexOf('hurtNPC(HP_HIT_CARWASH, "carwasher")') >= 0 &&
       seg.indexOf('doStun(0.3, "hit")') >= 0
@@ -413,10 +414,11 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6800);
+    const seg = src.slice(i, i + 7700);
     return (
       seg.indexOf("SFX.playHoseSplash()") >= 0 &&
       seg.indexOf("spawnWaterSplash(p.wx, p.wy)") >= 0 &&
+      seg.indexOf("dynamicGroup.worldToLocal(jp)") >= 0 &&
       seg.indexOf("spawnWaterJet(jp.x, jp.y, p.wx, p.wy)") >= 0
     );
   })()
@@ -426,7 +428,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 7600);
+    const seg = src.slice(i, i + 8500);
     return (
       seg.indexOf("p.wx += (cdx / kd) * 1.0") >= 0 &&
       seg.indexOf("clamp(p.wy + (cdy / kd) * 0.8, -9.4, workerMaxY())") >= 0
@@ -454,6 +456,7 @@ check(
     return (
       seg.indexOf("c.parts.armR.rotation.y = -1.8") >= 0 &&
       seg.indexOf("c.parts.armL.rotation.y = -1.2") >= 0 &&
+      seg.indexOf("dynamicGroup.worldToLocal(js)") >= 0 &&
       seg.indexOf("spawnWaterJet(js.x, js.y, p.wx, p.wy, 2, js.z)") >= 0
     );
   })()
@@ -463,10 +466,11 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5800);
+    const seg = src.slice(i, i + 6700);
     return (
       seg.indexOf("c.hose.anchor") >= 0 &&
       seg.indexOf("c.hosePt.getWorldPosition(hw)") >= 0 &&
+      seg.indexOf("dynamicGroup.worldToLocal(hw)") >= 0 &&
       seg.indexOf("const sag = 0.35 + md * 0.5") >= 0 &&
       seg.indexOf("Math.sin(t * Math.PI)") >= 0 &&
       seg.indexOf("Math.sin(t * 5.2 + phase)") >= 0 &&
@@ -482,7 +486,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 7800);
+    const seg = src.slice(i, i + 8700);
     return (
       seg.indexOf("cdist < 14") >= 0 &&
       seg.indexOf("c.sayCd = R(6, 11)") >= 0 &&
