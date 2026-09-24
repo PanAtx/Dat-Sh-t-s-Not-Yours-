@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.262</div>
+          <div id="app-version" class="menu-version">v1.0.263</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.262';
+      const APP_VERSION = '1.0.263';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2770,6 +2770,7 @@
         dirLight;
       let flatbushDriveways = []; // Flatbush doghouse locations (driveways between houses)
       let parkedCar = null; // the Staten Island driveway car-wash scene: { g, x, y, z, colorHex, gltf } — the parked sedan + the solid hazard that guards it
+      let carKeepout = null; // the parked sedan's NO-SPAWN rect { x0, x1, y0, y1 } — set when the car spawns (BEFORE the initial crowd); addCreature re-rolls default positions out of it
       let livePiles = []; // wx positions of dog-walker-dropped piles (idea 3: cap the live ones on-screen)
       const keys = {};
       const gp = {
@@ -14773,6 +14774,7 @@
         };
         // Optional per-spawn overrides (e.g. the bodega cats' coat palette)
         if (opts) for (const k in opts) c[k] = opts[k];
+        const hasOptPos = !!(opts && opts.wx !== undefined); // fixed-spot spawns (carwasher, doghouse, deli boy...) are exempt from the parked-car keepout re-roll
         // Maspeth cemetery: the block is OPEN to the living — peds, raccoons, cats and
         // every other animal, leashed dogs and the Polish ladies all walk its sidewalk
         // (the worker has to dodge EVERYONE, dead or alive). The ONLY things the block
@@ -15386,6 +15388,28 @@
         if (type === "jacker") c.g.rotation.z = JACKER_FACE_SE;
         if (type === "hooker") c.g.rotation.z = -Math.PI / 2;
         if (type === "dealer") c.g.rotation.z = -Math.PI / 2; // on his stoop, facing the street
+        // PARKED-CAR KEEPOUT: the sedan spawns FIRST in spawnWorld (before the initial
+        // crowd), so no NPC may land inside it — re-roll the x offset if a default
+        // position lands on the car's driveway rect (the skater's wy 4.3+ and the
+        // raccoon's wy 1-8 both reach the slab). Fixed-spot spawns (opts.wx) are
+        // exempt — the carwasher stands beside the car BY design, and doghouses /
+        // driveway tricycles draw from the reserved flatbushDriveways list.
+        if (
+          carKeepout &&
+          !hasOptPos &&
+          c.wx > carKeepout.x0 &&
+          c.wx < carKeepout.x1 &&
+          c.wy > carKeepout.y0 &&
+          c.wy < carKeepout.y1
+        ) {
+          for (let kk = 0; kk < 10; kk++) {
+            const nx = p.wx + (Math.random() < 0.5 ? R(-58, -20) : R(20, 58));
+            if (nx <= carKeepout.x0 || nx >= carKeepout.x1) {
+              c.wx = nx;
+              break;
+            }
+          }
+        }
         c.g.position.set(c.wx, c.wy, GZ);
         dynamicGroup.add(c.g);
         if (c.seed) dynamicGroup.add(c.seed); // the pigeon's seed scatter stays with the world
@@ -15934,16 +15958,13 @@
         // Difficulty scales with the day of the week: the main crowd (pedestrians + cars) gets +1
         // per day, so Monday is a quiet, easy street and Sunday is noticeably busier. Everything
         // else (critters, parked vehicles, extras) stays at its Monday count. See npcCounts().
-        const counts = npcCounts(level);
-        for (const t in counts)
-          for (let i = 0; i < counts[t]; i++) addCreature(t);
-        // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
-        // The dog barks and lunges at the worker but the chain limits how far it gets.
-        // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
-        // instead of having a doghouse (no front lawns in Manhattan).
-        // Spawn 3 doghouses on Flatbush, 1 on other levels
+        // ==================== PARKED CARS SPAWN FIRST ====================
+        // The parked sedan is the FIRST thing spawned in the world (before the
+        // initial NPC crowd loop below): carKeepout is registered with it, and
+        // addCreature re-rolls any default position that would land inside the
+        // car, so no skater/ped/raccoon ever spawns on top of the sedan.
         // Collect driveway locations for Flatbush / Staten Island doghouse spawning (driveways
-        // are at the boundary between houses, so they exist after houses 0-8, not after house 9)
+        // are at the boundary between houses, so they exist after houses 0-8, not after house 9).
         flatbushDriveways = [];
         if (isFlatbushLevel() || isStatenIslandLevel()) {
           for (const b of blocks) {
@@ -15968,6 +15989,41 @@
           const carwashDrivewayX = LEVEL_BLOCKS[1].x + 8 * 5; // Block 2, 5th driveway = block center (x 136)
           const reserved = flatbushDriveways.indexOf(carwashDrivewayX);
           if (reserved >= 0) flatbushDriveways.splice(reserved, 1); // reserve the slab
+          // The car comes FIRST — it is the solid anchor of the whole scene:
+          const cwCarColor = pick(CAR_COLORS);
+          const cwCar = makeParkedCar(cwCarColor);
+          cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04); // centered on the slab (slab top), nose just past the slab front edge
+          dynamicGroup.add(cwCar);
+          parkedCar = {
+            g: cwCar,
+            x: carwashDrivewayX,
+            y: 6.0,
+            z: GZ + 0.04,
+            colorHex: cwCarColor,
+            gltf: !!CAR_TPL,
+          };
+          // NO-SPAWN KEEPOUT around the sedan (registered NOW, before any other NPC
+          // exists): the initial crowd's addCreature calls re-roll any default
+          // position that lands inside. Covers the 0.9-scaled body (x 135.06-136.94,
+          // centered y 6.0) plus margin. The carwasher's own spot (134.3, 4.5) sits
+          // inside on purpose — it's an opts-fixed spawn, exempt from the re-roll.
+          carKeepout = {
+            x0: carwashDrivewayX - 2.6,
+            x1: carwashDrivewayX + 2.6,
+            y0: 3.6,
+            y1: 8.4,
+          };
+          // The sedan is SOLID: the worker can't walk through the car (a push-out circle
+          // covering the parked body; the slab is wide enough to go around it).
+          const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
+          b2record.hazards.push({
+            wx: carwashDrivewayX,
+            wy: 6.0,
+            r: 2.3,
+            type: "parkedcar",
+            drop: 0,
+            cd: 0,
+          });
           // Spawn opts carry the driveway spot into addCreature: its default wx is a
           // random offset from the worker, and the BUCKET (built inside addCreature)
           // is placed at c.wx — without the opts it would spawn 20-58u from the car.
@@ -16058,30 +16114,17 @@
           puddle2.scale.set(0.6, 0.45, 1);
           puddle2.position.set(carwashDrivewayX - 1.2, 2.1, 0.355);
           dynamicGroup.add(puddle2);
-          const cwCarColor = pick(CAR_COLORS);
-          const cwCar = makeParkedCar(cwCarColor);
-          cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04); // centered on the slab (slab top), nose just past the slab front edge
-          dynamicGroup.add(cwCar);
-          parkedCar = {
-            g: cwCar,
-            x: carwashDrivewayX,
-            y: 6.0,
-            z: GZ + 0.04,
-            colorHex: cwCarColor,
-            gltf: !!CAR_TPL,
-          };
-          // The sedan is SOLID: the worker can't walk through the car (a push-out circle
-          // covering the parked body; the slab is wide enough to go around it).
-          const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
-          b2record.hazards.push({
-            wx: carwashDrivewayX,
-            wy: 6.0,
-            r: 2.3,
-            type: "parkedcar",
-            drop: 0,
-            cd: 0,
-          });
         }
+        const counts = npcCounts(level);
+        for (const t in counts)
+          for (let i = 0; i < counts[t]; i++) addCreature(t);
+        // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
+        // The dog barks and lunges at the worker but the chain limits how far it gets.
+        // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
+        // instead of having a doghouse (no front lawns in Manhattan).
+        // Spawn 3 doghouses on Flatbush, 1 on other levels
+        // (The Flatbush/Staten driveway list + the Staten Island car wash — the parked car
+        // FIRST — now spawn ABOVE the initial crowd loop; see PARKED CARS SPAWN FIRST.)
         const dogCount = (isFlatbushLevel() || isStatenIslandLevel())
           ? 3
           : isBronxLevel()

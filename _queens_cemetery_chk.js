@@ -643,7 +643,7 @@ check(
 
 // ================= 10. SPAWNWORLD RESIDENTS =================
 const swIdx = src.indexOf('function spawnWorld(');
-const swSec = src.slice(swIdx, swIdx + 33000);
+const swSec = src.slice(swIdx, swIdx + 40000);
 check(
   'spawnWorld: NO pre-spawned ghosts — the pack is built LIVE by the spawner (gated on workerOnCemeteryBlock) so the worker never faces a wall at the entrance',
   swSec.indexOf('spawnCemeteryGhost()') < 0 &&

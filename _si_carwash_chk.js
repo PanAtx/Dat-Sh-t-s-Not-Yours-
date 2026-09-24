@@ -252,7 +252,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6400);
+    const seg = src.slice(i, i + 9000);
     return (
       seg.indexOf("cwSpigotHouse") >= 0 &&
       seg.indexOf("b.buildingFront") >= 0 &&
@@ -274,11 +274,51 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6600);
+    const seg = src.slice(i, i + 9200);
     return (
       seg.indexOf("0x4d9fc9") >= 0 &&
       seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.355)") >= 0 &&
       seg.indexOf("puddle2.position.set(carwashDrivewayX - 1.2, 2.1, 0.355)") >= 0
+    );
+  })()
+);
+check(
+  "spawn order: the parked car spawns FIRST — the PARKED CARS SPAWN FIRST block runs ABOVE the initial NPC crowd loop (npcCounts)",
+  (() => {
+    const a = src.indexOf("PARKED CARS SPAWN FIRST");
+    const b = src.indexOf("const counts = npcCounts(level);");
+    return a >= 0 && b >= 0 && a < b;
+  })()
+);
+check(
+  "spawn: the sedan registers a NO-SPAWN carKeepout rect (set with the car, before any NPC exists)",
+  (() => {
+    const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 2600);
+    return (
+      seg.indexOf("carKeepout = {") >= 0 &&
+      seg.indexOf("x0: carwashDrivewayX - 2.6") >= 0 &&
+      seg.indexOf("x1: carwashDrivewayX + 2.6") >= 0 &&
+      seg.indexOf("y1: 8.4") >= 0
+    );
+  })()
+);
+check(
+  "addCreature: default-positioned NPCs re-roll OUT of carKeepout (no skater/doghouse ever lands on the parked car); opts-fixed spawns are exempt (hasOptPos)",
+  (() => {
+    const f = src.indexOf("function addCreature(");
+    if (f < 0) return false;
+    const head = src.slice(f, f + 800);
+    const k = src.indexOf("PARKED-CAR KEEPOUT");
+    if (k < 0) return false;
+    const body = src.slice(k, k + 1200);
+    return (
+      head.indexOf("hasOptPos = !!(opts && opts.wx !== undefined)") >= 0 &&
+      body.indexOf("!hasOptPos") >= 0 &&
+      body.indexOf("c.wx > carKeepout.x0") >= 0 &&
+      body.indexOf("c.wx = nx") >= 0 &&
+      body.indexOf("c.g.position.set(c.wx, c.wy, GZ)") >= 0
     );
   })()
 );

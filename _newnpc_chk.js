@@ -52,6 +52,7 @@ const GZ = 0.3;
 const creatures = [];
 const dynamicGroup = { add(){} };
 const p = { wx: 0, wy: 2.5 }; // player position (addCreature now spawns creatures around p.wx)
+const carKeepout = null; // parked-sedan no-spawn rect (null outside Staten Island — same as the game)
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
 const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false, isStatenIslandLevel = () => false, isQueensLevel = () => false;
 const JACKER_FACE_SE = -Math.PI / 2;   // kept in sync with index.html (jacker faces southeast)

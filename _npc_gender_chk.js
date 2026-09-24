@@ -21,6 +21,7 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const SHIRTS = [0x111111], PANTS = [0x222222], HAIRS = [0x333333], DRESSES = [0x444444], CAR_COLORS = [0x555555];
 const GZ = 0.3;
 const p = { wx: 0, wy: 0 };   // player position — addCreature scatters creatures around p.wx
+const carKeepout = null; // parked-sedan no-spawn rect (null outside Staten Island — same as the game)
 const creatures = [];
 const dynamicGroup = { add(){} };
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap

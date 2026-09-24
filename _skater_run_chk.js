@@ -41,6 +41,7 @@ const GZ = 0.3;
 const dynamicGroup = new Group();
 const creatures = [];
 const p = { wx: 0, wy: 0, invuln: 0, stunT: 0 };
+const carKeepout = null; // parked-sedan no-spawn rect (null outside Staten Island — same as the game)
 const state = 'play';
 const Voice = { say(){} };
 const npcRoadRules = () => 0, animParts = () => {}, spawnGravelBits = () => {}, spawnDustEffect = () => {};
