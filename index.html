@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.259</div>
+          <div id="app-version" class="menu-version">v1.0.260</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.259';
+      const APP_VERSION = '1.0.260';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15201,7 +15201,7 @@
               c.hose = { segs: [], anchor: null };
               for (let hs = 0; hs < 18; hs++) {
                 const hseg = new THREE.Mesh(
-                  new THREE.CylinderGeometry(0.055, 0.055, 1, 8),
+                  new THREE.CylinderGeometry(0.045, 0.045, 1, 8),
                   hoseMat,
                 );
                 dynamicGroup.add(hseg);
@@ -15228,7 +15228,7 @@
               nozzle.position.set(0, -0.02, -0.5); // the hand (makePerson's hand box is at z -0.5)
               d.armR.add(nozzle);
               // The HOSE COUPLING: a dark collar AT THE FIST that is WIDER than the
-              // hose (0.11 > 0.055) — it wraps over the hose end exactly where it meets
+              // hose (0.11 > 0.045) — it wraps over the hose end exactly where it meets
               // the hand (z -0.50, the hand box's center), so the hose reads as plugged
               // into the nozzle in his fist, no matter how the arm moves.
               const coupling = new THREE.Mesh(
