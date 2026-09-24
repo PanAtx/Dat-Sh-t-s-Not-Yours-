@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.245</div>
+          <div id="app-version" class="menu-version">v1.0.247</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.245';
+      const APP_VERSION = '1.0.247';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2769,6 +2769,7 @@
         renderer,
         dirLight;
       let flatbushDriveways = []; // Flatbush doghouse locations (driveways between houses)
+      let parkedCar = null; // the Staten Island driveway car-wash scene: { g, x, y, z, colorHex, gltf } — the parked sedan + the solid hazard that guards it
       let livePiles = []; // wx positions of dog-walker-dropped piles (idea 3: cap the live ones on-screen)
       const keys = {};
       const gp = {
@@ -3452,6 +3453,14 @@
           this.tone("sawtooth", 200, 70, 0.24, 0.4);
           this.tone("square", 150, 55, 0.26, 0.34, 0.02);
           this.noise(0.18, "lowpass", 320, 0.5);
+        },
+        // The car washer's hose: a sharp airy HISS (filtered white noise) over a low
+        // wet whoomp — reads as a full-pressure water jet, not a tap drip.
+        playHoseSplash() {
+          this.ensure();
+          this.noise(0.42, "highpass", 1600, 0.55);
+          this.tone("sine", 340, 90, 0.32, 0.3, 0.02);
+          this.noise(0.2, "lowpass", 500, 0.3, 0.1); // wet slap on the worker
         },
         playPowerUpSound() {
           this.ensure();
@@ -4906,6 +4915,95 @@
           c.g.position.set(c.wx, c.wy, GZ);
           dynamicGroup.add(c.g);
         }
+        // The Staten Island PARKED car: if it spawned BEFORE the GLTF arrived (procedural
+        // box-sedan fallback), hot-swap it onto the car.glb model too, keeping its exact
+        // driveway spot, rotation (nose to the street) and driveway-fitting scale.
+        if (parkedCar && !parkedCar.gltf) {
+          const pg = parkedCar.g;
+          if (pg.parent) pg.parent.remove(pg);
+          disposeObj(pg);
+          parkedCar.g = makeParkedCar(parkedCar.colorHex);
+          parkedCar.g.position.set(parkedCar.x, parkedCar.y, parkedCar.z);
+          parkedCar.gltf = true;
+          dynamicGroup.add(parkedCar.g);
+        }
+      }
+      // ==================== STATEN ISLAND PARKED CAR (the driveway car wash) ====================
+      // The car-washer's sedan, parked nose-to-street in a Block 2 driveway. It reuses the
+      // traffic car pipeline (car.glb template, unique paint) but is ROTATED and SCALED
+      // differently:
+      //   * NATIVE SPACE: the car is lengthwise along native -Y (front bumper at Y≈-2.39),
+      //     width along X (≈±1.05), height along Z (0→1.59, grounded at Z=0).
+      //   * PARKED = nose to the STREET (-Y world): with identity rotation (rotation.z = 0)
+      //     native front (-Y) maps straight to game -Y (the street), so the car faces OUT of
+      //     the driveway like a real parked car. (Traffic cars use rotation.z = PI/2 to put
+      //     the front on +X — the parked car must NOT get that rotation.)
+      //   * SCALE: CARWASH_CAR_SCALE = 0.75 shrinks the 4.66u-long car to ~3.5u long x
+      //     ~1.57u wide — it fits the 3.0u-wide concrete driveway slab with room to spare,
+      //     and its rear (parked center y≈6.2 + ~1.7u) clears the house front face at y≈8.1.
+      const CARWASH_CAR_SCALE = 0.75;
+      function makeParkedCar(colorHex) {
+        if (CAR_TPL) {
+          const g = new THREE.Group();
+          const model = CAR_TPL.template.clone(true);
+          model.traverse((o) => {
+            if (o.isMesh && o.material && o.material.name === "Body") {
+              o.material = o.material.clone(); // unique paint, like every traffic car
+              o.material.color.setHex(colorHex);
+            }
+          });
+          model.rotation.z = 0; // nose to the street (-Y) — NO PI/2 traffic rotation
+          model.scale.setScalar(CARWASH_CAR_SCALE);
+          g.add(model);
+          g.userData.isGltfCar = true;
+          g.userData.isParkedCar = true;
+          return g;
+        }
+        // Procedural fallback (GLTF not loaded yet): a compact box sedan lengthwise along Y
+        // (front at -Y = street), scaled to the same driveway-fitting footprint.
+        const g = new THREE.Group();
+        const col = M(colorHex);
+        const glass = new THREE.MeshLambertMaterial({
+          color: 0x88aabb,
+          emissive: 0x22333f,
+          emissiveIntensity: 0.5,
+        });
+        const body = BX(1.5, 3.1, 0.42, col); // width x length(Y) x height
+        body.position.z = 0.6;
+        g.add(body);
+        const nose = SPH(1, col, 16, 12);
+        nose.scale.set(0.75, 0.5, 0.22);
+        nose.position.set(0, -1.5, 0.6);
+        g.add(nose); // rounded nose toward the street (-Y)
+        const tail = SPH(1, col, 16, 12);
+        tail.scale.set(0.8, 0.45, 0.22);
+        tail.position.set(0, 1.55, 0.62);
+        g.add(tail);
+        const canopy = SPH(1, glass, 16, 12);
+        canopy.scale.set(0.72, 0.95, 0.42);
+        canopy.position.set(0, 0.15, 0.85);
+        g.add(canopy);
+        const roof = BX(1.35, 1.6, 0.1, col);
+        roof.position.set(0, 0.1, 1.18);
+        g.add(roof);
+        const wheelM = M(0x14171a);
+        [
+          [0.68, -1.05],
+          [-0.68, -1.05],
+          [0.68, 1.05],
+          [-0.68, 1.05],
+        ].forEach((wp) => {
+          const w = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.24, 0.24, 0.2, 12),
+            wheelM,
+          );
+          w.rotation.x = Math.PI / 2; // wheels roll along Y (the car's length)
+          w.position.set(wp[0], wp[1], 0.24);
+          w.castShadow = true;
+          g.add(w);
+        });
+        g.userData.isParkedCar = true;
+        return g;
       }
       // ==================== NYC LITTER BASKET (litterReduced2.glb) ====================
       // Native space (measured via GLTFLoader bounds): 120x120x168, base at z=0, Z is up.
@@ -14700,7 +14798,8 @@
           type === "jacker" ||
           type === "skater" ||
           type === "escooter" ||
-          type === "polishboy"
+          type === "polishboy" ||
+          type === "carwasher"
         )
           c.gender = "male";
         else if (
@@ -15040,6 +15139,89 @@
                 c.outfit != null ? c.outfit : pick(HOUSEWIFE_OUTFITS), // unique per block
               hair: pick(HAIRS),
             });
+            break;
+          case "carwasher":
+            // The Staten Island CAR WASHER (New Dorp, day 5): a guy washing his parked
+            // sedan in a Block 2 driveway. He STAYS PUT beside the car (the spawn block
+            // sets his spot), scrubs the panel with his hose, and SPRAYS the worker if he
+            // gets too close. See the "carwasher" case in updateCreatures for the spray
+            // mechanic. Bucket + sponge + coiled hose at his feet, nozzle in the right
+            // hand (the water-spray cone hangs off the arm so it follows the scrubbing).
+            c.sp = 0; // static: guards his driveway, never wanders
+            c.scrubT = R(0, 6.28); // scrub phase
+            c.sprayCd = 0; // >0 = recharging after a blast
+            c.sprayT = 0; // >0 = mid-blast (spray cone visible, arm pointed)
+            c.sayCd = R(2, 6);
+            {
+              const d = makePerson({
+                shirt: 0x3a8a9a, // rolled-sleeve work tee
+                pants: pick(PANTS),
+                hair: pick(HAIRS),
+                cap: true,
+              });
+              // The BUCKET of soapy water at his feet + a yellow sponge + a coiled hose
+              const bucketM = M(0x4a90c2);
+              const bucket = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.2, 0.16, 0.3, 10),
+                bucketM,
+              );
+              bucket.position.set(0.52, 0, 0.28);
+              bucket.castShadow = true;
+              d.g.add(bucket);
+              const soapy = new THREE.Mesh(
+                new THREE.CircleGeometry(0.17, 10),
+                new THREE.MeshLambertMaterial({
+                  color: 0xbfe4f2,
+                  side: THREE.DoubleSide,
+                }),
+              );
+              soapy.position.set(0.52, 0, 0.44);
+              d.g.add(soapy);
+              const sponge = BX(0.16, 0.12, 0.06, M(0xf2c230));
+              sponge.position.set(0.62, 0.1, 0.46);
+              sponge.rotation.z = 0.5;
+              d.g.add(sponge);
+              const coil = new THREE.Mesh(
+                new THREE.TorusGeometry(0.16, 0.03, 6, 12),
+                M(0x3a3f45),
+              );
+              coil.position.set(0.9, 0, 0.05);
+              d.g.add(coil); // the hose runs from the coil to his hand
+              // The NOZZLE in the right hand (child of the arm pivot — it follows the
+              // scrubbing sweep) + the water-spray cone (hidden until a blast fires).
+              // The arm hangs along local -Z, so the nozzle points down-forward at the
+              // car panel when the arm is at rest.
+              const nozzle = new THREE.Group();
+              const grip = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.035, 0.035, 0.22, 8),
+                M(0x23262b),
+              );
+              nozzle.add(grip);
+              const tip = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.028, 0.1, 8),
+                MS(0xb08d3a),
+              );
+              tip.position.z = -0.14;
+              nozzle.add(tip);
+              nozzle.position.set(0, -0.02, -0.5); // the hand
+              d.armR.add(nozzle);
+              const spray = new THREE.Mesh(
+                new THREE.ConeGeometry(0.5, 1.6, 8, 1, true),
+                new THREE.MeshLambertMaterial({
+                  color: 0x9fd8ff,
+                  transparent: true,
+                  opacity: 0.55,
+                  side: THREE.DoubleSide,
+                  depthWrite: false,
+                }),
+              );
+              spray.position.set(0, 0, -0.9); // apex at the hand, fanning out FORWARD (-Z = the arm's reach)
+              spray.visible = false;
+              d.armR.add(spray);
+              d.armR.rotation.x = -0.5; // resting pose: nozzle down on the car panel
+              c.data = d.g;
+              c.spray = spray; // updateCreatures toggles it during a blast
+            }
             break;
           case "crazy":
             c.wy = R(1.2, 4.2);
@@ -15725,6 +15907,48 @@
               flatbushDriveways.push(b.worldX + BW);
             }
           }
+        }
+        // The Staten Island CAR WASH (New Dorp, day 5): a guy washing his parked sedan
+        // in a driveway on BLOCK 2 (the second block — parked dead-center of the block
+        // at x = 96 + 8*5 = 136 so it's easy to reach for testing). The sedan is the
+        // traffic car.glb model, rotated nose-to-street and scaled to fit the 3.0u-wide
+        // driveway slab (see makeParkedCar). The washer stands on the street side of the
+        // car; if the worker gets too close (CARWASH_SPRAY_R) he gets sprayed with the
+        // hose (see the "carwasher" case in updateCreatures). The driveway is reserved
+        // here (spliced out of flatbushDriveways) so a doghouse or driveway tricycle
+        // can never take the same slab.
+        if (isStatenIslandLevel()) {
+          const carwashDrivewayX = LEVEL_BLOCKS[1].x + 8 * 5; // Block 2, 5th driveway = block center (x 136)
+          const reserved = flatbushDriveways.indexOf(carwashDrivewayX);
+          if (reserved >= 0) flatbushDriveways.splice(reserved, 1); // reserve the slab
+          const cw = addCreature("carwasher");
+          cw.wx = carwashDrivewayX - 1.7; // beside the car, street side (the worker's approach path)
+          cw.wy = 4.5; // front-lawn edge — inside the worker's reach (workerMaxY = 8)
+          cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
+          cw.g.position.set(cw.wx, cw.wy, GZ);
+          const cwCarColor = pick(CAR_COLORS);
+          const cwCar = makeParkedCar(cwCarColor);
+          cwCar.position.set(carwashDrivewayX, 6.2, GZ + 0.04); // centered on the slab (slab top), rear clears the house face
+          dynamicGroup.add(cwCar);
+          parkedCar = {
+            g: cwCar,
+            x: carwashDrivewayX,
+            y: 6.2,
+            z: GZ + 0.04,
+            colorHex: cwCarColor,
+            gltf: !!CAR_TPL,
+          };
+          // The sedan is SOLID: the worker can't walk through the car (a push-out circle
+          // covering the parked body; the slab is wide enough to go around it).
+          const b2record = blocks.find((b) => b.blockX === LEVEL_BLOCKS[1].x) || blocks[0];
+          b2record.hazards.push({
+            wx: carwashDrivewayX,
+            wy: 6.2,
+            r: 2.1,
+            type: "parkedcar",
+            drop: 0,
+            cd: 0,
+          });
         }
         const dogCount = (isFlatbushLevel() || isStatenIslandLevel())
           ? 3
@@ -16697,6 +16921,36 @@
           });
         }
       }
+      // A burst of hose-water droplets where the worker gets sprayed (the car washer).
+      // Reuses the dust particle lifecycle (gravity + fade) with light-blue droplets.
+      function spawnWaterSplash(wx, wy) {
+        const count = 12;
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2 + R(-0.3, 0.3);
+          const speed = 0.8 + R(0, 2.2);
+          const g = new THREE.Group();
+          const dGeo = new THREE.SphereGeometry(0.06, 6, 5);
+          const dMat = new THREE.MeshLambertMaterial({
+            color: 0x9fd8ff,
+            transparent: true,
+            opacity: 0.85,
+          });
+          const dMesh = new THREE.Mesh(dGeo, dMat);
+          g.add(dMesh);
+          dynamicGroup.add(g);
+          dustParticles.push({
+            g: g,
+            wx: wx,
+            wy: wy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            vz: 0.8 + R(0, 1.6), // the splash kicks UP before falling
+            life: 0.7,
+            decay: 0.8 + R(0, 0.5),
+            rotSpeed: 0,
+          });
+        }
+      }
       // ==================== CONCRETE GRIT (jackhammer chipping the sidewalk) ====================
       function spawnGravelBits(wx, wy) {
         // A small shower of concrete fragments at the chisel tip: lots of TINY bits,
@@ -17006,6 +17260,7 @@
             c.type === "homeowner" ||
             c.type === "karen" ||
             c.type === "housewife" ||
+            c.type === "carwasher" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -17494,6 +17749,30 @@
       const HP_GHOST_STREET = 4; // the ghost-touch EXTRA (on top of HP_HIT_GHOST): touching ANY cemetery ghost — street OR sidewalk — costs the full 10 HP (the dead claim the whole block)
       const HP_HIT_RAVEN = 4; // the cemetery raven's swoop strike — a fast, sharp hit (the beak, not a beatdown)
       const HP_HIT_GHOSTARM = 4; // a Maspeth spectral arm reaches out of the ground and GRABS the worker — a chilly, sharp yank (matches the raven's light strike)
+      // The Staten Island car washer: a full-pressure hose blast is a SOAKING, not a beatdown —
+      // lighter than a hazard nick, but it stings and knocks the worker back a step.
+      const HP_HIT_CARWASH = 3;
+      const CARWASH_SPRAY_R = 3.2; // the hose's reach: worker this close to the car washer gets sprayed
+      const CARWASH_SPRAY_LINES = [
+        "Hey! I'm washing my car!",
+        "Not today, DSNY!",
+        "This one's got a fresh coat of wax!",
+        "You got me soaking wet!",
+        "Back off from my sedan!",
+      ];
+      const CARWASH_WORKER_LINES = [
+        "Oh! Soaking wet!",
+        "You got me with the hose!",
+        "Damn it, I'm drenched!",
+        "Easy with the hose!",
+      ];
+      const CARWASH_LINES = [
+        "How's the wash looking, huh?",
+        "I got a coupon for a car wash, but nah — I did it myself.",
+        "Radiator's been making a noise. Think I'll get that fixed.",
+        "This one's a 2008. Still runs like a dream.",
+        "You from the city, huh? Come take a look at the shine!",
+      ];
       // The Maspeth cemetery ghost's creepy lines — it drops them as it drifts past the
       // worker (proximity) AND when it touches him (the scare exchange in collideCreatures).
       const GHOST_LINES = [
@@ -17782,6 +18061,11 @@
         karen: ["Failed to obligate a disgruntled homeowner"],
         // --- the Staten Island housewife: the worker's most enthusiastic fan ---
         housewife: ["Failure to Dump the Load"],
+        // --- the Staten Island car washer: his sedan is freshly waxed ---
+        carwasher: [
+          "Failure to respect a freshly waxed sedan",
+          "Interference with a sanctioned driveway car wash",
+        ],
         // --- the Maspeth cemetery ghosts: the dead are due their rest ---
         ghost: [
           "Failure to respect the dearly departed",
@@ -18783,6 +19067,35 @@
               }
               continue; // solid: skip the one-shot cooldown-gated logic below
             }
+            // The Staten Island PARKED SEDAN (the car washer's driveway car): SOLID —
+            // the worker can't walk through the car. Same continuous push-out as the
+            // cemetery headstones (from ANY side, no damage — the slab is wide enough
+            // to go around), plus a cooldown-gated "hey" from the car washer.
+            if (hz.type === "parkedcar") {
+              if (d2 <= hz.r * hz.r) {
+                const d = Math.sqrt(d2);
+                if (d > 0.001) {
+                  const push = hz.r - d; // how deep the overlap is
+                  p.wx -= (dx / d) * push; // push AWAY from the car (dx = worker->car)
+                  p.wy -= (dy / d) * push;
+                } else {
+                  p.wx -= 0.85; // dead-center fallback (matches the classic shove)
+                }
+                if (hz.cd <= 0) {
+                  hz.cd = 1.4;
+                  Voice.say(
+                    "That's a parked car, pal!",
+                    2.2,
+                    0.9,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                }
+              }
+              continue; // solid: skip the one-shot cooldown-gated logic below
+            }
             if (hz.cd > 0) continue;
             // The POOP uses a WIDE trigger: the worker "steps in it" when they walk
             // over the pile's X position anywhere on the sidewalk (wy 0..4.8). A plain
@@ -18953,6 +19266,7 @@
           else if (c.type === "homeowner") rad = 0.85;
           else if (c.type === "karen") rad = 0.85;
           else if (c.type === "housewife") rad = 0.85;
+          else if (c.type === "carwasher") rad = 0.85;
           else if (c.type === "yeller") rad = 0.95;
           else if (c.type === "jacker") rad = 0.95;
           else if (
@@ -19164,6 +19478,7 @@
             c.type === "homeowner" ||
             c.type === "karen" ||
             c.type === "housewife" ||
+            c.type === "carwasher" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -19321,6 +19636,27 @@
                     "I didn't mean it",
                     2.4,
                     1.1,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                  );
+                }
+                else if (c.type === "carwasher") {
+                  // The car washer: startled by the bump, hose swinging — very minor 1HP (hurtNPC above).
+                  Voice.say(
+                    "Hey! Watch the hose!",
+                    2.8,
+                    1.15,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  Voice.say(
+                    "Sorry, buddy!",
+                    2.2,
+                    1.0,
                     p.wx,
                     p.wy,
                     WORKER_GENDER,
@@ -20210,7 +20546,7 @@
       const WALKER_R = 0.5; // half-width of a pedestrian used for avoidance clearance
       const AVOID_TYPES = {
         // movable obstacles a walker slips around (vehicles are excluded — those are
-        ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, // handled by
+        ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, // handled by
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
       };
@@ -21019,6 +21355,94 @@
               }
               // STAYS ON HER BLOCK: never cross the street / next block
               c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+              c.cd -= dt;
+              break;
+            }
+            case "carwasher": {
+              // The Staten Island CAR WASHER (New Dorp, day 5): a guy washing his parked
+              // sedan in the Block 2 driveway. He STAYS PUT beside the car (never
+              // wanders, never recycles — his driveway is his whole world). He scrubs
+              // the panel with his hose (right arm sweeping), turns to face the worker
+              // as he passes, and — if the worker gets TOO CLOSE (CARWASH_SPRAY_R) —
+              // fires the hose: a full-pressure blast soaks the worker (HP_HIT_CARWASH),
+              // knocks him back, splashes droplets and earns the write-up.
+              c.scrubT = (c.scrubT || 0) + dt;
+              c.sprayCd = c.sprayCd > 0 ? c.sprayCd - dt : 0;
+              c.sprayT = c.sprayT > 0 ? c.sprayT - dt : 0;
+              c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+              const cdx = p.wx - c.wx,
+                cdy = p.wy - c.wy;
+              const cdist = Math.sqrt(cdx * cdx + cdy * cdy) || 1;
+              // Faces the worker in 3D (any angle) — like the Karen / Maspeth homeowner
+              if (c.g) c.g.rotation.z = Math.atan2(cdy, cdx);
+              if (c.sprayT > 0) {
+                // MID-BLAST: arm thrust forward-up at the worker, spray cone on
+                if (c.parts) {
+                  c.parts.armR.rotation.x = -1.0; // nozzle up-forward
+                  c.parts.armL.rotation.x = 0.35; // bracing
+                }
+                if (c.spray) c.spray.visible = true;
+              } else {
+                // SCRUB: the hose arm sweeps back and forth over the car panel
+                if (c.parts) {
+                  c.parts.armR.rotation.x =
+                    -0.5 + Math.sin(c.scrubT * 2.2) * 0.25;
+                  c.parts.armL.rotation.x = 0.15 + Math.sin(c.scrubT * 2.2 + 1.2) * 0.1;
+                }
+                if (c.spray) c.spray.visible = false;
+              }
+              // THE SPRAY: worker inside the hose's reach -> soak him (cooldown-gated,
+              // respects i-frames / Monster immunity — hurtNPC re-checks too)
+              if (
+                state === "play" &&
+                c.sprayCd <= 0 &&
+                c.sprayT <= 0 &&
+                cdist < CARWASH_SPRAY_R &&
+                p.invuln <= 0 &&
+                p.immuneT <= 0
+              ) {
+                c.sprayCd = 2.2;
+                c.sprayT = 0.55;
+                SFX.playHoseSplash();
+                hurtNPC(HP_HIT_CARWASH, "carwasher");
+                doStun(0.3, "hit");
+                spawnWaterSplash(p.wx, p.wy);
+                Voice.say(
+                  pick(CARWASH_SPRAY_LINES),
+                  2.6,
+                  1.05,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "ped",
+                );
+                Voice.say(
+                  pick(CARWASH_WORKER_LINES),
+                  2.2,
+                  0.95,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                );
+                // Knock the worker back away from the hose
+                const kd = cdist || 0.001;
+                p.wx += (cdx / kd) * 1.0;
+                p.wy = clamp(p.wy + (cdy / kd) * 0.8, -9.4, workerMaxY());
+              }
+              // Idle car talk while the worker is in earshot (on-screen range)
+              if (state === "play" && c.sayCd <= 0 && cdist < 14) {
+                c.sayCd = R(6, 11);
+                Voice.say(
+                  pick(CARWASH_LINES),
+                  3.0,
+                  1.0,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "ped",
+                );
+              }
               c.cd -= dt;
               break;
             }
