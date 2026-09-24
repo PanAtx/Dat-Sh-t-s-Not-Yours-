@@ -71,12 +71,12 @@ check(
     sign.indexOf('rod') < 0
 );
 check(
-  'pickle emblem: green capsule (0x5a8a3a) + stem (0x3a5a1a)',
-  sign.indexOf('pickle') >= 0 && sign.indexOf('0x5a8a3a') >= 0 && sign.indexOf('0x3a5a1a') >= 0
+  'pickle emblem: green capsule (0x7aa52a) + stem (0x4a7a1a)',
+  sign.indexOf('pickle') >= 0 && sign.indexOf('0x7aa52a') >= 0 && sign.indexOf('0x4a7a1a') >= 0
 );
 check(
-  'pierogi emblem: pale half-moon (0xe8d5a0) + pinched pleat (0xc9b07a)',
-  sign.indexOf('pierogi') >= 0 && sign.indexOf('0xe8d5a0') >= 0 && sign.indexOf('0xc9b07a') >= 0
+  'pierogi emblem: pale half-moon (0xe8d5a0) + crimped dough bumps (0xd8c08a)',
+  sign.indexOf('pierogi') >= 0 && sign.indexOf('0xe8d5a0') >= 0 && sign.indexOf('0xd8c08a') >= 0
 );
 check('emblem is randomly pickle OR pierogi', sign.indexOf('food === "pierogi"') >= 0);
 
@@ -96,7 +96,7 @@ check(
 check(
   'deli poster sits IN the display window (off the divider, away from the door)',
   qStore.indexOf('deliSign.position.x = storeOptions.isLeft ? 0.95 : -0.95') >= 0 &&
-    sign.indexOf('paper.position.set(0, -2.52, 1.45)') >= 0
+    sign.indexOf('paper.position.set(0, -2.54, 1.45)') >= 0
 );
 check(
   'pickle/pierogi chosen at random per store (Math.random() < 0.5)',

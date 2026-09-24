@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.255</div>
+          <div id="app-version" class="menu-version">v1.0.256</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.255';
+      const APP_VERSION = '1.0.256';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15148,11 +15148,11 @@
             // gets too close. See the "carwasher" case in updateCreatures for the spray
             // mechanic. The soapy bucket + sponge sit SET DOWN on the driveway in their
             // own group (NOT a child of his body — they stay put while he turns to face
-            // the worker). The hose is a THICK GREEN GARDEN ROPE: it plugs into the
+            // the worker). The hose is a THICK RED GARDEN HOSE: it plugs into the
             // HOUSE SPIGOT on the front face of the house beside the driveway (the
             // spawn block sets c.hose.anchor at the outlet mouth) and ends at
             // the nozzle in his right hand — the segments are re-laid every frame in
-            // updateCreatures (sagging bezier) so the hose moves when he moves.
+            // updateCreatures (loose drooping spline) so the hose moves when he moves.
             c.sp = 0; // static: guards his driveway, never wanders
             c.scrubT = R(0, 6.28); // scrub phase
             c.sprayCd = 0; // >0 = recharging after a blast
@@ -15191,14 +15191,17 @@
               bucketG.add(sponge);
               bucketG.position.set(c.wx + 0.55, c.wy + 0.3, GZ + 0.04);
               dynamicGroup.add(bucketG);
-              // The HOSE: a thick GREEN GARDEN ROPE from the lawn spigot to his hand.
+              // The HOSE: a THICK RED GARDEN HOSE from the house spigot to his hand.
+              // RED on purpose: the front lawn is dark green (0x4d7a3a) and a green
+              // rope (the old 0x2f7a3d) vanished against it — red pops from the
+              // sidewalk and matches the spigot's red valve wheel.
               // Built as a chain of unit-length segments (one shared material); the
               // updateCreatures case re-lays them each frame along a sagging curve.
-              const hoseMat = M(0x2f7a3d);
+              const hoseMat = M(0xc2452d);
               c.hose = { segs: [], anchor: null };
               for (let hs = 0; hs < 18; hs++) {
                 const hseg = new THREE.Mesh(
-                  new THREE.CylinderGeometry(0.055, 0.055, 1, 6),
+                  new THREE.CylinderGeometry(0.08, 0.08, 1, 8),
                   hoseMat,
                 );
                 dynamicGroup.add(hseg);
@@ -21577,7 +21580,7 @@
                 const sag = 0.35 + md * 0.5;
                 const pdx = (hy - ay) / md,
                   pdy = -(hx - ax) / md;
-                const sAmp = 0.16 + md * 0.1;
+                const sAmp = 0.24 + md * 0.12;
                 const phase = c.scrubT * 0.9;
                 const hpt = (t) => {
                   const env = Math.sin(t * Math.PI); // 0 at both ends -> taut into the fist

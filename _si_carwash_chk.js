@@ -8,7 +8,7 @@
 //     y 6.0 on the slab top, SI-gated only, driveway reserved from the doghouse
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
-//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE plugged into the
+//     group — they do not rotate with him) + THICK RED GARDEN HOSE plugged into the
 //     HOUSE SPIGOT on the front face of the house beside the driveway (wall flange +
 //     brass pipe + red valve wheel + coupling nut; c.hose.anchor at the outlet mouth),
 //     a LOOSE FREE-MOVING SPLINE (traveling two-harmonic wave + parabolic droop, sin
@@ -301,14 +301,14 @@ check(
   })()
 );
 check(
-  "addCreature: THICK GREEN GARDEN HOSE (18 unit segments, 0x2f7a3d) from the house spigot to his fist",
+  "addCreature: THICK RED GARDEN HOSE (18 unit segments, 0xc2452d — red pops against the dark green 0x4d7a3a lawn) from the house spigot to his fist",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
     const seg = src.slice(i, i + 5200);
     return (
-      seg.indexOf("CylinderGeometry(0.055, 0.055, 1, 6)") >= 0 &&
-      seg.indexOf("0x2f7a3d") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.08, 0.08, 1, 8)") >= 0 &&
+      seg.indexOf("0xc2452d") >= 0 &&
       seg.indexOf("c.hose = { segs: [], anchor: null }") >= 0 &&
       seg.indexOf("c.hose.segs.push(hseg)") >= 0
     );
@@ -329,7 +329,7 @@ check(
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6900);
+    const seg = src.slice(i, i + 7400);
     return (
       seg.indexOf("d.armR.add(nozzle)") >= 0 &&
       seg.indexOf("grip.rotation.x = Math.PI / 2") >= 0 &&
