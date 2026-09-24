@@ -393,7 +393,7 @@ check(
   })()
 );
 check(
-  "spawnHoseSpray: the particle MIST FAN — coarse blue drops emitted per frame from the SAME single nozzle point as the jet, aim + perpendicular spread, upward kick, nozzle height via bz",
+  "spawnHoseSpray: the particle MIST FAN — coarse blue drops emitted per frame from the SAME single nozzle point as the jet, aim + perpendicular spread, downward droop (never up), nozzle height via bz",
   (() => {
     const i = src.indexOf("function spawnHoseSpray(");
     if (i < 0) return false;
@@ -404,6 +404,7 @@ check(
       seg.indexOf("vy: uy * spd + py * lat") >= 0 &&
       seg.indexOf("0x4da6ff") >= 0 &&
       seg.indexOf("water: true") >= 0 &&
+      seg.indexOf("vz: -0.8 + R(0, 1.0)") >= 0 && // sprays OUTWARD, never up
       seg.indexOf("bz: nzz") >= 0 &&
       seg.indexOf("dustParticles.push") >= 0
     );
@@ -654,7 +655,8 @@ check(
       seg.indexOf("d / (flight * (1 - t * 0.4))") >= 0 &&
       seg.indexOf("bz: baseZ") >= 0 &&
       seg.indexOf("water: true") >= 0 &&
-      seg.indexOf("0.075 + R(0, 0.035)") >= 0
+      seg.indexOf("0.075 + R(0, 0.035)") >= 0 &&
+      seg.indexOf("vz: -0.4 + R(0, 0.3)") >= 0 // DOWNDROOP, not upward
     );
   })()
 );
