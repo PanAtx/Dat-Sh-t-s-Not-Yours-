@@ -110,8 +110,8 @@ check(
   /const HP_HIT_CARWASH = 3;/.test(src)
 );
 check(
-  "CARWASH_SPRAY_R: the hose reach constant (worker gets sprayed this close)",
-  /const CARWASH_SPRAY_R = 3\.2;/.test(src)
+  "CARWASH_SPRAY_R: the hose reach constant — a LONG protective bubble (4.0) so he sprays the worker from further away",
+  /const CARWASH_SPRAY_R = 4\.0;/.test(src)
 );
 
 // ================= 3. THE PARKED CAR MODEL =================
