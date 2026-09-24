@@ -10,10 +10,12 @@
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
 //     group — they do not rotate with him) + LONG GREEN HOSE ROPE from the house
 //     faucet to the nozzle in his hand (re-laid each frame, sagging bezier) +
-//     hidden spray cone; MALE gender
+//     spray cone (apex at the nozzle, WIDE base toward the worker); MALE gender
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
-//     knockback + hose SFX + water jet from the nozzle + blue splash + lines
-//     ("Don't touch the car!" / "Get away from the car!") (CD-gated, i-frame safe)
+//     knockback + hose SFX + blue splash + lines; MID-BLAST RAISES the arm at the
+//     worker (rotation.y = -1.8, two-handed grip) with a CONTINUOUS water-jet
+//     particle stream out of the nozzle (CD-gated, i-frame safe)
+//     ("Don't touch the car!" / "Get away from the car!")
 //   - bump: arcade bump (1HP) "Watch the hose!", collision radius 0.85,
 //     flying-can hittable, pedestrians route around him (AVOID_TYPES)
 //   - WRITTEN UP!: "Failed to clean the route or car"
@@ -298,7 +300,7 @@ check(
   })()
 );
 check(
-  "addCreature: nozzle in the right hand + hidden water-spray cone (c.spray, c.nozzle)",
+  "addCreature: nozzle in the right hand + spray cone (apex at the nozzle, WIDE base toward the worker)",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
@@ -309,6 +311,8 @@ check(
       seg.indexOf("d.armR.add(spray)") >= 0 &&
       seg.indexOf("c.spray = spray") >= 0 &&
       seg.indexOf("c.nozzle = nozzle") >= 0 &&
+      seg.indexOf("spray.rotation.x = Math.PI / 2") >= 0 &&
+      seg.indexOf("spray.position.set(0, -0.02, -1.3)") >= 0 &&
       seg.indexOf("spray.visible = false") >= 0
     );
   })()
@@ -339,7 +343,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 2000);
+    const seg = src.slice(i, i + 2600);
     return seg.indexOf("Math.sin(c.scrubT * 2.2)") >= 0;
   })()
 );
@@ -375,7 +379,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6000);
+    const seg = src.slice(i, i + 6200);
     return (
       seg.indexOf("SFX.playHoseSplash()") >= 0 &&
       seg.indexOf("spawnWaterSplash(p.wx, p.wy)") >= 0 &&
@@ -388,7 +392,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6400);
+    const seg = src.slice(i, i + 7000);
     return (
       seg.indexOf("p.wx += (cdx / kd) * 1.0") >= 0 &&
       seg.indexOf("clamp(p.wy + (cdy / kd) * 0.8, -9.4, workerMaxY())") >= 0
@@ -400,10 +404,23 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 2400);
+    const seg = src.slice(i, i + 2800);
     return (
       seg.indexOf("c.spray.visible = true") >= 0 &&
       seg.indexOf("c.spray.visible = false") >= 0
+    );
+  })()
+);
+check(
+  "update: MID-BLAST raises the arm at the worker (rotation.y = -1.8) + continuous jet from the nozzle",
+  (() => {
+    const i = src.indexOf(UMARK);
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 2400);
+    return (
+      seg.indexOf("c.parts.armR.rotation.y = -1.8") >= 0 &&
+      seg.indexOf("c.parts.armL.rotation.y = -1.2") >= 0 &&
+      seg.indexOf("spawnWaterJet(js.x, js.y, p.wx, p.wy, 2, js.z)") >= 0
     );
   })()
 );
@@ -412,7 +429,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 4400);
+    const seg = src.slice(i, i + 5200);
     return (
       seg.indexOf("c.hose.anchor") >= 0 &&
       seg.indexOf("c.nozzle.getWorldPosition(hw)") >= 0 &&
@@ -427,7 +444,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6600);
+    const seg = src.slice(i, i + 7200);
     return (
       seg.indexOf("cdist < 14") >= 0 &&
       seg.indexOf("c.sayCd = R(6, 11)") >= 0 &&
@@ -528,7 +545,7 @@ check(
   })()
 );
 check(
-  "spawnWaterJet: staggered droplet stream from the nozzle to the worker (bz = nozzle height)",
+  "spawnWaterJet: staggered droplet stream from the nozzle to the worker (launch height = nozzle z)",
   (() => {
     const i = src.indexOf("function spawnWaterJet(");
     if (i < 0) return false;
@@ -536,7 +553,7 @@ check(
     return (
       seg.indexOf("0x9fd8ff") >= 0 &&
       seg.indexOf("dustParticles.push") >= 0 &&
-      seg.indexOf("bz: 0.62") >= 0
+      seg.indexOf("nzz || 0.62") >= 0
     );
   })()
 );

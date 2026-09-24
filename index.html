@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.248</div>
+          <div id="app-version" class="menu-version">v1.0.249</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.248';
+      const APP_VERSION = '1.0.249';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15231,7 +15231,8 @@
                   depthWrite: false,
                 }),
               );
-              spray.position.set(0, 0, -0.9); // apex at the hand, fanning out FORWARD (-Z = the arm's reach)
+              spray.position.set(0, -0.02, -1.3); // apex (the SMALL end) lands exactly on the nozzle in the hand
+              spray.rotation.x = Math.PI / 2; // cone +Y (apex) -> +Z: the WIDE base fans out along -Z, the way the arm points
               spray.visible = false;
               d.armR.add(spray);
               d.armR.rotation.x = -0.5; // resting pose: nozzle down on the car panel
@@ -16990,14 +16991,17 @@
       }
       // The hose JET: a stream of droplets that flies out of the NOZZLE and lands on
       // the worker — droplets are staggered along the flight path (a stream, not a
-      // puff), each one launched from the nozzle height (bz) with the arc's gravity.
-      // Rides the dust-particle pipeline.
-      function spawnWaterJet(nx, ny, wx, wy) {
-        const count = 8;
+      // puff), each one launched from the nozzle height with the arc's gravity.
+      // count = how many droplets (8 for the hit burst, 2/frame for the continuous
+      // stream while the arm is raised). Rides the dust-particle pipeline.
+      function spawnWaterJet(nx, ny, wx, wy, count, nzz) {
+        count = count || 8;
+        const countN = count;
+        const baseZ = nzz || 0.62; // nozzle height (raised arm ~1.8, scrubbing ~0.62)
         const dx = wx - nx,
           dy = wy - ny;
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < countN; i++) {
           const g = new THREE.Group();
           const dMesh = new THREE.Mesh(
             new THREE.SphereGeometry(0.05, 6, 5),
@@ -17009,7 +17013,7 @@
           );
           g.add(dMesh);
           dynamicGroup.add(g);
-          const t = i / count; // staggered along the flight path
+          const t = i / countN; // staggered along the flight path
           const spd = 0.9 + R(0, 0.5);
           dustParticles.push({
             g: g,
@@ -17018,7 +17022,7 @@
             vx: dx * spd,
             vy: dy * spd,
             vz: 0,
-            bz: 0.62, // nozzle height — gravity (vz) brings the droplet down
+            bz: baseZ, // nozzle height — gravity (vz) brings the droplet down
             life: 0.5,
             decay: (0.5 * spd) / (1 - t * 0.7), // tuned so each drop lands on the worker
             rotSpeed: 0,
@@ -21451,12 +21455,23 @@
               // Faces the worker in 3D (any angle) — like the Karen / Maspeth homeowner
               if (c.g) c.g.rotation.z = Math.atan2(cdy, cdx);
               if (c.sprayT > 0) {
-                // MID-BLAST: arm thrust forward-up at the worker, spray cone on
+                // MID-BLAST: RAISE the arm toward the worker (negative Y = forward,
+                // so -1.8 points the nozzle up-forward AT him — the spray cone + hose
+                // follow the hand, and the jet keeps flying out of the nozzle)
                 if (c.parts) {
-                  c.parts.armR.rotation.x = -1.0; // nozzle up-forward
-                  c.parts.armL.rotation.x = 0.35; // bracing
+                  c.parts.armR.rotation.x = 0;
+                  c.parts.armR.rotation.y = -1.8; // raised toward the worker
+                  c.parts.armL.rotation.x = 0;
+                  c.parts.armL.rotation.y = -1.2; // braced forward (two-handed grip)
                 }
                 if (c.spray) c.spray.visible = true;
+                // The JET: droplets fly out of the nozzle every frame while he sprays
+                // (a continuous stream — conveys motion toward the worker)
+                if (c.nozzle && state === "play") {
+                  const js = new THREE.Vector3();
+                  c.nozzle.getWorldPosition(js);
+                  spawnWaterJet(js.x, js.y, p.wx, p.wy, 2, js.z);
+                }
               } else {
                 // SCRUB: the hose arm sweeps back and forth over the car panel
                 if (c.parts) {
