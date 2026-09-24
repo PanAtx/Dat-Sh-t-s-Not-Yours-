@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.251</div>
+          <div id="app-version" class="menu-version">v1.0.252</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.251';
+      const APP_VERSION = '1.0.252';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15221,11 +15221,20 @@
               nozzle.add(tip);
               nozzle.position.set(0, -0.02, -0.5); // the hand (makePerson's hand box is at z -0.5)
               d.armR.add(nozzle);
-              // Hose-end + jet-origin markers in the arm frame: the HOSE wraps into
-              // the HAND (z -0.45, inside the fist + grip start, so the connection is
-              // hidden in the grip), and the JET leaves the NOZZLE TIP (z -0.66).
+              // The HOSE COUPLING: a dark collar parented to the arm at the back of the
+              // grip — the hose ends EXACTLY here every frame, so the hose reads as
+              // plugged into the nozzle in his fist, no matter how the arm moves.
+              const coupling = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.065, 0.065, 0.12, 8),
+                M(0x1c1f23),
+              );
+              coupling.rotation.x = Math.PI / 2; // along the arm axis
+              coupling.position.set(0, -0.02, -0.4);
+              d.armR.add(coupling);
+              // Hose-end + jet-origin markers in the arm frame: the HOSE ends at the
+              // coupling (z -0.40, inside the fist), the JET leaves the NOZZLE TIP.
               const hosePt = new THREE.Object3D();
-              hosePt.position.set(0, -0.02, -0.45);
+              hosePt.position.set(0, -0.02, -0.4);
               d.armR.add(hosePt);
               const jetPt = new THREE.Object3D();
               jetPt.position.set(0, -0.02, -0.66);
@@ -15957,25 +15966,12 @@
           cw.wy = 4.5; // front-lawn edge — inside the worker's reach (workerMaxY = 8)
           cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
           cw.g.position.set(cw.wx, cw.wy, GZ);
-          // The GARDEN SPROUT on the FRONT LAWN (street-side corner of the slab) —
-          // the small lawn spigot the garden hose plugs into. updateCreatures re-lays
-          // the hose from this anchor to his hand every frame (it moves when he moves).
+          // The HOSE ANCHOR on the front lawn (street-side corner of the slab) — the
+          // loose end of the garden hose lies on the grass at this ground point (no
+          // spigot post). updateCreatures re-lays the hose from here to his fist.
           const cwFaucetX = carwashDrivewayX - 2.0;
           const cwFaucetY = 5.4;
-          const fpipe = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8),
-            M(0x5b6167),
-          );
-          fpipe.position.set(cwFaucetX, cwFaucetY, 0.55);
-          fpipe.castShadow = true;
-          dynamicGroup.add(fpipe);
-          const fspout = new THREE.Mesh(
-            new THREE.SphereGeometry(0.07, 8, 6),
-            M(0xb08d3a), // brass cap on top — where the hose plugs in
-          );
-          fspout.position.set(cwFaucetX, cwFaucetY, 0.82);
-          dynamicGroup.add(fspout);
-          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.8 };
+          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.36 };
           // The PUDDLE on the sidewalk in front of the parked car — wash runoff
           // (flattened translucent blue discs hugging the concrete, y 0.5..5.0 walk).
           const puddleMat = new THREE.MeshLambertMaterial({
@@ -21512,33 +21508,33 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
-              // Re-lay the GARDEN HOSE: a SNAKE-LIKE FLEX from the lawn spigot
-              // (c.hose.anchor) to the HAND in his fist (c.hosePt, set by the builder)
-              // — a cubic bezier whose two control points are pushed to opposite sides
-              // (perpendicular S-bend) with a droop that scales with length, plus a slow
-              // sway — re-laid EVERY frame because his hand moves as he turns/raises.
+              // Re-lay the GARDEN HOSE: a gentle SNAKE-LIKE FLEX from the loose end on
+              // the lawn (c.hose.anchor) to the COUPLING in his fist (c.hosePt) — a
+              // cubic bezier with small opposite-side bulges (S-bend), a droop that
+              // scales with length, and a slow sway. Re-laid EVERY frame because his
+              // hand moves as he turns/raises — the hose always ends in his hand.
               if (c.hose && c.hose.anchor && c.hosePt) {
                 const hw = new THREE.Vector3();
                 c.hosePt.getWorldPosition(hw);
                 const ax = c.hose.anchor.x,
                   ay = c.hose.anchor.y,
-                  az = c.hose.anchor.z || 0.55;
+                  az = c.hose.anchor.z || 0.36;
                 const hx = hw.x,
                   hy = hw.y,
                   hz = Math.max(0.4, hw.z);
                 const md =
                   Math.sqrt((hx - ax) * (hx - ax) + (hy - ay) * (hy - ay)) || 1;
-                const sag = 0.25 + md * 0.35;
+                const sag = 0.2 + md * 0.3;
                 const pdx = (hy - ay) / md,
                   pdy = -(hx - ax) / md;
                 const sAmp =
-                  (0.1 + md * 0.22) * (1 + Math.sin(c.scrubT * 1.7) * 0.15);
-                const b1x = ax + (hx - ax) * 0.33 + pdx * sAmp,
-                  b1y = ay + (hy - ay) * 0.33 + pdy * sAmp,
-                  b1z = Math.max(0.38, az - sag * 0.85),
-                  b2x = ax + (hx - ax) * 0.66 - pdx * sAmp,
-                  b2y = ay + (hy - ay) * 0.66 - pdy * sAmp,
-                  b2z = Math.max(0.38, hz - sag * 0.85);
+                  (0.05 + md * 0.1) * (1 + Math.sin(c.scrubT * 1.7) * 0.15);
+                const b1x = ax + (hx - ax) * 0.35 + pdx * sAmp,
+                  b1y = ay + (hy - ay) * 0.35 + pdy * sAmp,
+                  b1z = Math.max(0.36, az - sag * 0.85),
+                  b2x = ax + (hx - ax) * 0.7 - pdx * (sAmp * 0.6),
+                  b2y = ay + (hy - ay) * 0.7 - pdy * (sAmp * 0.6),
+                  b2z = Math.max(0.36, hz - sag * 0.85);
                 const segs = c.hose.segs;
                 for (let hs = 0; hs < segs.length; hs++) {
                   const t0 = hs / segs.length,

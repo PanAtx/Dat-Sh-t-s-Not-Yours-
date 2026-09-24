@@ -8,11 +8,12 @@
 //     y 6.0 on the slab top, SI-gated only, driveway reserved from the doghouse
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
-//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a lawn
-//     spigot on the front lawn, SNAKE-LIKE (cubic bezier S-bend + droop + sway) and
-//     wrapping INTO the hand at z -0.45 (connection hidden in the fist, jet leaves
-//     the nozzle tip at z -0.66) + spray cone (apex at the nozzle, WIDE base toward
-//     the worker); MALE gender
+//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a loose
+//     end lying on the front lawn (no spigot post), SNAKE-LIKE (gentle cubic S-bend +
+//     droop + sway) and ending at a dark COUPLING collar parented to his fist (z -0.40,
+//     at the back of the nozzle grip — the hose is always visibly in his hand; the jet
+//     leaves the nozzle tip at z -0.66) + spray cone (apex at the nozzle, WIDE base
+//     toward the worker); MALE gender
 //   - a PUDDLE (translucent blue discs) sits on the sidewalk in front of the parked car
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
 //     knockback + hose SFX + blue splash + lines; MID-BLAST RAISES the arm at the
@@ -240,17 +241,15 @@ check(
   })()
 );
 check(
-  "spawn: a GARDEN SPIGOT on the FRONT LAWN (not the house) anchors the hose (cw.hose.anchor set)",
+  "spawn: the hose anchor is a GROUND POINT on the front lawn (no spigot post, cw.hose.anchor set)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 4400);
     return (
-      seg.indexOf("cwFaucetX") >= 0 &&
       seg.indexOf("carwashDrivewayX - 2.0") >= 0 &&
-      seg.indexOf("M(0xb08d3a)") >= 0 &&
-      seg.indexOf("cw.hose.anchor = {") >= 0 &&
-      seg.indexOf("dynamicGroup.add(fpipe)") >= 0
+      seg.indexOf("cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.36 }") >= 0 &&
+      seg.indexOf("fpipe") < 0
     );
   })()
 );
@@ -322,10 +321,11 @@ check(
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6200);
+    const seg = src.slice(i, i + 6600);
     return (
       seg.indexOf("d.armR.add(nozzle)") >= 0 &&
-      seg.indexOf("hosePt.position.set(0, -0.02, -0.45)") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.065, 0.065, 0.12, 8)") >= 0 &&
+      seg.indexOf("hosePt.position.set(0, -0.02, -0.4)") >= 0 &&
       seg.indexOf("jetPt.position.set(0, -0.02, -0.66)") >= 0 &&
       seg.indexOf("c.hosePt = hosePt") >= 0 &&
       seg.indexOf("c.jetPt = jetPt") >= 0 &&
@@ -447,7 +447,7 @@ check(
   })()
 );
 check(
-  "update: the GARDEN HOSE is re-laid EVERY frame — SNAKE-LIKE cubic (S-bend + droop + sway) from the lawn spigot INTO the hand (floor kept above ground)",
+  "update: the GARDEN HOSE is re-laid EVERY frame — gentle SNAKE cubic (S-bend + droop + sway) from the lawn INTO the coupling in his fist (floor kept above ground)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
@@ -455,10 +455,10 @@ check(
     return (
       seg.indexOf("c.hose.anchor") >= 0 &&
       seg.indexOf("c.hosePt.getWorldPosition(hw)") >= 0 &&
-      seg.indexOf("const sag = 0.25 + md * 0.35") >= 0 &&
+      seg.indexOf("const sag = 0.2 + md * 0.3") >= 0 &&
       seg.indexOf("pdx * sAmp") >= 0 &&
       seg.indexOf("3 * u * t * t * B2") >= 0 &&
-      seg.indexOf("Math.max(0.38, az - sag * 0.85)") >= 0 &&
+      seg.indexOf("Math.max(0.36, az - sag * 0.85)") >= 0 &&
       seg.indexOf("sg.quaternion.setFromUnitVectors(") >= 0 &&
       seg.indexOf("HOS_UP") >= 0
     );
