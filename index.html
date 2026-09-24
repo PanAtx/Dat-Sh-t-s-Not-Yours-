@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.261</div>
+          <div id="app-version" class="menu-version">v1.0.262</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.261';
+      const APP_VERSION = '1.0.262';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15978,14 +15978,25 @@
           cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
           cw.g.position.set(cw.wx, cw.wy, GZ);
           // The HOUSE SPIGOT: a real outdoor faucet mounted on the FRONT FACE of the
-          // house beside the driveway (that house's center is x 132, right wall at
-          // ~134.5; the face is y ~8.0-8.4 by variant, so 8.3 hugs the siding).
-          // Wall flange + brass pipe + red valve wheel on top + coupling nut at the
-          // outlet mouth. The hose ANCHOR is the outlet mouth (z 0.62 on the wall):
-          // updateCreatures re-lays the hose from here, down across the lawn, into
-          // his fist.
-          const cwSpigotX = carwashDrivewayX - 2.0; // 134.0: on the house face, clear of the car (x 135.06+)
-          const cwSpigotY = 8.3; // house front face (y ~8.0-8.4 by variant)
+          // house beside the driveway (that house's center is x 132). makeStatenHouse
+          // is a 50/50 mix, so the ATTACHMENT FACE depends on the variant:
+          //   A) Queens-style cottage    -> the house's front wall face (y 8.4..8.8)
+          //   B) Flatbush-style colonial -> the PORCH's outer brick face (1.2u out, y 6.9..7.2)
+          // b.buildingFront is each house's "nearest solid face" stop line (hd 0), so
+          // y0 IS that face for both variants — the spigot plugs into whichever
+          // surface is actually there. x 133.6 sits inside EVERY possible face/porch
+          // span (faces end 133.8-134.7, porches end 134.16) and clears the car (135.06+).
+          const cwSpigotHouse =
+            blocks.find(
+              (b) =>
+                b.blockX === LEVEL_BLOCKS[1].x &&
+                b.worldX === LEVEL_BLOCKS[1].x + 8 * 4 &&
+                b.buildingFront
+            ) || null;
+          const cwSpigotX = carwashDrivewayX - 2.4; // 133.6: on the house face, clear of the car (x 135.06+)
+          const cwSpigotY = cwSpigotHouse
+            ? cwSpigotHouse.buildingFront.y0 // porch face (colonial) or front face (cottage)
+            : 8.3; // fallback: typical front face
           const cwSpigot = new THREE.Group();
           const spFlange = new THREE.Mesh(
             new THREE.CylinderGeometry(0.09, 0.09, 0.03, 10),

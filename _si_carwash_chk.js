@@ -239,7 +239,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6800);
+    const seg = src.slice(i, i + 7600);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
       seg.indexOf("r: 2.3") >= 0 &&
@@ -248,13 +248,16 @@ check(
   })()
 );
 check(
-  "spawn: the hose anchor is a HOUSE SPIGOT on the house's front face (flange + brass pipe + red valve wheel + outlet nut, cw.hose.anchor at the mouth) — pipe/nut axis along Y (horizontal, outlet FACING the street where the hose runs), stem UP, wheel flat",
+  "spawn: the hose anchor is a HOUSE SPIGOT ATTACHED to the house's front face or PORCH face (b.buildingFront.y0 lookup, x 133.6 inside every face/porch span; flange + brass pipe + red valve wheel + outlet nut, cw.hose.anchor at the mouth) — pipe/nut axis along Y (horizontal, outlet FACING the street where the hose runs), stem UP, wheel flat",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5600);
+    const seg = src.slice(i, i + 6400);
     return (
-      seg.indexOf("cwSpigotX") >= 0 &&
+      seg.indexOf("cwSpigotHouse") >= 0 &&
+      seg.indexOf("b.buildingFront") >= 0 &&
+      seg.indexOf("cwSpigotX = carwashDrivewayX - 2.4") >= 0 &&
+      seg.indexOf("cwSpigotHouse.buildingFront.y0") >= 0 &&
       seg.indexOf("CylinderGeometry(0.09, 0.09, 0.03, 10)") >= 0 &&
       seg.indexOf("CylinderGeometry(0.045, 0.045, 0.34, 8)") >= 0 &&
       seg.indexOf("TorusGeometry(0.07, 0.018, 6, 12)") >= 0 &&
@@ -271,7 +274,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5800);
+    const seg = src.slice(i, i + 6600);
     return (
       seg.indexOf("0x4d9fc9") >= 0 &&
       seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.355)") >= 0 &&
