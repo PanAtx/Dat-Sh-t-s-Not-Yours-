@@ -393,7 +393,7 @@ check(
   })()
 );
 check(
-  "spawnHoseSpray: the particle MIST FAN — fine drops emitted per frame from the SAME single nozzle point as the jet, aim + perpendicular spread, upward kick, nozzle height via bz",
+  "spawnHoseSpray: the particle MIST FAN — coarse blue drops emitted per frame from the SAME single nozzle point as the jet, aim + perpendicular spread, upward kick, nozzle height via bz",
   (() => {
     const i = src.indexOf("function spawnHoseSpray(");
     if (i < 0) return false;
@@ -402,7 +402,8 @@ check(
       seg.indexOf("px = -uy") >= 0 &&
       seg.indexOf("vx: ux * spd + px * lat") >= 0 &&
       seg.indexOf("vy: uy * spd + py * lat") >= 0 &&
-      seg.indexOf("0xcfeeff") >= 0 &&
+      seg.indexOf("0x4da6ff") >= 0 &&
+      seg.indexOf("water: true") >= 0 &&
       seg.indexOf("bz: nzz") >= 0 &&
       seg.indexOf("dustParticles.push") >= 0
     );
@@ -643,7 +644,7 @@ check(
   })()
 );
 check(
-  "spawnWaterJet: a SINGLE-point stream — EVERY drop leaves the nozzle tip (wx: nx) at a staggered SPEED, timed to land on the worker, launched at nozzle height",
+  "spawnWaterJet: a SINGLE-point stream — EVERY big drop leaves the nozzle tip (wx: nx) at a staggered SPEED with a ~16° cone kick, timed to land on the worker at nozzle height",
   (() => {
     const i = src.indexOf("function spawnWaterJet(");
     if (i < 0) return false;
@@ -652,19 +653,22 @@ check(
       seg.indexOf("wx: nx, // SINGLE spawn point: the nozzle tip") >= 0 &&
       seg.indexOf("d / (flight * (1 - t * 0.4))") >= 0 &&
       seg.indexOf("bz: baseZ") >= 0 &&
-      seg.indexOf("shrink: true") >= 0
+      seg.indexOf("water: true") >= 0 &&
+      seg.indexOf("0.075 + R(0, 0.035)") >= 0
     );
   })()
 );
 check(
-  "dust pipeline: the shrink flag makes water droplets SHRINK in flight (dust puffs still grow)",
+  "dust pipeline: the water flag GROWS droplets into a cone plume (0.35 -> 1.8) and holds them SOLID (0.92) for most of the flight (dust puffs unchanged)",
   (() => {
     const i = src.indexOf("function updateDustParticles(");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 1400);
+    const seg = src.slice(i, i + 1800);
     return (
-      seg.indexOf("p.shrink") >= 0 &&
-      seg.indexOf("Math.max(0.15, p.life)") >= 0
+      seg.indexOf("p.water") >= 0 &&
+      seg.indexOf("0.35 +") >= 0 &&
+      seg.indexOf("1.45 *") >= 0 &&
+      seg.indexOf("Math.min(0.92, (p.life / (p.maxLife || 1)) * 2.2)") >= 0
     );
   })()
 );
