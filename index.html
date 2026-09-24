@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.250</div>
+          <div id="app-version" class="menu-version">v1.0.251</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.250';
+      const APP_VERSION = '1.0.251';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15219,8 +15219,17 @@
               );
               tip.position.z = -0.14;
               nozzle.add(tip);
-              nozzle.position.set(0, -0.02, -0.5); // the hand
+              nozzle.position.set(0, -0.02, -0.5); // the hand (makePerson's hand box is at z -0.5)
               d.armR.add(nozzle);
+              // Hose-end + jet-origin markers in the arm frame: the HOSE wraps into
+              // the HAND (z -0.45, inside the fist + grip start, so the connection is
+              // hidden in the grip), and the JET leaves the NOZZLE TIP (z -0.66).
+              const hosePt = new THREE.Object3D();
+              hosePt.position.set(0, -0.02, -0.45);
+              d.armR.add(hosePt);
+              const jetPt = new THREE.Object3D();
+              jetPt.position.set(0, -0.02, -0.66);
+              d.armR.add(jetPt);
               const spray = new THREE.Mesh(
                 new THREE.ConeGeometry(0.5, 1.6, 8, 1, true),
                 new THREE.MeshLambertMaterial({
@@ -15238,7 +15247,9 @@
               d.armR.rotation.x = -0.5; // resting pose: nozzle down on the car panel
               c.data = d.g;
               c.spray = spray; // updateCreatures toggles it during a blast
-              c.nozzle = nozzle; // updateCreatures reads its world position (hose end + jet origin)
+              c.nozzle = nozzle; // kept for the spray cone's frame (jet now uses c.jetPt)
+              c.hosePt = hosePt; // the hose end wraps into the hand (updateCreatures tracks it)
+              c.jetPt = jetPt; // the water jet leaves the nozzle tip (updateCreatures tracks it)
             }
             break;
           case "crazy":
@@ -15949,8 +15960,8 @@
           // The GARDEN SPROUT on the FRONT LAWN (street-side corner of the slab) —
           // the small lawn spigot the garden hose plugs into. updateCreatures re-lays
           // the hose from this anchor to his hand every frame (it moves when he moves).
-          const cwFaucetX = carwashDrivewayX - 2.2;
-          const cwFaucetY = 4.6;
+          const cwFaucetX = carwashDrivewayX - 2.0;
+          const cwFaucetY = 5.4;
           const fpipe = new THREE.Mesh(
             new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8),
             M(0x5b6167),
@@ -15965,6 +15976,25 @@
           fspout.position.set(cwFaucetX, cwFaucetY, 0.82);
           dynamicGroup.add(fspout);
           cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.8 };
+          // The PUDDLE on the sidewalk in front of the parked car — wash runoff
+          // (flattened translucent blue discs hugging the concrete, y 0.5..5.0 walk).
+          const puddleMat = new THREE.MeshLambertMaterial({
+            color: 0x4d9fc9,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+          });
+          const puddleGeo = new THREE.CircleGeometry(1, 20);
+          const puddle = new THREE.Mesh(puddleGeo, puddleMat);
+          puddle.rotation.x = -Math.PI / 2;
+          puddle.scale.set(1.25, 0.8, 1);
+          puddle.position.set(carwashDrivewayX, 3.0, 0.32);
+          dynamicGroup.add(puddle);
+          const puddle2 = new THREE.Mesh(puddleGeo, puddleMat);
+          puddle2.rotation.x = -Math.PI / 2;
+          puddle2.scale.set(0.55, 0.4, 1);
+          puddle2.position.set(carwashDrivewayX - 1.1, 2.2, 0.32);
+          dynamicGroup.add(puddle2);
           const cwCarColor = pick(CAR_COLORS);
           const cwCar = makeParkedCar(cwCarColor);
           cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04); // centered on the slab (slab top), nose just past the slab front edge
@@ -21468,9 +21498,9 @@
                 if (c.spray) c.spray.visible = true;
                 // The JET: droplets fly out of the nozzle every frame while he sprays
                 // (a continuous stream — conveys motion toward the worker)
-                if (c.nozzle && state === "play") {
+                if (c.jetPt && state === "play") {
                   const js = new THREE.Vector3();
-                  c.nozzle.getWorldPosition(js);
+                  c.jetPt.getWorldPosition(js);
                   spawnWaterJet(js.x, js.y, p.wx, p.wy, 2, js.z);
                 }
               } else {
@@ -21482,14 +21512,14 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
-              // Re-lay the HOSE ROPE: a sagging green line from the GARDEN SPROUT on
-              // the front lawn (c.hose.anchor, set by the spawn block) to the nozzle in
-              // his hand — the hand moves as he turns/raises the arm, so the hose is
-              // re-laid EVERY frame (quadratic bezier: the midpoint droops with distance
-              // = real-hose sag, floored so it never sinks below the ground).
-              if (c.hose && c.hose.anchor && c.nozzle) {
+              // Re-lay the GARDEN HOSE: a SNAKE-LIKE FLEX from the lawn spigot
+              // (c.hose.anchor) to the HAND in his fist (c.hosePt, set by the builder)
+              // — a cubic bezier whose two control points are pushed to opposite sides
+              // (perpendicular S-bend) with a droop that scales with length, plus a slow
+              // sway — re-laid EVERY frame because his hand moves as he turns/raises.
+              if (c.hose && c.hose.anchor && c.hosePt) {
                 const hw = new THREE.Vector3();
-                c.nozzle.getWorldPosition(hw);
+                c.hosePt.getWorldPosition(hw);
                 const ax = c.hose.anchor.x,
                   ay = c.hose.anchor.y,
                   az = c.hose.anchor.z || 0.55;
@@ -21498,22 +21528,34 @@
                   hz = Math.max(0.4, hw.z);
                 const md =
                   Math.sqrt((hx - ax) * (hx - ax) + (hy - ay) * (hy - ay)) || 1;
-                const sag = 0.12 + md * 0.2;
-                const bx = (ax + hx) / 2,
-                  by = (ay + hy) / 2,
-                  bz = Math.max(0.38, Math.max(az, hz) - sag); // never sinks below the ground
+                const sag = 0.25 + md * 0.35;
+                const pdx = (hy - ay) / md,
+                  pdy = -(hx - ax) / md;
+                const sAmp =
+                  (0.1 + md * 0.22) * (1 + Math.sin(c.scrubT * 1.7) * 0.15);
+                const b1x = ax + (hx - ax) * 0.33 + pdx * sAmp,
+                  b1y = ay + (hy - ay) * 0.33 + pdy * sAmp,
+                  b1z = Math.max(0.38, az - sag * 0.85),
+                  b2x = ax + (hx - ax) * 0.66 - pdx * sAmp,
+                  b2y = ay + (hy - ay) * 0.66 - pdy * sAmp,
+                  b2z = Math.max(0.38, hz - sag * 0.85);
                 const segs = c.hose.segs;
                 for (let hs = 0; hs < segs.length; hs++) {
                   const t0 = hs / segs.length,
                     t1 = (hs + 1) / segs.length;
                   const u0 = 1 - t0,
                     u1 = 1 - t1;
-                  const q0x = u0 * u0 * ax + 2 * u0 * t0 * bx + t0 * t0 * hx,
-                    q0y = u0 * u0 * ay + 2 * u0 * t0 * by + t0 * t0 * hy,
-                    q0z = u0 * u0 * az + 2 * u0 * t0 * bz + t0 * t0 * hz,
-                    q1x = u1 * u1 * ax + 2 * u1 * t1 * bx + t1 * t1 * hx,
-                    q1y = u1 * u1 * ay + 2 * u1 * t1 * by + t1 * t1 * hy,
-                    q1z = u1 * u1 * az + 2 * u1 * t1 * bz + t1 * t1 * hz;
+                  const cb = (t, u, B1, B2, A, H) =>
+                    u * u * u * A +
+                    3 * u * u * t * B1 +
+                    3 * u * t * t * B2 +
+                    t * t * t * H;
+                  const q0x = cb(t0, u0, b1x, b2x, ax, hx),
+                    q0y = cb(t0, u0, b1y, b2y, ay, hy),
+                    q0z = cb(t0, u0, b1z, b2z, az, hz),
+                    q1x = cb(t1, u1, b1x, b2x, ax, hx),
+                    q1y = cb(t1, u1, b1y, b2y, ay, hy),
+                    q1z = cb(t1, u1, b1z, b2z, az, hz);
                   const dx = q1x - q0x,
                     dy = q1y - q0y,
                     dz = q1z - q0z;
@@ -21549,9 +21591,9 @@
                 doStun(0.3, "hit");
                 spawnWaterSplash(p.wx, p.wy);
                 // The WATER JET: droplets fly out of the nozzle and land on the worker
-                if (c.nozzle) {
+                if (c.jetPt) {
                   const jp = new THREE.Vector3();
-                  c.nozzle.getWorldPosition(jp);
+                  c.jetPt.getWorldPosition(jp);
                   spawnWaterJet(jp.x, jp.y, p.wx, p.wy);
                 }
                 Voice.say(

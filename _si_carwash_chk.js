@@ -9,9 +9,11 @@
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
 //     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a lawn
-//     spigot on the front lawn to the nozzle in his hand (re-laid each frame,
-//     sagging bezier, floor kept above ground) + spray cone (apex at the nozzle,
-//     WIDE base toward the worker); MALE gender
+//     spigot on the front lawn, SNAKE-LIKE (cubic bezier S-bend + droop + sway) and
+//     wrapping INTO the hand at z -0.45 (connection hidden in the fist, jet leaves
+//     the nozzle tip at z -0.66) + spray cone (apex at the nozzle, WIDE base toward
+//     the worker); MALE gender
+//   - a PUDDLE (translucent blue discs) sits on the sidewalk in front of the parked car
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
 //     knockback + hose SFX + blue splash + lines; MID-BLAST RAISES the arm at the
 //     worker (rotation.y = -1.8, two-handed grip) with a CONTINUOUS water-jet
@@ -245,10 +247,23 @@ check(
     const seg = src.slice(i, i + 4400);
     return (
       seg.indexOf("cwFaucetX") >= 0 &&
-      seg.indexOf("carwashDrivewayX - 2.2") >= 0 &&
+      seg.indexOf("carwashDrivewayX - 2.0") >= 0 &&
       seg.indexOf("M(0xb08d3a)") >= 0 &&
       seg.indexOf("cw.hose.anchor = {") >= 0 &&
       seg.indexOf("dynamicGroup.add(fpipe)") >= 0
+    );
+  })()
+);
+check(
+  "spawn: a PUDDLE on the sidewalk in front of the parked car (translucent blue, y 0.5..5.0)",
+  (() => {
+    const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
+    if (i < 0) return false;
+    const seg = src.slice(i, i + 4400);
+    return (
+      seg.indexOf("0x4d9fc9") >= 0 &&
+      seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.32)") >= 0 &&
+      seg.indexOf("puddle2.position.set(carwashDrivewayX - 1.1, 2.2, 0.32)") >= 0
     );
   })()
 );
@@ -268,7 +283,7 @@ check(
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5200);
+    const seg = src.slice(i, i + 5800);
     return (
       seg.indexOf("makePerson({") >= 0 &&
       seg.indexOf("CylinderGeometry(0.2, 0.16, 0.3, 10)") >= 0 &&
@@ -307,9 +322,13 @@ check(
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5200);
+    const seg = src.slice(i, i + 6200);
     return (
       seg.indexOf("d.armR.add(nozzle)") >= 0 &&
+      seg.indexOf("hosePt.position.set(0, -0.02, -0.45)") >= 0 &&
+      seg.indexOf("jetPt.position.set(0, -0.02, -0.66)") >= 0 &&
+      seg.indexOf("c.hosePt = hosePt") >= 0 &&
+      seg.indexOf("c.jetPt = jetPt") >= 0 &&
       seg.indexOf("ConeGeometry(0.5, 1.6, 8, 1, true)") >= 0 &&
       seg.indexOf("d.armR.add(spray)") >= 0 &&
       seg.indexOf("c.spray = spray") >= 0 &&
@@ -355,7 +374,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6000);
+    const seg = src.slice(i, i + 6300);
     return (
       seg.indexOf('state === "play"') >= 0 &&
       seg.indexOf("c.sprayCd <= 0") >= 0 &&
@@ -370,7 +389,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6000);
+    const seg = src.slice(i, i + 6500);
     return (
       seg.indexOf('hurtNPC(HP_HIT_CARWASH, "carwasher")') >= 0 &&
       seg.indexOf('doStun(0.3, "hit")') >= 0
@@ -382,7 +401,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6200);
+    const seg = src.slice(i, i + 6800);
     return (
       seg.indexOf("SFX.playHoseSplash()") >= 0 &&
       seg.indexOf("spawnWaterSplash(p.wx, p.wy)") >= 0 &&
@@ -395,7 +414,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 7000);
+    const seg = src.slice(i, i + 7600);
     return (
       seg.indexOf("p.wx += (cdx / kd) * 1.0") >= 0 &&
       seg.indexOf("clamp(p.wy + (cdy / kd) * 0.8, -9.4, workerMaxY())") >= 0
@@ -428,16 +447,18 @@ check(
   })()
 );
 check(
-  "update: the HOSE ROPE is re-laid EVERY frame — sagging bezier from the lawn spigot to the nozzle in his hand (floor kept above ground)",
+  "update: the GARDEN HOSE is re-laid EVERY frame — SNAKE-LIKE cubic (S-bend + droop + sway) from the lawn spigot INTO the hand (floor kept above ground)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5200);
+    const seg = src.slice(i, i + 5800);
     return (
       seg.indexOf("c.hose.anchor") >= 0 &&
-      seg.indexOf("c.nozzle.getWorldPosition(hw)") >= 0 &&
-      seg.indexOf("const sag = 0.12 + md * 0.2") >= 0 &&
-      seg.indexOf("Math.max(0.38, Math.max(az, hz) - sag)") >= 0 &&
+      seg.indexOf("c.hosePt.getWorldPosition(hw)") >= 0 &&
+      seg.indexOf("const sag = 0.25 + md * 0.35") >= 0 &&
+      seg.indexOf("pdx * sAmp") >= 0 &&
+      seg.indexOf("3 * u * t * t * B2") >= 0 &&
+      seg.indexOf("Math.max(0.38, az - sag * 0.85)") >= 0 &&
       seg.indexOf("sg.quaternion.setFromUnitVectors(") >= 0 &&
       seg.indexOf("HOS_UP") >= 0
     );
@@ -448,7 +469,7 @@ check(
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
-    const seg = src.slice(i, i + 7200);
+    const seg = src.slice(i, i + 7800);
     return (
       seg.indexOf("cdist < 14") >= 0 &&
       seg.indexOf("c.sayCd = R(6, 11)") >= 0 &&
