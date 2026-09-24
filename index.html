@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.252</div>
+          <div id="app-version" class="menu-version">v1.0.253</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.252';
+      const APP_VERSION = '1.0.253';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15195,7 +15195,7 @@
               // updateCreatures case re-lays them each frame along a sagging curve.
               const hoseMat = M(0x2f7a3d);
               c.hose = { segs: [], anchor: null };
-              for (let hs = 0; hs < 10; hs++) {
+              for (let hs = 0; hs < 18; hs++) {
                 const hseg = new THREE.Mesh(
                   new THREE.CylinderGeometry(0.055, 0.055, 1, 6),
                   hoseMat,
@@ -15973,23 +15973,24 @@
           const cwFaucetY = 5.4;
           cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.36 };
           // The PUDDLE on the sidewalk in front of the parked car — wash runoff
-          // (flattened translucent blue discs hugging the concrete, y 0.5..5.0 walk).
+          // (flattened translucent blue discs hugging the concrete, y 0.5..5.0 walk;
+          // z 0.355 sits ABOVE the sidewalk surface ~0.32-0.335 so it can't z-fight).
           const puddleMat = new THREE.MeshLambertMaterial({
             color: 0x4d9fc9,
             transparent: true,
-            opacity: 0.5,
+            opacity: 0.6,
             depthWrite: false,
           });
           const puddleGeo = new THREE.CircleGeometry(1, 20);
           const puddle = new THREE.Mesh(puddleGeo, puddleMat);
           puddle.rotation.x = -Math.PI / 2;
-          puddle.scale.set(1.25, 0.8, 1);
-          puddle.position.set(carwashDrivewayX, 3.0, 0.32);
+          puddle.scale.set(1.4, 0.9, 1);
+          puddle.position.set(carwashDrivewayX, 3.0, 0.355);
           dynamicGroup.add(puddle);
           const puddle2 = new THREE.Mesh(puddleGeo, puddleMat);
           puddle2.rotation.x = -Math.PI / 2;
-          puddle2.scale.set(0.55, 0.4, 1);
-          puddle2.position.set(carwashDrivewayX - 1.1, 2.2, 0.32);
+          puddle2.scale.set(0.6, 0.45, 1);
+          puddle2.position.set(carwashDrivewayX - 1.2, 2.1, 0.355);
           dynamicGroup.add(puddle2);
           const cwCarColor = pick(CAR_COLORS);
           const cwCar = makeParkedCar(cwCarColor);
@@ -21508,11 +21509,13 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
-              // Re-lay the GARDEN HOSE: a gentle SNAKE-LIKE FLEX from the loose end on
-              // the lawn (c.hose.anchor) to the COUPLING in his fist (c.hosePt) — a
-              // cubic bezier with small opposite-side bulges (S-bend), a droop that
-              // scales with length, and a slow sway. Re-laid EVERY frame because his
-              // hand moves as he turns/raises — the hose always ends in his hand.
+              // Re-lay the GARDEN HOSE: a LOOSE, FREE-MOVING SPLINE from the loose end
+              // on the lawn (c.hose.anchor) to the COUPLING in his fist (c.hosePt).
+              // Each sample along the anchor->hand line gets a traveling wave offset
+              // (two harmonics crawling slowly) + a parabolic droop, both scaled by a
+              // sin envelope that is ZERO at the fist (and at the lawn end) — so the
+              // middle of the hose lies loose and slithery on the grass while it stays
+              // taut into his hand. Re-laid EVERY frame because his hand moves.
               if (c.hose && c.hose.anchor && c.hosePt) {
                 const hw = new THREE.Vector3();
                 c.hosePt.getWorldPosition(hw);
@@ -21524,34 +21527,35 @@
                   hz = Math.max(0.4, hw.z);
                 const md =
                   Math.sqrt((hx - ax) * (hx - ax) + (hy - ay) * (hy - ay)) || 1;
-                const sag = 0.2 + md * 0.3;
+                const sag = 0.35 + md * 0.5;
                 const pdx = (hy - ay) / md,
                   pdy = -(hx - ax) / md;
-                const sAmp =
-                  (0.05 + md * 0.1) * (1 + Math.sin(c.scrubT * 1.7) * 0.15);
-                const b1x = ax + (hx - ax) * 0.35 + pdx * sAmp,
-                  b1y = ay + (hy - ay) * 0.35 + pdy * sAmp,
-                  b1z = Math.max(0.36, az - sag * 0.85),
-                  b2x = ax + (hx - ax) * 0.7 - pdx * (sAmp * 0.6),
-                  b2y = ay + (hy - ay) * 0.7 - pdy * (sAmp * 0.6),
-                  b2z = Math.max(0.36, hz - sag * 0.85);
+                const sAmp = 0.16 + md * 0.1;
+                const phase = c.scrubT * 0.9;
+                const hpt = (t) => {
+                  const env = Math.sin(t * Math.PI); // 0 at both ends -> taut into the fist
+                  const wave =
+                    Math.sin(t * 5.2 + phase) * 0.7 +
+                    Math.sin(t * 9.3 + phase * 1.6) * 0.3;
+                  const lat = wave * sAmp * env;
+                  return [
+                    ax + (hx - ax) * t + pdx * lat,
+                    ay + (hy - ay) * t + pdy * lat,
+                    Math.max(0.36, az + (hz - az) * t - sag * env),
+                  ];
+                };
                 const segs = c.hose.segs;
                 for (let hs = 0; hs < segs.length; hs++) {
                   const t0 = hs / segs.length,
                     t1 = (hs + 1) / segs.length;
-                  const u0 = 1 - t0,
-                    u1 = 1 - t1;
-                  const cb = (t, u, B1, B2, A, H) =>
-                    u * u * u * A +
-                    3 * u * u * t * B1 +
-                    3 * u * t * t * B2 +
-                    t * t * t * H;
-                  const q0x = cb(t0, u0, b1x, b2x, ax, hx),
-                    q0y = cb(t0, u0, b1y, b2y, ay, hy),
-                    q0z = cb(t0, u0, b1z, b2z, az, hz),
-                    q1x = cb(t1, u1, b1x, b2x, ax, hx),
-                    q1y = cb(t1, u1, b1y, b2y, ay, hy),
-                    q1z = cb(t1, u1, b1z, b2z, az, hz);
+                  const p0 = hpt(t0),
+                    p1 = hpt(t1);
+                  const q0x = p0[0],
+                    q0y = p0[1],
+                    q0z = p0[2],
+                    q1x = p1[0],
+                    q1y = p1[1],
+                    q1z = p1[2];
                   const dx = q1x - q0x,
                     dy = q1y - q0y,
                     dz = q1z - q0z;

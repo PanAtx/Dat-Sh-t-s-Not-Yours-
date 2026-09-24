@@ -9,12 +9,14 @@
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
 //     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a loose
-//     end lying on the front lawn (no spigot post), SNAKE-LIKE (gentle cubic S-bend +
-//     droop + sway) and ending at a dark COUPLING collar parented to his fist (z -0.40,
-//     at the back of the nozzle grip — the hose is always visibly in his hand; the jet
-//     leaves the nozzle tip at z -0.66) + spray cone (apex at the nozzle, WIDE base
-//     toward the worker); MALE gender
-//   - a PUDDLE (translucent blue discs) sits on the sidewalk in front of the parked car
+//     end lying on the front lawn (no spigot post), a LOOSE FREE-MOVING SPLINE
+//     (traveling two-harmonic wave + parabolic droop, sin envelope ZERO at the fist so
+//     the middle lies slithery on the grass while it stays taut into his hand) ending
+//     at a dark COUPLING collar parented to the fist (z -0.40, back of the nozzle
+//     grip); the jet leaves the nozzle tip (z -0.66); spray cone (apex at the nozzle,
+//     WIDE base toward the worker); MALE gender
+//   - a PUDDLE (translucent blue discs, z 0.355 above the sidewalk surface) sits on the
+//     sidewalk in front of the parked car
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
 //     knockback + hose SFX + blue splash + lines; MID-BLAST RAISES the arm at the
 //     worker (rotation.y = -1.8, two-handed grip) with a CONTINUOUS water-jet
@@ -261,8 +263,8 @@ check(
     const seg = src.slice(i, i + 4400);
     return (
       seg.indexOf("0x4d9fc9") >= 0 &&
-      seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.32)") >= 0 &&
-      seg.indexOf("puddle2.position.set(carwashDrivewayX - 1.1, 2.2, 0.32)") >= 0
+      seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.355)") >= 0 &&
+      seg.indexOf("puddle2.position.set(carwashDrivewayX - 1.2, 2.1, 0.355)") >= 0
     );
   })()
 );
@@ -293,7 +295,7 @@ check(
   })()
 );
 check(
-  "addCreature: THICK GREEN GARDEN HOSE (10 unit segments, 0x2f7a3d) from the lawn spigot to his hand",
+  "addCreature: THICK GREEN GARDEN HOSE (18 unit segments, 0x2f7a3d) from the lawn to his fist",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
@@ -447,7 +449,7 @@ check(
   })()
 );
 check(
-  "update: the GARDEN HOSE is re-laid EVERY frame — gentle SNAKE cubic (S-bend + droop + sway) from the lawn INTO the coupling in his fist (floor kept above ground)",
+  "update: the GARDEN HOSE is re-laid EVERY frame — LOOSE SPLINE (traveling wave + droop, envelope taut at the fist) from the lawn INTO the coupling (floor kept above ground)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
@@ -455,10 +457,11 @@ check(
     return (
       seg.indexOf("c.hose.anchor") >= 0 &&
       seg.indexOf("c.hosePt.getWorldPosition(hw)") >= 0 &&
-      seg.indexOf("const sag = 0.2 + md * 0.3") >= 0 &&
-      seg.indexOf("pdx * sAmp") >= 0 &&
-      seg.indexOf("3 * u * t * t * B2") >= 0 &&
-      seg.indexOf("Math.max(0.36, az - sag * 0.85)") >= 0 &&
+      seg.indexOf("const sag = 0.35 + md * 0.5") >= 0 &&
+      seg.indexOf("Math.sin(t * Math.PI)") >= 0 &&
+      seg.indexOf("Math.sin(t * 5.2 + phase)") >= 0 &&
+      seg.indexOf("pdx * lat") >= 0 &&
+      seg.indexOf("Math.max(0.36, az + (hz - az) * t - sag * env)") >= 0 &&
       seg.indexOf("sg.quaternion.setFromUnitVectors(") >= 0 &&
       seg.indexOf("HOS_UP") >= 0
     );
