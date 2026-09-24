@@ -8,9 +8,10 @@
 //     y 6.0 on the slab top, SI-gated only, driveway reserved from the doghouse
 //     pool, SOLID push-out hazard (no walking through the car)
 //   - carwasher NPC: static (stays put), makePerson + FIXED bucket/sponge (their own
-//     group — they do not rotate with him) + LONG GREEN HOSE ROPE from the house
-//     faucet to the nozzle in his hand (re-laid each frame, sagging bezier) +
-//     spray cone (apex at the nozzle, WIDE base toward the worker); MALE gender
+//     group — they do not rotate with him) + THICK GREEN GARDEN HOSE from a lawn
+//     spigot on the front lawn to the nozzle in his hand (re-laid each frame,
+//     sagging bezier, floor kept above ground) + spray cone (apex at the nozzle,
+//     WIDE base toward the worker); MALE gender
 //   - spray: worker inside CARWASH_SPRAY_R of the washer -> HP_HIT_CARWASH +
 //     knockback + hose SFX + blue splash + lines; MID-BLAST RAISES the arm at the
 //     worker (rotation.y = -1.8, two-handed grip) with a CONTINUOUS water-jet
@@ -237,13 +238,15 @@ check(
   })()
 );
 check(
-  "spawn: a FAUCET on the house face anchors the hose (cw.hose.anchor set)",
+  "spawn: a GARDEN SPIGOT on the FRONT LAWN (not the house) anchors the hose (cw.hose.anchor set)",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
     const seg = src.slice(i, i + 4400);
     return (
       seg.indexOf("cwFaucetX") >= 0 &&
+      seg.indexOf("carwashDrivewayX - 2.2") >= 0 &&
+      seg.indexOf("M(0xb08d3a)") >= 0 &&
       seg.indexOf("cw.hose.anchor = {") >= 0 &&
       seg.indexOf("dynamicGroup.add(fpipe)") >= 0
     );
@@ -276,13 +279,13 @@ check(
   })()
 );
 check(
-  "addCreature: LONG GREEN HOSE ROPE (10 unit segments, 0x2f7a3d) from the house faucet to his hand",
+  "addCreature: THICK GREEN GARDEN HOSE (10 unit segments, 0x2f7a3d) from the lawn spigot to his hand",
   (() => {
     const i = src.indexOf('case "carwasher":');
     if (i < 0) return false;
     const seg = src.slice(i, i + 5200);
     return (
-      seg.indexOf("CylinderGeometry(0.03, 0.03, 1, 6)") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.055, 0.055, 1, 6)") >= 0 &&
       seg.indexOf("0x2f7a3d") >= 0 &&
       seg.indexOf("c.hose = { segs: [], anchor: null }") >= 0 &&
       seg.indexOf("c.hose.segs.push(hseg)") >= 0
@@ -425,7 +428,7 @@ check(
   })()
 );
 check(
-  "update: the HOSE ROPE is re-laid EVERY frame — sagging bezier from the house faucet to the nozzle in his hand",
+  "update: the HOSE ROPE is re-laid EVERY frame — sagging bezier from the lawn spigot to the nozzle in his hand (floor kept above ground)",
   (() => {
     const i = src.indexOf(UMARK);
     if (i < 0) return false;
@@ -434,6 +437,7 @@ check(
       seg.indexOf("c.hose.anchor") >= 0 &&
       seg.indexOf("c.nozzle.getWorldPosition(hw)") >= 0 &&
       seg.indexOf("const sag = 0.12 + md * 0.2") >= 0 &&
+      seg.indexOf("Math.max(0.38, Math.max(az, hz) - sag)") >= 0 &&
       seg.indexOf("sg.quaternion.setFromUnitVectors(") >= 0 &&
       seg.indexOf("HOS_UP") >= 0
     );

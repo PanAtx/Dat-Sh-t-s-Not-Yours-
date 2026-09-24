@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.249</div>
+          <div id="app-version" class="menu-version">v1.0.250</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.249';
+      const APP_VERSION = '1.0.250';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15148,10 +15148,10 @@
             // gets too close. See the "carwasher" case in updateCreatures for the spray
             // mechanic. The soapy bucket + sponge sit SET DOWN on the driveway in their
             // own group (NOT a child of his body — they stay put while he turns to face
-            // the worker). The hose is a LONG GREENISH ROPE: it plugs into a faucet on
-            // the house (the spawn block sets c.hose.anchor) and ends at the nozzle in
-            // his right hand — the segments are re-laid every frame in updateCreatures
-            // (sagging bezier) so the rope follows his hand.
+            // the worker). The hose is a THICK GREEN GARDEN ROPE: it plugs into a lawn
+            // spigot on the front lawn (the spawn block sets c.hose.anchor) and ends at
+            // the nozzle in his right hand — the segments are re-laid every frame in
+            // updateCreatures (sagging bezier) so the hose moves when he moves.
             c.sp = 0; // static: guards his driveway, never wanders
             c.scrubT = R(0, 6.28); // scrub phase
             c.sprayCd = 0; // >0 = recharging after a blast
@@ -15190,14 +15190,14 @@
               bucketG.add(sponge);
               bucketG.position.set(c.wx + 0.55, c.wy + 0.3, GZ + 0.04);
               dynamicGroup.add(bucketG);
-              // The HOSE: a long greenish rubber rope from the house faucet to his hand.
+              // The HOSE: a thick GREEN GARDEN ROPE from the lawn spigot to his hand.
               // Built as a chain of unit-length segments (one shared material); the
               // updateCreatures case re-lays them each frame along a sagging curve.
               const hoseMat = M(0x2f7a3d);
               c.hose = { segs: [], anchor: null };
               for (let hs = 0; hs < 10; hs++) {
                 const hseg = new THREE.Mesh(
-                  new THREE.CylinderGeometry(0.03, 0.03, 1, 6),
+                  new THREE.CylinderGeometry(0.055, 0.055, 1, 6),
                   hoseMat,
                 );
                 dynamicGroup.add(hseg);
@@ -15946,24 +15946,25 @@
           cw.wy = 4.5; // front-lawn edge — inside the worker's reach (workerMaxY = 8)
           cw.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him to the worker)
           cw.g.position.set(cw.wx, cw.wy, GZ);
-          // The FAUCET on the house face (top of the slab) — the end the hose rope plugs
-          // into (updateCreatures re-lays the rope from this anchor to his hand).
-          const cwFaucetX = carwashDrivewayX + 1.35;
-          const cwFaucetY = 7.9;
+          // The GARDEN SPROUT on the FRONT LAWN (street-side corner of the slab) —
+          // the small lawn spigot the garden hose plugs into. updateCreatures re-lays
+          // the hose from this anchor to his hand every frame (it moves when he moves).
+          const cwFaucetX = carwashDrivewayX - 2.2;
+          const cwFaucetY = 4.6;
           const fpipe = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.045, 0.045, 0.34, 8),
+            new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8),
             M(0x5b6167),
           );
           fpipe.position.set(cwFaucetX, cwFaucetY, 0.55);
           fpipe.castShadow = true;
           dynamicGroup.add(fpipe);
           const fspout = new THREE.Mesh(
-            new THREE.SphereGeometry(0.06, 8, 6),
-            M(0x454a50),
+            new THREE.SphereGeometry(0.07, 8, 6),
+            M(0xb08d3a), // brass cap on top — where the hose plugs in
           );
-          fspout.position.set(cwFaucetX, cwFaucetY - 0.17, 0.55);
+          fspout.position.set(cwFaucetX, cwFaucetY, 0.82);
           dynamicGroup.add(fspout);
-          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY - 0.17, z: 0.55 };
+          cw.hose.anchor = { x: cwFaucetX, y: cwFaucetY, z: 0.8 };
           const cwCarColor = pick(CAR_COLORS);
           const cwCar = makeParkedCar(cwCarColor);
           cwCar.position.set(carwashDrivewayX, 6.0, GZ + 0.04); // centered on the slab (slab top), nose just past the slab front edge
@@ -21481,10 +21482,11 @@
                 }
                 if (c.spray) c.spray.visible = false;
               }
-              // Re-lay the HOSE ROPE: a sagging green line from the house faucet
-              // (c.hose.anchor, set by the spawn block) to the nozzle in his hand —
-              // the hand moves as he turns/sweeps, so the rope is re-laid EVERY frame
-              // (quadratic bezier: the midpoint droops with distance = real-hose sag).
+              // Re-lay the HOSE ROPE: a sagging green line from the GARDEN SPROUT on
+              // the front lawn (c.hose.anchor, set by the spawn block) to the nozzle in
+              // his hand — the hand moves as he turns/raises the arm, so the hose is
+              // re-laid EVERY frame (quadratic bezier: the midpoint droops with distance
+              // = real-hose sag, floored so it never sinks below the ground).
               if (c.hose && c.hose.anchor && c.nozzle) {
                 const hw = new THREE.Vector3();
                 c.nozzle.getWorldPosition(hw);
@@ -21499,7 +21501,7 @@
                 const sag = 0.12 + md * 0.2;
                 const bx = (ax + hx) / 2,
                   by = (ay + hy) / 2,
-                  bz = Math.max(az, hz) - sag;
+                  bz = Math.max(0.38, Math.max(az, hz) - sag); // never sinks below the ground
                 const segs = c.hose.segs;
                 for (let hs = 0; hs < segs.length; hs++) {
                   const t0 = hs / segs.length,
