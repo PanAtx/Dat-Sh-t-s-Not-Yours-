@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.241</div>
+          <div id="app-version" class="menu-version">v1.0.243</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.241';
+      const APP_VERSION = '1.0.243';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4189,6 +4189,65 @@
         0x6b6f76, // heather grey
       ];
       let homeownerOutfitQueue = [];
+      // The Staten Island Karen (New Dorp, day 5): an ANNOYING homeowner who SHADOWS
+      // the worker around her block — "I know ALL about garbage" EXPERT questions
+      // (cycled 50%) mixed with loud COMPLAINTS (50%: poor job, calling the boss,
+      // lazy, why you don't pick up electronics, ...). Same follow/wave behavior as
+      // the Maspeth homeowner, but this one is a WOMAN with a phone.
+      const KAREN_QUESTIONS = [
+        "I know ALL about garbage. I have a SPREADSHEET.",
+        "Why don't you pick up electronics? I've been ASKING the department!",
+        "Do you take out a car engine on a regular pickup day? BECAUSE I HAVE ONE.",
+        "Is a shopping cart 'trash' or is that 'curb property'?",
+        "Why is my neighbor's bag gone and MINE is still here? That's a DISCREPANCY.",
+        "Can I get a RECEIPT for my trash pickup? That's my RIGHT.",
+        "What's the pickup time, EXACTLY? It's a LAW, so tell me.",
+        "Do you have a license for that grabber? Can I SEE it?",
+        "How many bags is 'too many'? Give me a NUMBER. A real number.",
+        "Is a pallet of bricks 'bulky waste'? My husband bought the bricks.",
+        "Does the city have a policy on broken toasters? I want it in WRITING.",
+        "Can I call ahead and RESERVE a pickup slot? Is that a thing?",
+        "If my bag is 11% over the limit, is that a crime? Is it a CRIME?",
+        "Do the trucks run on a schedule, or is it all 'vibes'?",
+        "Why did you miss my cans last time? I was WATCHING.",
+        "Do you pick up in the rain? It's raining. I can SEE it.",
+      ];
+      const KAREN_COMPLAINTS = [
+        "This is a POOR JOB! I've seen better from a lawnmower!",
+        "You're LAZY. I've seen slothful. You're right THERE.",
+        "I'm calling your boss. No — I'm calling your ENTIRE management.",
+        "This is a WRITE-UP, pal!",
+        "I'm going straight to 311. You've been NOTIFIED.",
+        "Your boss better be hearing about this. I have his NUMBER.",
+        "Do you even LIFT things, or do they lift themselves?",
+        "I have a LAWYER. He also files complaints about trash.",
+        "I've been watching you. That bag? THREE seconds too long!",
+        "This is a CLASS ACTION, and I'm bringing my neighbor!",
+        "The union is NOT protecting you from me. I call SUPERVISORS.",
+        "Your posture alone is a violation of the DRESS CODE!",
+        "Slow down! I'm trying to document this for CITY HALL!",
+        "You people used to RUN. Now it's a shuffle. DISGRACE.",
+        "Formal complaint. I'm putting it in WRITING. I'm ALWAYS writing.",
+        "I'm on the HOA board! You don't want ME on your file!",
+      ];
+      // The Karen's CLOSING RANT — the one last line she calls out when you walk out
+      // of her block for good (then she's done, hands on hips for the shift).
+      const KAREN_BYE = [
+        "I'm writing this down. I'm ALWAYS writing it down.",
+        "See you next week! Same time, LAZINESS!",
+        "The 311 app is loading as we speak. ENJOY your day!",
+      ];
+      // Each Staten Island Karen wears a UNIQUE dress from this palette
+      // (shuffled into the queue per level, consumed one per block).
+      const KAREN_OUTFITS = [
+        0xc0395a, // raspberry
+        0xd0a13f, // mustard
+        0x4f9a5c, // garden green
+        0x8a4fb0, // plum
+        0xb05a5a, // dusty rose
+        0x3f7ac0, // denim blue
+      ];
+      let karenOutfitQueue = [];
       function disposeObj(o) {
         o.traverse((ch) => {
           if (ch.geometry) ch.geometry.dispose();
@@ -14567,7 +14626,7 @@
         //   hooker=woman, dogwalker=mixed, car/moto/bike/ebike/tric/rc = the
         //   driver/rider (mixed), animals = neutral
         const MIXED = () => (Math.random() < 0.5 ? "male" : "female");
-        if (type === "lady" || type === "hooker" || type === "polish")
+        if (type === "lady" || type === "hooker" || type === "polish" || type === "karen")
           c.gender = "female";
         else if (
           type === "ped" ||
@@ -14868,6 +14927,29 @@
               hair: pick(HAIRS),
             });
             if (c.ghost) ghostifyPerson(c.data.g); // the cemetery's homeowner is a GHOST
+            break;
+          case "karen":
+            // The Staten Island Karen (New Dorp, day 5): a loud, ANNOYING homeowner
+            // who SHADOWS the worker around her block — arms waving to the SIDES,
+            // alternating stupid "expert" trash questions (KAREN_QUESTIONS) and loud
+            // COMPLAINTS (KAREN_COMPLAINTS: poor job, calling the boss, lazy).
+            // STAYS ON HER BLOCK (blockMinX/blockMaxX clamp). Wears a UNIQUE dress
+            // (the spawn block feeds c.outfit). See the "karen" case in
+            // updateCreatures for the follow/wave behavior.
+            c.wy = R(1.6, 3.8);
+            c.cd = 0;
+            c.askCd = 0.8; // first line lands right away
+            c.cool = 0; // 0 = following; >0 = resting before the next shadowing run
+            c.followed = 0; // distance shadowed this run
+            c.followMax = R(24, 32); // 3-4 houses of following, then a breather
+            c.waveT = R(0, 6.28);
+            c.pointT = 0; // >0 = her pointing-finger gesture (lands with a line)
+            c.bye = false; // closing rant fired (worker left her block for good)
+            c.data = makePerson({
+              skirt: true, // the classic Karen dress
+              shirt: c.outfit != null ? c.outfit : pick(KAREN_OUTFITS), // unique per block
+              hair: pick(HAIRS),
+            });
             break;
           case "crazy":
             c.wy = R(1.2, 4.2);
@@ -15933,6 +16015,29 @@
               );
           }
         }
+        // The Staten Island KARENS (New Dorp, day 5): ONE PER ODD-NUMBERED BLOCK
+        // (blocks 1, 3, 5, 7 — x 0, 192, 384, 576). Each Karen STAYS ON HER BLOCK
+        // (never crosses the street), wears a UNIQUE dress color, and shadows the
+        // worker around 3-4 houses — alternating stupid "I know ALL about garbage"
+        // questions and loud complaints (poor job, calling the boss, lazy, why you
+        // don't pick up electronics). She bumps the worker like any civilian; if her
+        // bonks put him down the write-up reads "Failed to obligate a disgruntled
+        // homeowner".
+        if (isStatenIslandLevel()) {
+          const karenBlocks = LEVEL_BLOCKS.filter((b, i) => (i + 1) % 2 === 1);
+          karenOutfitQueue = KAREN_OUTFITS.slice().sort(() => Math.random() - 0.5);
+          for (let i = 0; i < karenBlocks.length; i++) {
+            const bx = karenBlocks[i].x;
+            const k = addCreature("karen", {
+              outfit: karenOutfitQueue[i % karenOutfitQueue.length],
+            });
+            k.wx = bx + R(20, 60); // in the middle of her own block
+            k.wy = R(1.6, 3.8);
+            k.blockMinX = bx + 4; // hard bounds: stays on this block
+            k.blockMaxX = bx + 76;
+            k.g.position.set(k.wx, k.wy, GZ);
+          }
+        }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
         // driveways that the doghouses did NOT take. They run AFTER the doghouse loop above
         // (which splices 3 of the 8 driveway entries) so they consume the LEFTOVER driveways
@@ -16782,6 +16887,7 @@
             c.type === "polish" ||
             c.type === "polishboy" ||
             c.type === "homeowner" ||
+            c.type === "karen" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -17554,6 +17660,8 @@
           "The homeowner's right to ask was not honored",
           "Failure to answer questions about the trash schedule",
         ],
+        // --- the Staten Island Karen: a disgruntled homeowner with a phone ---
+        karen: ["Failed to obligate a disgruntled homeowner"],
         // --- the Maspeth cemetery ghosts: the dead are due their rest ---
         ghost: [
           "Failure to respect the dearly departed",
@@ -18723,6 +18831,7 @@
           else if (c.type === "dogwalker") rad = 0.95;
           else if (c.type === "breaker") rad = 1.2;
           else if (c.type === "homeowner") rad = 0.85;
+          else if (c.type === "karen") rad = 0.85;
           else if (c.type === "yeller") rad = 0.95;
           else if (c.type === "jacker") rad = 0.95;
           else if (
@@ -18932,6 +19041,7 @@
             c.type === "polish" ||
             c.type === "polishboy" ||
             c.type === "homeowner" ||
+            c.type === "karen" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -19058,6 +19168,16 @@
                     "Hey! Watch it — this is MY property!",
                     3,
                     1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                else if (c.type === "karen")
+                  Voice.say(
+                    "Watch it! I'm a CONCERNED CITIZEN!",
+                    3,
+                    1.15,
                     c.wx,
                     c.wy,
                     c.gender,
@@ -20546,6 +20666,110 @@
                 }
               }
               // STAYS ON THEIR BLOCK: never cross the street / next block
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+              c.cd -= dt;
+              break;
+            }
+            case "karen": {
+              // The Staten Island Karen (New Dorp) — a loud, ANNOYING homeowner who
+              // SHADOWS the worker around her block: arms waving to the SIDES,
+              // alternating stupid "expert" trash questions (KAREN_QUESTIONS) and loud
+              // COMPLAINTS (KAREN_COMPLAINTS: poor job, calling the boss, lazy, why
+              // you don't pick up electronics); then plants herself HANDS-ON-HIPS and
+              // shadows them again. NEVER leaves the block she spawned on (never
+              // crosses the street): x is clamped to blockMinX..blockMaxX — when the
+              // worker is past the block she stands at the edge, facing him, ranting
+              // while in earshot. CLOSING RANT: the worker crossed the far edge of her
+              // block — one last line, then hands on hips for the rest of the shift.
+              if (!c.bye && p.wx > c.blockMaxX + 2) {
+                c.bye = true;
+                c.cool = 999;
+                Voice.say(
+                  pick(KAREN_BYE),
+                  3.4,
+                  1.0,
+                  c.wx,
+                  c.wy,
+                  c.gender,
+                  "ped",
+                );
+              }
+              c.askCd -= dt;
+              const kdx = p.wx - c.wx,
+                kdy = p.wy - c.wy;
+              const kdist = Math.sqrt(kdx * kdx + kdy * kdy) || 1;
+              // ALWAYS faces the worker in 3D: full continuous rotation around the
+              // vertical axis (any angle) — same as the Maspeth homeowner.
+              c.g.rotation.z = Math.atan2(kdy, kdx);
+              if (c.cool > 0) {
+                // REST: hands folded at the chest, chest out, slow drift back to the
+                // block's middle — FEET moving (animParts), no sliding.
+                c.cool -= dt;
+                const kCx = (c.blockMinX + c.blockMaxX) / 2;
+                if (Math.abs(kCx - c.wx) > 3) {
+                  c.wx += Math.sign(kCx - c.wx) * 0.8 * dt;
+                  animParts(c, 0.8 * dt * 2.4);
+                }
+                if (c.parts) {
+                  c.parts.armL.rotation.x = 0;
+                  c.parts.armR.rotation.x = 0;
+                  c.parts.armL.rotation.y = -1.9; // HANDS AT THE CHEST (bent FORWARD)
+                  c.parts.armR.rotation.y = -1.9;
+                  c.parts.upper.rotation.y = -0.05; // chest out, offended stance
+                }
+              } else {
+                // FOLLOW: straight at the worker in 2D (any direction)
+                if (kdist > 2.2) {
+                  const ksp = 2.6; // a determined follow-walk
+                  c.wx += (kdx / kdist) * ksp * dt;
+                  c.wy = clamp(c.wy + (kdy / kdist) * ksp * dt, 1.2, 4.4);
+                  c.followed += ksp * dt;
+                  animParts(c, ksp * dt * 2.4);
+                }
+                // WINGS: arms out AT THE SIDES, flapping UP AND DOWN (the model's X
+                // rotation is the person's left-right axis — rotation.y swings arms
+                // forward/back, not sideways).
+                c.waveT += dt;
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.14 + Math.sin(c.waveT * 6) * 0.06;
+                  const flap = 1.0 + Math.sin(c.waveT * 6) * 0.5;
+                  c.parts.armL.rotation.y = 0;
+                  c.parts.armR.rotation.y = 0;
+                  c.parts.armL.rotation.x = flap;
+                  c.parts.armR.rotation.x = -flap;
+                }
+                // POINT gesture while a line lands (arm out front, then back to wave)
+                if (c.pointT > 0) {
+                  c.pointT -= dt;
+                  if (c.parts) {
+                    c.parts.armR.rotation.x = -1.25;
+                    c.parts.armR.rotation.y = -1.55; // FORWARD (negative Y = +x)
+                  }
+                }
+                // The rant: "expert" questions 50%, loud complaints 50%
+                if (c.askCd <= 0 && kdist < 26) {
+                  Voice.say(
+                    Math.random() < 0.5
+                      ? pick(KAREN_QUESTIONS)
+                      : pick(KAREN_COMPLAINTS),
+                    3.4,
+                    1.0,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                  c.askCd = R(2.4, 3.6);
+                  c.pointT = 0.7;
+                }
+                // 3-4 houses (24-32u) of shadowing and she's done - take a breather
+                if (c.followed >= c.followMax) {
+                  c.followed = 0;
+                  c.followMax = R(24, 32);
+                  c.cool = R(5, 8);
+                }
+              }
+              // STAYS ON HER BLOCK: never cross the street / next block
               c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
               c.cd -= dt;
               break;
