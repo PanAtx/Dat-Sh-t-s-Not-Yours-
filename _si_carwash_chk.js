@@ -14,7 +14,8 @@
 //     a LOOSE FREE-MOVING SPLINE (traveling two-harmonic wave + parabolic droop, sin
 //     envelope ZERO at the fist and the spigot end so the middle lies slithery on the
 //     lawn while it stays taut into his hand and the outlet) ending at a dark COUPLING
-//     collar parented to the fist (z -0.40, back of the nozzle grip); the NOZZLE grip
+//     collar AT the fist (z -0.50, hand center — wider than the hose so it wraps the
+//     hose end); the NOZZLE grip
 //     + brass tip are COAXIAL with the arm reach axis (rotation.x = PI/2 — no crossbar
 //     in the fist); the jet leaves the nozzle tip (z -0.66); spray cone (apex at the
 //     nozzle, WIDE base toward the worker); MALE gender
@@ -335,8 +336,8 @@ check(
       seg.indexOf("grip.rotation.x = Math.PI / 2") >= 0 &&
       seg.indexOf("tip.rotation.x = Math.PI / 2") >= 0 &&
       seg.indexOf("tip.position.z = -0.16") >= 0 &&
-      seg.indexOf("CylinderGeometry(0.065, 0.065, 0.12, 8)") >= 0 &&
-      seg.indexOf("hosePt.position.set(0, -0.02, -0.4)") >= 0 &&
+      seg.indexOf("CylinderGeometry(0.11, 0.11, 0.18, 8)") >= 0 &&
+      seg.indexOf("hosePt.position.set(0, -0.02, -0.5)") >= 0 &&
       seg.indexOf("jetPt.position.set(0, -0.02, -0.66)") >= 0 &&
       seg.indexOf("c.hosePt = hosePt") >= 0 &&
       seg.indexOf("c.jetPt = jetPt") >= 0 &&
