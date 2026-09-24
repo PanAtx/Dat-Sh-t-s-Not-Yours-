@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.260</div>
+          <div id="app-version" class="menu-version">v1.0.261</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.260';
+      const APP_VERSION = '1.0.261';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15991,14 +15991,14 @@
             new THREE.CylinderGeometry(0.09, 0.09, 0.03, 10),
             MS(0xb08d3a),
           );
-          spFlange.rotation.x = Math.PI / 2; // disc flat against the wall (axis along Y)
+          spFlange.rotation.x = 0; // disc flat against the wall (axis along Y — no rotation)
           spFlange.position.y = 0.02; // half-buried in the siding
           cwSpigot.add(spFlange);
           const spPipe = new THREE.Mesh(
             new THREE.CylinderGeometry(0.045, 0.045, 0.34, 8),
             MS(0xb08d3a),
           );
-          spPipe.rotation.x = Math.PI / 2;
+          spPipe.rotation.x = 0; // axis along Y: HORIZONTAL, out of the wall toward the street
           spPipe.position.y = -0.12; // 0.34 long: 0.10 into the wall, 0.24 out to the street
           spPipe.castShadow = true;
           cwSpigot.add(spPipe);
@@ -16006,20 +16006,21 @@
             new THREE.CylinderGeometry(0.016, 0.016, 0.1, 6),
             M(0x8a8f94),
           );
+          spStem.rotation.x = Math.PI / 2; // axis along Z: valve stem UP out of the pipe
           spStem.position.set(0, -0.08, 0.05); // valve stem up out of the pipe
           cwSpigot.add(spStem);
           const spWheel = new THREE.Mesh(
             new THREE.TorusGeometry(0.07, 0.018, 6, 12),
             M(0xc0392b),
           );
-          spWheel.rotation.x = Math.PI / 2; // classic red wheel lying flat on top
+          spWheel.rotation.x = 0; // classic red wheel lying flat on top (ring in the XY plane)
           spWheel.position.set(0, -0.08, 0.1);
           cwSpigot.add(spWheel);
           const spNut = new THREE.Mesh(
             new THREE.CylinderGeometry(0.055, 0.055, 0.05, 8),
             MS(0xb08d3a),
           );
-          spNut.rotation.x = Math.PI / 2; // hose coupling nut at the outlet mouth
+          spNut.rotation.x = 0; // axis along Y: hose coupling nut at the outlet mouth, facing the street
           spNut.position.y = -0.29;
           cwSpigot.add(spNut);
           cwSpigot.position.set(cwSpigotX, cwSpigotY, 0.62);

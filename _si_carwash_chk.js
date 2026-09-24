@@ -239,7 +239,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 6400);
+    const seg = src.slice(i, i + 6800);
     return (
       seg.indexOf('type: "parkedcar"') >= 0 &&
       seg.indexOf("r: 2.3") >= 0 &&
@@ -248,7 +248,7 @@ check(
   })()
 );
 check(
-  "spawn: the hose anchor is a HOUSE SPIGOT on the house's front face (flange + brass pipe + red valve wheel + outlet nut, cw.hose.anchor at the mouth)",
+  "spawn: the hose anchor is a HOUSE SPIGOT on the house's front face (flange + brass pipe + red valve wheel + outlet nut, cw.hose.anchor at the mouth) — pipe/nut axis along Y (horizontal, outlet FACING the street where the hose runs), stem UP, wheel flat",
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
@@ -258,6 +258,9 @@ check(
       seg.indexOf("CylinderGeometry(0.09, 0.09, 0.03, 10)") >= 0 &&
       seg.indexOf("CylinderGeometry(0.045, 0.045, 0.34, 8)") >= 0 &&
       seg.indexOf("TorusGeometry(0.07, 0.018, 6, 12)") >= 0 &&
+      seg.indexOf("spPipe.rotation.x = 0") >= 0 &&
+      seg.indexOf("spNut.rotation.x = 0") >= 0 &&
+      seg.indexOf("spStem.rotation.x = Math.PI / 2") >= 0 &&
       seg.indexOf("cw.hose.anchor = { x: cwSpigotX, y: cwSpigotY - 0.3, z: 0.62 }") >= 0 &&
       seg.indexOf("groundGroup.add(cwSpigot)") >= 0
     );
@@ -268,7 +271,7 @@ check(
   (() => {
     const i = src.indexOf("The Staten Island CAR WASH (New Dorp, day 5)");
     if (i < 0) return false;
-    const seg = src.slice(i, i + 5400);
+    const seg = src.slice(i, i + 5800);
     return (
       seg.indexOf("0x4d9fc9") >= 0 &&
       seg.indexOf("puddle.position.set(carwashDrivewayX, 3.0, 0.355)") >= 0 &&
