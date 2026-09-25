@@ -7,7 +7,7 @@
    requested. Once the shell is cached, the game opens instantly - and offline.
 
    What it deliberately does NOT own:
-     * The 3D model assets (truck.fbx, *.glb) - those are already cached by the
+     * The 3D model assets (*.glb) - those are already cached by the
        game's own model cache (Cache API, 'dsnboy-models-v1') with a byte-accurate
        progress bar + RETRY gate. The SW just passes them through.
      * The radio music (music/*.mp3) - the game caches those as it plays them
@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.278';
-var APP_VERSION = '1.0.278';
+var CACHE_NAME = 'dsnboy-shell-v1.0.279';
+var APP_VERSION = '1.0.279';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -47,8 +47,6 @@ var SHELL = [
   './draco/draco_decoder.wasm',
   './draco/draco_wasm_wrapper.js',
   './draco/draco_decoder.js',
-  './fflate.min.js',    // FBX decompression
-  './FBXLoader.js',
   './GLTFLoader.js',
   './DRACOLoader.js',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',

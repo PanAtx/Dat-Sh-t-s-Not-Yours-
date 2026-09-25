@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.278</div>
+          <div id="app-version" class="menu-version">v1.0.279</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2248,8 +2248,6 @@
       </div></div
     >
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="fflate.min.js"></script>
-    <script src="FBXLoader.js"></script>
     <script src="GLTFLoader.js"></script>
     <script src="DRACOLoader.js"></script>
     <script>
@@ -2272,7 +2270,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.278';
+      const APP_VERSION = '1.0.279';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4408,13 +4406,17 @@
           skinMat: skin,
         };
       }
-      // ==================== FBX 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
-      // truck.fbx is a POSED asset: it is NOT axis-aligned in native space, so instead of a fixed axis
-      // permutation we SOLVE each asset's orientation from its own geometry (wheels / lid / base) at load
-      // time and store a per-asset rotation matrix on the template (tpl.orient). The game uses X = route
-      // (front +X, rear -X), Y = lateral, Z = up. Verified in node against the real truck.fbx: the truck
-      // stands upright (L 7.33 > H 2.99), grounded, hopper at -X (rear), front at +X.
-      const TRUCK_SCALE = 0.4394,
+      // ==================== 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
+      // The DSNY truck is the nyc_truck.glb model (the old truck.fbx was dropped for
+      // copyright). Its native space (verified in node against the GLB's geometry and
+      // its painted texture): a single textured mesh, X = length with the orange-painted
+      // REAR at +X, Y = up, Z = width. The game uses X = route (front +X, rear -X),
+      // Y = lateral, Z = up, so the template's orient matrix (tpl.orient, consumed by
+      // fbxInstance) maps rear (+X) -> -X, up (+Y) -> +Z, width (+Z) -> +Y (det +1).
+      // TRUCK_SCALE scales the GLB to the same final length the old truck had
+      // (12.39 world units): 12.39 / 1.8648 (native length) = 6.6463. Final truck:
+      // L 12.39 x W 3.71 x H 4.61, grounded (local z=0).
+      const TRUCK_SCALE = 6.6463,
         CAN_SCALE = 0.325,
         BAG_SCALE = 0.24;
       let FBX_TPL = { truck: null, can: null, bag: null };
@@ -4590,15 +4592,14 @@
       }
 
       // ==================== OFFLINE MODEL CACHE (mirrors the radio MP3 cache) ====================
-      // Every 3D model (truck.fbx + the five .glb pickups) is downloaded into the browser Cache
+      // Every 3D model (the truck .glb + the pickup .glbs) is downloaded into the browser Cache
       // API the first time it loads. After that it's served from the cache as a blob URL and
       // never touches the network again, so the 3D assets keep working on poor or dropped
-      // connections. Each model is a SINGLE self-contained file: the five .glb are glTF-binary
-      // (geometry + textures in one), and truck.fbx has its textures EMBEDDED in Video.Content
-      // nodes, so the FBXLoader builds its texture blob URLs from the file itself and never
-      // fetches external images. The cache is a private key-space, so it can't collide with the
-      // radio's "music/" cache or page assets. If the Cache API is unavailable (e.g. file:// or
-      // an old browser) we degrade to plain network loading, exactly as before.
+      // connections. Each model is a SINGLE self-contained file: the .glb files are glTF-binary
+      // (geometry + textures in one), so the loaders build their texture blob URLs from the file
+      // itself and never fetch external images. The cache is a private key-space, so it can't
+      // collide with the radio's "music/" cache or page assets. If the Cache API is unavailable
+      // (e.g. file:// or an old browser) we degrade to plain network loading, exactly as before.
       // ---MODEL_CACHE_BEGIN---
       let _modelCache = null;
       const _modelMemCache = {}; // url -> blob URL, for assets that downloaded fine but the
@@ -4755,33 +4756,48 @@
         };
       }
       // ---MODEL_CACHE_END---
-      // Load truck.fbx once and extract the named asset groups (truck + bag) into FBX_TPL.
-      async function loadFbxTemplates() {
+      // Load nyc_truck.glb once and bake it into FBX_TPL.truck (the truck template).
+      async function loadTruckGltf() {
         if (FBX_TPL.truck) return Promise.resolve(true);
-        if (typeof THREE.FBXLoader === "undefined")
-          return Promise.reject(new Error("FBXLoader not available"));
-        const res = await getModelUrl("truck.fbx"); // offline cache: serve from cache, else download + store
+        if (typeof THREE.GLTFLoader === "undefined")
+          return Promise.reject(new Error("GLTFLoader not available"));
+        const res = await getModelUrl("nyc_truck.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.FBXLoader().load(
+          new THREE.GLTFLoader().load(
             res.url,
-            (root) => {
+            (gltf) => {
               try {
-                const truck = fbxFind(root, /garbageTruck_geo_grp/i);
-                const bag =
-                  fbxFind(root, /truck_trash_grp/i) ||
-                  fbxFind(root, /trash_bag_side_ply$/i);
-                if (!truck || !bag)
-                  throw new Error("FBX asset groups not found");
-                FBX_TPL.truck = fbxExtract(truck);
-                FBX_TPL.truck.orient = orientTruck(FBX_TPL.truck);
-                // NOTE: the curb garbage can no longer comes from truck.fbx
-                // (copyright) — loadCanGltf() supplies nyc_can.glb instead.
+                const scene = gltf.scene;
+                scene.updateWorldMatrix(true, true);
+                const tpl = fbxExtract(scene);
+                // nyc_truck.glb native space (verified against the GLB's geometry and
+                // painted texture): X = length with the orange-painted REAR at +X,
+                // Y = up, Z = width. Game space: X = route (front +X, rear -X),
+                // Y = lateral, Z = up. So: rear (+X) -> -X, up (+Y) -> +Z,
+                // width (+Z) -> +Y (a proper rotation, det +1).
+                tpl.orient = new THREE.Matrix4().set(
+                  -1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                );
+                FBX_TPL.truck = tpl;
+                // NOTE: curb bags are procedural (makeBag) and the curb can comes from
+                // nyc_can.glb (loadCanGltf) — this GLB supplies the truck only.
                 FBX_TPL.can = null;
-                FBX_TPL.bag = fbxExtract(bag);
-                FBX_TPL.bag.orient = defaultOrient(FBX_TPL.bag);
-                root.traverse((o) => {
-                  if (o.isMesh && o.geometry) o.geometry.dispose();
-                });
+                FBX_TPL.bag = null;
                 if (res.url.indexOf("blob:") === 0) {
                   try {
                     URL.revokeObjectURL(res.url);
@@ -4789,7 +4805,7 @@
                 }
                 resolve(true);
               } catch (e) {
-                console.error("[FBX] template build failed:", e);
+                console.error("[GLTF] truck template build failed:", e);
                 reject(e);
               }
             },
@@ -4800,7 +4816,7 @@
                   URL.revokeObjectURL(res.url);
                 } catch (e) {}
               }
-              console.error("[FBX] load failed:", err);
+              console.error("[GLTF] truck load failed:", err);
               reject(err);
             },
           );
@@ -5432,7 +5448,7 @@
       }
       // ==================== DSNY COLLECTION TRUCK ====================
       function buildTruck() {
-        // ===== FBX 3D model (preferred) =====
+        // ===== 3D GLB model (nyc_truck.glb, preferred) =====
         if (FBX_TPL.truck) {
           const g = fbxInstance(FBX_TPL.truck, TRUCK_SCALE);
           // 3D-AWARE collision box, measured from the truck's ACTUAL rendered geometry
@@ -5477,24 +5493,22 @@
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
           const hopperY = -0.5; // nudged to the right side of the scoop
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
-          // === hazard lights (the row of orange circles painted on the REAR) ===
-          // The DSNY art paints a row of three orange circles (Ø ≈ 0.21) on the
-          // truck's REAR face, above the hopper. Each gets a real glowing lens.
-          // The rear face normal is (-0.989, -0.133, 0.063) (measured by
-          // _rear_color.js). These placements were dialed in BY HAND (the
-          // U/I/J/K/N/M nudge keys) and confirmed by the player — they are the
-          // ground truth that _hazlights_chk.js / _measure_haz.js verify pin
-          // against. Each lens/halo is oriented along the rear normal and lifted
-          // off the surface — proud of the body, never buried, never z-fighting —
-          // and blinks the DSNY pattern: 1s both outer lights ON, 1s the middle
-          // light ON — repeated forever, the lights are never all dark (driven
-          // in updateTruck via hazLights).
+          // === hazard lights (the orange paint on the REAR) ===
+          // nyc_truck.glb paints its orange hazard art on the REAR face (the native
+          // +X end, face normal ≈ (0.99, -0.14, 0) native = (-0.99, 0, -0.14) game),
+          // centered at ~79% of the truck's height — the same relative spot the old
+          // DSNY art had its row of three orange circles. The three glowing lenses sit
+          // in a lateral row there, oriented along the measured rear-face normal and
+          // lifted off the surface — proud of the body, never buried, never z-fighting —
+          // and blink the DSNY pattern: 1s both outer lights ON, 1s the middle light
+          // ON — repeated forever, the lights are never all dark (driven in updateTruck
+          // via hazLights).
           const hazSpots = [
-            { x: -4.918, y: -0.299, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' },
-            { x: -4.918, y: -0.619, z: 4.019, r: 0.105, haloR: 0.22, phase: 'mid' },
-            { x: -4.918, y: -0.959, z: 4.079, r: 0.105, haloR: 0.22, phase: 'side' },
+            { x: -5.401, y: -0.371, z: 3.655, r: 0.105, haloR: 0.22, phase: "side" },
+            { x: -5.401, y: -0.051, z: 3.655, r: 0.105, haloR: 0.22, phase: "mid" },
+            { x: -5.401, y: 0.269, z: 3.655, r: 0.105, haloR: 0.22, phase: "side" },
           ];
-          const hazN = new THREE.Vector3(-0.989, -0.133, 0.063).normalize();
+          const hazN = new THREE.Vector3(-0.99, 0, -0.14).normalize();
           const hazQc = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), hazN); // cylinder axis -> normal
           const hazQh = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), hazN); // circle face -> normal
           const hazSpot = new THREE.Vector3();
@@ -5541,17 +5555,17 @@
           };
         }
         // ===== Procedural fallback (identical to the original, so the game always runs) =====
-        // The pre-game "Getting Assets" screen guarantees truck.fbx is loaded + cached BEFORE
-        // the game can start, so buildTruck() is never reached with the FBX template missing
-        // during normal play. If it ever is (e.g. an offline first launch that failed to
-        // download), we REFUSE to build the ugly low-poly box truck: throwing surfaces the
-        // problem to the caller (the preload RETRY screen) instead of silently showing the
-        // placeholder the player asked us to never use.
+        // The pre-game "Getting Assets" screen guarantees nyc_truck.glb is loaded + cached
+        // BEFORE the game can start, so buildTruck() is never reached with the truck
+        // template missing during normal play. If it ever is (e.g. an offline first launch
+        // that failed to download), we REFUSE to build the ugly low-poly box truck: throwing
+        // surfaces the problem to the caller (the preload RETRY screen) instead of silently
+        // showing the placeholder the player asked us to never use.
         if (typeof console !== "undefined")
           console.error(
-            "[TRUCK] FBX truck template not ready - refusing to build the procedural fallback truck.",
+            "[TRUCK] truck GLB template not ready - refusing to build the procedural fallback truck.",
           );
-        throw new Error("FBX truck model not loaded yet");
+        throw new Error("truck model not loaded yet");
         const g = new THREE.Group();
         const white = M(0xf2f5f7),
           green = M(0x1e6b30);
@@ -5618,10 +5632,10 @@
           hub.position.set(wp[i][0], wp[i][1], 0.45);
           g.add(hub);
         }
-        g.scale.set(1.69, 1.69, 1.69); // 30% larger, matching the FBX truck size increase
+        g.scale.set(1.69, 1.69, 1.69); // 30% larger, matching the 3D truck model size increase
         worldGroup.add(g);
-        // body's street-height half-width ≈ 1.9 (BX(9.8, 3.8, 2.2)); mirror the FBX-model
-        // collision width (2.25 x 0.8 = 1.8, the same 20% narrowing as the FBX path)
+        // body's street-height half-width ≈ 1.9 (BX(9.8, 3.8, 2.2)); mirror the 3D-model
+        // collision width (2.25 x 0.8 = 1.8, the same 20% narrowing as the 3D model path)
         // so the fallback behaves identically
         return {
           g: g,
@@ -26357,9 +26371,9 @@
         positionCamera();
         renderer.render(scene, camera);
       }
-      // ==================== FBX ASSET SWAP-IN ====================
-      // When the 3D model finishes loading in the background, swap the live truck (and any
-      // currently-visible curb bags/cans) from the procedural fallback to the FBX model.
+      // ==================== TRUCK ASSET SWAP-IN ====================
+      // When the truck GLB finishes loading in the background, swap the live truck (and any
+      // currently-visible curb bags/cans) from the procedural fallback to the GLB model.
       function rebuildTruckFromFbx() {
         if (!FBX_TPL.truck) return;
         // The truck may not exist yet (we no longer build a placeholder at boot). When it's
@@ -26405,7 +26419,7 @@
       }
       // ==================== GLTF CAN SWAP-IN (nyc_can.glb) ====================
       // When the free garbage-can model finishes loading, swap every live curb can
-      // (whatever it was rendered with — the FBX bin or the procedural cylinder) onto
+      // (whatever it was rendered with — the GLB bin or the procedural cylinder) onto
       // the GLB model, keeping its exact curb spot. No-op until CAN_TPL is ready.
       function rebuildCansFromGltf() {
         if (!CAN_TPL) return;
@@ -26425,10 +26439,10 @@
         }
       }
       // ==================== BOOT ====================
-      // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (truck.fbx +
-      // the five .glb pickups) AND the two title images have been downloaded into the browser
+      // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (nyc_truck.glb +
+      // the pickup .glbs) AND the two title images have been downloaded into the browser
       // Cache and their templates built. Only then does the start menu appear. This is what
-      // guarantees the game NEVER starts with the ugly procedural box truck: truck.fbx is
+      // guarantees the game NEVER starts with the ugly procedural box truck: nyc_truck.glb is
       // cached and its template built before the player can begin. On a repeat visit the
       // assets are already cached, so the bar flashes to 100% and the menu shows in a flash.
       //
@@ -26436,7 +26450,7 @@
       // them, so they keep their existing "cache as they play" behaviour (see SFX radio
       // code) and are never required before the game can start.
       const PRELOAD_ASSETS = [
-        { url: "truck.fbx", size: 17874592, label: "DSNY TRUCK" },
+        { url: "nyc_truck.glb", size: 41539564, label: "DSNY TRUCK" },
         {
           url: "sweet_bread_roll_game_ready__2k_pbr.glb",
           size: 3752076,
@@ -26691,11 +26705,11 @@
         }
       }
       // Phase 2: build the 3D templates from the (now cached) assets and swap the live
-      // truck to the real FBX model. loadCarGltf() hot-swaps traffic cars itself; the
+      // truck to the real GLB model. loadCarGltf() hot-swaps traffic cars itself; the
       // pickup loaders just populate their _TPL; the truck needs an explicit rebuild.
       async function buildModelTemplates() {
         ldSetLabel("BUILDING 3D MODELS...");
-        const jobs = [loadFbxTemplates()];
+        const jobs = [loadTruckGltf()];
         // The curb can has a procedural fallback (see makeCan), so a failed nyc_can.glb
         // load degrades the can's look instead of blocking the whole game.
         const canJob = loadCanGltf().catch((e) => {
@@ -26712,7 +26726,7 @@
         ];
         const results = await Promise.all([jobs[0], Promise.all(gltfJobs)]);
         if (!results[0]) throw new Error("truck template failed to build");
-        rebuildTruckFromFbx(); // swap the live truck to the real FBX model now
+        rebuildTruckFromFbx(); // swap the live truck to the real GLB model now
         rebuildCansFromGltf(); // swap any live curb cans onto the free nyc_can.glb model
       }
       // ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
@@ -26881,8 +26895,8 @@
       worker = buildWorker();
       worldGroup.add(worker.group);
       wparts = worker;
-      // The truck is NOT built here: the "Getting Assets" screen loads + caches truck.fbx
-      // first and builds its template, so buildTruck() always takes the real FBX path
+      // The truck is NOT built here: the "Getting Assets" screen loads + caches nyc_truck.glb
+      // first and builds its template, so buildTruck() always takes the real GLB path
       // (see buildModelTemplates -> rebuildTruckFromFbx). The procedural box truck is
       // never built, so it can never be what the player sees.
       spawnWorld();
