@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.274</div>
+          <div id="app-version" class="menu-version">v1.0.276</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.274';
+      const APP_VERSION = '1.0.276';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11963,19 +11963,25 @@
         });
         const white = M(0xf2f2f2);
         // THREE WHITE STRIPES down the OUTER face of a limb (the Adidas mark).
-        // side = +1 left / -1 right; outerY = the limb's outer face offset
-        // (arms 0.29 + 0.065 = 0.355, legs 0.12 + 0.07 = 0.19)
-        const stripes = (pv, side, outerY, len, zOff) => {
-          for (let s = -1; s <= 1; s++) {
-            const st = BX(0.012, 0.018, len, white);
-            st.position.set(0, side * (outerY + s * 0.022), zOff);
+        // IMPORTANT: these are added to the limb's PIVOT group, so local Y there is
+        // only the limb's OWN half-thickness (arm 0.13/2 = 0.065, leg 0.14/2 = 0.07) —
+        // the 0.29 / 0.12 torso offsets are already baked into the pivot position.
+        // Each stripe is centered EXACTLY on the limb's outer face: half of it is
+        // buried in the fabric and it just kisses the surface, reading as painted
+        // ON the sleeve/pant — no hover, no gap. The three stripes are spaced ACROSS
+        // the face width (local X), so all three sit on the same surface plane.
+        // side = +1 left / -1 right; faceY = limb's outer-face offset in pivot-local Y
+        const stripes = (pv, side, faceY, len, zOff) => {
+          [-0.02, 0, 0.02].forEach((sx) => {
+            const st = BX(0.014, 0.01, len, white);
+            st.position.set(sx, side * faceY, zOff);
             pv.add(st);
-          }
+          });
         };
-        stripes(d.armL, 1, 0.355, 0.4, -0.22); // left sleeve
-        stripes(d.armR, -1, 0.355, 0.4, -0.22); // right sleeve
-        stripes(d.legL, 1, 0.19, 0.52, -0.3); // left pant leg
-        stripes(d.legR, -1, 0.19, 0.52, -0.3); // right pant leg
+        stripes(d.armL, 1, 0.065, 0.4, -0.22); // left sleeve
+        stripes(d.armR, -1, 0.065, 0.4, -0.22); // right sleeve
+        stripes(d.legL, 1, 0.07, 0.52, -0.3); // left pant leg
+        stripes(d.legR, -1, 0.07, 0.52, -0.3); // right pant leg
         // WHITE SNEAKERS: re-color the makePerson shoe boxes (children[1] of each leg pivot)
         [d.legL, d.legR].forEach((pv) => {
           const shoe = pv.children[1];
@@ -12011,282 +12017,103 @@
         d.g.userData.parts.upper.add(crossH);
         return d;
       }
-      // A chalk CRIME SCENE OUTLINE of a deceased man, made the honest way: the
-      // victim is posed with arms splayed to the sides and legs spread (a classic
-      // "star" death pose). We draw a white chalk line around that pose, then
-      // REMOVE the body — only the chalk outline is left behind, with a dark red
-      // blood pool where the head was. The GROUND is the XY plane and Z is UP
-      // (GZ is the ground level), so the chalk decal and blood sit flat in XY
-      // (NO rotation). A STATIC prop (added to groundGroup — cleans up with the
-      // level).
+      // --- Chalk outline texture: loaded once, cached (the PNG ships in the repo root) ---
+      let chalkTex = null;
+      const chalkWaiters = [];
+      function getChalkTexture() {
+        if (typeof document === "undefined" || !THREE.TextureLoader) return null;
+        if (chalkTex) return chalkTex;
+        if (chalkWaiters.length === 0) {
+          // first build: kick off the one-time async load; later builds reuse it
+          new THREE.TextureLoader().load("chalkoutline.png", (t) => {
+            chalkTex = t;
+            for (const w of chalkWaiters) w(t);
+            chalkWaiters.length = 0;
+          });
+        }
+        return null;
+      }
+      // A chalk CRIME SCENE OUTLINE of a deceased man on the Block 3 sidewalk:
+      // the hand-drawn chalkoutline.png decal (white chalk star-pose on a
+      // transparent background) laid FLAT on the concrete. The ground is the XY
+      // plane and Z is UP (GZ is the ground level), and PlaneGeometry already
+      // lies in XY with its +Z normal pointing UP — so the decal sits flat with
+      // NO tilt; a -90° spin about Z lays the body LENGTHWISE along the
+      // sidewalk (head toward +X, the direction the worker walks up the level).
+      // Scaled to the size of a person (~2.0u, matching makePerson). A STATIC
+      // prop (added to groundGroup — cleans up with the level).
       function makeCrimeSceneOutline(x, y) {
         const g = new THREE.Group();
 
-        // 1) The VICTIM: pose a low-poly person with ARMS TO THE SIDES and LEGS
-        // SPREAD (a classic "star" death pose), trace the chalk around it, then
-        // REMOVE the body — only the chalk outline and the blood pool remain.
-        // (The body is never added to the scene, so it is simply dropped here.)
-        const victim = makePerson({
-          shirt: 0x9aa0a8, // plain grey shirt
-          pants: 0x4b5563, // dark pants
-          skin: 0xd9a06b, // fixed tanned tone (no random roll)
-          hair: 0x2a2118,
+        // 1) The CHALK OUTLINE: a flat textured quad. The PNG is 256x251
+        // (ratio 1.0199), so 2.0 x 1.96 keeps its shape undistorted. The head
+        // is at the TOP of the image (v=1 = local +y); rotation.z = -PI/2 maps
+        // local +y onto world +X, so the head points down the sidewalk.
+        // z 0.036: ABOVE the sidewalk expansion-joint box (top = GZ + 0.025)
+        // so the chalk reads ON TOP of the joint line where it crosses the
+        // body, and clear of the slab top (GZ) with no z-fight.
+        // transparent + depthWrite:false so the alpha channel shows the
+        // concrete through the outline.
+        const chalkMat = new THREE.MeshLambertMaterial({
+          transparent: true,
+          depthWrite: false,
+          emissive: 0x2c2c29, // a touch of emissive so the chalk stays bright in street-shadow
         });
-        victim.armL.rotation.z = 1.9; // arm splayed to the side
-        victim.armR.rotation.z = -1.9; // arm splayed to the other side
-        victim.legL.rotation.z = 0.5; // leg spread
-        victim.legR.rotation.z = -0.5; // leg spread
-        // ... the body is GONE. Only the outline is left behind (below).
-
-        // 2) The CHALK OUTLINE: a flat white RING tracing a classic star-pose
-        // silhouette — round HEAD (x~1.7-1.9), SPLAYED ARMS (hands at y ±0.8)
-        // and TWO DISTINCT LEGS (feet at x~0, y ±0.4) with a deep crotch channel
-        // and a wide-open armpit V between arm and leg. Every body BAND (arm
-        // ~0.15-0.22u, leg ~0.17-0.21u) is kept >= 0.14u so the offset contours
-        // below never self-intersect. The line is a THIN 0.14u chalk stroke
-        // (outer +0.09 / inner -0.05). OPAQUE white (no transparency sorting) +
-        // a bit of emissive so it stays bright in street-shadow. Flat in XY (NO
-        // rotation); the Z offsets below seat it FLUSH on the concrete
-        // (sidewalk surface = GZ): chalk 0.012 above the slab, blood 0.02 /
-        // 0.022 — the blood sits ON TOP of the chalk.
-        const sil = [
-          [1.72, 0.2], [1.86, 0.1], [1.92, 0.0], [1.86, -0.1], [1.72, -0.2],
-          [1.62, -0.12],
-          [1.45, -0.22], [1.3, -0.26], [1.1, -0.28],
-          [1.0, -0.48], [0.94, -0.64], [0.88, -0.78],
-          [0.8, -0.84], [0.72, -0.82], [0.68, -0.72],
-          [0.72, -0.6], [0.78, -0.46], [0.9, -0.35],
-          [0.62, -0.33], [0.38, -0.34], [0.14, -0.37], [-0.08, -0.4],
-          [-0.2, -0.42], [-0.25, -0.36], [-0.22, -0.28], [-0.12, -0.22],
-          [0.06, -0.19], [0.24, -0.16], [0.35, -0.12], [0.4, 0.0],
-          [0.35, 0.12], [0.24, 0.16], [0.06, 0.19], [-0.12, 0.22],
-          [-0.22, 0.28], [-0.25, 0.36], [-0.2, 0.42], [-0.08, 0.4],
-          [0.14, 0.37], [0.38, 0.34], [0.62, 0.33],
-          [0.9, 0.35], [0.78, 0.46], [0.72, 0.6],
-          [0.68, 0.72], [0.72, 0.82], [0.8, 0.84], [0.88, 0.78],
-          [0.94, 0.64], [1.0, 0.48], [1.1, 0.28],
-          [1.3, 0.26], [1.45, 0.22],
-          [1.62, 0.12],
-        ];
-        const offsetSil = (pts, dist) => {
-          const n = pts.length;
-          let area = 0;
-          for (let i = 0; i < n; i++) {
-            const a = pts[i],
-              b = pts[(i + 1) % n];
-            area += a[0] * b[1] - b[0] * a[1];
-          }
-          area /= 2;
-          const sgn = area > 0 ? 1 : -1; // outward normal sign from orientation
-          const out = [];
-          for (let i = 0; i < n; i++) {
-            const prev = pts[(i - 1 + n) % n],
-              cur = pts[i],
-              next = pts[(i + 1) % n];
-            let e1x = cur[0] - prev[0],
-              e1y = cur[1] - prev[1];
-            let e2x = next[0] - cur[0],
-              e2y = next[1] - cur[1];
-            const l1 = Math.hypot(e1x, e1y) || 1,
-              l2 = Math.hypot(e2x, e2y) || 1;
-            e1x /= l1;
-            e1y /= l1;
-            e2x /= l2;
-            e2y /= l2;
-            const n1x = e1y * sgn,
-              n1y = -e1x * sgn; // unit OUTWARD normal of edge 1
-            const n2x = e2y * sgn,
-              n2y = -e2x * sgn; // unit OUTWARD normal of edge 2
-            // CONVEX corner = a right turn for a CW polygon: cross * sgn > 0.
-            const convex = (e1x * e2y - e1y * e2x) * sgn > 0;
-            let mx,
-              my;
-            if (dist > 0 && convex) {
-              // OUTER + CONVEX: TRUE MITER JOIN — the sharp TIP (head, hand,
-              // foot, torso end). The miter points OUTWARD (away from the body),
-              // so it can never cross any other offset edge.
-              const ox = dist * (n2x - n1x),
-                oy = dist * (n2y - n1y);
-              const det = e2x * e1y - e1x * e2y; // det of [e1x,-e2x; e1y,-e2y]
-              if (Math.abs(det) < 1e-9) {
-                // (nearly) collinear edges: plain offset along the normal
-                mx = cur[0] + n1x * dist;
-                my = cur[1] + n1y * dist;
-              } else {
-                // solve t*e1 - s*e2 = d*(n2-n1) for t, M = cur + d*n1 + t*e1
-                const t = (-ox * e2y + e2x * oy) / det;
-                mx = cur[0] + dist * n1x + t * e1x;
-                my = cur[1] + dist * n1y + t * e1y;
-              }
-              // Miter limit: at absurdly sharp tips the tip spikes; clamp at 4d
-              const dx = mx - cur[0],
-                dy = my - cur[1];
-              const len = Math.hypot(dx, dy);
-              if (len > Math.abs(dist) * 4) {
-                mx = cur[0] + (dx / len) * Math.abs(dist) * 4;
-                my = cur[1] + (dy / len) * Math.abs(dist) * 4;
-              }
-            } else {
-              // BEVEL JOIN (everything else): a fixed-|d| offset along the
-              // bisector of the two outward normals. Used for the INNER offset
-              // at every corner AND the OUTER offset at concave corners (armpit,
-              // crotch, neck). A miter here would spike d/sin(beta/2) deep —
-              // INTO the body (inner) or INTO the notch (outer) — crossing the
-              // neighboring offset edge and self-intersecting the ring. The
-              // bevel stays exactly |d| from the corner and is
-              // self-intersection-free as long as the body band is >= 2|d|
-              // (it is: arm/leg ~0.15-0.22u vs 2*0.09 = 0.18u worst case).
-              const bx = n1x + n2x,
-                by = n1y + n2y;
-              const bl = Math.hypot(bx, by);
-              if (bl < 1e-9) {
-                mx = cur[0] + n1x * dist;
-                my = cur[1] + n1y * dist;
-              } else {
-                mx = cur[0] + (bx / bl) * dist;
-                my = cur[1] + (by / bl) * dist;
-              }
-            }
-            out.push([mx, my]);
-          }
-          return out;
-        };
-        const chalk = M(0xf8f8f5, { emissive: 0x6a6a66 });
-        // Build the chalk RING as a MANUAL VERTEX STRIP: outer[i] and inner[i]
-        // corresponding (same order, same count), so the ring is 2n quads and
-        // needs NO earcutting. This is deliberate — r128's
-        // ShapeUtils.triangulateShape() returns a garbage index array for this
-        // shape (46 indices for 46 vertices, not a multiple of 3): WebGL drops
-        // the trailing partial triangle, ~15 of ~46 triangles survive, and the
-        // chalk body collapses into a few stray triangles = "no dead body".
-        // Winding (o0,i1,o1)+(o0,i0,i1) is CCW seen from +Z (the camera is up),
-        // so the FrontSide faces the worker. Flat in XY -> on the ground, NO
-        // rotation.
-        const toV2 = (pts) => pts.map((p) => new THREE.Vector2(p[0], p[1]));
-        const outerPts = toV2(offsetSil(sil, 0.09));
-        const innerPts = toV2(offsetSil(sil, -0.05));
-        const nSil = outerPts.length;
-        const ringIdx = [];
-        for (let i = 0; i < nSil; i++) {
-          const o0 = i,
-            o1 = (i + 1) % nSil,
-            i0 = nSil + i,
-            i1 = nSil + ((i + 1) % nSil);
-          ringIdx.push(o0, i1, o1, o0, i0, i1);
-        }
-        const allPts = outerPts.concat(innerPts);
-        const pos = [],
-          uv = [];
-        for (const p of allPts) pos.push(p.x, p.y, 0), uv.push(p.x, p.y);
-        const chalkGeo = new THREE.BufferGeometry();
-        chalkGeo.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(pos, 3),
-        );
-        const nrm = [];
-        for (let i = 0; i < pos.length / 3; i++) nrm.push(0, 0, 1);
-        chalkGeo.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
-        chalkGeo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-        chalkGeo.setIndex(ringIdx);
-        const chalkMesh = new THREE.Mesh(chalkGeo, chalk);
+        const chalkMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.96), chalkMat);
         chalkMesh.castShadow = false;
-        chalkMesh.position.z = 0.012; // FLUSH on the concrete: sidewalk surface = GZ, so 0.012 above it (no float, no z-fight)
+        chalkMesh.rotation.z = -Math.PI / 2; // head toward +X (down the sidewalk)
+        chalkMesh.position.z = 0.036; // above the expansion-joint top (GZ+0.025): the outline sits ON the joint
+        const chalkT = getChalkTexture();
+        if (chalkT) {
+          chalkMat.map = chalkT;
+        } else {
+          chalkMesh.visible = false; // hidden until the PNG finishes loading
+          chalkWaiters.push((t) => {
+            chalkMat.map = t;
+            chalkMat.needsUpdate = true;
+            chalkMesh.visible = true;
+          });
+        }
         g.add(chalkMesh);
 
-        // 3) The BLOOD SPLAT: where the head hit the concrete — an irregular
-        // STAR-SHAPED blob (a long tail streaming toward the body, two pointed
-        // lobes), a dark core at the impact point, and a scatter of small
-        // elongated spatter droplets + streaks fanning out from the hit. All
-        // FLAT in XY (no rotation), sitting ON TOP of the chalk (0.02 > 0.012).
-        // The blob is BIG ENOUGH TO FULLY ENGULF THE CHALK HEAD RING (head
-        // outer offset radius ~0.29 around x~1.82) — so NO white outline shows
-        // around the blood: the blood sits ON TOP of the outline and covers it.
-        // The blob is fan-triangulated FROM ITS CENTER (vertex 0 = impact
-        // point): exact for the star-shaped profile and — like the ring above —
-        // dodges r128's broken triangulateShape.
+        // 2) The BLOOD SPLAT: where the head hit the concrete. The PNG's head
+        // sits at plane-local (0.14, 0.73) (top-middle of the image), which the
+        // -PI/2 sidewalk rotation maps to group-local (0.73, -0.14). An
+        // irregular dark-red blob + darker impact core + a scatter of spatter
+        // droplets — all FLAT in XY (no rotation). z 0.030/0.032: ABOVE the
+        // expansion-joint box top (GZ + 0.025) so the joint never pokes through
+        // the pool, but BELOW the chalk decal (0.036) so the chalk lines still
+        // read ON TOP of the blood.
         const blood = M(0x5a0f12, { emissive: 0x1f0404 });
         const bloodDark = M(0x480b0f, { emissive: 0x140303 });
-        const CX = 1.7,
-          CY = 0; // impact point (head center)
-        // polar profile around the impact point: every radius >= the head's
-        // chalk-ring radius (from this center) + margin, so the head ring is
-        // fully under the blood. Tail to -x, lobes up/down.
-        const splatPts = [
-          [0, 0],
-          [0.46, 0], [0.41, 0.15], [0.3, 0.3], [0.26, 0.45], [0.1, 0.37],
-          [-0.06, 0.35], [-0.25, 0.36], [-0.24, 0.14], [-0.3, 0.05],
-          [-0.68, 0],
-          [-0.3, -0.05], [-0.36, -0.21], [-0.18, -0.26], [-0.1, -0.37],
-          [0, -0.48], [0.1, -0.39], [0.24, -0.34], [0.38, -0.22],
-          [0.41, -0.15], [0.45, -0.08],
-        ].map((p) => [p[0] + CX, p[1] + CY]);
-        const splatTri = [];
-        for (let i = 1; i < splatPts.length - 1; i++) splatTri.push(0, i + 1, i);
-        // CLOSE THE WRAPAROUND: the last sector (P_last -> P_1, across the 0°
-        // axis) needs its own fan triangle, or that wedge stays unfilled and the
-        // chalk head-ring shows through as a white sliver beside the blood.
-        splatTri.push(0, 1, splatPts.length - 1);
-        const splatPos = [],
-          splatUv = [],
-          splatNrm = [];
-        for (const p of splatPts) {
-          splatPos.push(p[0], p[1], 0);
-          splatUv.push(p[0], p[1]);
-          splatNrm.push(0, 0, 1);
-        }
-        const splatGeo = new THREE.BufferGeometry();
-        splatGeo.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(splatPos, 3),
-        );
-        splatGeo.setAttribute("normal", new THREE.Float32BufferAttribute(splatNrm, 3));
-        splatGeo.setAttribute("uv", new THREE.Float32BufferAttribute(splatUv, 2));
-        splatGeo.setIndex(splatTri);
-        const splat = new THREE.Mesh(splatGeo, blood);
-        splat.position.z = 0.02; // ON TOP of the chalk (0.012): the blood sits over the outline
-        g.add(splat);
-        // Spatter: small elongated circles streaming out from the impact
-        // (x, y, scaleX, scaleY) — placed OUTSIDE the blob, z 0.021 so they
-        // never z-fight the splat plane.
+        const HCX = 0.73,
+          HCY = -0.14; // the head center on the sidewalk (post-rotation)
+        const blob = new THREE.Mesh(new THREE.CircleGeometry(0.26, 12), blood);
+        blob.scale.set(1.3, 1, 1); // elongated toward the body (toward -X)
+        blob.position.set(HCX, HCY, 0.03);
+        g.add(blob);
+        const core = new THREE.Mesh(new THREE.CircleGeometry(0.14, 10), bloodDark);
+        core.position.set(HCX + 0.05, HCY, 0.031); // the darkest part, at the impact point
+        g.add(core);
+        // Spatter: small elongated droplets streaming out from the head hit.
         const dropGeo = new THREE.CircleGeometry(1, 8);
         const drops = [
-          [0.94, 0.02, 0.07, 0.03], [0.82, -0.05, 0.05, 0.025], [0.75, 0.08, 0.04, 0.02],
-          [1.4, 0.5, 0.05, 0.035], [1.55, 0.58, 0.035, 0.025], [1.3, 0.42, 0.04, 0.025],
-          [1.15, -0.3, 0.06, 0.03], [1.02, -0.38, 0.04, 0.02],
-          [2.15, 0.25, 0.05, 0.03], [2.22, 0.12, 0.035, 0.02], [2.18, -0.25, 0.04, 0.025],
-          [1.95, -0.52, 0.05, 0.025], [1.6, -0.55, 0.04, 0.02], [1.45, -0.52, 0.03, 0.018],
+          [0.35, -0.42, 0.05, 0.03],
+          [0.3, -0.1, 0.04, 0.025],
+          [0.42, 0.18, 0.045, 0.028],
+          [1.05, -0.38, 0.035, 0.022],
+          [1.12, 0.02, 0.05, 0.03],
+          [1.0, 0.3, 0.03, 0.02],
+          [0.55, 0.42, 0.04, 0.024],
         ];
         for (const [dx, dy, rx, ry] of drops) {
-          const d = new THREE.Mesh(dropGeo, bloodDark);
+          const d = new THREE.Mesh(dropGeo, blood);
           d.scale.set(rx, ry, 1);
-          d.position.set(dx, dy, 0.021);
+          d.position.set(dx, dy, 0.03);
           g.add(d);
         }
-        // Streaks: long thin smears of blood dragged out of the hit — the
-        // classic "spray + smear" read. Same flat ellipses, rotated in the
-        // ground plane (rotation.z) to point away from the impact.
-        const streaks = [
-          [0.72, 0.03, 0.3, 0.045, -0.08], // main smear along the tail
-          [2.28, 0.3, 0.18, 0.04, 0.48], // up-right of the head
-          [2.0, -0.62, 0.16, 0.035, -1.12], // down-right of the head
-          [0.55, -0.08, 0.12, 0.03, 0.15], // trailing the tail
-        ];
-        for (const [sx, sy, rx, ry, ang] of streaks) {
-          const st = new THREE.Mesh(dropGeo, bloodDark);
-          st.scale.set(rx, ry, 1);
-          st.rotation.z = ang;
-          st.position.set(sx, sy, 0.021);
-          g.add(st);
-        }
-        const core = new THREE.Mesh(
-          new THREE.CircleGeometry(0.16, 12),
-          M(0x3d080a, { emissive: 0x140303 }),
-        );
-        // CircleGeometry is already in the XY plane -> lies flat on the ground, NO rotation
-        core.position.set(CX, CY, 0.022); // the darkest part, at the impact point, top of the stack
-        g.add(core);
 
-        // 4) Two yellow NUMBERED EVIDENCE TENTS (standing UP along Z). A
+        // 3) Two yellow NUMBERED EVIDENCE TENTS (standing UP along Z). A
         // cylinder/cone defaults to the Y axis, so rotate.x = PI/2 tips the
         // axis onto Z (up). Each gets a classic crime-scene NUMBER printed on
         // a small yellow card on the face pointing AWAY from the body —
@@ -12343,8 +12170,8 @@
           t.position.set(tx, ty, 0); // on the ground plane
           g.add(t);
         };
-        tent(2.1, -0.85, 1, -1); // #1 by the head (outside the chalk + blood)
-        tent(0.5, 0.85, 2, 1); // #2 by the spread legs
+        tent(1.7, -0.9, 1, -1); // #1 by the head (outside the chalk decal)
+        tent(-1.5, 0.9, 2, 1); // #2 by the spread legs
 
         g.position.set(x, y, GZ); // the group sits at the concrete; parts offset in z
         return g;
@@ -16540,7 +16367,10 @@
         // rest of the level; his bump is a heavy blow (HP_HIT_MAFIA).
         if (isStatenIslandLevel()) {
           const mafiaBlockX = LEVEL_BLOCKS[2].x; // Block 3 (x 192)
-          const mafiaOutlineWX = mafiaBlockX + 40; // block center (x 232)
+          // Center the outline ON the expansion joint: Block 3's cell 5 starts
+          // at x 232 and its joint line runs at 232.2 (cellX + 0.2), so the
+          // body sprawls across the joint and the chalk reads on top of it.
+          const mafiaOutlineWX = mafiaBlockX + 40.2; // joint line at x 232.2
           mafiaOutlineX = mafiaOutlineWX; // the aggro reference (updateCreatures reads it)
           const outline = makeCrimeSceneOutline(mafiaOutlineWX, 2.5);
           groundGroup.add(outline);
