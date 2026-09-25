@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.272</div>
+          <div id="app-version" class="menu-version">v1.0.273</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.272';
+      const APP_VERSION = '1.0.273';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12193,42 +12193,71 @@
         chalkMesh.position.z = 0.012; // FLUSH on the concrete: sidewalk surface = GZ, so 0.012 above it (no float, no z-fight)
         g.add(chalkMesh);
 
-        // 3) The BLOOD POOL: a dark red, irregular, flat pool where the HEAD was
-        // (head center x~1.7, y~0). Sits ON TOP of the chalk (z 0.02 > 0.012) so
-        // the blood reads over the outline. OPAQUE + a touch of emissive.
+        // 3) The BLOOD SPLAT: where the head hit the concrete — an irregular
+        // STAR-SHAPED blob (a long tail streaming toward the body, two pointed
+        // lobes), a dark core at the impact point, and a scatter of small
+        // elongated spatter droplets fanning out from the hit. All FLAT in XY
+        // (no rotation), sitting ON TOP of the chalk (0.02 > 0.012). The blob
+        // is fan-triangulated FROM ITS CENTER (vertex 0 = impact point): exact
+        // for the star-shaped profile and — like the ring above — dodges r128's
+        // broken triangulateShape.
         const blood = M(0x5a0f12, { emissive: 0x1f0404 });
-        const poolPts = [
-          [1.3, 0.24], [1.52, 0.41], [1.8, 0.34], [2.0, 0.15],
-          [2.0, -0.1], [1.86, -0.31], [1.56, -0.34], [1.35, -0.17],
-        ];
-        const poolV2 = poolPts.map((p) => new THREE.Vector2(p[0], p[1]));
-        // Fan from vertex 0: the blob is a simple (nearly convex) polygon, so a
-        // fan is exact and — like the ring above — dodges r128's broken
-        // triangulateShape. Winding (0, i+1, i) is CCW seen from +Z.
-        const poolTri = [];
-        for (let i = 1; i < poolV2.length - 1; i++) poolTri.push(0, i + 1, i);
-        const poolPos = [],
-          poolUv = [],
-          poolNrm = [];
-        for (const p of poolV2) {
-          poolPos.push(p.x, p.y, 0);
-          poolUv.push(p.x, p.y);
-          poolNrm.push(0, 0, 1);
+        const bloodDark = M(0x480b0f, { emissive: 0x140303 });
+        const CX = 1.7,
+          CY = 0; // impact point (head center)
+        // polar profile around the impact point: tail to -x, lobe up, lobe down
+        const splatPts = [
+          [0, 0],
+          [0.4, 0], [0.28, 0.1], [0.2, 0.2], [0.26, 0.45], [0.08, 0.29],
+          [-0.06, 0.33], [-0.25, 0.36], [-0.23, 0.13], [-0.3, 0.05],
+          [-0.68, 0],
+          [-0.3, -0.05], [-0.36, -0.21], [-0.15, -0.21], [-0.07, -0.27],
+          [0, -0.48], [0.07, -0.27], [0.18, -0.26], [0.33, -0.19], [0.34, -0.06],
+        ].map((p) => [p[0] + CX, p[1] + CY]);
+        const splatTri = [];
+        for (let i = 1; i < splatPts.length - 1; i++) splatTri.push(0, i + 1, i);
+        const splatPos = [],
+          splatUv = [],
+          splatNrm = [];
+        for (const p of splatPts) {
+          splatPos.push(p[0], p[1], 0);
+          splatUv.push(p[0], p[1]);
+          splatNrm.push(0, 0, 1);
         }
-        const poolGeo = new THREE.BufferGeometry();
-        poolGeo.setAttribute("position", new THREE.Float32BufferAttribute(poolPos, 3));
-        poolGeo.setAttribute("normal", new THREE.Float32BufferAttribute(poolNrm, 3));
-        poolGeo.setAttribute("uv", new THREE.Float32BufferAttribute(poolUv, 2));
-        poolGeo.setIndex(poolTri);
-        const pool = new THREE.Mesh(poolGeo, blood);
-        pool.position.z = 0.02; // ON TOP of the chalk (0.012): the blood sits over the outline
-        g.add(pool);
+        const splatGeo = new THREE.BufferGeometry();
+        splatGeo.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(splatPos, 3),
+        );
+        splatGeo.setAttribute("normal", new THREE.Float32BufferAttribute(splatNrm, 3));
+        splatGeo.setAttribute("uv", new THREE.Float32BufferAttribute(splatUv, 2));
+        splatGeo.setIndex(splatTri);
+        const splat = new THREE.Mesh(splatGeo, blood);
+        splat.position.z = 0.02; // ON TOP of the chalk (0.012): the blood sits over the outline
+        g.add(splat);
+        // Spatter: small elongated circles streaming out from the impact
+        // (x, y, scaleX, scaleY) — placed OUTSIDE the blob, z 0.021 so they
+        // never z-fight the splat plane.
+        const dropGeo = new THREE.CircleGeometry(1, 8);
+        const drops = [
+          [0.94, 0.02, 0.07, 0.03], [0.82, -0.05, 0.05, 0.025], [0.75, 0.08, 0.04, 0.02],
+          [1.4, 0.5, 0.05, 0.035], [1.55, 0.58, 0.035, 0.025], [1.3, 0.42, 0.04, 0.025],
+          [1.15, -0.3, 0.06, 0.03], [1.02, -0.38, 0.04, 0.02],
+          [2.15, 0.25, 0.05, 0.03], [2.22, 0.12, 0.035, 0.02], [2.18, -0.25, 0.04, 0.025],
+          [1.95, -0.52, 0.05, 0.025], [1.6, -0.55, 0.04, 0.02], [1.45, -0.52, 0.03, 0.018],
+        ];
+        for (const [dx, dy, rx, ry] of drops) {
+          const d = new THREE.Mesh(dropGeo, bloodDark);
+          d.scale.set(rx, ry, 1);
+          d.position.set(dx, dy, 0.021);
+          g.add(d);
+        }
         const core = new THREE.Mesh(
           new THREE.CircleGeometry(0.16, 12),
           M(0x3d080a, { emissive: 0x140303 }),
         );
         // CircleGeometry is already in the XY plane -> lies flat on the ground, NO rotation
-        core.position.set(1.7, 0, 0.022); // the darkest part, at the head center, top of the stack
+        core.position.set(CX, CY, 0.022); // the darkest part, at the impact point, top of the stack
         g.add(core);
 
         // 4) Two yellow EVIDENCE TENTS (standing UP along Z). A cylinder/cone defaults
