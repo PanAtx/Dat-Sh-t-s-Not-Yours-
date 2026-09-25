@@ -13,9 +13,9 @@
 //   1) push-out: carrying keeps a CARRY_M = 0.7u standoff off the painted
 //      body on the street side + cab, and the SAME CARRY_M_CURB = 0.7u on the
 //      curb (LEFT) side (so a carried item clears the paint there too), and
-//      a SMALLER CARRY_M_BACK = 0.15u at the rear — the open scoop is the
-//      dumping spot, so he stands a bit closer to the back of the hopper
-//      (deepest = 0.15 + radius 0.45 = 0.6u past the face) while his held
+//      and the SAME CARRY_M_BACK = 0.7u at the rear (so a carried item clears the
+//      hopper rim instead of clipping into it) — his deepest approach
+//      (deepest = 0.7 + radius 0.45 = 1.15u past the face) stays inside his dump band, while his held
 //      item never reaches solid body; the rear CURB-side corner (hopper back
 //      meets the truck's LEFT) is CHAMFERED (CARRY_CHAMFER = 0.4u 45-degree
 //      cut) so a carrying worker can tuck right up to that corner — the
@@ -64,8 +64,8 @@ check('push-out: curb (LEFT) side uses the SAME CARRY_M_CURB margin as the stree
 check('push-out: front (cab) keeps the CARRY_M carry margin', ()=>{
   assert.ok(html.indexOf('const tHalfLendPFront = _holding ? tHalfL + CARRY_M : tHalfL;') >= 0);
 });
-check('push-out: rear keeps the smaller CARRY_M_BACK standoff (a bit closer to the hopper)', ()=>{
-  assert.ok(html.indexOf('const CARRY_M_BACK = 0.15;') >= 0);
+check('push-out: rear uses the SAME CARRY_M_BACK standoff as the sides (carried item clears the hopper)', ()=>{
+  assert.ok(html.indexOf('const CARRY_M_BACK = 0.7;') >= 0);
   assert.ok(html.indexOf('const tHalfLendPBack = _holding ? tHalfL + CARRY_M_BACK : tHalfL;') >= 0);
 });
 check('push-out: truck motion must never drag a standing worker, but a walking one is pushed OUT (no hopper pass-through)', ()=>{
@@ -94,7 +94,7 @@ check('can is heavy cargo: dumped only from the tight rear zone (nearHopperHeavy
 // push-out entirely. These drive the exact formula to prove: (a) a standing worker
 // is never dragged by the truck's back-up, (b) a walking worker is always pushed
 // OUT of the body — he can never cross the rear face from either side.
-const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.7, CARRY_M_BACK = 0.15, CARRY_CHAMFER = 0.4, T_CY = -4.5;
+const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.7, CARRY_M_BACK = 0.7, CARRY_CHAMFER = 0.4, T_CY = -4.5;
 const C_STREET = T_CY - (Math.max(1.8, 1.8 * 1.25) + CARRY_M); // -7.45 painted street edge + 0.7
 const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -1.55 curb margin now equals the street side
 const X_FRONT = BOX_L + CARRY_M;                               // +7.46
@@ -282,16 +282,17 @@ check('truck auto-follow equilibrium (0.1u past the face) -> all zones say NEAR'
   at(FACE_X - 0.1, -4.5);
   assert.strictEqual(allNear(), true);
 });
-check('KEY: deepest carrying approach (CARRY_M_BACK 0.15 + worker radius 0.45 = 0.6u past the face) -> all zones say NEAR', ()=>{
-  at(FACE_X - 0.6, -4.5);
+check('KEY: deepest carrying approach (CARRY_M_BACK 0.7 + worker radius 0.45 = 1.15u past the face) -> all zones say NEAR', ()=>{
+  at(FACE_X - 1.15, -4.5);
   assert.strictEqual(allNear(), true);
 });
-check('rear street-side corner standoff -> all zones say NEAR', ()=>{
-  at(FACE_X - 0.15 - 0.318, -7.45 - 0.318); // corner (-6.91, -7.45) + 0.45 diagonal
-  assert.strictEqual(allNear(), true);
+check('rear street-side corner standoff -> light-bag band says NEAR (the far corner is just past the 3.6u heavy radius; heavy cargo dumps from the center rear)', ()=>{
+  at(FACE_X - 0.7 - 0.318, -7.45 - 0.318); // corner (-7.46, -7.45) + 0.45 diagonal
+  assert.strictEqual(zones.nearHopper(), true);
+  assert.strictEqual(zones.nearHopperHeavy(), false);
 });
 check('rear curb-side corner standoff -> light-bag band says NEAR', ()=>{
-  at(FACE_X - 0.15 - 0.318, -2.1 + 0.318); // corner (-6.91, -2.1) + 0.45 diagonal
+  at(FACE_X - 0.7 - 0.318, -2.1 + 0.318); // corner (-7.46, -2.1) + 0.45 diagonal
   assert.strictEqual(zones.nearHopper(), true);
   assert.strictEqual(zones.nearHopperHeavy(), false);
 });
@@ -326,7 +327,7 @@ function makeBag(type){ return { kind:'bag', type: type, state:'curb', h:{}, g:{
 function reset(){ calls.voices.length=0; flyingBags.length=0; flyingCans.length=0; flyingBaskets.length=0; }
 
 check('END-TO-END: normal bag at the closest approach -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.6, -4.5);
+  reset(); at(FACE_X - 1.15, -4.5);
   const b = makeBag('normal');
   api.setCarry('bag', b);
   api.tryInteract();
@@ -336,7 +337,7 @@ check('END-TO-END: normal bag at the closest approach -> dumped, silent', ()=>{
   assert.deepStrictEqual(calls.voices, []);
 });
 check('END-TO-END: HEAVY bag at the deepest carrying approach -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.6, -4.5);
+  reset(); at(FACE_X - 1.15, -4.5);
   const b = makeBag('heavy');
   api.setCarry('bag', b);
   api.tryInteract();
@@ -345,7 +346,7 @@ check('END-TO-END: HEAVY bag at the deepest carrying approach -> dumped, silent'
   assert.deepStrictEqual(calls.voices, []);
 });
 check('END-TO-END: full can at the deepest carrying approach -> dumped, silent', ()=>{
-  reset(); at(FACE_X - 0.6, -4.5);
+  reset(); at(FACE_X - 1.15, -4.5);
   const c = { kind:'can', state:'curb', h:{ wx:0, wy:0 }, home:{ wx:0, wy:0 }, g:{ parent:null } };
   api.setCarry('canFull', c);
   api.tryInteract();
