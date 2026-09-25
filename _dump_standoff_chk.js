@@ -11,8 +11,8 @@
 //
 // Fix under test:
 //   1) push-out: carrying keeps a CARRY_M = 0.7u standoff off the painted
-//      body on the street side + cab, a SMALLER CARRY_M_CURB = 0.15u on the
-//      curb (LEFT) side (he may stand a bit closer to the truck's left), and
+//      body on the street side + cab, and the SAME CARRY_M_CURB = 0.7u on the
+//      curb (LEFT) side (so a carried item clears the paint there too), and
 //      a SMALLER CARRY_M_BACK = 0.15u at the rear — the open scoop is the
 //      dumping spot, so he stands a bit closer to the back of the hopper
 //      (deepest = 0.15 + radius 0.45 = 0.6u past the face) while his held
@@ -54,12 +54,12 @@ check('push-out: carrying standoff constant CARRY_M = 0.7u', ()=>{
 check('push-out: street side keeps the full CARRY_M standoff off the painted body (no item clipping)', ()=>{
   assert.ok(html.indexOf('Math.max(tHalfWStreet, _visReach) + CARRY_M') >= 0);
 });
-check('push-out: curb (LEFT) side uses the SMALLER CARRY_M_CURB margin (carrying worker stands a bit closer)', ()=>{
-  assert.ok(html.indexOf('const CARRY_M_CURB = 0.15;') >= 0);
+check('push-out: curb (LEFT) side uses the SAME CARRY_M_CURB margin as the street side (carried item clears the paint)', ()=>{
+  assert.ok(html.indexOf('const CARRY_M_CURB = 0.7;') >= 0);
   assert.ok(html.indexOf('Math.max(tHalfWCurb, _visReach) + CARRY_M_CURB') >= 0);
   const mCur = html.match(/const CARRY_M_CURB = ([\d.]+);/),
     mStr = html.match(/const CARRY_M = ([\d.]+);/);
-  assert.ok(mCur && mStr && parseFloat(mCur[1]) < parseFloat(mStr[1]), 'curb margin must stay smaller than the street/cab margin');
+  assert.ok(mCur && mStr && parseFloat(mCur[1]) >= parseFloat(mStr[1]), 'curb margin must now be >= the street/cab margin so a carried item can\'t clip the left body');
 });
 check('push-out: front (cab) keeps the CARRY_M carry margin', ()=>{
   assert.ok(html.indexOf('const tHalfLendPFront = _holding ? tHalfL + CARRY_M : tHalfL;') >= 0);
@@ -94,9 +94,9 @@ check('can is heavy cargo: dumped only from the tight rear zone (nearHopperHeavy
 // push-out entirely. These drive the exact formula to prove: (a) a standing worker
 // is never dragged by the truck's back-up, (b) a walking worker is always pushed
 // OUT of the body — he can never cross the rear face from either side.
-const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.15, CARRY_M_BACK = 0.15, CARRY_CHAMFER = 0.4, T_CY = -4.5;
+const WR = 0.45, CARRY_M = 0.7, CARRY_M_CURB = 0.7, CARRY_M_BACK = 0.15, CARRY_CHAMFER = 0.4, T_CY = -4.5;
 const C_STREET = T_CY - (Math.max(1.8, 1.8 * 1.25) + CARRY_M); // -7.45 painted street edge + 0.7
-const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -2.1 curb margin is smaller
+const C_CURB = T_CY + (Math.max(1.8, 1.8 * 1.25) + CARRY_M_CURB); // -1.55 curb margin now equals the street side
 const X_FRONT = BOX_L + CARRY_M;                               // +7.46
 function pushOut(wx, wy, prevX, prevY, moving, boxX0) {
   const cx = Math.min(Math.max(wx, boxX0), X_FRONT);
