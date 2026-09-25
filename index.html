@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.276</div>
+          <div id="app-version" class="menu-version">v1.0.277</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.276';
+      const APP_VERSION = '1.0.277';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -11987,6 +11987,31 @@
           const shoe = pv.children[1];
           if (shoe && shoe.material) shoe.material.color.set(0xf2f2f2);
         });
+        // COLLAR + HEM TRIM: white Adidas bands wrapping the jacket's neck and
+        // waist. Built as a slightly larger solid box centered in the torso: the
+        // interior is hidden inside the torso and each face pokes out EXACTLY
+        // 0.005 past the fabric — the same flush, half-embedded trick as the
+        // limb stripes (no hover, no z-fight). Torso in the UPPER frame:
+        // 0.2 x 0.58 x 0.6 centered at z 0.53, so the top face is z 0.83 and the
+        // bottom face z 0.23.
+        const collar = BX(0.21, 0.59, 0.02, white);
+        collar.position.set(0, 0, 0.81); // just below the top face (z 0.83)
+        d.g.userData.parts.upper.add(collar);
+        const hem = BX(0.21, 0.59, 0.02, white);
+        hem.position.set(0, 0, 0.25); // just above the bottom face (z 0.23)
+        d.g.userData.parts.upper.add(hem);
+        // SLUNG BAT: the enforcer's prop, held in the RIGHT hand (armR) pointing
+        // straight down past the fist. The hand sits at pv-local z -0.5 (box
+        // 0.1 x 0.1 x 0.12), so the bat starts at the wrist (z -0.44) and runs to
+        // z -1.04 in the arm-pivot frame — mid-shin in world, clear of the ground.
+        // A white grip band near the handle sells the "held" look.
+        const bat = CY(0.016, 0.048, 0.6, M(0x6b4a2a));
+        bat.rotation.x = Math.PI / 2; // lay the axis along the arm (Z)
+        bat.position.set(0, -0.03, -0.74);
+        d.armR.add(bat);
+        const grip = BX(0.036, 0.036, 0.05, white);
+        grip.position.set(0, -0.03, -0.47);
+        d.armR.add(grip);
         // The HALF-UNZIPPED chest: a white tee band + dark chest hair show at the FRONT
         // of the torso. The torso (0.2 x 0.58 x 0.6) is centered at z 0.53 in the upper
         // frame, so its FRONT face is at z 0.83 (the person faces +Z); the chest sits at
@@ -18355,7 +18380,7 @@
       ];
       const MAFIA_AGGRO_R = 8.0; // worker this close to the guy OR the chalk outline alerts him
       const MAFIA_FOLLOW_SP = 4.2; // a menacing stalk — faster than a Karen's follow-walk
-      const MAFIA_BUMP_CD = 1.6; // per-guy cooldown between heavy blows
+      const MAFIA_BUMP_CD = 0.9; // one full bat swing (0.85s) + a hair: EVERY bump is a hit, and a retrigger can never interrupt a swing
       // The chalk CRIME SCENE OUTLINE's world x (Staten Island only) — the mafia guy
       // is aggroed by the worker getting near him OR this outline. Set in spawnWorld.
       let mafiaOutlineX = null;
@@ -20074,13 +20099,34 @@
             return; // the ghost passes THROUGH: no bounce-back, no shove
           }
           // The Staten Island MAFIA GUY (New Dorp, day 5): a HEAVY blow — far heavier
-          // than a civilian bump (HP_HIT_MAFIA, a real whack). Cooldown-gated per guy;
-          // respects i-frames / Monster immunity (hurtNPC re-checks too). The write-up
-          // reads "Failure to enter witness protection".
+          // than a civilian bump (HP_HIT_MAFIA, a real whack). EVERY bump is a hit —
+          // the per-guy cooldown is only one full bat swing long, so no bump ever
+          // passes by un-hit; respects i-frames / Monster immunity (hurtNPC
+          // re-checks too). He is SOLID: the overlap is resolved every frame, so
+          // the worker can butt up against the enforcer but can NEVER walk through
+          // him. The write-up reads "Failure to enter witness protection".
           if (c.type === "mafia") {
             if (c.attackCd === undefined) c.attackCd = 0;
+            const md = Math.sqrt(d2) || 0.001;
+            const mnx = -dx / md,
+              mny = -dy / md; // unit vector: mafia -> worker
+            // SOLID BODY: push the worker out of his radius EVERY frame (not just
+            // on the hit) — he can press right up against the enforcer, but the
+            // overlap never resolves to clipping through him.
+            const pen = rad - md;
+            if (pen > 0) {
+              p.wx += mnx * pen;
+              p.wy = clamp(p.wy + mny * pen, -9.4, workerMaxY());
+            }
             if (c.attackCd <= 0 && p.invuln <= 0 && p.immuneT <= 0) {
               c.attackCd = MAFIA_BUMP_CD;
+              // BAT SWING: turn to face the worker (dx/dy point mafia-minus-worker,
+              // so the worker sits at (-dx, -dy)) and arm the swing — the per-frame
+              // driver in updateCreatures plays windup -> smash -> recover on
+              // c.parts.armR, which carries the bat.
+              if (c.g) c.g.rotation.z = Math.atan2(-dy, -dx);
+              c.swinging = true;
+              c.swingT = 0;
               SFX.playHurtSound();
               hurtNPC(HP_HIT_MAFIA, "mafia");
               doStun(0.5, "hit");
@@ -20102,14 +20148,12 @@
                 WORKER_GENDER,
                 "worker",
               );
-              // Knock the worker back away from the enforcer
-              const md = Math.sqrt(d2) || 0.001;
-              const mnx = -dx / md,
-                mny = -dy / md;
-              p.wx += mnx * 1.4;
-              p.wy = clamp(p.wy + mny * 1.0, -9.4, workerMaxY());
+              // The blow shoves the worker back a touch PAST the solid push-out,
+              // so a hit reads as a whack, not just a wall
+              p.wx += mnx * 0.5;
+              p.wy = clamp(p.wy + mny * 0.35, -9.4, workerMaxY());
             }
-            return; // the mafia guy is a solid threat: no arcade bounce-back
+            return; // the mafia guy is solid: overlap resolved above, no generic bounce
           }
           if (
             c.type === "ped" ||
@@ -22196,6 +22240,11 @@
               // MAFIA_FOLLOW_SP. His bump is a HEAVY blow (HP_HIT_MAFIA, handled in
               // collideCreatures). The write-up reads "Failure to enter witness
               // protection".
+              // Cooldown TICK: the bump-hit cooldown (set in collideCreatures) must
+              // count down every frame — without this it sits at MAFIA_BUMP_CD
+              // forever after the first whack and he could only ever hit ONCE.
+              // (Same pattern as the crazy-guy / dealer cases.)
+              c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
               if (c.mode === "guard") {
                 // Static, glaring. Aggro when the worker nears him OR the outline.
                 const mDGuy = Math.hypot(p.wx - c.wx, p.wy - c.wy);
@@ -22247,14 +22296,43 @@
                   c.talkCd = R(3.5, 6);
                 }
               }
-              // Walk-cycle the legs while stalking
+              // Walk-cycle the legs while stalking (the arms are PINNED while the
+              // bat swing owns them, below)
               if (c.mode === "stalk" && c.parts) {
                 c.phase = (c.phase || 0) + dt * 9;
                 const s = Math.sin(c.phase) * 0.5;
                 c.parts.legL.rotation.y = s;
                 c.parts.legR.rotation.y = -s;
-                c.parts.armL.rotation.y = -s * 0.7;
-                c.parts.armR.rotation.y = s * 0.7;
+                if (!c.swinging) {
+                  c.parts.armL.rotation.y = -s * 0.7;
+                  c.parts.armR.rotation.y = s * 0.7;
+                }
+              }
+              // BAT SWING (armed in collideCreatures when the worker bumps him):
+              // windup behind the head (armR.rotation.y +1.1) -> a fast SMASH
+              // through -0.55 (toward the worker, +X local — he's facing him) ->
+              // recover to rest. The bat is a child of armR, so it inherits the
+              // whole arc. A little torso twist (upper.rotation.y) sells the lunge.
+              // ~0.85s total — well inside the 1.6s MAFIA_BUMP_CD, so a retrigger
+              // can never interrupt a swing.
+              if (c.swinging && c.parts) {
+                c.swingT = (c.swingT || 0) + dt;
+                const t = c.swingT;
+                const ss = (u) => u * u * (3 - 2 * u); // smoothstep
+                let ang;
+                if (t < 0.3) {
+                  const u = t / 0.3;
+                  ang = 1.1 * u * (2 - u); // ease-out windup, bat up behind
+                } else if (t < 0.48) {
+                  ang = 1.1 - 1.65 * ss((t - 0.3) / 0.18); // the SMASH forward
+                } else if (t < 0.85) {
+                  ang = -0.55 * (1 - ss((t - 0.48) / 0.37)); // recover to rest
+                } else {
+                  ang = 0;
+                  c.swinging = false;
+                }
+                c.parts.armR.rotation.y = ang;
+                c.parts.upper.rotation.y = -ang * 0.22; // torso twist follows the bat
               }
               break;
             }

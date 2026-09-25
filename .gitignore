@@ -7,3 +7,15 @@ _three128.js
 
 # local DSH rollback / session state (tooling, not source)
 .dsh/
+
+# local debug / scratch dumps from verification sessions (never ship)
+_dbg.js
+_find_uv.js
+_sign_verify_tmp.js
+_tex_ascii.js
+_*.txt
+_meshes.txt
+_png_*_2048x2048.png
+_tex_*.*
+_test_outline*.svg
+three_r128.min.js

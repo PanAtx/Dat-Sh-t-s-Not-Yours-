@@ -105,5 +105,138 @@ for (const [name, pv] of Object.entries(limbs)) {
   check(name + ": stripes inside the limb face (X and Z)", withinX && withinZ);
 }
 
+// ---- The rest of the tracksuit kit: collar/hem trim + slung bat ----
+const upper = d.g.userData.parts.upper;
+const torso = upper.children.filter((c) => c.geometry && c.geometry.size)
+  .sort((a, b) => b.geometry.size[2] - a.geometry.size[2])[0];
+const T = torso.geometry.size;
+const bands = upper.children.filter(
+  (c) => c.geometry && c.geometry.size
+    && Math.abs(c.geometry.size[0] - 0.21) < 1e-9
+    && Math.abs(c.geometry.size[1] - 0.59) < 1e-9
+    && Math.abs(c.geometry.size[2] - 0.02) < 1e-9
+);
+check("collar + hem: exactly 2 white trim bands", bands.length === 2, String(bands.length));
+let bandFlush = true;
+for (const b of bands) {
+  const S = b.geometry.size;
+  const px = Math.abs(b.position.x) + S[0] / 2 - T[0] / 2;
+  const py = Math.abs(b.position.y) + S[1] / 2 - T[1] / 2;
+  if (px > 0.006 || py > 0.006 || px < -0.01 || py < -0.01) bandFlush = false;
+}
+check("collar + hem: flush on the jacket (<=5mm proud, embedded)", bandFlush);
+const bandZ = bands.map((b) => b.position.z).sort((a, b) => a - b);
+check(
+  "collar + hem: one at the neck, one at the waist (straddling torso center)",
+  bandZ.length === 2 && bandZ[0] < torso.position.z && bandZ[1] > torso.position.z,
+  bandZ.map((z) => z.toFixed(2)).join(" / ") + " (center " + torso.position.z.toFixed(2) + ")"
+);
+const bat = d.armR.children.find((c) => c.geometry && c.geometry.args);
+check("slung bat: tapered cylinder in the RIGHT hand", !!bat);
+if (bat) {
+  const A = bat.geometry.args; // [r1, r2, h, segs]
+  check("bat: tapered (barrel > handle)", A[1] > A[0], A[0] + " -> " + A[1]);
+  check(
+    "bat: axis along the arm (rot.x ~ 90deg)",
+    Math.abs(Math.abs(bat.rotation.x) - Math.PI / 2) < 1e-6,
+    bat.rotation.x.toFixed(4)
+  );
+  const hand = d.armR.children.find(
+    (c) => c.geometry && c.geometry.size && Math.abs(c.geometry.size[2] - 0.12) < 1e-9
+  );
+  if (hand) {
+    const batTop = bat.position.z + A[2] / 2;
+    const batBottom = bat.position.z - A[2] / 2;
+    const wrist = hand.position.z + hand.geometry.size[2] / 2;
+    const fist = hand.position.z - hand.geometry.size[2] / 2;
+    check(
+      "bat: spans from the wrist past the fist",
+      batTop >= wrist - 1e-6 && batBottom <= fist,
+      "bat " + batBottom.toFixed(2) + ".." + batTop.toFixed(2) + " vs hand " + fist.toFixed(2) + ".." + wrist.toFixed(2)
+    );
+    const lowest = upper.position.z + d.armR.position.z + Math.min(batBottom, 0);
+    check("bat: stays clear of the ground", lowest > 0.1, lowest.toFixed(3));
+  }
+  const grip = d.armR.children.find(
+    (c) => c.geometry && c.geometry.size && Math.abs(c.geometry.size[0] - 0.036) < 1e-9
+  );
+  check("bat grip: white band near the handle", !!grip);
+}
+
+// ---- Bat swing on bump: trigger + animation ----
+console.log("\n--- bat swing (bump trigger + animation) ---");
+const collideI = h.indexOf("function collideCreatures() {");
+const mafiaBumpI = h.indexOf('if (c.type === "mafia") {', collideI);
+const mafiaBump = h.slice(mafiaBumpI, mafiaBumpI + 2800);
+check(
+  "bump branch: turns to face the worker before swinging (atan2(-dy, -dx))",
+  mafiaBump.indexOf("c.g.rotation.z = Math.atan2(-dy, -dx)") >= 0
+);
+check(
+  "bump branch: arms the swing (c.swinging = true; c.swingT = 0)",
+  mafiaBump.indexOf("c.swinging = true;") >= 0 && mafiaBump.indexOf("c.swingT = 0;") >= 0
+);
+check(
+  "solid: overlap is resolved EVERY frame, OUTSIDE the hit cooldown (worker can't walk through him)",
+  mafiaBump.indexOf("const pen = rad - md;") >= 0 &&
+    mafiaBump.indexOf("const pen = rad - md;") < mafiaBump.indexOf("if (c.attackCd <= 0") &&
+    mafiaBump.indexOf("p.wx += mnx * pen;") >= 0
+);
+check(
+  "solid: the blow only adds a small extra shove on top of the push-out",
+  mafiaBump.indexOf("p.wx += mnx * 0.5;") >= 0
+);
+check(
+  "every bump is a hit: cooldown is one full swing (0.9s), no 1.6s dead window",
+  h.indexOf("const MAFIA_BUMP_CD = 0.9;") >= 0
+);
+check(
+  "cooldown TICKS down in the mafia update case (the 'only hits once' bug)",
+  (() => {
+    const mafiaCaseI = h.lastIndexOf('case "mafia": {'); // the update case (2nd of the two)
+    const seg = h.slice(mafiaCaseI, mafiaCaseI + 3000);
+    return (
+      mafiaCaseI > 0 &&
+      seg.indexOf("c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;") >= 0 &&
+      seg.indexOf("c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;") <
+        seg.indexOf('if (c.mode === "guard")')
+    );
+  })()
+);
+const swingI = h.indexOf("BAT SWING (armed in collideCreatures");
+const swingSrc = h.slice(swingI, swingI + 2600);
+check(
+  "walk cycle: arms are pinned while the swing owns them",
+  h.slice(swingI - 900, swingI).indexOf("if (!c.swinging)") >= 0
+);
+check(
+  "swing driver: windup 1.1 -> smash -0.55 -> recover 0, resets the flag",
+  swingSrc.indexOf("ang = 1.1 * u * (2 - u)") >= 0 &&
+    swingSrc.indexOf("ang = 1.1 - 1.65 * ss((t - 0.3) / 0.18)") >= 0 &&
+    swingSrc.indexOf("ang = -0.55 * (1 - ss((t - 0.48) / 0.37))") >= 0 &&
+    swingSrc.indexOf("c.swinging = false") >= 0
+);
+check(
+  "swing driver: drives the bat arm + a torso twist",
+  swingSrc.indexOf("c.parts.armR.rotation.y = ang") >= 0 &&
+    swingSrc.indexOf("c.parts.upper.rotation.y = -ang * 0.22") >= 0
+);
+// Replay the phase math exactly as written — boundaries must be continuous
+const ss2 = (u) => u * u * (3 - 2 * u);
+const b1 = 1.1 * 1 * (2 - 1); // phase 1 at u=1
+const b2a = 1.1 - 1.65 * ss2(0),
+  b2b = 1.1 - 1.65 * ss2(1); // phase 2 at u=0 / u=1
+const b3a = -0.55 * (1 - ss2(0)),
+  b3b = -0.55 * (1 - ss2(1)); // phase 3 at u=0 / u=1
+check(
+  "swing math: phase boundaries are continuous",
+  Math.abs(b1 - b2a) < 1e-9 && Math.abs(b2b - b3a) < 1e-9,
+  [b1, b2a, b2b, b3a, b3b].map((v) => v.toFixed(2)).join(" / ")
+);
+check(
+  "swing math: winds up behind (+1.1), smashes forward (-0.55), ends at rest (0)",
+  Math.abs(b1 - 1.1) < 1e-9 && Math.abs(b2b + 0.55) < 1e-9 && b3b === 0
+);
+
 console.log("\n" + pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
