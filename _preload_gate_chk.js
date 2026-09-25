@@ -22,7 +22,7 @@ check('#loading z-index 30 (above #menu 20)', /#loading \{\s*z-index:\s*30/.test
 const paS = html.indexOf('const PRELOAD_ASSETS');
 const paE = html.indexOf('const PRELOAD_TOTAL', paS);
 const paBlock = html.slice(paS, paE);
-const need = ['truck.fbx', 'car.glb', 'litterReduced2.glb', 'coffee_shop_cup.glb',
+const need = ['truck.fbx', 'nyc_can.glb', 'car.glb', 'litterReduced2.glb', 'coffee_shop_cup.glb',
   'sweet_bread_roll_game_ready__2k_pbr.glb', 'red_bull_energy_drink_can.glb', 'dsnylogo3.jpg', 'explicit_logo.webp'];
 for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf('"' + u + '"') >= 0);
 

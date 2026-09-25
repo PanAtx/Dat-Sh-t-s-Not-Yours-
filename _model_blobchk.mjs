@@ -107,9 +107,11 @@ const { loadFbxTemplates, _modelGetCache, FBX_TPL: innerTPL } = new Function('TH
   await loadFbxTemplates();
   // innerTPL is the FBX_TPL that loadFbxTemplates() actually populated (declared inside the
   // extracted code), not the outer placeholder.
-  const ok = !!innerTPL.truck && !!innerTPL.can && !!innerTPL.bag;
+  // NOTE: the curb can no longer comes from truck.fbx (copyright) — it is supplied by
+  // nyc_can.glb via loadCanGltf(), so can is intentionally null here.
+  const ok = !!innerTPL.truck && innerTPL.can === null && !!innerTPL.bag;
   const det = innerTPL.truck && innerTPL.truck.orient ? innerTPL.truck.orient.determinant() : null;
-  console.log('  FBX_TPL populated: truck=' + !!innerTPL.truck + ' can=' + !!innerTPL.can + ' bag=' + !!innerTPL.bag);
+  console.log('  FBX_TPL populated: truck=' + !!innerTPL.truck + ' can=' + innerTPL.can + ' bag=' + !!innerTPL.bag);
   console.log('  truck.orient determinant = ' + (det === null ? 'n/a' : det.toFixed(4)));
   console.log('  loader received URL: ' + loadGotUrl + ' (blob=' + loadGotIsBlob + ')');
   console.log('  network fetches (fetch always rejected): ' + netFetches);

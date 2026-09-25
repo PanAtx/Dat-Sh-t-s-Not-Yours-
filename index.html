@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.277</div>
+          <div id="app-version" class="menu-version">v1.0.278</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2272,7 +2272,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.277';
+      const APP_VERSION = '1.0.278';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4755,7 +4755,7 @@
         };
       }
       // ---MODEL_CACHE_END---
-      // Load truck.fbx once and extract the three named asset groups into FBX_TPL.
+      // Load truck.fbx once and extract the named asset groups (truck + bag) into FBX_TPL.
       async function loadFbxTemplates() {
         if (FBX_TPL.truck) return Promise.resolve(true);
         if (typeof THREE.FBXLoader === "undefined")
@@ -4767,16 +4767,16 @@
             (root) => {
               try {
                 const truck = fbxFind(root, /garbageTruck_geo_grp/i);
-                const can = fbxFind(root, /garbageBin_geo_grp/i);
                 const bag =
                   fbxFind(root, /truck_trash_grp/i) ||
                   fbxFind(root, /trash_bag_side_ply$/i);
-                if (!truck || !can || !bag)
+                if (!truck || !bag)
                   throw new Error("FBX asset groups not found");
                 FBX_TPL.truck = fbxExtract(truck);
                 FBX_TPL.truck.orient = orientTruck(FBX_TPL.truck);
-                FBX_TPL.can = fbxExtract(can);
-                FBX_TPL.can.orient = orientCan(FBX_TPL.can);
+                // NOTE: the curb garbage can no longer comes from truck.fbx
+                // (copyright) — loadCanGltf() supplies nyc_can.glb instead.
+                FBX_TPL.can = null;
                 FBX_TPL.bag = fbxExtract(bag);
                 FBX_TPL.bag.orient = defaultOrient(FBX_TPL.bag);
                 root.traverse((o) => {
@@ -4801,6 +4801,60 @@
                 } catch (e) {}
               }
               console.error("[FBX] load failed:", err);
+              reject(err);
+            },
+          );
+        });
+      }
+      // ==================== GLTF GARBAGE CAN PIPELINE (nyc_can.glb) ====================
+      // nyc_can.glb native space (verified via the local GLTFLoader): a single PBR
+      // mesh built BASE-AT-Y ≈ -0.953, LID-AT-Y ≈ +0.951 (Y-up, height ~1.9035), width
+      // along X (≈±0.495), depth along Z (≈±0.745). The game uses X = route, Y = lateral,
+      // Z = up, so a +90° rotation about X (rotation.x = Math.PI/2) stands it up
+      // (native +Y -> game +Z) and the base nudge rests it exactly on the sidewalk.
+      // CAN_GLB_SCALE scales it to ~1.24 world units tall — the same height the old
+      // truck.fbx bin produced at CAN_SCALE 0.325.
+      const CAN_GLB_SCALE = 1.2411 / 1.9035; // target ~1.24u tall (native can height ~1.9035)
+      let CAN_TPL = null; // { template: THREE.Object3D, minY: number } - deep-cloned per can instance
+      async function loadCanGltf() {
+        if (CAN_TPL) return Promise.resolve(true);
+        if (typeof THREE.GLTFLoader === "undefined")
+          return Promise.reject(new Error("GLTFLoader not available"));
+        const res = await getModelUrl("nyc_can.glb"); // offline cache: serve from cache, else download + store
+        return new Promise((resolve, reject) => {
+          new THREE.GLTFLoader().load(
+            res.url,
+            (gltf) => {
+              try {
+                const model = gltf.scene;
+                model.updateMatrixWorld(true);
+                const box = new THREE.Box3().setFromObject(model);
+                model.traverse((o) => {
+                  if (!o.isMesh) return;
+                  o.castShadow = true;
+                  o.receiveShadow = true;
+                });
+                CAN_TPL = { template: model, minY: box.min.y };
+                rebuildCansFromGltf(); // hot-swap any curb cans already on the sidewalk
+                if (res.url.indexOf("blob:") === 0) {
+                  try {
+                    URL.revokeObjectURL(res.url);
+                  } catch (e) {}
+                }
+                resolve(true);
+              } catch (e) {
+                console.error("[GLTF] can template build failed:", e);
+                reject(e);
+              }
+            },
+            undefined,
+            (err) => {
+              if (res.url.indexOf("blob:") === 0) {
+                try {
+                  URL.revokeObjectURL(res.url);
+                } catch (e) {}
+              }
+              console.error("[GLTF] nyc_can.glb load failed:", err);
               reject(err);
             },
           );
@@ -5797,6 +5851,21 @@
         return g;
       }
       function makeCan(openLid) {
+        // Real 3D model (nyc_can.glb — the free replacement for the truck.fbx bin). The
+        // scene is Y-UP; rotation.x = +PI/2 stands it up (native +Y -> game +Z). The
+        // native base sits at Y = minY, so the z-nudge rests the can exactly on the
+        // sidewalk. Cloned per instance, so every curb can renders the real model.
+        if (CAN_TPL) {
+          const g = new THREE.Group();
+          const model = CAN_TPL.template.clone(true);
+          model.rotation.x = Math.PI / 2;
+          model.scale.setScalar(CAN_GLB_SCALE);
+          model.position.set(0, 0, -CAN_TPL.minY * CAN_GLB_SCALE);
+          g.add(model);
+          g.rotation.z = R(-0.3, 0.3);
+          g.userData.lid = null; // the GLB can keeps its natural lid; no separate lid animation is used
+          return g;
+        }
         if (FBX_TPL.can) {
           const g = fbxInstance(FBX_TPL.can, CAN_SCALE);
           g.rotation.z = R(-0.3, 0.3);
@@ -17720,9 +17789,10 @@
 
             // Lay the can sideways on the sidewalk and make it a persistent solid obstacle
             if (fc.g) {
-              // GZ + 0.43 raises the group center so the cylinder bottom (at center - 0.425)
-              // rests exactly on the sidewalk surface at GZ, preventing ground clipping
-              fc.g.position.set(fc.tx, fc.ty, GZ + 0.43);
+              // Lying flat, the can's native depth (~0.97u at CAN_GLB_SCALE) becomes its
+              // vertical extent, so GZ + 0.49 (= ~half that footprint) rests the lowest
+              // point exactly on the sidewalk surface at GZ, preventing ground clipping.
+              fc.g.position.set(fc.tx, fc.ty, GZ + 0.49);
               fc.g.rotation.z = R(-0.1, 0.1); // slight random tilt for natural look
               fc.g.rotation.x = Math.PI / 2; // lay flat sideways
               fc.g.visible = true;
@@ -26333,6 +26403,27 @@
           }
         }
       }
+      // ==================== GLTF CAN SWAP-IN (nyc_can.glb) ====================
+      // When the free garbage-can model finishes loading, swap every live curb can
+      // (whatever it was rendered with — the FBX bin or the procedural cylinder) onto
+      // the GLB model, keeping its exact curb spot. No-op until CAN_TPL is ready.
+      function rebuildCansFromGltf() {
+        if (!CAN_TPL) return;
+        for (let i = 0; i < blocks.length; i++) {
+          const h = blocks[i].house;
+          if (!h || !h.can) continue; // cemetery block has no house record
+          if (h.can.state !== "curb" && h.can.state !== "droppedEmpty") continue;
+          if (!h.can.g || !h.can.g.parent) continue;
+          const pg = h.can.g.parent;
+          const wx = h.can.wx,
+            wy = h.can.wy;
+          pg.remove(h.can.g);
+          disposeObj(h.can.g);
+          h.can.g = makeCan(true);
+          h.can.g.position.set(wx, wy, GZ);
+          pg.add(h.can.g);
+        }
+      }
       // ==================== BOOT ====================
       // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (truck.fbx +
       // the five .glb pickups) AND the two title images have been downloaded into the browser
@@ -26356,6 +26447,7 @@
           size: 2989592,
           label: "RUN IT UP",
         },
+        { url: "nyc_can.glb", size: 6909580, label: "GARBAGE CAN" },
         { url: "litterReduced2.glb", size: 335980, label: "LITTER BASKET" },
         { url: "car.glb", size: 186248, label: "CARS" },
         { url: "coffee_shop_cup.glb", size: 144300, label: "COFFEE CUP" },
@@ -26604,7 +26696,14 @@
       async function buildModelTemplates() {
         ldSetLabel("BUILDING 3D MODELS...");
         const jobs = [loadFbxTemplates()];
+        // The curb can has a procedural fallback (see makeCan), so a failed nyc_can.glb
+        // load degrades the can's look instead of blocking the whole game.
+        const canJob = loadCanGltf().catch((e) => {
+          console.warn("[GLTF] garbage can model unavailable, using fallback:", e);
+          return false;
+        });
         const gltfJobs = [
+          canJob,
           loadCarGltf(),
           loadLitterbasketGltf(),
           loadMonsterGltf(),
@@ -26614,6 +26713,7 @@
         const results = await Promise.all([jobs[0], Promise.all(gltfJobs)]);
         if (!results[0]) throw new Error("truck template failed to build");
         rebuildTruckFromFbx(); // swap the live truck to the real FBX model now
+        rebuildCansFromGltf(); // swap any live curb cans onto the free nyc_can.glb model
       }
       // ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
       // The models gate above only covers the 3D assets. To make the game genuinely

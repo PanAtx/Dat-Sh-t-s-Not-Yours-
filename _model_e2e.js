@@ -7,9 +7,10 @@
 const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 
-// --- the six model files the game loads (filenames must match the loaders) ---
+// --- the model files the game loads (filenames must match the loaders) ---
 const MODELS = {
   'truck.fbx': 'fake-truck-fbx-bytes',
+  'nyc_can.glb': 'fake-can-glb-bytes',
   'car.glb': 'fake-car-glb-bytes',
   'litterReduced2.glb': 'fake-litter-glb-bytes',
   'red_bull_energy_drink_can.glb': 'fake-redbull-glb-bytes',
@@ -18,7 +19,7 @@ const MODELS = {
 };
 
 // --- static check: every loader in index.html routes its file through getModelUrl ---
-const loaderFns = ['loadFbxTemplates', 'loadCarGltf', 'loadLitterbasketGltf', 'loadCoffeeGltf', 'loadBecGltf', 'loadMonsterGltf'];
+const loaderFns = ['loadFbxTemplates', 'loadCanGltf', 'loadCarGltf', 'loadLitterbasketGltf', 'loadCoffeeGltf', 'loadBecGltf', 'loadMonsterGltf'];
 for (const fn of loaderFns) {
   const i = html.indexOf('function ' + fn + '()');
   const j = html.indexOf('function ', i + 10);
@@ -26,9 +27,12 @@ for (const fn of loaderFns) {
   if (body.indexOf('getModelUrl(') < 0) { console.error('FAIL: ' + fn + ' does not use getModelUrl'); process.exit(1); }
 }
 for (const name of Object.keys(MODELS)) {
-  if (html.indexOf("getModelUrl('" + name + "')") < 0) { console.error('FAIL: no loader calls getModelUrl(\'' + name + '\')'); process.exit(1); }
+  // The filename may sit on the next line (Prettier) with a trailing comma, so allow
+  // any characters (incl. newlines) between "getModelUrl" and the quoted filename.
+  const pat = new RegExp('getModelUrl[\\s\\S]{0,40}["\']' + name + '["\']');
+  if (!pat.test(html)) { console.error('FAIL: no loader calls getModelUrl(' + name + ')'); process.exit(1); }
 }
-console.log('all 6 loaders route through getModelUrl (OK)');
+console.log('all loaders route through getModelUrl (OK)');
 
 // --- extract the EXACT MODEL_CACHE block from index.html ---
 const begin = html.indexOf('// ---MODEL_CACHE_BEGIN---');
@@ -83,7 +87,7 @@ const t0 = Date.now();
   console.log('second load: all', names.length, 'models served 100% from cache, 0 network fetches (OK)');
 
   // --- a real loader (loadCarGltf) routes its file through the cache ---
-  const carStart = html.indexOf('async function loadCarGltf(){');
+  const carStart = html.search(/async function loadCarGltf\(\)\s*\{/);
   const carEnd = html.indexOf('function makeCarGltf(', carStart);
   if (carStart < 0 || carEnd < 0) { console.error('FAIL: could not locate loadCarGltf in index.html'); process.exit(1); }
   const carCode = html.slice(carStart, carEnd);
