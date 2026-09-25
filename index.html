@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.279</div>
+          <div id="app-version" class="menu-version">v1.0.280</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2270,7 +2270,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.279';
+      const APP_VERSION = '1.0.280';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5483,11 +5483,18 @@
           // room to squeeze past without sticking, and the worker can slip by
           // the rear corner closer to the truck (the visuals keep the full width).
           const boxW = (tStreet > 0.5 ? tStreet : 2.9) * 0.8;
-          // ASYMMETRIC width. DEFINITION (player-confirmed):
+          // CURB-SIDE (TRUCK LEFT, y+) width now MATCHES the street side.
           //  boxWStreet = y-min edge = TRUCK RIGHT (street) -> base width
-          //  boxWCurb   = y-max edge = TRUCK LEFT  (curb)   -> NARROWER
+          //  boxWCurb   = y-max edge = TRUCK LEFT  (curb)   -> SAME width
+          // The new nyc_truck.glb is a SYMMETRIC, narrower body (full width ~3-4.5u
+          // vs the old truck.fbx ~5.85u): its curb side reaches out to nearly the full
+          // half-width, so the old 0.35x curb narrowing left a gap between the collision
+          // edge and the real body — cars and the worker slipped through it and clipped
+          // into the visible side / into the rear hopper. Matching the curb edge to the
+          // street edge (both = 0.8 * body reach) pushes them back BEFORE they reach the
+          // truck, on the curb side only (the street side is unchanged).
           const boxWStreet = boxW * 1.0;
-          const boxWCurb = boxW * 0.35;
+          const boxWCurb = boxW * 1.0;
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
           // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
@@ -5636,7 +5643,7 @@
         worldGroup.add(g);
         // body's street-height half-width ≈ 1.9 (BX(9.8, 3.8, 2.2)); mirror the 3D-model
         // collision width (2.25 x 0.8 = 1.8, the same 20% narrowing as the 3D model path)
-        // so the fallback behaves identically
+        // so the fallback behaves identically — curb side now = street side (1.8)
         return {
           g: g,
           bladePush: (p) => {
@@ -5645,7 +5652,7 @@
           boxL: 6.76,
           boxW: 1.8,
           boxWStreet: 1.8,
-          boxWCurb: 0.63,
+          boxWCurb: 1.8,
           hopperOff: -7.267,
           hopperY: 0,
           hopperZ: 2.6,
