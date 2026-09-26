@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.293</div>
+          <div id="app-version" class="menu-version">v1.0.294</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.293';
+      const APP_VERSION = '1.0.294';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4883,6 +4883,11 @@
                     // Lighten THIS MODEL ONLY with a tint lift (m.color multiplies the texture).
                     // 1.6 = +60% brightness; nudge to 1.5 (subtler) or 1.8 (brighter) to taste.
                     m.color.multiplyScalar(1.6);
+                    // Sharper highlights: the native roughnessFactor is 1.0 (fully rough), so the
+                    // directional light only smeared a dull sheen over the texture. Dropping the
+                    // scalar to 0.7 (it multiplies the metallicRoughness map's G channel) tightens
+                    // the specular so sun / streetlights throw a crisper glint down the can's ribs.
+                    m.roughness = 0.7;
                   }); // brighten the dark can texture (see _can_mat_probe.mjs for the measured PBR)
                 });
                 CAN_TPL = { template: model, minY: box.min.y };

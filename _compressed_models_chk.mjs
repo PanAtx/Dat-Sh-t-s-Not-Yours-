@@ -243,6 +243,8 @@ check('loadTruckGltf loads nyc_truck-compressed.glb', html.includes('getModelUrl
 check('loadCanGltf loads nyc_can-compressed.glb', html.includes('getModelUrl("nyc_can-compressed.glb")'));
 check('loadCanGltf brightens the dark baseColor texture (tint lift m.color.multiplyScalar(1.6))',
   /async function loadCanGltf\(\)[\s\S]{0,2400}?m\.color\.multiplyScalar\(1\.6\)/.test(html));
+check('loadCanGltf sharpens the highlights (m.roughness = 0.7) so the ribs catch the light',
+  /async function loadCanGltf\(\)[\s\S]{0,2400}?m\.roughness = 0\.7/.test(html));
 check('makeGltfLoader attaches local DRACOLoader (./draco/)',
   /function makeGltfLoader\(\)[\s\S]{0,600}?setDecoderPath\("\.\/draco\/"\)/.test(html));
 check('PRELOAD has truck compressed size', html.includes('url: "nyc_truck-compressed.glb", size: 10280012'));
