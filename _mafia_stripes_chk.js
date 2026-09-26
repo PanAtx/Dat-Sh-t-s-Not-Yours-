@@ -210,32 +210,34 @@ check(
   h.slice(swingI - 900, swingI).indexOf("if (!c.swinging)") >= 0
 );
 check(
-  "swing driver: windup 1.1 -> smash -0.55 -> recover 0, resets the flag",
-  swingSrc.indexOf("ang = 1.1 * u * (2 - u)") >= 0 &&
-    swingSrc.indexOf("ang = 1.1 - 1.65 * ss((t - 0.3) / 0.18)") >= 0 &&
-    swingSrc.indexOf("ang = -0.55 * (1 - ss((t - 0.48) / 0.37))") >= 0 &&
+  "swing driver: over-hand windup 2.2 -> smash 5.0 -> settle 2*pi, resets the flag",
+  swingSrc.indexOf("ang = 2.2 * u * (2 - u)") >= 0 &&
+    swingSrc.indexOf("ang = 2.2 + 2.8 * ss((t - 0.3) / 0.18)") >= 0 &&
+    swingSrc.indexOf("ang = 5.0 + 1.2831853 * ss((t - 0.48) / 0.37)") >= 0 &&
     swingSrc.indexOf("c.swinging = false") >= 0
 );
 check(
   "swing driver: drives the bat arm + a torso twist",
   swingSrc.indexOf("c.parts.armR.rotation.y = ang") >= 0 &&
-    swingSrc.indexOf("c.parts.upper.rotation.y = -ang * 0.22") >= 0
+    swingSrc.indexOf("-Math.sin(ang) * 0.3") >= 0
 );
 // Replay the phase math exactly as written — boundaries must be continuous
 const ss2 = (u) => u * u * (3 - 2 * u);
-const b1 = 1.1 * 1 * (2 - 1); // phase 1 at u=1
-const b2a = 1.1 - 1.65 * ss2(0),
-  b2b = 1.1 - 1.65 * ss2(1); // phase 2 at u=0 / u=1
-const b3a = -0.55 * (1 - ss2(0)),
-  b3b = -0.55 * (1 - ss2(1)); // phase 3 at u=0 / u=1
+const b1 = 2.2 * 1 * (2 - 1); // phase 1 at u=1
+const b2a = 2.2 + 2.8 * ss2(0),
+  b2b = 2.2 + 2.8 * ss2(1); // phase 2 at u=0 / u=1
+const b3a = 5.0 + 1.2831853 * ss2(0),
+  b3b = 5.0 + 1.2831853 * ss2(1); // phase 3 at u=0 / u=1
 check(
   "swing math: phase boundaries are continuous",
   Math.abs(b1 - b2a) < 1e-9 && Math.abs(b2b - b3a) < 1e-9,
   [b1, b2a, b2b, b3a, b3b].map((v) => v.toFixed(2)).join(" / ")
 );
 check(
-  "swing math: winds up behind (+1.1), smashes forward (-0.55), ends at rest (0)",
-  Math.abs(b1 - 1.1) < 1e-9 && Math.abs(b2b + 0.55) < 1e-9 && b3b === 0
+  "swing math: OVER-HAND arc — cock up-behind (2.2), smash over the top (5.0), settle at rest (2*pi)",
+  Math.abs(b1 - 2.2) < 1e-9 &&
+    Math.abs(b2b - 5.0) < 1e-9 &&
+    Math.abs(b3b - 2 * Math.PI) < 1e-6
 );
 
 console.log("\n" + pass + " passed, " + fail + " failed");
