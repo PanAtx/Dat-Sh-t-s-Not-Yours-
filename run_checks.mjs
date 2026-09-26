@@ -3,7 +3,8 @@
 //   1. _preload_gate_chk.js        - the "Getting Assets" gate + real preloadAssetsToCache
 //   2. _compressed_models_chk.mjs  - truck + can decode via local GLTFLoader + DRACOLoader
 //   3. _pickup_compressed_chk.mjs  - BEC / Red Bull / car / coffee cup + index.html wiring
-//   4. inline script syntax        - every <script> block in index.html still parses
+//   4. _render_res_chk.js          - low-res retro render (RENDER_H 540/720/native) wiring
+//   5. inline script syntax        - every <script> block in index.html still parses
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -14,6 +15,7 @@ const suites = [
   ['preload gate', 'node', '_preload_gate_chk.js'],
   ['truck + can compressed', 'node', '_compressed_models_chk.mjs'],
   ['pickups compressed (BEC / Red Bull / car / coffee)', 'node', '_pickup_compressed_chk.mjs'],
+  ['render resolution (retro low-res)', 'node', '_render_res_chk.js'],
 ];
 
 let allPass = true;

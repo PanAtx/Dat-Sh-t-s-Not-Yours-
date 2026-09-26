@@ -55,6 +55,15 @@
       }
       #game canvas {
         display: block;
+        /* LOW-RES RETRO: the renderer draws into a small internal buffer
+           (RENDER_H, default 540p) and never sets the canvas CSS size
+           (setSize(..., false)) — the canvas keeps filling the full-window
+           #game box and the browser upscales the low-res frame.
+           pixelated = crisp retro pixels (crisp-edges is the older fallback). */
+        width: 100%;
+        height: 100%;
+        image-rendering: crisp-edges;
+        image-rendering: pixelated;
       }
       #haze {
         position: fixed;
@@ -537,6 +546,7 @@
         color: #54ff88;
       }
       #btnStart,
+      #btnRes,
       #btnRestart,
       #btnRestart2,
       #btnBeginDay,
@@ -557,6 +567,7 @@
         pointer-events: auto;
       }
       #btnStart:hover,
+      #btnRes:hover,
       #btnRestart:hover,
       #btnRestart2:hover,
       #btnBeginDay:hover,
@@ -2158,9 +2169,10 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.297</div>
+          <div id="app-version" class="menu-version">v1.0.298</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
+            <button id="btnRes">RENDER: 540P</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
             <!-- The NOW PLAYING widget (#radio) docks in here on the start screen:
            below START SHIFT, exactly where the hi-score used to sit -->
@@ -2280,7 +2292,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.297';
+      const APP_VERSION = '1.0.298';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2793,6 +2805,36 @@
       let lastT = performance.now();
       $("hiscore2").textContent = pad(hi);
 
+      // ==================== LOW-RES RENDER (retro pixels + FPS) ====================
+      // The scene renders into an INTERNAL buffer capped at RENDER_H px tall,
+      // then the browser upscales it to fill the window (see the #game canvas
+      // CSS: image-rendering: pixelated). A 1080p window at the 540p default
+      // shades ~4x fewer pixels — a big FPS win on weak / HiDPI GPUs — and
+      // the crisp-pixel upscale matches the retro style. The camera is
+      // orthographic with an aspect-based frustum (makeFrustum), so the view
+      // is IDENTICAL at any resolution; only the pixel count changes.
+      // RENDER_H: 540 (default) / 720 / 0 = NATIVE (full-window buffer).
+      // Cycled from the menu RENDER button; persisted in localStorage.
+      const RES_CYCLE = [540, 720, 0];
+      const _storedRes = parseInt(localStorage.getItem("dsnysweep_render_h"), 10);
+      let RENDER_H = RES_CYCLE.includes(_storedRes) ? _storedRes : 540;
+      function applyRenderSize() {
+        const h = Math.max(2, RENDER_H > 0 ? Math.min(RENDER_H, innerHeight) : innerHeight);
+        const w = Math.max(2, Math.round(h * (innerWidth / innerHeight)));
+        renderer.setPixelRatio(1); // no supersampling on top of the low-res buffer
+        renderer.setSize(w, h, false); // false = never touch the CSS: the canvas stays full-window and the browser scales it
+      }
+      function setResLabel() {
+        $("btnRes").textContent =
+          "RENDER: " + (RENDER_H === 0 ? "NATIVE" : RENDER_H + "P");
+      }
+      $("btnRes").addEventListener("click", function () {
+        RENDER_H = RES_CYCLE[(RES_CYCLE.indexOf(RENDER_H) + 1) % RES_CYCLE.length];
+        localStorage.setItem("dsnysweep_render_h", String(RENDER_H));
+        setResLabel();
+        if (renderer) applyRenderSize(); // live-switch, no restart needed
+      });
+      setResLabel();
       // ==================== THREE SETUP (diagonal top-right matrix) ====================
       function makeFrustum() {
         const a = innerWidth / innerHeight;
@@ -2802,8 +2844,7 @@
       }
       function initThree() {
         renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1)); // 2→1: cuts fragment-shader work ~75 % on HiDPI displays
-        renderer.setSize(innerWidth, innerHeight);
+        applyRenderSize(); // LOW-RES RETRO: internal buffer capped at RENDER_H (default 540p), CSS-upscaled pixelated — the FPS win
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         $("game").appendChild(renderer.domElement);
@@ -3272,7 +3313,7 @@
         camera.top = f.t;
         camera.bottom = f.b;
         camera.updateProjectionMatrix();
-        renderer.setSize(innerWidth, innerHeight);
+        applyRenderSize(); // buffer tracks the new aspect at the same RENDER_H cap
       });
       // ==================== PROCEDURAL AUDIO (Web Audio API) ====================
       const SFX = {
