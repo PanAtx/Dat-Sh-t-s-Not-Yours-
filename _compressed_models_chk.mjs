@@ -241,6 +241,8 @@ check('final can height within 4% of 1.24', Math.abs(finalCanH - 1.24) / 1.24 < 
 console.log('\n== index.html wiring ==');
 check('loadTruckGltf loads nyc_truck-compressed.glb', html.includes('getModelUrl("nyc_truck-compressed.glb")'));
 check('loadCanGltf loads nyc_can-compressed.glb', html.includes('getModelUrl("nyc_can-compressed.glb")'));
+check('loadCanGltf brightens the dark baseColor texture (tint lift m.color.multiplyScalar(1.4))',
+  /async function loadCanGltf\(\)[\s\S]{0,2400}?m\.color\.multiplyScalar\(1\.4\)/.test(html));
 check('makeGltfLoader attaches local DRACOLoader (./draco/)',
   /function makeGltfLoader\(\)[\s\S]{0,600}?setDecoderPath\("\.\/draco\/"\)/.test(html));
 check('PRELOAD has truck compressed size', html.includes('url: "nyc_truck-compressed.glb", size: 10280012'));
