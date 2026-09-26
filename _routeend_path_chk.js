@@ -156,6 +156,21 @@ function simWalk(p0, truck){
   check('procedural fallback truck: never clips the body', !r.clipped, 'minClear=' + r.minClear.toFixed(3) + 'u');
   check('procedural fallback truck: reaches the cab door', r.reached, 'phase=' + r.phase);
 }
+// 5b) NEW GLB truck (boxL 6.197, measured cabDoorOff = tMaxX - 1.0 = 5.197):
+//     the worker must walk FURTHER than the legacy cabOff*0.55 stop point and still
+//     reach the door without clipping the body.
+{
+  const gL = 6.197;
+  const tg = { wx: 654.5, boxL: gL, boxW: 2.25, cabOff: gL + 1.6, cabDoorOff: gL - 1.0, hopperOff: -gL + 1.6, g: null, hidden: 0 };
+  const r = simWalk({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, tg);
+  check('GLB truck: worker never clips the body', !r.clipped, 'minClear=' + r.minClear.toFixed(3) + 'u');
+  check('GLB truck: reaches the cab door', r.reached, 'phase=' + r.phase);
+  check('GLB truck: door waypoint at the measured cab door (front face - 1.0u)', Math.abs(r.pts[1].x - (tg.wx + gL - 1.0)) < 1e-6, 'x=' + r.pts[1].x.toFixed(3) + ' expect=' + (tg.wx + gL - 1.0).toFixed(3));
+  check('GLB truck: door is FURTHER forward than the legacy cabOff*0.55 stop', r.pts[1].x > tg.wx + (gL + 1.6) * 0.55, 'door=' + r.pts[1].x.toFixed(3) + ' vs legacy=' + (tg.wx + (gL + 1.6) * 0.55).toFixed(3));
+  const roadSide = simWalk({ wx: 656, wy: -9.0, facing: 0, phase: 0 }, tg);
+  check('GLB truck (road side): never clips the body', !roadSide.clipped, 'minClear=' + roadSide.minClear.toFixed(3) + 'u');
+  check('GLB truck (road side): reaches the cab door', roadSide.reached, 'phase=' + roadSide.phase);
+}
 // 6) worker frozen INVISIBLE by the "RUN IT UP!" blink when the level completes:
 //    updatePlayer stops running in the 'routeend' state, so the last blink frame's
 //    per-mesh .visible value is frozen. If that frame was the "off" phase the worker

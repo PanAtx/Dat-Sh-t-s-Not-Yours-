@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.289</div>
+          <div id="app-version" class="menu-version">v1.0.290</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.289';
+      const APP_VERSION = '1.0.290';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5591,6 +5591,7 @@
             hopperZ: hopperZ,
             hazLights: hazLights,
             cabOff: boxL + 1.6,
+            cabDoorOff: tMaxX - 1.0, // ROUTE-END walk: the cab door sits ~1.0u behind the FRONT face (measured tMaxX). The legacy cabOff*0.55 stop point fell ~0.9u short of this model's door, so the worker never quite reached it
             wx: -28,
             hidden: 0,
           };
@@ -26109,7 +26110,12 @@
         // mid-route), the direct line is clear of the body and we skip the rear waypoint.
         const boxW = (truck && truck.boxW) || 2.25;
         const boxL = (truck && truck.boxL) || 4.0;
-        const cabX = truck.wx + ((truck && truck.cabOff) || 6) * 0.55;
+        // The cab-door stop point is model-specific: the GLB truck carries a measured
+        // cabDoorOff (door ~1.0u behind the front face). Trucks without it (procedural
+        // fallback) keep the legacy cabOff*0.55 stop point.
+        const cabX = truck.wx + ((truck && truck.cabDoorOff != null)
+          ? truck.cabDoorOff
+          : ((truck && truck.cabOff) || 6) * 0.55);
         const side = p.wy >= -4.5 ? 1 : -1;
         const doorY = -4.5 + side * (boxW + 0.8); // 0.8u OUTSIDE the side panel (same street side)
         const pts = [{ x: cabX, y: doorY }]; // final: the cab door

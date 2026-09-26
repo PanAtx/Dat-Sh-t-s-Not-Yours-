@@ -312,6 +312,38 @@ function asciiView(pts, x0, x1, y0, y1, cols, rows, title, valFn) {
   asciiView(sidePts, tMinX - 0.3, -2.5, 0, 5.6, 60, 18, 'SIDE PROFILE, REAR ZONE (char = z height; solid body = dense tall column)', v);
 }
 
+// ---- FORWARD ZONE: find the CAB (roof > 4.5) extent so we can place the door ----
+console.log('\n=== FORWARD-ZONE SLICES (0.25u from rear lip) ===');
+const fs2 = {};
+g2.traverse((o) => {
+  if (!o.isMesh || !o.geometry.attributes.position) return;
+  const pos = o.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    _v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+    const d = _v.x - tMinX;
+    if (d < 3.0 || d > 12.5) continue;
+    const k = Math.round(d * 4) / 4;
+    const s = (fs2[k] = fs2[k] || { minz: 9, maxz: -9, n: 0 });
+    if (_v.z < s.minz) s.minz = _v.z;
+    if (_v.z > s.maxz) s.maxz = _v.z;
+    s.n++;
+  }
+});
+let cabLo = null, cabHi = null;
+for (let d = 3.25; d <= 12.4; d += 0.25) {
+  const s = fs2[Math.round(d * 4) / 4];
+  const tag = !s ? ' (none)' :
+    '  maxZ=' + s.maxz.toFixed(2) + '  minZ=' + s.minz.toFixed(2) + '  n=' + s.n;
+  console.log('  +' + d.toFixed(2) + '  (x=' + (tMinX + d).toFixed(2) + ')' + tag);
+  if (s && s.maxz >= 4.5) { if (cabLo == null) cabLo = d; cabHi = d; }
+}
+if (cabLo != null) {
+  const cabFront = cabHi, cabRear = cabLo, cabLen = cabFront - cabRear;
+  console.log('\n  CAB ROOF (z>=4.5): +' + cabRear.toFixed(2) + ' .. +' + cabFront.toFixed(2) + '  (len ' + cabLen.toFixed(2) + 'u)');
+  for (const f of [0.3, 0.4, 0.5, 0.6])
+    console.log('    door at ' + f + ' back from the front: +' + (cabFront - f * cabLen).toFixed(2) + '  (x=' + (tMinX + cabFront - f * cabLen).toFixed(2) + ')');
+} else console.log('  (no cab roof >=4.5 found)');
+
 // ---- PRECISE per-slice table for the rear zone: minZ / maxZ / y-span ----
 console.log('\n=== PRECISE REAR-ZONE SLICES (0.25u) ===');
 console.log('  x-center   minZ    maxZ    y-min  y-max   yCen   n');
