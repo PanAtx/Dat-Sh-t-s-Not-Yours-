@@ -57,8 +57,8 @@ console.log('[2] piles + trigger + trails in the source');
     /const z = wy < 0\.8 \? GZ \+ 0\.05 : groundZAt\(wx, wy\);/.test(addDs),
   );
   check(
-    'driveway slab builder: spawns dog-shit piles on the slab (0.4 chance per driveway)',
-    /if \(Math\.random\(\) < 0\.4\) \{[\s\S]*?addDogShit\(b, b\.worldX \+ ds, R\(5\.4, 7\.5\)\);/.test(src),
+    'driveway slab builder: spawns dog-shit piles on the slab (0.25 chance per driveway — rate cut from 0.4)',
+    /if \(Math\.random\(\) < 0\.25\) \{[\s\S]*?addDogShit\(b, b\.worldX \+ ds, R\(5\.4, 7\.5\)\);/.test(src),
   );
   check(
     'driveway piles: off the doghouse center (8.0, 6.5) and inside the worker reach (wy <= 7.5 < 8.0)',

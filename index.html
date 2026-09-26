@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.290</div>
+          <div id="app-version" class="menu-version">v1.0.291</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.290';
+      const APP_VERSION = '1.0.291';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -15378,7 +15378,7 @@
             c.wy = R(1.0, creatureMaxY());
             c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
             c.dir = Math.random() < 0.5 ? -1 : 1; // BI-DIRECTIONAL: walks either way along the street
-            c.poopCd = R(10, 25); // seconds until the pup drops a fresh pile (idea 3)
+            c.poopCd = R(15, 30); // seconds until the pup drops a fresh pile (idea 3) — rate cut from R(10,25)
             c.data = makeDogWalker();
             break;
           case "rc":
@@ -16176,7 +16176,8 @@
         // loose food wrappers on the street next to the sidewalk (litter dressing)
         if (Math.random() < 0.65 && !siClean) addWrapper(b, hzX(1), R(-2.5, -0.7));
         // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
-        if (Math.random() < 0.15) addDogShit(b, hzX(1), R(0, 4.8));
+        // — rate cut 0.15 -> 0.08: at 15%-per-house the piles read as "a bit too much"
+        if (Math.random() < 0.08) addDogShit(b, hzX(1), R(0, 4.8));
         // sidewalk trees (registered in b.trees so NPC walkers route around them —
         // they're a solid obstacle, not a walkable hazard like a pothole or a bottle).
         // Suppressed on every mailbox house (every 5th corner from Block 2 on)
@@ -16247,7 +16248,7 @@
           // the worker rides up onto the slab (to the doghouses), so this is where the
           // "dog shit!" yell + brown footprint trail happens most. Piles stay off the
           // doghouse center (local 8.0, 6.5) and inside the worker's reach (wy <= 8.0).
-          if (Math.random() < 0.4) {
+          if (Math.random() < 0.25) {
             const ds = Math.random() < 0.5 ? R(6.7, 7.6) : R(8.4, 9.3);
             addDogShit(b, b.worldX + ds, R(5.4, 7.5));
           }
@@ -22806,7 +22807,7 @@
                     }
                     SFX.playPlopSound();
                   }
-                  c.poopCd = R(25, 45); // next squat+drop in 25-45s
+                  c.poopCd = R(35, 60); // next squat+drop in 35-60s (rate cut from 25-45s: live drops felt too frequent)
                 }
               } else {
                 c.poopCd -= dt;
@@ -22818,13 +22819,13 @@
                 c.wx = p.wx - 38;
                 c.wy = R(1, 4);
                 c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
-                c.poopCd = R(10, 25); // reset the drop timer on recycle
+                c.poopCd = R(15, 30); // reset the drop timer on recycle (rate cut from R(10,25))
                 c.squatT = 0; // reset the squat (in case it was in progress)
               } else if (tx < -58) {
                 c.wx = p.wx + 42;
                 c.wy = R(1, 4);
                 c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
-                c.poopCd = R(10, 25); // reset the drop timer on recycle
+                c.poopCd = R(15, 30); // reset the drop timer on recycle (rate cut from R(10,25))
                 c.squatT = 0; // reset the squat (in case it was in progress)
               }
               c.cd -= dt;
