@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.287</div>
+          <div id="app-version" class="menu-version">v1.0.288</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.287';
+      const APP_VERSION = '1.0.288';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5522,6 +5522,13 @@
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
           // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
+          // LANDING AIM = the MIDDLE of the rear scoop. Measured from the model: the
+          // bucket mouth spans ~1.5u forward from the rear lip (tMinX), so its centre
+          // sits 0.75u in. The old -boxL + 1.6 landed 0.85u past the bucket's front
+          // edge (on the compactor) — the bag visibly dropped to the front/right of
+          // the truck. This is the TOSS + PILE + BURST position only; the truck
+          // parking/dump zones keep hopperOff above.
+          const hopperAimOff = tMinX + 0.75;
           const hopperY = 0.0; // aim the toss + pile at the MIDDLE of the rear scoop (was -0.5, nudged to the street/far side and overshooting past the hopper)
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
           // === hazard lights (the orange paint on the REAR) ===
@@ -5577,6 +5584,7 @@
             boxWStreet: boxWStreet,
             boxWCurb: boxWCurb,
             hopperOff: hopperOff,
+            hopperAimOff: hopperAimOff, // MIDDLE of the rear scoop — the bag/pile/burst landing aim
             hopperY: hopperY,
             hopperZ: hopperZ,
             hazLights: hazLights,
@@ -5695,6 +5703,17 @@
       function hopperWorldX() {
         return truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3);
       }
+      // Where the BAG + PILE + BURST land: the MIDDLE of the rear scoop (the measured
+      // bucket centre, truck.hopperAimOff), NOT the parking/dump-zone anchor
+      // (hopperOff) — those are separate systems and the aim is 0.85u behind it.
+      function hopperAimX() {
+        return (
+          truck.wx +
+          (truck.hopperAimOff != null ? truck.hopperAimOff : truck.hopperOff != null
+            ? truck.hopperOff
+            : -4.3)
+        );
+      }
       function hopperWorldY() {
         return -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
       }
@@ -5753,7 +5772,7 @@
         if (hopperLoad >= HOPPER_CYCLE_AT) {
           hopperCycling = true;
           hopperCycleT = HOPPER_CYCLE_DUR;
-          spawnHopperBurst(hopperWorldX(), hopperWorldY(), 0.7); // compactor kicks in — first spew of debris, dust & juice
+          spawnHopperBurst(hopperAimX(), hopperWorldY(), 0.7); // compactor kicks in — first spew of debris, dust & juice
         }
       }
       function clearHopperTrash() {
@@ -5768,7 +5787,7 @@
       }
       function finishHopperCycle() {
         clearHopperTrash();
-        spawnHopperBurst(hopperWorldX(), hopperWorldY(), 1.0); // the POP — bags crushed, debris/maggots/dust/juice blast out
+        spawnHopperBurst(hopperAimX(), hopperWorldY(), 1.0); // the POP — bags crushed, debris/maggots/dust/juice blast out
         hopperLoad = 0;
         hopperCycling = false;
         addScore(HOPPER_CYCLE_BONUS, true);
@@ -5785,7 +5804,7 @@
       }
       function updateHopperTrash(dt) {
         if (!hopperTrash || hopperLumps.length === 0) return;
-        hopperTrash.position.set(hopperWorldX(), hopperWorldY(), GZ); // keep the pile planted in the rear hopper
+        hopperTrash.position.set(hopperAimX(), hopperWorldY(), GZ); // keep the pile planted in the rear hopper
         if (hopperCycling) {
           hopperCycleT -= dt;
           const k = Math.max(0, hopperCycleT / HOPPER_CYCLE_DUR); // 1 -> 0
@@ -5797,7 +5816,7 @@
             L.mat.opacity = k; // fade out
           }
           if (Math.random() < 0.5)
-            spawnHopperBurst(hopperWorldX(), hopperWorldY(), 0.14); // continuous spew of dust & bits while it compacts
+            spawnHopperBurst(hopperAimX(), hopperWorldY(), 0.14); // continuous spew of dust & bits while it compacts
           if (hopperCycleT <= 0) finishHopperCycle();
         }
       }
@@ -18046,7 +18065,11 @@
             disposeObj(fb.g);
             flyingBags.splice(i, 1);
           } else {
-            const tx = hopperWorldX(),
+            // Land at the MIDDLE of the rear scoop (the measured bucket centre —
+            // hopperAimX), not the parking/dump-zone anchor (hopperWorldX): the old
+            // shared point sat 0.85u past the bucket's front edge, so the bag visibly
+            // dropped to the front/right of the truck.
+            const tx = hopperAimX(),
               ty = hopperWorldY();
             const curX = fb.sx + (tx - fb.sx) * t;
             const curY = fb.sy + (ty - fb.sy) * t;

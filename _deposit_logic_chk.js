@@ -20,6 +20,7 @@ const calls = { deposit: 0, score: 0, house: 0, dispose: 0, voices: [] };
 const SFX = { playTossSound(){}, playCanDropSound(){} };
 const Voice = { say(t){ calls.voices.push(t); } };
 function hopperWorldX(){ return truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3); }
+function hopperAimX(){ return truck.wx + (truck.hopperAimOff != null ? truck.hopperAimOff : truck.hopperOff != null ? truck.hopperOff : -4.3); }
 function hopperWorldY(){ return -4.5 + (truck.hopperY != null ? truck.hopperY : 0); }
 function hopperTopZ(){ return 1.0; }   // FBX scoop floor (the truck roof measures ~5.05)
 function disposeObj(){ calls.dispose++; }
@@ -28,10 +29,10 @@ function hopperDeposit(){ calls.deposit++; }
 function checkHouse(){ calls.house++; }
 const body = ['nearHopper', 'nearHopperHeavy', 'tossBag', 'updateFlyingBags', 'tryInteract'].map(n => extractFn(html, n)).join('\n');
 const api = new Function(
-  'truck','p','flyingBags','dynamicGroup','SFX','Voice','hopperWorldX','hopperWorldY','hopperTopZ','GZ','state','blocks','creatures','pickUp','dumpCan','disposeObj','addScore','hopperDeposit','checkHouse','WORKER_GENDER','HEAVY_DUMP_RADIUS',
+  'truck','p','flyingBags','dynamicGroup','SFX','Voice','hopperWorldX','hopperAimX','hopperWorldY','hopperTopZ','GZ','state','blocks','creatures','pickUp','dumpCan','disposeObj','addScore','hopperDeposit','checkHouse','WORKER_GENDER','HEAVY_DUMP_RADIUS',
   'var carry="none", carried=null;\n' + body + '\n' +
   'return { nearHopper, tossBag, updateFlyingBags, tryInteract, setCarry:function(c,i){carry=c;carried=i;}, getCarry:function(){return carry;} };'
-)(truck, p, flyingBags, dynamicGroup, SFX, Voice, hopperWorldX, hopperWorldY, hopperTopZ, 0.01, 'play', [], [], ()=>{}, ()=>{calls.deposit++;}, disposeObj, addScore, hopperDeposit, checkHouse, 'male', 3.6);
+)(truck, p, flyingBags, dynamicGroup, SFX, Voice, hopperWorldX, hopperAimX, hopperWorldY, hopperTopZ, 0.01, 'play', [], [], ()=>{}, ()=>{calls.deposit++;}, disposeObj, addScore, hopperDeposit, checkHouse, 'male', 3.6);
 
 function makeBag(){ return { state:'curb', h:{}, g:{ parent:{ remove:(x)=>{x.parent=null;} }, position:{ __z:0, set:function(x,y,z){this.__z=z;} }, rotation:{x:0,y:0,z:0} } }; }
 function stepBags(n){ for (let i=0;i<n;i++) api.updateFlyingBags(0.05); }
@@ -51,5 +52,13 @@ check('behind-throw: low gentle lob (peak well below the roof)', ()=>{ const z=p
 check('side-throw peaks clearly higher than behind-throw (adaptive arc)', ()=>{ const behind=peakZAt(5,-4.5), side=peakZAt(6,-8.5); assert.ok(side > behind + 1.0, 'side ' + side + ' should exceed behind ' + behind + ' by >1.0'); });
 check('side-throw still clears the truck roof (z~5.05)', ()=>{ const z=peakZAt(6,-8.5); assert.ok(z > 5.05, 'peak z=' + z + ' should clear roof 5.05'); });
 check('landing -> deposit+score+house, bag removed', ()=>{ reset(); truck.wx=10; p.wx=5; p.wy=-4.5; const b=makeBag(); api.tossBag(b); stepBags(20); assert.strictEqual(flyingBags.length, 0); assert.strictEqual(calls.deposit, 1); assert.ok(calls.score >= 1); assert.strictEqual(calls.house, 1); assert.strictEqual(calls.dispose, 1); assert.strictEqual(b.g.parent, null); });
+check('bag aims at the MIDDLE of the rear scoop (hopperAimOff = tMinX + 0.75), not the parking/dump-zone anchor (hopperOff)', ()=>{
+  assert.ok(html.indexOf('const hopperAimOff = tMinX + 0.75;') >= 0, 'hopperAimOff measured bucket-centre constant missing');
+  assert.ok(html.indexOf('const tx = hopperAimX(),') >= 0, 'updateFlyingBags must land at hopperAimX()');
+  assert.ok(html.indexOf('hopperTrash.position.set(hopperAimX()') >= 0, 'the pile must ride the landing aim');
+  // parking + dump zones must KEEP the old anchor (they are separate systems)
+  assert.ok(/const rearX\s*=\s*truck\.wx \+ hopperOff/.test(html), 'truck parking must keep hopperOff');
+  assert.ok(html.indexOf('const hx =\n            truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3),'.replace(/\r/g, '')) >= 0 || html.indexOf('truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3)') >= 0, 'nearHopper zones must keep hopperOff');
+});
 
 console.log('\n' + pass + ' deposit logic checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));
