@@ -2296,7 +2296,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.300</div>
+          <div id="app-version" class="menu-version">v1.0.301</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2451,7 +2451,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.300';
+      const APP_VERSION = '1.0.301';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -3680,6 +3680,28 @@
           this.ensure();
           this.tone("square", 150, 55, 0.22, 0.5);
           this.noise(0.2, "bandpass", 700, 0.4);
+        },
+        // The Staten Island blue jay: the classic "jaaaa — jaaaa!" double-scream
+        // (soft when the worker is far, sharp and loud in her territory)
+        playSquawk(loud) {
+          this.ensure();
+          const g = loud === false ? 0.14 : 0.3;
+          this.tone("sawtooth", 2600, 850, 0.13, g);
+          this.tone("sawtooth", 2300, 1400, 0.15, g * 0.9, 0.14);
+          this.tone("square", 1500, 600, 0.09, g * 0.4, 0.02);
+        },
+        // The nest babies: a quick high triple-blip (mama leaving / landing)
+        playChirp() {
+          this.ensure();
+          this.tone("triangle", 3200, 2500, 0.05, 0.16, 0);
+          this.tone("triangle", 3400, 2700, 0.05, 0.14, 0.08);
+          this.tone("triangle", 3600, 2900, 0.06, 0.12, 0.16);
+        },
+        // The swoop: wings + air rushing past the worker
+        playSwoosh() {
+          this.ensure();
+          this.noise(0.22, "bandpass", 1500, 0.5);
+          this.tone("sine", 720, 210, 0.2, 0.26);
         },
         playConeKnock() {
           this.ensure();
@@ -12943,6 +12965,156 @@
         g.userData.wingR = wingR; // wings live on the group so makePigeon can return it like every other builder
         return g;
       }
+      function makeBlueJay() {
+        // The Staten Island blue jay: a meaner, bigger bird than the pigeons —
+        // blue body, white belly, the signature BLACK NECK-COLLAR, a tall crest
+        // leaning back off the head, white eyebrow + wingtips, and a long pointed
+        // beak. She squawks, circles, and SWOOOPS at the worker's eyes.
+        const g = new THREE.Group();
+        const blue = M(0x2f6fd0),
+          dark = M(0x1e4f9e),
+          white = M(0xf2f4f8),
+          black = M(0x15171c),
+          beakM = M(0x3a3f46),
+          legM = M(0xc97a28),
+          eyeM = M(0x14100e);
+        // plump oval body (a touch bigger than the pigeons)
+        const body = SPH(0.1, blue);
+        body.scale.set(1.5, 1.1, 1.05);
+        body.position.z = 0.17;
+        g.add(body);
+        // white belly
+        const belly = SPH(0.07, white);
+        belly.scale.set(1.2, 0.85, 0.9);
+        belly.position.set(0.02, -0.02, 0.12);
+        g.add(belly);
+        // the signature black neck-collar (a ring around the neck)
+        const collar = new THREE.Mesh(
+          new THREE.TorusGeometry(0.05, 0.015, 6, 12),
+          black,
+        );
+        collar.position.set(0.13, 0.03, 0.2);
+        collar.rotation.y = Math.PI / 2; // ring hole along X (the neck axis)
+        g.add(collar);
+        // head
+        const head = SPH(0.055, blue);
+        head.position.set(0.17, 0.06, 0.24);
+        g.add(head);
+        // the tall crest, leaning BACK off the top of the head
+        const crest = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.09, 5), dark);
+        crest.position.set(0.115, 0.06, 0.3);
+        crest.rotation.z = 0.95;
+        g.add(crest);
+        // the gray facial patch
+        const face = SPH(0.028, M(0xd8dde4));
+        face.position.set(0.2, 0.05, 0.26);
+        g.add(face);
+        // white eyebrow stripe (the jay's "angry face")
+        const brow = BX(0.034, 0.012, 0.015, white);
+        brow.position.set(0.165, 0.1, 0.262);
+        g.add(brow);
+        // long pointed beak
+        const beak = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.06, 6), beakM);
+        beak.rotation.y = Math.PI / 2; // point the cone forward (+X)
+        beak.position.set(0.245, 0.05, 0.25);
+        g.add(beak);
+        const eye = SPH(0.013, eyeM);
+        eye.position.set(0.185, 0.095, 0.272);
+        g.add(eye);
+        // long blue tail
+        const tail = BX(0.12, 0.05, 0.13, dark);
+        tail.position.set(-0.18, 0.02, 0.2);
+        g.add(tail);
+        const mkWing = (side) => {
+          const pv = new THREE.Group();
+          pv.position.set(-0.01, side * 0.06, 0.26);
+          const w = BX(0.11, 0.02, 0.19, dark);
+          w.position.set(-0.04, 0, -0.09);
+          pv.add(w);
+          const tip = BX(0.05, 0.02, 0.08, white); // white wingtip
+          tip.position.set(-0.09, 0, -0.13);
+          pv.add(tip);
+          g.add(pv);
+          return pv;
+        };
+        const wingL = mkWing(1),
+          wingR = mkWing(-1);
+        [-0.04, 0.04].forEach((x) => {
+          const lg = CY(0.008, 0.008, 0.09, legM, 5);
+          lg.position.set(x, 0, 0.1);
+          g.add(lg);
+        });
+        g.userData.wingL = wingL;
+        g.userData.wingR = wingR; // wings live on the group so makeBlueJay can return it like every other builder
+        return g;
+      }
+      function makeBlueJayNest() {
+        // A twig nest for the blue jay family: a shallow bowl + a rim ring + loose
+        // twigs, with 3-4 downy yellow BABIES squawking with open beaks (they chirp
+        // the moment mama takes off to harass the worker).
+        const g = new THREE.Group();
+        // shallow bowl
+        const bowl = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), M(0x7a6038));
+        bowl.scale.set(1, 0.5, 1);
+        bowl.position.z = 0.08;
+        g.add(bowl);
+        // the rim
+        const rim = new THREE.Mesh(
+          new THREE.TorusGeometry(0.36, 0.07, 6, 14),
+          M(0x8a6d42),
+        );
+        rim.position.z = 0.2; // a flat ring in the x-y plane (the torus hole is already along Z)
+        g.add(rim);
+        // loose twigs sticking out of the rim
+        for (let i = 0; i < 12; i++) {
+          const a = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const twig = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.012, 0.016, 0.26 + Math.random() * 0.16, 4),
+            i % 2 ? M(0x6a5233) : M(0x54402a),
+          );
+          twig.position.set(
+            Math.cos(a) * 0.38,
+            Math.sin(a) * 0.38,
+            0.22 + Math.random() * 0.05,
+          );
+          twig.rotation.z = -a + Math.PI / 2; // roughly tangential
+          twig.rotation.x = (Math.random() - 0.5) * 0.9; // splay out
+          g.add(twig);
+        }
+        // the BABIES: downy yellow chicks with open beaks, squawking for mama
+        const babyN = 3 + ((Math.random() * 2) | 0);
+        const downM = M(0xf2d54a),
+          beakB = M(0xe8912a);
+        for (let i = 0; i < babyN; i++) {
+          const a = (i / babyN) * Math.PI * 2 + 0.6;
+          const baby = new THREE.Group();
+          const body = SPH(0.07, downM);
+          body.position.z = 0.04;
+          baby.add(body);
+          const head = SPH(0.048, downM);
+          head.position.set(0.03, 0, 0.12);
+          baby.add(head);
+          // open beak (two little cones, screaming for food)
+          const beakUp = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.034, 4), beakB);
+          beakUp.position.set(0.065, 0.014, 0.145);
+          beakUp.rotation.z = -Math.PI / 2 + 0.5; // pointing up-forward
+          baby.add(beakUp);
+          const beakLo = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.03, 4), beakB);
+          beakLo.position.set(0.063, -0.016, 0.145);
+          beakLo.rotation.z = -Math.PI / 2 - 0.45; // pointing down-forward
+          baby.add(beakLo);
+          // tiny black eyes
+          [-1, 1].forEach((s) => {
+            const e = SPH(0.011, M(0x14100e));
+            e.position.set(0.052, s * 0.024, 0.15);
+            baby.add(e);
+          });
+          baby.position.set(Math.cos(a) * 0.18, Math.sin(a) * 0.18, 0.2);
+          baby.rotation.z = a; // face OUTWARD from the nest
+          g.add(baby);
+        }
+        return g;
+      }
       function makeRat(pizza) {
         const g = new THREE.Group();
         const fur = M(0x55504a),
@@ -15629,6 +15801,28 @@
             c.wingL = c.data.userData.wingL;
             c.wingR = c.data.userData.wingR;
             break;
+          case "bluejay":
+            // The Staten Island BLUE JAY (New Dorp, day 5): one aggressive blue
+            // jay with a FULL NEST of squawking babies in a random tree on ONE
+            // random garbage block. She squawks, does a WARNING CIRCLE around the
+            // worker (the tell), then SWOOOPS (minor damage + stun: "Damn bird!" /
+            // "I almost lost an eye!"), then climbs back to the nest. See the
+            // "bluejay" case in updateCreatures for the nest->circle->dive->climb
+            // state machine; the nest mesh + c.nest are set by the spawn block.
+            c.gz = 3.14; // starts perched in the nest (the spawn block sets the exact rim)
+            c.state = "nest"; // nest | circle | dive | climb
+            c.circleT = 0; // the warning-circle countdown
+            c.circleAng = 0;
+            c.circleDir = Math.random() < 0.5 ? -1 : 1;
+            c.diveT = 0;
+            c.climbT = 0;
+            c.cd = 0; // breather at the nest before the next harassment run
+            c.squawkCd = R(0.6, 2.2); // she works up a squawk early (the player hears the family)
+            c.peckPhase = R(0, 6.28);
+            c.data = makeBlueJay();
+            c.wingL = c.data.userData.wingL;
+            c.wingR = c.data.userData.wingR;
+            break;
           case "tric":
             c.wy = R(1.2, 4.2);
             c.sp = R(1.5, 2.5);
@@ -16996,6 +17190,51 @@
             workerThrowCd: 0,
           };
           for (const tk of tKids) tk.team = teeballTeam; // each kid knows its own team (the leader's tick simulates via c.team)
+        }
+        // The Staten Island BLUE JAY (New Dorp, day 5): ONE aggressive blue jay with
+        // a FULL nest of squawking babies, perched in a random tree on ONE random
+        // garbage block. The moment the worker gets onto her stretch of street she
+        // takes off and HARASSES him: squawking, then a WARNING CIRCLE all the way
+        // around him (the tell — the player can SEE her coming), then a hard SWOOP
+        // for minor damage + a stun ("Damn bird!" / "I almost lost an eye!"). She
+        // climbs back to the babies, squawks, and repeats while he's around. If her
+        // swoops put him down the write-up reads "Feathered Aggression
+        // Non-Compliance". She and the nest are world objects for the whole shift —
+        // no recycling.
+        if (isStatenIslandLevel()) {
+          // ONE random GARBAGE block that actually has a sidewalk tree to nest in
+          // (Staten Island trees live on the sidewalk — the lawn band is driveways)
+          const bjBlocks = blocks.filter(
+            (b) => b.garbage && b.trees && b.trees.length > 0,
+          );
+          if (bjBlocks.length) {
+            const bjBlock = bjBlocks[(Math.random() * bjBlocks.length) | 0];
+            const bjTree =
+              bjBlock.trees[(Math.random() * bjBlock.trees.length) | 0];
+            const NEST_Z = 3.0; // in the canopy (trunk 2.0 + canopy 0.7-1.1) — the family sits in the leaves
+            const nestG = makeBlueJayNest();
+            nestG.position.set(bjTree.wx, bjTree.wy, GZ + NEST_Z);
+            dynamicGroup.add(nestG); // world-space: it stays in the tree for the whole shift
+            const bj = addCreature("bluejay");
+            bj.wx = bjTree.wx; // perched on the rim of the nest
+            bj.wy = bjTree.wy;
+            bj.nest = { wx: bjTree.wx, wy: bjTree.wy };
+            bj.nestZ = NEST_Z + 0.14; // the rim, just above the bowl
+            bj.gz = bj.nestZ;
+            bj.g.position.set(bj.wx, bj.wy, GZ + bj.nestZ);
+            // open the shift announcing the family (the player hears the nest)
+            SFX.playSquawk(true);
+            SFX.playChirp();
+            Voice.say(
+              pick(BLUEJAY_LINES),
+              3,
+              1.1,
+              bj.wx,
+              bj.wy,
+              null,
+              "ped",
+            );
+          }
         }
         const counts = npcCounts(level);
         for (const t in counts)
@@ -19070,6 +19309,24 @@
       const TEEBALL_WORKER_THROW_CD = 3.5; // min gap between throws aimed at the worker (no spam)
       const TEEBALL_R = 0.16; // the baseball's radius — spin rate = ground speed / R (no-slip rolling)
       const TEEBALL_MARGIN = 5; // keep the catch game a hair inside the block's cross-streets
+      // ---- Staten Island BLUE JAY (a full nest in a random tree on ONE random block) ----
+      const HP_HIT_BLUEJAY = 2; // a wing-bonk: MINOR damage — it stings and stuns, it doesn't drop him (lighter than a hose blast)
+      const BLUEJAY_TERRITORY = 26; // the worker this close to the NEST is in her territory (a bit past half her block)
+      const BLUEJAY_TRIGGER_R = 18; // this close to the worker, she takes off and starts the warning circle
+      const BLUEJAY_CIRCLE_R = 4.6; // the warning circle's radius (well outside arm's reach)
+      const BLUEJAY_CIRCLE_T = 1.7; // ~one full squawking lap around him before the swoop (THE TELL)
+      const BLUEJAY_DIVE_T = 0.28; // the swoop: fast, and it ACCELERATES into the strike
+      const BLUEJAY_STRIKE_R = 2.4; // this close to the locked spot at strike time, she connects (he can run it down)
+      const BLUEJAY_LINES = [
+        "SQUAWK!",
+        "JAY! JAY JAY!",
+        "Get off my block!",
+        "MINE! This is MY block!",
+      ]; // her squawk, bubbled over the bird
+      const BLUEJAY_WORKER_LINES = [
+        "Damn bird!",
+        "I almost lost an eye!",
+      ]; // what the worker yells after a wing-bonk
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
       let teeballShirtQueue = []; // the Staten Island spawn feeds 3 distinct shirts for the tee-ball trio
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
@@ -19301,6 +19558,8 @@
         housewife: ["Failure to Dump the Load"],
         // --- the Staten Island car washer: you got in the way of his wash ---
         carwasher: ["Failed to clean the route or car"],
+        // --- the Staten Island blue jay: the nest is SACRED on New Dorp ---
+        bluejay: ["Feathered Aggression Non-Compliance"],
         // --- the Staten Island mafia guy: you failed to enter witness protection ---
         mafia: [
           "Failure to enter witness protection",
@@ -20457,6 +20716,7 @@
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
+          if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
           // Staten Island tee-ball baseball: the worker can bonk a loose ball even
@@ -23663,6 +23923,194 @@
               c.g.position.z = GZ + (c.gz || 0);
               break;
             }
+            case "bluejay": {
+              // The Staten Island BLUE JAY (New Dorp, day 5): one aggressive blue
+              // jay with a FULL nest of squawking babies in a random tree on ONE
+              // random garbage block. She guards the family: the moment the worker
+              // gets onto her stretch of street she takes off and HARASSES him —
+              // squawking, then a WARNING CIRCLE all the way around him (the TELL,
+              // ~one full lap so the player can see her coming), then a hard SWOOP:
+              // a wing-bonk for MINOR damage + a STUN, and the worker yells "Damn
+              // bird!" / "I almost lost an eye!". She climbs back to the babies and
+              // repeats while he's around; if he's running her swoop whiffs
+              // overhead. If her swoops put him down the write-up reads "Feathered
+              // Aggression Non-Compliance". States: nest -> circle -> dive -> climb.
+              c.cd = (c.cd || 0) - dt;
+              c.squawkCd = (c.squawkCd || 0) - dt;
+              // interrupted (route done / the worker is down): fly home, don't keep attacking
+              if (state !== "play" && c.state !== "nest" && c.state !== "climb")
+                c.state = "climb";
+              const bjTerritory =
+                state === "play" && Math.abs(p.wx - c.nest.wx) < BLUEJAY_TERRITORY;
+              if (c.state === "nest") {
+                // PERCHED in the nest with the babies: a little bob, facing the
+                // street, squawking (soft when the worker is far, loud in territory).
+                c.gz =
+                  (c.nestZ || 3.14) +
+                  Math.sin(performance.now() * 0.002 + (c.peckPhase || 0)) * 0.04;
+                c.g.rotation.y = 0;
+                c.wingL.rotation.x = 0.05;
+                c.wingR.rotation.x = -0.05;
+                c.g.rotation.z = Math.atan2(
+                  p.wy - c.nest.wy,
+                  p.wx - c.nest.wx,
+                ); // face the street
+                if (c.squawkCd <= 0) {
+                  c.squawkCd = bjTerritory ? R(2.2, 3.6) : R(5, 9);
+                  SFX.playSquawk(!!bjTerritory);
+                  if (bjTerritory)
+                    Voice.say(
+                      pick(BLUEJAY_LINES),
+                      3,
+                      1.1,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "ped",
+                    );
+                }
+                if (
+                  bjTerritory &&
+                  Math.hypot(p.wx - c.wx, p.wy - c.wy) < BLUEJAY_TRIGGER_R &&
+                  c.cd <= 0
+                ) {
+                  // TAKE OFF: the warning circle starts NOW — she always CIRCLES
+                  // the worker before she strikes (the tell).
+                  c.state = "circle";
+                  c.circleT = BLUEJAY_CIRCLE_T;
+                  c.circleAng = Math.atan2(c.wy - p.wy, c.wx - p.wx); // start where she is
+                  c.circleDir = Math.random() < 0.5 ? -1 : 1;
+                  SFX.playSquawk(true);
+                  SFX.playChirp(); // the babies hear mama leave
+                  Voice.say(
+                    pick(BLUEJAY_LINES),
+                    2.6,
+                    1.15,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                }
+              } else if (c.state === "circle") {
+                // THE TELL: a fast, squawking WARNING CIRCLE around the worker —
+                // weaving high above the curb. When the lap is done, she dives.
+                c.circleT -= dt;
+                c.circleAng +=
+                  c.circleDir * (Math.PI * 2.3) * (dt / BLUEJAY_CIRCLE_T);
+                c.wx = p.wx + Math.cos(c.circleAng) * BLUEJAY_CIRCLE_R;
+                c.wy = p.wy + Math.sin(c.circleAng) * BLUEJAY_CIRCLE_R;
+                c.gz = 2.1 + Math.sin(c.circleAng * 3) * 0.35; // weaving up and down
+                c.g.rotation.z =
+                  c.circleAng + (c.circleDir > 0 ? Math.PI / 2 : -Math.PI / 2); // nose along the circle
+                c.g.rotation.y = 0.25; // wings angled, ready to drop
+                const cfl = Math.sin(performance.now() * 0.05) * 0.95;
+                c.wingL.rotation.x = -cfl;
+                c.wingR.rotation.x = cfl;
+                if (c.squawkCd <= 0) {
+                  c.squawkCd = 0.55;
+                  SFX.playSquawk(true);
+                  Voice.say(
+                    pick(BLUEJAY_LINES),
+                    1,
+                    1.2,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "ped",
+                  );
+                }
+                if (c.circleT <= 0) {
+                  // THE STRIKE: lock the worker's spot and swoop AT HIS EYES
+                  c.state = "dive";
+                  c.diveT = 0;
+                  c.diveFromX = c.wx;
+                  c.diveFromY = c.wy;
+                  c.diveFromZ = c.gz;
+                  c.diveToX = p.wx;
+                  c.diveToY = p.wy;
+                  c.diveToZ = 1.55; // at the eyes — "I almost lost an eye!"
+                  SFX.playSwoosh();
+                }
+              } else if (c.state === "dive") {
+                // THE SWOOP: a fast, ACCELERATING dive onto the locked spot
+                c.diveT += dt;
+                const k = Math.min(1, c.diveT / BLUEJAY_DIVE_T);
+                const e = k * k;
+                c.wx = c.diveFromX + (c.diveToX - c.diveFromX) * e;
+                c.wy = c.diveFromY + (c.diveToY - c.diveFromY) * e;
+                c.gz = c.diveFromZ + (c.diveToZ - c.diveFromZ) * e;
+                c.g.rotation.z = Math.atan2(
+                  c.diveToY - c.diveFromY,
+                  c.diveToX - c.diveFromX,
+                );
+                c.g.rotation.y = 0.9; // nose DOWN
+                const dfl = Math.sin(performance.now() * 0.075) * 1.2;
+                c.wingL.rotation.x = -dfl;
+                c.wingR.rotation.x = dfl;
+                if (k >= 1) {
+                  const miss = Math.hypot(p.wx - c.diveToX, p.wy - c.diveToY);
+                  if (miss < BLUEJAY_STRIKE_R) {
+                    // SHE GOT HIM: a wing-bonk for MINOR damage + a STUN
+                    hurtNPC(HP_HIT_BLUEJAY, "bluejay", true);
+                    doStun(0.9, "hit");
+                    Voice.say(
+                      pick(BLUEJAY_WORKER_LINES),
+                      2.4,
+                      0.95,
+                      p.wx,
+                      p.wy,
+                      WORKER_GENDER,
+                      "worker",
+                      "burst",
+                    );
+                    Voice.say(
+                      pick(BLUEJAY_LINES),
+                      2.4,
+                      1.2,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "ped",
+                    );
+                    SFX.playSquawk(true);
+                  } else {
+                    SFX.playSwoosh(); // whiffed overhead — he got away
+                  }
+                  c.state = "climb";
+                  c.climbT = 0;
+                  c.cd = R(5.5, 9); // a breather with the babies before the next run
+                }
+              } else if (c.state === "climb") {
+                // BACK TO THE NEST: she always lands home with the babies
+                c.climbT += dt;
+                const ease = Math.min(1, dt * 6);
+                c.wx += (c.nest.wx - c.wx) * ease;
+                c.wy += (c.nest.wy - c.wy) * ease;
+                c.gz += (c.nestZ - c.gz) * Math.min(1, dt * 5);
+                c.g.rotation.z = Math.atan2(c.nest.wy - c.wy, c.nest.wx - c.wx);
+                c.g.rotation.y = -0.15; // nose up, climbing home
+                const nfl = Math.sin(performance.now() * 0.045) * 0.8;
+                c.wingL.rotation.x = -nfl;
+                c.wingR.rotation.x = nfl;
+                if (
+                  Math.hypot(c.nest.wx - c.wx, c.nest.wy - c.wy) < 0.6 &&
+                  c.gz > (c.nestZ || 3.14) - 0.5
+                ) {
+                  c.state = "nest";
+                  c.wx = c.nest.wx;
+                  c.wy = c.nest.wy;
+                  c.gz = c.nestZ || 3.14;
+                  if (c.squawkCd <= 0) {
+                    c.squawkCd = R(2, 3.5);
+                    SFX.playSquawk(true); // the landing squawk
+                    SFX.playChirp(); // the babies: "mama's home"
+                  }
+                }
+              }
+              c.g.position.z = GZ + (c.gz || 0);
+              break;
+            }
             case "soccer": {
               // ===== Flatbush soccer TEAM (3 kids + ONE shared ball on one block) =====
               // The LEADER kid's tick simulates the WHOLE team (the other two kids'
@@ -26050,6 +26498,7 @@
             c.type !== "yeller" &&
             c.type !== "raccoon" &&
             c.type !== "pigeon" &&
+            c.type !== "bluejay" &&
             c.type !== "skater" &&
             c.type !== "jacker" &&
             c.type !== "raven"
