@@ -10,6 +10,7 @@
 //   5) WRITTEN UP!: "Feathered Aggression Non-Compliance"
 'use strict';
 const fs = require('fs');
+const path = require('path');
 const src = fs.readFileSync('index.html', 'utf8');
 let pass = 0, fail = 0;
 const check = (name, ok) => {
@@ -28,6 +29,14 @@ console.log('\n[1] syntax');
   const tmpFiles = [];
   let allOk = true, n = 0;
   try {
+    // sweep stale temp files from any previously interrupted run
+    for (const f of fs.readdirSync(__dirname)) {
+      if (/^_chk_blk\d+\.mjs$/.test(f)) {
+        try {
+          fs.unlinkSync(path.join(__dirname, f));
+        } catch (_) {}
+      }
+    }
     for (const b of blocks) {
       if (!b.trim()) continue;
       n++;
