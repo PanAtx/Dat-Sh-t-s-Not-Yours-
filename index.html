@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.286</div>
+          <div id="app-version" class="menu-version">v1.0.287</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.286';
+      const APP_VERSION = '1.0.287';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12503,6 +12503,47 @@
         g.userData.core = core; // the update loop spins THIS (the ball's centre), never the outer contact-point group
         return g;
       }
+      // Staten Island tee-ball kid: the SAME kid-sized makePerson (60% scale) — a
+      // little kid, not a minifigure. Distinct shirt colors (spawnWorld queues
+      // them via teeballShirtQueue) so the trio reads as a group playing together.
+      function makeTeeballKid(shirt) {
+        const kp = makePerson({
+          shirt: shirt || pick(SHIRTS),
+          pants: pick(PANTS),
+          hair: pick(HAIRS),
+        });
+        kp.g.scale.set(0.6, 0.6, 0.6); // kid-sized
+        return kp;
+      }
+      // A little REAL baseball, resting radius 0.16 (centre at 0.16 above the
+      // ground so it sits ON the sidewalk). Cream sphere with the classic RED
+      // STITCH SEAMS: two curved red arcs (torus arcs) on opposite sides — the
+      // same outer-group/core pattern as the soccer ball so the roll spin is
+      // about the ball's CENTRE (the outer group is the ground contact point).
+      function makeBaseball() {
+        const g = new THREE.Group();
+        const R = 0.16;
+        const core = new THREE.Group();
+        core.position.z = R; // the ball CENTER sits R above the contact point
+        const ball = SPH(R, M(0xf6f2e6));
+        ball.castShadow = true;
+        core.add(ball);
+        const seamM = M(0xc0392b); // the red stitches
+        for (const tilt of [0.55, -0.55]) {
+          // one red seam arc, tilted about Z so the two arcs read as the twin
+          // stitching curves of a baseball (each hugs the surface at R)
+          const seam = new THREE.Mesh(
+            new THREE.TorusGeometry(R * 0.995, 0.011, 5, 20, Math.PI * 0.95),
+            seamM,
+          );
+          seam.rotation.z = tilt;
+          seam.rotation.x = Math.PI / 2; // the torus is built in XY; stand it up so the arc runs OVER the top
+          core.add(seam);
+        }
+        g.add(core);
+        g.userData.core = core; // the update loop spins THIS (the ball's centre)
+        return g;
+      }
       // Seed scatter pile pigeons peck at (one pile per flock)
       function makeSeedScatter() {
         const sg = new THREE.Group();
@@ -15188,6 +15229,7 @@
           type === "ebike" ||
           type === "tric" ||
           type === "soccer" ||
+          type === "teeball" ||
           type === "rc" ||
           type === "ghost"
         )
@@ -15279,6 +15321,24 @@
                 ? soccerShirtQueue.shift()
                 : null;
               c.data = makeSoccerKid(soccerShirt); // distinct shirt per kid (the team look)
+            }
+            break;
+          case "teeball":
+            // Staten Island tee-ball CATCH kid (see the trio spawn in spawnWorld +
+            // the case "teeball" body in updateCreatures): one of 3 small kids
+            // sharing ONE baseball on one random block, really playing catch.
+            // No boxW — the kid is NOT a vehicle: traffic, separation and
+            // truck-collision all skip it, and it never stops for obstacles in
+            // its path (the crowd routes around it, AVOID_TYPES.teeball).
+            // The ONE shared baseball is attached by the spawner onto the
+            // LEADER kid (c.ball/c.ballG), so it's added to the world exactly once.
+            c.sp = R(3.4, 4.4); // a kid's running pace (faster than a walk, not a pro)
+            c.dir = 1;
+            {
+              const teeballShirt = teeballShirtQueue.length
+                ? teeballShirtQueue.shift()
+                : null;
+              c.data = makeTeeballKid(teeballShirt); // distinct shirt per kid (the group look)
             }
             break;
           case "dogwalker":
@@ -16524,6 +16584,84 @@
           mg.g.position.set(mg.wx, mg.wy, GZ);
           mg.homeX = mg.wx;
           mg.homeY = mg.wy;
+        }
+        // The Staten Island TEE-BALL CATCH KIDS (New Dorp, day 5): THREE small kids in
+        // DIFFERENT colored shirts, really playing CATCH with ONE baseball on ONE
+        // random block — a block that is NOT the car-wash block (Block 2) and NOT the
+        // chalk crime-scene block (Block 3). They throw the ball back and forth to
+        // each other; when the worker gets close (TEEBALL_WORKER_RANGE) a kid hurls
+        // it right AT him (a ball hit = HP_HIT_TEEBALL + "Stop That!" from the
+        // worker) and bumping a kid hurts the WORKER ("Don't touch me!" / "You
+        // smell!" / "I'm gonna get my Dad!"). A lost ball is retrieved by the
+        // nearest kid and the catch game resumes. They're KIDS with endless energy:
+        // they never stop and never sidestep a bottle or sidewalk tree — they run
+        // right through (no recycling), and other NPCs route around them
+        // (AVOID_TYPES.teeball). The leader kid's tick simulates the whole team
+        // (c.team); the write-up reads "Dereliction of Tee-Ball Duty".
+        if (isStatenIslandLevel()) {
+          // random block, EXCLUDING Block 2 (the car wash, index 1) and Block 3
+          // (the chalk crime scene, index 2) — the kids keep their own street
+          const tbCands = LEVEL_BLOCKS.filter((b, i) => i !== 1 && i !== 2);
+          const tbBlock = tbCands[(Math.random() * tbCands.length) | 0];
+          const tMinX = tbBlock.x + TEEBALL_MARGIN; // play the WHOLE block, edge to edge
+          const tMaxX = tbBlock.x + BLOCK_W - TEEBALL_MARGIN;
+          // three DISTINCT shirt colors — they're a little GROUP playing together
+          const tShirts = [];
+          while (tShirts.length < 3) {
+            const tCol = pick(SHIRTS);
+            if (tShirts.indexOf(tCol) < 0) tShirts.push(tCol);
+          }
+          teeballShirtQueue = teeballShirtQueue.concat(tShirts); // addCreature's "teeball" case consumes one per kid
+          const tKids = [];
+          for (let ti = 0; ti < 3; ti++) {
+            const tk = addCreature("teeball");
+            tk.wx = tMinX + ((tMaxX - tMinX) * (ti + 0.5)) / 3; // spread along the block
+            tk.wy = R(1.6, 4.2); // on the NEAR SIDEWALK band — the sidewalk/front-lawn side, NEVER on the asphalt
+            tk.dir = ti % 2 ? -1 : 1; // mixed directions — they cross each other all the time
+            tk.minX = tMinX;
+            tk.maxX = tMaxX;
+            tk.kidCd = 0; // per-kid cooldown for the worker's bump exchange
+            tk.ballCd = 0;
+            tk.g.rotation.z = tk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+            tk.g.position.set(tk.wx, tk.wy, GZ); // the mesh starts at its real spot
+            tKids.push(tk);
+          }
+          // ONE shared baseball — attached to the LEADER kid (so the ball-bonk
+          // branch and the ball's world-add happen exactly once). It starts at the
+          // first OWNER's spot (catch: the ball rides in the owner's hands).
+          const tBall = {
+            wx: tKids[1].wx,
+            wy: tKids[1].wy,
+            z: 0.55, // held at the owner's chest height while carried
+            vz: 0,
+            vx: 0,
+            vy: 0, // horizontal velocity of the throw
+            tx: tKids[1].wx,
+            ty: tKids[1].wy,
+            flying: false, // true while a throw is in the air (the worker can be hit)
+          };
+          const tBallG = makeBaseball();
+          tBallG.position.set(tBall.wx, tBall.wy, GZ + tBall.z);
+          const tLeader = tKids[0];
+          tLeader.ball = tBall;
+          tLeader.ballG = tBallG;
+          dynamicGroup.add(tBallG); // the shared ball is a world object — added ONCE
+          teeballTeam = {
+            kids: tKids,
+            leader: tLeader,
+            ball: tBall,
+            ballG: tBallG,
+            minX: tMinX,
+            maxX: tMaxX,
+            midX: (tMinX + tMaxX) / 2,
+            owner: tKids[1], // start with the middle kid holding it
+            receiver: null, // the kid splaying for a LOST ball
+            lastThrower: null,
+            throwT: R(0.6, 1.4), // stagger the first throw
+            catchLockT: 0, // no instant re-catch of a fresh throw
+            workerThrowCd: 0,
+          };
+          for (const tk of tKids) tk.team = teeballTeam; // each kid knows its own team (the leader's tick simulates via c.team)
         }
         const counts = npcCounts(level);
         for (const t in counts)
@@ -18581,10 +18719,24 @@
       const SOCCER_CELEBRATE = 1.6; // seconds of victory hops after a goal, before the kickoff
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
+      // ---- Staten Island tee-ball CATCH team (3 small kids + ONE baseball on ONE random block) ----
+      const HP_HIT_TEEBALL = 3; // a baseball bonk on the worker / a kid bump — a light whack
+      const TEEBALL_LINES = [
+        "Don't touch me!",
+        "You smell!",
+        "I'm gonna get my Dad!",
+      ]; // what a kid SCREAMS the moment the worker touches them
+      const TEEBALL_WORKER_RANGE = 10; // this close, the kid throws the ball AT the worker
+      const TEEBALL_PICKUP = 2.2; // a loose ball this close to a kid gets caught / picked up (a kid is still jogging, so the window must be forgiving)
+      const TEEBALL_WORKER_THROW_CD = 3.5; // min gap between throws aimed at the worker (no spam)
+      const TEEBALL_R = 0.16; // the baseball's radius — spin rate = ground speed / R (no-slip rolling)
+      const TEEBALL_MARGIN = 5; // keep the catch game a hair inside the block's cross-streets
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
+      let teeballShirtQueue = []; // the Staten Island spawn feeds 3 distinct shirts for the tee-ball trio
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
       let queensStoreSpots = []; // Maspeth corner stores: { x, y, deli } — the Polish boy hangs around one
       let soccerTeams = []; // one team per Flatbush block: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
+      let teeballTeam = null; // the Staten Island tee-ball trio (ONE team on ONE random block): { kids, leader, ball, ballG, minX, maxX, midX, owner, receiver, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
       // flanking houses - up to 5.8 wide - reach homeX+-1.1, and their steps reach
       // homeX+-1.38): confining the kid to homeX+-1.0 keeps it on the open driveway and
@@ -18888,6 +19040,8 @@
           "The kid's right to the full block was not honored",
           "Failure to respect a sacred soccer ball",
         ],
+        // --- the Staten Island tee-ball catch kids: tee-ball is SACRED on New Dorp ---
+        teeball: ["Dereliction of Tee-Ball Duty"],
         // --- the sidewalk crowd: every one of them just trying to get to work ---
         ped: [
           "Pestering a pedestrian",
@@ -19966,6 +20120,47 @@
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
+          // Staten Island tee-ball baseball: the worker can bonk a loose ball even
+          // when the kid is still a few units away, so the ball gets its own range
+          // check BEFORE the generic kid-radius gate. (A LIVE throw connecting with
+          // the worker is handled in the "teeball" case of updateCreatures.)
+          if (c.type === "teeball" && c.ball) {
+            const tbdx = c.ball.wx - p.wx,
+              tbdy = c.ball.wy - p.wy;
+            const tb2 = tbdx * tbdx + tbdy * tbdy;
+            if (tb2 <= 1.0 * 1.0) {
+              if (c.ballCd <= 0) {
+                c.ballCd = 2.5; // one bonk per encounter (keeps it from spamming)
+                hurtNPC(HP_HIT_TEEBALL, "teeball");
+                doStun(0.5, "hit");
+                Voice.say(
+                  "Hey dont do that!",
+                  2.2,
+                  0.95,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                  "burst",
+                );
+                // the worker's bonk KNOCKS THE BALL LOOSE — a kid sprints to get it
+                if (c.team) {
+                  c.team.owner = null;
+                  c.team.receiver = null;
+                  c.team.catchLockT = 0;
+                  const tdef = c.team.ball;
+                  tdef.flying = false;
+                  tdef.z = Math.max(tdef.z, 0.2);
+                  tdef.vz = Math.max(tdef.vz, 1.8);
+                }
+              }
+              // solid: the worker bounces back off the ball
+              const tbd = Math.sqrt(tb2) || 0.001;
+              p.wx -= (tbdx / tbd) * 0.7;
+              p.wy = clamp(p.wy - (tbdy / tbd) * 0.7, -9.4, workerMaxY());
+              return;
+            }
+          }
           // Flatbush street-soccer ball: the worker can bonk the ball even when the
           // kid is still a few units away (the kid kicks it ahead and chases it), so
           // the ball gets its own range check BEFORE the generic kid-radius gate.
@@ -20050,6 +20245,8 @@
           else if (c.type === "escooter") rad = 1.0;
           else if (c.type === "soccer")
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
+          else if (c.type === "teeball")
+            rad = 0.9; // a small kid (its ball is checked separately in the branch)
           else if (c.type === "ghost") rad = 1.0; // a floating ghost's touch has a little reach
           if (d2 > rad * rad) continue;
           if (c.type === "soccer") {
@@ -20064,6 +20261,32 @@
               doStun(0.6, "hit");
               Voice.say(
                 pick(SOCKER_LINES),
+                1.8,
+                1.25,
+                c.wx,
+                c.wy,
+                c.gender,
+                "kid",
+              );
+            }
+            // solid: the worker bounces back off the kid
+            const d = Math.sqrt(d2) || 0.001;
+            p.wx -= (dx / d) * 1.1;
+            p.wy = clamp(p.wy - (dy / d) * 1.1, -9.4, workerMaxY());
+            return;
+          }
+          if (c.type === "teeball") {
+            // ===== Staten Island tee-ball kid (kid contact) =====
+            // The worker touches the kid: the kid fires one of its three lines and
+            // the worker gets bounced back and takes a light hit. (The ball's own
+            // bonk exchange is handled up front, before the generic radius gate,
+            // because the ball can be a few units away from the kid.)
+            if (c.kidCd <= 0) {
+              c.kidCd = 2.5;
+              hurtNPC(HP_HIT_TEEBALL, "teeball");
+              doStun(0.6, "hit");
+              Voice.say(
+                pick(TEEBALL_LINES),
                 1.8,
                 1.25,
                 c.wx,
@@ -21376,6 +21599,7 @@
         ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, mafia: 1, // handled by
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
+        teeball: 1, // Staten Island tee-ball kids: a solid obstacle the crowd routes around
       };
       const AVOID_AHEAD = 6.0; // how far ahead (world units) a walker looks for an obstacle
       function npcWalkAroundObstacles(c, dt, yMin, yMax) {
@@ -23403,6 +23627,289 @@
               if (T.owner && (B.wx - T.owner.wx) * T.owner.dir < 0.5)
                 B.wx = T.owner.wx + T.owner.dir * SOCCER_LEAD;
               break; // a fixed fixture: never recycles off-screen
+            }
+            case "teeball": {
+              // ===== Staten Island tee-ball CATCH team (3 kids + ONE baseball) =====
+              // The LEADER kid's tick simulates the WHOLE team (the other two kids'
+              // ticks break out early). The trio really PLAYS CATCH: the owner
+              // carries the ball and tosses it to a mate, the mate catches it and
+              // tosses it back — endless back-and-forth. When the worker gets close
+              // (TEEBALL_WORKER_RANGE) the owner hurls it right AT him (a ball hit =
+              // HP_HIT_TEEBALL) and the worker yells "Stop That!". A LOST ball
+              // (nobody catches it) is retrieved — the nearest kid sprints over,
+              // picks it up, and the catch game resumes. They're KIDS with endless
+              // energy: they NEVER stop and never sidestep a bottle, can or sidewalk
+              // tree — they run right through; other NPCs route around them
+              // (AVOID_TYPES.teeball). The bump exchanges (kid contact + loose-ball
+              // bonk) live in collideCreatures; the write-up reads "Dereliction of
+              // Tee-Ball Duty".
+              if (!c.team || c.team.leader !== c) break; // only the leader simulates its own team
+              const T = c.team,
+                B = T.ball;
+              c.ballCd = Math.max(0, (c.ballCd || 0) - dt); // ball-bonk cooldown (the leader owns c.ball)
+              T.catchLockT = Math.max(0, T.catchLockT - dt);
+              T.workerThrowCd = Math.max(0, T.workerThrowCd - dt);
+              for (const k of T.kids) k.kidCd = Math.max(0, (k.kidCd || 0) - dt);
+              T.throwT = (T.throwT || 1) - dt;
+              // --- the owner TOSSES: worker in range > a MATE (catch play) ---
+              if (T.owner && T.throwT <= 0) {
+                const o = T.owner;
+                T.throwT = R(1.2, 2.0);
+                T.lastThrower = o;
+                let tx,
+                  ty;
+                const workerNear =
+                  state === "play" &&
+                  T.workerThrowCd <= 0 &&
+                  Math.hypot(p.wx - o.wx, p.wy - o.wy) < TEEBALL_WORKER_RANGE;
+                if (workerNear) {
+                  tx = p.wx;
+                  ty = p.wy; // THROW THE BASEBALL AT THE WORKER
+                  T.workerThrowCd = TEEBALL_WORKER_THROW_CD;
+                  o.dir = p.wx >= o.wx ? 1 : -1;
+                  Voice.say(
+                    "Stop That!",
+                    1.6,
+                    1.05,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                    "burst",
+                  );
+                } else {
+                  // CATCH: toss to a MATE — prefer the farthest for a real
+                  // back-and-forth down the block
+                  let mate = null,
+                    md = -1;
+                  for (const k of T.kids) {
+                    if (k === o) continue;
+                    const d = Math.abs(k.wx - o.wx) + Math.abs(k.wy - o.wy);
+                    if (d > md) {
+                      md = d;
+                      mate = k;
+                    }
+                  }
+                  tx = (mate || o).wx + R(-0.3, 0.3);
+                  ty = (mate || o).wy + R(-0.3, 0.3);
+                  ty = Math.max(1.5, Math.min(4.3, ty)); // stay on the walkable sidewalk
+                  o.dir = tx >= o.wx ? 1 : -1;
+                }
+                // the THROW: a lob that lands AT (tx, ty). Flight time scales with
+                // distance; vz = (1/2) g t makes the apex and a clean landing back
+                // at z=0 exactly at tFly (gravity 12, same as the soccer ball).
+                const dThrow = Math.max(1.0, Math.hypot(tx - B.wx, ty - B.wy));
+                const tFly = Math.max(0.35, Math.min(0.8, dThrow / 10));
+                B.tx = tx;
+                B.ty = ty;
+                B.vx = (tx - B.wx) / tFly;
+                B.vy = (ty - B.wy) / tFly;
+                B.vz = 0.5 * 12 * tFly;
+                B.flying = true; // the ball is live — it can CONNECT with the worker
+                T.owner = null;
+                T.catchLockT = 0.45; // no instant re-catch of the thrower's own toss
+              }
+              // --- the baseball: integrate, hit the worker, bounce, settle ---
+              const ballMoving =
+                B.flying ||
+                B.vz > 0.01 ||
+                Math.abs(B.vx) > 0.01 ||
+                Math.abs(B.vy) > 0.01;
+              if (ballMoving) {
+                B.wx += B.vx * dt;
+                B.wy += B.vy * dt;
+                B.vz -= 12 * dt; // gravity
+                B.z += B.vz * dt;
+                if (B.z <= 0 && B.vz < 0) {
+                  B.z = 0;
+                  B.vz = Math.abs(B.vz) * 0.4; // damped bounce on the sidewalk
+                  if (B.vz < 0.4) {
+                    B.vz = 0;
+                    B.flying = false; // settled — it's a loose ball now
+                  }
+                }
+                // === a LIVE throw that CONNECTS with the worker ===
+                if (state === "play" && c.ballCd <= 0 && B.z < 1.1) {
+                  const bdx = B.wx - p.wx,
+                    bdy = B.wy - p.wy;
+                  const b2 = bdx * bdx + bdy * bdy;
+                  if (b2 <= 0.9 * 0.9) {
+                    c.ballCd = 2.5; // one whack per encounter (keeps it from spamming)
+                    hurtNPC(HP_HIT_TEEBALL, "teeball");
+                    doStun(0.5, "hit");
+                    Voice.say(
+                      "OW!",
+                      1.4,
+                      1.2,
+                      p.wx,
+                      p.wy,
+                      WORKER_GENDER,
+                      "worker",
+                      "burst",
+                    );
+                    // the worker's body DEFLECTS the ball — it goes loose and a
+                    // kid sprints over to get it back
+                    B.flying = false;
+                    B.vz = Math.max(B.vz, 1.8);
+                    B.vx *= -0.6;
+                    B.vy *= -0.6;
+                    T.owner = null;
+                    T.receiver = null;
+                  }
+                }
+                // === the ball vs SOLID SIDEWALK OBSTACLES (USPS boxes / trees = b.trees) ===
+                // The ball can't fly THROUGH a collection box: reflect off the face
+                // (damped) and settle on the near side where a kid can grab it.
+                for (let bi = 0; bi < blocks.length; bi++) {
+                  const tr = blocks[bi].trees;
+                  if (!tr) continue;
+                  for (let j = 0; j < tr.length; j++) {
+                    const o = tr[j];
+                    const bx = B.wx - o.wx,
+                      by = B.wy - o.wy;
+                    const d = Math.hypot(bx, by);
+                    const min = 0.66; // ball 0.16 + box solid reach ~0.5
+                    if (d >= min || d < 1e-4) continue;
+                    B.wx = o.wx + (bx / d) * min;
+                    B.wy = o.wy + (by / d) * min;
+                    const nx = bx / d,
+                      ny = by / d;
+                    const vn = B.vx * nx + B.vy * ny;
+                    if (vn < 0) {
+                      B.vx -= 1.55 * vn * nx; // reflect with 0.55 restitution
+                      B.vy -= 1.55 * vn * ny;
+                    }
+                  }
+                }
+              }
+              // --- CATCH / pickup: a low ball within reach of a kid = new owner ---
+              if (!T.owner && T.catchLockT <= 0 && B.z < 0.75) {
+                let best = null,
+                  bd = TEEBALL_PICKUP;
+                for (const k of T.kids) {
+                  const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                  if (d < bd) {
+                    bd = d;
+                    best = k;
+                  }
+                }
+                if (best) {
+                  T.owner = best; // CAUGHT it — the catch game goes on
+                  T.receiver = null;
+                  T.throwT = R(0.8, 1.6);
+                  B.vx = 0;
+                  B.vy = 0;
+                  B.vz = 0;
+                  B.flying = false;
+                }
+              }
+              // --- LOST ball: nobody within reach — the NEAREST kid goes and picks it up ---
+              if (!T.owner && !T.receiver) {
+                let nk = null,
+                  nd = 1e9;
+                for (const k of T.kids) {
+                  const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                  if (d < nd) {
+                    nd = d;
+                    nk = k;
+                  }
+                }
+                T.receiver = nk;
+              }
+              if (
+                T.receiver &&
+                !B.flying &&
+                B.z < 0.9 &&
+                Math.hypot(B.wx - T.receiver.wx, B.wy - T.receiver.wy) < 0.6
+              ) {
+                T.owner = T.receiver; // got the ball back — start playing catch again
+                T.receiver = null;
+                T.throwT = R(0.8, 1.6);
+                B.vx = 0;
+                B.vy = 0;
+                B.vz = 0;
+                B.flying = false;
+              }
+              // the ball rides in the OWNER's hands (held at chest height)
+              if (T.owner && !B.flying) {
+                B.wx = T.owner.wx + T.owner.dir * 0.35;
+                B.wy = T.owner.wy;
+                if (B.vz <= 0) B.z = 0.55;
+              }
+              // the ball ROLLS — spin rate = ground speed / radius (no-slip rolling):
+              // a hard throw spins fast, a held ball does not spin at all. Spin the
+              // CORE about the ball's own centre (same as the soccer ball).
+              {
+                let svx = B.vx;
+                if (T.owner && !B.flying) svx = 0; // held: no spin
+                T.ballG.userData.core.rotation.y += (svx / TEEBALL_R) * dt;
+              }
+              // --- the kids: owner + mates jog the block, the receiver SPRINTS ---
+              // A kid's forward step is dead-stopped by a solid sidewalk obstacle
+              // (a USPS collection box / tree in b.trees) on his lane — nobody
+              // clips straight through a mailbox while chasing the ball.
+              const kidStepBlocked = (k, stepX) => {
+                const nx = k.wx + stepX;
+                for (let bi = 0; bi < blocks.length; bi++) {
+                  const tr = blocks[bi].trees;
+                  if (!tr) continue;
+                  for (let j = 0; j < tr.length; j++)
+                    if (
+                      Math.abs(tr[j].wx - nx) < 0.8 &&
+                      Math.abs(tr[j].wy - k.wy) < 0.8
+                    )
+                      return true;
+                }
+                return false;
+              };
+              for (const k of T.kids) {
+                if (k === T.owner) {
+                  // the owner jogs around the block, ball in hand
+                  if (!kidStepBlocked(k, k.dir * k.sp * 0.9 * dt))
+                    k.wx += k.dir * k.sp * 0.9 * dt;
+                } else if (!T.owner && T.receiver === k) {
+                  // LOST BALL: sprint for it in x AND y — a kid chases it wherever it lies
+                  k.dir = B.wx >= k.wx ? 1 : -1;
+                  if (
+                    Math.hypot(B.wx - k.wx, B.wy - k.wy) > 0.8 &&
+                    !kidStepBlocked(k, k.dir * k.sp * 1.6 * dt)
+                  )
+                    k.wx += k.dir * k.sp * 1.6 * dt;
+                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 3.0);
+                } else {
+                  // mate: keep jogging, stay in the play
+                  if (!kidStepBlocked(k, k.dir * k.sp * 0.85 * dt))
+                    k.wx += k.dir * k.sp * 0.85 * dt;
+                }
+                // the walkable band — but the RECEIVER may chase the ball past it
+                // (a kid chasing a stray ball does not care about the paint)
+                let loX = T.minX,
+                  hiX = T.maxX,
+                  loY = 1.5,
+                  hiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  loX = Math.min(loX, B.wx - 0.4);
+                  hiX = Math.max(hiX, B.wx + 0.4);
+                  loY = Math.min(loY, B.wy - 0.4);
+                  hiY = Math.max(hiY, B.wy + 0.4);
+                }
+                k.wy = Math.max(loY, Math.min(hiY, k.wy));
+                if (k.dir > 0 && k.wx >= hiX) {
+                  k.wx = hiX;
+                  k.dir = -1;
+                } else if (k.dir < 0 && k.wx <= loX) {
+                  k.wx = loX;
+                  k.dir = 1;
+                }
+                // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
+                animParts(k, k.sp * dt * 3.4);
+                if (k.parts && k.parts.upper)
+                  k.parts.upper.position.z =
+                    0.62 + Math.abs(Math.sin(k.phase)) * 0.05;
+                if (k.g) k.g.rotation.z = k.dir >= 0 ? 0 : Math.PI; // face the direction of travel
+              }
+              T.ballG.position.set(B.wx, B.wy, GZ + B.z);
+              break; // a fixed fixture: never recycles off-screen (teeball)
             }
             case "tric": {
               // ===== Flatbush driveway tricycle (isDrivewayTric) =====
