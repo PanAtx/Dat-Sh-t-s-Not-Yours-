@@ -56,8 +56,8 @@ check(
     h.indexOf('localStorage.setItem("dsnysweep_render_h"') >= 0
 );
 check(
-  "#btnRes shares the terminal button style (base + hover groups)",
-  /#btnStart,\s*#btnRes,/.test(h) && /#btnStart:hover,\s*#btnRes:hover,/.test(h)
+  "start screen stays clean: option buttons left the big button groups",
+  /#btnStart,\s*#btnRestart,/.test(h) && /#btnStart:hover,\s*#btnRestart:hover,/.test(h)
 );
 
 console.log("\n--- retro extras (CRT / FPS cap / shadow quality) ---");
@@ -114,15 +114,37 @@ check(
     (h.match(/const SHADOW_SIZES/g) || []).length === 1 &&
     (h.match(/let lastRenderT/g) || []).length === 1 &&
     (h.match(/function setFpsLabel/g) || []).length === 1 &&
-    (h.match(/function setShadowLabel/g) || []).length === 1
+    (h.match(/function setShadowLabel/g) || []).length === 1 &&
+    (h.match(/function setResLabel/g) || []).length === 1 &&
+    (h.match(/function setScanLabel/g) || []).length === 1
 );
 check(
-  "menu has all four setting buttons, styled like the terminal buttons",
-  h.indexOf('id="btnFps"') >= 0 &&
-    h.indexOf('id="btnShadow"') >= 0 &&
-    h.indexOf('id="btnCrt"') >= 0 &&
-    /#btnRes,\s*#btnFps,\s*#btnShadow,\s*#btnCrt,/.test(h) &&
-    /#btnRes:hover,\s*#btnFps:hover,\s*#btnShadow:hover,\s*#btnCrt:hover,/.test(h)
+  "settings page: gear button opens it, BACK + ESC close it",
+  h.indexOf('id="settingsPage"') >= 0 &&
+    h.indexOf('id="btnSettings"') >= 0 &&
+    h.indexOf('id="btnSettingsBack"') >= 0 &&
+    (h.match(/class="set-row"/g) || []).length === 4 &&
+    h.indexOf('$("btnSettings").addEventListener("click", openSettings)') >= 0 &&
+    h.indexOf('$("btnSettingsBack").addEventListener("click", closeSettings)') >= 0 &&
+    h.indexOf('e.key === "Escape"') >= 0
+);
+check(
+  "settings page: all four option buttons live INSIDE it and are styled there",
+  (() => {
+    const i = h.indexOf('id="settingsPage"');
+    if (i < 0) return false;
+    const seg = h.slice(i, i + 2000);
+    return (
+      seg.indexOf('id="btnRes"') >= 0 &&
+      seg.indexOf('id="btnFps"') >= 0 &&
+      seg.indexOf('id="btnShadow"') >= 0 &&
+      seg.indexOf('id="btnCrt"') >= 0 &&
+      seg.indexOf('id="btnSettingsBack"') >= 0
+    );
+  })() &&
+    h.indexOf("#settingsPage {") >= 0 &&
+    h.indexOf("#settingsBox .set-row button") >= 0 &&
+    h.indexOf(".menu-actions {") >= 0
 );
 
 console.log("\n" + pass + " passed, " + fail + " failed");

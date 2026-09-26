@@ -546,10 +546,6 @@
         color: #54ff88;
       }
       #btnStart,
-      #btnRes,
-      #btnFps,
-      #btnShadow,
-      #btnCrt,
       #btnRestart,
       #btnRestart2,
       #btnBeginDay,
@@ -570,10 +566,6 @@
         pointer-events: auto;
       }
       #btnStart:hover,
-      #btnRes:hover,
-      #btnFps:hover,
-      #btnShadow:hover,
-      #btnCrt:hover,
       #btnRestart:hover,
       #btnRestart2:hover,
       #btnBeginDay:hover,
@@ -582,6 +574,135 @@
       #btnResume:hover,
       #btnQuit2:hover {
         background: #5cf0ad;
+      }
+      /* ===== SETTINGS PAGE (gear button next to START SHIFT) =====
+         The start screen stays clean (logo fully visible): all graphics / FPS /
+         shadow / CRT options live on this overlay, opened by the small gear.
+         It's a CHILD of #menu so it only exists on the start screen. Every
+         choice persists on this device via localStorage (see the SETTINGS
+         block near the top of the script). */
+      .menu-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(8px, 1.4vw, 14px);
+      }
+      #btnSettings {
+        cursor: pointer;
+        width: clamp(38px, 5vh, 48px);
+        height: clamp(38px, 5vh, 48px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #7dff9e;
+        background: rgba(4, 20, 12, 0.78);
+        border: 2px solid rgba(46, 224, 144, 0.75);
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(46, 224, 144, 0.35);
+        margin-top: clamp(10px, 2vh, 18px); /* match btnStart's margin so the pair sits level */
+        pointer-events: auto;
+      }
+      #btnSettings:hover {
+        background: rgba(46, 224, 144, 0.25);
+        color: #fff;
+        box-shadow: 0 0 16px rgba(46, 224, 144, 0.6);
+      }
+      #btnSettings svg {
+        width: 62%;
+        height: 62%;
+      }
+      #settingsPage {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(3, 7, 10, 0.9);
+        padding: 12px;
+        pointer-events: auto;
+      }
+      #settingsBox {
+        width: min(460px, 94vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        text-align: left;
+        background: linear-gradient(180deg, #07130d, #040a07);
+        border: 3px solid #2ee090;
+        box-shadow:
+          0 0 34px rgba(46, 224, 144, 0.4),
+          inset 0 0 60px rgba(0, 0, 0, 0.65);
+        padding: clamp(14px, 2.6vh, 26px) clamp(16px, 4vw, 30px);
+        font-family: "Courier New", Courier, monospace;
+        color: #eaf6ff;
+        pointer-events: auto;
+      }
+      #settingsHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      #settingsHead span {
+        font-size: clamp(15px, 2.4vw, 20px);
+        letter-spacing: 4px;
+        color: #7dff9e;
+        text-shadow:
+          0 0 10px rgba(46, 224, 144, 0.6),
+          2px 2px 0 rgba(0, 0, 0, 0.85);
+      }
+      #btnSettingsBack {
+        cursor: pointer;
+        font-family: "Courier New", monospace;
+        font-size: 12px;
+        letter-spacing: 2px;
+        padding: 7px 14px;
+        color: #7dff9e;
+        background: transparent;
+        border: 1px solid rgba(46, 224, 144, 0.7);
+        pointer-events: auto;
+      }
+      #btnSettingsBack:hover {
+        background: rgba(46, 224, 144, 0.2);
+        color: #fff;
+      }
+      .set-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: clamp(11px, 1.9vh, 16px) 2px;
+        border-bottom: 1px dashed rgba(46, 224, 144, 0.3);
+      }
+      .set-name {
+        font-size: clamp(12px, 1.8vw, 14px);
+        letter-spacing: 3px;
+        color: #cfe8d6;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+      }
+      #settingsBox .set-row button {
+        cursor: pointer;
+        min-width: 118px;
+        text-align: center;
+        font-family: "Courier New", monospace;
+        font-size: clamp(12px, 1.9vw, 15px);
+        letter-spacing: 2px;
+        padding: clamp(8px, 1.4vh, 12px) 16px;
+        color: #04140c;
+        background: #2ee090;
+        border: none;
+        box-shadow: 0 0 12px rgba(46, 224, 144, 0.55);
+        pointer-events: auto;
+      }
+      #settingsBox .set-row button:hover {
+        background: #5cf0ad;
+      }
+      .set-foot {
+        margin-top: 12px;
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: rgba(125, 255, 158, 0.55);
+        text-align: center;
       }
       .hidden {
         display: none !important;
@@ -2175,13 +2296,14 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.299</div>
+          <div id="app-version" class="menu-version">v1.0.300</div>
           <div class="menu-bottom" id="menu-bottom">
-            <button id="btnStart">START SHIFT</button>
-            <button id="btnRes">RENDER: 540P</button>
-            <button id="btnFps">FPS: 60</button>
-            <button id="btnShadow">SHADOW: HI</button>
-            <button id="btnCrt">CRT: ON</button>
+            <div class="menu-actions">
+              <button id="btnStart">START SHIFT</button>
+              <button id="btnSettings" title="SETTINGS" aria-label="Settings">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+              </button>
+            </div>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
             <!-- The NOW PLAYING widget (#radio) docks in here on the start screen:
            below START SHIFT, exactly where the hi-score used to sit -->
@@ -2192,6 +2314,34 @@
             alt="Parental Advisory: Explicit Lyrics"
           />
           <img class="menu-m" src="mmongo.jpg" alt="Rated M for Mongo" />
+        </div> </div
+        <!-- SETTINGS PAGE: opened by the gear button next to START SHIFT. All the
+             graphics / FPS / shadow / CRT options live here so the start screen
+             stays clean (logo fully visible). Choices persist per-device. -->
+        <div id="settingsPage" class="hidden">
+          <div id="settingsBox">
+            <div id="settingsHead"
+              ><span>SETTINGS</span>
+              <button id="btnSettingsBack">BACK</button></div
+            >
+            <div class="set-row"
+              ><span class="set-name">RENDER</span>
+              <button id="btnRes">540P</button></div
+            >
+            <div class="set-row"
+              ><span class="set-name">FPS</span>
+              <button id="btnFps">60</button></div
+            >
+            <div class="set-row"
+              ><span class="set-name">SHADOW</span>
+              <button id="btnShadow">HI</button></div
+            >
+            <div class="set-row"
+              ><span class="set-name">CRT</span>
+              <button id="btnCrt">ON</button></div
+            >
+            <div class="set-foot">CHOICES SAVE ON THIS DEVICE</div>
+          </div>
         </div> </div
     ></div>
     <!-- iOS Safari fullscreen nudge: hidden until the menu is shown on an iPhone/iPad
@@ -2301,7 +2451,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.299';
+      const APP_VERSION = '1.0.300';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2835,14 +2985,10 @@
         renderer.setPixelRatio(1); // no supersampling on top of the low-res buffer
         renderer.setSize(w, h, false); // false = never touch the CSS: the canvas stays full-window and the browser scales it
       }
-      function setResLabel() {
-        $("btnRes").textContent =
-          "RENDER: " + (RENDER_H === 0 ? "NATIVE" : RES_NAMES[RENDER_H] || RENDER_H + "P");
-      }
       $("btnRes").addEventListener("click", function () {
         RENDER_H = RES_CYCLE[(RES_CYCLE.indexOf(RENDER_H) + 1) % RES_CYCLE.length];
         localStorage.setItem("dsnysweep_render_h", String(RENDER_H));
-        setResLabel();
+        setResLabel(); // label lives with the other settings labels (value-only, on the settings page)
         if (renderer) applyRenderSize(); // live-switch, no restart needed
       });
       setResLabel();
@@ -2876,14 +3022,21 @@
       // Toggle them off for a cleaner image. Persisted.
       let CRT_ON = localStorage.getItem("dsnysweep_crt") !== "0";
       // ---- menu buttons (all state above is initialized, safe to label now) ----
+      // The option buttons live on the SETTINGS PAGE (gear button next to
+      // START SHIFT), where the row label shows the option name — so the
+      // buttons only display the current VALUE.
+      function setResLabel() {
+        $("btnRes").textContent =
+          RENDER_H === 0 ? "NATIVE" : RES_NAMES[RENDER_H] || RENDER_H + "P";
+      }
       function setShadowLabel() {
-        $("btnShadow").textContent = "SHADOW: " + (SHADOW_SIZE >= 2048 ? "HI" : "LO");
+        $("btnShadow").textContent = SHADOW_SIZE >= 2048 ? "HI" : "LO";
       }
       function setFpsLabel() {
-        $("btnFps").textContent = "FPS: " + FPS_CAP;
+        $("btnFps").textContent = String(FPS_CAP);
       }
       function setScanLabel() {
-        $("btnCrt").textContent = "CRT: " + (CRT_ON ? "ON" : "OFF");
+        $("btnCrt").textContent = CRT_ON ? "ON" : "OFF";
       }
       function applyCrt() {
         const off = CRT_ON ? "" : "hidden";
@@ -2911,6 +3064,20 @@
       setShadowLabel();
       setScanLabel();
       applyCrt();
+      // ---- SETTINGS PAGE: the gear button (next to START SHIFT) opens the
+      // #settingsPage overlay; BACK or ESC closes it. It's a child of #menu so
+      // it only exists on the start screen.
+      function openSettings() {
+        $("settingsPage").classList.remove("hidden");
+      }
+      function closeSettings() {
+        $("settingsPage").classList.add("hidden");
+      }
+      $("btnSettings").addEventListener("click", openSettings);
+      $("btnSettingsBack").addEventListener("click", closeSettings);
+      window.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !$("settingsPage").classList.contains("hidden")) closeSettings();
+      });
       // ==================== THREE SETUP (diagonal top-right matrix) ====================
       function makeFrustum() {
         const a = innerWidth / innerHeight;
