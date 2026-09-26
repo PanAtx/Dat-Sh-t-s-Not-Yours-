@@ -2296,7 +2296,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.301</div>
+          <div id="app-version" class="menu-version">v1.0.302</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2451,7 +2451,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.301';
+      const APP_VERSION = '1.0.302';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2636,7 +2636,7 @@
         { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 5; // which day a fresh week begins on (5 = Friday, Staten Island / New Dorp). TEMP: set to 5 to develop level 5 — flip back to 1 to ship the full Mon..Sun week
+      const START_LEVEL = 6; // which day a fresh week begins on (6 = Saturday, Manhattan / Harlem). TEMP: set to 6 to develop level 6 — flip back to 1 to ship the full Mon..Sun week
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -27194,7 +27194,7 @@
         SFX.ensure();
         if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
         SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
-        level = START_LEVEL; // start on the configured first day (1 = Monday, Manhattan Uptown)
+        level = START_LEVEL; // start on the configured first day (START_LEVEL = 6 → Saturday, Manhattan / Harlem)
         weekScore = 0; // fresh running total
         // New game = new worker: set the skin tone ONCE here so it stays the same
         // across every level until the game is restarted (not re-rolled per shift).
