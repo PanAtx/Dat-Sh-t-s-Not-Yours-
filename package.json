@@ -1,0 +1,9 @@
+{
+  "name": "dat-sh-t-s-not-yours",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dat Sh*t's Not Yours - single-file HTML5 game. 'npm test' runs the check suites.",
+  "scripts": {
+    "test": "node run_checks.mjs"
+  }
+}

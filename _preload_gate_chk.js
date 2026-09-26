@@ -22,8 +22,8 @@ check('#loading z-index 30 (above #menu 20)', /#loading \{\s*z-index:\s*30/.test
 const paS = html.indexOf('const PRELOAD_ASSETS');
 const paE = html.indexOf('const PRELOAD_TOTAL', paS);
 const paBlock = html.slice(paS, paE);
-const need = ['truck.fbx', 'nyc_can.glb', 'car.glb', 'litterReduced2.glb', 'coffee_shop_cup.glb',
-  'sweet_bread_roll_game_ready__2k_pbr.glb', 'red_bull_energy_drink_can.glb', 'dsnylogo3.jpg', 'explicit_logo.webp'];
+const need = ['nyc_truck-compressed.glb', 'nyc_can-compressed.glb', 'car-compressed.glb', 'litterReduced2.glb', 'coffee_shop_cup-compressed.glb',
+  'bec-compressed.glb', 'red_bull_energy_drink_can-compressed.glb', 'dsnylogo3.jpg', 'explicit_logo.webp', 'mmongo.jpg'];
 for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf('"' + u + '"') >= 0);
 
 // ---- (3) getModelUrl streaming support ----
@@ -56,7 +56,7 @@ const btE = matchBrace(html, html.indexOf('{', btS)) + 1;
 const btCode = html.slice(btS, btE);
 let threw = false;
 try { new Function('FBX_TPL', btCode + '\nreturn buildTruck;')({ truck: null })(); }
-catch (e) { threw = /FBX truck model not loaded yet/.test(e.message); }
+catch (e) { threw = /truck model not loaded yet/.test(e.message); }
 check('buildTruck THROWS when FBX template missing (no procedural truck)', threw);
 
 // ---- boot no longer builds the procedural truck at top level ----
@@ -70,9 +70,10 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
 
 // ---- (4) behavior: streaming progress + full cache fill via the REAL preloadAssetsToCache ----
 (async () => {
-  const SIZES = { 'truck.fbx': 17874592, 'sweet_bread_roll_game_ready__2k_pbr.glb': 3752076,
-    'red_bull_energy_drink_can.glb': 2989592, 'litterReduced2.glb': 335980, 'car.glb': 186248,
-    'coffee_shop_cup.glb': 144300, 'dsnylogo3.jpg': 2619573, 'explicit_logo.webp': 20448 };
+  const SIZES = { 'nyc_truck-compressed.glb': 10280012, 'nyc_can-compressed.glb': 3181560,
+    'bec-compressed.glb': 621776, 'red_bull_energy_drink_can-compressed.glb': 300664,
+    'litterReduced2.glb': 335980, 'car-compressed.glb': 15280,
+    'coffee_shop_cup-compressed.glb': 21176, 'dsnylogo3.jpg': 2619573, 'explicit_logo.webp': 20448, 'mmongo.jpg': 87497 };
   const store = new Map();
   global.caches = { open: async () => ({
     match: async (u) => { const v = store.get(u); if (!v) return null; return new Response(v); },
@@ -95,18 +96,18 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   global.URL.createObjectURL = () => 'blob:x';
   global.URL.revokeObjectURL = () => {};
 
-  // streaming progress on the big truck.fbx
+  // streaming progress on the big truck GLB
   let calls = 0, monotonic = true, lastR = 0, sawCL = false, finalR = 0;
-  const res = await MC.getModelUrl('truck.fbx', (r, t) => { calls++; if (r < lastR) monotonic = false; lastR = r; finalR = r; if (t === SIZES['truck.fbx']) sawCL = true; });
+  const res = await MC.getModelUrl('nyc_truck-compressed.glb', (r, t) => { calls++; if (r < lastR) monotonic = false; lastR = r; finalR = r; if (t === SIZES['nyc_truck-compressed.glb']) sawCL = true; });
   check('onProgress called while downloading', calls >= 1);
   check('onProgress received-bytes monotonic non-decreasing', monotonic);
   check('onProgress reported the true total (content-length)', sawCL);
-  check('final progress = full byte count', finalR === SIZES['truck.fbx']);
+  check('final progress = full byte count', finalR === SIZES['nyc_truck-compressed.glb']);
   check('cold load returns blob URL (not cache)', res.url.indexOf('blob:') === 0 && !res.fromCache);
   // Regression guard: a real Response has NO .size property, so the gate must rely on
   // getModelUrl's reported size (from the Blob) + cached flag, not cache.match().size.
   check('cold load reports cached:true (persisted)', res.cached === true);
-  check('cold load reports the true byte size from the Blob', res.size === SIZES['truck.fbx']);
+  check('cold load reports the true byte size from the Blob', res.size === SIZES['nyc_truck-compressed.glb']);
 
   // run the REAL preloadAssetsToCache extracted from index.html
   const f1 = html.indexOf('async function preloadAssetsToCache() {');
@@ -116,11 +117,11 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
   let pcts = [];
   const rowCalls = [];   // records the per-asset checklist updates (ldRow)
-  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', '_modelMemCache', 'ldSetLabel', 'ldSetPct', 'ldSetFill', 'ldRow',
-    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, MC._modelMemCache, () => {}, (p) => { pcts.push(p); }, () => {}, (url, cls, text) => { rowCalls.push({ url, cls, text }); });
+  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', '_modelMemCache', 'ldSetLabel', 'ldSetPct', 'ldSetFill', 'ldRow', 'ldResetSpeed', 'ldSetStats', 'ldSampleSpeed', 'ldStatsText',
+    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, MC._modelMemCache, () => {}, (p) => { pcts.push(p); }, () => {}, (url, cls, text) => { rowCalls.push({ url, cls, text }); }, () => {}, () => {}, () => {}, () => '');
   await preload();
   check('preload drives the bar to 100%', pcts.length > 0 && pcts[pcts.length - 1] === 100);
-  check('all 8 assets are in the cache after preload', store.size === 8);
+  check('all assets are in the cache after preload', store.size === PRELOAD_ASSETS.length);
   // Per-asset checklist: every asset was marked done + CACHED (the real persisted path)
   check('every asset row updated to done/CACHED', PRELOAD_ASSETS.every(a => rowCalls.some(c => c.url === a.url && c.cls === 'done' && c.text === 'CACHED')));
   const before = netHits;

@@ -855,6 +855,15 @@
         margin-top: 8px;
         min-height: 1.5em;
       }
+      .ld-stats {
+        font-family: "Courier New", monospace;
+        font-size: clamp(9px, 1.6vw, 11px);
+        color: #6f8fa3;
+        letter-spacing: 2px;
+        margin-top: 3px;
+        min-height: 1.4em;
+        text-align: center;
+      }
       #btnRetry {
         font-family: "Courier New", monospace;
         font-size: clamp(12px, 2.4vw, 18px);
@@ -2136,6 +2145,7 @@
         ></div>
         <div class="ld-pct" id="ld-pct">0%</div>
         <div class="ld-label" id="ld-label">GETTING ASSETS...</div>
+        <div class="ld-stats" id="ld-stats"></div>
         <div class="ld-list" id="ld-list"></div>
         <button id="btnRetry" class="hidden">RETRY</button>
       </div></div
@@ -2148,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.285</div>
+          <div id="app-version" class="menu-version">v1.0.286</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2270,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.285';
+      const APP_VERSION = '1.0.286';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4407,7 +4417,7 @@
         };
       }
       // ==================== 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
-      // The DSNY truck is the nyc_truck.glb model (the old truck.fbx was dropped for
+      // The DSNY truck is the nyc_truck-compressed.glb model (the old truck.fbx was dropped for
       // copyright). Its native space (verified in node against the GLB's geometry and
       // its painted texture): a single textured mesh, X = length with the orange-painted
       // REAR at +X, Y = up, Z = width. The game uses X = route (front +X, rear -X),
@@ -4756,21 +4766,35 @@
         };
       }
       // ---MODEL_CACHE_END---
-      // Load nyc_truck.glb once and bake it into FBX_TPL.truck (the truck template).
+      // Build a GLTFLoader with local Draco decoding attached. The compressed models
+      // (nyc_truck-compressed.glb / nyc_can-compressed.glb) are Draco-compressed
+      // (KHR_draco_mesh_compression), and the decoder is hosted LOCALLY at ./draco/
+      // (precached by the service worker) so it also works offline — the gstatic.com
+      // CDN decoder path is a known offline hazard (see loadLitterbasketGltf).
+      function makeGltfLoader() {
+        const gltfLoader = new THREE.GLTFLoader();
+        if (typeof THREE.DRACOLoader !== "undefined") {
+          const dracoLoader = new THREE.DRACOLoader();
+          dracoLoader.setDecoderPath("./draco/");
+          gltfLoader.setDRACOLoader(dracoLoader);
+        }
+        return gltfLoader;
+      }
+      // Load nyc_truck-compressed.glb once and bake it into FBX_TPL.truck (the truck template).
       async function loadTruckGltf() {
         if (FBX_TPL.truck) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("nyc_truck.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("nyc_truck-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
                 const scene = gltf.scene;
                 scene.updateWorldMatrix(true, true);
                 const tpl = fbxExtract(scene);
-                // nyc_truck.glb native space (verified against the GLB's geometry and
+                // nyc_truck(-compressed).glb native space (verified against the GLB's geometry and
                 // painted texture): X = length with the orange-painted REAR at +X,
                 // Y = up, Z = width. Game space: X = route (front +X, rear -X),
                 // Y = lateral, Z = up. So: rear (+X) -> -X, up (+Y) -> +Z,
@@ -4795,7 +4819,7 @@
                 );
                 FBX_TPL.truck = tpl;
                 // NOTE: curb bags are procedural (makeBag) and the curb can comes from
-                // nyc_can.glb (loadCanGltf) — this GLB supplies the truck only.
+                // nyc_can-compressed.glb (loadCanGltf) — this GLB supplies the truck only.
                 FBX_TPL.can = null;
                 FBX_TPL.bag = null;
                 if (res.url.indexOf("blob:") === 0) {
@@ -4822,8 +4846,8 @@
           );
         });
       }
-      // ==================== GLTF GARBAGE CAN PIPELINE (nyc_can.glb) ====================
-      // nyc_can.glb native space (verified via the local GLTFLoader): a single PBR
+      // ==================== GLTF GARBAGE CAN PIPELINE (nyc_can-compressed.glb) ====================
+      // nyc_can(-compressed).glb native space (verified via the local GLTFLoader): a single PBR
       // mesh built BASE-AT-Y ≈ -0.953, LID-AT-Y ≈ +0.951 (Y-up, height ~1.9035), width
       // along X (≈±0.495), depth along Z (≈±0.745). The game uses X = route, Y = lateral,
       // Z = up, so a +90° rotation about X (rotation.x = Math.PI/2) stands it up
@@ -4836,9 +4860,9 @@
         if (CAN_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("nyc_can.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("nyc_can-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
@@ -4870,7 +4894,7 @@
                   URL.revokeObjectURL(res.url);
                 } catch (e) {}
               }
-              console.error("[GLTF] nyc_can.glb load failed:", err);
+              console.error("[GLTF] nyc_can-compressed.glb load failed:", err);
               reject(err);
             },
           );
@@ -4907,9 +4931,9 @@
         if (CAR_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("car.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("car-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
@@ -5448,7 +5472,7 @@
       }
       // ==================== DSNY COLLECTION TRUCK ====================
       function buildTruck() {
-        // ===== 3D GLB model (nyc_truck.glb, preferred) =====
+        // ===== 3D GLB model (nyc_truck-compressed.glb, preferred) =====
         if (FBX_TPL.truck) {
           const g = fbxInstance(FBX_TPL.truck, TRUCK_SCALE);
           // 3D-AWARE collision box, measured from the truck's ACTUAL rendered geometry
@@ -5486,7 +5510,7 @@
           // CURB-SIDE (TRUCK LEFT, y+) width now MATCHES the street side.
           //  boxWStreet = y-min edge = TRUCK RIGHT (street) -> base width
           //  boxWCurb   = y-max edge = TRUCK LEFT  (curb)   -> SAME width
-          // The new nyc_truck.glb is a SYMMETRIC, narrower body (full width ~3-4.5u
+          // The new nyc_truck(-compressed).glb is a SYMMETRIC, narrower body (full width ~3-4.5u
           // vs the old truck.fbx ~5.85u): its curb side reaches out to nearly the full
           // half-width, so the old 0.35x curb narrowing left a gap between the collision
           // edge and the real body — cars and the worker slipped through it and clipped
@@ -5501,7 +5525,7 @@
           const hopperY = 0.0; // aim the toss + pile at the MIDDLE of the rear scoop (was -0.5, nudged to the street/far side and overshooting past the hopper)
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
           // === hazard lights (the orange paint on the REAR) ===
-          // nyc_truck.glb paints its orange hazard art on the REAR face (the native
+          // nyc_truck(-compressed).glb paints its orange hazard art on the REAR face (the native
           // +X end, face normal ≈ (0.99, -0.14, 0) native = (-0.99, 0, -0.14) game),
           // centered at ~79% of the truck's height — the same relative spot the old
           // DSNY art had its row of three orange circles. The three glowing lenses sit
@@ -5562,7 +5586,7 @@
           };
         }
         // ===== Procedural fallback (identical to the original, so the game always runs) =====
-        // The pre-game "Getting Assets" screen guarantees nyc_truck.glb is loaded + cached
+        // The pre-game "Getting Assets" screen guarantees nyc_truck-compressed.glb is loaded + cached
         // BEFORE the game can start, so buildTruck() is never reached with the truck
         // template missing during normal play. If it ever is (e.g. an offline first launch
         // that failed to download), we REFUSE to build the ugly low-poly box truck: throwing
@@ -5875,7 +5899,7 @@
         return g;
       }
       function makeCan(openLid) {
-        // Real 3D model (nyc_can.glb — the free replacement for the truck.fbx bin). The
+        // Real 3D model (nyc_can-compressed.glb — the free replacement for the truck.fbx bin). The
         // scene is Y-UP; rotation.x = +PI/2 stands it up (native +Y -> game +Z). The
         // native base sits at Y = minY, so the z-nudge rests the can exactly on the
         // sidewalk. Cloned per instance, so every curb can renders the real model.
@@ -19017,7 +19041,7 @@
         ring.userData.halo = true;
         return ring;
       }
-      // ==================== COFFEE SHOP CUP (coffee_shop_cup.glb) ====================
+      // ==================== COFFEE SHOP CUP (coffee_shop_cup-compressed.glb) ====================
       // The coffee healer pickup uses the real 3D coffee cup instead of the procedural
       // cylinder. The GLB is a Sketchfab export: its scene space is Y-UP (the cup stands
       // along +Y, base at Y=0, top at Y=1.1341, diameter ~=0.744) with three flat-color
@@ -19031,9 +19055,9 @@
         if (COFFEE_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("coffee_shop_cup.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("coffee_shop_cup-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
@@ -19084,7 +19108,7 @@
       function makeCoffee() {
         // An upright coffee shop cup. Base z=0.
         if (COFFEE_TPL) {
-          // Real 3D model (coffee_shop_cup.glb). The scene is Y-UP; rotation.x = +PI/2 stands it
+          // Real 3D model (coffee_shop_cup-compressed.glb). The scene is Y-UP; rotation.x = +PI/2 stands it
           // up (native +Y -> game +Z). The native base is already at Y=0, so it rests exactly on the
           // sidewalk with no extra nudge. The shared template geometry is cloned, so every coffee
           // instance renders the real cup.
@@ -19120,29 +19144,29 @@
         g.scale.setScalar(1.4); // bigger so it reads at a distance
         return g;
       }
-      // ==================== BAGEL (sweet_bread_roll_game_ready__2k_pbr.glb) ====================
-      // The "BEC" breakfast healer pickup uses the real 3D bagel instead of the procedural
-      // sandwich. The GLB is a Sketchfab export of a flat bagel/torus: its hole axis runs along
-      // NATIVE Y (the thin dimension, span ~3.12) and the ring spans ~9.75-10.96 in native X/Z.
-      // It carries ONE PBR material with base-color / normal / metalness / roughness MAPS
-      // (metalness 0 - not metallic), so it renders straight from its bread textures with no
-      // PBR override needed. The game is Z-UP, so each instance rotates the model
-      // (rotation.x = +PI/2) to lay it FLAT on the sidewalk with the hole facing UP
-      // (native +Y -> game +Z) and scales it to ~0.35 world units thick (footprint ~1.1).
-      // A green halo ring is placed AROUND the bagel (outer radius 0.85, wider than the bagel's
-      // ~0.615 footprint radius so the ring is visible past its edge). If the GLB hasn't loaded yet
+      // ==================== BEC - BACON EGG & CHEESE (bec-compressed.glb) ====================
+      // The "BEC" breakfast healer pickup uses the real 3D bacon-egg-cheese sandwich
+      // on a roll instead of the procedural sandwich. The GLB scene is Y-UP: the
+      // sandwich's thin dimension (thickness ~0.584) runs along NATIVE Y, and the
+      // footprint spans ~1.0 in native X and ~0.99 in native Z. It carries ONE PBR
+      // material with base-color / normal / metalness-roughness MAPS (metalness 1.0 -
+      // metallic), so it gets the same PBR taming as the Red Bull can (the scene has
+      // no environment map, so a metallic surface would render near-black as-is).
+      // The game is Z-UP, so each instance rotates the model (rotation.x = +PI/2) to
+      // lay it FLAT on the sidewalk (native +Y -> game +Z) and scales it to ~1.1
+      // world units long (footprint ~1.1 x ~1.09, ~0.64 thick). A green halo ring is
+      // placed AROUND the BEC (outer radius 0.85, wider than its ~0.55 footprint
+      // radius so the ring is visible past its edge). If the GLB hasn't loaded yet
       // (or fails), makeBEC falls back to the procedural sandwich below.
-      const BEC_SCALE = 0.35 / 3.1184; // target ~0.35 world units thick (native thickness ~3.1184)
+      const BEC_SCALE = 1.1 / 1.0; // target ~1.1 world units long (native length ~1.0)
       let BEC_TPL = null; // { template: THREE.Object3D } - deep-cloned per BEC instance
       async function loadBecGltf() {
         if (BEC_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl(
-          "sweet_bread_roll_game_ready__2k_pbr.glb",
-        ); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("bec-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
@@ -19155,11 +19179,14 @@
                       ? o.material
                       : [o.material];
                     mats.forEach((m) => {
-                      m.side = THREE.DoubleSide; // see the bagel from every angle
-                      // NOTE: no metalness/roughness override here. Unlike the metal cans, this
-                      // bagel is NOT metallic (metalness 0) and its color comes from its base-color
-                      // MAP, so the bread texture reads correctly under the ambient/directional
-                      // lights as-is. Overriding it (like the cans) would wash out the texture.
+                      m.side = THREE.DoubleSide; // see the sandwich from every angle
+                      // The BEC material is fully metallic (metalness ~1.0). A metallic PBR
+                      // surface gets its color/reflectivity from an environment map, and the
+                      // scene has none, so left as-is it renders near-black. Tame the PBR
+                      // defaults (same as the Red Bull can) so the base-color texture + the
+                      // ambient/directional lights read correctly.
+                      m.metalness = 0.15;
+                      m.roughness = 0.5;
                     });
                   }
                 });
@@ -19171,7 +19198,7 @@
                 }
                 resolve(true);
               } catch (e) {
-                console.error("[GLTF] bagel template build failed:", e);
+                console.error("[GLTF] BEC template build failed:", e);
                 reject(e);
               }
             },
@@ -19182,7 +19209,7 @@
                   URL.revokeObjectURL(res.url);
                 } catch (e) {}
               }
-              console.error("[GLTF] bagel load failed:", err);
+              console.error("[GLTF] BEC load failed:", err);
               reject(err);
             },
           );
@@ -19191,19 +19218,20 @@
       function makeBEC() {
         // A breakfast healer pickup. Base z=0.
         if (BEC_TPL) {
-          // Real 3D bagel (sweet_bread_roll_game_ready__2k_pbr.glb). The scene's hole axis is
-          // NATIVE Y; rotation.x = +PI/2 lays it FLAT on the sidewalk with the hole facing UP
-          // (native +Y -> game +Z). The native base is at Y=0.0162, so nudge z by -0.0162*scale
-          // to rest the flat face exactly on the sidewalk (local z=0). The shared template
-          // geometry is cloned, so every BEC instance renders the real bagel.
+          // Real 3D BEC (bec-compressed.glb). The sandwich's thin dimension (thickness) is
+          // NATIVE Y; rotation.x = +PI/2 lays it FLAT on the sidewalk (native +Y -> game +Z).
+          // The native base is at Y=-0.293, so nudge z by +0.293*scale to rest the flat
+          // face exactly on the sidewalk (local z=0). The shared template geometry is
+          // cloned, so every BEC instance renders the real sandwich.
           const g = new THREE.Group();
           const model = BEC_TPL.template.clone(true);
           model.rotation.x = Math.PI / 2;
           model.scale.setScalar(BEC_SCALE);
-          model.position.z = -0.0162 * BEC_SCALE; // zero the base at local z=0
+          model.position.z = 0.29297 * BEC_SCALE; // zero the base at local z=0
           g.add(model);
-          // Wider halo ring (outer 0.85) so it extends past the bagel's ~0.615 footprint and reads
-          // as a glow on the ground AROUND the bagel (like the coffee cup + Monster can).
+          // Wider halo ring (outer 0.85) so it extends past the BEC's ~0.55 footprint
+          // radius and reads as a glow on the ground AROUND the sandwich (like the coffee
+          // cup + Monster can).
           g.add(makeHalo(0x2bff72, 0.85));
           return g;
         }
@@ -19246,7 +19274,7 @@
         g.scale.setScalar(1.4); // bigger so it reads at a distance
         return g;
       }
-      // ==================== RED BULL ENERGY DRINK (red_bull_energy_drink_can.glb) ====================
+      // ==================== RED BULL ENERGY DRINK (red_bull_energy_drink_can-compressed.glb) ====================
       // The "Run It Up" invincibility pickup uses the real 3D Red Bull can instead of the
       // procedural cylinder. The GLB is a Sketchfab export: its scene space is Y-UP (the
       // can stands along +Y, base at Y=-0.0849, top at Y=0.0871, diameter ~=0.0585) with a
@@ -19261,9 +19289,9 @@
         if (MONSTER_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("red_bull_energy_drink_can.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("red_bull_energy_drink_can-compressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
-          new THREE.GLTFLoader().load(
+          makeGltfLoader().load(
             res.url,
             (gltf) => {
               try {
@@ -19314,7 +19342,7 @@
       function makeMonster() {
         // A tall "Red Bull" energy can standing upright. Base z=0.
         if (MONSTER_TPL) {
-          // Real 3D model (red_bull_energy_drink_can.glb). The scene is Y-UP; rotation.x = +PI/2
+          // Real 3D model (red_bull_energy_drink_can-compressed.glb). The scene is Y-UP; rotation.x = +PI/2
           // stands it up (native +Y -> game +Z). After that the base sits at z~=-0.0849, so nudge
           // it up to rest exactly on the sidewalk. The shared template geometry is cloned,
           // so every Monster instance renders the textured can.
@@ -26441,7 +26469,7 @@
           }
         }
       }
-      // ==================== GLTF CAN SWAP-IN (nyc_can.glb) ====================
+      // ==================== GLTF CAN SWAP-IN (nyc_can-compressed.glb) ====================
       // When the free garbage-can model finishes loading, swap every live curb can
       // (whatever it was rendered with — the GLB bin or the procedural cylinder) onto
       // the GLB model, keeping its exact curb spot. No-op until CAN_TPL is ready.
@@ -26463,10 +26491,10 @@
         }
       }
       // ==================== BOOT ====================
-      // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (nyc_truck.glb +
+      // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (nyc_truck-compressed.glb +
       // the pickup .glbs) AND the two title images have been downloaded into the browser
       // Cache and their templates built. Only then does the start menu appear. This is what
-      // guarantees the game NEVER starts with the ugly procedural box truck: nyc_truck.glb is
+      // guarantees the game NEVER starts with the ugly procedural box truck: nyc_truck-compressed.glb is
       // cached and its template built before the player can begin. On a repeat visit the
       // assets are already cached, so the bar flashes to 100% and the menu shows in a flash.
       //
@@ -26474,27 +26502,77 @@
       // them, so they keep their existing "cache as they play" behaviour (see SFX radio
       // code) and are never required before the game can start.
       const PRELOAD_ASSETS = [
-        { url: "nyc_truck.glb", size: 41539564, label: "DSNY TRUCK" },
+        { url: "nyc_truck-compressed.glb", size: 10280012, label: "DSNY TRUCK" },
         {
-          url: "sweet_bread_roll_game_ready__2k_pbr.glb",
-          size: 3752076,
-          label: "BAGEL",
+          url: "bec-compressed.glb",
+          size: 621776,
+          label: "BEC",
         },
         {
-          url: "red_bull_energy_drink_can.glb",
-          size: 2989592,
+          url: "red_bull_energy_drink_can-compressed.glb",
+          size: 300664,
           label: "RUN IT UP",
         },
-        { url: "nyc_can.glb", size: 6909580, label: "GARBAGE CAN" },
+        { url: "nyc_can-compressed.glb", size: 3181560, label: "GARBAGE CAN" },
         { url: "litterReduced2.glb", size: 335980, label: "LITTER BASKET" },
-        { url: "car.glb", size: 186248, label: "CARS" },
-        { url: "coffee_shop_cup.glb", size: 144300, label: "COFFEE CUP" },
+        { url: "car-compressed.glb", size: 15280, label: "CARS" },
+        {
+          url: "coffee_shop_cup-compressed.glb",
+          size: 21176,
+          label: "COFFEE CUP",
+        },
         { url: "dsnylogo3.jpg", size: 2619573, label: "TITLE ART" },
         { url: "explicit_logo.webp", size: 20448, label: "TITLE ART" },
         { url: "mmongo.jpg", size: 87497, label: "M RATING" },
       ];
       const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
       let _preloading = false;
+      // ---- Live download speed + ETA on the "Getting Assets" screen ----
+      // Samples the byte stream from getModelUrl's onProgress callback: rate between
+      // callbacks, smoothed with an EMA so the number doesn't jitter. ETA = remaining
+      // bytes of the CURRENT asset / current rate (assets download one at a time).
+      let _ldSpeed = null; // bytes/sec (EMA)
+      let _ldLast = null; // { t, b } of the previous sample
+      function ldNow() {
+        return typeof performance !== "undefined" && performance.now
+          ? performance.now()
+          : Date.now();
+      }
+      function ldResetSpeed() {
+        _ldSpeed = null;
+        _ldLast = null;
+      }
+      function ldSampleSpeed(r) {
+        const now = ldNow();
+        if (_ldLast && r > _ldLast.b) {
+          const dt = (now - _ldLast.t) / 1000;
+          if (dt > 0.03) {
+            const inst = (r - _ldLast.b) / dt;
+            _ldSpeed = _ldSpeed == null ? inst : _ldSpeed * 0.6 + inst * 0.4;
+          }
+        }
+        _ldLast = { t: now, b: r };
+      }
+      function ldStatsText(a, r, idx, total) {
+        if (!_ldSpeed || _ldSpeed < 8192) return ""; // below 8 KB/s: not a meaningful rate
+        const parts = [];
+        if (idx && total) parts.push(idx + "/" + total);
+        parts.push((_ldSpeed / 1048576).toFixed(1) + " MB/s");
+        const left = a.size - r;
+        if (left > 0) {
+          const sec = Math.ceil(left / _ldSpeed);
+          parts.push(
+            sec < 90
+              ? "~" + sec + "s left"
+              : "~" + Math.floor(sec / 60) + "m " + (sec % 60) + "s left",
+          );
+        }
+        return parts.join("  •  ");
+      }
+      function ldSetStats(t) {
+        const el = $("ld-stats");
+        if (el) el.textContent = t || "";
+      }
       function ldSetLabel(t) {
         const el = $("ld-label");
         if (el) el.textContent = t;
@@ -26662,8 +26740,11 @@
           // network. We still surface a progress bar (best-effort) so the player is never
           // left staring at a blank screen.
           let got = 0;
-          for (const a of PRELOAD_ASSETS) {
+          for (let ai = 0; ai < PRELOAD_ASSETS.length; ai++) {
+            const a = PRELOAD_ASSETS[ai];
             ldSetLabel("GETTING " + a.label + "...");
+            ldResetSpeed();
+            ldSetStats("");
             try {
               await getModelUrl(a.url, (r, t) => {
                 const p = Math.round(
@@ -26671,19 +26752,26 @@
                 );
                 ldSetFill(p);
                 ldSetPct(p);
+                const rr = Math.min(r, a.size);
+                ldSampleSpeed(rr); // live MB/s + ETA readout
+                ldSetStats(ldStatsText(a, rr, ai + 1, PRELOAD_ASSETS.length));
               });
             } catch (e) {}
             got += a.size;
             ldSetFill(Math.round((got / PRELOAD_TOTAL) * 100));
             ldSetPct(Math.round((got / PRELOAD_TOTAL) * 100));
+            ldSetStats("");
           }
           return;
         }
         const cache = await _modelGetCache();
         let got = 0;
-        for (const a of PRELOAD_ASSETS) {
+        for (let ai = 0; ai < PRELOAD_ASSETS.length; ai++) {
+          const a = PRELOAD_ASSETS[ai];
           ldSetLabel("GETTING " + a.label + "...");
           ldRow(a.url, "active", "DOWNLOADING..."); // live per-asset checklist
+          ldResetSpeed();
+          ldSetStats("");
           const prog = (r, t) => {
             const p = Math.min(
               100,
@@ -26691,6 +26779,18 @@
             );
             ldSetFill(p);
             ldSetPct(p);
+            // Live MB/s + ETA while the bytes are streaming (see ldSampleSpeed).
+            const rr = Math.min(r, a.size);
+            ldSampleSpeed(rr);
+            const st = ldStatsText(a, rr, ai + 1, PRELOAD_ASSETS.length);
+            ldRow(
+              a.url,
+              "active",
+              st
+                ? Math.round((rr / a.size) * 100) + "%  •  " + st
+                : Math.round((rr / a.size) * 100) + "%",
+            );
+            ldSetStats(st);
           };
           let res = { error: null };
           try {
@@ -26726,6 +26826,7 @@
           }
           ldSetFill(Math.round((got / PRELOAD_TOTAL) * 100));
           ldSetPct(Math.round((got / PRELOAD_TOTAL) * 100));
+          ldSetStats("");
         }
       }
       // Phase 2: build the 3D templates from the (now cached) assets and swap the live
@@ -26733,8 +26834,9 @@
       // pickup loaders just populate their _TPL; the truck needs an explicit rebuild.
       async function buildModelTemplates() {
         ldSetLabel("BUILDING 3D MODELS...");
+        ldSetStats("");
         const jobs = [loadTruckGltf()];
-        // The curb can has a procedural fallback (see makeCan), so a failed nyc_can.glb
+        // The curb can has a procedural fallback (see makeCan), so a failed nyc_can-compressed.glb
         // load degrades the can's look instead of blocking the whole game.
         const canJob = loadCanGltf().catch((e) => {
           console.warn("[GLTF] garbage can model unavailable, using fallback:", e);
@@ -26751,7 +26853,7 @@
         const results = await Promise.all([jobs[0], Promise.all(gltfJobs)]);
         if (!results[0]) throw new Error("truck template failed to build");
         rebuildTruckFromFbx(); // swap the live truck to the real GLB model now
-        rebuildCansFromGltf(); // swap any live curb cans onto the free nyc_can.glb model
+        rebuildCansFromGltf(); // swap any live curb cans onto the free nyc_can-compressed.glb model
       }
       // ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
       // The models gate above only covers the 3D assets. To make the game genuinely
@@ -26919,7 +27021,7 @@
       worker = buildWorker();
       worldGroup.add(worker.group);
       wparts = worker;
-      // The truck is NOT built here: the "Getting Assets" screen loads + caches nyc_truck.glb
+      // The truck is NOT built here: the "Getting Assets" screen loads + caches nyc_truck-compressed.glb
       // first and builds its template, so buildTruck() always takes the real GLB path
       // (see buildModelTemplates -> rebuildTruckFromFbx). The procedural box truck is
       // never built, so it can never be what the player sees.
