@@ -48,14 +48,15 @@ check('far + bag -> closer line, no dump', ()=>{ reset(); truck.wx=10; p.wx=0; p
 check('far + full can -> closer line, no dump', ()=>{ reset(); truck.wx=10; p.wx=0; p.wy=-11.5; api.setCarry('canFull', {state:'curb',h:{},g:{parent:null}}); api.tryInteract(); assert.deepStrictEqual(calls.voices, ['I need to get closer to the truck!']); assert.strictEqual(calls.deposit, 0); });
 check('close + bag -> arc launched, worker freed', ()=>{ reset(); truck.wx=10; p.wx=5; p.wy=-4.5; const b=makeBag(); api.setCarry('bag', b); api.tryInteract(); assert.strictEqual(flyingBags.length, 1); assert.strictEqual(api.getCarry(), 'none'); assert.strictEqual(b.g.parent, dynamicGroup); assert.strictEqual(calls.voices.length, 0); });
 function peakZAt(sx, sy){ reset(); truck.wx=10; p.wx=sx; p.wy=sy; const b=makeBag(); api.tossBag(b); api.updateFlyingBags(0.3); return b.g.position.__z; }
-check('behind-throw: low gentle lob (peak well below the roof)', ()=>{ const z=peakZAt(5,-4.5); assert.ok(z > 1.0 && z < 4.5, 'peak z=' + z + ' should be a low lob (< 4.5, below the 5.05 roof)'); });
-check('side-throw peaks clearly higher than behind-throw (adaptive arc)', ()=>{ const behind=peakZAt(5,-4.5), side=peakZAt(6,-8.5); assert.ok(side > behind + 1.0, 'side ' + side + ' should exceed behind ' + behind + ' by >1.0'); });
+check('behind-throw: clean toss that clears the rear body', ()=>{ const z=peakZAt(5,-4.5); assert.ok(z > 4.0 && z < 6.0, 'peak z=' + z + ' should clear the body (~4.0) as a tidy toss'); });
+check('side-throw peaks higher than behind-throw (adaptive arc)', ()=>{ const behind=peakZAt(5,-4.5), side=peakZAt(6,-8.5); assert.ok(side > behind + 0.5, 'side ' + side + ' should exceed behind ' + behind + ' by >0.5'); });
 check('side-throw still clears the truck roof (z~5.05)', ()=>{ const z=peakZAt(6,-8.5); assert.ok(z > 5.05, 'peak z=' + z + ' should clear roof 5.05'); });
 check('landing -> deposit+score+house, bag removed', ()=>{ reset(); truck.wx=10; p.wx=5; p.wy=-4.5; const b=makeBag(); api.tossBag(b); stepBags(20); assert.strictEqual(flyingBags.length, 0); assert.strictEqual(calls.deposit, 1); assert.ok(calls.score >= 1); assert.strictEqual(calls.house, 1); assert.strictEqual(calls.dispose, 1); assert.strictEqual(b.g.parent, null); });
-check('bag aims at the MIDDLE of the rear scoop (hopperAimOff = tMinX + 0.75), not the parking/dump-zone anchor (hopperOff)', ()=>{
-  assert.ok(html.indexOf('const hopperAimOff = tMinX + 0.75;') >= 0, 'hopperAimOff measured bucket-centre constant missing');
+check('bag aims at the MIDDLE of the rear scoop (hopperAimOff), pile rests a bit further back (hopperPileOff), neither at the parking/dump anchor (hopperOff)', ()=>{
+  assert.ok(html.indexOf('const hopperAimOff = tMinX + 0.85;') >= 0, 'hopperAimOff (bag landing) missing');
+  assert.ok(html.indexOf('const hopperPileOff = tMinX + 0.65;') >= 0, 'hopperPileOff (pile anchor) missing');
   assert.ok(html.indexOf('const tx = hopperAimX(),') >= 0, 'updateFlyingBags must land at hopperAimX()');
-  assert.ok(html.indexOf('hopperTrash.position.set(hopperAimX()') >= 0, 'the pile must ride the landing aim');
+  assert.ok(html.indexOf('hopperTrash.position.set(hopperPileX()') >= 0, 'the pile must ride hopperPileX()');
   // parking + dump zones must KEEP the old anchor (they are separate systems)
   assert.ok(/const rearX\s*=\s*truck\.wx \+ hopperOff/.test(html), 'truck parking must keep hopperOff');
   assert.ok(html.indexOf('const hx =\n            truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3),'.replace(/\r/g, '')) >= 0 || html.indexOf('truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3)') >= 0, 'nearHopper zones must keep hopperOff');

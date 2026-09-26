@@ -227,13 +227,135 @@ g2.traverse((o) => {
     floor[k].n++;
   }
 });
-for (let d = -0.25; d <= 3.75; d += 0.25) {
-  const f = floor[Math.round(d * 4) / 4];
-  if (!f) { console.log('  x=' + (tMinX + d).toFixed(2) + ' (+' + d.toFixed(2) + '): (none)'); continue; }
-  console.log('  x=' + (tMinX + d).toFixed(2) + ' (+' + d.toFixed(2) + '): n=' + f.n,
-    'y=[' + f.miny.toFixed(2) + '..' + f.maxy.toFixed(2) + ']',
-    'z=[' + f.minz.toFixed(2) + '..' + f.maxz.toFixed(2) + ']');
+// ---- RENDER: top view (x, y, colored by z) + side view (x, z) as SVG, so we can
+//      literally see the bucket, where the bag lands, and where the pile sits ----
+function scatterSVG(file, pts, w, h, x0, x1, y0, y1, colorFn, marks, title) {
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" style="background:#101418">' +
+    '<text x="10" y="20" fill="#fff" font-size="14" font-family="monospace">' + title + '</text>';
+  // grid every 1u
+  for (let gx = Math.ceil(x0); gx <= x1; gx++)
+    s += '<line x1="' + ((gx - x0) / (x1 - x0) * w) + '" y1="0" x2="' + ((gx - x0) / (x1 - x0) * w) + '" y2="' + h + '" stroke="#1d242c" stroke-width="1"/>';
+  for (let gy = Math.ceil(y0); gy <= y1; gy++)
+    s += '<line x1="0" y1="' + ((1 - (gy - y0) / (y1 - y0)) * h) + '" x2="' + w + '" y2="' + ((1 - (gy - y0) / (y1 - y0)) * h) + '" stroke="#1d242c" stroke-width="1"/>';
+  for (const p of pts) {
+    const px = ((p[0] - x0) / (x1 - x0) * w).toFixed(1);
+    const py = ((1 - (p[1] - y0) / (y1 - y0)) * h).toFixed(1);
+    s += '<rect x="' + px + '" y="' + py + '" width="2.4" height="2.4" fill="' + colorFn(p) + '"/>';
+  }
+  for (const m of marks)
+    s += '<line x1="' + ((m.x - x0) / (x1 - x0) * w) + '" y1="0" x2="' + ((m.x - x0) / (x1 - x0) * w) + '" y2="' + h + '" stroke="' + m.c + '" stroke-width="2"/>' +
+      '<text x="' + ((m.x - x0) / (x1 - x0) * w + 3).toFixed(1) + '" y="' + (m.y || 40) + '" fill="' + m.c + '" font-size="11" font-family="monospace">' + m.t + '</text>';
+  s += '</svg>';
+  fs.writeFileSync(file, s);
+  console.log('wrote', file, '(' + pts.length + ' pts)');
 }
+const step = 3; // thin the vertices
+const topPts = [], sidePts = [];
+g2.traverse((o) => {
+  if (!o.isMesh || !o.geometry.attributes.position) return;
+  const pos = o.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i += step) {
+    _v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+    topPts.push([_v.x, _v.y, _v.z]);
+    sidePts.push([_v.x, _v.z]);
+  }
+});
+const zColor = (p) => {
+  const t = Math.min(1, p[2] / 5.2);
+  return 'hsl(' + Math.round(200 - t * 200) + ',80%,' + Math.round(25 + t * 45) + '%)';
+};
+scatterSVG('_truck_top.svg', topPts, 900, 360, tMinX - 0.5, tMaxX + 0.5, -3, 3, zColor, [
+  { x: tMinX, c: '#4488ff', t: 'rear lip ' + tMinX.toFixed(2) },
+  { x: -5.401, c: '#ffcc00', t: 'hazard row (body rear face)' },
+  { x: -5.447, c: '#ff3355', t: 'CURRENT aim/ pile -5.45' },
+  { x: -4.597, c: '#8899aa', t: 'OLD aim -4.60' },
+], 'TOP VIEW (x horizontal, y vertical; color = height z)  — camera looks down from street side (-y)');
+scatterSVG('_truck_side.svg', sidePts, 900, 360, tMinX - 0.5, tMaxX + 0.5, -0.2, 5.6,
+  (p) => {
+    const t = Math.min(1, Math.max(0, p[1]) / 5.2);
+    return 'hsl(' + Math.round(200 - t * 200) + ',80%,' + Math.round(25 + t * 45) + '%)';
+  }, [
+    { x: tMinX, c: '#4488ff', t: 'rear lip' },
+    { x: -5.401, c: '#ffcc00', t: 'body face' },
+    { x: -5.447, c: '#ff3355', t: 'aim -5.45' },
+  ], 'SIDE VIEW (x horizontal, z vertical) — height profile of the rear: rim vs body roof');
+
+// ---- ASCII views (so the shapes are readable in the terminal) ----
+function asciiView(pts, x0, x1, y0, y1, cols, rows, title, valFn) {
+  const grid = [];
+  for (let r = 0; r < rows; r++) grid.push(new Array(cols).fill(-1));
+  for (const p of pts) {
+    const v = valFn(p);
+    if (v < 0) continue;
+    const c = Math.min(cols - 1, Math.max(0, Math.floor(((p[0] - x0) / (x1 - x0)) * cols)));
+    const r = Math.min(rows - 1, Math.max(0, Math.floor((1 - (p[1] - y0) / (y1 - y0)) * rows)));
+    grid[r][c] = Math.max(grid[r][c], v);
+  }
+  const CH = ' .:-=+*#%@';
+  console.log('\n' + title);
+  for (let r = 0; r < rows; r++) {
+    let line = '  ';
+    for (let c = 0; c < cols; c++) {
+      const v = grid[r][c];
+      line += v < 0 ? ' ' : CH[Math.min(9, Math.floor((v / valFn.max) * 9.99))];
+    }
+    console.log(line);
+  }
+  console.log('   ' + 'x'.repeat(0) + x0.toFixed(1).padStart(Math.floor(cols / 2)) + '... ' + x1.toFixed(1));
+}
+{
+  const v = (p) => p[2]; v.max = 5.2;
+  asciiView(topPts, tMinX - 0.3, -2.5, -2.5, 2.5, 60, 18, 'TOP VIEW, REAR ZONE (char = height z; rows: +y curb top -> -y street bottom)', v);
+}
+{
+  const v = (p) => (p[1] > 0 ? p[1] : 0); v.max = 5.2;
+  asciiView(sidePts, tMinX - 0.3, -2.5, 0, 5.6, 60, 18, 'SIDE PROFILE, REAR ZONE (char = z height; solid body = dense tall column)', v);
+}
+
+// ---- PRECISE per-slice table for the rear zone: minZ / maxZ / y-span ----
+console.log('\n=== PRECISE REAR-ZONE SLICES (0.25u) ===');
+console.log('  x-center   minZ    maxZ    y-min  y-max   yCen   n');
+const slices = {};
+g2.traverse((o) => {
+  if (!o.isMesh || !o.geometry.attributes.position) return;
+  const pos = o.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    _v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+    const d = _v.x - tMinX;
+    if (d < -0.3 || d > 3.2) continue;
+    const k = Math.round(d * 4) / 4;
+    const s = (slices[k] = slices[k] || { minz: 9, maxz: -9, miny: 9, maxy: -9, n: 0 });
+    if (_v.z < s.minz) s.minz = _v.z;
+    if (_v.z > s.maxz) s.maxz = _v.z;
+    if (_v.y < s.miny) s.miny = _v.y;
+    if (_v.y > s.maxy) s.maxy = _v.y;
+    s.n++;
+  }
+});
+for (let d = -0.25; d <= 3.0; d += 0.25) {
+  const s = slices[Math.round(d * 4) / 4];
+  if (!s) { console.log('  ' + (tMinX + d).toFixed(2) + '   (none)'); continue; }
+  console.log('  ' + (tMinX + d).toFixed(2).padStart(9) +
+    '  ' + s.minz.toFixed(2).padStart(5) +
+    '  ' + s.maxz.toFixed(2).padStart(5) +
+    '  ' + s.miny.toFixed(2).padStart(6) +
+    '  ' + s.maxy.toFixed(2).padStart(6) +
+    '  ' + (((s.miny + s.maxy) / 2).toFixed(2)).padStart(6) +
+    '  ' + String(s.n).padStart(5));
+}
+// the BUCKET = region where maxZ < roof (5.0) AND there is interior floor:
+// find where maxZ first reaches the roof height going forward from the rear
+{
+  let bucketFront = null;
+  for (let d = 0.25; d <= 3.0; d += 0.25) {
+    const s = slices[Math.round(d * 4) / 4];
+    if (s && s.maxz >= 4.8) { bucketFront = d; break; }
+  }
+  console.log('\n  => maxZ first reaches ~roof (>=4.8) at +' + (bucketFront == null ? '>3.0 (none)' : bucketFront.toFixed(2)) + 'u from the rear lip');
+  console.log('     bucket depth estimate: ~' + (bucketFront == null ? 3.0 : bucketFront).toFixed(2) + 'u, centre ~+' + ((bucketFront == null ? 3.0 : bucketFront) / 2).toFixed(2) + 'u');
+}
+
+
 
 
 

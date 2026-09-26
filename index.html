@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.288</div>
+          <div id="app-version" class="menu-version">v1.0.289</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.288';
+      const APP_VERSION = '1.0.289';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5522,13 +5522,14 @@
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
           // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
-          // LANDING AIM = the MIDDLE of the rear scoop. Measured from the model: the
-          // bucket mouth spans ~1.5u forward from the rear lip (tMinX), so its centre
-          // sits 0.75u in. The old -boxL + 1.6 landed 0.85u past the bucket's front
-          // edge (on the compactor) — the bag visibly dropped to the front/right of
-          // the truck. This is the TOSS + PILE + BURST position only; the truck
-          // parking/dump zones keep hopperOff above.
-          const hopperAimOff = tMinX + 0.75;
+          // LANDING AIM = the MIDDLE of the visible rear scoop. Measured from the model:
+          // the bucket mouth spans ~1.5u forward from the rear lip (tMinX), so its centre
+          // sits ~0.75-0.85u in. The old -boxL + 1.6 landed past the bucket's front edge
+          // (on the compactor) and read as "too far right". hopperAimOff is the FLYING-BAG
+          // landing aim only; the formed pile uses hopperPileOff (a bit further back); the
+          // truck parking/dump zones keep hopperOff above.
+          const hopperAimOff = tMinX + 0.85; // FLYING-BAG landing: the MIDDLE of the visible rear scoop (v1.0.288's 0.75u still read as too far forward/right of the opening)
+          const hopperPileOff = tMinX + 0.65; // PILE anchor: a bit further back so the bags that form rest fully INSIDE the open scoop
           const hopperY = 0.0; // aim the toss + pile at the MIDDLE of the rear scoop (was -0.5, nudged to the street/far side and overshooting past the hopper)
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
           // === hazard lights (the orange paint on the REAR) ===
@@ -5584,7 +5585,8 @@
             boxWStreet: boxWStreet,
             boxWCurb: boxWCurb,
             hopperOff: hopperOff,
-            hopperAimOff: hopperAimOff, // MIDDLE of the rear scoop — the bag/pile/burst landing aim
+            hopperAimOff: hopperAimOff, // FLYING-BAG landing aim — the middle of the rear scoop
+            hopperPileOff: hopperPileOff, // PILE anchor — a bit further back, resting inside the scoop
             hopperY: hopperY,
             hopperZ: hopperZ,
             hazLights: hazLights,
@@ -5703,14 +5705,25 @@
       function hopperWorldX() {
         return truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3);
       }
-      // Where the BAG + PILE + BURST land: the MIDDLE of the rear scoop (the measured
-      // bucket centre, truck.hopperAimOff), NOT the parking/dump-zone anchor
-      // (hopperOff) — those are separate systems and the aim is 0.85u behind it.
+      // Where the FLYING BAG + BURST land: the MIDDLE of the visible rear scoop
+      // (measured bucket centre, truck.hopperAimOff). The formed PILE rests a bit
+      // further back (hopperPileX). Neither uses the parking/dump-zone anchor
+      // (hopperOff) — those are separate systems.
       function hopperAimX() {
         return (
           truck.wx +
           (truck.hopperAimOff != null ? truck.hopperAimOff : truck.hopperOff != null
             ? truck.hopperOff
+            : -4.3)
+        );
+      }
+      // The PILE (bags that form in the hopper) rests a bit FURTHER BACK than the bag
+      // landing — fully inside the open scoop so it reads as planted in the hopper.
+      function hopperPileX() {
+        return (
+          truck.wx +
+          (truck.hopperPileOff != null ? truck.hopperPileOff : truck.hopperAimOff != null
+            ? truck.hopperAimOff
             : -4.3)
         );
       }
@@ -5748,7 +5761,7 @@
         // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
         // spreading out and stacking a little higher with each deposit.
         // Bias the pile toward the CURB (left, +y) and the REAR (-x) so the player can see it.
-        const localX = R(-0.9, 0.1); // more toward the rear of the scoop
+        const localX = R(-0.4, 0.5); // rest fully INSIDE the open scoop (no lump hangs off the rear lip or spills onto the compactor)
         const localY = R(-0.2, 0.6); // more toward the curb (left) side of the scoop
         const localZ =
           hopperTopZ() + Math.min(idx, HOPPER_CYCLE_AT) * 0.22 + R(-0.05, 0.05);
@@ -5804,7 +5817,7 @@
       }
       function updateHopperTrash(dt) {
         if (!hopperTrash || hopperLumps.length === 0) return;
-        hopperTrash.position.set(hopperAimX(), hopperWorldY(), GZ); // keep the pile planted in the rear hopper
+        hopperTrash.position.set(hopperPileX(), hopperWorldY(), GZ); // the pile rests a bit further back, fully inside the open scoop
         if (hopperCycling) {
           hopperCycleT -= dt;
           const k = Math.max(0, hopperCycleT / HOPPER_CYCLE_DUR); // 1 -> 0
@@ -18073,16 +18086,17 @@
               ty = hopperWorldY();
             const curX = fb.sx + (tx - fb.sx) * t;
             const curY = fb.sy + (ty - fb.sy) * t;
-            // Arc height depends on WHERE the worker threw from:
-            //  - Dead BEHIND the rear (small lateral offset): a low, gentle lob straight
-            //    into the open rear scoop — the worker is right there, no need to heave it.
-            //  - OFF TO THE SIDE (large lateral offset): a high arc that clears the solid
-            //    compactor body (roof ~5.05) so the bag never clips through it.
-            // peak blends from z~3.0 (behind) up to z~7.0 (side) as the lateral offset grows.
+            // The arc is a clean, high basketball-style lob: the bag flies UP and OVER the
+            // rear of the truck, then drops into the MIDDLE of the open scoop. The peak is
+            // scaled by the THROW DISTANCE (not just the side-offset) so a short dump is a
+            // tidy toss and a long carry is a big heave — and it always stays comfortably
+            // above the truck's rear body (top ~4.0) so the bag clearly arcs over instead of
+            // flopping into the body. (The old "roof ~5.05" note was the CAB roof, well
+            // forward — the rear body it must clear is only ~4.0 high.)
             const baseZ = GZ + hopperTopZ(); // release + landing at the scoop floor
-            const lateral = Math.abs(fb.sy - ty); // 0 = dead behind, up to ~4.5 = off to the side
-            const k = Math.min(lateral, 4.5) / 4.5;
-            const peak = GZ + 3.0 + k * 4.0;
+            const throwDist = Math.hypot(tx - fb.sx, ty - fb.sy); // how far the worker stands from the scoop
+            const k = Math.min(throwDist, 5.0) / 5.0;
+            const peak = GZ + 4.2 + k * 2.8; // ~4.5 for a close dump, up to ~7.0 for a long carry
             const amp = peak - baseZ;
             const arcH = Math.sin(t * Math.PI) * amp;
             fb.g.position.set(curX, curY, baseZ + arcH);
