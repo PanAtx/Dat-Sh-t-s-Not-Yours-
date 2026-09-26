@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.282</div>
+          <div id="app-version" class="menu-version">v1.0.283</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2270,7 +2270,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.282';
+      const APP_VERSION = '1.0.283';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5683,8 +5683,10 @@
           worldGroup.add(hopperTrash);
         }
         const idx = hopperLoad; // 1..HOPPER_CYCLE_AT
+        // Dark-grey tones — clearly lighter than the black hopper body so the piled
+        // bags read as visible lumps inside the open scoop instead of vanishing into it.
         const palette = [
-          0x23272e, 0x1b1f24, 0x2c3138, 0x30363d, 0x3a4048, 0x454b52,
+          0x4b525c, 0x575f6a, 0x636b76, 0x6f7782, 0x7b838e, 0x878f9a,
         ];
         const mat = M(palette[(Math.random() * palette.length) | 0], {
           transparent: true,
@@ -18102,6 +18104,20 @@
         // updateFlyingBags); it is absorbed into the pile on arrival.
         if (bag.g.parent) bag.g.parent.remove(bag.g);
         dynamicGroup.add(bag.g);
+        // Keep the airborne bag drawn IN FRONT of the truck's top — it lands at a
+        // point that sits BEHIND the truck body from the camera, so the normal depth
+        // test hides it and it looks like it's clipping through the truck. Disable the
+        // depth test + a high render order so the bag always renders on top while it
+        // lofts over into the rear scoop (the bag is disposed on landing, so no need
+        // to restore these).
+        if (bag.g && bag.g.traverse) {
+          bag.g.traverse(function (o) {
+            if (o && o.isMesh) {
+              o.renderOrder = 999;
+              if (o.material) o.material.depthTest = false;
+            }
+          });
+        }
         flyingBags.push({
           g: bag.g,
           sx: p.wx,
