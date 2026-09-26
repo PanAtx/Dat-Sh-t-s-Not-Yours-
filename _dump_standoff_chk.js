@@ -42,9 +42,9 @@ function check(n, f){ try { f(); pass++; console.log('  ok  ' + n); } catch (e){
 
 // ---- REAL truck geometry (FBX path, the truck the player actually sees) ----------
 // boxL is the HALF length; the rear (hopper) face is at wx - boxL. The scoop /
-// deposit point sits 1.6u INSIDE the face (hopperOff = -boxL + 1.6, hopperY -0.5).
-const BOX_L = 6.76, FACE_X = 0 - BOX_L, HOP_X = 0 + (-BOX_L + 1.6), HOP_Y = -4.5 - 0.5;
-const truck = { wx: 0, boxL: BOX_L, boxW: 1.8, boxWStreet: 1.8, boxWCurb: 0.63, hopperOff: -BOX_L + 1.6, hopperY: -0.5, hidden: 0 };
+// deposit point sits 1.6u INSIDE the face (hopperOff = -boxL + 1.6, hopperY 0 = MIDDLE of the scoop).
+const BOX_L = 6.76, FACE_X = 0 - BOX_L, HOP_X = 0 + (-BOX_L + 1.6), HOP_Y = -4.5 + 0;
+const truck = { wx: 0, boxL: BOX_L, boxW: 1.8, boxWStreet: 1.8, boxWCurb: 0.63, hopperOff: -BOX_L + 1.6, hopperY: 0.0, hidden: 0 };
 const p = { wx: -7.56, wy: -4.5, stunT: 0 };
 
 // ---- 1) structural: index.html carries the asymmetric push-out + zones -------

@@ -2148,7 +2148,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.283</div>
+          <div id="app-version" class="menu-version">v1.0.285</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2270,7 +2270,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.283';
+      const APP_VERSION = '1.0.285';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -5498,7 +5498,7 @@
           // Deposit zone = the OPEN REAR SCOOP (the bucket at the back), NOT the roof.
           // Place the trash just inside the rear face, centered across the truck, at the scoop's floor height.
           const hopperOff = -boxL + 1.6; // a bit further in from the rear opening (avoids clipping the back)
-          const hopperY = -0.5; // nudged to the right side of the scoop
+          const hopperY = 0.0; // aim the toss + pile at the MIDDLE of the rear scoop (was -0.5, nudged to the street/far side and overshooting past the hopper)
           const hopperZ = 1.0; // the open bucket's interior floor (well below the compactor)
           // === hazard lights (the orange paint on the REAR) ===
           // nyc_truck.glb paints its orange hazard art on the REAR face (the native
@@ -5704,8 +5704,9 @@
         g.add(knot);
         // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
         // spreading out and stacking a little higher with each deposit.
-        const localX = R(-0.3, 0.5);
-        const localY = R(-0.5, 0.5);
+        // Bias the pile toward the CURB (left, +y) and the REAR (-x) so the player can see it.
+        const localX = R(-0.9, 0.1); // more toward the rear of the scoop
+        const localY = R(-0.2, 0.6); // more toward the curb (left) side of the scoop
         const localZ =
           hopperTopZ() + Math.min(idx, HOPPER_CYCLE_AT) * 0.22 + R(-0.05, 0.05);
         g.position.set(localX, localY, localZ);
