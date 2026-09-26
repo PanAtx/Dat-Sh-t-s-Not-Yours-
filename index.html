@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.296</div>
+          <div id="app-version" class="menu-version">v1.0.297</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.296';
+      const APP_VERSION = '1.0.297';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -20513,12 +20513,17 @@
             return; // the ghost passes THROUGH: no bounce-back, no shove
           }
           // The Staten Island MAFIA GUY (New Dorp, day 5): a HEAVY blow — far heavier
-          // than a civilian bump (HP_HIT_MAFIA, a real whack). EVERY bump is a hit —
-          // the per-guy cooldown is only one full bat swing long, so no bump ever
-          // passes by un-hit; respects i-frames / Monster immunity (hurtNPC
-          // re-checks too). He is SOLID: the overlap is resolved every frame, so
-          // the worker can butt up against the enforcer but can NEVER walk through
-          // him. The write-up reads "Failure to enter witness protection".
+          // than a civilian bump (HP_HIT_MAFIA, a real whack). The bump only ARMS
+          // the over-hand swing — the blow LANDS on the smash (updateCreatures
+          // delivers it on the first frame past the smash, swingT >= 0.48, when
+          // the bat is driving down in front of him), so the worker SEES the
+          // windup BEFORE he gets hit; a full sprint through the windup escapes
+          // the bat (a whiff). The per-guy cooldown is only one full swing long,
+          // so no bump ever passes by un-armed; respects i-frames / Monster
+          // immunity (re-checked at the smash; hurtNPC re-checks too). He is
+          // SOLID: the overlap is resolved every frame, so the worker can butt up
+          // against the enforcer but can NEVER walk through him. The write-up
+          // reads "Failure to enter witness protection".
           if (c.type === "mafia") {
             if (c.attackCd === undefined) c.attackCd = 0;
             const md = Math.sqrt(d2) || 0.001;
@@ -20534,38 +20539,19 @@
             }
             if (c.attackCd <= 0 && p.invuln <= 0 && p.immuneT <= 0) {
               c.attackCd = MAFIA_BUMP_CD;
-              // BAT SWING: turn to face the worker (dx/dy point mafia-minus-worker,
-              // so the worker sits at (-dx, -dy)) and arm the swing — the per-frame
-              // driver in updateCreatures plays windup -> smash -> recover on
-              // c.parts.armR, which carries the bat.
+              // SWING FIRST, HIT ON THE SMASH: the bump only ARMS the over-hand
+              // swing — the worker no longer gets whacked the instant he touches
+              // the enforcer. The per-frame driver in updateCreatures plays the
+              // windup, and the BLOW (sound / damage / stun / yelps / shove) is
+              // delivered on the first frame past the smash (swingT >= 0.48),
+              // exactly when the bat is driving down in front of him — so the
+              // worker sees the over-the-top windup BEFORE he gets hit. Turn to
+              // face the worker (dx/dy point mafia-minus-worker, so the worker
+              // sits at (-dx, -dy)) and arm the swing.
               if (c.g) c.g.rotation.z = Math.atan2(-dy, -dx);
               c.swinging = true;
               c.swingT = 0;
-              SFX.playHurtSound();
-              hurtNPC(HP_HIT_MAFIA, "mafia");
-              doStun(0.5, "hit");
-              Voice.say(
-                pick(MAFIA_LINES),
-                1.0,
-                0.6,
-                c.wx,
-                c.wy,
-                "male",
-                "mafia",
-              );
-              Voice.say(
-                pick(MAFIA_WORKER_LINES),
-                2.2,
-                0.95,
-                p.wx,
-                p.wy,
-                WORKER_GENDER,
-                "worker",
-              );
-              // The blow shoves the worker back a touch PAST the solid push-out,
-              // so a hit reads as a whack, not just a wall
-              p.wx += mnx * 0.5;
-              p.wy = clamp(p.wy + mny * 0.35, -9.4, workerMaxY());
+              c.swingHitDone = false; // the smash frame delivers (or whiffs) the blow
             }
             return; // the mafia guy is solid: overlap resolved above, no generic bounce
           }
@@ -22753,6 +22739,49 @@
                 c.parts.armR.rotation.y = ang;
                 c.parts.upper.rotation.y =
                   -Math.sin(ang) * 0.3; // lean back in the windup, forward into the smash
+                // THE BLOW LANDS ON THE SMASH (not on the bump): the first frame
+                // past the smash (t >= 0.48) is the frame the bat is driving DOWN
+                // in front of him (ang 5.0) — the worker sees the over-hand windup
+                // BEFORE he gets whacked. Range is re-checked against the worker's
+                // CURRENT position (the solid push-out holds him close through the
+                // windup, but a full sprint escapes the bat and the swing whiffs);
+                // i-frames / immunity / play state are re-checked too, and
+                // hurtNPC re-checks them as well.
+                if (!c.swingHitDone && t >= 0.48) {
+                  c.swingHitDone = true;
+                  const iDx = c.wx - p.wx,
+                    iDy = c.wy - p.wy;
+                  const iD = Math.sqrt(iDx * iDx + iDy * iDy) || 0.001;
+                  if (iD <= 2.2 && p.invuln <= 0 && p.immuneT <= 0 && state === "play") {
+                    const inx = -iDx / iD,
+                      iny = -iDy / iD; // mafia -> worker, measured NOW (at impact)
+                    SFX.playHurtSound();
+                    hurtNPC(HP_HIT_MAFIA, "mafia");
+                    doStun(0.5, "hit");
+                    Voice.say(
+                      pick(MAFIA_LINES),
+                      1.0,
+                      0.6,
+                      c.wx,
+                      c.wy,
+                      "male",
+                      "mafia",
+                    );
+                    Voice.say(
+                      pick(MAFIA_WORKER_LINES),
+                      2.2,
+                      0.95,
+                      p.wx,
+                      p.wy,
+                      WORKER_GENDER,
+                      "worker",
+                    );
+                    // The blow shoves the worker back a touch PAST the solid push-out,
+                    // so a hit reads as a whack, not just a wall
+                    p.wx += inx * 0.5;
+                    p.wy = clamp(p.wy + iny * 0.35, -9.4, workerMaxY());
+                  }
+                }
               }
               break;
             }

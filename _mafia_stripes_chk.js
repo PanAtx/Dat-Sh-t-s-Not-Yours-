@@ -183,8 +183,11 @@ check(
     mafiaBump.indexOf("p.wx += mnx * pen;") >= 0
 );
 check(
-  "solid: the blow only adds a small extra shove on top of the push-out",
-  mafiaBump.indexOf("p.wx += mnx * 0.5;") >= 0
+  "bump branch: NO hit on the bump itself (blow deferred to the smash frame)",
+  mafiaBump.indexOf("hurtNPC(HP_HIT_MAFIA") === -1 &&
+    mafiaBump.indexOf("SFX.playHurtSound") === -1 &&
+    mafiaBump.indexOf("p.wx += mnx * 0.5;") === -1 &&
+    mafiaBump.indexOf("c.swingHitDone = false;") >= 0
 );
 check(
   "every bump is a hit: cooldown is one full swing (0.9s), no 1.6s dead window",
@@ -204,7 +207,7 @@ check(
   })()
 );
 const swingI = h.indexOf("BAT SWING (armed in collideCreatures");
-const swingSrc = h.slice(swingI, swingI + 2600);
+const swingSrc = h.slice(swingI, swingI + 4200);
 check(
   "walk cycle: arms are pinned while the swing owns them",
   h.slice(swingI - 900, swingI).indexOf("if (!c.swinging)") >= 0
@@ -220,6 +223,24 @@ check(
   "swing driver: drives the bat arm + a torso twist",
   swingSrc.indexOf("c.parts.armR.rotation.y = ang") >= 0 &&
     swingSrc.indexOf("-Math.sin(ang) * 0.3") >= 0
+);
+check(
+  "impact: the blow lands on the first frame past the smash (t >= 0.48), delivered once",
+  swingSrc.indexOf("if (!c.swingHitDone && t >= 0.48)") >= 0 &&
+    swingSrc.indexOf("c.swingHitDone = true;") >= 0
+);
+check(
+  "impact: re-checks range + i-frames + play state before SFX / damage / stun / yelps",
+  swingSrc.indexOf("iD <= 2.2 && p.invuln <= 0 && p.immuneT <= 0 && state === \"play\"") >= 0 &&
+    swingSrc.indexOf("SFX.playHurtSound();") >= 0 &&
+    swingSrc.indexOf("hurtNPC(HP_HIT_MAFIA, \"mafia\");") >= 0 &&
+    swingSrc.indexOf("doStun(0.5, \"hit\");") >= 0 &&
+    swingSrc.indexOf("MAFIA_WORKER_LINES") >= 0
+);
+check(
+  "impact: the blow shoves the worker PAST the solid push-out (direction measured at impact)",
+  swingSrc.indexOf("p.wx += inx * 0.5;") >= 0 &&
+    swingSrc.indexOf("clamp(p.wy + iny * 0.35, -9.4, workerMaxY())") >= 0
 );
 // Replay the phase math exactly as written — boundaries must be continuous
 const ss2 = (u) => u * u * (3 - 2 * u);
