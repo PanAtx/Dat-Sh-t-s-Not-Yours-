@@ -2158,7 +2158,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.292</div>
+          <div id="app-version" class="menu-version">v1.0.293</div>
           <div class="menu-bottom" id="menu-bottom">
             <button id="btnStart">START SHIFT</button>
             <button id="btnInstall" class="hidden">INSTALL GAME</button>
@@ -2280,7 +2280,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.292';
+      const APP_VERSION = '1.0.293';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -4881,8 +4881,8 @@
                     // all of the can's color comes from a very dark WebP baseColorMap (tiled 16x),
                     // which reads near-black under the game's ambient + directional lights.
                     // Lighten THIS MODEL ONLY with a tint lift (m.color multiplies the texture).
-                    // 1.4 = +40% brightness; nudge to 1.3 (subtler) or 1.6 (brighter) to taste.
-                    m.color.multiplyScalar(1.4);
+                    // 1.6 = +60% brightness; nudge to 1.5 (subtler) or 1.8 (brighter) to taste.
+                    m.color.multiplyScalar(1.6);
                   }); // brighten the dark can texture (see _can_mat_probe.mjs for the measured PBR)
                 });
                 CAN_TPL = { template: model, minY: box.min.y };
