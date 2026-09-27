@@ -131,7 +131,7 @@ check('AI: NEVER recycles — each block keeps its own lady (no tx < -55 telepor
   aiCase.indexOf('NEVER recycles') >= 0 && aiCase.indexOf('tx < -55') < 0 && aiCase.indexOf('p.wx + 42') < 0);
 
 // ================= 5. BUMP LINES (collideCreatures) =================
-const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 16000);
+const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 28000);
 check('bump GATE includes polish (so she actually says something)',
   /c\.type === "jacker" \|\|[\s\S]{0,120}c\.type === "polish" \|\|/.test(bumpSec));
 [

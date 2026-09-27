@@ -58,9 +58,9 @@ check('addCreature leashdog: Bronx true-branch uses makeBronxLeashDog and NOT ma
 // ---- Bronx placement branch ----
 const spawnWorldStart = src.indexOf('function spawnWorld()');
 const spawnWorld = src.slice(spawnWorldStart);
-check('spawnWorld has an isBronxLevel() placement branch', spawnWorld.indexOf('} else if (isBronxLevel()) {') >= 0);
+check('spawnWorld has an isBronxLevel() placement branch', spawnWorld.indexOf('} else if (isBronxLevel() || isBedStuyLevel()) {') >= 0);
 check('Bronx placement uses tieBronxLeashChain', spawnWorld.indexOf('tieBronxLeashChain(') >= 0);
-const bronxPlace = braceOpen(spawnWorldStart, spawnWorld.indexOf('} else if (isBronxLevel()) {'));
+const bronxPlace = braceOpen(spawnWorldStart, spawnWorld.indexOf('} else if (isBronxLevel() || isBedStuyLevel()) {'));
 check('Bronx placement uses tieBronxLeashChain and builds NO houseG', bronxPlace.body.indexOf('tieBronxLeashChain') >= 0 && bronxPlace.body.indexOf('houseG') < 0, 'hasChain=' + (bronxPlace.body.indexOf('tieBronxLeashChain')>=0) + ' hasHouseG=' + (bronxPlace.body.indexOf('houseG')>=0));
 
 // ---- extract the REAL leashdog AI case body (double-quote + space) ----
@@ -75,14 +75,14 @@ function extractLeashDogCase(){
 }
 const caseText = extractLeashDogCase();
 check('AI case routes Bronx through the Manhattan path', /if \(\s*c\.wx - p\.wx < -55 &&\s*!isFlatbushLevel\(\) &&\s*!isStatenIslandLevel\(\)\s*\) \{\s*(?:if \(isQueensLevel\(\)\) \{[\s\S]*?\} )?else if \(isManhattanLevel\(\) \|\| isBronxLevel\(\)/.test(caseText));
-check('AI case clamps Bronx movement target to wy>=0.85', /isManhattanLevel\(\) \|\| isBronxLevel\(\)\)\s*\{\s*gy = Math\.max\(0\.85, gy\)/.test(caseText));
-check('AI case ties Bronx chain HIGH (z 1.5) like Manhattan', /isManhattanLevel\(\) \|\| isBronxLevel\(\)( \|\| isQueensLevel\(\))?\) \? 1\.5/.test(caseText));
+check('AI case clamps Bronx movement target to wy>=0.85', /isManhattanLevel\(\) \|\| isBronxLevel\(\)( \|\| isBedStuyLevel\(\))?\)\s*\{\s*gy = Math\.max\(0\.85, gy\)/.test(caseText));
+check('AI case ties Bronx chain HIGH (z 1.5) like Manhattan', /isManhattanLevel\(\) \|\| isBronxLevel\(\)( \|\| isBedStuyLevel\(\))?( \|\| isQueensLevel\(\))?\)\s*\? 1\.5/.test(caseText));
 
 // ---- BRONX: one dog per active block + curb/stoop placement + wall-stop climb ----
 check('Bronx spawns ONE leashed dog per active block', /dogCount\s*=\s*\(isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)\)\s*\?\s*3\s*:\s*isBronxLevel\(\)\s*\?\s*bronxDogBlocks\.length/.test(spawnWorld));
 check('Bronx placement offers a stoop anchor (bronxStairHouse + anchorType "stoop")', bronxPlace.body.indexOf('bronxStairHouse') >= 0 && bronxPlace.body.indexOf('"stoop"') >= 0);
 check('Bronx placement offers a curb anchor (anchorType "curb")', bronxPlace.body.indexOf('"curb"') >= 0);
-check('Bronx movement clamps the dog to the building wall stop line (dogStopY)', /if \(isBronxLevel\(\)\) gy = Math\.min\(gy, dogStopY\(gx\)\)/.test(caseText));
+check('Bronx movement clamps the dog to the building wall stop line (dogStopY)', /if \(isBronxLevel\(\)( \|\| isBedStuyLevel\(\))?\) gy = Math\.min\(gy, dogStopY\(gx\)\)/.test(caseText));
 
 // ---- Stoop placement: post + dog BESIDE the stoop (never in the middle of it) ----
 check('SPAWN stoop: post offsets LEFT/RIGHT by the stoop half-width + margin (outside the steps)', bronxPlace.body.indexOf('stairX + side * (stairHw + 0.7)') >= 0);
@@ -142,6 +142,7 @@ function runLeashDogCase(c, lvl){
   global.isManhattanLevel = () => !!lvl.manhattan;
   global.DOG_PALETTES = { yellow: { fur: 0xdbc480, ear: 0xc4a84e, nose: 0x14100e, tag: 0xc0c0c0 }, darkbrown: { fur: 0x4a2c18, ear: 0x3a2010, nose: 0x14100e, tag: 0xc0c0c0 }, husky: { fur: 0xe0e4e8, ear: 0x888888, nose: 0x14100e, tag: 0xc0c0c0 }, spotted: { fur: 0xf0f0f0, spot: 0x141414, ear: 0xe0e0e0, nose: 0x14100e, tag: 0xc0c0c0 } };
 global.isBronxLevel = () => !!lvl.bronx;
+  global.isBedStuyLevel = () => !!lvl.bedstuy;
   rec.hurt=0; rec.dmg=0; rec.stun=0; rec.blood=0; rec.lines=[];
   vm.runInThisContext(wrap, { filename: 'leashdog-case' });
 }
@@ -213,6 +214,18 @@ function makeDog(anchorX, anchorY, withHouse){
     if (typeof c.blockMaxX !== 'number'){ brOk=false; det='blockMaxX='+c.blockMaxX; break; }
   }
   check('BRONX: leashdog recycles AHEAD of player (shared Manhattan path)', brOk, det);
+}
+// ---- Bed-Stuy: post-tied stoop dogs (Mott Haven style) — recycles to a Bronx block, NO doghouse ----
+{
+  let bsOk = true, det = '';
+  for (let t = 0; t < 200; t++) {
+    const c = makeDog(200, 1.0, false);
+    p.wx = 300; p.wy = 2.5;
+    runLeashDogCase(c, { bedstuy: true, manhattan: false, bronx: false, flatbush: false });
+    if (c.bronxBlock == null) { bsOk = false; det = 'bronxBlock=' + c.bronxBlock; break; }
+    if (typeof c.blockMaxX !== 'number') { bsOk = false; det = 'blockMaxX=' + c.blockMaxX; break; }
+  }
+  check('BED-STUY: leashdog recycles to a post-tied Bronx block (Mott Haven style, no doghouse)', bsOk, det);
 }
 {
   let brOk=true, det='';

@@ -52,16 +52,18 @@ function dumpCan(){}
 function dumpLitterBasket(){}
 function nearHopperLitter(){ return false; }
 function addScore(){} function hopperDeposit(){} function disposeObj(){} function checkHouse(){}
+let bedStuy = false;
+const isBedStuyLevel = function(){ return bedStuy; };
 
 // ---- build the real logic closure --------------------------------------------------
 const fns = ['rollBagType','makeBag','speakBagType','pickUp','nearHopper','nearHopperHeavy','tossBag','tryInteract'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
-  'THREE','M','MS','BX','CY','SP','R','truck','p','dynamicGroup','worker','flyingBags','SFX','Voice','WORKER_GENDER','GZ','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','dist','state','blocks','creatures','litterBaskets','addScore','hopperDeposit','disposeObj','checkHouse','attachCarried','dumpCan','dumpLitterBasket','nearHopperLitter',
+  'THREE','M','MS','BX','CY','SP','R','truck','p','dynamicGroup','worker','flyingBags','SFX','Voice','WORKER_GENDER','GZ','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','dist','state','blocks','creatures','litterBaskets','addScore','hopperDeposit','disposeObj','checkHouse','attachCarried','dumpCan','dumpLitterBasket','nearHopperLitter','isBedStuyLevel',
   'var carry="none", carried=null;\n' + fns + '\n' +
   'return { rollBagType, makeBag, speakBagType, pickUp, nearHopper, nearHopperHeavy, tryInteract, ' +
   'carry:()=>carry, carried:()=>carried, flying:()=>flyingBags, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'
-)(THREE, M, MS, BX, CY, SP, R, truck, p, dynamicGroup, worker, flyingBags, SFX, Voice, WORKER_GENDER, GZ, LITTER_DUMP_RADIUS, 3.2, dist, state, blocks, creatures, litterBaskets, addScore, hopperDeposit, disposeObj, checkHouse, attachCarried, dumpCan, dumpLitterBasket, nearHopperLitter);
+)(THREE, M, MS, BX, CY, SP, R, truck, p, dynamicGroup, worker, flyingBags, SFX, Voice, WORKER_GENDER, GZ, LITTER_DUMP_RADIUS, 3.2, dist, state, blocks, creatures, litterBaskets, addScore, hopperDeposit, disposeObj, checkHouse, attachCarried, dumpCan, dumpLitterBasket, nearHopperLitter, isBedStuyLevel);
 // ---- 1) rollBagType: only valid types, sane rarity ordering ------------------------
 check('rollBagType -> only valid types, rarest-to-commonest ordering holds', ()=>{
   const valid = ['normal','heavy','maggot','piss','glass','needle'];
@@ -154,6 +156,32 @@ check('regression: normal bag, at hopper -> dumped, silent', ()=>{
   assert.strictEqual(b.state, 'dumped');
   assert.strictEqual(api.carry(), 'none');
   assert.strictEqual(calls.voices.length, 0);
+});
+
+// ---- 5) Bed-Stuy STORM DEBRIS SUNDAY: roll + new meshes + worker line ---------------
+check('Bed-Stuy roll -> storm debris dominates, base bags still appear', ()=>{
+  bedStuy = true;
+  const counts = {};
+  for (let i=0;i<40000;i++){ const t = api.rollBagType(); counts[t]=(counts[t]||0)+1; }
+  bedStuy = false;
+  const valid = ['stormbox','woodpile','normal','heavy','maggot','piss','glass','needle'];
+  Object.keys(counts).forEach(t=>assert.ok(valid.indexOf(t)>=0, 'bad type: '+t));
+  assert.ok(counts.stormbox > 0 && counts.woodpile > 0, 'both debris types appear');
+  const debris = (counts.stormbox||0)+(counts.woodpile||0);
+  assert.ok(debris > 28000, 'storm debris should be the majority of curb items (got ' + debris + ')');
+  assert.ok((counts.normal||0)+(counts.heavy||0)+(counts.glass||0) > 0, 'some normal bags remain');
+});
+check('makeBag stormbox/woodpile -> both build a non-empty group', ()=>{
+  ['stormbox','woodpile'].forEach(t=>{
+    const g = api.makeBag(t);
+    assert.ok(g && g.children && g.children.length >= 3, t + ' should build a debris group (got ' + (g&&g.children&&g.children.length) + ')');
+  });
+});
+check('speakBagType stormbox -> debris-box line', ()=>{ calls.voices.length=0; api.speakBagType({type:'stormbox'}); assert.deepStrictEqual(calls.voices, ['Storm debris — haul this box to the truck!']); });
+check('speakBagType woodpile -> wood-pile line', ()=>{ calls.voices.length=0; api.speakBagType({type:'woodpile'}); assert.deepStrictEqual(calls.voices, ['Half a fence in this pile!']); });
+check('non-Bed-Stuy roll -> never returns debris (regression)', ()=>{
+  bedStuy = false;
+  for (let i=0;i<20000;i++){ const t = api.rollBagType(); assert.ok(t!=='stormbox' && t!=='woodpile', 'debris leaked off Bed-Stuy: '+t); }
 });
 
 console.log('\n' + pass + ' bag-type checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));

@@ -54,7 +54,7 @@ const dynamicGroup = { add(){} };
 const p = { wx: 0, wy: 2.5 }; // player position (addCreature now spawns creatures around p.wx)
 const carKeepout = null; // parked-sedan no-spawn rect (null outside Staten Island — same as the game)
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
-const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false, isStatenIslandLevel = () => false, isQueensLevel = () => false;
+const isManhattanLevel = () => false, isFlatbushLevel = () => false, isBronxLevel = () => false, isStatenIslandLevel = () => false, isQueensLevel = () => false, isBedStuyLevel = () => false;
 const JACKER_FACE_SE = -Math.PI / 2;   // kept in sync with index.html (jacker faces southeast)
 
 eval(extract('makeJacker'));
@@ -163,7 +163,7 @@ check('chain: worker already inside reach -> dog can reach them', out[0] === 0.5
 // --- the player's bump lines are wired in collideCreatures ---
 // (Prettier reformatted the Voice.say calls onto multi-line form and pushed the bump block
 //  deeper into the function, so the slice window is wider than the original 4000 chars)
-const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 18000);
+const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 28000);
 check('bump line: hooker -> "Conducting business, hon."', bumpSec.indexOf('"Conducting business, hon."') >= 0);
 check('bump line: skater -> "Whoa! Like, watch it, bro!"', bumpSec.indexOf('Whoa! Like, watch it, bro!') >= 0);
 check("bump line: escooter -> \"I'm calling a lawyer!\"", bumpSec.indexOf("I'm calling a lawyer!") >= 0);

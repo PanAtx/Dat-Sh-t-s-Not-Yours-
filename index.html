@@ -469,6 +469,38 @@
         margin-bottom: 2px;
         animation: day-loc-enter 0.5s ease-out 0.35s both;
       }
+      #day-intro .day-intro-special {
+        display: none;
+        font-family: "Arial Black", Impact, sans-serif;
+        font-size: clamp(15px, 3.6vw, 28px);
+        font-weight: bold;
+        color: #ff9e2c;
+        letter-spacing: 2px;
+        text-align: center;
+        text-shadow:
+          0 0 16px rgba(255, 120, 20, 0.9),
+          0 0 30px rgba(255, 60, 0, 0.5);
+        margin: 10px 0 2px;
+        padding: 8px 10px;
+        border: 2px solid rgba(255, 120, 20, 0.7);
+        border-radius: 8px;
+        background: rgba(80, 20, 0, 0.35);
+        animation: special-pulse 1.1s ease-in-out infinite;
+      }
+      #day-intro .day-intro-special.show {
+        display: block;
+      }
+      @keyframes special-pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.7;
+          transform: scale(1.04);
+        }
+      }
       @keyframes day-loc-enter {
         0% {
           opacity: 0;
@@ -2299,7 +2331,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.305</div>
+          <div id="app-version" class="menu-version">v1.0.306</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2398,6 +2430,7 @@
       ><div class="panel">
         <div class="day" id="day-intro-day">MONDAY</div>
         <div class="loc" id="day-intro-loc">MANHATTAN · GRAMMERCY PARK</div>
+        <div class="day-intro-special" id="day-intro-special"></div>
         <div class="obj"
           >CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br />WORKER
           DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED</div
@@ -2454,7 +2487,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.305';
+      const APP_VERSION = '1.0.306';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2548,6 +2581,7 @@
       // Creatures in Manhattan are limited to the sidewalk; in other boroughs they can use the lawn.
       function creatureMaxY() {
         if (isManhattanLevel()) return 4.8;
+        if (isBedStuyLevel()) return 4.8; // Bed-Stuy brownstones: sidewalk only (no lawn)
         if (isFlatbushLevel()) return 5.0;
         if (isBronxLevel()) return 4.8;
         if (isStatenIslandLevel()) return 5.0;
@@ -2560,6 +2594,7 @@
       // occupy the front-lawn band, so curb items spawn on the walk (y 0.5..5.0).
       function spawnMaxY() {
         if (isManhattanLevel()) return 4.8;
+        if (isBedStuyLevel()) return 4.8; // Bed-Stuy brownstones: sidewalk only (no lawn)
         if (isFlatbushLevel()) return 5.0;
         if (isBronxLevel()) return 4.8;
         if (isStatenIslandLevel()) return 5.0;
@@ -2636,10 +2671,10 @@
         { day: "THURSDAY", borough: "QUEENS", area: "MASPETH" },
         { day: "FRIDAY", borough: "STATEN ISLAND", area: "NEW DORP" },
         { day: "SATURDAY", borough: "MANHATTAN", area: "HARLEM" },
-        { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY" },
+        { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY", special: "STORM DEBRIS SUNDAY! DOUBLE TIME!" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 6; // which day a fresh week begins on (6 = Saturday, Manhattan / Harlem). TEMP: set to 6 to develop level 6 — flip back to 1 to ship the full Mon..Sun week
+      const START_LEVEL = 7; // which day a fresh week begins on (7 = Sunday, Brooklyn / Bed-Stuy). TEMP: set to 7 to develop level 7 — flip back to 1 to ship the full Mon..Sun week
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -3161,9 +3196,11 @@
           console.log("  -> Manhattan path: concrete lawns");
           groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front lawns as concrete (Manhattan has no grass)
           groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // park behind brownstones as concrete
-        } else if (isBronxLevel()) {
-          // Mott Haven: no lawns — concrete apron flush to the sidewalk, houses very close to the curb
-          console.log("  -> Bronx path: no lawns, concrete apron, houses near sidewalk");
+        } else if (isBronxLevel() || isBedStuyLevel()) {
+          // Mott Haven (Bronx) + Bed-Stuy (Brooklyn): no lawns — concrete apron flush to
+          // the sidewalk, houses very close to the curb. Bed-Stuy's brownstones sit right
+          // at the walk, so it shares the Mott Haven concrete ground (no front-lawn grass).
+          console.log("  -> Bronx/Bed-Stuy path: no lawns, concrete apron, houses near sidewalk");
           groundStrip(GW, 1.0, 0.3, 5.5, 0x8d949c, GCX); // thin concrete apron (y 5.0..6.0)
           groundStrip(GW, 14.0, 0.3, 12.5, 0x8d949c, GCX); // concrete behind houses (no park)
         } else if (
@@ -6059,14 +6096,14 @@
       function hopperTopZ() {
         return truck.hopperZ != null ? truck.hopperZ : 2.4;
       }
-      function addHopperLump() {
+      function addHopperLump(type) {
         if (!hopperTrash) {
           hopperTrash = new THREE.Group();
           worldGroup.add(hopperTrash);
         }
         const idx = hopperLoad; // 1..HOPPER_CYCLE_AT
         // Dark-grey tones — clearly lighter than the black hopper body so the piled
-        // bags read as visible lumps inside the open scoop instead of vanishing into it.
+        // items read as visible lumps inside the open scoop instead of vanishing into it.
         const palette = [
           0x4b525c, 0x575f6a, 0x636b76, 0x6f7782, 0x7b838e, 0x878f9a,
         ];
@@ -6075,15 +6112,31 @@
           opacity: 1,
         });
         const g = new THREE.Group();
-        const body = SP(0.4, mat);
-        body.scale.set(1.1, 0.9, 1.2);
-        g.add(body);
-        const neck = CY(0.14, 0.19, 0.22, mat);
-        neck.position.z = 0.44;
-        g.add(neck);
-        const knot = SP(0.13, mat, 6);
-        knot.position.z = 0.58;
-        g.add(knot);
+        if (type === "stormbox") {
+          // A plain GREY BOX (no debris) — reads as a box in the hopper, not a bag.
+          g.add(BX(0.55, 0.42, 0.5, mat));
+        } else if (type === "woodpile") {
+          // A tidy GREY lumber stack — flat planks, reads as lumber, not a bag.
+          const lay = (x, y, z, rz) => {
+            const plank = BX(0.6, 0.12, 0.12, mat);
+            plank.position.set(x, y, z);
+            plank.rotation.z = rz;
+            g.add(plank);
+          };
+          lay(0, -0.1, 0.06, 0);
+          lay(0.02, 0.08, 0.18, 0.1);
+          lay(-0.02, -0.04, 0.3, -0.08);
+        } else {
+          const body = SP(0.4, mat);
+          body.scale.set(1.1, 0.9, 1.2);
+          g.add(body);
+          const neck = CY(0.14, 0.19, 0.22, mat);
+          neck.position.z = 0.44;
+          g.add(neck);
+          const knot = SP(0.13, mat, 6);
+          knot.position.z = 0.58;
+          g.add(knot);
+        }
         // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
         // spreading out and stacking a little higher with each deposit.
         // Bias the pile toward the CURB (left, +y) and the REAR (-x) so the player can see it.
@@ -6104,10 +6157,10 @@
           baseZ: localZ,
         });
       }
-      function hopperDeposit() {
+      function hopperDeposit(type) {
         if (hopperCycling) return; // mid-cycle (emptying) — skip buildup this time
         hopperLoad++;
-        addHopperLump();
+        addHopperLump(type);
         if (hopperLoad >= HOPPER_CYCLE_AT) {
           hopperCycling = true;
           hopperCycleT = HOPPER_CYCLE_DUR;
@@ -6164,6 +6217,59 @@
         // Procedural garbage bag (reverted from the FBX bag back to the original soft-bag look).
         // Each bag rolls a "type" that changes how it looks and how the worker reacts to it.
         type = type || "normal";
+        // ---- Bed-Stuy storm debris (Sunday) — NEW garbage types ---------------------
+        // These ride the normal bag pipeline (kind:"bag", carry/toss/hopper/stats) but
+        // look like storm wreckage: a cardboard box of debris, or a pile of 2x4 lumber.
+        if (type === "stormbox" || type === "woodpile") {
+          const g = new THREE.Group();
+          if (type === "stormbox") {
+            const card = M(0x8a5a2c),
+              card2 = M(0x6f4822);
+            // Cardboard box of debris sitting UPRIGHT on the ground (Z-up world): the box
+            // rests on its bottom face and the torn-open top flaps + rubble spill OUT OF
+            // THE TOP (+Z) so the debris is visible from above, not off to the side.
+            const box = BX(0.62, 0.5, 0.6, card); // w(x) d(y) h(z)
+            box.position.z = 0.3; // half of 0.6 height -> base sits on the ground (z 0..0.6)
+            g.add(box);
+            // Torn-open top flaps: thin panels at the rim (z ~0.6), tipping outward about Y
+            const f1 = BX(0.3, 0.5, 0.06, card2);
+            f1.position.set(-0.16, 0, 0.6);
+            f1.rotation.y = 0.5;
+            g.add(f1);
+            const f2 = BX(0.3, 0.5, 0.06, card2);
+            f2.position.set(0.16, 0, 0.6);
+            f2.rotation.y = -0.6;
+            g.add(f2);
+            // Rubble spilling out of the TOP opening (spread in x/y, stacked above the rim)
+            for (let i = 0; i < 6; i++) {
+              const rub = SP(0.08 + Math.random() * 0.06, M(0x6f6f6f));
+              rub.position.set(
+                -0.2 + Math.random() * 0.4,
+                -0.15 + Math.random() * 0.3,
+                0.6 + Math.random() * 0.18,
+              );
+              g.add(rub);
+            }
+            g.scale.setScalar(1.05);
+          } else {
+            // woodpile — a tidy stack of 2x4 planks lying FLAT on the ground (Z-up world):
+            // each plank's length runs along X (horizontal) and they stack up the +Z axis,
+            // resting on the ground like a clean pile of lumber (not standing on end).
+            const woods = [0x7a4a24, 0x8a5a2e, 0x6b4320, 0x855527];
+            const lay = (x, y, z, rz, ci) => {
+              const plank = BX(0.95, 0.15, 0.15, M(woods[ci % woods.length]));
+              plank.position.set(x, y, z);
+              plank.rotation.z = rz;
+              g.add(plank);
+            };
+            lay(-0.02, -0.11, 0.075, 0.0, 0); // bottom row (two planks side by side)
+            lay(-0.02, 0.11, 0.075, 0.0, 1);
+            lay(0.04, 0.0, 0.225, 0.12, 2); // middle plank, offset + slight tilt
+            lay(-0.05, 0.05, 0.375, -0.1, 3); // top plank
+            g.scale.setScalar(1.05);
+          }
+          return g;
+        }
         // Base plastic tone shifts a touch with the contents so special bags read differently.
         let c1 = 0x23272e,
           c2 = 0x1b1f24,
@@ -10749,6 +10855,46 @@
         "THE LAUNDRY & THE LAMENT: WASH & FOLD",
       ];
 
+      // Bed-Stuy (Brooklyn, level 7 — Sunday) corner stores — the neighborhood you'd
+      // actually find on a Bed-Stuy corner: Chinese restaurants, fried-chicken joints,
+      // bodegas, and phone shops (plus a few institutions). 32 unique names, randomly
+      // used like the other pools. Bold, loud sign palettes (isUptown = false).
+      const BEDSTUY_STORE_NAMES = [
+        "GREAT WALL OF CHOW: SZECHUAN & SPITE",
+        "HONG KONG FLEX: DINING & DISCOUNT",
+        "WOK THIS WAY: NO SUBSTITUTIONS",
+        "DIM SUM & REGRET: DUMPLING PARLOR",
+        "LO MEIN GAIN: NOODLE COUNTER",
+        "THE CONGESTION LINE: CHINESE KITCHEN",
+        "PANDA MONIUM: TAKEOUT EXPRESS",
+        "FORTUNE COOKIE THERAPY",
+        "CLUCK NORRIS: FRIED CHICKEN FURY",
+        "FINGER LICKIN' FELONY: HOT CHICKEN",
+        "THE COOP DE BOOP: WINGS & THIGHS",
+        "HEN HOUSE: EXTRA CRISPY ATTITUDE",
+        "WING IT: CHICKEN & PROBLEMS",
+        "BOK CHICKEN & BLUES",
+        "CLUCK-HERN: SOUTHERN FRIED",
+        "PIECE OF MY CHICKEN: HONEY HOT",
+        "ABUELA'S BODEGA: EGO & EMPANADAS",
+        "SEÑOR GATO'S CORNER CAT MARKET",
+        "LA BODEGA DE LOS MILAGROS (SOMETIMES)",
+        "CATO'S FOOD & FOOTBALL",
+        "POLLO LOCO: BIRDS & BURRITOS",
+        "THE STORK: DIAPERS, DUBS & DELI",
+        "BODEGA KAT: CUTIES & CHIPPINGS",
+        "JUS RUHT? (JUST RIGHT) CORNER MARKET",
+        "SCREEN SAVER: PHONE REPAIR & REBIRTH",
+        "FLY PHONES: CRACKED SCREENS, CRACKED JOKES",
+        "RING RING: END OF THE WORLD AS WE KNOW IT",
+        "iSPY PHONE FIX: WE SEE YOUR HISTORY",
+        "MOBILE DISMISSALS: PHONES & PARTS",
+        "CHARGE IT: BATTERY RESCUE SQUAD",
+        "CALL ME BACK: PREPAID & PRAYING",
+        "DIAL TONE: FLIGHT MODE & FLIGHT RISK",
+      ];
+
+      // Maspeth (Queens, level 4 — Thursday) corner stores — a Polish & Irish
       // Maspeth (Queens, level 4 — Thursday) corner stores — a Polish & Irish
       // neighborhood: bakeries, kielbasa & pierogi, delis with lotto, pizza, a
       // florist, Irish imports, real estate, a pharmacy, laundromats. 32 unique
@@ -11264,6 +11410,127 @@
         };
         return g;
       }
+      // ==================== BED-STUY (BROOKLYN) BROWNSTONE ROW HOUSES ====================
+      // Bed-Stuy (Sunday, level 7) is its OWN level: a faithful copy of the Mott Haven
+      // (Bronx) row house (makeBronxApartment) so the geometry, stoop, and collision data
+      // behave identically, but isolated here so Bed-Stuy tweaks never leak into the Bronx.
+      // No front porch, no lawn — a full 8u cell of brick right up to the walk.
+      function makeBedStuyApartment() {
+        const g = new THREE.Group();
+        const cols = [0x8a5a3a, 0x7a4a3a, 0x9a6a5a, 0x6a3a2a];
+        const col = cols[(Math.random() * cols.length) | 0];
+        // Bed-Stuy row house: fills the 8-unit block slot exactly so houses
+        // connect side-to-side with no gaps (like real row houses).
+        // Raised higher so the front door sits above the top stoop step.
+        const w = 8.0,
+          d = 4.5,
+          h = 5.5;
+        const body = BX(w, d, h, M(col));
+        body.position.z = 0.3 + h / 2;
+        g.add(body);
+        const roof = BX(w - 0.5, d - 0.5, 0.25, M(0x2a2a2a));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
+        const winM = new THREE.MeshLambertMaterial({
+          color: 0x8cc0e8,
+          emissive: 0x1a3a4f,
+          emissiveIntensity: 0.4,
+        });
+        // Wrought-iron window security bars: thin vertical bars with horizontal supports
+        function addWindowBars(g, x, y, z, winW, winH) {
+          const barMat = M(0x111111);
+          const barW = 0.04;
+          const numBars = 5;
+          const barSpacing = winW / (numBars + 1);
+          for (let i = 1; i <= numBars; i++) {
+            const bar = BX(barW, 0.06, winH, barMat);
+            bar.position.set(x - winW / 2 + i * barSpacing, y, z);
+            g.add(bar);
+          }
+          const topBar = BX(winW, 0.06, 0.04, barMat);
+          topBar.position.set(x, y, z + winH / 2 - 0.05);
+          g.add(topBar);
+          const bottomBar = BX(winW, 0.06, 0.04, barMat);
+          bottomBar.position.set(x, y, z - winH / 2 + 0.05);
+          g.add(bottomBar);
+        }
+
+        for (let floor = 0; floor < 3; floor++) {
+          const fy = 0.3 + 1.0 + floor * 1.3;
+          if (floor === 1) continue;
+          const leftFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
+          leftFrame.position.set(-w * 0.35, -d / 2 + 0.03, fy);
+          g.add(leftFrame);
+          const leftGlass = BX(0.9, 0.04, 1.1, winM);
+          leftGlass.position.set(-w * 0.35, -d / 2 - 0.08, fy);
+          g.add(leftGlass);
+          addWindowBars(g, -w * 0.35, -d / 2 - 0.12, fy, 0.9, 1.1);
+          if (floor >= 2) {
+            const rightFrame = BX(1.0, 0.1, 1.2, M(0x1a1a1a));
+            rightFrame.position.set(w * 0.35, -d / 2 + 0.03, fy);
+            g.add(rightFrame);
+            const rightGlass = BX(0.9, 0.04, 1.1, winM);
+            rightGlass.position.set(w * 0.35, -d / 2 - 0.08, fy);
+            g.add(rightGlass);
+            addWindowBars(g, w * 0.35, -d / 2 - 0.12, fy, 0.9, 1.1);
+          }
+        }
+        // Row house stoop: taller with 6 steps
+        const stoop = makeRowHouseStoop(d, 6, 0.17, 0.3);
+        stoop.position.x = w * 0.2;
+        g.add(stoop);
+        const door = BX(1.0, 0.08, 2.0, M(0x3a2010));
+        door.position.set(w * 0.2, -d / 2 - 0.05, 0.3 + 1.9);
+        g.add(door);
+        const doorFrame = BX(1.1, 0.1, 2.1, M(0x2a1a0a));
+        doorFrame.position.set(w * 0.2, -d / 2 + 0.01, 0.3 + 1.9);
+        g.add(doorFrame);
+        const lampBulb = SPH(
+          0.05,
+          new THREE.MeshLambertMaterial({
+            color: 0xffffbb,
+            emissive: 0xffff66,
+            emissiveIntensity: 3.0,
+          }),
+        );
+        lampBulb.position.set(w * 0.2, -d / 2 - 0.04, 0.3 + 2.1);
+        g.add(lampBulb);
+        // Individual step collision data for the 6 stoop steps
+        const stoopX = w * 0.2;
+        const stoopHw = 1.0;
+        const riserH = 0.17;
+        const treadD = 0.3;
+        const steps = 6;
+        g.userData.stairs = [];
+        for (let i = 0; i < steps; i++) {
+          const stepY = -d / 2 - (steps - 1 - i) * treadD - treadD / 2;
+          const stepTop = 0.3 + (i + 1) * riserH;
+          g.userData.stairs.push({
+            cx: stoopX,
+            cy: stepY,
+            hw: stoopHw,
+            hd: treadD / 2,
+            top: stepTop,
+          });
+        }
+        // Landing step data (top of the last step, same position as top step)
+        g.userData.step = {
+          cx: stoopX,
+          hw: stoopHw,
+          cy: -d / 2 - 0.15,
+          hd: treadD / 2,
+          top: 0.3 + steps * riserH,
+        };
+        // Building front wall collision: the house's FRONT FACE (local y = -d/2).
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2,
+          hd: 0,
+          stoopX: stoopX,
+          stoopHw: stoopHw,
+        };
+        return g;
+      }
       // ==================== BRONX (MOTT HAVEN) STOREFRONT ====================
       // Same 8 x 4.5 x 5.5 shell, brick palette, roof, and top-floor window height as
       // the Bronx row house (makeBronxApartment) — but the ground floor is a
@@ -11394,6 +11661,120 @@
         };
         return g;
       }
+      // ==================== BED-STUY (BROOKLYN) STOREFRONT ====================
+      // A Bed-Stuy corner store is a faithful copy of the Mott Haven (Bronx) storefront:
+      // the full 8u row-house shell (same palette/height as makeBedStuyApartment) with a
+      // Manhattan-style ground floor (kick-plate, display window, side door, mat, canvas
+      // sign). Isolated so Bed-Stuy storefront tweaks never leak into the Bronx. The sign
+      // text comes from the Bed-Stuy name pool (chinese / fried chicken / bodega / phone).
+      function makeBedStuyStore(storeOptions) {
+        const g = new THREE.Group();
+        const cols = [0x8a5a3a, 0x7a4a3a, 0x9a6a5a, 0x6a3a2a];
+        const col = cols[(Math.random() * cols.length) | 0];
+        const w = 8.0,
+          d = 4.5,
+          h = 5.5; // identical footprint/height to the Bed-Stuy row house
+        const body = BX(w, d, h, M(col));
+        body.position.z = 0.3 + h / 2;
+        g.add(body);
+        const roof = BX(w - 0.5, d - 0.5, 0.25, M(0x2a2a2a));
+        roof.position.z = 0.3 + h + 0.15;
+        g.add(roof);
+        const winM = new THREE.MeshLambertMaterial({
+          color: 0x8cc0e8,
+          emissive: 0x1a3a4f,
+          emissiveIntensity: 0.4,
+        });
+        // Top-floor windows (left + right) at the row-house floor height (z 3.9).
+        const fyTop = 0.3 + 1.0 + 2 * 1.3;
+        for (let side = -1; side <= 1; side += 2) {
+          const winX = side * w * 0.30;
+          const frame = BX(0.8, 0.1, 1.0, M(0x1a1a1a));
+          frame.position.set(winX, -d / 2 + 0.03, fyTop);
+          g.add(frame);
+          const glass = BX(0.7, 0.04, 0.9, winM);
+          glass.position.set(winX, -d / 2 - 0.08, fyTop);
+          g.add(glass);
+        }
+        // ---- Manhattan-style storefront (ground floor) ----
+        const kickplate = BX(w - 0.4, 0.4, 0.2, M(0x444444));
+        kickplate.position.set(0, -d / 2 - 0.2, 0.3 + 0.1);
+        g.add(kickplate);
+        const winFrame = BX(3.6, 0.1, 1.4, M(0x222222));
+        winFrame.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(winFrame);
+        const winGlass = BX(
+          3.4,
+          0.04,
+          1.3,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x223344,
+            emissiveIntensity: 0.55,
+          }),
+        );
+        winGlass.position.set(0, -d / 2 - 0.09, 0.3 + 1.15);
+        g.add(winGlass);
+        const divider = BX(0.08, 0.08, 1.35, M(0x222222));
+        divider.position.set(0, -d / 2 - 0.05, 0.3 + 1.15);
+        g.add(divider);
+        // Storefront door (side entrance) — first house's on the left, last on the right.
+        const doorX = storeOptions.isLeft ? -2.6 : 2.6;
+        const door = BX(0.75, 0.06, 1.85, M(0x3a2a1a));
+        door.position.set(doorX, -d / 2 - 0.03, 0.3 + 1.225);
+        g.add(door);
+        const doorGlass = BX(
+          0.65,
+          0.02,
+          0.85,
+          new THREE.MeshLambertMaterial({
+            color: 0x88bbdd,
+            emissive: 0x112233,
+            emissiveIntensity: 0.3,
+          }),
+        );
+        doorGlass.position.set(doorX, -d / 2 - 0.06, 0.3 + 1.725);
+        g.add(doorGlass);
+        const handle = BX(0.03, 0.03, 0.18, M(0xcccccc));
+        handle.position.set(doorX + 0.25, -d / 2 - 0.07, 0.3 + 1.0);
+        g.add(handle);
+        const mat = BX(1.0, 0.4, 0.04, M(0x555555));
+        mat.position.set(doorX, -d / 2 - 0.5, 0.31);
+        g.add(mat);
+        const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+        signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
+        g.add(signBoard);
+        const signMat = makeStoreSignMaterial(
+          storeOptions.storeName,
+          storeOptions.isUptown,
+        );
+        const signPlane = new THREE.Mesh(
+          new THREE.PlaneGeometry(6.8, 0.48),
+          signMat,
+        );
+        signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
+        signPlane.rotation.x = Math.PI / 2;
+        g.add(signPlane);
+        const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+        signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
+        g.add(signCrown);
+        g.userData.step = {
+          cx: doorX,
+          hw: 0.6,
+          cy: -d / 2 - 0.5,
+          hd: 0.5,
+          top: 0.33,
+        };
+        g.userData.buildingFront = {
+          hw: w / 2,
+          cy: -d / 2 - 0.4,
+          hd: 0,
+          stoopX: 0,
+          stoopHw: 0,
+        };
+        return g;
+      }
+      // ==================== FLATBUSH (BROOKLYN) STOREFRONT ====================
       // ==================== FLATBUSH (BROOKLYN) STOREFRONT ====================
       // A Flatbush corner store is NARROWER than a full 8u house cell: it's the 8u cell
       // minus half of a full driveway (a driveway is 3.0 wide, so 3.0 / 2 = 1.5), which
@@ -12256,6 +12637,16 @@
       }
       function isFlatbushLevel() {
         if (!LEVEL_DAYS[level - 1]) return false;
+        // Flatbush ONLY (day 3) — NOT the whole borough. Bed-Stuy (day 7) is its own
+        // Brooklyn neighborhood (brownstones, no porches/lawns) and must not inherit
+        // Flatbush's driveway dogs, tricycles, soccer teams, scholars, etc.
+        return (
+          LEVEL_DAYS[level - 1].borough === "BROOKLYN" &&
+          LEVEL_DAYS[level - 1].area === "FLATBUSH"
+        );
+      }
+      function isBrooklynLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
         return LEVEL_DAYS[level - 1].borough === "BROOKLYN";
       }
       function isBronxLevel() {
@@ -12275,6 +12666,13 @@
         return (
           LEVEL_DAYS[level - 1].borough === "MANHATTAN" &&
           LEVEL_DAYS[level - 1].area === "HARLEM"
+        );
+      }
+      function isBedStuyLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
+        return (
+          LEVEL_DAYS[level - 1].borough === "BROOKLYN" &&
+          LEVEL_DAYS[level - 1].area === "BED-STUY"
         );
       }
 
@@ -17063,7 +17461,18 @@
             // never leak across boroughs; other levels keep the shared
             // makeHighPolyDog + makeDogHouse path.
             let dg;
-            if (isBronxLevel() || isQueensLevel()) {
+            if (isBedStuyLevel()) {
+              // Bed-Stuy (Sunday): post-tied stoop dogs, Mott Haven (Bronx) style — NO doghouse.
+              // Reuses the Bronx leash-dog model so coat/size behave identically.
+              c.dogSize = Math.random() < 0.3 ? "large" : "medium";
+              c.dogCoat = null;
+              if (c.dogSize === "large") {
+                const coats = Object.keys(DOG_PALETTES);
+                c.dogCoat = coats[(Math.random() * coats.length) | 0];
+              }
+              dg = makeBronxLeashDog(c.dogSize, c.dogCoat);
+              c.houseG = null; // no doghouse on Bed-Stuy — post-tied, like Mott Haven
+            } else if (isBronxLevel() || isQueensLevel()) {
               // 30% chance of a large mean pitbull with diverse coat
             c.dogSize = Math.random() < 0.3 ? 'large' : 'medium';
             c.dogCoat = null;
@@ -17148,6 +17557,15 @@
       // special contents make the worker react, and the HEAVY ones — the GREEN
       // bags — must be hauled right up to the rear scoop to dump.
       function rollBagType() {
+        // Bed-Stuy (Sunday) is STORM DEBRIS SUNDAY: most curb items are wreckage —
+        // cardboard boxes of debris and piles of wood — with a minority of the usual
+        // bags so the day still feels varied. (Litter baskets + cans spawn separately.)
+        if (isBedStuyLevel()) {
+          const r = Math.random();
+          if (r < 0.42) return "stormbox";
+          if (r < 0.8) return "woodpile";
+          // remaining 20%: fall through to the normal roll below
+        }
         const r = Math.random();
         if (r < 0.55) return "normal"; // the common case — nothing to comment on
         if (r < 0.75) return "heavy"; // packed full & heavy
@@ -17255,6 +17673,7 @@
         if (storeOptions && storeOptions.isStore) {
           // Bronx storefronts: Bronx row-house shell + Manhattan storefront design.
           // Flatbush storefronts: Flatbush two-story shell + Manhattan storefront design.
+          // Bed-Stuy storefronts: Bed-Stuy brownstone shell + Manhattan storefront design.
           // Queens (Maspeth) storefronts: Maspeth two-story shell + storefront design.
           // Manhattan storefronts: the brownstone store.
           const storeArea = LEVEL_DAYS[level - 1].area;
@@ -17264,10 +17683,20 @@
             storeArea === "FLATBUSH"
           )
             hg = makeFlatbushStore(storeOptions);
+          else if (
+            borough === "BROOKLYN" &&
+            storeArea === "BED-STUY"
+          )
+            hg = makeBedStuyStore(storeOptions);
           else if (borough === "QUEENS") hg = makeQueensStore(storeOptions);
           else hg = makeBrownstone(storeOptions);
         } else {
-          const makeBuilding = HOUSE_TPLS[borough] || makeHouse;
+          // Bed-Stuy (Brooklyn) residential houses use their OWN brownstone row house —
+          // not the Flatbush porch house (HOUSE_TPLS.BROOKLYN). Everything else follows
+          // the borough registry.
+          const makeBuilding = isBedStuyLevel()
+            ? makeBedStuyApartment
+            : HOUSE_TPLS[borough] || makeHouse;
           hg = makeBuilding();
         }
         // Manhattan brownstones have a small setback so the stoop doesn't overlap the sidewalk.
@@ -17279,6 +17708,7 @@
         let HOUSE_Y = 10.5;
         if (isManhattanLevel()) HOUSE_Y = 8.7;
         else if (isBronxLevel()) HOUSE_Y = 9.5; // Mott Haven: move buildings and stoop forward
+        else if (isBedStuyLevel()) HOUSE_Y = 9.5; // Bed-Stuy brownstones: Mott Haven setback (no porch)
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
         // Shift house row right within the block to balance spacing (not flush with intersection).
         // Maspeth: center the house in its own cell (6.4u middle cells -> tighter rows).
@@ -17608,6 +18038,11 @@
           // a West Indian mini-market, the laundromat). Flatbush ONLY — not Bed-Stuy.
           storePool = shuffleStoreNames(FLATBUSH_STORE_NAMES);
           isUptown = false; // bold, loud sign palettes
+        } else if (borough === "BROOKLYN" && area === "BED-STUY") {
+          // Bed-Stuy corners: Chinese restaurants, fried chicken, bodegas, phone shops.
+          // Its OWN name pool + storefront (makeBedStuyStore) — nothing borrowed from Flatbush.
+          storePool = shuffleStoreNames(BEDSTUY_STORE_NAMES);
+          isUptown = false; // bold, loud sign palettes
         } else if (borough === "QUEENS") {
           // Maspeth (Queens) corners: Polish + Irish neighborhood storefronts
           // (bakeries, kielbasa & pierogi, delis with lotto, pizza, florist, Irish
@@ -17643,13 +18078,15 @@
             };
             g.position.x = worldX;
             dynamicGroup.add(g);
-            // Manhattan + Bronx + Flatbush: the first and last house on each block
-            // is a storefront (Flatbush gated by area so Bed-Stuy stays plain).
+            // Manhattan + Bronx + Flatbush + Bed-Stuy: the first and last house on each
+            // block is a storefront (Flatbush & Bed-Stuy gated by area, so they never leak).
             let storeOptions = null;
             const isFlatbush = borough === "BROOKLYN" && area === "FLATBUSH";
+            const isBedStuy = borough === "BROOKLYN" && area === "BED-STUY";
             if (
               (borough === "MANHATTAN" ||
                 borough === "THE BRONX" ||
+                isBedStuy ||
                 isFlatbush) &&
               (i === 0 || i === HOUSES_PER_BLOCK - 1)
             ) {
@@ -18053,7 +18490,9 @@
               ? weekScore >= 5000
                 ? 4 // Maspeth: HARD route (week score $5000+) — 4 dogs, ~1 per block
                 : 2 // Maspeth: EASY route (fresh/low score) — 2 dogs
-              : 1;
+              : isBedStuyLevel()
+                ? bronxDogBlocks.length // Bed-Stuy: one post-tied stoop dog per active block
+                : 1;
         const qDogs = []; // Queens dogs placed so far (frontage de-dup)
         for (let d = 0; d < dogCount; d++) {
           const ld = addCreature("leashdog");
@@ -18149,9 +18588,10 @@
                 ld.homeY - ld.anchorY,
                 ld.homeX - ld.anchorX,
               );
-            } else if (isBronxLevel()) {
-              // Bronx: ONE leashed dog per active block. b is this block's assignment (the loop
-              // runs bronxDogBlocks.length times). The post ties to a real sidewalk fixture —
+            } else if (isBronxLevel() || isBedStuyLevel()) {
+              // Bronx (Mott Haven) + Bed-Stuy: ONE leashed dog per active block. b is this
+              // block's assignment (the loop runs bronxDogBlocks.length times). The post
+              // ties to a real sidewalk fixture —
               // either at the curb (Manhattan-style) or at the foot of this block's stoop, so the
               // dog can climb the steps up to the building wall and stop there (never enter),
               // exactly like the sanitation worker. anchorType drives that movement clamp in
@@ -19047,11 +19487,18 @@
         worker.group.position.set(p.wx, p.wy, GZ);
       }
       // ==================== GAMEPLAY ACTIONS ====================
+      // STORM DEBRIS SUNDAY = "DOUBLE TIME": every point collected on Bed-Stuy (Sunday)
+      // is worth double. Single choke-point, so bags, cans, litter baskets and all the
+      // bonus pickups (mongo/cash/treasure) double together.
+      function scoreMultiplier() {
+        return isBedStuyLevel() ? 2 : 1;
+      }
       function addScore(n, isBonus) {
-        score += n;
-        dayScore += n; // today's tally (shown on the day-end report)
-        weekScore += n; // running total across all 7 days (the hi-score candidate)
-        if (isBonus) bonusTally += n;
+        const v = n * scoreMultiplier();
+        score += v;
+        dayScore += v; // today's tally (shown on the day-end report)
+        weekScore += v; // running total across all 7 days (the hi-score candidate)
+        if (isBonus) bonusTally += v;
         // Monster energy milestone: every $5000 of score (today's day) pops one up near the worker.
         if (state === "play" && score >= monsterNextAt) {
           spawnMonsterNearPlayer();
@@ -19483,7 +19930,7 @@
           const t = fb.progress;
           if (t >= 1) {
             // Landed in the hopper — absorb into the pile, score, free the worker.
-            hopperDeposit();
+            hopperDeposit(fb.type); // debris flies in as a box and lumps as a GREY box (not a bag)
             addScore(25);
             SFX.playCanDropSound(); // the thud of the bag hitting the compactor
             checkHouse(fb.h);
@@ -19683,6 +20130,8 @@
           piss: "Dog piss! Shake it before you take it!",
           glass: "OW! Broken glass!",
           needle: "There's a needle sticking out!",
+          stormbox: "Storm debris — haul this box to the truck!",
+          woodpile: "Half a fence in this pile!",
         }[bag && bag.type];
         if (!line) return;
         Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER, "worker");
@@ -19734,6 +20183,7 @@
         }
         flyingBags.push({
           g: bag.g,
+          type: bag.type, // debris lumps into the hopper as a GREY box/stack (see addHopperLump)
           sx: p.wx,
           sy: p.wy,
           h: bag.h,
@@ -27736,9 +28186,9 @@
                     c.anchorObj.position.set(c.anchorX, c.anchorY, GZ + 0.05);
                     dynamicGroup.add(c.anchorObj);
                   }
-                } else if (isManhattanLevel() || isBronxLevel()) {
-                  if (isBronxLevel()) {
-                    // Bronx: recycle to a free active block (one dog per block), curb post or
+                } else if (isManhattanLevel() || isBronxLevel() || isBedStuyLevel()) {
+                  if (isBronxLevel() || isBedStuyLevel()) {
+                    // Bronx/Bed-Stuy: recycle to a free active block (one dog per block), curb post or
                     // stoop-foot post. HomeY for a stoop climbs toward the wall stop, so it
                     // isn't capped at the Manhattan sidewalk ceiling. Only blocks far enough
                     // AHEAD (p.wx + 50, camera sees ~15u) so the dog recycles off-screen.
@@ -27898,11 +28348,11 @@
               // never steps onto the asphalt, but it can still lunge out to the curb line
               // where the worker walks (the worker's route hugs the curb).
               // Also clamp X to the sidewalk (not in corners or cross-streets).
-              if (isManhattanLevel() || isBronxLevel()) {
+              if (isManhattanLevel() || isBronxLevel() || isBedStuyLevel()) {
                 gy = Math.max(0.85, gy);
-                // Bronx: climb the stoop but never enter the building — clamp the target to the
+                // Bronx/Bed-Stuy: climb the stoop but never enter the building — clamp the target to the
                 // same wall stop line the worker uses, so the dog halts at the door, not in it.
-                if (isBronxLevel()) gy = Math.min(gy, dogStopY(gx));
+                if (isBronxLevel() || isBedStuyLevel()) gy = Math.min(gy, dogStopY(gx));
                 if (
                   typeof c.blockMinX === "number" &&
                   typeof c.blockMaxX === "number"
@@ -27930,10 +28380,10 @@
                 const step = Math.min(ml, (c.agro > 0 ? 5.0 : 2.6) * dt);
                 c.wx += (mvx / ml) * step;
                 c.wy += (mvy / ml) * step;
-                if (isManhattanLevel() || isBronxLevel()) {
+                if (isManhattanLevel() || isBronxLevel() || isBedStuyLevel()) {
                   c.wy = Math.max(0.85, c.wy);
-                  // Bronx: same wall stop line — the dog climbs the stoop but can't enter.
-                  if (isBronxLevel()) c.wy = Math.min(c.wy, dogStopY(c.wx));
+                  // Bronx/Bed-Stuy: same wall stop line — the dog climbs the stoop but can't enter.
+                  if (isBronxLevel() || isBedStuyLevel()) c.wy = Math.min(c.wy, dogStopY(c.wx));
                   if (
                     typeof c.blockMinX === "number" &&
                     typeof c.blockMaxX === "number"
@@ -28047,7 +28497,9 @@
                   c.chain,
                   c.anchorX,
                   c.anchorY,
-                  (isManhattanLevel() || isBronxLevel() || isQueensLevel()) ? 1.5 : 0.62,
+                  (isManhattanLevel() || isBronxLevel() || isBedStuyLevel() || isQueensLevel())
+                    ? 1.5
+                    : 0.62,
                   dogSwayX,
                   dogSwayY,
                   dogCollarZ,
@@ -28734,6 +29186,14 @@
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         $("day-intro-day").textContent = d.day;
         $("day-intro-loc").textContent = d.borough + " \u00b7 " + d.area;
+        // Special-day banner (Bed-Stuy "STORM DEBRIS SUNDAY! DOUBLE TIME!") — shown loud, hidden on other days.
+        const sp = $("day-intro-special");
+        if (d.special) {
+          sp.textContent = d.special;
+          sp.classList.add("show");
+        } else {
+          sp.classList.remove("show");
+        }
         resetWorldState(); // (re)build the street for this day + re-anchor the worker at the start
         ["menu", "over", "complete", "day-stats", "week-complete"].forEach(
           function (id) {

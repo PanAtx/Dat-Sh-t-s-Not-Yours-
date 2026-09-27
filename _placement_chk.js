@@ -211,7 +211,7 @@ check('Maspeth leashed dog: recycle target lands >= 50u ahead of the player (off
 check('Maspeth leashed dog rate: scaled by week score ($5000+ = 4 dogs, else 2)', (() => {
   const i = src.indexOf('const dogCount = (isFlatbushLevel() || isStatenIslandLevel())');
   if (i < 0) return false;
-  const seg = src.slice(i, i + 460);
+  const seg = src.slice(i, i + 560);
   return (
     /isQueensLevel\(\)\s*\?\s*weekScore\s*>=\s*5000\s*\?\s*4\b/.test(seg) &&
     /:\s*2\b/.test(seg) &&
