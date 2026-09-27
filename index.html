@@ -1626,6 +1626,9 @@
       .bubble.bub-dealer {
         background: #e8b8e8;
       } /* dealer's soft orchid */
+      .bubble.bub-homeless {
+        background: #c9bfa2;
+      } /* the bird-seed homeless man's dusty khaki */
       .bubble.bub-panhandler {
         background: #c9d6a5;
       } /* panhandler's sickly olive — you can almost smell it */
@@ -2296,7 +2299,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.304</div>
+          <div id="app-version" class="menu-version">v1.0.305</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2451,7 +2454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.304';
+      const APP_VERSION = '1.0.305';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -14076,6 +14079,361 @@
         "That's for trying to harvest my Harlem!",
         "Get back in your saucer, you freak!",
       ];
+      // ==================== HARLEM BIRD-SEED HOMELESS MAN (cart) ====================
+      // A homeless man pushing a shopping cart who shadows the worker around his own
+      // block (block-clamped, like the alien-conspiracy thrower) and flings BIRD SEED
+      // onto the sidewalk. The seed calls in a little flock of pigeons that eat it,
+      // then wheel around overhead and rain droppings on the worker — a MINOR whack.
+      // He is non-solid (you contend with his birds, not his body). Being pooped on
+      // enough to go down reads "Failure to maintain a clean uniform" (cause "birdSeed").
+      const HP_HIT_BIRDPOOP = 4; // minor — a pigeon splat stings, it doesn't flatten him
+      const SEED_RANGE = 12; // this close -> he flings seed toward the worker
+      const SEED_CD_MIN = 5.0;
+      const SEED_CD_MAX = 7.0;
+      const CH_FOLLOW_SP = 3.2; // his block-clamped stalk speed
+      const CART_HOMELESS_LINES = [
+        "Just minding my business, man.",
+        "Them pigeons is my only friends.",
+        "This cart got my whole life in it.",
+        "You got any seed, huh?",
+        "Birds gotta eat too, man.",
+        "Ain't hurtin' nobody, feedin' the birds.",
+      ];
+      const CART_SEED_THROW_LINES = [
+        "Here, birdy birdy birdy!",
+        "Eat up, my feathered friends!",
+        "Scatter! Come on an' get it!",
+        "A little seed for the pigeons!",
+        "Come get it, ya little rats with wings!",
+      ];
+      const BIRD_WORKER_LINES = [
+        "That bird shit on me!",
+        "That's good luck?!",
+        "Hey bird, come back here and clean that up!",
+      ];
+      // A battered wire shopping cart (built in the person's LOCAL frame: +X = the
+      // direction he faces / pushes). The PUSH HANDLE sits on the side CLOSE to the
+      // man (at his hands) and the basket extends FORWARD (+X), so it reads as pushing.
+      function makeShoppingCart() {
+        const g = new THREE.Group();
+        const chrome = MS(0xb4bcc4, { metalness: 0.55, roughness: 0.5 });
+        const dark = M(0x2a2d31);
+        // basket, out FRONT of him
+        const basket = BX(0.6, 0.56, 0.46, chrome);
+        basket.position.set(0.55, 0, 0.58);
+        g.add(basket);
+        for (const rx of [-0.12, 0.12]) {
+          for (const sy of [-1, 1]) {
+            const rail = BX(0.56, 0.028, 0.028, chrome);
+            rail.position.set(0.55, sy * 0.27, 0.58 + rx);
+            g.add(rail);
+          }
+        }
+        // rear post + PUSH HANDLE on the side CLOSE to the man (his hands)
+        const post = BX(0.07, 0.5, 0.72, chrome);
+        post.position.set(0.16, 0, 0.62);
+        g.add(post);
+        const handle = BX(0.05, 0.52, 0.07, M(0xcf3b2f));
+        handle.position.set(0.06, 0, 0.94);
+        g.add(handle);
+        // wheels: rear under the handle, front under the basket — they roll along X
+        for (const wx of [0.28, 0.78]) {
+          for (const wy of [-0.24, 0.24]) {
+            const wheel = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.08, 0.08, 0.04, 10),
+              dark,
+            );
+            wheel.rotation.x = Math.PI / 2; // lay the axle along Y so it rolls on X
+            wheel.position.set(wx, wy, 0.08);
+            g.add(wheel);
+          }
+        }
+        // a bit of "stuff" in the basket so it reads as a hoarder's cart, not empty
+        const junk = BX(0.36, 0.34, 0.24, M(0x8a7b5a));
+        junk.position.set(0.58, 0, 0.78);
+        junk.rotation.set(R(0, 0.3), R(0, 0.3), R(0, 0.3));
+        g.add(junk);
+        g.position.set(0.08, 0, 0); // tuck it in front so the handle reaches his hands
+        return g;
+      }
+      // The homeless man himself: a rumpled olive coat, grey trousers, mismatched shoes,
+      // a dark beanie, and a scruffy beard, pushing the cart (a child of the group).
+      function makeCartHomeless() {
+        const SK = 0x6b4a2a; // FIXED warm brown tone (never the random roll)
+        const d = makePerson({
+          shirt: 0x5b5f3f, // worn olive field coat
+          pants: 0x3b3d33, // muddy grey trousers
+          skin: SK,
+          hair: 0x2a2118,
+        });
+        // dark scraggly BEARD (front lower face is +X, just under the head center z 1.04)
+        const beard = BX(0.05, 0.24, 0.14, M(0x241d16));
+        beard.position.set(0.11, 0, 0.96);
+        d.g.userData.parts.upper.add(beard);
+        // a slouchy knit BEANIE over the hair (hair top is ~z 1.14 in the upper frame)
+        const beanie = BX(0.3, 0.32, 0.16, M(0x6b2f2f));
+        beanie.position.set(0, 0, 1.24);
+        d.g.userData.parts.upper.add(beanie);
+        const brim = BX(0.1, 0.33, 0.04, M(0x521f1f));
+        brim.position.set(0.15, 0, 1.18);
+        d.g.userData.parts.upper.add(brim);
+        // slightly hunched: fold the chest forward a touch so he reads as weathered
+        d.g.userData.parts.upper.rotation.y = 0.28;
+        d.g.add(makeShoppingCart()); // the cart rides in front of him
+        return d;
+      }
+      // The bird-seed pouch he flings (a small paper-ish sack), and the pigeon dropping
+      // that falls out of the sky onto the worker.
+      function makeSeedBagMesh() {
+        const g = new THREE.Group();
+        const bag = SPH(0.09, M(0xd8d2c4));
+        bag.scale.set(1.2, 1, 1.2);
+        g.add(bag);
+        return g;
+      }
+      function makeBirdPoopMesh() {
+        const g = new THREE.Group();
+        const blob = SPH(0.09, new THREE.MeshLambertMaterial({ color: 0xf3f0e6 }));
+        blob.scale.set(1, 1, 0.7);
+        g.add(blob);
+        const core = SPH(0.05, M(0xe7c34f)); // yellowish center (the comic pigeon splat)
+        core.position.z = 0.02;
+        g.add(core);
+        return g;
+      }
+      // Spawn a seed pile on the sidewalk near (x, y) — the birds fly in to eat it.
+      function spawnSeedPile(c, x, y) {
+        if (c.seeds.length >= 2) {
+          const old = c.seeds.shift(); // recycle: keep the number of piles down
+          dynamicGroup.remove(old.g);
+        }
+        const g = makeSeedScatter();
+        g.position.set(x, y, GZ);
+        dynamicGroup.add(g);
+        c.seeds.push({ g: g, wx: x, wy: y, life: 8 });
+        return g;
+      }
+      // Call in a couple of pigeons to come eat the fresh pile (capped so they never spam).
+      function spawnSeedBirds(c, n) {
+        const pile = c.seeds[c.seeds.length - 1];
+        for (let k = 0; k < n; k++) {
+          if (c.birds.length >= 4) break;
+          const g = makePigeon();
+          const ang = R(0, 6.28);
+          const b = {
+            g: g,
+            wingL: g.userData.wingL,
+            wingR: g.userData.wingR,
+            wx: pile.wx + Math.cos(ang) * R(4, 7),
+            wy: pile.wy + Math.sin(ang) * R(3, 5),
+            gz: R(3.5, 5),
+            state: "flyIn",
+            t: 0,
+            tx: pile.wx + R(-0.4, 0.4),
+            ty: pile.wy + R(-0.3, 0.3),
+            seedAng: R(0, 6.28),
+            orbit: R(0, 6.28),
+            dropCd: R(0.6, 1.3),
+            peckDur: R(2.5, 4.5),
+            roostDur: R(3.5, 5.5),
+            escAng: ang,
+          };
+          g.position.set(b.wx, b.wy, GZ + b.gz);
+          dynamicGroup.add(g);
+          c.birds.push(b);
+        }
+      }
+      // Fling a seed pouch from his throwing hand toward the worker's spot (same overhand
+      // release the crazy guy uses), which lands -> a pile -> the flock descends.
+      function throwBirdSeed(c, tx, ty) {
+        const g = makeSeedBagMesh();
+        const az = Math.atan2(ty - c.wy, tx - c.wx);
+        const d = {
+          g: g,
+          wx: c.wx + Math.cos(az) * 0.5,
+          wy: c.wy + Math.sin(az) * 0.5,
+          z: 1.15,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+        };
+        g.position.set(d.wx, d.wy, GZ + d.z);
+        dynamicGroup.add(g);
+        c.bags.push(d);
+        const dist = Math.max(1, Math.hypot(tx - d.wx, ty - d.wy));
+        const tFly = Math.max(0.35, Math.min(0.7, dist / 12));
+        d.vx = (tx - d.wx) / tFly;
+        d.vy = (ty - d.wy) / tFly;
+        d.vz = 0.5 * 12 * tFly;
+        return d;
+      }
+      function birdFlap(b, amp) {
+        const f = Math.sin(performance.now() * 0.05) * amp;
+        b.wingL.rotation.x = -f;
+        b.wingR.rotation.x = f;
+      }
+      // Drive the whole subsystem: pouches landing -> piles -> birds (fly in, eat, then
+      // roost over the WORKER and drop poop) -> poop falling and connecting on him.
+      function updateSeedFlock(c, dt) {
+        const G = 12;
+        // 1) seed pouches in flight
+        for (let i = c.bags.length - 1; i >= 0; i--) {
+          const bg = c.bags[i];
+          bg.wx += bg.vx * dt;
+          bg.wy += bg.vy * dt;
+          bg.vz -= G * dt;
+          bg.z += bg.vz * dt;
+          bg.g.position.set(bg.wx, bg.wy, GZ + Math.max(0, bg.z));
+          bg.g.rotation.x += dt * 6;
+          if (bg.z <= 0 && bg.vz < 0) {
+            spawnSeedPile(c, bg.wx, bg.wy);
+            spawnSeedBirds(c, 2 + ((Math.random() * 2) | 0)); // 2-3 pigeons
+            if (state === "play") SFX.playPlopSound();
+            dynamicGroup.remove(bg.g);
+            c.bags.splice(i, 1);
+          }
+        }
+        // 2) seed piles age out
+        for (let i = c.seeds.length - 1; i >= 0; i--) {
+          const sd = c.seeds[i];
+          sd.life -= dt;
+          if (sd.life <= 0) {
+            dynamicGroup.remove(sd.g);
+            c.seeds.splice(i, 1);
+          }
+        }
+        // 3) the flock: flyIn -> peck -> roost (shit on the worker) -> leave
+        for (let i = c.birds.length - 1; i >= 0; i--) {
+          const b = c.birds[i];
+          b.t += dt;
+          if (b.state === "flyIn") {
+            const dx = b.tx - b.wx,
+              dy = b.ty - b.wy;
+            b.wx += dx * Math.min(1, dt * 2.4);
+            b.wy += dy * Math.min(1, dt * 2.4);
+            b.gz += (GZ + 0.18 - (GZ + b.gz)) * Math.min(1, dt * 2.2);
+            b.g.rotation.z = Math.atan2(dy, dx);
+            birdFlap(b, 0.85);
+            if (Math.hypot(dx, dy) < 0.6) {
+              b.state = "peck";
+              b.t = 0;
+            }
+          } else if (b.state === "peck") {
+            b.peck = (b.peck || 0) + dt * 7;
+            b.gz = Math.abs(Math.sin(b.peck)) * 0.12;
+            b.g.rotation.z = b.seedAng + Math.sin(b.peck * 0.5) * 0.15;
+            b.wingL.rotation.x = 0.05;
+            b.wingR.rotation.x = -0.05;
+            if (b.t > b.peckDur) {
+              b.state = "roost";
+              b.t = 0;
+            }
+          } else if (b.state === "roost") {
+            // wheel OVER the worker and rain droppings (he can walk out from under it)
+            b.orbit += dt * 1.7;
+            const rad = 1.7;
+            b.wx = p.wx + Math.cos(b.orbit) * rad;
+            b.wy = p.wy + Math.sin(b.orbit) * rad;
+            b.gz = 2.5 + Math.sin(b.orbit * 2) * 0.3;
+            b.g.rotation.z = b.orbit + Math.PI / 2;
+            b.g.rotation.y = 0.2;
+            birdFlap(b, 0.55);
+            b.dropCd -= dt;
+            if (b.dropCd <= 0 && state === "play" && c.poops.length < 6) {
+              b.dropCd = R(1.0, 1.8);
+              // the dropping falls onto the worker's CURRENT spot (walk out from under
+              // it to dodge) — released from this bird's height as it wheels overhead.
+              const px = p.wx + R(-0.4, 0.4);
+              const py = p.wy + R(-0.4, 0.4);
+              const pg = makeBirdPoopMesh();
+              pg.position.set(px, py, GZ + b.gz - 0.15);
+              dynamicGroup.add(pg);
+              c.poops.push({
+                g: pg,
+                wx: px,
+                wy: py,
+                z: b.gz - 0.15,
+                vz: 0,
+                hitCd: 0,
+                landT: 0,
+              });
+            }
+            if (b.t > b.roostDur) {
+              b.state = "leave";
+              b.t = 0;
+            }
+          } else {
+            // "leave": climb away and despawn
+            b.wx += Math.cos(b.escAng) * 7 * dt;
+            b.wy += Math.sin(b.escAng) * 7 * dt;
+            b.gz += 9 * dt;
+            b.g.rotation.z = b.escAng;
+            birdFlap(b, 1.0);
+            if (b.gz > 9) {
+              dynamicGroup.remove(b.g);
+              c.birds.splice(i, 1);
+              continue;
+            }
+          }
+          b.g.position.set(b.wx, b.wy, GZ + b.gz);
+          // hard despawn if this bird wandered far off-screen
+          if (b.wx < p.wx - 45 || b.wx > p.wx + 75) {
+            dynamicGroup.remove(b.g);
+            c.birds.splice(i, 1);
+          }
+        }
+        // 4) droppings fall and (maybe) connect with the worker
+        for (let i = c.poops.length - 1; i >= 0; i--) {
+          const q = c.poops[i];
+          q.vz -= G * dt;
+          q.z += q.vz * dt;
+          q.g.position.set(q.wx, q.wy, GZ + Math.max(0, q.z));
+          if (state === "play" && q.hitCd <= 0 && q.z < 1.9 && q.z > 0.2) {
+            const dpx = q.wx - p.wx,
+              dpy = q.wy - p.wy;
+            if (dpx * dpx + dpy * dpy <= 0.9 * 0.9) {
+              q.hitCd = 99;
+              hurtNPC(HP_HIT_BIRDPOOP, "birdSeed", true); // no generic yelp — custom line
+              Voice.say(
+                pick(BIRD_WORKER_LINES),
+                2.0,
+                R(0.95, 1.1),
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+              spawnDustEffect(p.wx, p.wy);
+              dynamicGroup.remove(q.g);
+              c.poops.splice(i, 1);
+              continue;
+            }
+          }
+          if (q.z <= 0 && q.vz < 0) {
+            q.landT += dt;
+            if (q.landT > 0.5) {
+              dynamicGroup.remove(q.g);
+              c.poops.splice(i, 1);
+              continue;
+            }
+          }
+          if (q.wx < p.wx - 45 || q.wx > p.wx + 75) {
+            dynamicGroup.remove(q.g);
+            c.poops.splice(i, 1);
+          }
+        }
+      }
+      // Purge every bird / pile / pouch / dropping this man owns (level reset / off-screen).
+      function clearSeedFlock(c) {
+        c.bags.forEach((x) => dynamicGroup.remove(x.g));
+        c.seeds.forEach((x) => dynamicGroup.remove(x.g));
+        c.birds.forEach((x) => dynamicGroup.remove(x.g));
+        c.poops.forEach((x) => dynamicGroup.remove(x.g));
+        c.bags.length = 0;
+        c.seeds.length = 0;
+        c.birds.length = 0;
+        c.poops.length = 0;
+      }
       function makeThrowDebris() {
         // A random piece of street debris: a brick, a bottle, or a wad of litter.
         const g = new THREE.Group();
@@ -16630,6 +16988,24 @@
             c.gender = "male";
             break;
           }
+          case "cartHomeless":
+            // HARLEM BIRD-SEED HOMELESS MAN (day 6): shadows the worker on HIS block
+            // (block-clamped — the spawn sets blockMinX/blockMaxX/wx/wy), pushes his cart,
+            // and flings bird seed that calls in a pigeon flock that rains droppings on
+            // him. Non-solid. See case "cartHomeless" in updateCreatures + updateSeedFlock.
+            c.sp = CH_FOLLOW_SP;
+            c.walkPhase = R(0, 6.28);
+            c.seedCd = R(2.0, 3.5); // first volley not long after the worker shows up
+            c.seedT = 0; // wind-up/throw animation timer (0 = idle)
+            c.seedReleased = false;
+            c.mutterCd = R(2.5, 5);
+            c.bags = []; // seed pouches in flight
+            c.seeds = []; // landed seed piles
+            c.birds = []; // the flock he called in
+            c.poops = []; // droppings falling on the worker
+            c.data = makeCartHomeless();
+            c.gender = "male";
+            break;
           case "dealer":
             c.sp = 0; // static: guards his stoop corner, never wanders
             c.attackCd = 0;
@@ -18334,6 +18710,28 @@
             groundGroup.add(hoop);
             bb.hoopMesh = hoop;
             bb.hoopNet = hoop.userData.net; // the net (rippled on a swish)
+
+            // ---- HARLEM BIRD-SEED HOMELESS MAN (day 6) ----
+            // A block with NONE of the other Harlem head-cases: not the alien thrower
+            // (harlemCrazyIdx), not the pimp (Block 3 = index 2), not the street-baller
+            // (bbIdx). He starts at the beginning of his block and shadows the worker
+            // around it (block-clamped), flinging bird seed that draws a pooping flock.
+            const chAvail = [1, 3, 4, 5, 6].filter(
+              (i) => LEVEL_BLOCKS[i] && i !== harlemCrazyIdx && i !== bbIdx,
+            );
+            if (chAvail.length) {
+              const chIdx = chAvail[(Math.random() * chAvail.length) | 0];
+              const chB = LEVEL_BLOCKS[chIdx];
+              const ch = addCreature("cartHomeless");
+              ch.wx = chB.x + 8; // at the BEGINNING of his block
+              ch.wy = R(2.0, 4.0);
+              ch.homeX = ch.wx;
+              ch.homeY = ch.wy;
+              ch.blockMinX = chB.x + 4;
+              ch.blockMaxX = chB.x + BLOCK_W - 4;
+              ch.dir = 1;
+              ch.g.position.set(ch.wx, ch.wy, GZ);
+            }
           }
         }
         // Bronx drug dealers: exactly TWO burly dealers per Bronx level, each
@@ -20186,6 +20584,8 @@
           "Failure to yield to a local hoops legend",
           "Failure to respect a certified streetballer",
         ],
+        // --- the Harlem bird-seed homeless man's flock fouled your uniform ---
+        birdSeed: ["Failure to maintain a clean uniform"],
         jacker: [
           "Delaying city progress.",
         ],
@@ -21286,6 +21686,7 @@
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
           if (c.type === "bball") continue; // street-baller: non-solid — you dodge the ball he hurls at you (no bump collision)
+          if (c.type === "cartHomeless") continue; // bird-seed homeless: non-solid — you dodge the droppings his pigeons leave on you, not his cart
           // Staten Island tee-ball baseball: the worker can bonk a loose ball even
           // when the kid is still a few units away, so the ball gets its own range
           // check BEFORE the generic kid-radius gate. (A LIVE throw connecting with
@@ -23901,8 +24302,20 @@
                   }
                   if (c.flyTarget === "hoop") {
                     // SWISH: the shot reached the rim — celebrate! (net ripple + a jump + "SWISH!")
+                    // Only HOLLER about it when the worker is actually near his court, so the
+                    // basketball player doesn't broadcast "SWISH!/net!" across the whole block
+                    // and get mistaken for a nearby NPC's lines.
                     c.swishT = 0.5;
-                    Voice.say(pick(BBALL_SWISH_LINES), 2.1, R(1.05, 1.2), c.wx, c.wy, "male", "bball");
+                    if (state === "play" && wDist < 20)
+                      Voice.say(
+                        pick(BBALL_SWISH_LINES),
+                        2.1,
+                        R(1.05, 1.2),
+                        c.wx,
+                        c.wy,
+                        "male",
+                        "bball",
+                      );
                   }
                   // the ball ALWAYS bounces back to him (he retrieves it)
                   c.ballState = "back";
@@ -26636,6 +27049,97 @@
               c.g.rotation.y = Math.sin(c.swayT * 0.9) * 0.06;
               break;
             }
+            case "cartHomeless": {
+              // HARLEM (day 6): the BIRD-SEED HOMELESS MAN. Block-clamped shadow of the
+              // worker (never crosses the cross-street), pushing his cart and flinging
+              // bird seed that calls in a pigeon flock which rains droppings on him
+              // (minor damage; write-up "Failure to maintain a clean uniform"). Non-solid.
+              c.g.position.z = GZ;
+              const chdx = p.wx - c.wx,
+                chdy = p.wy - c.wy;
+              const chdist = Math.hypot(chdx, chdy);
+              // FOLLOW the worker along HIS OWN block (block-clamped stalk)
+              let chMoving = false;
+              if (state === "play" && chdist > 2.6) {
+                c.wx += (chdx / chdist) * CH_FOLLOW_SP * dt;
+                c.wy += (chdy / chdist) * CH_FOLLOW_SP * dt;
+                chMoving = true;
+              }
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX); // hard block clamp
+              c.wy = clamp(c.wy, 1.6, 4.2);
+              if (chdist > 0.01) c.g.rotation.z = Math.atan2(chdy, chdx); // face the worker
+              c.walkPhase += dt * (chMoving ? 8 : 4);
+              const chParts = c.parts;
+              if (chParts) {
+                const ls = chMoving ? Math.sin(c.walkPhase) * 0.5 : 0;
+                chParts.legL.rotation.y = ls;
+                chParts.legR.rotation.y = -ls;
+              }
+              // WIND UP + FLING SEED when the worker is close on his block
+              c.seedCd = c.seedCd > 0 ? c.seedCd - dt : 0;
+              if (
+                state === "play" &&
+                c.seedCd <= 0 &&
+                (c.seedT || 0) <= 0 &&
+                chdist < SEED_RANGE
+              ) {
+                c.seedCd = R(SEED_CD_MIN, SEED_CD_MAX);
+                c.seedT = 0.55;
+                c.seedReleased = false;
+                Voice.say(
+                  pick(CART_SEED_THROW_LINES),
+                  2.0,
+                  R(0.85, 1.05),
+                  c.wx,
+                  c.wy,
+                  "male",
+                  "homeless",
+                );
+              }
+              const chArm = chParts && chParts.armR;
+              if ((c.seedT || 0) > 0) {
+                c.seedT = Math.max(0, c.seedT - dt);
+                const u = 1 - c.seedT / 0.55; // 0 -> 1 across the throw
+                if (chArm) {
+                  chArm.rotation.y = u * 3.4; // overhand-ish toss
+                  chArm.rotation.x = 0.12;
+                }
+                c.g.rotation.x = 0.16 * Math.sin(u * Math.PI); // lean into the fling
+                if (!c.seedReleased && u > 0.78) {
+                  c.seedReleased = true;
+                  throwBirdSeed(c, p.wx, p.wy); // seed lands on the worker's spot
+                }
+              } else if (chArm) {
+                chArm.rotation.y = 0;
+                chArm.rotation.x = 0;
+                c.g.rotation.x = 0;
+                c.seedReleased = false;
+              }
+              // idle mutter (only while roughly on-screen & the worker is near)
+              c.mutterCd -= dt;
+              if (c.mutterCd <= 0) {
+                c.mutterCd = R(6, 11);
+                if (chdist < 17 && tx > -42 && tx < 60)
+                  Voice.say(
+                    pick(CART_HOMELESS_LINES),
+                    2.0,
+                    R(0.85, 1.05),
+                    c.wx,
+                    c.wy,
+                    "male",
+                    "homeless",
+                  );
+              }
+              updateSeedFlock(c, dt);
+              // once his block is well behind the camera, drop the whole flock so nothing
+              // lingers off-screen (he never comes back into view this shift)
+              if (
+                tx < -46 &&
+                (c.birds.length || c.seeds.length || c.poops.length || c.bags.length)
+              )
+                clearSeedFlock(c);
+              break;
+            }
             case "crazy": {
               // ===== HARLEM (day 6): the ALIEN-CONSPIRACY thrower =====
               // Pants + no shirt + no knife. Block-bound on his random block (never
@@ -27799,6 +28303,7 @@
         else if (speaker === "driver") cls = "bubble bub-driver";
         else if (speaker === "kid") cls = "bubble bub-kid";
         else if (speaker === "crazy") cls = "bubble bub-crazy";
+        else if (speaker === "homeless") cls = "bubble bub-homeless";
         else if (speaker === "dealer") cls = "bubble bub-dealer";
         else if (speaker === "panhandler") cls = "bubble bub-panhandler";
         else if (speaker === "ghost") cls = "bubble bub-ghost";
