@@ -2296,7 +2296,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.302</div>
+          <div id="app-version" class="menu-version">v1.0.304</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2451,7 +2451,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.302';
+      const APP_VERSION = '1.0.304';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -12267,6 +12267,13 @@
         if (!LEVEL_DAYS[level - 1]) return false;
         return LEVEL_DAYS[level - 1].borough === "STATEN ISLAND";
       }
+      function isHarlemLevel() {
+        if (!LEVEL_DAYS[level - 1]) return false;
+        return (
+          LEVEL_DAYS[level - 1].borough === "MANHATTAN" &&
+          LEVEL_DAYS[level - 1].area === "HARLEM"
+        );
+      }
 
       // ==================== HOUSE TEMPLATE REGISTRY ====================
       // Maps each borough's name (from LEVEL_DAYS) to the builder function that
@@ -12512,6 +12519,78 @@
         const crossH = BX(0.13, 0.045, 0.02, gold);
         crossH.position.set(0, 0.06, 0.86);
         d.g.userData.parts.upper.add(crossH);
+        return d;
+      }
+      // The HARLEM MACK DADDY (Saturday, day 6): a big mack daddy running his
+      // business on the 145th-street sidewalk. A PURPLE SUIT (jacket + trousers)
+      // with WHITE SHOES, a PURPLE FEDORA with a BIG WHITE FEATHER sticking out
+      // of the band, and a gold watch + chain for the extra polish. His crew
+      // (the women) are running his business on the corner, and the worker
+      // bumping into them is a PERSONAL OFFENSE: he gets flustered, goes
+      // hostile, and stalks the worker punching him (HP_HIT_PIMP). The write-up
+      // reads "Failing to support a local enterprise".
+      function makePimp() {
+        const d = makePerson({
+          shirt: 0x5b2d8f, // purple suit jacket
+          pants: 0x4a2378, // matching (a shade deeper) suit trousers
+          skin: 0x5a3a1e, // FIXED dark tone (darkest in SKIN_TONES) — never the random roll
+          hair: 0x1a1a1a,
+        });
+        // WHITE SHOES: re-color the makePerson shoe boxes (children[1] of each leg pivot).
+        // NOTE: the shoe (0.22 x 0.14 x 0.12) and the pant leg (0.13 x 0.14 x 0.58) BOTH
+        // have a 0.14 Y-extent centered at the same local y, so where they overlap their
+        // front/back faces are exactly COPLANAR — that's the white-vs-purple Z-fight on
+        // the shoes. Pull the shoe's Y-extent just inside the leg's (scale.y < 1) so the
+        // two faces are no longer coplanar; the ~8% thinning is invisible and kills it.
+        [d.legL, d.legR].forEach((pv) => {
+          const shoe = pv.children[1];
+          if (shoe && shoe.material) shoe.material.color.set(0xf2f2f2);
+          if (shoe) shoe.scale.y = 0.92; // break coplanarity with the pant leg (kills the shoe z-fight)
+        });
+        // The PURPLE FEDORA: brim + crown + a darker hat band. The head is
+        // 0.26 x 0.30 x 0.26 centered at z 1.04 in the upper frame (top = z 1.19);
+        // the brim sits ON the head's top face, the crown rises just behind the
+        // forehead. The hat is slightly oversized (0.46 brim vs 0.28 head) so it
+        // reads as a real wide-brim fedora, not a beanie.
+        const hat = new THREE.Group();
+        const brim = BX(0.46, 0.03, 0.46, M(0x4a2378));
+        brim.position.set(0, 0, 1.18);
+        hat.add(brim);
+        const crown = BX(0.3, 0.18, 0.3, M(0x5b2d8f));
+        crown.position.set(0, 0, 1.29);
+        hat.add(crown);
+        const band = BX(0.31, 0.04, 0.31, M(0x3a1a5c));
+        band.position.set(0, 0, 1.22);
+        hat.add(band);
+        d.g.userData.parts.upper.add(hat);
+        // The BIG WHITE FEATHER: a white quill (shaft + vane) tucked into the
+        // band and pointing UP and BEHIND the head. Local frame: +Z = up (spine),
+        // +X = the face (front), so "behind" is -X. The quill rises from the
+        // back-top of the crown (z ~1.27) straight UP with a slight backward lean,
+        // the wide vane at the tip splayed so it reads as a feather, not a stick.
+        const feather = new THREE.Group();
+        const shaft = CY(0.008, 0.02, 0.46, M(0xf2f2f2));
+        shaft.rotation.x = Math.PI / 2; // lay the axis along Z (up)
+        shaft.position.set(0, 0, 0.23); // extends UP from the base
+        feather.add(shaft);
+        const vane = BX(0.16, 0.015, 0.36, M(0xfafafa));
+        vane.position.set(0, 0, 0.44); // at the tip
+        vane.rotation.y = 0.4; // a splayed twist so the vane reads as a feather
+        feather.add(vane);
+        feather.position.set(-0.05, 0.02, 1.27); // base at the back-top of the crown
+        feather.rotation.y = -0.3; // lean BACKWARD (toward -X, behind the head)
+        feather.rotation.x = 0.12; // a hint of side-splay for the classic fedora look
+        d.g.userData.parts.upper.add(feather);
+        // The GOLD WATCH: a small metallic band on the LEFT wrist (armL's hand
+        // sits at pv-local z -0.5), a classic mack-daddy flex.
+        const watch = BX(0.11, 0.11, 0.04, MS(0xffd700, { metalness: 0.9, roughness: 0.25 }));
+        watch.position.set(0, 0, -0.48);
+        d.armL.add(watch);
+        // The GOLD CHAIN: a short metallic band across the chest (over the
+        // purple jacket's V-neck), just below the collar.
+        const chain = BX(0.14, 0.03, 0.02, MS(0xffd700, { metalness: 0.9, roughness: 0.25 }));
+        chain.position.set(0, 0.1, 0.84);
+        d.g.userData.parts.upper.add(chain);
         return d;
       }
       // --- Chalk outline texture: loaded once, cached (the PNG ships in the repo root) ---
@@ -13847,22 +13926,27 @@
         g.userData.hammer = hammer;
         return g;
       }
-      function makeCrazyGuy() {
-        // Crazy homeless guy: NAKED, just skin. Blurred private parts patch. Scraggly hair. Knife in hand.
+      function makeCrazyGuy(opts = {}) {
+        // Crazy homeless guy. Two looks:
+        //  - default (Gramercy Park, day 1): NAKED, just skin, scraggly hair, knife in hand.
+        //  - opts.pants (Harlem, day 6): wears PANTS + shoes, NO shirt (bare chest),
+        //    NO knife, no exposed bits — the alien-conspiracy thrower who hurls debris.
         const g = new THREE.Group();
         const skin = M(pick(SKIN_TONES));
+        const hasPants = !!opts.pants;
+        const pantsM = hasPants ? M(opts.pants) : skin;
+        const shoeM = hasPants ? M(0x15151a) : skin;
         const hairM = M(0x3a352f);
         const steelM = MS(0x9aa3ab);
-        const handleM = M(0x4a3a2a);
-        // Legs (bare)
+        // Legs (bare skin, or pants for the Harlem look)
         const mkLeg = (side) => {
           const pv = new THREE.Group();
           pv.position.set(0, side * 0.1, 0.8);
-          const thigh = CY(0.075, 0.06, 0.7, skin, 8);
+          const thigh = CY(0.075, 0.06, 0.7, pantsM, 8);
           thigh.rotation.x = Math.PI / 2;
           thigh.position.z = -0.35;
           pv.add(thigh);
-          const foot = BX(0.16, 0.1, 0.1, skin);
+          const foot = BX(0.16, 0.1, 0.1, shoeM);
           foot.position.set(0.04, 0, -0.74);
           foot.rotation.x = -0.25;
           pv.add(foot);
@@ -13871,28 +13955,31 @@
         };
         const legL = mkLeg(1),
           legR = mkLeg(-1);
-        // Naked hips/torso (one piece)
-        const hips = BX(0.24, 0.35, 0.35, skin);
+        // Hips (pants for Harlem, bare for Gramercy Park)
+        const hips = BX(0.24, 0.35, 0.35, pantsM);
         hips.position.z = 0.9;
         g.add(hips);
+        // Torso — always bare chest (NO shirt in either look)
         const torso = BX(0.22, 0.58, 0.42, skin);
         torso.position.z = 1.2;
         g.add(torso);
-        // Butt cheeks: two rounded halves visible
-        const buttL = SPH(0.11, skin, 12, 10);
-        buttL.scale.set(0.85, 1.1, 0.75);
-        buttL.position.set(0.045, 0.07, 0.74);
-        g.add(buttL);
-        const buttR = SPH(0.11, skin, 12, 10);
-        buttR.scale.set(0.85, 1.1, 0.75);
-        buttR.position.set(0.045, -0.07, 0.74);
-        g.add(buttR);
-        // Penis: small cylinder between legs, slightly blurred/darker
-        const penis = CY(0.018, 0.015, 0.09, M(0xb08e76), 8);
-        penis.rotation.x = Math.PI / 2 + 0.2;
-        penis.position.set(0.04, 0, 0.86);
-        g.add(penis);
-        // Arms (naked)
+        // Naked bits (butt cheeks + patch) — ONLY the NAKED Gramercy Park look;
+        // the Harlem guy has pants, so these are covered/hidden.
+        if (!hasPants) {
+          const buttL = SPH(0.11, skin, 12, 10);
+          buttL.scale.set(0.85, 1.1, 0.75);
+          buttL.position.set(0.045, 0.07, 0.74);
+          g.add(buttL);
+          const buttR = SPH(0.11, skin, 12, 10);
+          buttR.scale.set(0.85, 1.1, 0.75);
+          buttR.position.set(0.045, -0.07, 0.74);
+          g.add(buttR);
+          const penis = CY(0.018, 0.015, 0.09, M(0xb08e76), 8);
+          penis.rotation.x = Math.PI / 2 + 0.2;
+          penis.position.set(0.04, 0, 0.86);
+          g.add(penis);
+        }
+        // Arms (always bare — no shirt)
         const mkArm = (side) => {
           const pv = new THREE.Group();
           pv.position.set(0, side * 0.32, 1.32);
@@ -13902,8 +13989,8 @@
           const hand = BX(0.08, 0.08, 0.09, skin);
           hand.position.z = -0.42;
           pv.add(hand);
-          // Knife in right hand (side=-1): wooden handle + steel blade, pointing down-forward
-          if (side === -1) {
+          // Knife in right hand — ONLY the naked Gramercy Park look (Harlem has none)
+          if (side === -1 && !hasPants) {
             const knife = new THREE.Group();
             const handle = BX(0.03, 0.03, 0.18, M(0x4a3a2a));
             handle.position.z = 0;
@@ -13951,6 +14038,247 @@
         tuft3.rotation.z = 0.15;
         g.add(tuft3);
         g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
+        return g;
+      }
+      // ==================== HARLEM ALIEN THROWS (crazy-guy debris) ====================
+      // On Harlem (day 6) the crazy homeless man is a different kind of menace:
+      // he's CONVINCED the sanitation worker is an ALIEN, the garbage truck is a
+      // UFO with flashing lights, and he's "saving Harlem" from an alien invasion.
+      // So instead of a knife he hurls street DEBRIS — bottles, bricks, litter —
+      // at the worker from a short distance. A thrown object that CONNECTS is a
+      // real whack (HP_HIT_CRAZY) and the write-up reads "Failed to live long and
+      // prosper" (cause "crazyAlien"). Each projectile is a small self-contained
+      // mesh in dynamicGroup, thrown on a lob (same gravity math as the tee-ball),
+      // and integrated + removed by the owning crazy-guy's update case.
+      const HP_HIT_CRAZY = 12; // a solid whack from a thrown brick/bottle/litter
+      const CRAZY_ALIEN_LINES = [
+        "That garbage truck's a DISC, ya feel me!",
+        "They're beaming us up at dawn. I SAW the lights!",
+        "I'm saving Harlem. You're WELCOME, alien!",
+        "Your truck's got LANDING GEAR. No wheels. I'm not wrong.",
+        "Probes in the pigeons. I've been keeping watch.",
+        "145th is a LANDING ZONE. I decoded it.",
+        "You ain't from Earth — I can smell the ozone.",
+        "The big one's coming and I'm the last line!",
+        "No one believes me, but I've seen the saucer!",
+        "We must live long and PROSPER, not get harvested!",
+      ];
+      const CRAZY_ALIEN_THROW_LINES = [
+        "GET BACK, EXTRATERRESTRIAL BEING!",
+        "This block is ALIEN-FREE, ya hear me?!",
+        "For HARLEM! Stay down, space-creature!",
+        "That's a warning shot, extraterrestrial!",
+        "My neighborhood, my laws — NO UFOs!",
+      ];
+      const CRAZY_ALIEN_HIT_LINES = [
+        "HA! One less alien on the block!",
+        "Did you feel that, space-creature?!",
+        "That's for trying to harvest my Harlem!",
+        "Get back in your saucer, you freak!",
+      ];
+      function makeThrowDebris() {
+        // A random piece of street debris: a brick, a bottle, or a wad of litter.
+        const g = new THREE.Group();
+        const roll = (Math.random() * 3) | 0;
+        if (roll === 0) {
+          const brick = BX(0.3, 0.16, 0.16, M(0x9c4a3a));
+          g.add(brick);
+          const cap = BX(0.3, 0.05, 0.16, M(0xb06a52));
+          g.add(cap);
+        } else if (roll === 1) {
+          const body = CY(0.05, 0.06, 0.24, M(0x3f6b3f), 8);
+          body.position.z = 0.12;
+          g.add(body);
+          const neck = CY(0.018, 0.035, 0.12, M(0x3f6b3f), 8);
+          neck.position.z = 0.3;
+          g.add(neck);
+        } else {
+          const wad = BX(0.18, 0.16, 0.16, M(0xd8d2c4));
+          g.add(wad);
+          const fold = BX(0.12, 0.1, 0.12, M(0xc7c0b0));
+          fold.position.set(0.05, 0.03, 0.04);
+          g.add(fold);
+        }
+        g.rotation.set(R(0, 3), R(0, 3), R(0, 3));
+        return g;
+      }
+      function throwDebris(c, tx, ty) {
+        const g = makeThrowDebris();
+        // Release from his EXTENDED THROWING HAND: a bit in FRONT of him (the
+        // direction he's throwing) at hand height — NOT from his head. This is
+        // where his hand is at the end of the overhand swing, so it reads as a
+        // real throw (baseball-style) instead of objects popping off his skull.
+        const az = Math.atan2(ty - c.wy, tx - c.wx);
+        const d = {
+          g,
+          wx: c.wx + Math.cos(az) * 0.45,
+          wy: c.wy + Math.sin(az) * 0.45,
+          z: 1.15,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          hitCd: 0,
+          settleT: 0,
+        };
+        g.position.set(d.wx, d.wy, GZ + d.z);
+        dynamicGroup.add(g);
+        c.thrown.push(d);
+        // a lob aimed at the worker's spot (same distance-scaled math as the tee-ball)
+        const dist = Math.max(1.0, Math.hypot(tx - d.wx, ty - d.wy));
+        const tFly = Math.max(0.3, Math.min(0.75, dist / 11));
+        d.vx = (tx - d.wx) / tFly;
+        d.vy = (ty - d.wy) / tFly;
+        d.vz = 0.5 * 12 * tFly; // pop up, arc, come back down (gravity 12)
+        return d;
+      }
+      function updateCrazyDebris(c, dt) {
+        const G = 12;
+        for (let i = c.thrown.length - 1; i >= 0; i--) {
+          const d = c.thrown[i];
+          d.wx += d.vx * dt;
+          d.wy += d.vy * dt;
+          d.vz -= G * dt;
+          d.z += d.vz * dt;
+          d.g.position.set(d.wx, d.wy, GZ + d.z); // sync the MESH to the physics (it flies!)
+          d.g.rotation.x += dt * 7; // tumble as it flies
+          d.g.rotation.y += dt * 4;
+          if (d.z <= 0 && d.vz < 0) {
+            d.z = 0;
+            d.vz = Math.abs(d.vz) * 0.35; // damped thud on the sidewalk
+            d.vx *= 0.5;
+            d.vy *= 0.5;
+            d.settleT += dt;
+          }
+          // === a thrown object CONNECTS with the worker (a real whack) ===
+          if (state === "play" && d.hitCd <= 0 && d.z < 1.9) {
+            const bdx = d.wx - p.wx,
+              bdy = d.wy - p.wy;
+            if (bdx * bdx + bdy * bdy <= 0.85 * 0.85) {
+              d.hitCd = 99; // one hit per projectile
+              hurtNPC(HP_HIT_CRAZY, "crazyAlien");
+              doStun(0.5, "hit");
+              Voice.say(
+                pick(CRAZY_ALIEN_HIT_LINES),
+                2.1,
+                R(0.9, 1.1),
+                c.wx,
+                c.wy,
+                "male",
+                "crazy",
+              );
+              spawnDustEffect(p.wx, p.wy);
+            }
+          }
+          // tidy up settled debris (or anything that fell far behind/ahead)
+          if (d.settleT > 1.0 || d.wx < -15 || d.wx > p.wx + 70) {
+            dynamicGroup.remove(d.g);
+            c.thrown.splice(i, 1);
+          }
+        }
+      }
+      // ==================== HARLEM STREET-BALL PLAYER (day 6) ====================
+      // A big, tall dunker: a red basketball jersey, white shorts, a white sweat
+      // headband, and white high-tops. Dark skin (FIXED tone, not the random roll).
+      // Built from makePerson + trims (same recipe as the mack daddy / mafia guy).
+      function makeBasketballGuy() {
+        const SK = 0x4a2e18; // FIXED dark tone (darkest) — never the random roll
+        const d = makePerson({
+          shirt: 0xb5271f, // red jersey
+          pants: 0xf0f0f0, // white — we turn them into SHORTS below
+          skin: SK,
+          hair: 0x141414,
+        });
+        const parts = d.g.userData.parts;
+        // TALL but SKINNY: keep the height (z) up, but trim the width (y) and depth (x)
+        // so he reads as a lanky street dunker, not a big, chunky one.
+        d.g.scale.set(1.0, 0.92, 1.34);
+        const skinMat = M(SK);
+        // SHORTS: shorten the white pant legs to thigh length + add a bare skin lower
+        // leg (shin) below them so they read as SHORTS, not full pants. The white
+        // high-tops re-color the makePerson shoe boxes (children[1] of each leg pivot).
+        [d.legL, d.legR].forEach((pv) => {
+          const leg = pv.children[0];
+          leg.scale.z = 0.5; // thigh-length
+          leg.position.z = -0.14; // hug the hip
+          const shin = BX(0.11, 0.12, 0.34, skinMat); // bare lower leg (skin)
+          shin.position.z = -0.42;
+          pv.add(shin);
+          const shoe = pv.children[1];
+          shoe.material.color.set(0xfafafa); // white high-tops
+          shoe.scale.y = 0.92; // break coplanarity with the shin (kills the shoe z-fight)
+          // a red side-stripe on each white short (classic NBA trim)
+          const stripe = BX(0.02, 0.125, 0.24, M(0xb5271f));
+          stripe.position.set(pv === d.legL ? 0.065 : -0.065, 0, -0.14);
+          pv.add(stripe);
+        });
+        // the white SWEAT HEADBAND: a ring around the head at the forehead (keeps the
+        // sweat off his eyes). The ring's default lies in the XY plane = around the
+        // vertical (head) axis, which is exactly a headband.
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.035, 8, 22), M(0xfafafa));
+        band.position.z = 1.12; // just above the head's midline (forehead)
+        parts.upper.add(band);
+        // a white collar trim at the neck (reads as a basketball jersey)
+        const collar = BX(0.2, 0.05, 0.09, M(0xfafafa));
+        collar.position.set(0.08, 0, 0.8); // front of the neck (the face is +X)
+        parts.upper.add(collar);
+        return d; // { g, legL, legR, armL, armR } with g.userData.parts
+      }
+      // The orange basketball: an orange sphere with two dark great-circle seams so it
+      // reads as a real basketball, not a plain ball. Returns a small group (the ball
+      // mesh + seams) that we add to the world and drive frame by frame.
+      function makeBasketballMesh() {
+        const g = new THREE.Group();
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 14), M(0xd9682a)); // a bit smaller
+        ball.castShadow = true;
+        g.add(ball);
+        const seam = M(0x2a1a0e);
+        const s1 = new THREE.Mesh(new THREE.TorusGeometry(0.242, 0.011, 6, 26), seam);
+        s1.rotation.y = Math.PI / 2;
+        g.add(s1);
+        const s2 = new THREE.Mesh(new THREE.TorusGeometry(0.242, 0.011, 6, 26), seam);
+        g.add(s2);
+        return g;
+      }
+      // The HOOP: a backboard + rim + net mounted on the building line (the house is
+      // behind the player at +Y; the rim sticks out toward the street at -Y). The group
+      // origin sits on the ground (z = GZ); children are offset in local z (UP). The
+      // rim's height above ground is the value the player's shot aims for.
+      function makeHoop() {
+        const g = new THREE.Group();
+        const RIM_Z = 3.5; // rim height above ground (world rim z = GZ + 3.5) — at an upper WINDOW level, clearly visible
+        const board = new THREE.Mesh(
+          new THREE.BoxGeometry(1.8, 0.07, 1.4), // compact: sits in the upper-window band, doesn't poke into the roof
+          new THREE.MeshLambertMaterial({ color: 0xdfe6e8, transparent: true, opacity: 0.92 }),
+        );
+        board.position.set(0, 0, RIM_Z + 0.5); // board sits just above the rim
+        board.castShadow = true;
+        g.add(board);
+        const sq = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 0.72), M(0xd43b2f));
+        sq.position.set(0, 0, RIM_Z + 0.42);
+        g.add(sq);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.05, 8, 22), M(0xe0662a));
+        rim.position.set(0, -0.45, RIM_Z); // attached to the board, out toward the street
+        g.add(rim);
+        const net = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.3, 0.18, 0.55, 10, 1, true),
+          new THREE.MeshLambertMaterial({
+            color: 0xf7f7f7,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.6,
+          }),
+        );
+        net.rotation.x = Math.PI / 2; // stand the cone up: in this game Z is up, but CylinderGeometry's axis is Y, so this makes it hang DOWN from the rim (wide end at the rim, narrow end below)
+        net.position.set(0, -0.45, RIM_Z - 0.28);
+        g.add(net);
+        g.userData.net = net; // so the AI can ripple it on a swish
+        // mounting brackets: two small bars from the board back into the (off-screen) wall
+        const bMat = M(0x555a60);
+        [RIM_Z + 0.3, RIM_Z + 0.9].forEach((bz) => {
+          const br = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.36, 0.08), bMat);
+          br.position.set(0, 0.2, bz);
+          g.add(br);
+        });
         return g;
       }
       // ==================== BRONX STOOP DRUG DEALER ====================
@@ -16237,6 +16565,25 @@
             c.gender = "male";
             break;
           }
+          case "pimp": {
+            // The HARLEM MACK DADDY (Saturday, day 6): a big mack daddy in a purple
+            // suit, white shoes, and a purple fedora with a big white feather,
+            // running his business (the women) on the Block 3 sidewalk. STATIC until
+            // the worker bumps into him (PIMP_AGGRO_R) — then he gets flustered,
+            // goes hostile, and SHADOWS the worker around his block (clamped to
+            // blockMinX..blockMaxX) throwing threats. His bump is a PUNCH
+            // (HP_HIT_PIMP, a real whack — same weight as the mafia guy's bat).
+            // The write-up reads "Failing to support a local enterprise".
+            c.sp = 0; // static until aggro
+            c.mode = "guard"; // guard -> stalk
+            c.attackCd = 0;
+            c.hitsThisBump = 0; // the "2 hits per bump" budget (see collideCreatures / updateCreatures)
+            c.homeX = c.wx; // the sidewalk spot (Block 3)
+            c.homeY = c.wy;
+            c.data = makePimp();
+            c.gender = "male";
+            break;
+          }
           case "crazy":
             c.wy = R(1.2, 4.2);
             c.sp = 0.4;
@@ -16244,9 +16591,45 @@
             c.backOffT = 0;
             c.crazySpeed = R(0.8, 1.2);
             c.crazyAngle = 0;
-            c.data = makeCrazyGuy();
-            c.knife = c.data.userData.knife;
+            c.harlem = isHarlemLevel();
+            if (c.harlem) {
+              // Harlem (day 6): pants + no shirt + no knife; hurls debris (see the
+              // case "crazy" update branch + throwDebris/updateCrazyDebris).
+              c.data = makeCrazyGuy({ pants: 0x2b3a4a }); // dark denim
+              c.throwCd = 1.6;
+              c.thrown = [];
+              c.mutterCd = R(1.5, 3.5);
+              c.bumpCd = 0;
+              c.throwT = 0; // active arm-throw timer (0 = idle)
+              c.throwReleased = false;
+            } else {
+              c.data = makeCrazyGuy();
+              c.knife = c.data.userData.knife;
+            }
             break;
+          case "bball": {
+            // HARLEM STREET-BALL PLAYER (day 6): a big, tall dunker on his own block
+            // with a hoop on the building. Bounces the ball, heaves it at the hoop
+            // (it bounces back for him to catch); if the worker crowds his court he
+            // hurls it at him. The spawn block sets wx/wy + hoopX/hoopY/hoopZ and builds
+            // the hoop fixture (see the isHarlemLevel() spawn block in spawnWorld).
+            c.sp = 0; // static — he plays ball on his own court
+            c.ballState = "dribble";
+            c.ballT = 0;
+            c.dribbleDur = R(1.4, 2.6);
+            c.throwCd = R(1.5, 3.0);
+            c.flyFrom = null;
+            c.flyTo = null;
+            c.flyDur = 0.5;
+            c.flyTarget = "hoop";
+            c.flyArc = 3.0;
+            c.ballW = { x: c.wx, y: c.wy, z: 2.0 };
+            c.swishT = 0; // active swish-celebration timer (0 = not celebrating)
+            c.data = makeBasketballGuy();
+            c.ballG = makeBasketballMesh(); // added to the world via the addCreature epilogue
+            c.gender = "male";
+            break;
+          }
           case "dealer":
             c.sp = 0; // static: guards his stoop corner, never wanders
             c.attackCd = 0;
@@ -17113,6 +17496,30 @@
           mg.homeX = mg.wx;
           mg.homeY = mg.wy;
         }
+        // The HARLEM MACK DADDY (Saturday, day 6): a big mack daddy in a purple
+        // suit, white shoes, and a purple fedora with a big white feather. He
+        // stands with his crew (the women) on the Block 3 sidewalk, facing the
+        // street. STATIC until the worker gets close (PIMP_AGGRO_R) — then he
+        // gets flustered, goes hostile, and stalks the worker punching him
+        // (HP_HIT_PIMP). The write-up reads "Failing to support a local
+        // enterprise".
+        if (isHarlemLevel()) {
+          const pimpBlockX = LEVEL_BLOCKS[2].x; // Block 3 (x 192)
+          const pimpWX = pimpBlockX + 30; // mid-block, sidewalk
+          const pg = addCreature("pimp", {
+            wx: pimpWX,
+            wy: 3.0, // street side, close to the curb (with his crew)
+          });
+          pg.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him)
+          pg.g.position.set(pg.wx, pg.wy, GZ);
+          pg.homeX = pg.wx;
+          pg.homeY = pg.wy;
+          // STAYS ON HIS BLOCK (Block 3): the follow is clamped to blockMinX..blockMaxX
+          // (the Karen / housewife pattern), so he shadows the worker around the block
+          // he's running his business on and never crosses the cross-street.
+          pg.blockMinX = pimpBlockX + 4.0;
+          pg.blockMaxX = pimpBlockX + BLOCK_W - 4.0;
+        }
         // The Staten Island TEE-BALL CATCH KIDS (New Dorp, day 5): THREE small kids in
         // DIFFERENT colored shirts, really playing CATCH with ONE baseball on ONE
         // random block — a block that is NOT the car-wash block (Block 2) and NOT the
@@ -17239,6 +17646,22 @@
         const counts = npcCounts(level);
         for (const t in counts)
           for (let i = 0; i < counts[t]; i++) addCreature(t);
+        // Harlem (Saturday, day 6): the mack daddy's CREW. EVERY hooker on the
+        // level is pulled onto his Block 3 sidewalk and lined up beside him —
+        // they're "the enterprise," standing the corner WITH him, not random
+        // corners on far blocks. staysOnBlock pins them (see the hooker case in
+        // updateCreatures) so they never recycle/teleport off his corner.
+        if (isHarlemLevel()) {
+          const crew = creatures.filter((c) => c.type === "hooker");
+          const n = crew.length;
+          crew.forEach((c, i) => {
+            c.wx = LEVEL_BLOCKS[2].x + 30 + (i - (n - 1) / 2) * 3.5; // beside the pimp
+            c.wy = 2.6 + (i % 2) * 1.1; // sidewalk, near his curb side
+            c.g.rotation.z = -Math.PI / 2; // face the street like their pimp
+            c.g.position.set(c.wx, c.wy, GZ);
+            c.staysOnBlock = true; // his crew: pin to the block, never follow the camera
+          });
+        }
         // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
         // The dog barks and lunges at the worker but the chain limits how far it gets.
         // In Manhattan (brownstone level), the dog is tied to a fence post on the sidewalk
@@ -17854,13 +18277,64 @@
             sc.g.position.set(sc.wx, sc.wy, GZ);
           }
         }
-        // Crazy homeless guy: Manhattan-only aggressive NPC that attacks on touch
-        // Spawns in the MIDDLE of the level, not at the beginning or end
+        // Crazy homeless guy: Manhattan-only aggressive NPC, with a DIFFERENT
+        // character on each Manhattan day:
+        //  - Gramercy Park (day 1): the naked, knife-wielding maniac in the MIDDLE
+        //    of the route that chases and stabs on touch.
+        //  - Harlem (day 6): the alien-conspiracy thrower — block-bound on ONE
+        //    random block (NEVER the mack daddy's Block 3), hurls debris at the
+        //    worker, and mutters that he's "saving Harlem" from an alien invasion.
         if (isManhattanLevel()) {
           const cg = addCreature("crazy");
-          cg.wx = p.wx + R(30, 80); // middle of the route
-          cg.wy = R(1.2, 4.2);
+          let harlemCrazyIdx = -1;
+          if (isHarlemLevel()) {
+            // ONE random garbage block, EXCLUDING index 2 (Block 3 = the pimp's corner)
+            const cand = [1, 3, 4, 5, 6];
+            harlemCrazyIdx = cand[(Math.random() * cand.length) | 0];
+            const b = LEVEL_BLOCKS[harlemCrazyIdx];
+            cg.wx = b.x + 8; // at the BEGINNING of his block (the end the worker reaches first)
+            cg.wy = R(2.0, 4.0);
+            cg.homeX = cg.wx;
+            cg.homeY = cg.wy;
+            cg.blockMinX = b.x + 4;
+            cg.blockMaxX = b.x + BLOCK_W - 4;
+            cg.dir = 1;
+            cg.g.rotation.z = -Math.PI / 2; // face the street
+          } else {
+            cg.wx = p.wx + R(30, 80); // middle of the route (Gramercy Park)
+            cg.wy = R(1.2, 4.2);
+          }
           cg.g.position.set(cg.wx, cg.wy, GZ);
+
+          // ==================== HARLEM STREET-BALL PLAYER (day 6) ====================
+          // A big, tall dunker on his OWN block (never the pimp's Block 3, never the
+          // crazy guy's block), with a hoop mounted on the building. He bounces an
+          // orange basketball at the hoop (it bounces back for him to catch), and if
+          // the worker crowds his court he hurls it at him ("You messin' with my
+          // game!"). See case "bball" in updateCreatures for the ball state machine.
+          if (isHarlemLevel()) {
+            const bbAvail = [1, 3, 4, 5, 6, 7].filter((i) => i !== harlemCrazyIdx);
+            const bbIdx = bbAvail[(Math.random() * bbAvail.length) | 0];
+            const bbBlock = LEVEL_BLOCKS[bbIdx];
+            const bbX = bbBlock.x + BLOCK_W * 0.5; // center of his block
+            const bbY = 2.6; // on the sidewalk, in the worker's lane (street-side of the hoop)
+            const bb = addCreature("bball");
+            bb.wx = bbX;
+            bb.wy = bbY;
+            bb.homeX = bbX;
+            bb.homeY = bbY;
+            bb.hoopX = bbX; // the rim's world X
+            bb.hoopY = 6.15; // the rim's world Y (board mounted on the building face at ~6.6, the rim sticks out toward the street)
+            bb.hoopZ = 4.0; // rim height above ground (world rim z = GZ + 4.0) — low & visible
+            bb.g.position.set(bbX, bbY, GZ);
+            bb.g.rotation.z = Math.PI / 2; // face the hoop (+Y, toward the building)
+            // build the hoop fixture on the building line (in front of the house at ~8.7)
+            const hoop = makeHoop();
+            hoop.position.set(bbX, 6.6, GZ); // mounted on the building's street face (house frontage sits at Y ~6.7)
+            groundGroup.add(hoop);
+            bb.hoopMesh = hoop;
+            bb.hoopNet = hoop.userData.net; // the net (rippled on a swish)
+          }
         }
         // Bronx drug dealers: exactly TWO burly dealers per Bronx level, each
         // guarding a weed/fentanyl stash on a DIFFERENT active block's stoop
@@ -18664,6 +19138,7 @@
             c.type === "housewife" ||
             c.type === "carwasher" ||
             c.type === "mafia" ||
+            c.type === "pimp" ||
             c.type === "skater" ||
             c.type === "escooter"
           ) {
@@ -19232,6 +19707,79 @@
       // The chalk CRIME SCENE OUTLINE's world x (Staten Island only) — the mafia guy
       // is aggroed by the worker getting near him OR this outline. Set in spawnWorld.
       let mafiaOutlineX = null;
+      // The HARLEM MACK DADDY (Saturday, day 6): a big mack daddy in a purple suit,
+      // white shoes, and a purple fedora with a big white feather. He stands with
+      // his crew (the women) running his business on the Block 3 sidewalk. STATIC
+      // until the worker gets close (PIMP_AGGRO_R) — then he gets FLUSTERED,
+      // accuses the worker of being a PERVERT, and STALKS him up the rest of the
+      // level (PIMP_FOLLOW_SP) throwing threats. His bump is a PUNCH
+      // (HP_HIT_PIMP — a real whack, same weight as the mafia guy's bat). The
+      // write-up reads "Failing to support a local enterprise".
+      const HP_HIT_PIMP = 20;
+      // ==================== HARLEM STREET-BALL PLAYER (day 6) ====================
+      // A big, tall dunker in a red jersey + white shorts + a sweat headband, bouncing
+      // an orange basketball and heaving it at a hoop mounted on the building. The
+      // ball always bounces back for him to catch. If the worker crowds his court he
+      // hurls it at him ("You messin' with my game!") and the write-up reads
+      // "Bricklaying while on duty".
+      const HP_HIT_BBALL = 15; // a solid whack from a full-force heave of a basketball
+      const BBALL_LINES = [
+        "Boomshakalaka!",
+        "Boom-shakalaka-boom!",
+        "From downtown!",
+        "He's on fire!",
+        "He's heating up!",
+        "Razzle-dazzle!",
+        "Is it the shoes?!",
+        "Da-daa-daa-daa-daa!",
+        "Buckets! Bucket! Bucket! Bucket!",
+        "He's got no fear!",
+        "Too easy!",
+        "Nothing but net!",
+        "Money! Money! Money!",
+        "Shake your moneymaker!",
+        "He's cookin' now!",
+        "That's my guy!",
+      ];
+      const BBALL_HOSTILE_LINES = [
+        "You messin' with my game!",
+        "Back off — this is MY court!",
+        "Get off my street, fool!",
+      ];
+      const BBALL_SWISH_LINES = [
+        "SWISH!",
+        "Nothing but NET!",
+        "Bucket! Bucket!",
+        "Too EASY!",
+        "Money in the bank!",
+      ];
+      const BBALL_HOSTILE_HIT_LINES = [
+        "That's for messin' with my game!",
+        "Stay out of my court, hear me?!",
+        "One more step and it's OVER!",
+      ];
+      const PIMP_LINES = [
+        "Back off, ya feel me?!",
+        "This is MY street, understand?!",
+        "I said BACK OFF — ya feel me?!",
+        "My business runs here. Respect the enterprise!",
+        "You touch my crew again, I'm endin' you!",
+        "We don't take this kind of nonsense on 145th!",
+      ];
+      const PIMP_AGGRO_LINES = [
+        "PERVERT?! You bumping into my WOMEN?!",
+        "You get your greasy mitts OFF my crew, ya feel me?!",
+        "That's MY enterprise you're pestering, punk!",
+      ];
+      const PIMP_WORKER_LINES = [
+        "Ow! That's a heavy hand for a mack daddy!",
+        "I'm just sweeping the curb, man!",
+        "Please — I didn't touch a thing!",
+        "That's going straight in my report!",
+      ];
+      const PIMP_AGGRO_R = 3.5; // the worker this close to the guy (bumping into his crew) alerts him
+      const PIMP_FOLLOW_SP = 4.2; // a menacing stalk — same pace as the mafia guy
+      const PIMP_PUNCH_CD = 0.9; // one full punch swing (0.85s) + a hair: EVERY bump is a hit, and a retrigger can never interrupt a swing
       // The car washer's hose rope: a shared unit-up vector + scratch dir for laying
       // the hose segments (cylinder local +Y -> segment direction) each frame.
       const HOS_UP = new THREE.Vector3(0, 1, 0);
@@ -19566,6 +20114,12 @@
           "Witness protection protocol was not followed",
           "Failure to observe the no-questions policy",
         ],
+        // --- the Harlem mack daddy: you failed to support a LOCAL ENTERPRISE ---
+        pimp: [
+          "Failing to support a local enterprise",
+          "Failure to respect a neighborhood institution",
+          "The local business was not afforded due respect",
+        ],
         // --- the Maspeth cemetery ghosts: the dead are due their rest ---
         ghost: [
           "Failure to respect the dearly departed",
@@ -19619,6 +20173,18 @@
           "Failure to defer to a certified community leader",
           "Failure to satisfy the leader's funding request",
           "Community leader not afforded due deference",
+        ],
+        // --- the Harlem alien-conspiracy thrower: you failed to LIVE LONG & PROSPER ---
+        crazyAlien: [
+          "Failed to live long and prosper",
+          "Failure to maintain First Contact protocol",
+          "Interference with a sanctioned xenodefense operation",
+        ],
+        // --- the Harlem street-baller: you bumped while he was on his court ---
+        bball: [
+          "Bricklaying while on duty",
+          "Failure to yield to a local hoops legend",
+          "Failure to respect a certified streetballer",
         ],
         jacker: [
           "Delaying city progress.",
@@ -20719,6 +21285,7 @@
           if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
+          if (c.type === "bball") continue; // street-baller: non-solid — you dodge the ball he hurls at you (no bump collision)
           // Staten Island tee-ball baseball: the worker can bonk a loose ball even
           // when the kid is still a few units away, so the ball gets its own range
           // check BEFORE the generic kid-radius gate. (A LIVE throw connecting with
@@ -20830,6 +21397,7 @@
           else if (c.type === "housewife") rad = 0.85;
           else if (c.type === "carwasher") rad = 0.85;
           else if (c.type === "mafia") rad = 0.95; // a solid, burly enforcer
+          else if (c.type === "pimp") rad = 0.95; // a big mack daddy — same solid presence
           else if (c.type === "yeller") rad = 0.95;
           else if (c.type === "jacker") rad = 0.95;
           else if (
@@ -20901,8 +21469,29 @@
             return;
           }
           if (c.type === "crazy") {
+            // ===== HARLEM: the ALIEN-CONSPIRACY thrower (no knife) =====
+            // Bumping him just agitates him: an alien yelp, a solid push-back, and
+            // he hurls debris at you right after (throwCd reset). No stabbing, no
+            // "I need money!" — that's the Gramercy Park knife man below.
+            if (c.harlem) {
+              // Bumping him just AGITATES him (no knife): solid push-back + he winds
+              // up a throw right after (the nearby-trigger above does the arm swing,
+              // release, and the rant on the next update).
+              if (c.bumpCd <= 0) {
+                c.bumpCd = 1.5;
+                c.throwCd = 0; // agitated: wind up a throw on the next tick
+              }
+              // solid: the worker is pushed back off him
+              const d = Math.sqrt(d2) || 0.001;
+              const nx = -dx / d,
+                ny = -dy / d;
+              const pen = rad - d;
+              p.wx += nx * (pen + 0.05);
+              p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+              return;
+            }
             if (c.attackCd <= 0) {
-              // Violent attack
+              // Violent attack (Gramercy Park knife man)
               hurtNPC(HP_HIT_HAZARD, "crazy");
               Voice.say(
                 "I need money!",
@@ -21098,6 +21687,59 @@
               c.swingHitDone = false; // the smash frame delivers (or whiffs) the blow
             }
             return; // the mafia guy is solid: overlap resolved above, no generic bounce
+          }
+          // The HARLEM MACK DADDY (Saturday, day 6): a HEAVY PUNCH — same weight as
+          // the mafia guy's bat (HP_HIT_PIMP, a real whack). The bump only ARMS the
+          // over-hand punch — the blow LANDS on the smash (updateCreatures delivers
+          // it on the first frame past the smash, swingT >= 0.48, when the fist is
+          // driving down in front of him), so the worker SEES the windup BEFORE he
+          // gets hit; a full sprint through the windup escapes the punch (a whiff).
+          // The per-guy cooldown is only one full swing long, so no bump ever passes
+          // by un-armed; respects i-frames / Monster immunity (re-checked at the
+          // smash; hurtNPC re-checks too). He is SOLID: the overlap is resolved
+          // every frame, so the worker can butt up against the mack daddy but can
+          // NEVER walk through him. The write-up reads "Failing to support a local
+          // enterprise".
+          if (c.type === "pimp") {
+            if (c.attackCd === undefined) c.attackCd = 0;
+            const pd = Math.sqrt(d2) || 0.001;
+            const pnx = -dx / pd,
+              pny = -dy / pd; // unit vector: pimp -> worker
+            // SOLID BODY: push the worker out of his radius EVERY frame (not just
+            // on the hit) — he can press right up against the mack daddy, but the
+            // overlap never resolves to clipping through him.
+            const pen = rad - pd;
+            if (pen > 0) {
+              p.wx += pnx * pen;
+              p.wy = clamp(p.wy + pny * pen, -9.4, workerMaxY());
+            }
+            // TWO HITS PER BUMP: only arm a punch while this bump still has hits left
+            // (c.hitsThisBump < 2) and no swing is already in the air — the worker gets
+            // exactly two whacks per bump, then the mack daddy holds until the next bump
+            // (the budget resets in the update case once the worker has clearly left).
+            if (
+              (c.hitsThisBump || 0) < 2 &&
+              !c.swinging &&
+              c.attackCd <= 0 &&
+              p.invuln <= 0 &&
+              p.immuneT <= 0
+            ) {
+              c.attackCd = PIMP_PUNCH_CD;
+              // PUNCH FIRST, HIT ON THE SMASH: the bump only ARMS the over-hand
+              // punch — the worker no longer gets whacked the instant he touches
+              // the mack daddy. The per-frame driver in updateCreatures plays the
+              // windup, and the BLOW (sound / damage / stun / yelps / shove) is
+              // delivered on the first frame past the smash (swingT >= 0.48),
+              // exactly when the fist is driving down in front of him — so the
+              // worker sees the over-the-top windup BEFORE he gets hit. Turn to
+              // face the worker (dx/dy point pimp-minus-worker, so the worker
+              // sits at (-dx, -dy)) and arm the punch.
+              if (c.g) c.g.rotation.z = Math.atan2(-dy, -dx);
+              c.swinging = true;
+              c.swingT = 0;
+              c.swingHitDone = false; // the smash frame delivers (or whiffs) the blow
+            }
+            return; // the mack daddy is solid: overlap resolved above, no generic bounce
           }
           if (
             c.type === "ped" ||
@@ -22181,7 +22823,7 @@
       const ParkedCarR = 2.3; // the parked sedan's CIRCUMRADIUS (the 0.9-scaled body is 4.2u long x 1.88u wide, corners 2.30u from center) — the NPC walk-around's circle. The WORKER's push-out is a rounded-RECT on the slab itself (hz.hx/hy/m) so it hugs the paint instead of floating off the sides
       const AVOID_TYPES = {
         // movable obstacles a walker slips around (vehicles are excluded — those are
-        ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, mafia: 1, // handled by
+        ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, mafia: 1, pimp: 1, // handled by
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
         teeball: 1, // Staten Island tee-ball kids: a solid obstacle the crowd routes around
@@ -23176,6 +23818,155 @@
               c.cd -= dt;
               break;
             }
+            case "bball": {
+              // HARLEM STREET-BALL PLAYER (day 6): a big, tall dunker who bounces an
+              // orange basketball, heaves it at the hoop on the building (it bounces
+              // back for him to catch), and — if the worker crowds his court — hurls it
+              // at the worker. One reusable ball driven by a tiny state machine
+              // (dribble -> out -> back -> dribble ...). Its logical position (c.ballW,
+              // z = height above ground) is synced to the mesh EVERY frame so it moves.
+              c.g.position.z = GZ;
+              c.throwCd = c.throwCd > 0 ? c.throwCd - dt : 0;
+              c.ballT += dt;
+              const wDist = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+              const HAND_Z = 2.2; // hand height (above ground): release & catch
+              const hostile = state === "play" && wDist < 7.5 && c.throwCd <= 0;
+              if (c.ballState === "dribble") {
+                // bounce the ball at his hand (a real dribble: up to his hand and back)
+                c.ballW.x = c.wx;
+                c.ballW.y = c.wy + 0.55; // in FRONT of him (he faces +Y toward the hoop)
+                c.ballW.z = 0.4 + 1.9 * Math.abs(Math.sin(c.ballT * 5));
+                c.g.rotation.z = Math.PI / 2; // face the hoop (+Y, toward the building)
+                if (c.parts) {
+                  const s = Math.sin(c.ballT * 5) * 0.35; // arms pump with the dribble
+                  c.parts.armL.rotation.y = s;
+                  c.parts.armR.rotation.y = -s;
+                }
+                if (c.ballT >= c.dribbleDur || (hostile && c.ballT > 0.15)) {
+                  c.ballState = "out";
+                  c.ballT = 0;
+                  c.flyFrom = { x: c.ballW.x, y: c.ballW.y, z: c.ballW.z };
+                  if (hostile) {
+                    c.flyTo = { x: p.wx, y: p.wy, z: 2.4 };
+                    c.flyTarget = "worker";
+                    c.throwCd = R(4.0, 5.5);
+                    c.flyDur = Math.max(0.28, wDist / 11);
+                    c.flyArc = 2.0;
+                    c.g.rotation.z = Math.atan2(p.wy - c.wy, p.wx - c.wx); // face the worker
+                    Voice.say(
+                      pick(BBALL_HOSTILE_LINES),
+                      2.1,
+                      R(1.0, 1.1),
+                      c.wx,
+                      c.wy,
+                      "male",
+                      "bball",
+                    );
+                  } else {
+                    c.flyTo = { x: c.hoopX, y: c.hoopY, z: c.hoopZ };
+                    c.flyTarget = "hoop";
+                    c.flyDur = Math.max(0.45, Math.hypot(c.hoopX - c.wx, c.hoopY - c.wy) / 7.5);
+                    c.flyArc = 3.2;
+                  }
+                }
+              } else if (c.ballState === "out") {
+                // the ball is flying to its target (an arc)
+                const u = Math.min(c.ballT / c.flyDur, 1);
+                c.ballW.x = c.flyFrom.x + (c.flyTo.x - c.flyFrom.x) * u;
+                c.ballW.y = c.flyFrom.y + (c.flyTo.y - c.flyFrom.y) * u;
+                c.ballW.z =
+                  c.flyFrom.z + (c.flyTo.z - c.flyFrom.z) * u + c.flyArc * Math.sin(u * Math.PI);
+                if (c.parts) {
+                  const sw = Math.sin(u * Math.PI); // the throwing arm swings through
+                  c.parts.armR.rotation.y = -2.1 * sw;
+                  c.parts.armL.rotation.y = -0.3 * sw;
+                }
+                if (u >= 1) {
+                  if (c.flyTarget === "worker") {
+                    const dNow = Math.hypot(p.wx - c.ballW.x, p.wy - c.ballW.y);
+                    if (state === "play" && dNow < 2.6) {
+                      hurtNPC(HP_HIT_BBALL, "bball"); // i-frames handled inside hurtNPC
+                      doStun(0.4, "hit");
+                      spawnDustEffect(p.wx, p.wy);
+                      Voice.say(
+                        pick(BBALL_HOSTILE_HIT_LINES),
+                        2.2,
+                        R(0.95, 1.1),
+                        c.wx,
+                        c.wy,
+                        "male",
+                        "bball",
+                      );
+                    }
+                  }
+                  if (c.flyTarget === "hoop") {
+                    // SWISH: the shot reached the rim — celebrate! (net ripple + a jump + "SWISH!")
+                    c.swishT = 0.5;
+                    Voice.say(pick(BBALL_SWISH_LINES), 2.1, R(1.05, 1.2), c.wx, c.wy, "male", "bball");
+                  }
+                  // the ball ALWAYS bounces back to him (he retrieves it)
+                  c.ballState = "back";
+                  c.ballT = 0;
+                  c.flyFrom = { x: c.ballW.x, y: c.ballW.y, z: c.ballW.z };
+                  c.flyTo = { x: c.wx, y: c.wy + 0.55, z: HAND_Z };
+                  c.flyDur = Math.max(0.3, Math.hypot(c.ballW.x - c.wx, c.ballW.y - c.wy) / 8);
+                  c.flyArc = 2.6;
+                }
+              } else {
+                // "back": the ball flies back to his hand
+                const u = Math.min(c.ballT / c.flyDur, 1);
+                c.ballW.x = c.flyFrom.x + (c.flyTo.x - c.flyFrom.x) * u;
+                c.ballW.y = c.flyFrom.y + (c.flyTo.y - c.flyFrom.y) * u;
+                c.ballW.z =
+                  c.flyFrom.z + (c.flyTo.z - c.flyFrom.z) * u + c.flyArc * Math.sin(u * Math.PI);
+                if (u >= 1) {
+                  // CAUGHT — back to bouncing
+                  c.ballState = "dribble";
+                  c.ballT = 0;
+                  c.dribbleDur = R(1.4, 2.6);
+                  if (c.parts) {
+                    c.parts.armL.rotation.y = 0;
+                    c.parts.armR.rotation.y = 0;
+                  }
+                  if (state === "play" && wDist < 20 && Math.random() < 0.6) {
+                    Voice.say(
+                      pick(BBALL_LINES),
+                      2.0,
+                      R(1.0, 1.15),
+                      c.wx,
+                      c.wy,
+                      "male",
+                      "bball",
+                    );
+                  }
+                }
+              }
+              // SWISH celebration: a little jump + hands up + a net ripple (runs over the
+              // ball's return trip so he celebrates right as it pops back to him)
+              if (c.swishT > 0) {
+                c.swishT -= dt;
+                const t = 1 - c.swishT / 0.5; // 0 -> 1 over the swish
+                const hop = Math.sin(t * Math.PI); // up and back down
+                c.g.position.z = GZ + 0.55 * hop;
+                if (c.parts) {
+                  c.parts.armL.rotation.y = 2.7 * hop; // hands up
+                  c.parts.armR.rotation.y = -2.7 * hop;
+                }
+                if (c.hoopNet) {
+                  const n = 1 + 0.4 * Math.abs(Math.sin(t * Math.PI * 2)); // net ripple
+                  c.hoopNet.scale.set(n, n, 1);
+                }
+              } else if (c.hoopNet) {
+                c.hoopNet.scale.set(1, 1, 1);
+              }
+              // sync the ball MESH to the logical position EVERY frame (the desync fix)
+              if (c.ballG) {
+                c.ballG.position.set(c.ballW.x, c.ballW.y, GZ + c.ballW.z);
+                c.ballG.rotation.x += dt * 6;
+                c.ballG.rotation.y += dt * 4;
+              }
+              break;
+            }
             case "mafia": {
               // The Staten Island MAFIA GUY (New Dorp, day 5): a tanned, black-haired
               // enforcer in an Adidas tracksuit with a gold cross, guarding a chalk
@@ -23313,6 +24104,169 @@
                     );
                     Voice.say(
                       pick(MAFIA_WORKER_LINES),
+                      2.2,
+                      0.95,
+                      p.wx,
+                      p.wy,
+                      WORKER_GENDER,
+                      "worker",
+                    );
+                    // The blow shoves the worker back a touch PAST the solid push-out,
+                    // so a hit reads as a whack, not just a wall
+                    p.wx += inx * 0.5;
+                    p.wy = clamp(p.wy + iny * 0.35, -9.4, workerMaxY());
+                  }
+                }
+              }
+              break;
+            }
+            case "pimp": {
+              // The HARLEM MACK DADDY (Saturday, day 6): a big mack daddy in a purple
+              // suit, white shoes, and a purple fedora with a big white feather,
+              // running his business (the women) on the Block 3 sidewalk. STATIC
+              // until the worker bumps into him (PIMP_AGGRO_R) — then he gets
+              // FLUSTERED ("PERVERT?! ... my WOMEN?!"), and SHADOWS the worker around
+              // his block (clamped to blockMinX..blockMaxX) throwing threats
+              // (PIMP_LINES,
+              // "ya feel me?!"). His bump is a PUNCH (HP_HIT_PIMP, armed in
+              // collideCreatures, delivered on the smash below). The write-up reads
+              // "Failing to support a local enterprise".
+              // Cooldown TICK: the punch-hit cooldown (set in collideCreatures)
+              // must count down every frame — without this it sits at PIMP_PUNCH_CD
+              // forever after the first whack and he could only ever hit ONCE.
+              c.attackCd = c.attackCd > 0 ? c.attackCd - dt : 0;
+              // Reset the "2 hits per bump" budget once the worker has clearly left the
+              // mack daddy's space (beyond ~2.0) — the next contact is a fresh bump with
+              // two fresh hits.
+              if ((c.hitsThisBump || 0) > 0 && Math.hypot(p.wx - c.wx, p.wy - c.wy) > 2.0)
+                c.hitsThisBump = 0;
+              if (c.mode === "guard") {
+                // Static, glaring. FLUSTERED when the worker bumps into him (his
+                // crew).
+                const pDGuy = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+                if (pDGuy < PIMP_AGGRO_R) {
+                  c.mode = "stalk";
+                  c.talkCd = 1.5; // a short beat, then start harassing
+                  Voice.say(
+                    pick(PIMP_AGGRO_LINES),
+                    1.0,
+                    0.6,
+                    c.wx,
+                    c.wy,
+                    "male",
+                    "pimp",
+                  );
+                }
+              } else {
+                // STALK: chase the worker at PIMP_FOLLOW_SP — but he STAYS ON HIS BLOCK.
+                // His x is clamped to blockMinX..blockMaxX (set at spawn, the Karen /
+                // housewife pattern), so he shadows the worker around the block he's
+                // running his business on and never crosses the cross-street. When the
+                // worker is past the block he stands at the edge, still facing him.
+                c.sp = PIMP_FOLLOW_SP;
+                const pDx = p.wx - c.wx,
+                  pDy = p.wy - c.wy;
+                const pD = Math.hypot(pDx, pDy) || 1;
+                if (pD > 2.0) {
+                  c.wx += (pDx / pD) * c.sp * dt;
+                  c.wy = clamp(
+                    c.wy + (pDy / pD) * c.sp * dt,
+                    -9.4,
+                    workerMaxY(),
+                  );
+                }
+                // STAYS ON HIS BLOCK: never chase the worker past the cross-street
+                if (c.blockMinX !== undefined)
+                  c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+                // Face the worker
+                if (c.g) c.g.rotation.z = Math.atan2(pDy, pDx);
+                // THREATEN the worker on a cooldown
+                c.talkCd = c.talkCd > 0 ? c.talkCd - dt : 0;
+                if (c.talkCd <= 0 && pD < 14) {
+                  Voice.say(
+                    pick(PIMP_LINES),
+                    1.0,
+                    0.6,
+                    c.wx,
+                    c.wy,
+                    "male",
+                    "pimp",
+                  );
+                  c.talkCd = R(3.5, 6);
+                }
+              }
+              // Walk-cycle the legs while stalking (the arms are PINNED while the
+              // punch owns them, below)
+              if (c.mode === "stalk" && c.parts) {
+                c.phase = (c.phase || 0) + dt * 9;
+                const s = Math.sin(c.phase) * 0.5;
+                c.parts.legL.rotation.y = s;
+                c.parts.legR.rotation.y = -s;
+                if (!c.swinging) {
+                  c.parts.armL.rotation.y = -s * 0.7;
+                  c.parts.armR.rotation.y = s * 0.7;
+                }
+              }
+              // PUNCH (armed in collideCreatures when the worker bumps him): an
+              // OVER-HAND swing, the same windup as the mafia guy's bat but a bare
+              // fist. Rotating armR around local Y (the lateral axis) carries the
+              // fist DOWN -> BEHIND -> UP over the head -> FORWARD -> back DOWN
+              // onto the worker (+X local — he's facing him). windup 0 -> 2.2 (fist
+              // high up behind) -> a fast SMASH over the top to 5.0 (driving down
+              // in front) -> the follow-through settles 5.0 -> 2*pi back to rest.
+              // A little torso twist (upper.rotation.y) sells the lunge. ~0.85s
+              // total — well inside the 0.9s PIMP_PUNCH_CD, so a retrigger can
+              // never interrupt a swing.
+              if (c.swinging && c.parts) {
+                c.swingT = (c.swingT || 0) + dt;
+                const t = c.swingT;
+                const ss = (u) => u * u * (3 - 2 * u); // smoothstep
+                let ang;
+                if (t < 0.3) {
+                  const u = t / 0.3;
+                  ang = 2.2 * u * (2 - u); // ease-out windup, fist raised high behind
+                } else if (t < 0.48) {
+                  ang = 2.2 + 2.8 * ss((t - 0.3) / 0.18); // the SMASH over the top
+                } else if (t < 0.85) {
+                  ang = 5.0 + 1.2831853 * ss((t - 0.48) / 0.37); // follow-through settles to rest
+                } else {
+                  ang = 0;
+                  c.swinging = false;
+                }
+                c.parts.armR.rotation.y = ang;
+                c.parts.upper.rotation.y =
+                  -Math.sin(ang) * 0.3; // lean back in the windup, forward into the smash
+                // THE BLOW LANDS ON THE SMASH (not on the bump): the first frame
+                // past the smash (t >= 0.48) is the frame the fist is driving DOWN
+                // in front of him (ang 5.0) — the worker sees the over-hand windup
+                // BEFORE he gets whacked. Range is re-checked against the worker's
+                // CURRENT position (the solid push-out holds him close through the
+                // windup, but a full sprint escapes the punch and the swing whiffs);
+                // i-frames / immunity / play state are re-checked too, and
+                // hurtNPC re-checks them as well.
+                if (!c.swingHitDone && t >= 0.48) {
+                  c.swingHitDone = true;
+                  const iDx = c.wx - p.wx,
+                    iDy = c.wy - p.wy;
+                  const iD = Math.sqrt(iDx * iDx + iDy * iDy) || 0.001;
+                  if (iD <= 2.2 && p.invuln <= 0 && p.immuneT <= 0 && state === "play") {
+                    const inx = -iDx / iD,
+                      iny = -iDy / iD; // pimp -> worker, measured NOW (at impact)
+                    SFX.playHurtSound();
+                    hurtNPC(HP_HIT_PIMP, "pimp");
+                    doStun(0.5, "hit");
+                    c.hitsThisBump = (c.hitsThisBump || 0) + 1; // this bump is one hit down (2 max per bump)
+                    Voice.say(
+                      pick(PIMP_LINES),
+                      1.0,
+                      0.6,
+                      c.wx,
+                      c.wy,
+                      "male",
+                      "pimp",
+                    );
+                    Voice.say(
+                      pick(PIMP_WORKER_LINES),
                       2.2,
                       0.95,
                       p.wx,
@@ -25662,7 +26616,11 @@
               c.swayT += dt;
               c.g.rotation.z = -Math.PI / 2 + Math.sin(c.swayT * 1.3) * 0.1;
               c.g.rotation.y = Math.sin(c.swayT * 2.2) * 0.14; // hips rocking
-              if (tx < -55) {
+              // staysOnBlock (Harlem, the mack daddy's crew): she's standing HIS
+              // corner — NEVER recycle, or she'd teleport ahead of the worker off
+              // her block (the same reason the Maspeth Polish lady never recycles).
+              // Every other level keeps the old "follow along" recycle.
+              if (tx < -55 && !c.staysOnBlock) {
                 c.wx = p.wx + 42;
                 c.wy = R(1.2, 4.2);
               }
@@ -25679,7 +26637,116 @@
               break;
             }
             case "crazy": {
-              // Crazy homeless guy: slow idle walk, attacks on touch with 4s cooldown
+              // ===== HARLEM (day 6): the ALIEN-CONSPIRACY thrower =====
+              // Pants + no shirt + no knife. Block-bound on his random block (never
+              // the pimp's Block 3). Convinced the worker is an ALIEN and the truck
+              // is a UFO, he hurls DEBRIS at the worker from a short distance and
+              // mutters about saving Harlem. A thrown object that connects is a real
+              // whack (HP_HIT_CRAZY) and the write-up reads "Failed to live long
+              // and prosper" (cause "crazyAlien").
+              if (c.harlem) {
+                c.g.position.z = GZ;
+                c.throwCd = c.throwCd > 0 ? c.throwCd - dt : 0;
+                const hdx = p.wx - c.wx,
+                  hdy = p.wy - c.wy;
+                const hdist = Math.hypot(hdx, hdy);
+
+                // --- FOLLOW the worker along HIS OWN block (block-clamped stalk) ---
+                // He chases the "alien" like a madman, but is hard-clamped to the
+                // block he runs on (blockMinX..blockMaxX) — so he shadows the worker
+                // up and down his block, never crossing the cross-street.
+                const CRZ_FOLLOW_SP = 4.0;
+                let moving = false;
+                if (state === "play" && hdist > 2.0) {
+                  c.wx += (hdx / hdist) * CRZ_FOLLOW_SP * dt;
+                  c.wy += (hdy / hdist) * CRZ_FOLLOW_SP * dt;
+                  moving = true;
+                }
+                c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX); // hard block clamp
+                c.wy = clamp(c.wy, 1.6, 4.2);
+                if (hdist > 0.01) c.g.rotation.z = Math.atan2(hdy, hdx); // face the worker
+                c.phase = (c.phase || 0) + dt * (moving ? 9 : 7);
+
+                const parts = c.data && c.data.userData.parts;
+                const armR = parts && parts.armR;
+                // walk-cycle the legs while stalking (the arms stay free for the throw)
+                if (parts) {
+                  const s = moving ? Math.sin(c.phase) * 0.5 : 0;
+                  parts.legL.rotation.y = s;
+                  parts.legR.rotation.y = -s;
+                }
+
+                // --- NEARBY TRIGGER (NO bump needed): the worker is close on his
+                //     block -> he gets crazy and WINDS UP a throw at him. ---
+                if (
+                  state === "play" &&
+                  c.throwCd <= 0 &&
+                  (c.throwT || 0) <= 0 &&
+                  hdist < 10
+                ) {
+                  c.throwCd = R(2.6, 3.6);
+                  c.throwT = 0.5; // windup + release + follow-through
+                  c.throwReleased = false;
+                  c.throwTX = p.wx;
+                  c.throwTY = p.wy;
+                  Voice.say(
+                    pick(CRAZY_ALIEN_THROW_LINES),
+                    2.0,
+                    R(0.9, 1.1),
+                    c.wx,
+                    c.wy,
+                    "male",
+                    "crazy",
+                  );
+                }
+
+                // --- ARM THROW (baseball-style overhand): windup -> release -> follow ---
+                if ((c.throwT || 0) > 0) {
+                  c.throwT = Math.max(0, c.throwT - dt);
+                  const u = 1 - c.throwT / 0.5; // 0 -> 1 across the throw
+                  if (armR) {
+                    // rotation.y swings the arm down -> back -> up -> forward (full overhand)
+                    armR.rotation.y = u * 4.0;
+                    armR.rotation.x = 0.15;
+                  }
+                  c.g.rotation.x = 0.22 * Math.sin(u * Math.PI); // lean into the throw
+                  c.g.rotation.y = 0;
+                  // release the debris ONCE, as the arm comes through toward the worker
+                  if (!c.throwReleased && u > 0.8) {
+                    c.throwReleased = true;
+                    throwDebris(c, p.wx, p.wy); // aim at the worker's CURRENT spot
+                  }
+                } else {
+                  // idle paranoid fidget (arm back to its rest hang)
+                  c.g.rotation.x = Math.sin(c.phase) * 0.07;
+                  c.g.rotation.y = Math.sin(c.phase * 0.6) * 0.05;
+                  if (armR) {
+                    armR.rotation.y = 0;
+                    armR.rotation.x = 0;
+                  }
+                  c.throwReleased = false;
+                }
+
+                // --- paranoid muttering (only when on-screen) ---
+                if (!c.mutterCd) c.mutterCd = R(2.5, 5);
+                c.mutterCd -= dt;
+                if (c.mutterCd <= 0) {
+                  c.mutterCd = R(4.5, 8);
+                  if (hdist < 18)
+                    Voice.say(
+                      pick(CRAZY_ALIEN_LINES),
+                      2.0,
+                      R(0.9, 1.15),
+                      c.wx,
+                      c.wy,
+                      "male",
+                      "crazy",
+                    );
+                }
+                updateCrazyDebris(c, dt);
+                break;
+              }
+              // Crazy homeless guy (Gramercy Park): slow idle walk, attacks on touch
               if (c.backOffT > 0) {
                 c.backOffT -= dt;
                 // After attacking, turn around and run away (not far)
@@ -26635,26 +27702,7 @@
           y: (-_bubVec.y * 0.5 + 0.5) * innerHeight,
         };
       }
-      const BUBBLE_LINE_STEP = 42;
-      function bubbleBounds(sx, sy, text, line, isBurst) {
-        const estChars = Math.max(4, text.length);
-        // Plain bubble: 16px Bangers ≈ 10px/char + 20px padding. Burst: 18px
-        // Bangers + 1.5px letter-spacing ≈ 12px/char + 96px padding, capped at
-        // the wrap width (260px content + 96px padding = 356px box).
-        const w = isBurst
-          ? Math.min(estChars * 12 + 96, 356)
-          : estChars * 10 + 20;
-        // The POW! burst is ~74px tall (fat padding + 18px Bangers text), not
-        // the plain bubble's 30px — using the real height keeps stacked
-        // bubbles from overlapping a burst.
-        const h = isBurst ? 74 : 30;
-        return {
-          x: sx - w * 0.5,
-          y: sy - h - line * BUBBLE_LINE_STEP,
-          w: w,
-          h: h,
-        };
-      }
+      const BUBBLE_PAD = 8; // minimum gap kept between bubbles so they never touch
       function rectsOverlap(a, b) {
         return (
           a.x < b.x + b.w &&
@@ -26663,27 +27711,77 @@
           a.y + a.h > b.y
         );
       }
-      function findFreeBubbleLine(sx, sy, text, isBurst) {
-        for (let line = 0; line < 4; line++) {
-          const self = bubbleBounds(sx, sy, text, line, isBurst);
-          let free = true;
-          for (const b of speechBubbles) {
-            if (b.lockedX === null || b.lockedY === null) continue;
-            const other = bubbleBounds(
-              b.lockedX,
-              b.lockedY,
-              b.text,
-              b.offsetLine,
-              b.burst,
-            );
-            if (rectsOverlap(self, other)) {
-              free = false;
-              break;
-            }
-          }
-          if (free) return line;
+      // Live on-screen box of a bubble (getBoundingClientRect reflects the CSS
+      // translate that hangs it above its head). null if it isn't measurable.
+      function bubbleBox(el) {
+        if (el && typeof el.getBoundingClientRect === "function") {
+          const r = el.getBoundingClientRect();
+          if (r && r.width > 0 && r.height > 0)
+            return { x: r.left, y: r.top, w: r.width, h: r.height };
         }
-        return 0;
+        return null;
+      }
+      function occupiedBoxes(exceptEl) {
+        const out = [];
+        for (const b of speechBubbles) {
+          if (b.el === exceptEl) continue;
+          const box = bubbleBox(b.el);
+          if (box) out.push(box);
+        }
+        return out;
+      }
+      // Place a bubble in its OWN readable slice of the screen so it never
+      // overlaps another one. Preference order: just above the speaker's head,
+      // then stacked up, then out to the sides, then edge rows. The bubble is
+      // FROZEN at the chosen spot for the rest of its life (it does not track a
+      // moving speaker) — that's what keeps the no-overlap guarantee true.
+      function findFreeSpot(el, ax, ay) {
+        // Layout size via offsetWidth/Height: transform-independent, so it stays
+        // correct even while the bubblePop scale animation is running.
+        const w = (el && el.offsetWidth) || 140;
+        const h = (el && el.offsetHeight) || 30;
+        const occ = occupiedBoxes(el);
+        const boxAt = (cx, by) => ({ x: cx - w / 2, y: by - h, w: w, h: h });
+        const cands = [];
+        for (let k = 0; k < 6; k++)
+          cands.push([ax, ay - 12 - k * (h + 12)]); // above head, stacking up
+        for (let k = 0; k < 3; k++) {
+          // out to the left / right, same band
+          cands.push([ax - (w / 2 + 16 + k * (w + 16)), ay - 12]);
+          cands.push([ax + (w / 2 + 16 + k * (w + 16)), ay - 12]);
+        }
+        for (let by = h + 16; by < innerHeight - 8; by += h + 14) {
+          // edge rows, top to bottom (guaranteed free space on a normal screen)
+          cands.push([w / 2 + BUBBLE_PAD, by]);
+          cands.push([innerWidth - w / 2 - BUBBLE_PAD, by]);
+        }
+        let best = null;
+        for (const [cx, by] of cands) {
+          const ccx = Math.max(
+            w / 2 + BUBBLE_PAD,
+            Math.min(cx, innerWidth - w / 2 - BUBBLE_PAD),
+          );
+          const cby = Math.max(
+            h + BUBBLE_PAD,
+            Math.min(by, innerHeight - BUBBLE_PAD),
+          );
+          if (!occ.some((o) => rectsOverlap(boxAt(ccx, cby), o))) {
+            best = { cx: ccx, by: cby };
+            break;
+          }
+        }
+        if (!best)
+          best = {
+            cx: w / 2 + BUBBLE_PAD,
+            by: Math.min(
+              h + BUBBLE_PAD + occ.length * (h + 14),
+              innerHeight - BUBBLE_PAD,
+            ),
+          };
+        // transform is translate(-50%,-110%): centerX == left, bottom == top - 0.1h.
+        el.style.left = best.cx + "px";
+        el.style.top = best.by + h * 0.1 + "px";
+        return best;
       }
       function spawnBubble(text, wx, wy, speaker, style) {
         const el = document.createElement("div");
@@ -26720,7 +27818,7 @@
           x: innerWidth / 2,
           y: innerHeight * 0.3,
         };
-        const offsetLine = findFreeBubbleLine(s.x, s.y, text, isBurst);
+        const spot = findFreeSpot(el, s.x, s.y);
         speechBubbles.push({
           el: el,
           wx: wx,
@@ -26730,7 +27828,8 @@
           text: text,
           lockedX: s.x,
           lockedY: s.y,
-          offsetLine: offsetLine,
+          spotX: spot.cx,
+          spotY: spot.by,
           speaker: speaker,
           burst: isBurst,
         });
@@ -26744,44 +27843,12 @@
             speechBubbles.splice(i, 1);
             continue;
           }
+          // Bubbles are FROZEN at the collision-free spot chosen at spawn (see
+          // findFreeSpot) so they can never drift into each other — we only fade.
           b.el.style.opacity =
             b.life > b.max - 0.3
               ? (b.max - b.life) / 0.3
               : Math.min(1, b.life / 0.45);
-          const s = worldToScreen(b.wx, b.wy, GZ + 2.35) || {
-            x: innerWidth / 2,
-            y: innerHeight * 0.3,
-          };
-          b.lockedX = s.x;
-          b.lockedY = s.y;
-          b.el.style.left = s.x + "px";
-          b.el.style.top =
-            Math.max(12, s.y - b.offsetLine * BUBBLE_LINE_STEP) + "px";
-          // KEEP THE WHOLE BUBBLE ON SCREEN: the bubble hangs above the head, so a
-          // speaker near the top edge pushes it off the top of the screen. Measure
-          // the rendered box and nudge it down / inward until it fits fully in the
-          // viewport (same for the left/right edges).
-          if (typeof document !== "undefined" &&
-              typeof b.el.getBoundingClientRect === "function") {
-            const r = b.el.getBoundingClientRect();
-            const m = 6;
-            let dx = 0,
-              dy = 0;
-            if (r.top < m) dy = m - r.top;
-            else if (r.bottom > innerHeight - m)
-              dy = innerHeight - m - r.bottom;
-            if (r.left < m) dx = m - r.left;
-            else if (r.right > innerWidth - m) dx = innerWidth - m - r.right;
-            if (dx !== 0) b.el.style.left = s.x + dx + "px";
-            if (dy !== 0)
-              b.el.style.top =
-                Math.max(
-                  12,
-                  s.y - b.offsetLine * BUBBLE_LINE_STEP,
-                ) +
-                dy +
-                "px";
-          }
         }
       }
       // ==================== GAME FLOW ====================

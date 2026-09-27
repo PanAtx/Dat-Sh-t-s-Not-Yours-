@@ -68,10 +68,10 @@ global.innerWidth = 800; global.innerHeight = 600;
 const speechBubbles = [];
 const GZ = 0.3;
 const worldToScreen = (x, y, z) => ({ x: 400, y: 200 });
-const findFreeBubbleLine = () => 0;
-const spawnBubble = new Function('document', 'worldToScreen', 'findFreeBubbleLine', 'speechBubbles', 'GZ', 'innerWidth', 'innerHeight',
+const findFreeSpot = (el, ax, ay) => { el.style.left = ax + 'px'; el.style.top = ay + 'px'; return { cx: ax, by: ay }; };
+const spawnBubble = new Function('document', 'worldToScreen', 'findFreeSpot', 'speechBubbles', 'GZ', 'innerWidth', 'innerHeight',
   extractFn('spawnBubble') + '\n;return spawnBubble;')(
-  document, worldToScreen, findFreeBubbleLine, speechBubbles, GZ, 800, 600);
+  document, worldToScreen, findFreeSpot, speechBubbles, GZ, 800, 600);
 
 const clsOf = (text, speaker, style) => { speechBubbles.length = 0; spawnBubble(text, 0, 0, speaker, style); return speechBubbles[0].el.className; };
 

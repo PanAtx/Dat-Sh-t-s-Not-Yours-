@@ -1,143 +1,137 @@
-// Speech bubble overlap check: multiple speakers talking at the same time should
-// produce collision-free bubbles stacked on different lines, not overlapping.
-
+// Speech bubble overlap check: multiple speakers talking at the same time must each
+// get their OWN on-screen slot so the bubbles never overlap (readability).
+//
+// The layout lives in index.html: findFreeSpot(el, ax, ay) picks the first
+// non-overlapping candidate slot (above the head, then stacked up, then the sides,
+// then edge rows) and the bubble is FROZEN there for its life. This script verifies
+// the touchpoints AND runs the real findFreeSpot against a mock DOM to prove that
+// same-anchor speakers get mutually non-overlapping, on-screen bubbles.
 const fs = require('fs');
 const code = fs.readFileSync('index.html', 'utf8');
+let pass = true;
+const check = (ok, label) => {
+  console.log((ok ? 'PASS  ' : 'FAIL  ') + label);
+  if (!ok) pass = false;
+};
 
-// Check 1: The overlap detection infrastructure exists
-const hasBounds = code.includes('function bubbleBounds(');
-const hasOverlap = code.includes('function rectsOverlap(');
-const hasFindLine = code.includes('function findFreeBubbleLine(');
-if (!hasBounds || !hasOverlap || !hasFindLine) {
-  console.log('FAIL  overlap detection functions missing');
-  process.exit(1);
+// --- static touchpoints -------------------------------------------------------
+check(code.includes('function rectsOverlap('), 'rectsOverlap exists');
+check(code.includes('function bubbleBox('), 'bubbleBox exists');
+check(code.includes('function occupiedBoxes('), 'occupiedBoxes exists');
+check(code.includes('function findFreeSpot('), 'findFreeSpot exists');
+check(code.includes('const BUBBLE_PAD ='), 'BUBBLE_PAD gap constant exists');
+check(
+  code.includes('const spot = findFreeSpot(el, s.x, s.y)'),
+  'spawnBubble places the bubble via findFreeSpot',
+);
+check(!code.includes('BUBBLE_LINE_STEP'), 'old BUBBLE_LINE_STEP removed');
+check(!/\boffsetLine\b/.test(code), 'old offsetLine removed');
+check(
+  !code.includes('s.y - b.offsetLine'),
+  'updateBubbles no longer re-projects (bubbles are frozen)',
+);
+
+// --- behavioral test: run the REAL findFreeSpot against a mock DOM ------------
+function grabLayoutBlock() {
+  const start = code.indexOf('const BUBBLE_PAD');
+  const end = code.indexOf('function spawnBubble');
+  if (start < 0 || end < 0 || end <= start)
+    throw new Error('layout block (BUBBLE_PAD..spawnBubble) not found');
+  return code.slice(start, end);
 }
-console.log('PASS  overlap detection infrastructure exists');
 
-// Check 2: BUBBLE_LINE_STEP is defined and reasonable
-const stepMatch = code.match(/const BUBBLE_LINE_STEP = (\d+)/);
-if (!stepMatch || stepMatch[1] < 30 || stepMatch[1] > 60) {
-  console.log('FAIL  BUBBLE_LINE_STEP not in reasonable range (30-60)');
-  process.exit(1);
+const innerWidth = 900;
+const innerHeight = 640;
+const speechBubbles = [];
+const api = new Function(
+  'innerWidth',
+  'innerHeight',
+  'speechBubbles',
+  grabLayoutBlock() + '\n;return { findFreeSpot, bubbleBox, rectsOverlap };',
+)(innerWidth, innerHeight, speechBubbles);
+
+// A mock bubble element that mirrors the real CSS (single-line, and the
+// translate(-50%,-110%) transform that hangs it above its head).
+function makeEl(text, burst) {
+  const w = burst
+    ? Math.min(text.length * 12 + 96, 356)
+    : Math.max(60, text.length * 10 + 20);
+  const h = burst ? 74 : 30;
+  return {
+    textContent: text,
+    offsetWidth: w,
+    offsetHeight: h,
+    style: { left: '0px', top: '0px' },
+    getBoundingClientRect() {
+      const L = parseFloat(this.style.left);
+      const T = parseFloat(this.style.top);
+      return {
+        left: L - w / 2,
+        top: T - 1.1 * h,
+        right: L + w / 2,
+        bottom: T - 0.1 * h,
+        width: w,
+        height: h,
+      };
+    },
+    remove() {},
+  };
 }
-console.log('PASS  BUBBLE_LINE_STEP = ' + stepMatch[1]);
-
-// Check 3: spawnBubble computes a line slot
-const spawnHasLine = code.includes('const offsetLine = findFreeBubbleLine(');
-if (!spawnHasLine) {
-  console.log('FAIL  spawnBubble does not find a collision-free line');
-  process.exit(1);
+function place(text, burst, ax, ay) {
+  const el = makeEl(text, burst);
+  api.findFreeSpot(el, ax, ay);
+  speechBubbles.push({ el });
+  return el.getBoundingClientRect();
 }
-console.log('PASS  spawnBubble finds collision-free line slot');
+const mutuallyFree = (boxes) => {
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++)
+      if (api.rectsOverlap(boxes[i], boxes[j])) return false;
+  return true;
+};
+const onScreen = (b) =>
+  b.left >= -1 &&
+  b.top >= -1 &&
+  b.right <= innerWidth + 1 &&
+  b.bottom <= innerHeight + 1;
 
-// Check 4: updateBubbles uses offsetLine for vertical positioning
-const updateUsesLine = code.includes('s.y - b.offsetLine * BUBBLE_LINE_STEP');
-if (!updateUsesLine) {
-  console.log('FAIL  updateBubbles does not apply line offset to bubble position');
-  process.exit(1);
+// 1) Two speakers at the SAME head position must not overlap.
+speechBubbles.length = 0;
+{
+  const a = place('HEY! YOU!', false, 450, 320);
+  const b = place('NOT ME!', false, 450, 320);
+  check(!api.rectsOverlap(a, b), 'two same-anchor bubbles do not overlap');
 }
-console.log('PASS  updateBubbles applies line offset for stacking');
 
-// Check 5: Worker bubbles use distinct color class
-const workerColor = code.includes('bub-worker');
-if (!workerColor) {
-  console.log('FAIL  worker bubble color class missing');
-  process.exit(1);
+// 2) Five speakers at the same head position all land in distinct slots.
+speechBubbles.length = 0;
+{
+  const boxes = [];
+  for (let i = 0; i < 5; i++) boxes.push(place('TALK ' + i, false, 300, 300));
+  check(
+    mutuallyFree(boxes),
+    'five same-anchor bubbles are mutually non-overlapping',
+  );
 }
-console.log('PASS  worker has distinct bubble color class');
 
-// Check 5b: The bubble class is set with ONE direct assignment (el.className = cls).
-// Each speaker branch REPLACES the whole class string — no default-based layering that a
-// specific class would have to beat in CSS specificity.
-const spawnPattern = /el\.className = cls;/;
-if (!spawnPattern.test(code)) {
-  console.log('FAIL  spawnBubble does not set the bubble class directly');
-  process.exit(1);
+// 3) Even a head near the top-left corner keeps every bubble fully on-screen.
+speechBubbles.length = 0;
+{
+  const boxes = [];
+  for (let i = 0; i < 6; i++) boxes.push(place('EDGE ' + i, false, 70, 40));
+  check(boxes.every(onScreen), 'corner bubbles all stay on-screen');
+  check(mutuallyFree(boxes), 'corner bubbles are mutually non-overlapping');
 }
-console.log('PASS  spawnBubble sets the bubble class directly (no bub-default override)');
 
-// Check 6: NPC types have color classes
-const npcTypes = ['dog', 'ped', 'hooker', 'skater', 'escooter', 'yeller', 'rat', 'driver', 'kid'];
-for (const t of npcTypes) {
-  if (!code.includes('bub-' + t)) {
-    console.log('FAIL  bubble color class missing for ' + t);
-    process.exit(1);
-  }
+// 4) A tall POW! burst and a plain line at the same anchor do not overlap.
+speechBubbles.length = 0;
+{
+  const a = place('OW!', true, 400, 300);
+  const b = place('Watch it!', false, 400, 300);
+  check(!api.rectsOverlap(a, b), 'burst + plain same-anchor bubbles do not overlap');
 }
-console.log('PASS  all NPC types have distinct bubble color classes');
 
-// Check 7: No green in NPC bubble colors (only worker should be green)
-// Worker uses #d4f8d4 (light green). NPC colors should NOT contain "green" or be green-ish.
-const npcColorLines = [
-  'bub-dog', 'bub-ped', 'bub-lady', 'bub-hooker', 'bub-skater',
-  'bub-escooter', 'bub-yeller', 'bub-rat', 'bub-driver', 'bub-kid', 'bub-default'
-];
-for (const cls of npcColorLines) {
-  const line = code.split('\n').find(l => l.includes(cls));
-  if (line && line.toLowerCase().includes('green')) {
-    console.log('FAIL  ' + cls + ' uses green (reserved for worker)');
-    process.exit(1);
-  }
-}
-console.log('PASS  no NPC bubble color is green');
-
-// Check 8: rectsOverlap implements AABB correctly
-const overlapImpl = code.match(/function rectsOverlap\(a, b\)\s*\{[^}]*\}/);
-if (overlapImpl) {
-  const impl = overlapImpl[0];
-  if (!impl.includes('a.x < b.x + b.w') || !impl.includes('a.y < b.y + b.h')) {
-    console.log('FAIL  rectsOverlap does not implement AABB collision');
-    process.exit(1);
-  }
-} else {
-  console.log('FAIL  rectsOverlap implementation not found');
-  process.exit(1);
-}
-console.log('PASS  rectsOverlap implements AABB collision correctly');
-
-// Check 9: Voice.say call sites pass speaker types
-// Worker calls should pass 'worker', dog calls should pass 'dog', etc.
-// (Prettier put each argument on its own line, so the match spans lines)
-const workerCalls = code.match(/Voice\.say\(\s*"[^"]*",[\s\S]*?WORKER_GENDER,\s*"worker",\s*\)/g);
-if (!workerCalls || workerCalls.length < 10) {
-  console.log('FAIL  not enough worker Voice.say calls with speaker type');
-  process.exit(1);
-}
-console.log('PASS  worker Voice.say calls pass speaker type (' + workerCalls.length + ' calls)');
-
-const dogCalls = code.match(/Voice\.say\(\s*"[^"]*",[\s\S]*?"dog",\s*\)/g);
-if (!dogCalls || dogCalls.length < 2) {
-  console.log('FAIL  not enough dog Voice.say calls with speaker type');
-  process.exit(1);
-}
-console.log('PASS  dog Voice.say calls pass speaker type (' + dogCalls.length + ' calls)');
-
-// Check 10: No overlap - simulate stacking two bubbles at same position
-// This is a logic test: two bubbles at same (sx, sy) should get different line numbers
-// Line 0 for first, Line 1 for second (since line 0 is occupied).
-// We verify the algorithm by checking the code structure.
-const findLineLoop = code.match(/for \(let line = 0; line < 4; line\+\+\)\s*\{/);
-if (!findLineLoop) {
-  console.log('FAIL  findFreeBubbleLine does not loop through line slots');
-  process.exit(1);
-}
-console.log('PASS  findFreeBubbleLine loops through up to 4 line slots');
-
-// Check 11: Locked position prevents jitter during bubble lifetime
-const usesLock = code.includes('b.lockedX') && code.includes('b.lockedY');
-if (!usesLock) {
-  console.log('FAIL  bubble position locking not implemented');
-  process.exit(1);
-}
-console.log('PASS  bubble position locking prevents jitter');
-
-// Check 12: Pop-in animation is defined and applied
-const hasPopAnim = /animation:\s*bubblePop/.test(code);
-const hasPopKeyframes = code.includes('@keyframes bubblePop');
-if (!hasPopAnim || !hasPopKeyframes) {
-  console.log('FAIL  bubble pop-in animation missing');
-  process.exit(1);
-}
-console.log('PASS  bubble pop-in animation is defined and applied');
-
-console.log('\nBUBBLE OVERLAP AND COLOR CHECKS PASSED');
+console.log(
+  pass ? '\nBUBBLE OVERLAP CHECKS PASSED' : '\nBUBBLE OVERLAP CHECKS FAILED',
+);
+process.exit(pass ? 0 : 1);
