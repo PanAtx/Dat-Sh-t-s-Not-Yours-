@@ -16,6 +16,7 @@ const suites = [
   ['truck + can compressed', 'node', '_compressed_models_chk.mjs'],
   ['pickups compressed (BEC / Red Bull / car / coffee)', 'node', '_pickup_compressed_chk.mjs'],
   ['render resolution (retro low-res)', 'node', '_render_res_chk.js'],
+  ['camera lane follow (subtle 3D)', 'node', '_cam_follow_chk.js'],
 ];
 
 let allPass = true;

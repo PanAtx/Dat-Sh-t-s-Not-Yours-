@@ -39,20 +39,33 @@ worldGroup.rotation.z = Math.PI / 4;
 scene.add(worldGroup); scene.add(camera);
 // make worldToScreen see these: it reads globals `camera`/`worldGroup`
 global.camera = camera; global.worldGroup = worldGroup;
-function frame(wx, wy){
+function frame(wx, wy, dt){
+  // Mirrors positionCamera() in index.html (ISO_A/CAM_Y + the CAM_* lane-follow
+  // block). dt optional: with dt the smoothed lane offset settles exactly as in
+  // the game (the bubble harness walks the worker along one lane, so camFollow
+  // settles to ~0 and the framing stays identical to the pre-follow camera).
   const c45 = Math.SQRT1_2, ISO_A = 26, CAM_Y = 2.0;
-  const camTX = c45 * (wx - CAM_Y), camTY = c45 * (wx + CAM_Y);
-  camera.position.set(camTX, camTY - 1.4142 * ISO_A, ISO_A);
+  const ARM_D = 1.4142 * ISO_A, ARM_H = ISO_A;
+  const CAM_LANE_FOLLOW = 0.35, CAM_PAN_MAX = 3.5, CAM_YAW_PER_UNIT = 0.035,
+        CAM_YAW_MAX = 0.1047, CAM_FOLLOW_SMOOTH = 5.0;
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  if (dt) { const k = 1 - Math.exp(-CAM_FOLLOW_SMOOTH * dt); camFollow += (wy - CAM_Y - camFollow) * k; }
+  const camFollowY = CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
+  const yaw = clamp(-camFollow * CAM_YAW_PER_UNIT, -CAM_YAW_MAX, CAM_YAW_MAX);
+  const camTX = c45 * (wx - camFollowY), camTY = c45 * (wx + camFollowY);
+  const co = Math.cos(yaw), si = Math.sin(yaw);
+  camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, ARM_H);
   camera.up.set(0, 0, 1);
   camera.lookAt(camTX, camTY, 0);
   scene.updateMatrixWorld();
 }
+let camFollow = 0;
 
 let pass = true;
 const check = (n, c, e) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n + (c ? '' : '  [' + e + ']')); if (!c) pass = false; };
 
 // worker stands at local (0, 2.5) and yells (the 'dog shit!' call site)
-frame(0, 2.5);
+frame(0, 2.5, 0.016);
 api.Voice.say('dog shit!', 2.5, 0.9, 0, 2.5);
 api.updateBubbles(0.016);
 const bub = api.speechBubbles[0];
@@ -66,11 +79,15 @@ if (bub && bub.el.style.left !== undefined){
   check('bubble near worker (center X)', Math.abs(x - 640) < 250, String(x));
   check('bubble above screen center (Y < 360)', y < 360, String(y));
 }
-// worker walks on; the bubble stays anchored at the world spot where it was spoken
+// worker walks on; the bubble stays FROZEN at the spawn screen spot (findFreeSpot
+// collision avoidance -- re-projection was intentionally removed, we only fade)
 const x1 = parseFloat(bub.el.style.left);
-frame(10, 2.5);
+const o1 = parseFloat(bub.el.style.opacity);
+frame(10, 2.5, 0.016);
 api.updateBubbles(0.016);
 const x2 = parseFloat(bub.el.style.left);
-check('bubble re-projects as world moves (spoke-spot anchor)', Math.abs((x1 - x2) - 56.57 * 10) < 15, x1 + ' -> ' + x2);
+const o2 = parseFloat(bub.el.style.opacity);
+check('bubble stays frozen at its spawn spot while the world moves (only the fade advances)',
+  x1 === x2 && o2 > o1, x1 + ' -> ' + x2 + ' (opacity ' + o1 + ' -> ' + o2 + ')');
 console.log(pass ? '\nBUBBLE CHAIN OK' : '\nBUBBLE CHAIN BROKEN');
 process.exit(pass ? 0 : 1);

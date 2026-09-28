@@ -232,7 +232,7 @@ check(
 // ---- (5) Flatbush-style driveways + doghouses on Staten Island ----
 check(
   'driveway slab gate includes STATEN ISLAND (same 3.0u concrete slab + center line as Flatbush)',
-  /\(borough === "BROOKLYN" \|\| borough === "STATEN ISLAND"\)[\s\S]{0,120}?BX\(3\.0, 8\.0, 0\.08, M\(0x9a9a9a\)\)/.test(src),
+  /isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)[\s\S]{0,120}?BX\(3\.0, 8\.0, 0\.08, M\(0x9a9a9a\)\)/.test(src),
 );
 check(
   'driveway collection (flatbushDriveways) runs for Staten Island',

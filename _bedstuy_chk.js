@@ -8,7 +8,8 @@
 //      corner stores -> makeBedStuyStore,
 //   7) geometry: HOUSE_Y 9.5, concrete no-lawn ground, spawn/creature cap 4.8,
 //   8) storm debris (debris box + wood pile) + 2x "double time" scoring preserved,
-//   9) Bed-Stuy does NOT inherit Flatbush tricycles / soccer / the 3-doghouse count.
+//   9) Bed-Stuy does NOT inherit Flatbush tricycles / soccer / the 3-doghouse count /
+//      the concrete driveway slabs (brownstones sit flush to the walk — no driveways).
 'use strict';
 const fs = require('fs');
 const vm = require('vm');
@@ -200,6 +201,11 @@ add(
 add(
   'Bed-Stuy does NOT inherit the Flatbush 3-doghouse count (no flatbushDriveways on its dog path)',
   !/isBedStuyLevel\(\)[\s\S]{0,80}flatbushDriveways/.test(html),
+);
+add(
+  'Bed-Stuy does NOT inherit Flatbush concrete driveway slabs (slab gate is isFlatbushLevel, not borough-wide)',
+  /isFlatbushLevel\(\) \|\| isStatenIslandLevel\(\)[\s\S]{0,160}?BX\(3\.0, 8\.0, 0\.08, M\(0x9a9a9a\)\)/.test(html) &&
+    !/borough === "BROOKLYN"[\s\S]{0,80}?BX\(3\.0, 8\.0, 0\.08, M\(0x9a9a9a\)\)/.test(html),
 );
 
 // ---- 9b) Bed-Stuy street dogs: post-tied stoop dogs (Mott Haven / Bronx style), NO doghouse ----

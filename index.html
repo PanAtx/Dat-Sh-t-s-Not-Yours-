@@ -2331,7 +2331,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.306</div>
+          <div id="app-version" class="menu-version">v1.0.307</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2487,7 +2487,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.306';
+      const APP_VERSION = '1.0.307';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2608,6 +2608,34 @@
       const GZ = 0.3;
       const ISO_A = 26; // isometric camera arm length
       const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
+      // ---- SUBTLE LANE FOLLOW (the "3D feel") ----
+      // The camera has ALWAYS followed p.wx (route forward) at 100% and ignored p.wy
+      // (the lane axis) entirely -- CAM_Y is a hard lock. These relax that lock by a
+      // small, heavily-smoothed amount: as the worker changes lanes the view pans a
+      // little AND YAWS a few degrees, so the whole scene swivels left/right around
+      // the look point and the sides of the houses/roofs come into view. That reads
+      // as 3D even though the projection stays orthographic and the game stays 2D in
+      // every other way. The yaw rotates the eye offset about the WORLD UP (Z) axis,
+      // so arm length is preserved by construction (no zoom, no near/far clip change)
+      // and the eye stays at z = ARM_H (nothing about the vertical framing moves --
+      // this is a head turn, NOT a ship sway). No per-frame allocations anywhere
+      // (matches the _SNAP_* / _bubVec pre-allocated temp convention).
+      const ARM_D = 1.4142 * ISO_A; // eye offset toward the target (was inline at positionCamera)
+      const ARM_H = ISO_A; // eye height above the target
+      const CAM_LANE_FOLLOW = 0.35; // fraction of his lane offset the camera pans with (strong enough to keep him centered so the yaw has room)
+      const CAM_PAN_MAX = 3.5; // hard cap on the pan (world units) -- keeps the worker near screen-center at the lane extremes
+      const CAM_YAW_PER_UNIT = 0.035; // radians of yaw per unit of (smoothed) lane offset (~2deg/unit)
+      const CAM_YAW_MAX = 0.1047; // full stop: 6 degrees of view rotation (a subtle HINT of 3D, equal on both sides)
+      const CAM_FOLLOW_SMOOTH = 5.0; // higher = snappier; 5.0 ~= 200ms to settle
+      const CAM_FWD_SMOOTH = 2.0; // forward lead/lag: slower than the lane follow (~400ms) so the camera trails a half-step behind him
+      const CAM_FWD_MAX = 1.0; // hard cap on the forward lag (world units)
+      const LANE_VEL_SMOOTH = 8.0; // strafe-velocity smoothing: ~125ms time constant (averages out per-frame input flips -- anti-jitter)
+      const LANE_VEL_MAX = 5.0; // clamp on measured strafe velocity (world units/sec) -- one-frame spikes can't swing the view
+      const CAM_YAW_PER_VEL = 0.005; // SMOOTH yaw lead: ~0.3deg per u/s of strafe (max ~1.4deg extra, eases in/out -- no discrete kick)
+      let camFollow = 0; // smoothed lane offset (chases p.wy - CAM_Y; reset on shift start/quit)
+      let camFollowX = 0; // smoothed route-forward position (the lead/lag; reset with the worker)
+      let laneVel = 0; // smoothed strafe velocity (u/s) -- feeds the yaw lead term
+      let _lanePrevWy = 0; // previous frame's p.wy (for the velocity measurement)
       const JACKER_FACE_SE = -Math.PI / 2; // the CONSTRUCTION WORKER (the jackhammer guy, the 'jacker' NPC)
       // ALWAYS faces SOUTHEAST (screen down-and-right, toward the street) on every level,
       // so the camera never sees his back.
@@ -17911,11 +17939,13 @@
           isQueensBlock ? QUEENS_HOUSES_PER_BLOCK - 1 : HOUSES_PER_BLOCK - 1,
         );
         if (mb) addMailbox(b, baseX + (mb === 1 ? 2.4 : 5.6), 1.5);
-        // Brooklyn Flatbush + Staten Island: concrete driveway between houses (at the
+        // Flatbush + Staten Island: concrete driveway between houses (at the
         // boundary between this house and the next). Staten Island uses the exact same
         // 3.0u-wide slab + center line — the doghouses below anchor to these spots.
+        // Gated on isFlatbushLevel() (area FLATBUSH), NOT borough-wide — Bed-Stuy is
+        // also Brooklyn and has NO driveways (brownstones sit flush to the walk).
         if (
-          (borough === "BROOKLYN" || borough === "STATEN ISLAND") &&
+          (isFlatbushLevel() || isStatenIslandLevel()) &&
           houseIdx < HOUSES_PER_BLOCK - 1
         ) {
           const drv = BX(3.0, 8.0, 0.08, M(0x9a9a9a));
@@ -19416,6 +19446,7 @@
       }
       function resetWorldState() {
         Voice.cancel();
+        camFollow = 0; // fresh shift / back to menu: the lane follow starts dead-centered (no stale offset from the last run leaking into the backdrop frame)
         if (carried && carried.g.parent) carried.g.parent.remove(carried.g);
         if (carried) disposeObj(carried.g);
         carried = null;
@@ -19428,6 +19459,7 @@
         health = maxHealth;
         p.wx = PLAYER_START_X;
         p.wy = 2.5;
+        camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; // the camera's follow state resets with the worker (no stale lag/velocity leaking into the new shift)
         p.stunT = 0;
         p.invuln = 0;
         p.immuneT = 0;
@@ -29100,9 +29132,13 @@
         const hopperOff = truck.hopperOff != null ? truck.hopperOff : -4.3;
         const halfW =
           camera && isFinite(camera.right) ? Math.abs(camera.right) : 8;
-        // screen-x of the truck's REAR relative to the camera's locked center (world x = c45*(x - y)):
+        // screen-x of the truck's REAR relative to the camera's live center (world x = c45*(x - y)):
+        // recompute the live pan here exactly like positionCamera() does -- camFollowY
+        // is a LOCAL inside positionCamera(), so referencing it here would throw.
+        const camFollowY =
+          CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
         const rearX = Math.SQRT1_2 * (truck.wx + hopperOff - -4.5);
-        const camX = Math.SQRT1_2 * (p.wx - CAM_Y);
+        const camX = Math.SQRT1_2 * (p.wx - camFollowY);
         if (rearX - camX > halfW + 1.0 || routeEnd.driveT >= RE_DRIVE_MAX)
           finishRouteEnd();
       }
@@ -29692,10 +29728,13 @@
         .normalize();
       const _SNAP_TEXEL_R = 56 / 4096; // (sc.right - sc.left) / shadowMapSize.x
       const _SNAP_TEXEL_U = 48 / 4096; // (sc.top   - sc.bottom) / shadowMapSize.y
-      function positionCamera() {
+      function positionCamera(dt) {
         // worldGroup is rotated +45deg: local (x, y) -> world (c45*(x - y), c45*(x + y)).
         // The camera sits ISO_A behind the target and ISO_A above it, exactly on the
         // isometric axis, so the worker is ALWAYS at screen center as it moves.
+        // dt: frame time in seconds. The menu/pause branches pass 0 -- that makes the
+        // lane-follow smoothing constant exactly 0 (camera holds perfectly still on a
+        // frozen frame), so there is no extra branch needed.
         const c45 = Math.SQRT1_2;
         // The light + shadow frustum must be centered on the player's TRUE world position.
         // p.wx/p.wy are LOCAL route coordinates inside the rotated worldGroup, while dirLight
@@ -29724,9 +29763,58 @@
         // The ground is now a FIXED route (blocks + intersections) at absolute positions,
         // so it must NOT follow the player any more — keep it anchored at the origin.
         groundGroup.position.x = 0;
-        const camTX = c45 * (p.wx - CAM_Y);
-        const camTY = c45 * (p.wx + CAM_Y);
-        camera.position.set(camTX, camTY - 1.4142 * ISO_A, ISO_A);
+        // ---- Subtle lane follow (see CAM_* constants near ISO_A) ----
+        // Exponential decay toward the worker's lane offset, frame-rate INDEPENDENT
+        // (1 - e^(-k*dt) settles identically at 30/48/60/72fps; a naive *0.15 lerp
+        // would feel snappier on a 144Hz display than on a 30-cap phone). FROZEN
+        // while dying / routeend so the camera never "falls over with him" -- the
+        // LODI sequence animates p.wy (dying.wy0 -> wyEnd) and would drag the view.
+        if (state !== "dying" && state !== "routeend") {
+          const k = 1 - Math.exp(-CAM_FOLLOW_SMOOTH * (dt || 0));
+          camFollow += (p.wy - CAM_Y - camFollow) * k;
+          // Forward lead/lag: a SLOWER chase on p.wx, so while he walks the camera
+          // trails a half-step behind him and settles under him when he stops.
+          camFollowX +=
+            (p.wx - camFollowX) * (1 - Math.exp(-CAM_FWD_SMOOTH * (dt || 0)));
+          const fwdLag = p.wx - camFollowX;
+          camFollowX = p.wx - clamp(fwdLag, -CAM_FWD_MAX, CAM_FWD_MAX);
+          // Smooth strafe-velocity lead (REPLACES the old discrete "kick" -- a
+          // per-flip impulse that re-triggered on every input jitter and made
+          // rapid left/right changes look shaky). laneVel is the EXPONENTIALLY
+          // SMOOTHED derivative of p.wy: raw joystick/keyboard direction flips
+          // get averaged over ~125ms, so a direction change swings the view
+          // with a smooth S-curve, and it eases back to center as he slows.
+          // The sign accentuates the base yaw (up-lane -> more negative).
+          if (dt > 0) {
+            const rawV = clamp(
+              (p.wy - _lanePrevWy) / dt,
+              -LANE_VEL_MAX,
+              LANE_VEL_MAX,
+            );
+            laneVel += (rawV - laneVel) * (1 - Math.exp(-LANE_VEL_SMOOTH * dt));
+            _lanePrevWy = p.wy;
+          }
+        }
+        const camFollowY =
+          CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
+        // YAW (not pitch!): rotate the eye offset (0, -ARM_D, ARM_H) about the WORLD
+        // UP (Z) axis. The whole scene swivels left/right around the look point --
+        // the camera "turns its head" toward the worker's lane. A rotation preserves
+        // length, so the eye stays 45.03 units out: no zoom, no clip-plane movement,
+        // and eye z stays exactly ARM_H (the vertical framing never moves). The sign
+        // is chosen so the camera looks the direction the worker is heading (worker
+        // left -> view rotates left). At the 6deg cap screen-right is off world +X
+        // by 6deg (~7.5deg max with the smooth velocity lead at full strafe) --
+        // the fixed 45deg stick compensation is imperceptibly off, and the truck
+        // off-screen test's +1.0u margin absorbs the cos(7.5deg)=0.991 factor.
+        const yaw =
+          clamp(-camFollow * CAM_YAW_PER_UNIT, -CAM_YAW_MAX, CAM_YAW_MAX) -
+          clamp(laneVel, -LANE_VEL_MAX, LANE_VEL_MAX) * CAM_YAW_PER_VEL;
+        const camTX = c45 * (camFollowX - camFollowY);
+        const camTY = c45 * (camFollowX + camFollowY);
+        const co = Math.cos(yaw),
+          si = Math.sin(yaw);
+        camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, ARM_H);
         camera.up.set(0, 0, 1);
         camera.lookAt(camTX, camTY, 0);
       }
@@ -29757,7 +29845,7 @@
         // PAUSE: a frozen shift still renders (so the PAUSED overlay sits over the live frame)
         // but does NO simulation. Toggling back resumes exactly where the worker stood.
         if (state === "play" && paused) {
-          positionCamera();
+          positionCamera(0);
           renderer.render(scene, camera);
           return;
         }
@@ -29766,7 +29854,7 @@
           // ('dying' / 'routeend' are active: their sequences still animate + render every frame.)
           if (needsIdleRender) {
             needsIdleRender = false;
-            positionCamera();
+            positionCamera(0);
             renderer.render(scene, camera);
           }
           return;
@@ -29799,7 +29887,7 @@
           updateDying(dt); // 'dying': play out the worker's down sequence (spin -> fall -> LODI hold)
           updateBulbGlow(performance.now() / 1000);
         }
-        positionCamera();
+        positionCamera(dt);
         renderer.render(scene, camera);
       }
       // ==================== TRUCK ASSET SWAP-IN ====================
