@@ -6,7 +6,7 @@
 //     worker-pivot branch is kept behind the toggle
 //   * center-lane framing is byte-identical to the pre-follow camera (zero change
 //     for the typical play position)
-//   * the BASE ORBIT ANGLE (CAM_ANGLE_OFFSET, -12deg = the preferred camera angle,
+//   * the BASE ORBIT ANGLE (CAM_ANGLE_OFFSET, -7deg = the preferred camera angle,
 //     scene counter-clockwise on screen) rotates the eye offset, and the analog
 //     stick compensation + the truck off-screen test rotate by the SAME angle
 //   * arm length is preserved at the tilt extremes (no zoom, no clip-plane drift)
@@ -75,13 +75,13 @@ check('worker-pivot branch preserved behind the toggle (orbits + looks at the LI
 check('follow-point branch is the active path (pan + lead/lag around the lagged position)',
   pcSrc.indexOf('c45 * (camFollowX - camFollowY)') >= 0 &&
   pcSrc.indexOf('c45 * (camFollowX + camFollowY)') >= 0);
-check('base orbit angle constant exists (CAM_ANGLE_OFFSET_DEG = -12, scene counter-clockwise on screen)',
-  /const CAM_ANGLE_OFFSET_DEG = -12;/.test(h) &&
+check('base orbit angle constant exists (CAM_ANGLE_OFFSET_DEG = -7, scene counter-clockwise on screen)',
+  /const CAM_ANGLE_OFFSET_DEG = -7;/.test(h) &&
   /const CAM_ANGLE_OFFSET = \(CAM_ANGLE_OFFSET_DEG \* Math\.PI\) \/ 180;/.test(h));
 check('positionCamera adds the base orbit to the yaw (ang = yaw + CAM_ANGLE_OFFSET) and uses it for the eye offset',
   pcSrc.indexOf('const ang = yaw + CAM_ANGLE_OFFSET;') >= 0 &&
   pcSrc.indexOf('const co = Math.cos(ang),') >= 0 && pcSrc.indexOf('Math.sin(ang);') >= 0);
-check('analog stick compensation rotates by the SAME base angle (screen-aligned movement at -12deg)',
+check('analog stick compensation rotates by the SAME base angle (screen-aligned movement at -7deg)',
   h.indexOf('const ct = Math.cos(CAM_ANGLE_OFFSET),') >= 0 &&
   h.indexOf('const rf = c * ((ct - st) * f - (ct + st) * l);') >= 0 &&
   h.indexOf('const rl = c * ((ct + st) * f + (ct - st) * l);') >= 0);
@@ -106,7 +106,7 @@ const api = new Function(
 )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0);
 
 const C45 = Math.SQRT1_2;
-const CAM_ANGLE_OFFSET = (-12 * Math.PI) / 180; // mirrors index.html's CAM_ANGLE_OFFSET (the -12 literal is asserted above)
+const CAM_ANGLE_OFFSET = (-7 * Math.PI) / 180; // mirrors index.html's CAM_ANGLE_OFFSET (the -7 literal is asserted above)
 const ARM = Math.sqrt(1.4142 * 26 * (1.4142 * 26) + 26 * 26); // 45.033, the eye->target arm
 const armLen = () => {
   // follow-point (CAM_PIVOT_WORKER = false): target = (c45*(wx - camFollowY), c45*(wx + camFollowY), 0);
@@ -128,7 +128,7 @@ p.wx = 0; p.wy = 2.0;
 api.resetFollow(); // mirrors resetWorldState() in the game (fresh shift: no stale velocity)
 settle(10);
 check('center lane: camFollow stays 0', Math.abs(api.getCamFollow()) < 1e-9, String(api.getCamFollow()));
-check('center lane: base orbit applied (eye offset rotated by -12deg: camTX + ARM_D*sin, camTY - ARM_D*cos, z = ARM_H)',
+check('center lane: base orbit applied (eye offset rotated by -7deg: camTX + ARM_D*sin, camTY - ARM_D*cos, z = ARM_H)',
   Math.abs(camera.position.x - (C45 * (0 - 2.0) + 1.4142 * 26 * Math.sin(CAM_ANGLE_OFFSET))) < 1e-6 &&
   Math.abs(camera.position.y - (C45 * (0 + 2.0) - 1.4142 * 26 * Math.cos(CAM_ANGLE_OFFSET))) < 1e-6 &&
   Math.abs(camera.position.z - 26) < 1e-9 &&
@@ -140,7 +140,7 @@ check('center lane: worker on screen', onScreen(workerNDC()), JSON.stringify(wor
 p.wx = 0; p.wy = 8.0;
 settle(600); // 10s at 60fps -- fully settled (200ms time constant)
 check('up-lane: camFollow settles to lane offset (8.0 - 2.0 = 6.0)', Math.abs(api.getCamFollow() - 6.0) < 1e-3, String(api.getCamFollow()));
-const angA = -0.0698 + CAM_ANGLE_OFFSET; // up-lane: 4deg head-turn on top of the -12deg base orbit
+const angA = -0.0698 + CAM_ANGLE_OFFSET; // up-lane: 4deg head-turn on top of the -7deg base orbit
 check('up-lane: yaw hits the 4deg cap on top of the base orbit (eye swings sideways, z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
   Math.abs(camera.position.x - (C45 * (0 - 4.1) + 1.4142 * 26 * Math.sin(angA))) < 0.01 &&
@@ -240,14 +240,14 @@ const rotateStick = (sf, sl) =>
   const r = rotateStick(1, 0); // stick UP
   const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) - Math.sin(CAM_ANGLE_OFFSET));
   const expL = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
-  check('stick UP moves the worker SCREEN-UP at the -12deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+  check('stick UP moves the worker SCREEN-UP at the -7deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
     Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
 }
 {
   const r = rotateStick(0, -1); // stick RIGHT
   const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
   const expL = C45 * (-Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
-  check('stick RIGHT moves the worker SCREEN-RIGHT at the -12deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+  check('stick RIGHT moves the worker SCREEN-RIGHT at the -7deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
     Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
 }
 

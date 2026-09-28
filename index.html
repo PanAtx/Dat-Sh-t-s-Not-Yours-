@@ -2331,7 +2331,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.312</div>
+          <div id="app-version" class="menu-version">v1.0.313</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2487,7 +2487,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.312';
+      const APP_VERSION = '1.0.313';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2633,10 +2633,10 @@
       // Rotates the whole isometric view about the pivot (the eye offset (0,-ARM_D)
       // gains this extra orbit rotation). NEGATIVE = the scene appears to rotate
       // COUNTER-CLOCKWISE on screen (the street's top-left swings up); positive =
-      // clockwise. -12deg is the preferred gameplay angle (set to 0 for the pure
+      // clockwise. -7deg is the preferred gameplay angle (set to 0 for the pure
       // 45deg isometric). updatePlayer's analog stick compensation rotates by the
       // same angle, so "push up" always moves the worker up ON SCREEN.
-      const CAM_ANGLE_OFFSET_DEG = -12;
+      const CAM_ANGLE_OFFSET_DEG = -7;
       const CAM_ANGLE_OFFSET = (CAM_ANGLE_OFFSET_DEG * Math.PI) / 180;
       const CAM_LANE_FOLLOW = 0.35; // fraction of his lane offset the camera pans with (strong enough to keep him centered so the yaw has room)
       const CAM_PAN_MAX = 3.5; // hard cap on the pan (world units) -- keeps the worker near screen-center at the lane extremes
@@ -28952,7 +28952,7 @@
       const RE_CHEER = 1.5; // fist-pump beat (seconds)
       const RE_WALK_SP = 4.0; // stroll speed to the cab (u/s)
       const RE_DRIVE_SP = 7.0; // drive-off speed (u/s)
-      const RE_DRIVE_MAX = 11; // hard cap on the drive-off, so it can never hang (11s: at 7u/s the rear travels ~77u along the rotated screen axis -- fully past the off-screen edge even at the -12deg base orbit, where only cos(12deg) of local-x progress counts)
+      const RE_DRIVE_MAX = 11; // hard cap on the drive-off, so it can never hang (11s: at 7u/s the rear travels ~77u along the rotated screen axis -- fully past the off-screen edge even at the -7deg base orbit, where only cos(7deg) of local-x progress counts)
       function startRouteEnd() {
         if (state !== "play") return;
         state = "routeend"; // worker is OFF LIMITS: cinematic, no input, no damage
@@ -29833,7 +29833,7 @@
         // length, so the eye stays 45.03 units out: no zoom, no clip-plane movement,
         // and eye z stays exactly ARM_H (the vertical framing never moves). The sign
         // is chosen so the camera looks the direction the worker is heading (worker
-        // left -> view rotates left). Screen-right is off world +X by the 12deg base
+        // left -> view rotates left). Screen-right is off world +X by the 7deg base
         // orbit (CAM_ANGLE_OFFSET) plus up to 4deg of yaw (~4.9deg max with the
         // smooth velocity lead at full strafe) -- the analog stick compensation in
         // updatePlayer rotates by the SAME base angle (the 4deg yaw is
