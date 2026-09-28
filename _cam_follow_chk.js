@@ -64,8 +64,24 @@ check('raw per-frame strafe is clamped + exponentially smoothed (LANE_VEL_MAX / 
   pcSrc.indexOf('LANE_VEL_MAX,') >= 0 && pcSrc.indexOf('Math.exp(-LANE_VEL_SMOOTH * dt)') >= 0);
 check('forward lag + velocity reset with the worker (resetWorldState)',
   h.indexOf('camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy;') >= 0);
-check('lane follow is FROZEN while dying / routeend (LODI + truck drive-off)',
+check('lane follow is FROZEN while dying / routeend (LODI + truck drive-off; the FORWARD follow is now exempt for the walk-to-cab)',
   pcSrc.indexOf('state !== "dying" && state !== "routeend"') >= 0);
+check('route-end: WALK progress drives the wide frame (lands on 1.3 exactly at the door)',
+  /const CAM_ZOOM_END = 1\.3;/.test(h) &&
+  pcSrc.indexOf('routeEnd.pts') >= 0 &&
+  pcSrc.indexOf('reProg') >= 0 &&
+  pcSrc.indexOf('(CAM_ZOOM_END - CAM_ZOOM_OUT) * reProg') >= 0);
+check('route-end: the CYCLE beat (compactor at the hopper) holds the walk-progress frame',
+  pcSrc.indexOf('routeEnd.phase === "walk" || routeEnd.phase === "cycle"') >= 0);
+check('route-end: BOARD/DRIVE settles on the cab door (CAM_ZOOM_DOOR = 1.15 push-in)',
+  /const CAM_ZOOM_DOOR = 1\.15;/.test(h) &&
+  pcSrc.indexOf(': CAM_ZOOM_DOOR;') >= 0);
+check('route-end: the pull-back eases on the SLOW time-constant (CAM_ZOOM_END_SMOOTH, no snap)',
+  /const CAM_ZOOM_END_SMOOTH = 0\.8;/.test(h) &&
+  pcSrc.indexOf('kZoom = CAM_ZOOM_END_SMOOTH') >= 0);
+check('route-end: the forward lead/lag stays ACTIVE (only dying freezes it -- the walk-to-cab scrolls on screen)',
+  pcSrc.indexOf('if (state !== "dying") {') >= 0 &&
+  pcSrc.indexOf('if (state !== "dying") {') < pcSrc.indexOf('camFollowX +='));
 check('CAM_PIVOT_WORKER toggle exists and defaults to FALSE (the smoothed follow camera is active)',
   /const CAM_PIVOT_WORKER = false;/.test(h));
 check('worker-pivot branch preserved behind the toggle (orbits + looks at the LIVE worker world position)',
@@ -88,7 +104,7 @@ check('analog stick compensation rotates by the SAME base angle (screen-aligned 
 check('routeEnd truck off-screen test projects onto the rotated screen axis (cos/sin of CAM_ANGLE_OFFSET)',
   h.indexOf('(rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET)') >= 0);
 check('hopper zoom: constants present (0.86 in, 1.06 out, 10u fade, 2.5 ease + 12% lift / 8% dip + 1.0u drift @ 1.5 ease + 10u sun dip)',
-  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_OUT = 1\.06;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h) && /const CAM_H_LIFT = 0\.12;/.test(h) && /const CAM_H_DIP = 0\.08;/.test(h) && /const CAM_X_LIFT = 1\.0;/.test(h) && /const CAM_X_SMOOTH = 1\.5;/.test(h) && /const SUN_DIP = 10;/.test(h));
+  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_OUT = 1\.06;/.test(h) && /const CAM_ZOOM_END = 1\.3;/.test(h) && /const CAM_ZOOM_DOOR = 1\.15;/.test(h) && /const CAM_ZOOM_END_SMOOTH = 0\.8;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h) && /const CAM_H_LIFT = 0\.12;/.test(h) && /const CAM_H_DIP = 0\.08;/.test(h) && /const CAM_X_LIFT = 1\.0;/.test(h) && /const CAM_X_SMOOTH = 1\.5;/.test(h) && /const SUN_DIP = 10;/.test(h));
 check('hopper zoom: base frustum captured on init + resize (zoom scales FROM the un-zoomed frustum)',
   (h.match(/_baseFrustum = f;/g) || []).length >= 2);
 check('hopper zoom: positionCamera measures the worker->hopper distance and scales the ortho frustum',
@@ -313,15 +329,17 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
 {
   const baseF = { l: -8, r: 8, t: 4.5, b: -4.5 }; // the 16:9 s=4.5 base frustum (matches the sandbox camera)
   const truck2 = { wx: 40, hopperAimOff: -4.3, hopperOff: -4.3, hopperY: 0 };
+  const routeEndFake = { t: 0, phase: 'walk', pt: 0, walkT: 0, pts: [{ x: 30, y: 2 }, { x: 34, y: -2 }, { x: 35.7, y: -4.5 }] };
   const zoomApi = new Function(
     'THREE', 'camera', 'dirLight', 'groundGroup', 'p', 'clamp', 'ISO_A', 'CAM_Y',
-    'truck', 'hopperAimX', 'hopperWorldY',
+    'truck', 'hopperAimX', 'hopperWorldY', 'routeEnd',
     'let state = "play";\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
-    '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; }, getCamXSmooth: () => camXSmooth, getCamZoom: () => camZoom };',
+    '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; }, getCamXSmooth: () => camXSmooth, getCamZoom: () => camZoom, getCamFollowX: () => camFollowX, setState: s => { state = s; } };',
   )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0,
     truck2,
     () => truck2.wx + (truck2.hopperAimOff != null ? truck2.hopperAimOff : -4.3),
-    () => -4.5 + (truck2.hopperY != null ? truck2.hopperY : 0));
+    () => -4.5 + (truck2.hopperY != null ? truck2.hopperY : 0),
+    routeEndFake);
   zoomApi.setBaseFrustum(baseF);
   p.wx = 40; p.wy = 30; // ~35u from the hopper -> fully zoomed out
   for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
@@ -358,6 +376,53 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
   for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60); // re-settle far
   check('hopper drift: the x-slide CATCHES UP to full CAM_X_LIFT once settled',
     Math.abs(zoomApi.getCamXSmooth() - 1.0) < 0.01, String(zoomApi.getCamXSmooth()));
+  // ROUTE-END (two beats): WALK progress drives the wide frame; BOARD/DRIVE settle on the door
+  zoomApi.setState('routeend');
+  routeEndFake.phase = 'walk'; routeEndFake.pt = 0;
+  p.wx = 30; p.wy = 2; // walk start (pts[0])
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: at walk start the frame holds the base wide (1.06) -- it grows WITH the walk',
+    Math.abs(camera.top / baseF.t - 1.06) < 0.01, String(camera.top / baseF.t));
+  routeEndFake.pt = 1; p.wx = 34; p.wy = -2; // mid-walk (progress ~= 0.65)
+  for (let i = 0; i < 10; i++) zoomApi.positionCamera(1 / 60);
+  const endEarly = camera.top / baseF.t;
+  check('route-end: the pull-back is SLOW (10 frames into the mid-walk target it has barely left 1.06)',
+    endEarly < 1.12, String(endEarly));
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: mid-walk the frame tracks the walk progress (1.06 + 0.24 * 0.652 ~= 1.216)',
+    Math.abs(camera.top / baseF.t - 1.216) < 0.02, String(camera.top / baseF.t));
+  // CYCLE beat: he stands at the hopper (same position/progress) while the compactor runs
+  routeEndFake.phase = 'cycle';
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: the CYCLE phase HOLDS the mid-walk frame (he stands at the hopper)',
+    Math.abs(camera.top / baseF.t - 1.216) < 0.02, String(camera.top / baseF.t));
+  routeEndFake.phase = 'walk';
+  routeEndFake.pt = 2; p.wx = 35.7; p.wy = -4.5; // at the cab door
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: at the door the frame lands on the WIDE 1.3 (pace tied to the walk)',
+    Math.abs(camera.top / baseF.t - 1.3) < 0.01, String(camera.top / baseF.t));
+  routeEndFake.phase = 'board';
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: BOARD settles the frame on the cab door (1.15 push-in)',
+    Math.abs(camera.top / baseF.t - 1.15) < 0.01, String(camera.top / baseF.t));
+  routeEndFake.phase = 'drive';
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: DRIVE keeps the door frame (1.15)',
+    Math.abs(camera.top / baseF.t - 1.15) < 0.01, String(camera.top / baseF.t));
+  // ...and the forward follow stays LIVE during the walk
+  const fx0 = zoomApi.getCamFollowX();
+  p.wx += 8; // the cinematic walks the worker forward
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('route-end: the forward follow stays LIVE (camera scrolls with the walk and settles under the worker)',
+    Math.abs(zoomApi.getCamFollowX() - (fx0 + 8)) < 0.05,
+    'before=' + fx0.toFixed(2) + ' after=' + zoomApi.getCamFollowX().toFixed(2));
+  zoomApi.setState('dying');
+  const fx1 = zoomApi.getCamFollowX();
+  p.wx += 8;
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  check('dying: the forward follow is FROZEN (the LODI does not drag the view)',
+    Math.abs(zoomApi.getCamFollowX() - fx1) < 1e-9, String(zoomApi.getCamFollowX()));
+  zoomApi.setState('play');
   check('hopper zoom: near the hopper is strictly tighter than far away (a real push-in)',
     nearScale < farScale - 0.05, 'near=' + nearScale + ' far=' + farScale);
   check('hopper angle: the far eye is strictly HIGHER than the near eye (rise out / dip in)',

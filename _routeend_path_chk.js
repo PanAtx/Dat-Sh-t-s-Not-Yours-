@@ -46,13 +46,16 @@ function mkWorkerGroup(){
   group.traverse = function(fn){ meshes.forEach(fn); };
   return group;
 }
-function mkWorld(p0, truck){
+function mkWorld(p0, truck, hopperLoad){
+  const H = { bursts: 0, finished: 0 }; // compactor observations
   return {
     state: 'play', carried: null, p: p0, truck: truck,
     worker: { group: mkWorkerGroup() },
     wparts: { armL: { rotation: { set(){} } }, armR: { rotation: { set(){} } }, legL: { rotation: { set(){} } }, legR: { rotation: { set(){} } } },
     g: null, GZ: 0.01,
     routeEnd: null,
+    hopperLoad: hopperLoad || 0,
+    H: H,
     dropCarried(){}, Voice: { say(){} },
     updateCreatures(){}, updateBonuses(){}, updatePowerups(){}, updateFlyingCans(){},
     updateFlyingBags(){}, updateFlyingBaskets(){}, updateDustParticles(){},
@@ -73,12 +76,21 @@ function harness(world){
     worker: world.worker, wparts: world.wparts, GZ: world.GZ,
     routeEnd: null,
     dropCarried: world.dropCarried, Voice: world.Voice,
+    // Hopper-compactor state (the route-end CYCLE beat reads/writes these globals,
+    // exactly like the browser closure): updateHopperTrash() runs the countdown and
+    // finishHopperCycle() flips hopperCycling off once the load is cycled.
+    hopperLoad: world.hopperLoad,
+    hopperCycling: false,
+    hopperCycleT: 0,
+    HOPPER_CYCLE_DUR: 0.75,
+    hopperAimX: () => 0,
+    hopperWorldY: () => 0,
+    spawnHopperBurst: (x, y, k) => { world.H.bursts++; },
     updateCreatures: world.updateCreatures, updateBonuses: world.updateBonuses,
     updatePowerups: world.updatePowerups, updateFlyingCans: world.updateFlyingCans,
     updateFlyingBags: world.updateFlyingBags, updateFlyingBaskets: world.updateFlyingBaskets,
     updateDustParticles: world.updateDustParticles, updateStarParticles: world.updateStarParticles,
-    updateBlocks: world.updateBlocks, updateFootprints: world.updateFootprints,
-    updateHopperTrash: world.updateHopperTrash, updateHUD: world.updateHUD,
+    updateBlocks: world.updateBlocks, updateFootprints: world.updateFootprints, updateHUD: world.updateHUD,
     clamp: world.clamp, camera: world.camera, finishRouteEnd: world.finishRouteEnd,
     WORKER_GENDER: 'male',
     workerMaxY: () => 8.0, // Flatbush cap — index.html's workerMaxY() (Manhattan levels cap at 5.0)
@@ -86,21 +98,36 @@ function harness(world){
     RE_DRIVE_SP: grabConst('RE_DRIVE_SP'), RE_DRIVE_MAX: grabConst('RE_DRIVE_MAX'),
     Math: Math
   };
+  // Closure-based (NOT `this`-based): Node's vm global proxy does not let `this` reads
+  // see host-set properties, so the fakes read/write ctx directly.
+  ctx.finishHopperCycle = function(){ ctx.hopperCycling = false; ctx.hopperLoad = 0; world.H.finished++; };
+  ctx.updateHopperTrash = function(dt){
+    if (ctx.hopperCycling){
+      ctx.hopperCycleT -= dt;
+      if (ctx.hopperCycleT <= 0) ctx.finishHopperCycle();
+    }
+  };
   vm.createContext(ctx);
   vm.runInContext(extractFn('startRouteEnd') + '\n' + extractFn('updateRouteEnd'), ctx);
   return { ctx, startRouteEnd: ctx.startRouteEnd, updateRouteEnd: ctx.updateRouteEnd };
 }
-// run the whole cinematic (cheer -> walk -> board -> drive) and report the walk
-function simWalk(p0, truck){
-  const w = mkWorld(p0, truck);
+// run the whole cinematic (cheer -> walk -> [cycle] -> board -> drive) and report
+// the walk (plus the compactor CYCLE beat when the hopper carries a load)
+function simWalk(p0, truck, hopperLoad){
+  const w = mkWorld(p0, truck, hopperLoad);
   const { ctx, startRouteEnd, updateRouteEnd } = harness(w);
   startRouteEnd();
   const pts0 = ctx.routeEnd.pts.slice();
   let clipped = false, firstClipT = -1, minClear = Infinity;
+  let sawCycle = false, sawCycling = false, cycleX = 0, cycleY = 0;
   const dt = 0.05;
-  for (let i = 0; i < 600; i++){           // up to 30s of cinematic
+  for (let i = 0; i < 900; i++){           // up to 45s of cinematic
     if (!ctx.routeEnd || ctx.routeEnd.phase === 'board' || ctx.routeEnd.phase === 'drive') break;
     updateRouteEnd(dt);
+    if (ctx.routeEnd && ctx.routeEnd.phase === 'cycle'){
+      sawCycle = true; cycleX = ctx.p.wx; cycleY = ctx.p.wy;
+    }
+    if (ctx.hopperCycling) sawCycling = true;
     if (ctx.routeEnd && ctx.routeEnd.phase === 'walk'){
       if (inBody(ctx.p.wx, ctx.p.wy, truck) && !clipped){ clipped = true; firstClipT = i * dt; }
       const clear = clearance(ctx.p.wx, ctx.p.wy, truck);
@@ -109,7 +136,9 @@ function simWalk(p0, truck){
   }
   const door = pts0[pts0.length - 1];
   const reached = ctx.routeEnd && ctx.routeEnd.phase === 'board' && Math.hypot(ctx.p.wx - door.x, ctx.p.wy - door.y) < 0.4;
-  return { clipped, firstClipT, minClear, reached, pts: pts0, phase: ctx.routeEnd ? ctx.routeEnd.phase : 'gone', walkT: ctx.routeEnd ? ctx.routeEnd.walkT : 0 };
+  return { clipped, firstClipT, minClear, reached, pts: pts0, phase: ctx.routeEnd ? ctx.routeEnd.phase : 'gone', walkT: ctx.routeEnd ? ctx.routeEnd.walkT : 0,
+           sawCycle, sawCycling, cycleX, cycleY, bursts: w.H.bursts, finished: w.H.finished,
+           cyclingLeft: !!ctx.hopperCycling };
 }
 
 // 1) route-end trigger, curb side (wy = 0.6)
@@ -206,6 +235,21 @@ function simWalk(p0, truck){
   check('route-end: frozen-invisible worker is re-shown on stage', sawStageVisible && stageMeshVisible && groupStageVisible,
         'cheer/walk saw=' + sawStageVisible + ' meshVisible=' + stageMeshVisible + ' groupVisible=' + groupStageVisible);
   check('route-end: board phase still hides the group once he is in the cab', boardHidGroup);
+}
+
+// 7) THE COMPACTOR CYCLE: at the hopper the day's garbage gets cycled INTO the truck
+//    (the pile's shrink/fade) before he walks on to the cab.
+{
+  const truck = { wx: 654.5, boxL, boxW, cabOff, hopperOff: -boxL + 1.6, g: null, hidden: 0 };
+  const r = simWalk({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck, 3);
+  check('compactor cycle: he STOPS at the hopper (the cycle phase runs)', r.sawCycle, 'end-phase=' + r.phase);
+  check('compactor cycle: the compactor kicks in (burst + hopperCycling)', r.bursts > 0 && r.sawCycling, 'bursts=' + r.bursts + ' cycling=' + r.sawCycling);
+  check('compactor cycle: the day load is cycled INTO the truck (finishHopperCycle ran, nothing left)', r.finished === 1 && !r.cyclingLeft, 'finished=' + r.finished + ' left=' + r.cyclingLeft);
+  check('compactor cycle: he stands by the hopper while it cycles (no drift)', Math.abs(r.cycleX - r.pts[0].x) < 0.5 && Math.abs(r.cycleY - r.pts[0].y) < 0.5,
+        'at=(' + r.cycleX.toFixed(2) + ',' + r.cycleY.toFixed(2) + ') hopper=(' + r.pts[0].x.toFixed(2) + ',' + r.pts[0].y.toFixed(2) + ')');
+  check('compactor cycle: after the cycle he reaches the cab door, never clipping', r.reached && !r.clipped, 'phase=' + r.phase + ' minClear=' + r.minClear.toFixed(2) + 'u');
+  const r2 = simWalk({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck, 0);
+  check('compactor cycle: an EMPTY hopper skips the beat (straight to the cab)', !r2.sawCycle && r2.reached, 'phase=' + r2.phase);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

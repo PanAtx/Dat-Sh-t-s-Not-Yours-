@@ -39,29 +39,32 @@ const npcCounts = new Function('BASE_NPC_COUNTS','SCALING_NPC','GATED_NPC','LEVE
   '\n; return (day) => { level = day; return npcCounts(day); };')(BASE_NPC_COUNTS, SCALING_NPC, GATED_NPC, LEVEL_DAYS);
 const sum = c => Object.keys(c).reduce((a, k) => a + c[k], 0);
 // Monday (Manhattan Uptown): gated types (moto/ebike/rc) are absent, the skater + raccoon +
-// tric (street tricycle) drops apply, and the Manhattan +1 escooter/+1 bike boost is capped
-// back down to the Flatbush baseline (1 each) by the TRAFFIC_CAP ceiling.
-// Also +1 crazy homeless guy on Manhattan days.
+// tric (street tricycle) drops apply, the Manhattan +1 escooter boost is capped back to 1,
+// the TRAFFIC CAP v2 kills the +1 bike, and the CROWD CUT thins peds to 1 and drops the
+// breaker + lady. Also +1 crazy homeless guy on Manhattan days.
 const mon = {}; for (const k in BASE_NPC_COUNTS) mon[k] = GATED_NPC[k] ? 0 : BASE_NPC_COUNTS[k];
 mon.skater = 0; mon.raccoon = 0; mon.tric = 0;
 mon.squirrel = 0;
 mon.crazy = 0;  // spawned separately, not via npcCounts
 mon.cat = 0;    // 4 bodega cats spawned separately on Manhattan days
-check('level 1 (Monday) is the baseline with the Manhattan drops (skater/raccoon/tric/squirrel) + Flatbush traffic cap (escooter/bike back to 1)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
+mon.ped = 1; mon.lady = 0; mon.breaker = 0;  // CROWD CUT
+mon.bike = 0; mon.escooter = 1;              // TRAFFIC CAP v2
+check('level 1 (Monday) is the baseline with the Manhattan drops (skater/raccoon/tric/squirrel) + CROWD CUT (ped 1, no lady/breaker) + traffic cap v2 (no bike)', JSON.stringify(npcCounts(1)) === JSON.stringify(mon));
 check('Monday roster is genuinely small (<= 20 NPCs)', sum(npcCounts(1)) <= 20);
-check('the main crowd (ped + car) stays at its light baseline all week (no daily ramp - calmer street)',
-  [1,2,3,4,5,6,7].every(l => ['ped','car'].every(k => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
-check('traffic cap: no level runs more than 1 moto / 1 e-bike (Flatbush level) and no level has any rc',
-  [1,2,3,4,5,6,7].every(l => npcCounts(l).moto <= 1 && npcCounts(l).ebike <= 1 && npcCounts(l).rc === 0) &&
+check('the main crowd (car) stays at its light baseline all week, peds capped at 1, breakers + ladies gone (CROWD CUT)',
+  [1,2,3,4,5,6,7].every(l => npcCounts(l).car === BASE_NPC_COUNTS.car && npcCounts(l).ped <= 1 && npcCounts(l).breaker === 0 && npcCounts(l).lady === 0));
+check('traffic cap v2: 0 bikes + 0 rc everywhere, 0 moto / 0 e-bike EXCEPT the level-specific Bronx (d2) swap',
+  [1,2,3,4,5,6,7].every(l => npcCounts(l).bike === 0 && npcCounts(l).rc === 0 && npcCounts(l).moto <= 1 && npcCounts(l).ebike <= 1) &&
   npcCounts(1).moto === 0 && npcCounts(1).ebike === 0 &&
-  [2,3,4,5,6,7].every(l => npcCounts(l).moto === 1 && npcCounts(l).ebike === 1));
+  npcCounts(2).moto === 1 && npcCounts(2).ebike === 1 &&
+  [3,4,5,6,7].every(l => npcCounts(l).moto === 0 && npcCounts(l).ebike === 0));
 check('Bronx (d2): no street tricycle, but 1 moto + 1 e-bike on the street',
   npcCounts(2).tric === 0 && npcCounts(2).moto === 1 && npcCounts(2).ebike === 1);
-check('old weekly traffic ramp is flattened: d4-d7 used to run 2-5 moto + 2-5 ebike + 1-3 rc, now the flat Flatbush baseline (1 moto, 1 ebike, 0 rc)',
-  [4,5,6,7].every(l => npcCounts(l).moto === 1 && npcCounts(l).ebike === 1 && npcCounts(l).rc === 0));
+check('old weekly traffic ramp is flattened: d4-d7 used to run 2-5 moto + 2-5 ebike + 1-3 rc, now 0 / 0 / 0 (quiet street)',
+  [4,5,6,7].every(l => npcCounts(l).moto === 0 && npcCounts(l).ebike === 0 && npcCounts(l).rc === 0));
 check('non-gated, non-scaling types stay at their Monday count (per-day overrides aside)',
   Object.keys(BASE_NPC_COUNTS).filter(k => !SCALING_NPC[k] && !GATED_NPC[k]
-    && !['escooter','bike','tric','yeller','hooker','skater','raccoon','crazy','squirrel','breaker'].includes(k))
+    && !['escooter','bike','tric','yeller','hooker','skater','raccoon','crazy','squirrel','breaker','ped','lady'].includes(k))
     .every(k => [1,2,3,4,5,6,7].every(l => npcCounts(l)[k] === BASE_NPC_COUNTS[k])));
 check('calmer, lighter street: the week still trends busier by Sunday, but at a light level (was ~39, now <= 30)', sum(npcCounts(7)) > sum(npcCounts(1)) && sum(npcCounts(7)) <= 30);
 console.log('   roster: day1 (Mon) = ' + sum(npcCounts(1)) + ' NPCs   ->   day7 (Sun) = ' + sum(npcCounts(7)) + ' NPCs');
