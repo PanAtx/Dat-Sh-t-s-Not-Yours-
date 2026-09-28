@@ -2331,7 +2331,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.308</div>
+          <div id="app-version" class="menu-version">v1.0.309</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2487,7 +2487,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.308';
+      const APP_VERSION = '1.0.309';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2626,19 +2626,19 @@
       // true:  the camera's orbit center + look point is the worker's LIVE world
       //        position -- the street swivels around HIM exactly, every frame (no
       //        lateral pan, no forward lead/lag; the subtle yaw head-turn is kept).
-      // false: the old smoothed follow point (0.35 lateral pan + forward lead/lag)
-      //        is the orbit center -- the pre-toggle camera, kept for A/B comparison.
-      const CAM_PIVOT_WORKER = true;
+      // false (CURRENT): the smoothed follow point (0.35 lateral pan + forward
+      //        lead/lag) is the orbit center -- the preferred camera.
+      const CAM_PIVOT_WORKER = false;
       const CAM_LANE_FOLLOW = 0.35; // fraction of his lane offset the camera pans with (strong enough to keep him centered so the yaw has room)
       const CAM_PAN_MAX = 3.5; // hard cap on the pan (world units) -- keeps the worker near screen-center at the lane extremes
-      const CAM_YAW_PER_UNIT = 0.035; // radians of yaw per unit of (smoothed) lane offset (~2deg/unit)
-      const CAM_YAW_MAX = 0.1047; // full stop: 6 degrees of view rotation (a subtle HINT of 3D, equal on both sides)
+      const CAM_YAW_PER_UNIT = 0.025; // radians of yaw per unit of (smoothed) lane offset (~1.4deg/unit)
+      const CAM_YAW_MAX = 0.0698; // full stop: 4 degrees of view rotation (a subtle HINT of 3D, equal on both sides)
       const CAM_FOLLOW_SMOOTH = 5.0; // higher = snappier; 5.0 ~= 200ms to settle
       const CAM_FWD_SMOOTH = 2.0; // forward lead/lag: slower than the lane follow (~400ms) so the camera trails a half-step behind him
       const CAM_FWD_MAX = 1.0; // hard cap on the forward lag (world units)
       const LANE_VEL_SMOOTH = 8.0; // strafe-velocity smoothing: ~125ms time constant (averages out per-frame input flips -- anti-jitter)
       const LANE_VEL_MAX = 5.0; // clamp on measured strafe velocity (world units/sec) -- one-frame spikes can't swing the view
-      const CAM_YAW_PER_VEL = 0.005; // SMOOTH yaw lead: ~0.3deg per u/s of strafe (max ~1.4deg extra, eases in/out -- no discrete kick)
+      const CAM_YAW_PER_VEL = 0.003; // SMOOTH yaw lead: ~0.17deg per u/s of strafe (max ~0.9deg extra, eases in/out -- no discrete kick)
       let camFollow = 0; // smoothed lane offset (chases p.wy - CAM_Y; reset on shift start/quit)
       let camFollowX = 0; // smoothed route-forward position (the lead/lag; reset with the worker)
       let laneVel = 0; // smoothed strafe velocity (u/s) -- feeds the yaw lead term
@@ -29813,10 +29813,10 @@
         // length, so the eye stays 45.03 units out: no zoom, no clip-plane movement,
         // and eye z stays exactly ARM_H (the vertical framing never moves). The sign
         // is chosen so the camera looks the direction the worker is heading (worker
-        // left -> view rotates left). At the 6deg cap screen-right is off world +X
-        // by 6deg (~7.5deg max with the smooth velocity lead at full strafe) --
+        // left -> view rotates left). At the 4deg cap screen-right is off world +X
+        // by 4deg (~4.9deg max with the smooth velocity lead at full strafe) --
         // the fixed 45deg stick compensation is imperceptibly off, and the truck
-        // off-screen test's +1.0u margin absorbs the cos(7.5deg)=0.991 factor.
+        // off-screen test's +1.0u margin absorbs the cos(4.9deg)=0.996 factor.
         const yaw =
           clamp(-camFollow * CAM_YAW_PER_UNIT, -CAM_YAW_MAX, CAM_YAW_MAX) -
           clamp(laneVel, -LANE_VEL_MAX, LANE_VEL_MAX) * CAM_YAW_PER_VEL;
