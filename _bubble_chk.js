@@ -48,9 +48,14 @@ function frame(wx, wy, dt){
   const ARM_D = 1.4142 * ISO_A, ARM_H = ISO_A;
   const CAM_LANE_FOLLOW = 0.35, CAM_PAN_MAX = 3.5, CAM_YAW_PER_UNIT = 0.035,
         CAM_YAW_MAX = 0.1047, CAM_FOLLOW_SMOOTH = 5.0;
+  const CAM_PIVOT_WORKER = true; // mirrors index.html: the rotation point is the worker
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   if (dt) { const k = 1 - Math.exp(-CAM_FOLLOW_SMOOTH * dt); camFollow += (wy - CAM_Y - camFollow) * k; }
-  const camFollowY = CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
+  // worker-pivot: orbit center + look point = the worker's LIVE local (wx, wy);
+  // the old smoothed pan is kept behind the toggle.
+  const camFollowY = CAM_PIVOT_WORKER
+    ? wy
+    : CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
   const yaw = clamp(-camFollow * CAM_YAW_PER_UNIT, -CAM_YAW_MAX, CAM_YAW_MAX);
   const camTX = c45 * (wx - camFollowY), camTY = c45 * (wx + camFollowY);
   const co = Math.cos(yaw), si = Math.sin(yaw);

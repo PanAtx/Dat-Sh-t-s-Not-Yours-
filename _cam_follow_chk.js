@@ -1,20 +1,25 @@
 // _cam_follow_chk.js - the SUBTLE LANE-FOLLOW camera (the "3D feel").
 // Executes the REAL positionCamera() + _SNAP_* basis + CAM_* constants extracted
 // from index.html against the REAL three.js from the repo, and proves:
-//   * center-lane framing is byte-identical to the pre-follow camera (zero change
-//     for the typical play position)
+//   * CAM_PIVOT_WORKER (default ON) = the orbit center + look point is the
+//     worker's LIVE world position: he is EXACTLY the rotation point, sits at
+//     exact screen center at every lane offset, and a worker jump moves the eye
+//     by the exact c45 delta (the street swivels around him)
+//   * the OLD smoothed follow point (0.35 lateral pan + forward lead/lag) is
+//     preserved behind the toggle for A/B comparison (center-lane framing is
+//     still byte-identical to the pre-follow camera)
 //   * arm length is preserved at the tilt extremes (no zoom, no clip-plane drift)
-//   * tilt is hard-capped at 3deg, pan at 1.2u
-//   * the yaw rotates screen-right by AT MOST 6deg (7.5deg with the smooth
-//     velocity lead at full strafe) from world +X (never any roll), so the
-//     fixed 45deg stick compensation, NPC facing constants, and the truck
-//     off-screen test stay valid (cos(7.5deg) = 0.991 << the test's +1.0u margin)
-//   * the forward lead/lag trails the worker and settles under him (capped 1.0u)
+//   * the yaw is hard-capped at 6deg (7.5deg with the smooth velocity lead at
+//     full strafe), never any roll, so the fixed 45deg stick compensation, NPC
+//     facing constants, and the truck off-screen test stay valid
+//     (cos(7.5deg) = 0.991 << the test's +1.0u margin)
+//   * the forward lead/lag STATE still trails the worker and settles under him
+//     (capped 1.0u) -- it drives the camera only when the toggle is OFF
 //   * the strafe-velocity yaw lead is SMOOTH: raw per-frame input flips are
 //     averaged over ~125ms, so a rapid direction reversal has no per-frame step
 //   * the worker stays inside the ortho frustum at BOTH lane extremes
 //   * the smoothing is FROZEN while dying / routeend, and dt=0 is a no-op
-//   * wiring: every call site passes dt/0, routeEnd reads the live camFollowY,
+//   * wiring: every call site passes dt/0, routeEnd reads the live pivot,
 //     camFollow is declared once and reset in resetWorldState
 const fs = require('fs');
 const path = require('path');
@@ -62,6 +67,15 @@ check('forward lag + velocity reset with the worker (resetWorldState)',
   h.indexOf('camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy;') >= 0);
 check('lane follow is FROZEN while dying / routeend (LODI + truck drive-off)',
   pcSrc.indexOf('state !== "dying" && state !== "routeend"') >= 0);
+check('CAM_PIVOT_WORKER toggle exists and defaults to true (the worker is the rotation point)',
+  /const CAM_PIVOT_WORKER = true;/.test(h));
+check('worker-pivot branch orbits + looks at the LIVE worker world position (plWx/plWy)',
+  pcSrc.indexOf('if (CAM_PIVOT_WORKER) {') >= 0 &&
+  pcSrc.indexOf('camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, ARM_H);') >= 0 &&
+  pcSrc.indexOf('camera.lookAt(plWx, plWy, 0);') >= 0);
+check('follow-point branch preserved for A/B (pan + lead/lag path behind the toggle)',
+  pcSrc.indexOf('c45 * (camFollowX - camFollowY)') >= 0 &&
+  pcSrc.indexOf('c45 * (camFollowX + camFollowY)') >= 0);
 
 // ================= run the real code with real three =================
 const snapCode = grab('const _SNAP_FWD = new THREE.Vector3', 'const _SNAP_TEXEL_U = 48 / 4096;');
@@ -83,9 +97,9 @@ const api = new Function(
 const C45 = Math.SQRT1_2;
 const ARM = Math.sqrt(1.4142 * 26 * (1.4142 * 26) + 26 * 26); // 45.033, the eye->target arm
 const armLen = () => {
-  // target = (c45*(wx - camFollowY), c45*(wx + camFollowY), 0); recompute camFollowY like positionCamera does
-  const camFollowY = 2.0 + Math.min(3.5, Math.max(-3.5, api.getCamFollow() * 0.35));
-  const t = new THREE.Vector3(C45 * (p.wx - camFollowY), C45 * (p.wx + camFollowY), 0);
+  // worker-pivot (CAM_PIVOT_WORKER = true): target = the worker's own world position
+  // (plWx/plWy inside positionCamera)
+  const t = new THREE.Vector3(C45 * (p.wx - p.wy), C45 * (p.wx + p.wy), 0);
   return camera.position.clone().sub(t).length();
 };
 const workerNDC = () =>
@@ -112,11 +126,13 @@ check('center lane: worker on screen', onScreen(workerNDC()), JSON.stringify(wor
 p.wx = 0; p.wy = 8.0;
 settle(600); // 10s at 60fps -- fully settled (200ms time constant)
 check('up-lane: camFollow settles to lane offset (8.0 - 2.0 = 6.0)', Math.abs(api.getCamFollow() - 6.0) < 1e-3, String(api.getCamFollow()));
-check('up-lane: yaw hits the 6deg cap in the head-turn direction (eye swings sideways, z pinned at ARM_H)',
+check('up-lane: yaw hits the 6deg cap in the head-turn direction (eye swings sideways, z pinned at ARM_H, pivot = live worker)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
-  Math.abs(camera.position.x - (C45 * (0 - 4.1) - 1.4142 * 26 * Math.sin(0.1047))) < 0.01,
+  Math.abs(camera.position.x - (C45 * (0 - 8.0) - 1.4142 * 26 * Math.sin(0.1047))) < 0.01 &&
+  Math.abs(camera.position.y - (C45 * (0 + 8.0) - 1.4142 * 26 * Math.cos(0.1047))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
-check('up-lane: pan applied (camera center moves with the lane, camFollowY = 4.1)', Math.abs(api.getCamFollow() * 0.35 - 2.1) < 1e-3, String(api.getCamFollow()));
+check('up-lane: worker-pivot — the worker sits at EXACT screen center (NDC ~ 0, no pan needed)',
+  Math.abs(workerNDC().x) < 0.01 && Math.abs(workerNDC().y) < 0.08, JSON.stringify(workerNDC()));
 check('up-lane: arm length preserved (no zoom / no clip-plane drift)', Math.abs(armLen() - ARM) < 0.01, String(armLen()));
 check('up-lane: screen-right rotated by exactly the yaw (6deg), with NO roll (z = 0)',
   Math.abs(screenRight().z) < 1e-9 && Math.abs(Math.atan2(screenRight().y, screenRight().x) + 0.1047) < 1e-6,
@@ -126,15 +142,31 @@ check('up-lane: worker still inside the frustum', onScreen(workerNDC()), JSON.st
 // ---- Test B: street-lane extreme (p.wy = -9.4, the clamp floor) ----
 p.wx = 100; p.wy = -9.4;
 settle(600);
-check('street lane: pan is hard-capped at 3.5u (camFollowY = -1.5, checked via the un-panned y axis)',
-  Math.abs(camera.position.y - (C45 * (100 - 1.5) - 1.4142 * 26 * Math.cos(0.1047))) < 0.01,
+check('street lane: pivot = the LIVE worker at the lane extreme (eye anchored on him, no pan cap)',
+  Math.abs(camera.position.y - (C45 * (100 + (-9.4)) - 1.4142 * 26 * Math.cos(0.1047))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('street lane: yaw at the +6deg cap, opposite direction, SAME magnitude as up-lane (symmetry, eye z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
-  Math.abs(camera.position.x - (C45 * (100 + 1.5) + 1.4142 * 26 * Math.sin(0.1047))) < 0.01,
+  Math.abs(camera.position.x - (C45 * (100 - (-9.4)) + 1.4142 * 26 * Math.sin(0.1047))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('street lane: arm length preserved', Math.abs(armLen() - ARM) < 0.01, String(armLen()));
 check('street lane: worker still inside the frustum', onScreen(workerNDC()), JSON.stringify(workerNDC()));
+
+// ---- Test P: worker-pivot (the rotation point IS the sanitation worker) ----
+api.setState('play');
+p.wx = 30; p.wy = 5.0;
+settle(600); // fully settled: yaw at the smoothed cap, pivot = live worker
+check('worker-pivot: camera is PINNED to the worker — a 10u jump moves the eye by EXACTLY c45*10 in both axes',
+  (() => {
+    const before = camera.position.clone();
+    p.wx += 10;
+    api.positionCamera(1 / 60);
+    const dx = camera.position.x - before.x, dy = camera.position.y - before.y;
+    return Math.abs(dx - C45 * 10) < 1e-6 && Math.abs(dy - C45 * 10) < 1e-6;
+  })(), 'eye delta != c45*10');
+settle(600);
+check('worker-pivot: worker at EXACT screen center at a mid-lane offset (NDC ~ 0)',
+  Math.abs(workerNDC().x) < 0.01 && Math.abs(workerNDC().y) < 0.08, JSON.stringify(workerNDC()));
 
 // ---- Test F: forward lead/lag (camera trails a half-step, settles when he stops) ----
 api.setState('play');

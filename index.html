@@ -2331,7 +2331,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.307</div>
+          <div id="app-version" class="menu-version">v1.0.308</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2487,7 +2487,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.307';
+      const APP_VERSION = '1.0.308';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2622,6 +2622,13 @@
       // (matches the _SNAP_* / _bubVec pre-allocated temp convention).
       const ARM_D = 1.4142 * ISO_A; // eye offset toward the target (was inline at positionCamera)
       const ARM_H = ISO_A; // eye height above the target
+      // ---- WORKER-PIVOT toggle ("the rotation point is the worker") ----
+      // true:  the camera's orbit center + look point is the worker's LIVE world
+      //        position -- the street swivels around HIM exactly, every frame (no
+      //        lateral pan, no forward lead/lag; the subtle yaw head-turn is kept).
+      // false: the old smoothed follow point (0.35 lateral pan + forward lead/lag)
+      //        is the orbit center -- the pre-toggle camera, kept for A/B comparison.
+      const CAM_PIVOT_WORKER = true;
       const CAM_LANE_FOLLOW = 0.35; // fraction of his lane offset the camera pans with (strong enough to keep him centered so the yaw has room)
       const CAM_PAN_MAX = 3.5; // hard cap on the pan (world units) -- keeps the worker near screen-center at the lane extremes
       const CAM_YAW_PER_UNIT = 0.035; // radians of yaw per unit of (smoothed) lane offset (~2deg/unit)
@@ -29133,10 +29140,13 @@
         const halfW =
           camera && isFinite(camera.right) ? Math.abs(camera.right) : 8;
         // screen-x of the truck's REAR relative to the camera's live center (world x = c45*(x - y)):
-        // recompute the live pan here exactly like positionCamera() does -- camFollowY
-        // is a LOCAL inside positionCamera(), so referencing it here would throw.
-        const camFollowY =
-          CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
+        // recompute the live pivot here exactly like positionCamera() does -- the
+        // follow state is a LOCAL inside positionCamera(), so referencing it here
+        // would throw. Worker-pivot mode: the camera center IS the worker's live
+        // position (pivotY = p.wy).
+        const camFollowY = CAM_PIVOT_WORKER
+          ? p.wy
+          : CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
         const rearX = Math.SQRT1_2 * (truck.wx + hopperOff - -4.5);
         const camX = Math.SQRT1_2 * (p.wx - camFollowY);
         if (rearX - camX > halfW + 1.0 || routeEnd.driveT >= RE_DRIVE_MAX)
@@ -29798,7 +29808,7 @@
         const camFollowY =
           CAM_Y + clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX);
         // YAW (not pitch!): rotate the eye offset (0, -ARM_D, ARM_H) about the WORLD
-        // UP (Z) axis. The whole scene swivels left/right around the look point --
+        // UP (Z) axis. The whole scene swivels left/right around the pivot --
         // the camera "turns its head" toward the worker's lane. A rotation preserves
         // length, so the eye stays 45.03 units out: no zoom, no clip-plane movement,
         // and eye z stays exactly ARM_H (the vertical framing never moves). The sign
@@ -29810,13 +29820,25 @@
         const yaw =
           clamp(-camFollow * CAM_YAW_PER_UNIT, -CAM_YAW_MAX, CAM_YAW_MAX) -
           clamp(laneVel, -LANE_VEL_MAX, LANE_VEL_MAX) * CAM_YAW_PER_VEL;
-        const camTX = c45 * (camFollowX - camFollowY);
-        const camTY = c45 * (camFollowX + camFollowY);
         const co = Math.cos(yaw),
           si = Math.sin(yaw);
-        camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, ARM_H);
-        camera.up.set(0, 0, 1);
-        camera.lookAt(camTX, camTY, 0);
+        if (CAM_PIVOT_WORKER) {
+          // WORKER-PIVOT: the orbit center + look point is the worker's LIVE world
+          // position (plWx/plWy, computed for the shadow light at the top of this
+          // function) -- the whole street swivels around HIM, exactly, every frame.
+          // No lateral pan, no forward lead/lag: he IS the rotation point.
+          camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, ARM_H);
+          camera.up.set(0, 0, 1);
+          camera.lookAt(plWx, plWy, 0);
+        } else {
+          // Old smoothed follow point: lateral pan (camFollowY) + forward lead/lag
+          // (camFollowX) around the lagged position.
+          const camTX = c45 * (camFollowX - camFollowY);
+          const camTY = c45 * (camFollowX + camFollowY);
+          camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, ARM_H);
+          camera.up.set(0, 0, 1);
+          camera.lookAt(camTX, camTY, 0);
+        }
       }
       function loop(now) {
         requestAnimationFrame(loop);
