@@ -2341,7 +2341,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.314</div>
+          <div id="app-version" class="menu-version">v1.0.315</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2497,7 +2497,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.314';
+      const APP_VERSION = '1.0.315';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2661,6 +2661,17 @@
       let camFollow = 0; // smoothed lane offset (chases p.wy - CAM_Y; reset on shift start/quit)
       let camFollowX = 0; // smoothed route-forward position (the lead/lag; reset with the worker)
       let laneVel = 0; // smoothed strafe velocity (u/s) -- feeds the yaw lead term
+      // ---- HOPPER ZOOM (subtle): tighten the ortho frustum as the worker nears the
+      // BACK of the truck (the open hopper), ease it back out as he walks away. Only
+      // the frustum SCALE changes -- the camera's orbit position / eye height / arm
+      // length are untouched, so the isometric angle never moves. A gentle "push in"
+      // right where the trash gets dumped. camZoom = 1.0 is the normal framing.
+      const CAM_ZOOM_IN = 0.86; // min frustum scale at the hopper (0.86 ~= 14% tighter -- subtle)
+      const CAM_ZOOM_DIST = 10; // route-units from the hopper where the zoom fully eases back out to 1.0
+      const CAM_ZOOM_SMOOTH = 2.5; // exponential ease time-constant (lower = softer/slower)
+      let camZoom = CAM_ZOOM_IN; // smoothed frustum scale (starts zoomed in -- a fresh shift begins at the truck)
+      let _camZoomApplied = 0; // last frustum scale we wrote (skip redundant projection updates)
+      let _baseFrustum = null; // base (un-zoomed) ortho frustum; set on init + resize
       let _lanePrevWy = 0; // previous frame's p.wy (for the velocity measurement)
       const JACKER_FACE_SE = -Math.PI / 2; // the CONSTRUCTION WORKER (the jackhammer guy, the 'jacker' NPC)
       // ALWAYS faces SOUTHEAST (screen down-and-right, toward the street) on every level,
@@ -3191,6 +3202,7 @@
         scene.fog = new THREE.Fog(0x9fb6c9, 60, 160); // NYC haze with real depth falloff
 
         const f = makeFrustum();
+        _baseFrustum = f; // base (un-zoomed) frustum; positionCamera scales this by camZoom each frame
         camera = new THREE.OrthographicCamera(f.l, f.r, f.t, f.b, 1, 400);
         camera.up.set(0, 0, 1); // world vertical is the screen-up axis
         scene.add(camera); // root-level camera: its position is computed explicitly every frame
@@ -3647,6 +3659,7 @@
       }
       window.addEventListener("resize", () => {
         const f = makeFrustum();
+        _baseFrustum = f; // keep the base frustum in sync so the zoom re-scales from the new aspect
         camera.left = f.l;
         camera.right = f.r;
         camera.top = f.t;
@@ -19913,6 +19926,7 @@
         p.wx = PLAYER_START_X;
         p.wy = 2.5;
         camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; // the camera's follow state resets with the worker (no stale lag/velocity leaking into the new shift)
+        camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; // fresh shift starts at the truck: reset the hopper zoom (force a frustum rewrite next frame)
         p.stunT = 0;
         p.invuln = 0;
         p.immuneT = 0;
@@ -30763,6 +30777,28 @@
           camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, ARM_H);
           camera.up.set(0, 0, 1);
           camera.lookAt(camTX, camTY, 0);
+        }
+        // ---- HOPPER ZOOM (subtle): scale the ortho frustum DOWN (zoom IN) as the
+        // worker approaches the back of the truck, ease it back OUT (zoom OUT) as he
+        // walks away. Only the frustum scale changes -- orbit / eye height / arm
+        // length are untouched. Guarded: on the menu / in the test sandbox there is no
+        // truck, so `truck` is undefined and this block is skipped (typeof-guard keeps
+        // the reference from throwing there too).
+        if (typeof truck !== "undefined" && truck && _baseFrustum) {
+          const dz = p.wx - hopperAimX();
+          const dy = p.wy - hopperWorldY();
+          const hdist = Math.sqrt(dz * dz + dy * dy);
+          const hz = clamp(hdist / CAM_ZOOM_DIST, 0, 1); // 0 at the hopper -> 1 far away
+          const hzTarget = CAM_ZOOM_IN + (1 - CAM_ZOOM_IN) * hz;
+          camZoom += (hzTarget - camZoom) * (1 - Math.exp(-CAM_ZOOM_SMOOTH * (dt || 0)));
+          if (Math.abs(camZoom - _camZoomApplied) > 1e-4) {
+            camera.left = _baseFrustum.l * camZoom;
+            camera.right = _baseFrustum.r * camZoom;
+            camera.top = _baseFrustum.t * camZoom;
+            camera.bottom = _baseFrustum.b * camZoom;
+            camera.updateProjectionMatrix();
+            _camZoomApplied = camZoom;
+          }
         }
       }
       function loop(now) {

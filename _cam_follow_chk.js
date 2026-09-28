@@ -87,6 +87,17 @@ check('analog stick compensation rotates by the SAME base angle (screen-aligned 
   h.indexOf('const rl = c * ((ct + st) * f + (ct - st) * l);') >= 0);
 check('routeEnd truck off-screen test projects onto the rotated screen axis (cos/sin of CAM_ANGLE_OFFSET)',
   h.indexOf('(rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET)') >= 0);
+check('hopper zoom: constants present (subtle 0.86 in, 10u fade, 2.5 ease)',
+  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h));
+check('hopper zoom: base frustum captured on init + resize (zoom scales FROM the un-zoomed frustum)',
+  (h.match(/_baseFrustum = f;/g) || []).length >= 2);
+check('hopper zoom: positionCamera measures the worker->hopper distance and scales the ortho frustum',
+  pcSrc.indexOf('hopperAimX()') >= 0 && pcSrc.indexOf('hopperWorldY()') >= 0 &&
+  pcSrc.indexOf('_baseFrustum.l * camZoom') >= 0 && pcSrc.indexOf('camera.updateProjectionMatrix();') >= 0);
+check('hopper zoom: guarded so the sandbox / menu (no truck) skips it (typeof truck)',
+  pcSrc.indexOf('typeof truck !== "undefined"') >= 0);
+check('hopper zoom: reset on a fresh shift (starts zoomed in at the truck)',
+  h.indexOf('camZoom = CAM_ZOOM_IN; _camZoomApplied = 0;') >= 0);
 
 // ================= run the real code with real three =================
 const snapCode = grab('const _SNAP_FWD = new THREE.Vector3', 'const _SNAP_TEXEL_U = 48 / 4096;');
@@ -279,6 +290,40 @@ api.positionCamera(0);
 check('dt=0: camera holds perfectly still AND camFollow does not settle',
   camera.position.distanceTo(before) === 0 && api.getCamFollow() === 3.0,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
+
+// ---- Test H: HOPPER ZOOM (subtle frustum tighten near the back of the truck) ----
+// Isolated sandbox: the 50 checks above run positionCamera with NO truck (the zoom
+// block is skipped, so the position/arm-length results are byte-identical). Here we
+// inject a truck + hopper fns and prove the frustum scales DOWN (zoom in) at the
+// hopper and eases back to 1.0 (zoom out) far away. The scale is read as
+// camera.top / baseTop -- only the frustum changes, never the camera position.
+{
+  const baseF = { l: -8, r: 8, t: 4.5, b: -4.5 }; // the 16:9 s=4.5 base frustum (matches the sandbox camera)
+  const truck2 = { wx: 40, hopperAimOff: -4.3, hopperOff: -4.3, hopperY: 0 };
+  const zoomApi = new Function(
+    'THREE', 'camera', 'dirLight', 'groundGroup', 'p', 'clamp', 'ISO_A', 'CAM_Y',
+    'truck', 'hopperAimX', 'hopperWorldY',
+    'let state = "play";\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
+    '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; } };',
+  )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0,
+    truck2,
+    () => truck2.wx + (truck2.hopperAimOff != null ? truck2.hopperAimOff : -4.3),
+    () => -4.5 + (truck2.hopperY != null ? truck2.hopperY : 0));
+  zoomApi.setBaseFrustum(baseF);
+  p.wx = 40; p.wy = 30; // ~35u from the hopper -> fully zoomed out
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  const farScale = camera.top / baseF.t;
+  check('hopper zoom: far from the truck the frustum eases back to ~1.0 (no zoom)',
+    Math.abs(farScale - 1.0) < 0.01, String(farScale));
+  p.wx = truck2.wx - 4.3; p.wy = -4.5; // right at the back of the truck (the hopper)
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
+  const nearScale = camera.top / baseF.t;
+  check('hopper zoom: at the back of the truck the frustum tightens to ~CAM_ZOOM_IN (0.86)',
+    Math.abs(nearScale - 0.86) < 0.01, String(nearScale));
+  check('hopper zoom: near the hopper is strictly tighter than far away (a real push-in)',
+    nearScale < farScale - 0.05, 'near=' + nearScale + ' far=' + farScale);
+  camera.left = -8; camera.right = 8; camera.top = 4.5; camera.bottom = -4.5; camera.updateProjectionMatrix(); // restore
+}
 
 console.log(pass ? '\nCAMERA LANE-FOLLOW OK' : '\nCAMERA LANE-FOLLOW BROKEN');
 process.exit(pass ? 0 : 1);
