@@ -1,6 +1,6 @@
 // _cat_spawn_chk.js — verify the bodega cat spawn (Manhattan + Bronx + Flatbush +
-// Queens): exactly 4 cats on 4 different active blocks, sitting on the sidewalk in
-// front of the store (Manhattan/Queens: bl.x + 3.0 / the corner-store door, wy 4.5) —
+// Queens + Bed-Stuy): exactly 4 cats on 4 different active blocks, sitting on the sidewalk in
+// front of the store (Manhattan/Queens/Bed-Stuy: bl.x + 3.0 / the corner-store door, wy 4.5) —
 // or perched ON the store mat at the door (Bronx: bl.x - 2.6, wy 6.7; Flatbush: the
 // left corner store's mat at bl.x + 0.65, wy 7.6) — one of each coat (tuxedo / grey /
 // orange / tabby, with the Bronx-only white & grey "mott" and the Queens-only
@@ -19,7 +19,7 @@ const check = (name, cond, detail) => {
 };
 
 // ---- extract the bodega-cat spawn block from spawnWorld (Manhattan + Bronx + Flatbush) ----
-const spIdx = src.indexOf('// Bodega cats: Manhattan + Bronx + Flatbush only.');
+const spIdx = src.indexOf('// Bodega cats: Manhattan + Bronx + Flatbush + Bed-Stuy only.');
 if (spIdx < 0) { console.error('bodega cat spawn block not found'); process.exit(1); }
 const spEnd = src.indexOf('spawnPowerups(', spIdx);
 const spawnBlock = src.slice(spIdx, spEnd);
@@ -30,10 +30,13 @@ check('no per-block "easy visibility" debug loop remains', spawnBlock.indexOf('f
 check('cats spread over 4 DIFFERENT active shift blocks (indices 1-5)', /const active = \[1, 2, 3, 4, 5\]/.test(spawnBlock) && /const catBlocks = active\.slice\(0, 4\)/.test(spawnBlock));
 check('cats sit in front of the store door on the block (bl.x + 3.0)', /bc\.wx = bl\.x \+ 3\.0/.test(spawnBlock));
 check('cats sit on the sidewalk in front of the store (wy = 4.5)', /bc\.wy = 4\.5/.test(spawnBlock));
-check('Manhattan + Bronx + Flatbush gate applies', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\) \|\| isFlatbushArea\)/.test(spawnBlock));
+check('Manhattan + Bronx + Flatbush + Bed-Stuy gate applies', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\) \|\| isFlatbushArea \|\| isBedStuyLevel\(\)\)/.test(spawnBlock));
 check('gate is NOT applied to other boroughs (no bare isManhattanLevel gate)', spawnBlock.indexOf('if (isManhattanLevel())') < 0);
-check('Flatbush gate is area-gated (Bed-Stuy, also BROOKLYN, stays cat-free)',
+check('Flatbush gate is area-gated (never borough-wide)',
   spawnBlock.indexOf('const isFlatbushArea = borough === "BROOKLYN" && area === "FLATBUSH";') >= 0);
+check('Bed-Stuy cats: gate is on isBedStuyLevel, mat perch stays Bronx+Flatbush-only (sidewalk spot bl.x + 3.0, wy 4.5)',
+  /isBedStuyLevel\(\)\) \{/.test(spawnBlock) &&
+  /if \(\(isBronxLevel\(\) \|\| isFlatbushArea\) && Math\.random\(\) < 0\.5\) \{/.test(spawnBlock));
 check('Bronx cats can perch ON the store mat at the door (bl.x - 2.6, wy 6.7)',
   /isBronxLevel\(\) \|\| isFlatbushArea\) && Math\.random\(\) < 0\.5/.test(spawnBlock) &&
   /bc\.wx = bl\.x - 2\.6/.test(spawnBlock) && /bc\.wy = 6\.7/.test(spawnBlock));
