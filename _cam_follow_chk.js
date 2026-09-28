@@ -6,11 +6,13 @@
 //     worker-pivot branch is kept behind the toggle
 //   * center-lane framing is byte-identical to the pre-follow camera (zero change
 //     for the typical play position)
+//   * the BASE ORBIT ANGLE (CAM_ANGLE_OFFSET, -23deg = the preferred camera angle,
+//     scene counter-clockwise on screen) rotates the eye offset, and the analog
+//     stick compensation + the truck off-screen test rotate by the SAME angle
 //   * arm length is preserved at the tilt extremes (no zoom, no clip-plane drift)
-//   * the yaw is hard-capped at 4deg (4.9deg with the smooth velocity lead at
-//     full strafe), never any roll, so the fixed 45deg stick compensation, NPC
-//     facing constants, and the truck off-screen test stay valid
-//     (cos(4.9deg) = 0.996 << the test's +1.0u margin)
+//   * the yaw is hard-capped at 4deg ON TOP of the base orbit (4.9deg of yaw max
+//     with the smooth velocity lead at full strafe), never any roll, so the
+//     screen-aligned stick compensation and the truck off-screen test stay valid
 //   * the forward lead/lag trails the worker and settles under him (capped 1.0u)
 //   * the strafe-velocity yaw lead is SMOOTH: raw per-frame input flips are
 //     averaged over ~125ms, so a rapid direction reversal has no per-frame step
@@ -73,6 +75,18 @@ check('worker-pivot branch preserved behind the toggle (orbits + looks at the LI
 check('follow-point branch is the active path (pan + lead/lag around the lagged position)',
   pcSrc.indexOf('c45 * (camFollowX - camFollowY)') >= 0 &&
   pcSrc.indexOf('c45 * (camFollowX + camFollowY)') >= 0);
+check('base orbit angle constant exists (CAM_ANGLE_OFFSET_DEG = -23, scene counter-clockwise on screen)',
+  /const CAM_ANGLE_OFFSET_DEG = -23;/.test(h) &&
+  /const CAM_ANGLE_OFFSET = \(CAM_ANGLE_OFFSET_DEG \* Math\.PI\) \/ 180;/.test(h));
+check('positionCamera adds the base orbit to the yaw (ang = yaw + CAM_ANGLE_OFFSET) and uses it for the eye offset',
+  pcSrc.indexOf('const ang = yaw + CAM_ANGLE_OFFSET;') >= 0 &&
+  pcSrc.indexOf('const co = Math.cos(ang),') >= 0 && pcSrc.indexOf('Math.sin(ang);') >= 0);
+check('analog stick compensation rotates by the SAME base angle (screen-aligned movement at -23deg)',
+  h.indexOf('const ct = Math.cos(CAM_ANGLE_OFFSET),') >= 0 &&
+  h.indexOf('const rf = c * ((ct - st) * f - (ct + st) * l);') >= 0 &&
+  h.indexOf('const rl = c * ((ct + st) * f + (ct - st) * l);') >= 0);
+check('routeEnd truck off-screen test projects onto the rotated screen axis (cos/sin of CAM_ANGLE_OFFSET)',
+  h.indexOf('(rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET)') >= 0);
 
 // ================= run the real code with real three =================
 const snapCode = grab('const _SNAP_FWD = new THREE.Vector3', 'const _SNAP_TEXEL_U = 48 / 4096;');
@@ -92,6 +106,7 @@ const api = new Function(
 )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0);
 
 const C45 = Math.SQRT1_2;
+const CAM_ANGLE_OFFSET = (-23 * Math.PI) / 180; // mirrors index.html's CAM_ANGLE_OFFSET (the -23 literal is asserted above)
 const ARM = Math.sqrt(1.4142 * 26 * (1.4142 * 26) + 26 * 26); // 45.033, the eye->target arm
 const armLen = () => {
   // follow-point (CAM_PIVOT_WORKER = false): target = (c45*(wx - camFollowY), c45*(wx + camFollowY), 0);
@@ -113,10 +128,11 @@ p.wx = 0; p.wy = 2.0;
 api.resetFollow(); // mirrors resetWorldState() in the game (fresh shift: no stale velocity)
 settle(10);
 check('center lane: camFollow stays 0', Math.abs(api.getCamFollow()) < 1e-9, String(api.getCamFollow()));
-check('center lane: camera identical to the old locked camera (eye at camTY - ARM_D, z = ARM_H)',
-  Math.abs(camera.position.x - C45 * (0 - 2.0)) < 1e-9 &&
-  Math.abs(camera.position.y - (C45 * (0 + 2.0) - 1.4142 * 26)) < 1e-6 &&
-  Math.abs(camera.position.z - 26) < 1e-9,
+check('center lane: base orbit applied (eye offset rotated by -23deg: camTX + ARM_D*sin, camTY - ARM_D*cos, z = ARM_H)',
+  Math.abs(camera.position.x - (C45 * (0 - 2.0) + 1.4142 * 26 * Math.sin(CAM_ANGLE_OFFSET))) < 1e-6 &&
+  Math.abs(camera.position.y - (C45 * (0 + 2.0) - 1.4142 * 26 * Math.cos(CAM_ANGLE_OFFSET))) < 1e-6 &&
+  Math.abs(camera.position.z - 26) < 1e-9 &&
+  Math.abs(Math.atan2(screenRight().y, screenRight().x) - CAM_ANGLE_OFFSET) < 1e-6,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('center lane: worker on screen', onScreen(workerNDC()), JSON.stringify(workerNDC()));
 
@@ -124,27 +140,29 @@ check('center lane: worker on screen', onScreen(workerNDC()), JSON.stringify(wor
 p.wx = 0; p.wy = 8.0;
 settle(600); // 10s at 60fps -- fully settled (200ms time constant)
 check('up-lane: camFollow settles to lane offset (8.0 - 2.0 = 6.0)', Math.abs(api.getCamFollow() - 6.0) < 1e-3, String(api.getCamFollow()));
-check('up-lane: yaw hits the 4deg cap in the head-turn direction (eye swings sideways, z pinned at ARM_H)',
+const angA = -0.0698 + CAM_ANGLE_OFFSET; // up-lane: 4deg head-turn on top of the -23deg base orbit
+check('up-lane: yaw hits the 4deg cap on top of the base orbit (eye swings sideways, z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
-  Math.abs(camera.position.x - (C45 * (0 - 4.1) - 1.4142 * 26 * Math.sin(0.0698))) < 0.01 &&
-  Math.abs(camera.position.y - (C45 * (0 + 4.1) - 1.4142 * 26 * Math.cos(0.0698))) < 0.01,
+  Math.abs(camera.position.x - (C45 * (0 - 4.1) + 1.4142 * 26 * Math.sin(angA))) < 0.01 &&
+  Math.abs(camera.position.y - (C45 * (0 + 4.1) - 1.4142 * 26 * Math.cos(angA))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('up-lane: pan applied (camera center moves with the lane, camFollowY = 4.1)', Math.abs(api.getCamFollow() * 0.35 - 2.1) < 1e-3, String(api.getCamFollow()));
 check('up-lane: arm length preserved (no zoom / no clip-plane drift)', Math.abs(armLen() - ARM) < 0.01, String(armLen()));
-check('up-lane: screen-right rotated by exactly the yaw (4deg), with NO roll (z = 0)',
-  Math.abs(screenRight().z) < 1e-9 && Math.abs(Math.atan2(screenRight().y, screenRight().x) + 0.0698) < 1e-6,
+check('up-lane: screen-right rotated by exactly the total orbit angle (4deg yaw + base orbit), with NO roll (z = 0)',
+  Math.abs(screenRight().z) < 1e-9 && Math.abs(Math.atan2(screenRight().y, screenRight().x) - angA) < 1e-6,
   screenRight().toArray().map(n => n.toExponential(3)).join(','));
 check('up-lane: worker still inside the frustum', onScreen(workerNDC()), JSON.stringify(workerNDC()));
 
 // ---- Test B: street-lane extreme (p.wy = -9.4, the clamp floor) ----
 p.wx = 100; p.wy = -9.4;
 settle(600);
+const angB = 0.0698 + CAM_ANGLE_OFFSET; // street lane: +4deg head-turn on top of the base orbit
 check('street lane: pan is hard-capped at 3.5u (camFollowY = -1.5, checked via the un-panned y axis)',
-  Math.abs(camera.position.y - (C45 * (100 - 1.5) - 1.4142 * 26 * Math.cos(0.0698))) < 0.01,
+  Math.abs(camera.position.y - (C45 * (100 - 1.5) - 1.4142 * 26 * Math.cos(angB))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('street lane: yaw at the +4deg cap, opposite direction, SAME magnitude as up-lane (symmetry, eye z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
-  Math.abs(camera.position.x - (C45 * (100 + 1.5) + 1.4142 * 26 * Math.sin(0.0698))) < 0.01,
+  Math.abs(camera.position.x - (C45 * (100 + 1.5) + 1.4142 * 26 * Math.sin(angB))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('street lane: arm length preserved', Math.abs(armLen() - ARM) < 0.01, String(armLen()));
 check('street lane: worker still inside the frustum', onScreen(workerNDC()), JSON.stringify(workerNDC()));
@@ -187,11 +205,11 @@ p.wx = 20; p.wy = 2.0;
 settle(600); // idle: laneVel = 0
 for (let i = 0; i < 90; i++) { p.wy += 4 / 60; api.positionCamera(1 / 60); } // constant 4 u/s up-lane strafe
 check('vel lead: constant strafe adds a smooth lead on top of the 4deg cap (4 u/s * 0.003 = 0.012)',
-  Math.abs(Math.atan2(screenRight().y, screenRight().x) + (0.0698 + 0.012)) < 0.005,
+  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET - 0.0698 - 0.012)) < 0.005,
   String(Math.atan2(screenRight().y, screenRight().x)));
 settle(90); // he stops: the lead eases back to the pure cap
 check('vel lead: eases back to the 4deg cap once he stops',
-  Math.abs(Math.atan2(screenRight().y, screenRight().x) + 0.0698) < 0.005,
+  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET - 0.0698)) < 0.005,
   String(Math.atan2(screenRight().y, screenRight().x)));
 // RAPID REVERSAL: the anti-jitter guarantee -- no per-frame step > 0.01 rad
 // (the old discrete kick was 0.0262 rad in a single frame, ~2.6x this bound)
@@ -207,8 +225,31 @@ for (let i = 0; i < 90; i++) {
 check('vel lead: rapid direction reversal is a smooth S-curve (max per-frame step < 0.01 rad)',
   maxStep < 0.01, String(maxStep));
 settle(60);
-check('vel lead: settles back at 0 yaw in the center lane', Math.abs(Math.atan2(screenRight().y, screenRight().x)) < 0.005,
+check('vel lead: settles back at 0 yaw in the center lane (base orbit only)', Math.abs(Math.atan2(screenRight().y, screenRight().x) - CAM_ANGLE_OFFSET) < 0.005,
   String(Math.atan2(screenRight().y, screenRight().x)));
+
+// ---- Base orbit: the REAL analog stick compensation keeps "push up = up on screen" ----
+// Extract the actual rotation block from updatePlayer and run it against the mirror
+// of CAM_ANGLE_OFFSET. l is SCREEN-LEFT positive (pushing the stick right gives l < 0),
+// so stick RIGHT is (f = 0, l = -1).
+const rotSrc = grab('if (mv.analog) {', 'l = rl;');
+const rotateStick = (sf, sl) =>
+  new Function('mv', 'CAM_ANGLE_OFFSET',
+    'let f = ' + sf + ', l = ' + sl + ';\n' + rotSrc + '\n}\nreturn { f: f, l: l };')({ analog: true }, CAM_ANGLE_OFFSET);
+{
+  const r = rotateStick(1, 0); // stick UP
+  const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) - Math.sin(CAM_ANGLE_OFFSET));
+  const expL = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
+  check('stick UP moves the worker SCREEN-UP at the -23deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+    Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
+}
+{
+  const r = rotateStick(0, -1); // stick RIGHT
+  const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
+  const expL = C45 * (-Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
+  check('stick RIGHT moves the worker SCREEN-RIGHT at the -23deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+    Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
+}
 
 // ---- Test D: frozen while dying (LODI animates p.wy -- the camera must NOT fall over) ----
 api.setState('dying');
