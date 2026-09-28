@@ -1672,6 +1672,16 @@
       .bubble.bub-scholar {
         background: #f4e9cf;
       } /* the scholar's warm parchment */
+      .bubble.bub-football {
+        background: #aeb8f0;
+      } /* the Bed-Stuy football player: varsity periwinkle (helmet-shell blue) */
+      .bubble.bub-rapper {
+        background: #c9a4f2;
+        white-space: pre-line;
+        max-width: 340px;
+        text-align: center;
+        line-height: 1.15;
+      } /* the Bed-Stuy aspiring rapper: bling violet, verse-wrapped */
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
@@ -2331,7 +2341,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.313</div>
+          <div id="app-version" class="menu-version">v1.0.314</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2487,7 +2497,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.313';
+      const APP_VERSION = '1.0.314';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2785,6 +2795,8 @@
         dealer: 0, // Bronx-only: exactly 2 per level, spawned separately on stoops
         panhandler: 0, // Bronx-only: exactly 2 per level, in front of the corner store
         scholar: 0, // Flatbush-only: an observant Orthodox Jewish scholar strolling the sidewalk
+        football: 0, // Bed-Stuy-only: ONE high-school football player per level, spawned separately on one block
+        rapper: 0, // Bed-Stuy-only: ONE aspiring mixtape rapper per level, spawned separately on one block
         polish: 0, // Queens-only (Maspeth d4): one per active block, spawned separately on the sidewalk/lawn
         cat: 0,
       };
@@ -14976,6 +14988,100 @@
           }
         }
       }
+      // ---------- BED-STUY RAPPER: MIXTAPE PROJECTILES (thrown overhand like a baseball pitch) ----------
+      function makeTapeMesh() {
+        // A slim CD jewel case (the mixtape he hurls): a small charcoal case + violet cover +
+        // white spine + a peek of the disc. ~0.26 tall so it reads as a thrown object.
+        const g = new THREE.Group();
+        const caseMat = M(0x2b2f36);
+        const coverMat = M(0x5a3a86);
+        const spineMat = M(0xe8e8ec);
+        const discMat = M(0xcfd6de);
+        const body = BX(0.26, 0.05, 0.24, caseMat);
+        body.position.z = 0.13;
+        g.add(body);
+        const cover = BX(0.22, 0.012, 0.2, coverMat);
+        cover.position.set(0.01, 0.03, 0.13);
+        g.add(cover);
+        const spine = BX(0.02, 0.05, 0.24, spineMat);
+        spine.position.set(-0.13, 0, 0.13);
+        g.add(spine);
+        const disc = CY(0.09, 0.09, 0.012, discMat);
+        disc.rotation.x = Math.PI / 2;
+        disc.position.set(0.03, 0.03, 0.15);
+        g.add(disc);
+        return g;
+      }
+      function throwTape(c, tx, ty) {
+        const g = makeTapeMesh();
+        const dx = tx - c.wx,
+          dy = ty - c.wy;
+        const dlen = Math.hypot(dx, dy) || 0.001;
+        const d = {
+          g,
+          wx: c.wx + (dx / dlen) * 0.5, // release right at his EXTENDED throwing hand (not from the chest)
+          wy: c.wy + (dy / dlen) * 0.5,
+          z: 1.15, // hand height
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          hitCd: 0,
+          settleT: 0,
+          spin: 0,
+        };
+        g.position.set(d.wx, d.wy, GZ + d.z);
+        dynamicGroup.add(g);
+        c.thrown.push(d);
+        const dist = Math.max(1.0, Math.hypot(tx - d.wx, ty - d.wy));
+        const tFly = clamp(dist / 11, 0.3, 0.75); // a flat, fast pitch (same distance-scaled math as the tee-ball)
+        d.vx = (tx - d.wx) / tFly;
+        d.vy = (ty - d.wy) / tFly;
+        d.vz = (0.15 - d.z + 0.5 * 12 * tFly * tFly) / tFly;
+        SFX.playTossSound && SFX.playTossSound();
+      }
+      function updateRapperTapes(c, dt) {
+        const G = 12;
+        for (let i = c.thrown.length - 1; i >= 0; i--) {
+          const d = c.thrown[i];
+          d.wx += d.vx * dt;
+          d.wy += d.vy * dt;
+          d.z += d.vz * dt;
+          d.vz -= G * dt;
+          d.spin += dt * 9;
+          d.g.position.set(d.wx, d.wy, GZ + d.z);
+          d.g.rotation.x = d.spin;
+          d.g.rotation.z = d.spin * 0.6;
+          if (d.z <= 0) {
+            d.z = 0;
+            if (d.vz < -1.5) {
+              d.vz = -d.vz * 0.3;
+              d.vx *= 0.5;
+              d.vy *= 0.5;
+            } else {
+              d.vz = 0;
+              d.vx *= 0.85;
+              d.vy *= 0.85;
+            }
+            d.settleT += dt;
+          }
+          if (d.hitCd > 0) d.hitCd -= dt;
+          if (state === "play" && d.z < 1.9 && d.hitCd <= 0) {
+            const bdx = d.wx - p.wx,
+              bdy = d.wy - p.wy;
+            if (bdx * bdx + bdy * bdy <= 0.85 * 0.85) {
+              d.hitCd = 99; // one hit per tape
+              hurtNPC(HP_HIT_RAPPER, "rapper"); // the thrown tape that puts you down
+              Voice.say(pick(RAP_THREAT_LINES), 1.2, R(1.0, 1.15), c.wx, c.wy, c.gender, "rapper"); // a taunt as it lands
+              doStun(RAP_STUN, "hit");
+              spawnDustEffect(p.wx, p.wy);
+            }
+          }
+          if (d.settleT > 1.0 || d.wx < -15 || d.wx > p.wx + 70) {
+            dynamicGroup.remove(d.g);
+            c.thrown.splice(i, 1);
+          }
+        }
+      }
       // ==================== HARLEM STREET-BALL PLAYER (day 6) ====================
       // A big, tall dunker: a red basketball jersey, white shorts, a white sweat
       // headband, and white high-tops. Dark skin (FIXED tone, not the random roll).
@@ -15433,6 +15539,242 @@
         g.userData.head = headPivot;
         g.userData.parts = { legL: legL, legR: legR, armL: armL, armR: armR };
         return g;
+      }
+      // ==================== BED-STUY HIGH-SCHOOL FOOTBALL PLAYER (Sunday, day 7) ====================
+      // Bed-Stuy ONLY (one per level, on ONE block): a high-school linebacker in full
+      // pads — a charcoal helmet with a gold center stripe and a grey steel facemask,
+      // a royal-blue jersey with a white number plate and gold shoulder trim, big
+      // shoulder pads, white pants with gold side stripes, black cleats, and a brown
+      // football tucked under his LEFT arm (the ball rides up with the arm, so the
+      // touchdown dance raises it overhead). Built from makePerson + trims (the same
+      // recipe as the mafia guy / mack daddy / street-baller). The AI needs two
+      // handles: g.userData.helmet (head) + g.userData.ball (the carried ball).
+      // ==================== BED-STUY ASPIRING RAPPER / MIXTAPE HUSTLER (Sunday, day 7) ====================
+      // Bed-Stuy ONLY (one per level, on ONE block — a DIFFERENT block from the football
+      // player). A would-be rap star in a bucket hat, sunglasses, a gold chain, a baggy
+      // hoodie and jeans, clutching a mixtape case in his right hand that he thrusts at
+      // the worker when he gets pushy. Built from makePerson + trims (the same recipe as
+      // the football player / mafia guy). The AI needs handles: g.userData.hat (head),
+      // g.userData.tape (the carried mixtape) and g.userData.chain (the bling).
+      function makeRapper() {
+        const SKIN = pick(SKIN_TONES); // a real Bed-Stuy kid
+        const HOODIE = 0x222831; // charcoal oversized hoodie
+        const ACCENT = 0xd8a418; // varsity gold (chain + tape trim)
+        const JEANS = 0x2b3550; // baggy blue denim
+        const HATC = pick([0x7a1f2b, 0x1f4a7a, 0x2b7a3a, 0x6a4a1f]); // a loud bucket hat
+        const d = makePerson({
+          shirt: HOODIE,
+          pants: JEANS,
+          skin: SKIN,
+          hair: 0x141414,
+        });
+        const parts = d.g.userData.parts;
+        // A regular street kid: a touch lean in the shoulders, a touch taller.
+        d.g.scale.set(0.98, 1.0, 0.96);
+        const hoodieM = M(HOODIE),
+          goldM = MS(ACCENT, { metalness: 0.95, roughness: 0.2 }),
+          hatM = M(HATC),
+          darkM = M(0x0c0c0e),
+          whiteM = M(0xf2f2f4);
+        // ---- THE HEAD: bucket hat + sunglasses (its own pivot so the AI can nod/bob) ----
+        const hat = new THREE.Group();
+        hat.position.z = 1.04; // the makePerson head's center
+        parts.upper.add(hat);
+        const crown = BX(0.34, 0.34, 0.14, hatM); // the hat crown
+        crown.position.z = 0.06;
+        hat.add(crown);
+        const brim = BX(0.42, 0.42, 0.05, hatM); // the floppy bucket brim
+        brim.position.z = -0.02;
+        hat.add(brim);
+        const band = BX(0.36, 0.36, 0.05, whiteM); // a light band at the base
+        band.position.z = 0.0;
+        hat.add(band);
+        const shade = BX(0.04, 0.28, 0.09, darkM); // the sunglass bar across the face
+        shade.position.set(0.16, 0, 0.02);
+        hat.add(shade);
+        const lensL = BX(0.02, 0.11, 0.07, darkM); // the two lenses
+        lensL.position.set(0.175, 0.05, 0.02);
+        hat.add(lensL);
+        const lensR = BX(0.02, 0.11, 0.07, darkM);
+        lensR.position.set(0.175, -0.05, 0.02);
+        hat.add(lensR);
+        // ---- THE NECKLACE: a chunky gold chain + a round CLOCK pendant ----
+        // A torus sits in the XY plane with its axis along +Z (UP), so it reads as a
+        // FLAT ring around the collar. We dip the front edge (rotation.y) so it drapes
+        // down the chest like a real chain — NOT a wheel through the body. A round gold
+        // clock face hangs from the low front point, facing +X (out the front).
+        const chain = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 6, 18), goldM);
+        chain.position.set(0.04, 0, 0.76); // level at the collar
+        chain.rotation.y = 0.5; // dip the front down toward the chest (necklace drape)
+        parts.upper.add(chain);
+        // the CLOCK bling: a gold case + a white face + tick marks + hands, hung low
+        const clock = new THREE.Group();
+        const cBody = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 20), goldM);
+        cBody.rotation.z = -Math.PI / 2; // lay the disc flat, face out the front (+X)
+        clock.add(cBody);
+        const cFace = new THREE.Mesh(new THREE.CircleGeometry(0.085, 20), whiteM);
+        cFace.rotation.y = Math.PI / 2; // the clock face points forward
+        cFace.position.x = 0.017;
+        clock.add(cFace);
+        [0.6, 1.77, -0.6, -1.77].forEach((a) => {
+          const tick = BX(0.01, 0.02, 0.03, darkM);
+          tick.position.set(0.018, Math.sin(a) * 0.06, Math.cos(a) * 0.06);
+          clock.add(tick);
+        });
+        const cMin = BX(0.006, 0.075, 0.012, darkM); // minute hand
+        cMin.position.set(0.02, 0.028, 0);
+        clock.add(cMin);
+        const cHour = BX(0.006, 0.05, 0.012, darkM); // hour hand
+        cHour.position.set(0.02, 0.014, 0.02);
+        clock.add(cHour);
+        clock.position.set(0.18, 0, 0.5); // hanging low on the chest, out the front
+        parts.upper.add(clock);
+        // ---- HOODIE DETAILS: a white drawstring pair over the chest ----
+        const drawL = BX(0.02, 0.04, 0.18, whiteM);
+        drawL.position.set(0.14, 0.08, 0.72);
+        parts.upper.add(drawL);
+        const drawR = BX(0.02, 0.04, 0.18, whiteM);
+        drawR.position.set(0.14, -0.08, 0.72);
+        parts.upper.add(drawR);
+        // ---- JEANS: white sneakers ----
+        [d.legL, d.legR].forEach((pv) => {
+          const shoe = pv.children[1];
+          if (shoe && shoe.material) shoe.material.color.set(0xf2f2f4);
+        });
+        // ---- THE MIXTAPE, clutched in the RIGHT hand (the "pushy" hand) ----
+        // A fat CD jewel case: a flat box with a violet cover, held out in front. When the
+        // AI raises armR it thrusts the tape straight at the worker's face.
+        const tape = new THREE.Group();
+        const caseBox = BX(0.06, 0.26, 0.3, M(0x3a3f4a)); // the jewel case
+        tape.add(caseBox);
+        const label = BX(0.02, 0.2, 0.22, M(0xc9a4f2)); // the cover art (violet)
+        label.position.x = 0.04;
+        tape.add(label);
+        const tapeBar = BX(0.02, 0.2, 0.05, whiteM); // the spine / title strip
+        tapeBar.position.set(0.05, 0.07, 0);
+        tape.add(tapeBar);
+        tape.position.set(0.1, -0.08, -0.47); // clutched LOW at the hand (not up by the shoulder)
+        tape.rotation.x = 0.3; // cover facing up/forward
+        parts.armR.add(tape);
+        d.g.userData.hat = hat;
+        d.g.userData.tape = tape;
+        d.g.userData.chain = chain;
+        return d; // { g, legL, legR, armL, armR } with g.userData.parts
+      }
+      function makeFootballPlayer() {
+        const SKIN = pick(SKIN_TONES); // a real team: any of the neighborhood's kids
+        const JERSEY = 0x2a4fa0; // royal blue
+        const TRIM = 0xd9a818; // varsity gold
+        const PANTSC = 0xf0f0f2; // white
+        const d = makePerson({
+          shirt: JERSEY,
+          pants: PANTSC,
+          skin: SKIN,
+          hair: 0x141414,
+        });
+        const parts = d.g.userData.parts;
+        // BUILT LIKE A LINEBACKER: broad across the shoulders (y), a touch deeper
+        // (x) and a little taller (z) than a pedestrian — but still a KID (scales < 1.2).
+        d.g.scale.set(1.08, 1.22, 1.12);
+        const jerseyM = M(JERSEY),
+          trimM = M(TRIM),
+          whiteM = M(0xf5f5f7),
+          helmM = M(0x1d1d24),
+          maskM = MS(0x9aa3ab, { metalness: 0.85, roughness: 0.35 });
+        // ---- THE HELMET (its own pivot so the AI can turn / bob the head) ----
+        // Local frame: +X = the face, +Z = up. The shell wraps the skull, a skin
+        // face panel shows through the opening, and the facemask bars sit in front.
+        const helmet = new THREE.Group();
+        helmet.position.z = 1.04; // the makePerson head's center
+        parts.upper.add(helmet);
+        const shell = BX(0.36, 0.38, 0.32, helmM); // the skull cup
+        shell.position.set(-0.02, 0, 0.06);
+        helmet.add(shell);
+        const earL = BX(0.2, 0.05, 0.22, helmM); // jaw pads down each side
+        earL.position.set(0.02, 0.19, -0.04);
+        helmet.add(earL);
+        const earR = BX(0.2, 0.05, 0.22, helmM);
+        earR.position.set(0.02, -0.19, -0.04);
+        helmet.add(earR);
+        const chin = BX(0.2, 0.24, 0.1, helmM); // the chin-strap guard
+        chin.position.set(0.1, 0, -0.15);
+        helmet.add(chin);
+        const face = BX(0.04, 0.22, 0.16, M(SKIN)); // the face showing through the opening
+        face.position.set(0.16, 0, 0.0);
+        helmet.add(face);
+        const eyeL = BX(0.02, 0.05, 0.03, M(0x141414));
+        eyeL.position.set(0.185, 0.055, 0.03);
+        helmet.add(eyeL);
+        const eyeR = BX(0.02, 0.05, 0.03, M(0x141414));
+        eyeR.position.set(0.185, -0.055, 0.03);
+        helmet.add(eyeR);
+        const stripe = BX(0.4, 0.07, 0.02, trimM); // gold center stripe over the crown
+        stripe.position.set(-0.02, 0, 0.225);
+        helmet.add(stripe);
+        // THE FACEMASK: 3 horizontal bars + a vertical center bar + the throat bar,
+        // all in front of the face panel (x 0.2 = out past the face at 0.18).
+        [0.08, -0.01, -0.1].forEach((fz) => {
+          const bar = BX(0.025, 0.3, 0.025, maskM);
+          bar.position.set(0.21, 0, fz);
+          helmet.add(bar);
+        });
+        const vbar = BX(0.025, 0.03, 0.24, maskM);
+        vbar.position.set(0.21, 0, -0.01);
+        helmet.add(vbar);
+        const throat = BX(0.03, 0.22, 0.03, maskM);
+        throat.position.set(0.19, 0, -0.13);
+        throat.rotation.y = -0.35;
+        helmet.add(throat);
+        // ---- SHOULDER PADS: the chunky yoke that reads as "football player" ----
+        const pads = BX(0.36, 0.92, 0.3, jerseyM); // wide over the shoulders
+        pads.position.set(0, 0, 0.72);
+        parts.upper.add(pads);
+        const chestPlate = BX(0.08, 0.6, 0.24, jerseyM); // the pad's front lip
+        chestPlate.position.set(0.14, 0, 0.6);
+        parts.upper.add(chestPlate);
+        const backPlate = BX(0.08, 0.6, 0.24, jerseyM);
+        backPlate.position.set(-0.16, 0, 0.6);
+        parts.upper.add(backPlate);
+        [-1, 1].forEach((s) => {
+          const cap = BX(0.34, 0.1, 0.12, trimM); // gold trim on each pad cap
+          cap.position.set(0, s * 0.44, 0.76);
+          parts.upper.add(cap);
+        });
+        const number = BX(0.03, 0.24, 0.24, whiteM); // the white number plate
+        number.position.set(0.2, 0, 0.5);
+        parts.upper.add(number);
+        const numBar = BX(0.03, 0.26, 0.05, jerseyM); // cuts the plate into a "digit"
+        numBar.position.set(0.215, 0, 0.52);
+        parts.upper.add(numBar);
+        // ---- PANTS + CLEATS: gold stripe down each thigh, black cleats ----
+        [d.legL, d.legR].forEach((pv) => {
+          const side = pv === d.legL ? 1 : -1;
+          const stripeP = BX(0.02, 0.03, 0.5, trimM);
+          stripeP.position.set(0, side * 0.075, -0.3);
+          pv.add(stripeP);
+          const cleat = pv.children[1]; // the makePerson shoe box
+          if (cleat && cleat.material) cleat.material.color.set(0x101014);
+        });
+        // ---- THE FOOTBALL, tucked under the left arm (rides UP with the arm) ----
+        const ball = new THREE.Group();
+        const oval = SP(0.12, M(0x8a4a1f), 14);
+        oval.scale.set(1.7, 1, 1); // a prolate spheroid pointed along local +X
+        ball.add(oval);
+        const lace = BX(0.12, 0.02, 0.02, whiteM);
+        lace.position.set(0.02, 0, 0.11);
+        ball.add(lace);
+        [-1, 1].forEach((s) => {
+          const band = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.012, 6, 18), whiteM);
+          band.rotation.y = Math.PI / 2;
+          band.position.x = s * 0.13;
+          ball.add(band);
+        });
+        ball.position.set(0.14, -0.16, -0.34); // forward of + tucked along the forearm
+        ball.rotation.x = 0.2; // nose slightly up
+        parts.armL.add(ball);
+        d.g.userData.helmet = helmet;
+        d.g.userData.ball = ball;
+        return d; // { g, legL, legR, armL, armR } with g.userData.parts
       }
       function makeHooker() {
         // Street walker: tight red mini dress, high heels, generous chest, one hand on her hip
@@ -16851,7 +17193,9 @@
           type === "skater" ||
           type === "escooter" ||
           type === "polishboy" ||
-          type === "carwasher"
+          type === "carwasher" ||
+          type === "football" ||
+          type === "rapper" // the Bed-Stuy aspiring rapper (male voice)
         )
           c.gender = "male";
         else if (
@@ -17480,6 +17824,59 @@
             c.sayCd = R(0, 1);
             c.data = makeScholar();
             c.gender = "male";
+            break;
+          case "football":
+            // Bed-Stuy (Sunday) high-school football player — ONE per level on ONE
+            // block (the spawn block sets homeX/homeY/blockMinX/blockMaxX). He drills
+            // his tackle on the sanitation worker: "Hut... hut... HIKE!", then races
+            // him down. A tackle = HP_HIT_FOOTBALL + "Ow! My meniscus!" + a touchdown
+            // dance, then he trots back to the line and re-sets (3s). See the
+            // "football" case in updateCreatures for the state machine; he NEVER leaves
+            // his block and he is SOLID (collideCreatures does the push-out).
+            c.sp = FOOTBALL_RETURN_SP;
+            c.mode = "set"; // set | hut | charge | dance | return
+            c.setT = R(0.8, 1.8); // first play comes right after he spots him
+            c.hutT = 0;
+            c.hiked = false;
+            c.chargeT = 0;
+            c.aimX = 0;
+            c.aimY = 0;
+            c.danceT = 0;
+            c.danceSpin = 0;
+            c.hopZ = 0;
+            c.sayCd = R(2, 6);
+            c.homeX = c.wx; // the spawn overwrites both with his real line
+            c.homeY = c.wy;
+            c.data = makeFootballPlayer();
+            c.gender = "male";
+            c.helmet = c.data.g.userData.helmet;
+            c.ballMesh = c.data.g.userData.ball;
+            break;
+          case "rapper":
+            // Bed-Stuy (Sunday) aspiring mixtape rapper — ONE per level on ONE block
+            // (a DIFFERENT block from the football player; the spawn sets homeX/homeY
+            // and the hard block bounds). He paces his block freestyling, and gets pushy
+            // when the worker is near (jams the tape in your face). TOUCHING him hurts
+            // the worker (HP_HIT_RAPPER, cooldown-gated in collideCreatures). See the
+            // "rapper" case in updateCreatures for the patrol/pushy behavior.
+            c.sp = RAP_PATROL_SP;
+            c.dir = Math.random() < 0.5 ? -1 : 1; // which way he's walking
+            c.rapCd = 0; // touch-damage cooldown (so one touch isn't a frame drain)
+            c.sayCd = R(1, 3); // the first bars come soon
+            c.rapIdx = (Math.random() * RAP_LINES.length) | 0; // where in the mixtape he is
+            c.mode = "patrol"; // patrol | pushy
+            c.thrown = []; // in-flight mixtape projectiles (see updateRapperTapes)
+            c.throwCd = R(2.8, 4.2); // seconds until the next tape he can hurl
+            c.throwT = 0; // overhand windup timer (release at u>0.8, like the Harlem thrower)
+            c.throwReleased = false;
+            c.alt = Math.random() < 0.5; // next speech is a THREAT (else a verse)
+            c.homeX = c.wx; // the spawn overwrites with his real block home
+            c.homeY = c.wy;
+            c.data = makeRapper();
+            c.gender = "male";
+            c.hat = c.data.g.userData.hat;
+            c.tape = c.data.g.userData.tape;
+            c.chain = c.data.g.userData.chain;
             break;
           case "skater":
             c.wy = R(4.3, creatureMaxY());
@@ -19285,6 +19682,44 @@
             ph.g.rotation.z = Math.random() < 0.5 ? 0 : Math.PI;
           }
         }
+        // Bed-Stuy (Sunday, day 7) HIGH-SCHOOL FOOTBALL PLAYER: exactly ONE per level,
+        // on ONE random active block (the same 5 garbage blocks the post-tied stoop dogs
+        // use). He never leaves that block: the spawn sets his line of scrimmage
+        // (homeX/homeY) and his hard bounds (blockMinX/blockMaxX). He drills his tackle
+        // on the sanitation worker ("Hut... hut... HIKE!" -> charge -> "Ow! My meniscus!").
+        if (isBedStuyLevel()) {
+          const fbIdx = 1 + ((Math.random() * 5) | 0); // active shift blocks 1..5 (x 96..480)
+          const fbBlock = LEVEL_BLOCKS[fbIdx];
+          const fb = addCreature("football");
+          fb.homeX = fbBlock.x + R(20, 60); // mid-block frontage, never in a cross-street
+          fb.homeY = R(1.8, 3.4); // on the sidewalk, in the worker's lane
+          fb.blockMinX = fbBlock.x + 6.0;
+          fb.blockMaxX = fbBlock.x + BLOCK_W - 6.0;
+          fb.wx = fb.homeX;
+          fb.wy = fb.homeY;
+          fb.g.position.set(fb.wx, fb.wy, GZ);
+          fb.g.rotation.z = -Math.PI / 2; // facing the street, down his "line"
+        }
+        // Bed-Stuy (Sunday, day 7) ASPIRING RAPPER / MIXTAPE HUSTLER: exactly ONE per
+        // level, on ONE random active block that ISN'T the football player's block. He
+        // paces his block freestyling and gets pushy on the worker (touch = HP_HIT_RAPPER,
+        // and a write-up reads "Failed to avoid an American Idol").
+        if (isBedStuyLevel()) {
+          const fbC = creatures.find((x) => x.type === "football");
+          const fbBlockX = fbC ? fbC.blockMinX - 6.0 : -1; // back to the block's origin x
+          let rpIdx = 1 + ((Math.random() * 5) | 0); // active shift blocks 1..5 (same pool)
+          if (fbC && LEVEL_BLOCKS[rpIdx].x === fbBlockX) rpIdx = 1 + (rpIdx % 5); // a guaranteed different block
+          const rpBlock = LEVEL_BLOCKS[rpIdx];
+          const rp = addCreature("rapper");
+          rp.homeX = rpBlock.x + R(20, 60); // mid-block frontage
+          rp.homeY = R(1.8, 3.4); // on the sidewalk, in the worker's lane
+          rp.blockMinX = rpBlock.x + 6.0;
+          rp.blockMaxX = rpBlock.x + BLOCK_W - 6.0;
+          rp.wx = rp.homeX;
+          rp.wy = rp.homeY;
+          rp.g.position.set(rp.wx, rp.wy, GZ);
+          rp.g.rotation.z = -Math.PI / 2; // facing the street
+        }
         // Manhattan Pizza Rat: rare NYC street rat carrying a giant slice of pizza
         // on the sidewalk, scurrying along with his prize. 25% chance on Manhattan levels
         // (in the real world, most rats don't carry pizza).
@@ -20773,6 +21208,104 @@
         "Damn bird!",
         "I almost lost an eye!",
       ]; // what the worker yells after a wing-bonk
+      // ==================== BED-STUY HIGH-SCHOOL FOOTBALL PLAYER (Sunday, day 7) ====================
+      // ONE player, ONE block — he NEVER leaves it (the spawn sets his line of scrimmage
+      // + hard block bounds). He PRACTICES his tackling on the sanitation worker: sets at
+      // the line, barks "Hut... hut... HIKE!", then RACES him down. A tackle lands
+      // HP_HIT_FOOTBALL + "Ow! My meniscus!" and he breaks into a TOUCHDOWN DANCE, jogs
+      // back to the line and re-sets (3 seconds between plays). If the worker goes down
+      // from his hits the write-up reads "Unnecessary Roughness. Fifteen-yard penalty."
+      // ==================== BED-STUY ASPIRING RAPPER / MIXTAPE HUSTLER (Sunday, day 7) ====================
+      // ONE rapper, ONE block — on a DIFFERENT block than the football player (the spawn
+      // picks an active block that isn't his). He paces his block freestyling, and gets
+      // PUSHY when the worker is near: he closes in and jams his mixtape in your face.
+      // Touching him hurts the WORKER (a shove + a blurt of bars): HP_HIT_RAPPER, and if
+      // that's the hit that puts you down the write-up reads
+      // "Failed to avoid an American Idol".
+      const HP_HIT_RAPPER = 6; // an elbow/shove while he thrusts the tape (heavier than a trashcan, lighter than a car)
+      const RAP_HIT_CD = 1.8; // per-rapper cooldown so one touch isn't a frame drain
+      const RAP_PUSH_R = 10; // this close to the worker, he switches to pushy
+      const RAP_PATROL_SP = 1.1; // a lazy lope down his block
+      const RAP_PUSH_SP = 2.1; // closing in on you (faster, but the worker is 8.5)
+      const RAP_STUN = 0.3; // a light shove-stun (a shove, not a knockout)
+      const RAP_WY_MIN = 0.9; // he stays on the sidewalk — never in the street
+      const RAP_WY_MAX = 4.5; // ...and never up the brownstone stoop
+      const RAP_SEE_R = 22; // worker must be ON HIS BLOCK and this close before ANY speech/throw
+      const RAP_HOLD = 3.2; // the standoff he stops at while pitching (never glued to you)
+      const RAP_ADVANCE_SP = 1.9; // how fast he closes on the worker once you're on his block
+      const RAP_THROW_RANGE = 11; // max distance he'll hurl a mixtape from
+      const RAP_THROW_WIND = 0.5; // overhand windup length (release at u>0.8, like the Harlem thrower)
+      const RAP_WORKER_LINES = [
+        "Yo, watch the merchandise!",
+        "Get that tape outta my face!",
+        "Heads up, man, it's a hustle!",
+      ];
+      const RAP_PITCH_LINES = [
+        "Yo! Cop my mixtape!",
+        "One spin, fam — thank me later!",
+        "Platinum soon, I'm tellin' you!",
+        "Free preview! (It ain't free.)",
+      ];
+      // Threats aimed at the sanitation worker — wedded BETWEEN the verses when he's on his block.
+      const RAP_THREAT_LINES = [
+        "You step to me, you step to the SOUND, worker!",
+        "Move that truck or I move YOU, fam!",
+        "One more look and it's HANDS, man!",
+        "This block's MINE — walk through and get dismissed!",
+        "I'm the next BIG thing — don't test me, janitor!",
+        "You clean my block and you OWE me royalties!",
+      ];
+      // The full verses, VERBATIM (the \n is what makes the bubble break the line).
+      const RAP_LINES = [
+        "South Bronx grit, nineteen eighty-six\nWhite truck rollin', we get our daily kicks.",
+        "Hopper full of trash, but the real hustle's mongo\nFind a watch or chain, that's a cash flow pronto.",
+        "Five-fifteen, rolling slow past the 149\nSteam rising off the sewer, sun starting to shine.",
+        "Iron cans on the curb, heavy as a sack of bricks\nTossing three at a time, got a bag of worker tricks.",
+        "Slam the iron gate, pull the lever back\nWhite truck humming on the concrete track!",
+        "Rats on the left, mongo on the right\nTurning city garbage into green all night!",
+        "Dodgin' king-size rats that look like small dogs\nMy partner on the back, ignorin' toxic smog.",
+        "Out jumps a rat with a slice of Sicilian\nLooking like he done made his first Bronx million!",
+        "Fought him for the sidewalk, smacked him with a crate\nHe threw up his paws like: 'Aight, I'll clear the gate!'",
+        "Ten-foot mountain of black plastic mounds\nSewer rat fat as a Thanksgiving hen, lived through the landfill, runnin' round again!",
+        "Clear the curb clean, but keep a squint in your eye\n'Cause the best kind of paycheck drops out of the sky.",
+        "Curb law, mister, look at where you stand\nOnce it hits the gutter, it belongs to the band!",
+        "Once the white wheels stop, it's a DSNY claim\nNow get back in the basement, you lost the street game!",
+        "Strap it down tight behind the white cab glass\nTurning street rubble into Sunday cash!",
+      ];
+      const HP_HIT_FOOTBALL = 10; // a full-speed football tackle in full pads (heavier than a vehicle, lighter than a brick)
+      const FOOTBALL_AGRO_R = 13; // this close to the worker, he lines up the next play
+      const FOOTBALL_HUT_T = 1.4; // the "Hut... hut... HIKE!" cadence — the tell before the charge
+      const FOOTBALL_HIKE_FRAC = 0.45; // "HIKE!" lands at this fraction of the cadence, then he goes
+      const FOOTBALL_CHARGE_SP = 11.5; // off the line: a real sprint (the worker's PLAYER_SPEED is 8.5 — he is FASTER)
+      const FOOTBALL_CHARGE_T = 1.5; // the dash is over after this long (a whiff)
+      const FOOTBALL_TACKLE_R = 1.5; // contact distance on the charge
+      const FOOTBALL_DANCE_T = 2.4; // the touchdown dance
+      const FOOTBALL_RETURN_SP = 2.6; // trotting back to the line of scrimmage
+      const FOOTBALL_SET_T = 3.0; // the 3-second set before the next "Hut... hut..."
+      const FOOTBALL_WY_MIN = 0.9; // he stays on the sidewalk — never on the asphalt
+      const FOOTBALL_WY_MAX = 4.5; // ...and never up the brownstone stoop
+      const FOOTBALL_HUT_LINE = "Hut... hut...";
+      const FOOTBALL_HIKE_LINE = "HIKE!";
+      const FOOTBALL_WORKER_LINE = "Ow! My meniscus!"; // the tackle's damage line (a POW! burst)
+      const FOOTBALL_DANCE_LINES = [
+        "TOUCHDOWN!!",
+        "That's a wrap! Literally!",
+        "Six points for Bed-Stuy!",
+        "Coach is gonna LOVE that tape!",
+      ];
+      const FOOTBALL_WHIFF_LINES = [
+        "Flag on the play! ... Wait, that was ME?!",
+        "Come back here — we're not done practicing!",
+        "You're slower in real life, ya know!",
+      ];
+      const FOOTBALL_LINES = [
+        "Just practicing! Hold still!",
+        "I need the reps, man!",
+        "You volunteered for this, right?",
+        "My DAD played this block!",
+        "Two-a-days start NOW!",
+        "I'm gonna be drafted, watch!",
+      ];
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
       let teeballShirtQueue = []; // the Staten Island spawn feeds 3 distinct shirts for the tee-ball trio
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
@@ -21106,6 +21639,10 @@
         ],
         // --- the Staten Island tee-ball catch kids: tee-ball is SACRED on New Dorp ---
         teeball: ["Dereliction of Tee-Ball Duty"],
+        // --- the Bed-Stuy high-school football player: he was only PRACTICING ---
+        football: ["Unnecessary Roughness. Fifteen-yard penalty."],
+        // --- the Bed-Stuy aspiring rapper: you couldn't dodge the mixtape hustle ---
+        rapper: ["Failed to avoid an American Idol"],
         // --- the sidewalk crowd: every one of them just trying to get to work ---
         ped: [
           "Pestering a pedestrian",
@@ -22310,6 +22847,8 @@
           else if (c.type === "dealer") rad = 1.0; // burly dealer blocks his stoop
           else if (c.type === "panhandler") rad = 0.85; // thin, but his stink has reach
           else if (c.type === "scholar") rad = 0.85; // a solid, walking person
+          else if (c.type === "football") rad = 1.2; // a 220-lb kid in full pads is a WALL
+          else if (c.type === "rapper") rad = 1.1; // a pushy dude in the way, not a wall
           else if (c.type === "escooter") rad = 1.0;
           else if (c.type === "soccer")
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
@@ -22509,6 +23048,61 @@
             p.wx += nx * (pen + 0.05);
             p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
             return;
+          }
+          if (c.type === "football") {
+            // SOLID pads: you can't walk through him. The TACKLE itself (the charge
+            // contact, "Ow! My meniscus!" and the touchdown dance) is dealt with in his
+            // own AI case — this is just the "bumped into a linebacker standing on the
+            // sidewalk" push-out, which also keeps the pair from overlapping while he
+            // dances or trots back to his line.
+            const d = Math.sqrt(d2) || 0.001;
+            const nx = -dx / d,
+              ny = -dy / d;
+            const pen = rad - d;
+            p.wx += nx * (pen + 0.05);
+            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+            return;
+          }
+          if (c.type === "rapper") {
+            // ===== BED-STUY ASPIRING RAPPER / MIXTAPE HUSTLER =====
+            // NOT SOLID: a hustle, not a wall — you can shuffle past him, but lean on
+            // him (or walk through him) while he's jamming his tape in your face and
+            // you take a shove: HP_HIT_RAPPER + a blurt of bars + a light stun and a
+            // knockback. rapCd keeps one rapper from draining you per frame. If this
+            // hit is what puts you down, the write-up reads
+            // "Failed to avoid an American Idol".
+            if (c.rapCd <= 0) {
+              c.rapCd = RAP_HIT_CD;
+              Voice.say(
+                pick(RAP_PITCH_LINES),
+                2.0,
+                R(1.05, 1.15),
+                c.wx,
+                c.wy,
+                c.gender,
+                "rapper",
+              );
+              Voice.say(
+                pick(RAP_WORKER_LINES),
+                2.2,
+                0.95,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+                "burst",
+              );
+              doStun(RAP_STUN, "hit");
+              hurtNPC(HP_HIT_RAPPER, "rapper", true); // no generic "Ow!" — his line IS the shove
+              // the shove: knock the worker back a touch so they can shuffle past
+              const rd = Math.sqrt(d2) || 0.001;
+              const rnx = -dx / rd,
+                rny = -dy / rd;
+              p.wx += rnx * 0.9;
+              p.wy = clamp(p.wy + rny * 0.6, -9.4, workerMaxY());
+              spawnDustEffect(p.wx, p.wy);
+            }
+            return; // not solid: no push-out beyond the shove
           }
           if (c.type === "ghost" || c.ghost) {
             // ===== MASPETH CEMETERY GHOST =====
@@ -23730,6 +24324,8 @@
         // movable obstacles a walker slips around (vehicles are excluded — those are
         ped: 1, lady: 1, dogwalker: 1, scholar: 1, dealer: 1, panhandler: 1, carwasher: 1, mafia: 1, pimp: 1, // handled by
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
+        football: 1, // Bed-Stuy football player: a solid linebacker the crowd routes around
+        rapper: 1, // Bed-Stuy rapper: a pushy mixtape hustler the crowd routes around
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
         teeball: 1, // Staten Island tee-ball kids: a solid obstacle the crowd routes around
       };
@@ -24113,7 +24709,8 @@
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
-          if (c.ghostCd > 0) c.ghostCd -= dt; // the ghost's scare cooldown (cemetery)
+          if (c.ghostCd > 0) c.ghostCd -= dt;
+          if (c.rapCd > 0) c.rapCd -= dt; // the rapper's shove cooldown (Bed-Stuy mixtape) // the ghost's scare cooldown (cemetery)
           const tx = c.wx - p.wx;
           switch (c.type) {
             case "scholar": {
@@ -24143,6 +24740,306 @@
                 c.wy = R(1.2, 4.2);
                 c.dir = Math.random() < 0.5 ? -1 : 1; // re-pick a direction on recycle
               }
+              break;
+            }
+            case "football": {
+              // ===== BED-STUY HIGH-SCHOOL FOOTBALL PLAYER (Sunday, day 7) =====
+              // One player, one block, ONE job: practicing his tackle on the sanitation
+              // worker. The play clock:
+              //   set (3s at the line) -> hut ("Hut... hut..." then "HIKE!") ->
+              //   charge (a full-speed race at the locked aim spot) ->
+              //     CONTACT: tackle (HP_HIT_FOOTBALL + "Ow! My meniscus!") + a
+              //     TOUCHDOWN DANCE -> return -> set ...
+              //     MISS: he sprints past, fires a whiff line -> return -> set ...
+              // He NEVER leaves his block (hard clamp at the bottom), stays on the
+              // sidewalk band, and turns to face his mark the whole time.
+              const fdx = p.wx - c.wx,
+                fdy = p.wy - c.wy;
+              const fD = Math.sqrt(fdx * fdx + fdy * fdy) || 0.001;
+              c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+              // interrupted (route done / the worker is down): trot back to the line,
+              // don't keep attacking
+              if (state !== "play" && c.mode !== "return" && c.mode !== "set") {
+                c.mode = "return";
+                c.hopZ = 0;
+              }
+              if (c.mode === "set") {
+                // AT THE LINE OF SCRIMMAGE: knees bent, chest down, staring the worker
+                // down. setT is the 3-second huddle between plays.
+                c.setT -= dt;
+                c.g.rotation.z = Math.atan2(fdy, fdx); // face his mark
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.42 + Math.sin(c.phase * 1.6) * 0.05; // the stance rock
+                  const sway = Math.sin(c.phase * 1.6) * 0.18; // weight shifting side to side
+                  c.parts.armL.rotation.y = -0.55 + sway;
+                  c.parts.armR.rotation.y = 0.5 + sway;
+                }
+                animParts(c, dt * 3.2, 0.22); // little cleat-tapping steps
+                c.hopZ = 0;
+                if (state === "play" && c.sayCd <= 0 && fD < 14) {
+                  c.sayCd = R(6, 11);
+                  Voice.say(
+                    pick(FOOTBALL_LINES),
+                    2.4,
+                    R(1.0, 1.15),
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "football",
+                  );
+                }
+                // SNAP THE BALL: the worker in reach -> start the cadence
+                if (state === "play" && c.setT <= 0 && fD < FOOTBALL_AGRO_R) {
+                  c.mode = "hut";
+                  c.hutT = FOOTBALL_HUT_T;
+                  c.hiked = false;
+                  Voice.say(
+                    FOOTBALL_HUT_LINE,
+                    1.2,
+                    1.1,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "football",
+                  );
+                }
+              } else if (c.mode === "hut") {
+                // "Hut... hut... HIKE!" — the TELL. He digs in and rocks deeper, then
+                // fires off the line. The player has the whole cadence to get out.
+                c.hutT -= dt;
+                c.g.rotation.z = Math.atan2(fdy, fdx);
+                c.hopZ = 0;
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.6 + Math.sin(c.phase * 10) * 0.08; // coiled, quivering
+                  c.parts.armL.rotation.y = -0.9;
+                  c.parts.armR.rotation.y = 0.9;
+                }
+                animParts(c, dt * 12, 0.3);
+                if (c.hutT <= FOOTBALL_HUT_T * FOOTBALL_HIKE_FRAC) {
+                  // "HIKE!" and he's GONE — LOCK the aim on the worker's spot (a
+                  // lead-tackle, not a homing missile): dodge means MOVE.
+                  Voice.say(
+                    FOOTBALL_HIKE_LINE,
+                    1.0,
+                    1.2,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "football",
+                  );
+                  c.aimX = clamp(p.wx + (p.wx - c.wx) * 0.12, c.blockMinX, c.blockMaxX);
+                  c.aimY = clamp(p.wy, FOOTBALL_WY_MIN, FOOTBALL_WY_MAX);
+                  c.chargeT = 0;
+                  c.mode = "charge";
+                }
+              } else if (c.mode === "charge") {
+                c.chargeT += dt;
+                const adx = c.aimX - c.wx,
+                  ady = c.aimY - c.wy;
+                const ad = Math.sqrt(adx * adx + ady * ady) || 0.001;
+                // he ACCELERATES off the line — the tell is the cadence, not the step
+                const sp = FOOTBALL_CHARGE_SP * Math.min(1, 0.5 + c.chargeT * 2.5);
+                c.wx += (adx / ad) * sp * dt;
+                c.wy = clamp(c.wy + (ady / ad) * sp * dt, FOOTBALL_WY_MIN, FOOTBALL_WY_MAX);
+                c.g.rotation.z = Math.atan2(ady, adx); // head down, chasing the spot
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.5; // low, driving
+                  c.hopZ = Math.abs(Math.sin(c.phase * 1.2)) * 0.06; // the sprint's rise & fall
+                }
+                animParts(c, dt * sp * 3.2, 0.85); // full churn
+                // THE TACKLE: contact on the charge (re-checked after the move so a
+                // fast dash can't tunnel past). collideCreatures only does the push-out.
+                const cdx2 = p.wx - c.wx,
+                  cdy2 = p.wy - c.wy;
+                const cd2 = Math.sqrt(cdx2 * cdx2 + cdy2 * cdy2);
+                if (state === "play" && cd2 < FOOTBALL_TACKLE_R) {
+                  hurtNPC(HP_HIT_FOOTBALL, "football", true); // no generic yelp — his line is the meniscus
+                  doStun(0.85, "hit");
+                  Voice.say(
+                    FOOTBALL_WORKER_LINE,
+                    2.6,
+                    0.95,
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
+                    "burst",
+                  );
+                  Voice.say(
+                    pick(FOOTBALL_DANCE_LINES),
+                    2.6,
+                    1.15,
+                    c.wx,
+                    c.wy,
+                    c.gender,
+                    "football",
+                  );
+                  spawnDustEffect(p.wx, p.wy);
+                  spawnDustEffect(c.wx, c.wy);
+                  dropBloodSplatter(p.wx, p.wy);
+                  p.bloodSteps = 10;
+                  // the hit drives him BACKWARD along the charge direction
+                  p.wx += (cdx2 / cd2) * 1.8;
+                  p.wy = clamp(p.wy + (cdy2 / cd2) * 1.2, -9.4, workerMaxY());
+                  c.mode = "dance";
+                  c.danceT = FOOTBALL_DANCE_T;
+                  c.danceSpin = c.g.rotation.z;
+                } else if (c.chargeT > FOOTBALL_CHARGE_T || ad < 0.3) {
+                  // WHIFF — he came up empty and wants another rep
+                  if (state === "play" && c.sayCd <= 0) {
+                    c.sayCd = R(5, 9);
+                    Voice.say(
+                      pick(FOOTBALL_WHIFF_LINES),
+                      2.6,
+                      R(1.0, 1.15),
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "football",
+                    );
+                  }
+                  c.mode = "return";
+                  c.hopZ = 0;
+                }
+              } else if (c.mode === "dance") {
+                // TOUCHDOWN DANCE: spins in place, high knees, the ball punched overhead
+                c.danceT -= dt;
+                c.danceSpin += dt * 6.4; // full spins
+                c.g.rotation.z = c.danceSpin;
+                const t = FOOTBALL_DANCE_T - c.danceT;
+                c.hopZ = Math.abs(Math.sin(t * 5.6)) * 0.34; // the hops
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.06; // upright, chest up
+                  c.parts.armL.rotation.y = -2.2 - Math.sin(t * 11) * 0.5; // the ball arm PUMPING up
+                  c.parts.armR.rotation.y = 2.2 - Math.sin(t * 11) * 0.5; // the other arm windmilling
+                  c.parts.upper.rotation.x = Math.sin(t * 11) * 0.16; // shoulder shake
+                }
+                animParts(c, dt * 9, 0.5); // high-knee steps
+                if (c.danceT <= 0) {
+                  c.mode = "return";
+                  c.hopZ = 0;
+                  if (c.parts) {
+                    c.parts.armL.rotation.y = 0;
+                    c.parts.armR.rotation.y = 0;
+                    c.parts.upper.rotation.x = 0;
+                  }
+                }
+              } else {
+                // BACK TO THE LINE: trots home, then sets up the next play (3s count)
+                const hdx = c.homeX - c.wx,
+                  hdy = c.homeY - c.wy;
+                const hd = Math.sqrt(hdx * hdx + hdy * hdy);
+                if (hd > 0.35) {
+                  c.wx += (hdx / hd) * FOOTBALL_RETURN_SP * dt;
+                  c.wy = clamp(c.wy + (hdy / hd) * FOOTBALL_RETURN_SP * dt, FOOTBALL_WY_MIN, FOOTBALL_WY_MAX);
+                  c.g.rotation.z = Math.atan2(hdy, hdx);
+                  if (c.parts) c.parts.upper.rotation.y = 0.12;
+                  animParts(c, FOOTBALL_RETURN_SP * dt * 2.6, 0.55);
+                  c.hopZ = 0;
+                } else {
+                  c.wx = c.homeX;
+                  c.wy = c.homeY;
+                  c.mode = "set";
+                  c.setT = FOOTBALL_SET_T; // the 3 seconds before the next "Hut... hut..."
+                }
+              }
+              // ===== HE NEVER LEAVES HIS BLOCK (nor the sidewalk, nor the route) =====
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+              c.wy = clamp(c.wy, FOOTBALL_WY_MIN, FOOTBALL_WY_MAX);
+              c.g.position.z = GZ + (c.hopZ || 0);
+              break;
+            }
+            case "rapper": {
+              // ===== BED-STUY ASPIRING RAPPER / MIXTAPE HUSTLER (Sunday, day 7) =====
+              // One rapper, one block, ONE job: sell the tape AND defend his turf. He stays
+              // SILENT while the worker is OFF his block (a lazy lope), and only when the
+              // worker steps ONTO the block does he come alive — getting in his face, rapping
+              // his VERSES with a THREAT wedged between every bar, and HURLING his mixtapes
+              // overhand like a baseball pitch. TOUCH damage is still in collideCreatures;
+              // the thrown tape is the hit behind "Failed to avoid an American Idol".
+              const rdx = p.wx - c.wx,
+                rdy = p.wy - c.wy;
+              const rD = Math.sqrt(rdx * rdx + rdy * rdy) || 0.001;
+              // on his block + in play = ACTIVE (talk/throw); off = a silent lope
+              const onBlock = state === "play" && p.wx >= c.blockMinX && p.wx <= c.blockMaxX;
+              c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+              c.throwCd = c.throwCd > 0 ? c.throwCd - dt : 0;
+              if (!onBlock) {
+                // ===== OFF-BLOCK: a lazy, SILENT lope down his block (no bubbles) =====
+                c.wx += c.dir * RAP_PATROL_SP * dt;
+                if (c.wx < c.blockMinX) {
+                  c.wx = c.blockMinX;
+                  c.dir = 1;
+                } else if (c.wx > c.blockMaxX) {
+                  c.wx = c.blockMaxX;
+                  c.dir = -1;
+                }
+                c.g.rotation.z = c.dir > 0 ? 0 : Math.PI; // face the way he's walking
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.05 + Math.sin(c.phase * 1.3) * 0.05; // a loose, bopping sway
+                  c.parts.armR.rotation.y = -0.5 - Math.sin(c.phase * 1.7) * 0.15; // the tape arm bobs to the beat
+                  c.parts.armL.rotation.y = 0.45 + Math.sin(c.phase * 1.7) * 0.15;
+                }
+                animParts(c, dt * RAP_PATROL_SP * 2.6, 0.4); // a slow lope
+              } else {
+                // ===== ON-BLOCK: get in his face, hold a standoff, work the crowd =====
+                c.g.rotation.z = Math.atan2(rdy, rdx);
+                const rSp = RAP_ADVANCE_SP;
+                if (rD > RAP_HOLD) {
+                  c.wx += (rdx / rD) * rSp * dt;
+                  c.wy = clamp(c.wy + (rdy / rD) * rSp * dt, RAP_WY_MIN, RAP_WY_MAX);
+                }
+                // rap a VERSE with a THREAT wedged between every bar (only on his block)
+                if (c.sayCd <= 0) {
+                  c.sayCd = R(2.4, 3.4);
+                  if (c.alt)
+                    Voice.say(pick(RAP_THREAT_LINES), 2.2, R(1.0, 1.12), c.wx, c.wy, c.gender, "rapper");
+                  else {
+                    Voice.say(RAP_LINES[c.rapIdx % RAP_LINES.length], 3.2, R(0.98, 1.1), c.wx, c.wy, c.gender, "rapper");
+                    c.rapIdx = (c.rapIdx + 1) % RAP_LINES.length;
+                  }
+                  c.alt = !c.alt;
+                }
+                // wind up a mixtape overhand (a flat baseball pitch) when in range + off cooldown
+                if (c.throwCd <= 0 && c.throwT <= 0 && rD <= RAP_THROW_RANGE) {
+                  Voice.say(pick(RAP_PITCH_LINES), 1.2, R(1.05, 1.2), c.wx, c.wy, c.gender, "rapper"); // PITCH the sale BEFORE he hurls the tape
+                  c.throwCd = R(2.8, 4.2);
+                  c.throwT = RAP_THROW_WIND;
+                  c.throwReleased = false;
+                }
+              }
+              // strutting walk-cycle FIRST, so the throw / idle poses below can override the arms
+              if (onBlock) animParts(c, dt * RAP_ADVANCE_SP * 3.0, 0.5);
+              // overhand arm swing (mirrors the Harlem thrower); release the tape near the top
+              if (c.throwT > 0) {
+                c.throwT -= dt;
+                const u = 1 - Math.max(0, c.throwT) / RAP_THROW_WIND;
+                if (c.parts) {
+                  c.parts.upper.rotation.y = 0.15 + u * 0.1; // chest turns into the throw
+                  c.parts.armR.rotation.y = -1.05 + u * 4.6; // wind back, then whip across (full overhand)
+                  c.parts.armR.rotation.x = 0.55 - u * 0.95; // cock the arm UP, then drive it down/forward
+                  c.parts.armL.rotation.y = 0.5 - u * 0.3; // balance arm
+                  if (c.g) c.g.rotation.x = 0.22 * Math.sin(u * Math.PI); // lean into the pitch (baseball-style)
+                }
+                if (!c.throwReleased && u > 0.8) {
+                  c.throwReleased = true;
+                  throwTape(c, p.wx, p.wy); // aim at the worker's CURRENT spot
+                }
+              } else if (onBlock && c.parts) {
+                // the idle "thrust the tape" pose while he's on his block
+                if (c.g) c.g.rotation.x = 0; // stand upright when not throwing
+                c.parts.upper.rotation.y = 0.12; // chest out, working the crowd
+                c.parts.armR.rotation.x = 0.05; // arm hangs down to the hand
+                c.parts.armR.rotation.y = -1.05 - Math.sin(c.phase * 2.2) * 0.12; // THREATENING tape thrust
+                c.parts.armL.rotation.y = 0.55 + Math.sin(c.phase * 2.2) * 0.12; // the other arm sells the hype
+              }
+              else if (c.g) {
+                c.g.rotation.x = 0; // off-block: stay upright
+              }
+              // ===== HE NEVER LEAVES HIS BLOCK (nor the sidewalk) =====
+              c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+              c.wy = clamp(c.wy, RAP_WY_MIN, RAP_WY_MAX);
+              updateRapperTapes(c, dt); // integrate his in-flight mixtapes
               break;
             }
             case "polishboy": {
@@ -28578,7 +29475,8 @@
             c.type !== "bluejay" &&
             c.type !== "skater" &&
             c.type !== "jacker" &&
-            c.type !== "raven"
+            c.type !== "raven" &&
+            c.type !== "football" // the Bed-Stuy football player sets his own z (dance hop)
           )
             c.g.position.z = GZ;
           // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
@@ -28814,6 +29712,8 @@
         else if (speaker === "panhandler") cls = "bubble bub-panhandler";
         else if (speaker === "ghost") cls = "bubble bub-ghost";
         else if (speaker === "scholar") cls = "bubble bub-scholar";
+        else if (speaker === "football") cls = "bubble bub-football";
+        else if (speaker === "rapper") cls = "bubble bub-rapper";
         else cls = "bubble bub-default";
         // POW! burst: the worker's "OW!" hit lines (driveway-tricycle lunge,
         // hydrant shin-bonk, pitbull bite...) and anything explicitly flagged
@@ -28834,8 +29734,8 @@
           el: el,
           wx: wx,
           wy: wy,
-          life: 1.9,
-          max: 1.9,
+          life: Math.max(1.9, Math.min(4.2, 1.2 + String(text).length * 0.028)),
+          max: Math.max(1.9, Math.min(4.2, 1.2 + String(text).length * 0.028)),
           text: text,
           lockedX: s.x,
           lockedY: s.y,
