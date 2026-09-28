@@ -47,9 +47,9 @@ function frame(wx, wy, dt){
   const c45 = Math.SQRT1_2, ISO_A = 26, CAM_Y = 2.0;
   const ARM_D = 1.4142 * ISO_A, ARM_H = ISO_A;
   const CAM_LANE_FOLLOW = 0.35, CAM_PAN_MAX = 3.5, CAM_YAW_PER_UNIT = 0.025,
-        CAM_YAW_MAX = 0.0698, CAM_FOLLOW_SMOOTH = 5.0;
+        CAM_YAW_MAX = 0, CAM_FOLLOW_SMOOTH = 5.0;
   const CAM_PIVOT_WORKER = false; // mirrors index.html: the smoothed follow camera is active
-  const CAM_ANGLE_OFFSET = (-7 * Math.PI) / 180; // mirrors index.html: the -7deg base orbit (preferred camera angle)
+  const CAM_ANGLE_OFFSET = 0; // mirrors index.html: rotation OFF (pure isometric axis)
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   if (dt) { const k = 1 - Math.exp(-CAM_FOLLOW_SMOOTH * dt); camFollow += (wy - CAM_Y - camFollow) * k; }
   // worker-pivot: orbit center + look point = the worker's LIVE local (wx, wy);

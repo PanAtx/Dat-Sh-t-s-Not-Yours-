@@ -6,12 +6,12 @@
 //     worker-pivot branch is kept behind the toggle
 //   * center-lane framing is byte-identical to the pre-follow camera (zero change
 //     for the typical play position)
-//   * the BASE ORBIT ANGLE (CAM_ANGLE_OFFSET, -7deg = the preferred camera angle,
+//   * the BASE ORBIT ANGLE (CAM_ANGLE_OFFSET = 0deg, i.e. NO rotation (pure 45deg isometric axis),
 //     scene counter-clockwise on screen) rotates the eye offset, and the analog
 //     stick compensation + the truck off-screen test rotate by the SAME angle
 //   * arm length is preserved at the tilt extremes (no zoom, no clip-plane drift)
-//   * the yaw is hard-capped at 4deg ON TOP of the base orbit (4.9deg of yaw max
-//     with the smooth velocity lead at full strafe), never any roll, so the
+//   * the yaw is hard-capped at 0 (rotation is OFF; the pan + hopper zoom carry the feel
+//     ; the yaw must stay 0, never any roll, so the
 //     screen-aligned stick compensation and the truck off-screen test stay valid
 //   * the forward lead/lag trails the worker and settles under him (capped 1.0u)
 //   * the strafe-velocity yaw lead is SMOOTH: raw per-frame input flips are
@@ -70,30 +70,34 @@ check('CAM_PIVOT_WORKER toggle exists and defaults to FALSE (the smoothed follow
   /const CAM_PIVOT_WORKER = false;/.test(h));
 check('worker-pivot branch preserved behind the toggle (orbits + looks at the LIVE worker world position)',
   pcSrc.indexOf('if (CAM_PIVOT_WORKER) {') >= 0 &&
-  pcSrc.indexOf('camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, ARM_H);') >= 0 &&
+  pcSrc.indexOf('camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, eyeZ);') >= 0 &&
   pcSrc.indexOf('camera.lookAt(plWx, plWy, 0);') >= 0);
 check('follow-point branch is the active path (pan + lead/lag around the lagged position)',
   pcSrc.indexOf('c45 * (camFollowX - camFollowY)') >= 0 &&
   pcSrc.indexOf('c45 * (camFollowX + camFollowY)') >= 0);
-check('base orbit angle constant exists (CAM_ANGLE_OFFSET_DEG = -7, scene counter-clockwise on screen)',
-  /const CAM_ANGLE_OFFSET_DEG = -7;/.test(h) &&
+check('base orbit angle constant exists (CAM_ANGLE_OFFSET_DEG = 0, no camera rotation)',
+  /const CAM_ANGLE_OFFSET_DEG = 0;/.test(h) &&
   /const CAM_ANGLE_OFFSET = \(CAM_ANGLE_OFFSET_DEG \* Math\.PI\) \/ 180;/.test(h));
 check('positionCamera adds the base orbit to the yaw (ang = yaw + CAM_ANGLE_OFFSET) and uses it for the eye offset',
   pcSrc.indexOf('const ang = yaw + CAM_ANGLE_OFFSET;') >= 0 &&
   pcSrc.indexOf('const co = Math.cos(ang),') >= 0 && pcSrc.indexOf('Math.sin(ang);') >= 0);
-check('analog stick compensation rotates by the SAME base angle (screen-aligned movement at -7deg)',
+check('analog stick compensation rotates by the SAME base angle (screen-aligned movement at 0deg)',
   h.indexOf('const ct = Math.cos(CAM_ANGLE_OFFSET),') >= 0 &&
   h.indexOf('const rf = c * ((ct - st) * f - (ct + st) * l);') >= 0 &&
   h.indexOf('const rl = c * ((ct + st) * f + (ct - st) * l);') >= 0);
 check('routeEnd truck off-screen test projects onto the rotated screen axis (cos/sin of CAM_ANGLE_OFFSET)',
   h.indexOf('(rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET)') >= 0);
-check('hopper zoom: constants present (subtle 0.86 in, 10u fade, 2.5 ease)',
-  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h));
+check('hopper zoom: constants present (0.86 in, 1.06 out, 10u fade, 2.5 ease + 12% lift / 8% dip)',
+  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_OUT = 1\.06;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h) && /const CAM_H_LIFT = 0\.12;/.test(h) && /const CAM_H_DIP = 0\.08;/.test(h));
 check('hopper zoom: base frustum captured on init + resize (zoom scales FROM the un-zoomed frustum)',
   (h.match(/_baseFrustum = f;/g) || []).length >= 2);
 check('hopper zoom: positionCamera measures the worker->hopper distance and scales the ortho frustum',
   pcSrc.indexOf('hopperAimX()') >= 0 && pcSrc.indexOf('hopperWorldY()') >= 0 &&
   pcSrc.indexOf('_baseFrustum.l * camZoom') >= 0 && pcSrc.indexOf('camera.updateProjectionMatrix();') >= 0);
+check('hopper angle: eye height rides the eased zoom factor (lifts far / dips close, base ARM_H without a truck)',
+  pcSrc.indexOf('CAM_ZOOM_OUT - CAM_ZOOM_IN') >= 0 &&
+  pcSrc.indexOf('CAM_H_DIP') >= 0 && pcSrc.indexOf('CAM_H_LIFT') >= 0 &&
+  pcSrc.indexOf('camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, eyeZ);') >= 0);
 check('hopper zoom: guarded so the sandbox / menu (no truck) skips it (typeof truck)',
   pcSrc.indexOf('typeof truck !== "undefined"') >= 0);
 check('hopper zoom: reset on a fresh shift (starts zoomed in at the truck)',
@@ -117,7 +121,7 @@ const api = new Function(
 )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0);
 
 const C45 = Math.SQRT1_2;
-const CAM_ANGLE_OFFSET = (-7 * Math.PI) / 180; // mirrors index.html's CAM_ANGLE_OFFSET (the -7 literal is asserted above)
+const CAM_ANGLE_OFFSET = 0; // mirrors index.html's CAM_ANGLE_OFFSET (the 0 literal is asserted above)
 const ARM = Math.sqrt(1.4142 * 26 * (1.4142 * 26) + 26 * 26); // 45.033, the eye->target arm
 const armLen = () => {
   // follow-point (CAM_PIVOT_WORKER = false): target = (c45*(wx - camFollowY), c45*(wx + camFollowY), 0);
@@ -139,7 +143,7 @@ p.wx = 0; p.wy = 2.0;
 api.resetFollow(); // mirrors resetWorldState() in the game (fresh shift: no stale velocity)
 settle(10);
 check('center lane: camFollow stays 0', Math.abs(api.getCamFollow()) < 1e-9, String(api.getCamFollow()));
-check('center lane: base orbit applied (eye offset rotated by -7deg: camTX + ARM_D*sin, camTY - ARM_D*cos, z = ARM_H)',
+check('center lane: base orbit applied (eye offset rotated by 0deg (pure isometric: camTX + ARM_D*sin(0)=0, camTY - ARM_D, z = ARM_H))',
   Math.abs(camera.position.x - (C45 * (0 - 2.0) + 1.4142 * 26 * Math.sin(CAM_ANGLE_OFFSET))) < 1e-6 &&
   Math.abs(camera.position.y - (C45 * (0 + 2.0) - 1.4142 * 26 * Math.cos(CAM_ANGLE_OFFSET))) < 1e-6 &&
   Math.abs(camera.position.z - 26) < 1e-9 &&
@@ -151,15 +155,15 @@ check('center lane: worker on screen', onScreen(workerNDC()), JSON.stringify(wor
 p.wx = 0; p.wy = 8.0;
 settle(600); // 10s at 60fps -- fully settled (200ms time constant)
 check('up-lane: camFollow settles to lane offset (8.0 - 2.0 = 6.0)', Math.abs(api.getCamFollow() - 6.0) < 1e-3, String(api.getCamFollow()));
-const angA = -0.0698 + CAM_ANGLE_OFFSET; // up-lane: 4deg head-turn on top of the -7deg base orbit
-check('up-lane: yaw hits the 4deg cap on top of the base orbit (eye swings sideways, z pinned at ARM_H)',
+const angA = CAM_ANGLE_OFFSET; // up-lane: rotation OFF -- yaw stays 0 on top of the 0deg base orbit
+check('up-lane: yaw stays 0 (rotation OFF) on top of the base orbit (eye swings sideways, z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
   Math.abs(camera.position.x - (C45 * (0 - 4.1) + 1.4142 * 26 * Math.sin(angA))) < 0.01 &&
   Math.abs(camera.position.y - (C45 * (0 + 4.1) - 1.4142 * 26 * Math.cos(angA))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
 check('up-lane: pan applied (camera center moves with the lane, camFollowY = 4.1)', Math.abs(api.getCamFollow() * 0.35 - 2.1) < 1e-3, String(api.getCamFollow()));
 check('up-lane: arm length preserved (no zoom / no clip-plane drift)', Math.abs(armLen() - ARM) < 0.01, String(armLen()));
-check('up-lane: screen-right rotated by exactly the total orbit angle (4deg yaw + base orbit), with NO roll (z = 0)',
+check('up-lane: screen-right rotated by exactly the total orbit angle (0 yaw + base orbit), with NO roll (z = 0)',
   Math.abs(screenRight().z) < 1e-9 && Math.abs(Math.atan2(screenRight().y, screenRight().x) - angA) < 1e-6,
   screenRight().toArray().map(n => n.toExponential(3)).join(','));
 check('up-lane: worker still inside the frustum', onScreen(workerNDC()), JSON.stringify(workerNDC()));
@@ -167,11 +171,11 @@ check('up-lane: worker still inside the frustum', onScreen(workerNDC()), JSON.st
 // ---- Test B: street-lane extreme (p.wy = -9.4, the clamp floor) ----
 p.wx = 100; p.wy = -9.4;
 settle(600);
-const angB = 0.0698 + CAM_ANGLE_OFFSET; // street lane: +4deg head-turn on top of the base orbit
+const angB = CAM_ANGLE_OFFSET; // street lane: rotation OFF -- yaw stays 0 (symmetry)
 check('street lane: pan is hard-capped at 3.5u (camFollowY = -1.5, checked via the un-panned y axis)',
   Math.abs(camera.position.y - (C45 * (100 - 1.5) - 1.4142 * 26 * Math.cos(angB))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
-check('street lane: yaw at the +4deg cap, opposite direction, SAME magnitude as up-lane (symmetry, eye z pinned at ARM_H)',
+check('street lane: yaw stays 0, same as up-lane (rotation OFF, symmetric) (symmetry, eye z pinned at ARM_H)',
   Math.abs(camera.position.z - 26) < 1e-9 &&
   Math.abs(camera.position.x - (C45 * (100 + 1.5) + 1.4142 * 26 * Math.sin(angB))) < 0.01,
   camera.position.toArray().map(n => n.toFixed(4)).join(','));
@@ -215,12 +219,12 @@ settle(600);
 p.wx = 20; p.wy = 2.0;
 settle(600); // idle: laneVel = 0
 for (let i = 0; i < 90; i++) { p.wy += 4 / 60; api.positionCamera(1 / 60); } // constant 4 u/s up-lane strafe
-check('vel lead: constant strafe adds a smooth lead on top of the 4deg cap (4 u/s * 0.003 = 0.012)',
-  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET - 0.0698 - 0.012)) < 0.005,
+check('vel lead: rotation OFF -- constant strafe adds no yaw lead (4 u/s * 0 = 0)',
+  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET)) < 0.005,
   String(Math.atan2(screenRight().y, screenRight().x)));
 settle(90); // he stops: the lead eases back to the pure cap
-check('vel lead: eases back to the 4deg cap once he stops',
-  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET - 0.0698)) < 0.005,
+check('vel lead: yaw stays 0 once he stops',
+  Math.abs(Math.atan2(screenRight().y, screenRight().x) - (CAM_ANGLE_OFFSET)) < 0.005,
   String(Math.atan2(screenRight().y, screenRight().x)));
 // RAPID REVERSAL: the anti-jitter guarantee -- no per-frame step > 0.01 rad
 // (the old discrete kick was 0.0262 rad in a single frame, ~2.6x this bound)
@@ -251,14 +255,14 @@ const rotateStick = (sf, sl) =>
   const r = rotateStick(1, 0); // stick UP
   const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) - Math.sin(CAM_ANGLE_OFFSET));
   const expL = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
-  check('stick UP moves the worker SCREEN-UP at the -7deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+  check('stick UP moves the worker SCREEN-UP at the 0deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
     Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
 }
 {
   const r = rotateStick(0, -1); // stick RIGHT
   const expF = C45 * (Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
   const expL = C45 * (-Math.cos(CAM_ANGLE_OFFSET) + Math.sin(CAM_ANGLE_OFFSET));
-  check('stick RIGHT moves the worker SCREEN-RIGHT at the -7deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
+  check('stick RIGHT moves the worker SCREEN-RIGHT at the 0deg orbit (route dir f=' + expF.toFixed(3) + ', l=' + expL.toFixed(3) + ')',
     Math.abs(r.f - expF) < 1e-9 && Math.abs(r.l - expL) < 1e-9, 'f=' + r.f + ' l=' + r.l);
 }
 
@@ -295,8 +299,9 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
 // Isolated sandbox: the 50 checks above run positionCamera with NO truck (the zoom
 // block is skipped, so the position/arm-length results are byte-identical). Here we
 // inject a truck + hopper fns and prove the frustum scales DOWN (zoom in) at the
-// hopper and eases back to 1.0 (zoom out) far away. The scale is read as
-// camera.top / baseTop -- only the frustum changes, never the camera position.
+// hopper and eases back OUT (past base, CAM_ZOOM_OUT) far away, and the eye
+// HEIGHT rides the same factor (rises far / dips close). The scale is read as
+// camera.top / baseTop and the angle as camera.position.z.
 {
   const baseF = { l: -8, r: 8, t: 4.5, b: -4.5 }; // the 16:9 s=4.5 base frustum (matches the sandbox camera)
   const truck2 = { wx: 40, hopperAimOff: -4.3, hopperOff: -4.3, hopperY: 0 };
@@ -313,15 +318,23 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
   p.wx = 40; p.wy = 30; // ~35u from the hopper -> fully zoomed out
   for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
   const farScale = camera.top / baseF.t;
-  check('hopper zoom: far from the truck the frustum eases back to ~1.0 (no zoom)',
-    Math.abs(farScale - 1.0) < 0.01, String(farScale));
+  const farEyeZ = camera.position.z;
+  check('hopper zoom: far from the truck the frustum eases out to ~CAM_ZOOM_OUT (1.06, a bit wider than base)',
+    Math.abs(farScale - 1.06) < 0.01, String(farScale));
+  check('hopper angle: far from the truck the eye RISES to ARM_H * 1.12 (29.12, more top-down)',
+    Math.abs(farEyeZ - 26 * 1.12) < 0.05, String(farEyeZ));
   p.wx = truck2.wx - 4.3; p.wy = -4.5; // right at the back of the truck (the hopper)
   for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
   const nearScale = camera.top / baseF.t;
+  const nearEyeZ = camera.position.z;
   check('hopper zoom: at the back of the truck the frustum tightens to ~CAM_ZOOM_IN (0.86)',
     Math.abs(nearScale - 0.86) < 0.01, String(nearScale));
+  check('hopper angle: at the hopper the eye DIPS to ARM_H * 0.92 (23.92, a lower angle)',
+    Math.abs(nearEyeZ - 26 * 0.92) < 0.05, String(nearEyeZ));
   check('hopper zoom: near the hopper is strictly tighter than far away (a real push-in)',
     nearScale < farScale - 0.05, 'near=' + nearScale + ' far=' + farScale);
+  check('hopper angle: the far eye is strictly HIGHER than the near eye (rise out / dip in)',
+    farEyeZ > nearEyeZ + 1, 'far=' + farEyeZ + ' near=' + nearEyeZ);
   camera.left = -8; camera.right = 8; camera.top = 4.5; camera.bottom = -4.5; camera.updateProjectionMatrix(); // restore
 }
 
