@@ -61,7 +61,7 @@ if (model) {
 
 // ---------- AI state machine: extract case "rapper" + the RAP_* consts ----------
 const cs = big.indexOf('case "rapper": {');
-const cp = big.indexOf('case "polishboy": {');
+const cp = big.indexOf('case "cop":', cs); // the cop/robber case ends the rapper block now
 ok(cs > 0 && cp > cs, 'found the updateCreatures case "rapper" block');
 let inner = big.slice(cs, cp);
 inner = inner.slice(inner.indexOf("{") + 1, inner.lastIndexOf("}"));
@@ -77,7 +77,7 @@ ok(C.RAP_THREAT_LINES && C.RAP_THREAT_LINES.length >= 4, "a pool of worker-direc
 
 // ---- extract the mixtape projectile functions (makeTapeMesh / throwTape / updateRapperTapes) ----
 const projStart = big.indexOf("function makeTapeMesh()");
-const projEnd = big.indexOf("HARLEM STREET-BALL PLAYER (day 6)");
+const projEnd = big.indexOf("// A big, tall dunker: a red basketball jersey");
 ok(projStart > 0 && projEnd > projStart, "extracted the mixtape projectile functions");
 const projSrc = big.slice(projStart, projEnd);
 

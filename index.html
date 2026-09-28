@@ -1682,6 +1682,12 @@
         text-align: center;
         line-height: 1.15;
       } /* the Bed-Stuy aspiring rapper: bling violet, verse-wrapped */
+      .bubble.bub-cop {
+        background: #a8c0f0;
+      } /* the Bed-Stuy NYPD officer: shield periwinkle */
+      .bubble.bub-robber {
+        background: #f0a8a8;
+      } /* the Bed-Stuy masked robber: flush crimson */
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
@@ -2341,7 +2347,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.316</div>
+          <div id="app-version" class="menu-version">v1.0.318</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2497,7 +2503,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.316';
+      const APP_VERSION = '1.0.318';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2808,6 +2814,8 @@
         scholar: 0, // Flatbush-only: an observant Orthodox Jewish scholar strolling the sidewalk
         football: 0, // Bed-Stuy-only: ONE high-school football player per level, spawned separately on one block
         rapper: 0, // Bed-Stuy-only: ONE aspiring mixtape rapper per level, spawned separately on one block
+        cop: 0, // Bed-Stuy-only: ONE NYPD officer per level, spawned separately in the robber duel
+        robber: 0, // Bed-Stuy-only: ONE masked robber per level, the officer's counterpart in the duel
         polish: 0, // Queens-only (Maspeth d4): one per active block, spawned separately on the sidewalk/lawn
         cat: 0,
       };
@@ -3739,7 +3747,15 @@
           this.noise(0.32, "lowpass", 260, 0.9);
           this.tone("sine", 110, 52, 0.26, 0.7);
         },
-        playPlopSound() {
+        // Bed-Stuy shootout: a real BANG - a sharp crack, a mid "report", a DEEP sine
+        // THUMP, and a long low rumble tail that rolls down the block (procedural).
+        playGunshot() {
+          this.ensure();
+          this.noise(0.05, "highpass", 900, 1.0); // the sharp crack
+          this.tone("square", 320, 70, 0.12, 0.9); // the mid report
+          this.tone("sine", 110, 38, 0.4, 1.0); // the deep THUMP (the bang)
+          this.noise(0.5, "lowpass", 180, 0.55, 0.01); // the low rumble tail
+        },playPlopSound() {
           this.ensure();
           this.tone("sine", 210, 52, 0.16, 0.8); // a quick low wet "plop"
           this.noise(0.09, "lowpass", 520, 0.35); // a soft wet splash
@@ -15097,6 +15113,196 @@
           }
         }
       }
+      // ==================== BED-STUY SHOOTOUT: the cop vs the crook (Sunday, day 7) ====================
+      // Turn-taking: the shared duel token ({ turn }) hands off after EVERY shot, so the
+      // cop and the robber fire in strict alternation. A shot is ALWAYS aimed past the foe
+      // by a GUN_MISS lateral offset, and a bullet can only ever hit the worker - the two
+      // NPCs are un-harmable by each other. Bullets live in c.shots (owned by the shooter)
+      // and are integrated by updateGunshots.
+      function fireGun(c) {
+        const foe = c.foe;
+        const fx = foe ? foe.wx : c.wx + c.side * 14;
+        const fy = foe ? foe.wy : c.wy;
+        // Guaranteed miss: aim PAST the foe by a lateral (sidewalk) offset.
+        const miss = GUN_MISS_MIN + Math.random() * (GUN_MISS_MAX - GUN_MISS_MIN);
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        const tx = clamp(fx + dir * R(0.5, 1.5), c.blockMinX, c.blockMaxX);
+        const ty = clamp(fy + dir * miss, 0.2, 4.8);
+        // The bullet leaves the MUZZLE: the raised gun hand sits ~0.55u in front of
+        // the body, at shoulder height, facing the foe (not out of the chest).
+        const theta = c.g ? c.g.rotation.z : Math.atan2(fy - c.wy, fx - c.wx);
+        const mx = c.wx + Math.cos(theta) * 0.55;
+        const my = c.wy + Math.sin(theta) * 0.55;
+        const dx = tx - mx,
+          dy = ty - my;
+        const dlen = Math.hypot(dx, dy) || 0.001;
+        const g = BX(0.34, 0.05, 0.05, MS(0xffd24a, { metalness: 0.1, roughness: 0.5 })); // the tracer
+        g.position.set(mx, my, GZ + GUN_SHOT_Z);
+        g.rotation.z = Math.atan2(dy, dx); // the tracer points along its flight
+        dynamicGroup.add(g);
+        c.shots.push({
+          g: g,
+          wx: mx,
+          wy: my,
+          vx: (dx / dlen) * GUN_SHOT_SP,
+          vy: (dy / dlen) * GUN_SHOT_SP,
+          life: GUN_SHOT_LIFE,
+          hit: false, // one graze per bullet (no per-frame drain)
+        });
+        if (c.flash) {
+          c.flash.visible = true;
+          c.flashT = 0.07;
+        }
+        SFX.playGunshot && SFX.playGunshot();
+        Voice.say(pick(c.gunTag === "cop" ? COP_SHOUT_LINES : ROBBER_LINES), 1.8, R(1.0, 1.2), c.wx, c.wy, c.gender, c.gunTag); // the shout as the shot cracks
+        // Hand the turn to the foe (their return shot comes on their next windup).
+        if (c.duel) c.duel.turn = c.gunTag === "cop" ? "robber" : "cop";
+        if (foe) foe.gunCd = GUN_TURN_CD_MIN + Math.random() * (GUN_TURN_CD_MAX - GUN_TURN_CD_MIN);
+      }
+      function updateGunshots(c, dt, p) {
+        for (let i = c.shots.length - 1; i >= 0; i--) {
+          const d = c.shots[i];
+          d.wx += d.vx * dt;
+          d.wy += d.vy * dt;
+          d.life -= dt;
+          d.g.position.x = d.wx;
+          d.g.position.y = d.wy;
+          // The ONLY thing a bullet can clip is the sanitation worker in the lane.
+          if (state === "play" && !d.hit) {
+            const bdx = d.wx - p.wx,
+              bdy = d.wy - p.wy;
+            if (bdx * bdx + bdy * bdy <= GUN_HURT_R * GUN_HURT_R) {
+              d.hit = true; // one graze per bullet (no per-frame drain)
+              hurtNPC(HP_HIT_BULLET, c.gunTag); // the write-up blames the SHOOTER
+              Voice.say(pick(BULLET_HIT_LINES), 2.4, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst"); // a POW! graze line
+              doStun(GUN_STUN, "hit");
+              spawnDustEffect(p.wx, p.wy);
+              dropBloodSplatter(p.wx, p.wy);
+              p.bloodSteps = 8; // bleed a red footprint trail for a while
+              // the graze shoves the worker a touch
+              const bd = Math.hypot(bdx, bdy) || 0.001;
+              p.wx += (bdx / bd) * 0.6;
+              p.wy = clamp(p.wy + (bdy / bd) * 0.4, -9.4, workerMaxY());
+            }
+          }
+          // the cover takes the hit: a tracer passing the fixture leaves a scorch mark
+          // (and a tree shakes a leaf puff) - one mark per bullet.
+          if (!d.coverHit && c.coverX) {
+            const cdx = d.wx - c.coverX,
+              cdy = d.wy - c.coverY;
+            if (cdx * cdx + cdy * cdy <= 1.2 * 1.2) {
+              d.coverHit = true;
+              addCoverScorch(c);
+            }
+          }
+          if (d.life <= 0 || d.wx < c.blockMinX - 8 || d.wx > c.blockMaxX + 8) {
+            dynamicGroup.remove(d.g);
+            c.shots.splice(i, 1);
+          }
+        }
+      }
+      // The cover takes the bullets: each tracer that passes a shooter's fixture leaves
+      // a dark scorch mark on it (capped per shooter so it reads as battle damage),
+      // and a tree/mailbox fixture shakes a green leaf puff.
+      function addCoverScorch(c) {
+        if (!c.coverX || c.coverMarks >= 8) return;
+        c.coverMarks++;
+        const g = BX(0.16, 0.1, 0.03, M(0x16161a)); // a small dark scorch decal
+        const a = R(0, Math.PI * 2); // a random spot on the fixture's face
+        g.position.set(c.coverX + Math.cos(a) * R(0.1, 0.4), c.coverY + Math.sin(a) * R(0.1, 0.4), GZ + R(0.3, 1.4));
+        g.rotation.y = R(-0.5, 0.5);
+        g.rotation.x = R(-0.4, 0.4);
+        dynamicGroup.add(g);
+        if (c.coverKind === "tree") spawnLeafPuff(c.coverX, c.coverY); // the tree shakes a leaf puff
+      }
+      // A small green leaf puff (reuses the dust particle lifecycle: gravity + fade).
+      function spawnLeafPuff(wx, wy) {
+        const count = 8;
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2 + R(-0.3, 0.3);
+          const speed = 0.5 + R(0, 1.2);
+          const g = new THREE.Group();
+          const pGeo = new THREE.PlaneGeometry(0.12, 0.12);
+          const pMat = new THREE.MeshLambertMaterial({ color: 0x4e7a3a, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+          const pMesh = new THREE.Mesh(pGeo, pMat);
+          g.add(pMesh);
+          dynamicGroup.add(g);
+          dustParticles.push({ g: g, wx: wx, wy: wy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: 0.4 + R(0, 1.1), life: 0.8, decay: 0.9 + R(0, 0.5), rotSpeed: R(-8, 8) });
+        }
+      }
+      function gunfightAI(c, dt, p) {
+        c.gunCd = c.gunCd > 0 ? c.gunCd - dt : 0;
+        c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+        if (c.flashT > 0) {
+          c.flashT -= dt;
+          if (c.flashT <= 0 && c.flash) c.flash.visible = false;
+        }
+        updateGunshots(c, dt, p); // integrate his bullets (the worker can be grazed)
+        const foe = c.foe;
+        const fx = foe ? foe.wx - c.wx : c.side * -14;
+        const fy = foe ? foe.wy - c.wy : 0;
+        const fD = Math.sqrt(fx * fx + fy * fy) || 0.001;
+        if (c.g) c.g.rotation.z = Math.atan2(fy, fx); // face the foe the whole time
+        const myTurn = c.duel && c.duel.turn === c.gunTag;
+        const engaged = state === "play" && Math.abs(p.wx - c.wx) < GUN_AGGRO_R; // the duel is quiet off-block
+        if (c.mode === "aim") {
+          // WINDUP: the gun arm comes up over the cover, the chest turns into the shot.
+          c.aimT -= dt;
+          if (c.parts) {
+            const u = 1 - Math.max(0, c.aimT) / GUN_AIM_T;
+            c.parts.armR.rotation.y = -0.35 - 1.1 * u; // raise the pistol from the ready hand
+            c.parts.armR.rotation.z = 0.08;
+            c.parts.upper.rotation.y = 0.12 * u;
+            c.parts.armL.rotation.y = 0.5; // the balance arm
+          }
+          if (c.aimT <= 0) {
+            fireGun(c);
+            c.mode = "cover";
+            if (c.parts) c.parts.armR.rotation.y = -0.35;
+          }
+        } else {
+          // COVER: duck behind the fixture, a small idle shuffle, arms low.
+          if (c.parts) {
+            const bob = Math.sin(c.phase * 2.2);
+            c.parts.upper.rotation.y = 0.18 + bob * 0.04; // lean toward the cover
+            c.parts.upper.rotation.x = 0.1 + Math.abs(bob) * 0.03; // crouch a touch
+            c.parts.armR.rotation.y = -0.35 + bob * 0.06; // the ready hand stays in FRONT (gun visible)
+            c.parts.armL.rotation.y = -0.3 + bob * 0.06;
+          }
+          // CHASE/RETREAT: the cop pushes forward up the block to apprehend, the
+          // robber backs away a hair faster so he stays ahead of him - both keep
+          // moving up the block, trading shots as they go.
+          if (c.gunTag === "cop") {
+            c.homeX = Math.min(
+              c.homeX + GUN_CHASE_SP * dt,
+              foe ? foe.wx - GUN_CHASE_GAP : c.homeX,
+              c.blockMaxX - GUN_EDGE_PAD,
+            );
+          } else {
+            c.homeX = Math.min(
+              Math.max(c.homeX + GUN_RETREAT_SP * dt, foe ? foe.wx + GUN_CHASE_GAP : c.homeX),
+              c.blockMaxX - GUN_EDGE_PAD,
+            );
+          }
+          c.wx += (c.homeX - c.wx) * Math.min(1, dt * 1.6); // ease toward the moving line
+          c.wy += (c.homeY - c.wy) * Math.min(1, dt * 2); // ease back to the cover linee
+          // Fire when it's OUR turn + off cooldown + the worker is in the area.
+          if (myTurn && engaged && c.gunCd <= 0) {
+            c.mode = "aim";
+            c.aimT = GUN_AIM_T;
+            c.gunCd = GUN_TURN_CD_MIN + Math.random() * (GUN_TURN_CD_MAX - GUN_TURN_CD_MIN);
+          }
+          // Idle taunt when the worker is in earshot (never off-block).
+          if (c.sayCd <= 0 && engaged && fD < 26 && !myTurn) {
+            c.sayCd = R(3.5, 6.5);
+            Voice.say(pick(c.gunTag === "cop" ? COP_SHOUT_LINES : ROBBER_LINES), 1.8, R(1.0, 1.15), c.wx, c.wy, c.gender, c.gunTag);
+          }
+        }
+        // ===== HE NEVER LEAVES HIS BLOCK (nor the sidewalk band) =====
+        c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
+        c.wy = clamp(c.wy, 0.9, 4.4);
+        c.phase += dt;
+      }
       // ==================== HARLEM STREET-BALL PLAYER (day 6) ====================
       // A big, tall dunker: a red basketball jersey, white shorts, a white sweat
       // headband, and white high-tops. Dark skin (FIXED tone, not the random roll).
@@ -15789,6 +15995,185 @@
         parts.armL.add(ball);
         d.g.userData.helmet = helmet;
         d.g.userData.ball = ball;
+        return d; // { g, legL, legR, armL, armR } with g.userData.parts
+      }
+      // ==================== BED-STUY SHOOTOUT: THE NYPD OFFICER (Sunday, day 7) ====================
+      // A beat cop in a navy patrol uniform, a cap with a gold shield, a silver chest badge,
+      // a utility belt with a shoulder radio, and a REVOLVER in his right hand. Built from
+      // makePerson + trims (same recipe as the rapper / football player). The AI needs handles:
+      // g.userData.cap, .badge, .gun (the revolver) and .flash (muzzle flash, hidden by default).
+      function makeCopOfficer() {
+        const SKIN = pick(SKIN_TONES);
+        const UNIFORM = 0x1f3a72; // navy patrol shirt
+        const d = makePerson({
+          shirt: UNIFORM,
+          pants: 0x1a2030, // near-black navy slacks
+          skin: SKIN,
+          hair: 0x1c1c1e,
+        });
+        const parts = d.g.userData.parts;
+        const capM = M(0x24365c),
+          darkM = M(0x141418),
+          goldM = MS(0xd9a818, { metalness: 0.9, roughness: 0.3 }),
+          silverM = MS(0xc8ccd4, { metalness: 0.85, roughness: 0.35 });
+        // Built like a patrol officer: broad in the shoulders, a touch heavier.
+        d.g.scale.set(1.05, 1.12, 1.02);
+        // ---- THE PATROL CAP: dark crown, thin brim, a gold shield on the front ----
+        const cap = new THREE.Group();
+        cap.position.z = 1.06; // the makePerson head's center
+        parts.upper.add(cap);
+        const crown = BX(0.3, 0.26, 0.16, capM);
+        crown.position.z = 0.05;
+        cap.add(crown);
+        const brim = BX(0.34, 0.1, 0.06, darkM);
+        brim.position.set(0.18, 0, -0.03);
+        cap.add(brim);
+        const shield = BX(0.05, 0.07, 0.02, goldM); // the gold shield on the cap's front
+        shield.position.set(0.16, 0.05, 0.11);
+        cap.add(shield);
+        // ---- THE BADGE: a silver chest star on the left pec ----
+        const badge = BX(0.03, 0.09, 0.05, silverM);
+        badge.position.set(0.09, 0.12, 0.78);
+        parts.upper.add(badge);
+        // ---- UTILITY BELT: a black belt + a shoulder radio + a pouch ----
+        const belt = BX(0.22, 0.62, 0.04, darkM);
+        belt.position.set(0, 0, 0.28);
+        parts.upper.add(belt);
+        const radio = BX(0.04, 0.09, 0.06, darkM);
+        radio.position.set(0.11, 0.13, 0.26);
+        parts.upper.add(radio);
+        const pouch = BX(0.06, 0.1, 0.05, M(0x3a2e1c));
+        pouch.position.set(-0.1, 0.09, 0.26);
+        parts.upper.add(pouch);
+        // ---- BLACK OXFORDS ----
+        [d.legL, d.legR].forEach((pv) => {
+          const shoe = pv.children[1];
+          if (shoe && shoe.material) shoe.material.color.set(0x101014);
+        });
+        // ---- THE REVOLVER in the RIGHT hand (the "shooter" arm). The hand sits at
+        // pivot-local (0, 0, -0.5); the grip rides the fist and the barrel runs out the +X
+        // (the officer faces +X, so this points him straight at his mark).
+        const gun = new THREE.Group();
+        const grip = BX(0.05, 0.05, 0.1, darkM);
+        grip.position.set(0, -0.02, -0.48);
+        gun.add(grip);
+        const barrel = BX(0.22, 0.045, 0.04, silverM);
+        barrel.position.set(0.14, 0, -0.46);
+        gun.add(barrel);
+        const cyl = CY(0.03, 0.03, 0.08, silverM, 8);
+        cyl.rotation.y = Math.PI / 2; // lay the cylinder's axis along +X
+        cyl.position.set(0.05, 0, -0.46);
+        gun.add(cyl);
+        // The MUZZLE FLASH: a golden cross at the muzzle tip, hidden until a shot.
+        const flash = new THREE.Group();
+        const f1 = BX(0.02, 0.22, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
+        const f2 = BX(0.02, 0.02, 0.22, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
+        flash.add(f1);
+        flash.add(f2);
+        flash.position.set(0.3, 0, -0.46);
+        flash.visible = false;
+        gun.add(flash);
+        parts.armR.add(gun);
+        d.g.userData.cap = cap;
+        d.g.userData.badge = badge;
+        d.g.userData.gun = gun;
+        d.g.userData.flash = flash;
+        return d; // { g, legL, legR, armL, armR } with g.userData.parts
+      }      // ==================== BED-STUY SHOOTOUT: THE MASKED ROBBER (Sunday, day 7) ====================
+      // A crook in a charcoal hoodie, a black SKI MASK (a skin eye-slot + two white eyes),
+      // a tan loot sack with a green dollar patch cradled in his left hand, and a PISTOL in
+      // his right hand. Same makePerson + trims recipe. The AI needs handles: g.userData.mask,
+      // .sack, .gun (the pistol) and .flash (muzzle flash, hidden by default).
+      function makeMaskedRobber() {
+        const SKIN = pick(SKIN_TONES);
+        const HOODIE = 0x2c2c33; // charcoal hoodie
+        const d = makePerson({
+          shirt: HOODIE,
+          pants: 0x1a1a1e,
+          skin: SKIN,
+          hair: 0x141414,
+        });
+        const parts = d.g.userData.parts;
+        const hoodM = M(HOODIE),
+          maskM = M(0x111114),
+          skinM = M(SKIN),
+          whiteM = M(0xf2f2f4),
+          tanM = M(0xb08a52),
+          greenM = M(0x3f7a3f),
+          darkM = M(0x141418),
+          silverM = MS(0xb9bfc7, { metalness: 0.85, roughness: 0.35 });
+        // A lean, jittery crook: a touch narrower than the cop.
+        d.g.scale.set(0.98, 1.02, 0.96);
+        // ---- THE SKI MASK: a dark balaclava over the head with a skin eye-slot ----
+        const mask = new THREE.Group();
+        mask.position.z = 1.04; // the makePerson head's center
+        parts.upper.add(mask);
+        const hood = BX(0.32, 0.36, 0.3, maskM); // the balaclava cup (bigger than the head)
+        hood.position.set(-0.02, 0, 0.02);
+        mask.add(hood);
+        const eyeSlot = BX(0.04, 0.1, 0.16, skinM); // the skin showing through the eye slit
+        eyeSlot.position.set(0.16, 0.05, 0);
+        mask.add(eyeSlot);
+        const eyeL = BX(0.015, 0.035, 0.03, whiteM);
+        eyeL.position.set(0.185, 0.075, 0);
+        mask.add(eyeL);
+        const eyeR = BX(0.015, 0.035, 0.03, whiteM);
+        eyeR.position.set(0.185, 0.025, 0);
+        mask.add(eyeR);
+        const muzz = BX(0.03, 0.04, 0.12, maskM); // the mask's lower band (covers the mouth)
+        muzz.position.set(0.15, -0.13, 0);
+        mask.add(muzz);
+        // ---- THE HOOD: a bunched fabric ring behind the mask + white drawstrings ----
+        const hoodBump = BX(0.16, 0.3, 0.18, hoodM);
+        hoodBump.position.set(-0.13, 0, 0.08);
+        parts.upper.add(hoodBump);
+        const drawL = BX(0.02, 0.04, 0.16, whiteM);
+        drawL.position.set(0.1, 0.07, 0.7);
+        parts.upper.add(drawL);
+        const drawR = BX(0.02, 0.04, 0.16, whiteM);
+        drawR.position.set(0.1, -0.07, 0.7);
+        parts.upper.add(drawR);
+        // ---- THE LOOT SACK: a tan canvas bag cradled in the LEFT hand, green $ patch on ----
+        const sack = new THREE.Group();
+        const bag = BX(0.16, 0.3, 0.22, tanM);
+        sack.add(bag);
+        const patch = BX(0.02, 0.12, 0.12, greenM); // the green dollar patch
+        patch.position.set(0.09, 0, 0);
+        sack.add(patch);
+        const strap = BX(0.03, 0.2, 0.03, darkM);
+        strap.position.set(-0.04, 0.14, 0);
+        sack.add(strap);
+        sack.position.set(0.02, -0.1, -0.42);
+        parts.armL.add(sack);
+        // ---- BLACK SNEAKERS ----
+        [d.legL, d.legR].forEach((pv) => {
+          const shoe = pv.children[1];
+          if (shoe && shoe.material) shoe.material.color.set(0x101014);
+        });
+        // ---- THE PISTOL in the RIGHT hand: a slim barrel out the +X + a muzzle flash ----
+        const gun = new THREE.Group();
+        const grip = BX(0.05, 0.05, 0.1, darkM);
+        grip.position.set(0, -0.02, -0.48);
+        gun.add(grip);
+        const barrel = BX(0.24, 0.05, 0.045, silverM);
+        barrel.position.set(0.14, 0, -0.46);
+        gun.add(barrel);
+        const sight = BX(0.02, 0.035, 0.03, darkM);
+        sight.position.set(0.24, 0.045, -0.46);
+        gun.add(sight);
+        const flash = new THREE.Group();
+        const f1 = BX(0.02, 0.2, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
+        const f2 = BX(0.02, 0.02, 0.2, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
+        flash.add(f1);
+        flash.add(f2);
+        flash.position.set(0.3, 0, -0.46);
+        flash.visible = false;
+        gun.add(flash);
+        parts.armR.add(gun);
+        d.g.userData.mask = mask;
+        d.g.userData.sack = sack;
+        d.g.userData.gun = gun;
+        d.g.userData.flash = flash;
         return d; // { g, legL, legR, armL, armR } with g.userData.parts
       }
       function makeHooker() {
@@ -17893,6 +18278,33 @@
             c.tape = c.data.g.userData.tape;
             c.chain = c.data.g.userData.chain;
             break;
+          case "cop":
+          case "robber": {
+            // Bed-Stuy (Sunday) SHOOTOUT: an NYPD officer and a masked robber crouch behind
+            // street fixtures on the SAME block and trade shots at each other (always missing
+            // each other; only the worker can be grazed). See gunfightAI / fireGun /
+            // updateGunshots for the duel + bullets; collideCreatures does the touch damage.
+            // The spawn (spawnWorld) sets homeX/homeY, blockMinX/blockMaxX, coverX/coverY,
+            // side, foe, gunTag and the shared duel token.
+            c.sp = 0; // static at cover: the AI shuffles him around his fixture
+            c.mode = "cover"; // cover | aim
+            c.gunCd = R(1.4, 2.6); // seconds until this shooter's next shot
+            c.aimT = 0; // windup timer
+            c.shots = []; // in-flight bullets owned by this shooter (see updateGunshots)
+            c.flashT = 0; // muzzle-flash timer
+            c.touchCd = 0; // minor touch-damage cooldown (collideCreatures)
+            c.sayCd = R(0.6, 2.2); // idle taunt timer
+            c.side = 0; // +1 = east side of the block (faces west), -1 = west (faces east)
+            c.homeX = c.wx; // the spawn overwrites both with his real cover spot
+            c.homeY = c.wy;
+            c.coverX = c.wx; // the fixture he hides behind
+            c.coverY = c.wy;
+            c.data = type === "robber" ? makeMaskedRobber() : makeCopOfficer();
+            c.gender = "male";
+            c.gun = c.data.g.userData.gun;
+            c.flash = c.data.g.userData.flash;
+            break;
+          }
           case "skater":
             c.wy = R(4.3, creatureMaxY());
             c.trickT = R(0.4, 1.4);
@@ -18469,6 +18881,27 @@
           t.homeX = t.anchorX + R(-0.4, 0.8);
           t.homeY = clamp(t.anchorY + R(0.6, 1.4), 0.85, creatureMaxY());
         }
+      }
+      // ==================== BED-STUY SHOOTOUT COVER ====================
+      // Solid sidewalk fixtures a shooter can duck behind on a given block: the sidewalk
+      // trees + USPS collection boxes (both registered in b.trees) and the hydrants (a
+      // b.hazards "hit"), plus any curb can. Returns [{ wx, wy, kind }].
+      function bedStuyCoverSpots(blockX) {
+        const spots = [];
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (Math.round(b.blockX) !== Math.round(blockX)) continue;
+          if (b.trees)
+            for (let j = 0; j < b.trees.length; j++)
+              spots.push({ wx: b.trees[j].wx, wy: b.trees[j].wy, kind: "tree" });
+          if (b.hazards)
+            for (let j = 0; j < b.hazards.length; j++)
+              if (b.hazards[j].type === "hit")
+                spots.push({ wx: b.hazards[j].wx, wy: b.hazards[j].wy, kind: "hydrant" });
+          if (b.house && b.house.can && b.house.can.state === "curb")
+            spots.push({ wx: b.house.can.wx, wy: b.house.can.wy, kind: "can" });
+        }
+        return spots;
       }
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
@@ -19734,6 +20167,83 @@
           rp.wy = rp.homeY;
           rp.g.position.set(rp.wx, rp.wy, GZ);
           rp.g.rotation.z = -Math.PI / 2; // facing the street
+        }
+        // Bed-Stuy (Sunday, day 7) SHOOTOUT: ONE NYPD officer + ONE masked robber, on ONE
+        // random active block that IS NOT the football player's block and IS NOT the rapper's
+        // block. They hide behind two street fixtures (a tree, a USPS box, a hydrant, a curb
+        // can). The cop starts at the WEST end, the robber AHEAD of him, and the
+        // chase/retreat AI keeps both moving up the block. They ALWAYS miss each
+        // other - only the worker can get grazed. See gunfightAI / fireGun / updateGunshots..
+        if (isBedStuyLevel()) {
+          const fbC = creatures.find((x) => x.type === "football");
+          const rpC = creatures.find((x) => x.type === "rapper");
+          const takenX = new Set(); // the blocks the other Bed-Stuy NPCs own
+          if (fbC) takenX.add(Math.round(fbC.blockMinX - 6.0)); // back to the block's origin x
+          if (rpC) takenX.add(Math.round(rpC.blockMinX - 6.0));
+          // Pick a block with TWO cover fixtures a good gap apart, never the football/rapper
+          // block (the active shift blocks are shuffled for variety).
+          const pool = [1, 2, 3, 4, 5];
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = (Math.random() * (i + 1)) | 0;
+            const t = pool[i];
+            pool[i] = pool[j];
+            pool[j] = t;
+          }
+          let duelBlock = null,
+            duelSpots = null;
+          for (const bi of pool) {
+            if (takenX.has(LEVEL_BLOCKS[bi].x)) continue;
+            const spots = bedStuyCoverSpots(LEVEL_BLOCKS[bi].x);
+            for (let a = 0; a < spots.length && !duelSpots; a++) {
+              for (let b2 = a + 1; b2 < spots.length; b2++) {
+                const gap = Math.abs(spots[a].wx - spots[b2].wx);
+                if (gap >= GUN_MIN_GAP && gap <= GUN_MAX_GAP) {
+                  duelBlock = LEVEL_BLOCKS[bi];
+                  duelSpots = [spots[a], spots[b2]];
+                  break;
+                }
+              }
+            }
+            if (duelSpots) break;
+          }
+          if (!duelBlock) {
+            // Fallback (no block had a pair of fixtures): two mid-block walk spots.
+            const bi = pool[0];
+            duelBlock = LEVEL_BLOCKS[bi];
+            duelSpots = [
+              { wx: duelBlock.x + 22, wy: 1.4, kind: "stoop" },
+              { wx: duelBlock.x + 22 + 14, wy: 2.6, kind: "stoop" },
+            ];
+          }
+          // The cop starts at the WEST end of the block; the robber starts AHEAD of him
+          // (east). The chase/retreat AI then keeps both moving up the block.
+          const west = duelSpots[0].wx <= duelSpots[1].wx ? duelSpots[0] : duelSpots[1];
+          const east = duelSpots[0].wx <= duelSpots[1].wx ? duelSpots[1] : duelSpots[0];
+          const cop = addCreature("cop");
+          const rob = addCreature("robber");
+          const duel = { turn: "cop" }; // the shared token: whose shot it is
+          [
+            { c: cop, spot: west },
+            { c: rob, spot: east },
+          ].forEach(function (s) {
+            s.c.gunTag = s.c === cop ? "cop" : "robber";
+            s.c.duel = duel;
+            s.c.foe = s.c === cop ? rob : cop;
+            s.c.side = s.spot.wx <= (west.wx + east.wx) / 2 ? -1 : 1;
+            s.c.coverX = s.spot.wx;
+            s.c.coverY = s.spot.wy;
+            s.c.coverKind = s.spot.kind; // which fixture he hides behind (tree -> leaf puffs)
+            s.c.coverMarks = 0; // scorch marks left on his fixture (capped at 8)
+            // Duck BESIDE the fixture (a touch away from the foe) and toward the lane.
+            s.c.homeX = s.spot.wx + (s.c.side < 0 ? 0.7 : -0.7);
+            s.c.homeY = clamp(s.spot.wy + R(0.25, 0.7), 0.9, 4.4);
+            s.c.blockMinX = duelBlock.x + 6.0;
+            s.c.blockMaxX = duelBlock.x + BLOCK_W - 6.0;
+            s.c.wx = s.c.homeX;
+            s.c.wy = s.c.homeY;
+            s.c.g.position.set(s.c.wx, s.c.wy, GZ);
+            s.c.g.rotation.z = s.c.side < 0 ? 0 : Math.PI; // face the foe across the block
+          });
         }
         // Manhattan Pizza Rat: rare NYC street rat carrying a giant slice of pizza
         // on the sidewalk, scurrying along with his prize. 25% chance on Manhattan levels
@@ -21322,6 +21832,55 @@
         "Two-a-days start NOW!",
         "I'm gonna be drafted, watch!",
       ];
+      // ==================== BED-STUY SHOOTOUT: NYPD officer vs masked robber (Sunday, day 7) ====================
+      // A cop and a crook are taking cover on the SAME block, each hiding behind a street
+      // fixture (a sidewalk tree, a USPS collection box, a hydrant, a curb can), and trading
+      // shots at each other across the block. They ALWAYS miss each other (every shot is
+      // aimed past the foe by a GUN_MISS offset, and a bullet can ONLY hit the worker):
+      //   - a graze = HP_HIT_BULLET (a real chunk of health) + "That bullet grazed me!"
+      //   - touching either of them = HP_HIT_SHOOTOUT_TOUCH (minor) + "Interfering with NYPD duty"
+      const HP_HIT_BULLET = 18; // one big health damage: the heaviest single hit in the game
+      const HP_HIT_SHOOTOUT_TOUCH = 3; // a minor nick for shoving past a crouching cop/crook
+      const GUN_TOUCH_CD = 2.0; // per-NPC cooldown so one touch isn't a per-frame drain
+      const GUN_AGGRO_R = 34; // the duel only runs while the worker is this close (no off-screen ammo)
+      const GUN_MIN_GAP = 8; // how far apart the two cover spots must be (some distance)
+      const GUN_MAX_GAP = 26; // ...but not the whole block
+      const GUN_SHOT_SP = 26; // bullet speed (u/s)
+      const GUN_SHOT_Z = 1.32; // shoulder height (the raised gun hand)
+      const GUN_SHOT_LIFE = 1.5; // despawn after this
+      const GUN_MISS_MIN = 1.5; // the guaranteed-miss lateral offset (min) - the bullet passes wide
+      const GUN_MISS_MAX = 3.0; // (max) of the foe
+      const GUN_HURT_R = 0.85; // worker hit radius for a graze
+      const GUN_STUN = 0.55; // a light stun on a graze
+      const GUN_AIM_T = 0.35; // the windup (arm up over the cover) before the shot
+      const GUN_TURN_CD_MIN = 1.1; // min time until the return shot
+      const GUN_TURN_CD_MAX = 2.0; // max time until the return shot
+      const GUN_CHASE_SP = 0.35; // the cop's slow push forward up the block (to apprehend)
+      const GUN_RETREAT_SP = 0.4; // the robber's back-away (a hair faster, so he stays ahead)
+      const GUN_CHASE_GAP = 6; // the spacing the robber keeps between himself and the cop
+      const GUN_EDGE_PAD = 5; // how close to the block's east edge they get
+      const COP_SHOUT_LINES = [
+        "Hands up!",
+        "Put your weapon down!",
+        "NYPD! Come out with your hands up!",
+        "Drop the gun, I said DROP IT!",
+        "This is your LAST warning, pal!",
+      ];
+      const ROBBER_LINES = [
+        "I ain't goin' back to prison!",
+        "Not today cop!",
+        "Come and get me, copper!",
+        "You'll never take me ALIVE!",
+        "This mask's got a future, cop!",
+      ];
+      const BULLET_HIT_LINES = [
+        "That bullet grazed me!",
+        "Ow! It hit my ear!",
+        "Hey! I'm ON THE CLOCK here!",
+      ];
+      const SHOOTOUT_TOUCH_COP_LINES = ["Stand back - police business!", "Clear the sidewalk, citizen!"];
+      const SHOOTOUT_TOUCH_ROBBER_LINES = ["Walk away, this ain't your fight!", "Get outta here, garbage man!"];
+      const SHOOTOUT_TOUCH_WORKER_LINES = ["Ow! I'm just emptyin' cans!", "Easy - I work for the CITY!"];
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
       let teeballShirtQueue = []; // the Staten Island spawn feeds 3 distinct shirts for the tee-ball trio
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
@@ -21659,6 +22218,9 @@
         football: ["Unnecessary Roughness. Fifteen-yard penalty."],
         // --- the Bed-Stuy aspiring rapper: you couldn't dodge the mixtape hustle ---
         rapper: ["Failed to avoid an American Idol"],
+        // --- the Bed-Stuy shootout: caught between the cop and the crook ---
+        cop: ["Interfering with NYPD duty", "Obstructing an Active Investigation", "Failure to Yield to Official Gunfire", "Cross-Examined by Crossfire"],
+        robber: ["Aiding and Abetting a Felony (Allegedly)", "Failure to Flee an Armed Robbery", "Excessive Loitering in a Crime in Progress", "Interviewed by a Suspect (Without Consent)"],
         // --- the sidewalk crowd: every one of them just trying to get to work ---
         ped: [
           "Pestering a pedestrian",
@@ -22865,6 +23427,7 @@
           else if (c.type === "scholar") rad = 0.85; // a solid, walking person
           else if (c.type === "football") rad = 1.2; // a 220-lb kid in full pads is a WALL
           else if (c.type === "rapper") rad = 1.1; // a pushy dude in the way, not a wall
+          else if (c.type === "cop" || c.type === "robber") rad = 0.95; // a crouching shooter with a gun: stay back
           else if (c.type === "escooter") rad = 1.0;
           else if (c.type === "soccer")
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
@@ -23119,6 +23682,27 @@
               spawnDustEffect(p.wx, p.wy);
             }
             return; // not solid: no push-out beyond the shove
+          }
+          if (c.type === "cop" || c.type === "robber") {
+            // ===== BED-STUY SHOOTOUT: touching a crouching cop/crook =====
+            // Minor damage (a shove, not a beatdown) + a "stand back" line, on a
+            // per-NPC cooldown so one touch isn't a frame drain. SOLID: the worker is
+            // pushed back off the shooter. A write-up reads "Interfering with NYPD duty"
+            // (cop) or a robber line (crook), per the shooter's type.
+            if (c.touchCd <= 0) {
+              c.touchCd = GUN_TOUCH_CD;
+              Voice.say(pick(c.type === "cop" ? SHOOTOUT_TOUCH_COP_LINES : SHOOTOUT_TOUCH_ROBBER_LINES), 2.0, R(1.0, 1.2), c.wx, c.wy, c.gender, c.type);
+              Voice.say(pick(SHOOTOUT_TOUCH_WORKER_LINES), 2.0, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+              doStun(0.25, "hit");
+              hurtNPC(HP_HIT_SHOOTOUT_TOUCH, c.type, true); // no generic "Ow!" - the shove line IS the hit
+            }
+            const d = Math.sqrt(d2) || 0.001;
+            const nx = -dx / d,
+              ny = -dy / d;
+            const pen = rad - d;
+            p.wx += nx * (pen + 0.05);
+            p.wy = clamp(p.wy + ny * (pen + 0.05), -9.4, workerMaxY());
+            return;
           }
           if (c.type === "ghost" || c.ghost) {
             // ===== MASPETH CEMETERY GHOST =====
@@ -24342,6 +24926,8 @@
         dog: 1, cat: 1, raccoon: 1, squirrel: 1, leashdog: 1,                // npcRoadRules)
         football: 1, // Bed-Stuy football player: a solid linebacker the crowd routes around
         rapper: 1, // Bed-Stuy rapper: a pushy mixtape hustler the crowd routes around
+        cop: 1, // Bed-Stuy shootout: the crouching NYPD officer
+        robber: 1, // Bed-Stuy shootout: the crouching masked robber
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
         teeball: 1, // Staten Island tee-ball kids: a solid obstacle the crowd routes around
       };
@@ -25056,6 +25642,15 @@
               c.wx = clamp(c.wx, c.blockMinX, c.blockMaxX);
               c.wy = clamp(c.wy, RAP_WY_MIN, RAP_WY_MAX);
               updateRapperTapes(c, dt); // integrate his in-flight mixtapes
+              break;
+            }
+            case "cop":
+            case "robber": {
+              // ===== BED-STUY SHOOTOUT: the NYPD officer + the masked robber =====
+              // All the behavior (turn-taking, the always-miss shots, the bullet
+              // integration) lives in gunfightAI/fireGun/updateGunshots; touch damage
+              // is in collideCreatures. He never leaves his block.
+              gunfightAI(c, dt, p);
               break;
             }
             case "polishboy": {
@@ -29730,6 +30325,8 @@
         else if (speaker === "scholar") cls = "bubble bub-scholar";
         else if (speaker === "football") cls = "bubble bub-football";
         else if (speaker === "rapper") cls = "bubble bub-rapper";
+        else if (speaker === "cop") cls = "bubble bub-cop";
+        else if (speaker === "robber") cls = "bubble bub-robber";
         else cls = "bubble bub-default";
         // POW! burst: the worker's "OW!" hit lines (driveway-tricycle lunge,
         // hydrant shin-bonk, pitbull bite...) and anything explicitly flagged
