@@ -91,6 +91,10 @@ check('leashdog (animal) -> neutral', addCreature('leashdog').gender === null);
 // --- builders ---
 const j = makeJacker();
 check('jacker: builds a group with parts + hammer', !!j.userData.parts && !!j.userData.hammer && j.children.length >= 4, 'children=' + j.children.length);
+check('jacker: jackhammer body + motor are VERTICAL (cylinder axis rotated Y -> Z, not lying flat on the ground)',
+  (() => { const kids = j.userData.hammer.children.filter((c) => c.geometry && c.geometry.r1 !== undefined);
+    return kids.length >= 2 && kids.slice(0, 2).every((c) => Math.abs(Math.abs(c.rotation.x) - Math.PI / 2) < 1e-3); })(),
+  JSON.stringify(j.userData.hammer.children.slice(0, 2).map((c) => c.rotation.x)));
 const h = makeHooker();
 check('hooker: builds with parts', !!h.userData.parts && h.children.length >= 6, 'children=' + h.children.length);
 const pg = makePolishGirl();
@@ -162,8 +166,9 @@ check('chain: worker already inside reach -> dog can reach them', out[0] === 0.5
 
 // --- the player's bump lines are wired in collideCreatures ---
 // (Prettier reformatted the Voice.say calls onto multi-line form and pushed the bump block
-//  deeper into the function, so the slice window is wider than the original 4000 chars)
-const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 28000);
+//  deeper into the function, so the slice window must stay wider than the bump lines sit --
+//  re-widened from 28000 when the skater/escooter lines pushed past it)
+const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 40000);
 check('bump line: hooker -> "Conducting business, hon."', bumpSec.indexOf('"Conducting business, hon."') >= 0);
 check('bump line: skater -> "Whoa! Like, watch it, bro!"', bumpSec.indexOf('Whoa! Like, watch it, bro!') >= 0);
 check("bump line: escooter -> \"I'm calling a lawyer!\"", bumpSec.indexOf("I'm calling a lawyer!") >= 0);
