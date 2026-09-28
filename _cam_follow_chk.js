@@ -70,7 +70,7 @@ check('CAM_PIVOT_WORKER toggle exists and defaults to FALSE (the smoothed follow
   /const CAM_PIVOT_WORKER = false;/.test(h));
 check('worker-pivot branch preserved behind the toggle (orbits + looks at the LIVE worker world position)',
   pcSrc.indexOf('if (CAM_PIVOT_WORKER) {') >= 0 &&
-  pcSrc.indexOf('camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, eyeZ);') >= 0 &&
+  pcSrc.indexOf('camera.position.set(plWx + ARM_D * si - camXOff, plWy - ARM_D * co, eyeZ);') >= 0 &&
   pcSrc.indexOf('camera.lookAt(plWx, plWy, 0);') >= 0);
 check('follow-point branch is the active path (pan + lead/lag around the lagged position)',
   pcSrc.indexOf('c45 * (camFollowX - camFollowY)') >= 0 &&
@@ -87,8 +87,8 @@ check('analog stick compensation rotates by the SAME base angle (screen-aligned 
   h.indexOf('const rl = c * ((ct + st) * f + (ct - st) * l);') >= 0);
 check('routeEnd truck off-screen test projects onto the rotated screen axis (cos/sin of CAM_ANGLE_OFFSET)',
   h.indexOf('(rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET)') >= 0);
-check('hopper zoom: constants present (0.86 in, 1.06 out, 10u fade, 2.5 ease + 12% lift / 8% dip)',
-  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_OUT = 1\.06;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h) && /const CAM_H_LIFT = 0\.12;/.test(h) && /const CAM_H_DIP = 0\.08;/.test(h));
+check('hopper zoom: constants present (0.86 in, 1.06 out, 10u fade, 2.5 ease + 12% lift / 8% dip + 1.0u drift @ 1.5 ease + 10u sun dip)',
+  /const CAM_ZOOM_IN = 0\.86;/.test(h) && /const CAM_ZOOM_OUT = 1\.06;/.test(h) && /const CAM_ZOOM_DIST = 10;/.test(h) && /const CAM_ZOOM_SMOOTH = 2\.5;/.test(h) && /const CAM_H_LIFT = 0\.12;/.test(h) && /const CAM_H_DIP = 0\.08;/.test(h) && /const CAM_X_LIFT = 1\.0;/.test(h) && /const CAM_X_SMOOTH = 1\.5;/.test(h) && /const SUN_DIP = 10;/.test(h));
 check('hopper zoom: base frustum captured on init + resize (zoom scales FROM the un-zoomed frustum)',
   (h.match(/_baseFrustum = f;/g) || []).length >= 2);
 check('hopper zoom: positionCamera measures the worker->hopper distance and scales the ortho frustum',
@@ -97,11 +97,19 @@ check('hopper zoom: positionCamera measures the worker->hopper distance and scal
 check('hopper angle: eye height rides the eased zoom factor (lifts far / dips close, base ARM_H without a truck)',
   pcSrc.indexOf('CAM_ZOOM_OUT - CAM_ZOOM_IN') >= 0 &&
   pcSrc.indexOf('CAM_H_DIP') >= 0 && pcSrc.indexOf('CAM_H_LIFT') >= 0 &&
-  pcSrc.indexOf('camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, eyeZ);') >= 0);
+  pcSrc.indexOf('camera.position.set(camTX + ARM_D * si - camXOff, camTY - ARM_D * co, eyeZ);') >= 0);
+check('hopper drift: the eye slides left with the lift (CAM_X_LIFT * zt in BOTH branches, no-truck = 0)',
+  pcSrc.indexOf('CAM_X_LIFT * zt') >= 0 &&
+  (pcSrc.match(/- camXOff, /g) || []).length === 2);
+check('hopper drift: dolly trail uses its OWN slower time constant (CAM_X_SMOOTH exp ease, frozen at dt=0)',
+  pcSrc.indexOf('Math.exp(-CAM_X_SMOOTH * (dt || 0))') >= 0 &&
+  h.indexOf('let camXSmooth = 0;') >= 0);
+check('shadow light: the sun dips with the same factor (58 - SUN_DIP * zt, truck-less stays at 58)',
+  pcSrc.indexOf('58 - SUN_DIP * zt') >= 0);
 check('hopper zoom: guarded so the sandbox / menu (no truck) skips it (typeof truck)',
   pcSrc.indexOf('typeof truck !== "undefined"') >= 0);
-check('hopper zoom: reset on a fresh shift (starts zoomed in at the truck)',
-  h.indexOf('camZoom = CAM_ZOOM_IN; _camZoomApplied = 0;') >= 0);
+check('hopper zoom: reset on a fresh shift (starts zoomed in at the truck + drift reset)',
+  h.indexOf('camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; camXSmooth = 0;') >= 0);
 
 // ================= run the real code with real three =================
 const snapCode = grab('const _SNAP_FWD = new THREE.Vector3', 'const _SNAP_TEXEL_U = 48 / 4096;');
@@ -309,7 +317,7 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
     'THREE', 'camera', 'dirLight', 'groundGroup', 'p', 'clamp', 'ISO_A', 'CAM_Y',
     'truck', 'hopperAimX', 'hopperWorldY',
     'let state = "play";\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
-    '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; } };',
+    '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; }, getCamXSmooth: () => camXSmooth, getCamZoom: () => camZoom };',
   )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0,
     truck2,
     () => truck2.wx + (truck2.hopperAimOff != null ? truck2.hopperAimOff : -4.3),
@@ -323,6 +331,10 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
     Math.abs(farScale - 1.06) < 0.01, String(farScale));
   check('hopper angle: far from the truck the eye RISES to ARM_H * 1.12 (29.12, more top-down)',
     Math.abs(farEyeZ - 26 * 1.12) < 0.05, String(farEyeZ));
+  check('hopper drift: far the eye is shifted LEFT by CAM_X_LIFT (baseline x = c45*(40 - 5.5))',
+    Math.abs(camera.position.x - (Math.SQRT1_2 * (40 - 5.5) - 1.0)) < 0.05, String(camera.position.x));
+  check('shadow light: far the sun DIPS to z = 58 - SUN_DIP (48 -> longer shadows)',
+    Math.abs(dirLight.position.z - 48) < 0.05, String(dirLight.position.z));
   p.wx = truck2.wx - 4.3; p.wy = -4.5; // right at the back of the truck (the hopper)
   for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60);
   const nearScale = camera.top / baseF.t;
@@ -331,6 +343,21 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
     Math.abs(nearScale - 0.86) < 0.01, String(nearScale));
   check('hopper angle: at the hopper the eye DIPS to ARM_H * 0.92 (23.92, a lower angle)',
     Math.abs(nearEyeZ - 26 * 0.92) < 0.05, String(nearEyeZ));
+  check('hopper drift: at the hopper the eye is back at baseline x (slides right as it lowers)',
+    Math.abs(camera.position.x - Math.SQRT1_2 * (35.7 - -0.275)) < 0.05, String(camera.position.x));
+  check('shadow light: at the hopper the sun is back at base z = 58 (short shadows)',
+    Math.abs(dirLight.position.z - 58) < 0.05, String(dirLight.position.z));
+  // DOLLY TRAIL: from the settled dip, jump far -- the height factor (zt) reacts
+  // this frame while the x-slide (camXSmooth, slower ease) must clearly lag it.
+  p.wx = 40; p.wy = 30;
+  zoomApi.positionCamera(1 / 60);
+  const zt1 = (zoomApi.getCamZoom() - 0.86) / (1.06 - 0.86);
+  const x1 = zoomApi.getCamXSmooth();
+  check('hopper drift: DOLLY TRAIL -- one frame after the jump the height factor moved >4x the x-slide',
+    zt1 > 0.02 && x1 > 0 && zt1 > 4 * x1, 'zt=' + zt1.toFixed(3) + ' x=' + x1.toFixed(3));
+  for (let i = 0; i < 300; i++) zoomApi.positionCamera(1 / 60); // re-settle far
+  check('hopper drift: the x-slide CATCHES UP to full CAM_X_LIFT once settled',
+    Math.abs(zoomApi.getCamXSmooth() - 1.0) < 0.01, String(zoomApi.getCamXSmooth()));
   check('hopper zoom: near the hopper is strictly tighter than far away (a real push-in)',
     nearScale < farScale - 0.05, 'near=' + nearScale + ' far=' + farScale);
   check('hopper angle: the far eye is strictly HIGHER than the near eye (rise out / dip in)',

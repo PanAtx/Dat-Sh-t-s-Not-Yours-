@@ -2347,7 +2347,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.319</div>
+          <div id="app-version" class="menu-version">v1.0.320</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2503,7 +2503,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.319';
+      const APP_VERSION = '1.0.320';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2683,8 +2683,12 @@
       // DIPS a little lower (a closer, lower angle).
       const CAM_H_LIFT = 0.12; // fully zoomed out: eye at ARM_H * 1.12 (+12% higher)
       const CAM_H_DIP = 0.08; // at the hopper: eye at ARM_H * 0.92 (-8% lower)
+      const CAM_X_LIFT = 1.0; // lateral eye shift (world units, screen LEFT) at full lift -- as the camera rises it drifts left, and slides back right as it lowers
+      const CAM_X_SMOOTH = 1.5; // DOLLY TRAIL: the drift eases SLOWER than the height (2.5 -> 1.5 time-constant) so the slide lags the rise a beat, like a camera dolly
+      const SUN_DIP = 10; // shadow-light z eases 58 -> 48 as the camera rises (lower sun = longer shadows, matches the new vantage)
       let camZoom = CAM_ZOOM_IN; // smoothed frustum scale (starts zoomed in -- a fresh shift begins at the truck)
       let _camZoomApplied = 0; // last frustum scale we wrote (skip redundant projection updates)
+      let camXSmooth = 0; // smoothed lateral drift (the dolly-trail lag on the rise)
       let _baseFrustum = null; // base (un-zoomed) ortho frustum; set on init + resize
       let _lanePrevWy = 0; // previous frame's p.wy (for the velocity measurement)
       const JACKER_FACE_SE = -Math.PI / 2; // the CONSTRUCTION WORKER (the jackhammer guy, the 'jacker' NPC)
@@ -20446,7 +20450,7 @@
         p.wx = PLAYER_START_X;
         p.wy = 2.5;
         camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; // the camera's follow state resets with the worker (no stale lag/velocity leaking into the new shift)
-        camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; // fresh shift starts at the truck: reset the hopper zoom (force a frustum rewrite next frame)
+        camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; camXSmooth = 0; // fresh shift starts at the truck: reset the hopper zoom + drift (force a frustum rewrite next frame)
         p.stunT = 0;
         p.invuln = 0;
         p.immuneT = 0;
@@ -31294,6 +31298,25 @@
         // +/-45 frustum half-size.
         const plWx = c45 * (p.wx - p.wy);
         const plWy = c45 * (p.wx + p.wy);
+        // ---- HOPPER FACTOR (shared by the shadow light, the eye HEIGHT and the
+        // lateral drift below): 0 at the hopper (dipped / right) -> 1 far away
+        // (raised / left). No truck -> camZoom rests at CAM_ZOOM_IN -> zt = 0,
+        // so the truck-less framing + light are byte-identical to before.
+        const zt = clamp(
+          (camZoom - CAM_ZOOM_IN) / (CAM_ZOOM_OUT - CAM_ZOOM_IN),
+          0,
+          1,
+        );
+        // ---- HOPPER DRIFT (dolly trail): the eye slides LEFT (world -X) as it
+        // rises and back RIGHT as it lowers -- target CAM_X_LIFT * zt, eased
+        // with its OWN slower time constant (CAM_X_SMOOTH < CAM_ZOOM_SMOOTH) so
+        // the slide lags the rise a beat, like a camera dolly. dt = 0 (menu /
+        // pause) freezes it exactly like the other smoothers.
+        camXSmooth +=
+          ((typeof truck !== "undefined" && truck ? CAM_X_LIFT * zt : 0) -
+            camXSmooth) *
+          (1 - Math.exp(-CAM_X_SMOOTH * (dt || 0)));
+        const camXOff = camXSmooth;
         // ---- Shadow snapping ----
         // The light moves with the player every frame, so the shadow map is re-rendered from
         // a slightly different angle every frame. Shadow edges then "swim" across the grass —
@@ -31308,7 +31331,7 @@
         const tus = Math.round(tu / _SNAP_TEXEL_U) * _SNAP_TEXEL_U;
         const snappedX = _SNAP_R.x * trs + _SNAP_U.x * tus;
         const snappedY = _SNAP_R.y * trs + _SNAP_U.y * tus;
-        dirLight.position.set(snappedX - 25, snappedY + 28, 58);
+        dirLight.position.set(snappedX - 25, snappedY + 28, 58 - SUN_DIP * zt); // sun dips 10u as the camera rises -> shadows stretch (see SUN_DIP)
         dirLight.target.position.set(snappedX, snappedY, 0);
         dirLight.shadow.camera.updateProjectionMatrix(); // refresh ortho frustum after moving the light
         // The ground is now a FIXED route (blocks + intersections) at absolute positions,
@@ -31368,16 +31391,11 @@
         const ang = yaw + CAM_ANGLE_OFFSET;
         const co = Math.cos(ang),
           si = Math.sin(ang);
-        // ---- HOPPER ANGLE: the eye HEIGHT rides the same eased zoom factor as
-        // the frustum -- t = 0 at the hopper (low, close angle: ARM_H * 0.92),
-        // t = 1 far away (raised, more top-down: ARM_H * 1.12). Without a truck
-        // (menu / test sandbox) the eye stays at the exact base ARM_H, so the
-        // truck-less framing is byte-identical to before.
-        const zt = clamp(
-          (camZoom - CAM_ZOOM_IN) / (CAM_ZOOM_OUT - CAM_ZOOM_IN),
-          0,
-          1,
-        );
+        // ---- HOPPER ANGLE: the eye HEIGHT rides the eased zoom factor (zt,
+        // computed above with the shadow light): 0 at the hopper (low, close
+        // angle: ARM_H * 0.92), 1 far away (raised, more top-down: ARM_H * 1.12).
+        // Without a truck (menu / test sandbox) the eye stays at the exact base
+        // ARM_H, so the truck-less framing is byte-identical to before.
         const eyeZ =
           typeof truck !== "undefined" && truck
             ? ARM_H * (1 - CAM_H_DIP + (CAM_H_LIFT + CAM_H_DIP) * zt)
@@ -31387,7 +31405,7 @@
           // position (plWx/plWy, computed for the shadow light at the top of this
           // function) -- the whole street swivels around HIM, exactly, every frame.
           // No lateral pan, no forward lead/lag: he IS the rotation point.
-          camera.position.set(plWx + ARM_D * si, plWy - ARM_D * co, eyeZ);
+          camera.position.set(plWx + ARM_D * si - camXOff, plWy - ARM_D * co, eyeZ);
           camera.up.set(0, 0, 1);
           camera.lookAt(plWx, plWy, 0);
         } else {
@@ -31395,7 +31413,7 @@
           // (camFollowX) around the lagged position.
           const camTX = c45 * (camFollowX - camFollowY);
           const camTY = c45 * (camFollowX + camFollowY);
-          camera.position.set(camTX + ARM_D * si, camTY - ARM_D * co, eyeZ);
+          camera.position.set(camTX + ARM_D * si - camXOff, camTY - ARM_D * co, eyeZ);
           camera.up.set(0, 0, 1);
           camera.lookAt(camTX, camTY, 0);
         }
