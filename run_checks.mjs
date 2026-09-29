@@ -21,6 +21,7 @@ const suites = [
   ['powerup spawn ahead (visible + reachable)', 'node', '_powerup_spawn_chk.js'],
   ['delivery cyclist + L1 tuning', 'node', '_delivery_cyclist_chk.js'],
   ['traffic negotiation (knot fix)', 'node', '_traffic_nego_chk.js'],
+  ['slapstick + weather (squash-stretch / hat pop / bag cascade / rain)', 'node', '_slapstick_weather_chk.js'],
 ];
 
 let allPass = true;

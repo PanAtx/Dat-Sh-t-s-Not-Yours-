@@ -120,8 +120,8 @@ check('hopper drift: the eye slides left with the lift (CAM_X_LIFT * zt in BOTH 
 check('hopper drift: dolly trail uses its OWN slower time constant (CAM_X_SMOOTH exp ease, frozen at dt=0)',
   pcSrc.indexOf('Math.exp(-CAM_X_SMOOTH * (dt || 0))') >= 0 &&
   h.indexOf('let camXSmooth = 0;') >= 0);
-check('shadow light: the sun dips with the same factor (58 - SUN_DIP * zt, truck-less stays at 58)',
-  pcSrc.indexOf('58 - SUN_DIP * zt') >= 0);
+check('shadow light: the sun dips with the same factor (SUN_Z0 - SUN_DIP * zt; sunny default SUN_Z0 = 58)',
+  pcSrc.indexOf('SUN_Z0 - SUN_DIP * zt') >= 0 && h.indexOf('SUN_Z0 = 58') >= 0);
 check('hopper zoom: guarded so the sandbox / menu (no truck) skips it (typeof truck)',
   pcSrc.indexOf('typeof truck !== "undefined"') >= 0);
 check('hopper zoom: reset on a fresh shift (starts zoomed in at the truck + drift reset)',

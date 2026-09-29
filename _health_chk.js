@@ -148,7 +148,7 @@ function showDownText(){ downTexts.push('LODI'); }
 let dying = null;   // the out-of-health down-sequence state (startDyingSequence assigns it)
 let complaints = 0; // supervisor write-ups (addWriteUp closes over this)
 // finishDying() dependencies: worker rig + parts + HUD (the real function runs against these)
-const worker = { group: { quaternion: { identity(){} }, rotation: { set(){} }, position: { set(){} } } };
+const worker = { group: { quaternion: { identity(){} }, rotation: { set(){} }, position: { set(){} }, scale: { set(){} } } };
 const wparts = { legL: { rotation: { set(){} } }, legR: { rotation: { set(){} } }, armL: { rotation: { set(){} } }, armR: { rotation: { set(){} } } };
 function updateHUD(){}
 
@@ -419,21 +419,23 @@ check('dog-shit slow: applied to walk + strafe ONLY while the shoe-print trail r
 
 // ===== 15) Monster energy drink is score-triggered, spawned near the player =====
 check('Monster energy spawns every $' + MONSTER_SCORE_STEP + ' of score (should be 30000)', MONSTER_SCORE_STEP === 30000);
-check('spawnMonsterNearPlayer drops a Monster AHEAD of the worker on the sidewalk / front lawn (visible, never on top)', (function(){
+check('spawnMonsterNearPlayer drops a Monster in the worker\'s forward window, snapped to a house cell (walkable wy)', (function(){
   reset();
   p.wx = 300; p.wy = 2.5;
   const before = powerups.length;
   spawnMonsterNearPlayer();
   const m = powerups[powerups.length - 1];
-  return powerups.length === before + 1 && m.type === 'monster' && m.wx >= p.wx + 2.0 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
+  // the house-cell snap may pull the spawn up to ~3u back (nearest cell, front-of-house offset),
+  // so the contract is "in the forward window" — never behind him by more than a house cell.
+  return powerups.length === before + 1 && m.type === 'monster' && m.wx >= p.wx - 4 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
 })());
-check('spawnHealerNearPlayer drops a coffee/BEC AHEAD of the worker (visible, never on top)', (function(){
+check('spawnHealerNearPlayer drops a coffee/BEC in the worker\'s forward window (walkable wy)', (function(){
   reset();
   p.wx = 300; p.wy = 2.5;
   const before = powerups.length;
   spawnHealerNearPlayer();
   const m = powerups[powerups.length - 1];
-  return powerups.length === before + 1 && (m.type === 'coffee' || m.type === 'bec') && m.wx >= p.wx + 2.0 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
+  return powerups.length === before + 1 && (m.type === 'coffee' || m.type === 'bec') && m.wx >= p.wx - 4 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
 })());
 
 SFX.playTossSound = function(){ sfx.push('toss'); };

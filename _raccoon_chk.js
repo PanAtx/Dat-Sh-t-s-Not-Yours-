@@ -27,6 +27,8 @@ const creatures = [];
 let carry = 'none', carried = null;
 let drops = 0;
 function dropCarried(){ drops++; carry = 'none'; carried = null; }
+const cash = [];
+function awardPrankPoints(n, wx, wy){ cash.push(n); }
 const voice = [];
 const Voice = { say(text, gap, pitch, bx, by, gender){ voice.push({ text: text, pitch: pitch, bx: bx, by: by, gender: gender }); } };
 const WORKER_GENDER = 'male';
@@ -79,6 +81,20 @@ check('squirrel snark is spoken BY the worker (gender = WORKER_GENDER)', sqLine 
 check('squirrel snark is located at the WORKER, not the squirrel', sqLine && Math.abs(sqLine.bx - p.wx) < 1e-9 && Math.abs(sqLine.by - p.wy) < 1e-9, sqLine ? JSON.stringify({ bx: sqLine.bx, by: sqLine.by }) : 'no line');
 check('squirrel bump -> worker trips (stunned > 0)', p.stunT > 0, 'stunT=' + p.stunT);
 check('squirrel still flees', sq.flee > 0, 'flee=' + sq.flee);
+check('chasing the squirrel pays +10 street cash', cash.indexOf(10) >= 0, JSON.stringify(cash));
+
+// ===== 2b) the squirrel snark ROTATES: 3 fresh chases -> 3 distinct lines =====
+reset();
+p.sqLine = 0; // fresh worker
+for (let i = 0; i < 3; i++) {
+  p.stunT = 0; // the trip stun from the last chase must not block the next bump
+  nearCreature('squirrel', p.wx + 0.3, p.wy);
+  collideCreatures();
+  creatures.length = 0; // one chase at a time
+}
+const allLines = voice.map(function(v){ return v.text; });
+check('first chase keeps the ORIGINAL line', allLines[0] === 'Gimme that nut, squirrel!', JSON.stringify(allLines));
+check('repeat chases rotate through 3 distinct snark lines', allLines.length === 3 && new Set(allLines).size === 3, JSON.stringify(allLines));
 
 // ===== 3) the rat still yells "Eeek!" (regression) =====
 reset();

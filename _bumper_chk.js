@@ -96,6 +96,8 @@ const animalBlock = html.slice(animalIdx, html.indexOf("} else {", animalIdx));
 check("the animal branch does NOT call hurtNPC (no damage)", animalBlock.indexOf("hurtNPC") < 0);
 check("raccoon keeps its flee + trip (unchanged)", animalBlock.indexOf("c.flee = 2.2") >= 0 && animalBlock.indexOf('doStun(0.7, "trip")') >= 0);
 check("squirrel keeps its trip (unchanged)", animalBlock.indexOf('doStun(0.5, "trip")') >= 0);
+check("chasing the squirrel pays +10 STREET CASH via awardPrankPoints", animalBlock.indexOf("awardPrankPoints(10, p.wx, p.wy)") >= 0);
+check("squirrel snark ROTATES (3 lines, counter on the worker)", animalBlock.indexOf("Get back here with MY acorn!") >= 0 && animalBlock.indexOf("p.sqLine = (p.sqLine || 0) % SQUIRREL_LINES.length") >= 0);
 
 console.log("[4] write-up reasons for the sidewalk crowd");
 const wrS = html.indexOf("const WRITEUP_REASONS = {");
