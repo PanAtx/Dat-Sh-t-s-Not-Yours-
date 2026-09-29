@@ -21,9 +21,9 @@ function extractFn(name){
   return src.slice(idx, i + 1);
 }
 function getNumConst(name){
-  const m = src.match(new RegExp('const ' + name + ' = (\\d+);'));
+  const m = src.match(new RegExp('const ' + name + ' = (\\d+(?:\\.\\d+)?);'));
   if (!m) throw new Error('const ' + name + ' not found in index.html');
-  return parseInt(m[1], 10);
+  return parseFloat(m[1]);
 }
 
 // ---- THREE primitive helpers (mirror index.html) ----
@@ -168,7 +168,9 @@ eval(extractFn('snapToHouseCell'));
 eval(extractFn('spawnPowerup'));
 eval(extractFn('powerupCounts'));
 eval(extractFn('spawnPowerups'));
+eval(extractFn('spawnPowerupAhead'));
 eval(extractFn('spawnMonsterNearPlayer'));
+eval(extractFn('spawnHealerNearPlayer'));
 eval(extractFn('consumePowerup'));
 eval(extractFn('updatePowerups'));
 eval(extractFn('spawnStars'));
@@ -369,24 +371,26 @@ const starCount = starParticles.length;
 for (let f = 0; f < 60; f++) updateStarParticles(1 / 30);
 check('star burst updates without throwing and expires over time', starCount > 0 && starParticles.length === 0);
 
-// ===== 11) only the healers are pre-placed at level start (coffee + BEC, one each) =====
+// ===== 11) nothing is pre-placed at level start (healers are street-cash milestones) =====
 const c0 = powerupCounts(0);
-check('level start pre-places exactly 1 coffee + 1 BEC', c0.coffee === 1 && c0.bec === 1);
+check('level start pre-places NO healers (coffee/BEC are $5k street-cash milestones only)', c0.coffee === 0 && c0.bec === 0);
 check('no Monster is pre-placed at level start (it is score-triggered)', (c0.monster || 0) === 0);
 
-// ===== 12) spawnPowerups() places coffee (mid) + BEC (end) in the back half =====
+// ===== 12) spawnPowerups() pre-places nothing; healers come from street-cash milestones =====
 reset();
 spawnPowerups(0);
-check('spawnPowerups places exactly 2 healers (coffee + BEC)', powerups.length === 2);
-check('both healers have a 3D model on the sidewalk / front lawn', powerups.every(function(b){ return (b.type === 'coffee' || b.type === 'bec') && b.g && b.g.children.length > 0 && b.wy >= 0.5 && b.wy <= 7.0; }));
-const _types = powerups.map(function(b){ return b.type; });
-check('one coffee and one BEC are placed', _types.indexOf('coffee') >= 0 && _types.indexOf('bec') >= 0);
-const _span = ROUTE_FINISH_X - ROUTE_START_X;
-const _coffee = powerups.filter(function(b){ return b.type === 'coffee'; })[0];
-const _bec = powerups.filter(function(b){ return b.type === 'bec'; })[0];
-check('coffee spawns in the middle/back of the level (past 35% of the route)', _coffee.wx >= ROUTE_START_X + _span * 0.35);
-check('BEC spawns in the back half, near the end (past 60% of the route)', _bec.wx >= ROUTE_START_X + _span * 0.60);
-check('both healers sit on the route (start..finish)', _coffee.wx >= ROUTE_START_X && _coffee.wx <= ROUTE_FINISH_X && _bec.wx >= ROUTE_START_X && _bec.wx <= ROUTE_FINISH_X);
+check('spawnPowerups pre-places NOTHING (the coffee seen mid-route was the old pre-place bug)', powerups.length === 0);
+check('healer milestone: every $5,000 street cash drops a coffee/BEC near the worker (shared check)',
+  src.indexOf('function checkHealerMilestone()') >= 0 &&
+  /function checkHealerMilestone\(\)\s*\{[\s\S]{0,200}bonusTally >= healerNextAt[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,80}healerNextAt \+= POWERUP_CASH_STEP;/.test(src));
+check('healer milestone fires from BOTH addScore (mongo/cash/treasure) and addStreetCash (pranks)',
+  (function(){
+    const as = src.slice(src.indexOf('function addScore('), src.indexOf('function ', src.indexOf('function addScore(') + 12));
+    const ac = src.slice(src.indexOf('function addStreetCash('), src.indexOf('function ', src.indexOf('function addStreetCash(') + 16));
+    return as.indexOf('checkHealerMilestone()') >= 0 && ac.indexOf('checkHealerMilestone()') >= 0;
+  })());
+check('healers spawn ONLY via spawnHealerNearPlayer (coffee/BEC, never pre-placed)',
+  /function spawnHealerNearPlayer\(\)[\s\S]{0,300}"coffee" : "bec"/.test(src) && src.indexOf('const POWERUP_CASH_STEP = 5000') >= 0);
 
 // ===== 13) updatePowerups() consumes on contact + cleans up items driven past =====
 reset();
@@ -403,17 +407,33 @@ check('a pickup well behind the worker is recycled out of the world', powerups.l
 check('NPC hits are kept light & fair (vehicle ' + HP_HIT_VEHICLE + ', hazard ' + HP_HIT_HAZARD + ' <= 10)', HP_HIT_VEHICLE <= 10 && HP_HIT_HAZARD <= 10);
 check('a hazard nick is no worse than a vehicle run-over', HP_HIT_HAZARD <= HP_HIT_VEHICLE);
 check('Monster immunity is a long rush (>= 10s): ' + POWERUP_IMMUNE_DUR + 's', POWERUP_IMMUNE_DUR >= 10);
-check('healers are scarce: 1 coffee + 1 BEC pre-placed (was 3 of each)', powerupCounts(0).coffee <= 1 && powerupCounts(0).bec <= 1);
+check('healers are milestone-only: nothing pre-placed (the coffee at $3k was the pre-place bug)', powerupCounts(0).coffee === 0 && powerupCounts(0).bec === 0);
+check('dog-shit slow: POOP_SLOW_MULT is a real slowdown (0 < mult < 1)', (function(){
+  const m = getNumConst('POOP_SLOW_MULT');
+  return m > 0 && m < 1;
+})());
+check('dog-shit slow: applied to walk + strafe ONLY while the shoe-print trail runs (poopSteps > 0)',
+  /const poopSlow = p\.poopSteps > 0 \? POOP_SLOW_MULT : 1;/.test(src) &&
+  /f \* PLAYER_SPEED \* \(f < 0 \? 0\.75 : 1\) \* immuneBoost \* poopSlow \* dt/.test(src) &&
+  /lat \* LAT_SPEED \* immuneBoost \* poopSlow \* dt/.test(src));
 
 // ===== 15) Monster energy drink is score-triggered, spawned near the player =====
-check('Monster energy spawns every $' + MONSTER_SCORE_STEP + ' of score (should be 5000)', MONSTER_SCORE_STEP === 5000);
-check('spawnMonsterNearPlayer drops a Monster near the worker on the sidewalk / front lawn', (function(){
+check('Monster energy spawns every $' + MONSTER_SCORE_STEP + ' of score (should be 30000)', MONSTER_SCORE_STEP === 30000);
+check('spawnMonsterNearPlayer drops a Monster AHEAD of the worker on the sidewalk / front lawn (visible, never on top)', (function(){
   reset();
   p.wx = 300; p.wy = 2.5;
   const before = powerups.length;
   spawnMonsterNearPlayer();
   const m = powerups[powerups.length - 1];
-  return powerups.length === before + 1 && m.type === 'monster' && Math.abs(m.wx - p.wx) <= 16 && m.wy >= 0.5 && m.wy <= 7.0;
+  return powerups.length === before + 1 && m.type === 'monster' && m.wx >= p.wx + 2.0 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
+})());
+check('spawnHealerNearPlayer drops a coffee/BEC AHEAD of the worker (visible, never on top)', (function(){
+  reset();
+  p.wx = 300; p.wy = 2.5;
+  const before = powerups.length;
+  spawnHealerNearPlayer();
+  const m = powerups[powerups.length - 1];
+  return powerups.length === before + 1 && (m.type === 'coffee' || m.type === 'bec') && m.wx >= p.wx + 2.0 && m.wx <= p.wx + 16 && m.wy >= 0.5 && m.wy <= 7.0;
 })());
 
 SFX.playTossSound = function(){ sfx.push('toss'); };

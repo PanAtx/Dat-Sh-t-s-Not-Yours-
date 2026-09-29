@@ -17,6 +17,10 @@ const suites = [
   ['pickups compressed (BEC / Red Bull / car / coffee)', 'node', '_pickup_compressed_chk.mjs'],
   ['render resolution (retro low-res)', 'node', '_render_res_chk.js'],
   ['camera lane follow (subtle 3D)', 'node', '_cam_follow_chk.js'],
+  ['piss bottle kick + stain', 'node', '_piss_kick_chk.js'],
+  ['powerup spawn ahead (visible + reachable)', 'node', '_powerup_spawn_chk.js'],
+  ['delivery cyclist + L1 tuning', 'node', '_delivery_cyclist_chk.js'],
+  ['traffic negotiation (knot fix)', 'node', '_traffic_nego_chk.js'],
 ];
 
 let allPass = true;

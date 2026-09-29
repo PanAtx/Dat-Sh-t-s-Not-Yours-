@@ -45,7 +45,7 @@ const carKeepout = null; // parked-sedan no-spawn rect (null outside Staten Isla
 const state = 'play';
 const Voice = { say(){} };
 const npcRoadRules = () => 0, animParts = () => {}, spawnGravelBits = () => {}, spawnDustEffect = () => {};
-const separateVehicles = () => {}, resolveTruckCollisions = () => {}, clampRoadVehicles = () => {};
+const separateVehicles = () => {}, resolveTruckCollisions = () => {}, clampRoadVehicles = () => {}, negotiateTraffic = () => {};
 const blocks = [];                        // no houses in this isolated skater test
 const stepTopAt = (wx, wy) => GZ;         // the skater sits on flat curb/sidewalk — no raised step under it
 // level predicates — general-borough stubs so the extracted creatureMaxY() uses its 7.5 lawn cap
@@ -78,3 +78,4 @@ check('rider CROUCHES first: dip z ' + riderDip.toFixed(2) + ' (below GZ)', ride
 check('arms swing for balance: ' + armSwing.toFixed(2), armSwing >= 0.5);
 console.log(pass ? '\nSKATER RUNTIME ANIMATION PROVEN (real game code)' : '\nSKATER RUNTIME ANIMATION BROKEN');
 process.exit(pass ? 0 : 1);
+

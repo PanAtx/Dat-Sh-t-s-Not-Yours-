@@ -1691,6 +1691,10 @@
       .bubble.bub-default {
         background: #fff5d0;
       } /* cream (fallback) */
+      .bubble.bub-score {
+        background: #9ef0b2;
+        color: #0c3a1a;
+      } /* score bubble: "+10 points" pop-up (bottle kick / cat play / cone knock) */
       .bubble::after {
         content: "";
         position: absolute;
@@ -2347,7 +2351,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.321</div>
+          <div id="app-version" class="menu-version">v1.0.322</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2503,7 +2507,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.321';
+      const APP_VERSION = '1.0.322';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND in-game (the HUD bottom-left tag
@@ -2760,7 +2764,7 @@
         { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY", special: "STORM DEBRIS SUNDAY! DOUBLE TIME!" },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
-      const START_LEVEL = 7; // which day a fresh week begins on (7 = Sunday, Brooklyn / Bed-Stuy). TEMP: set to 7 to develop level 7 — flip back to 1 to ship the full Mon..Sun week
+      const START_LEVEL = 1; // which day a fresh week begins on (1 = Monday, Manhattan) — the full Mon..Sun week, fine-tuned level by level
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -2797,7 +2801,8 @@
       }
       // Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
       // TRAFFIC CAP v2 (tame the street, by design): npcCounts() clamps every level's
-      // road traffic DOWN -- 1 car / 1 e-scooter / 0 bike / 0 moto / 0 e-bike / 0 rc /
+      // road traffic DOWN -- 1 car / 1 e-scooter / 0 bike (Gramercy Park d1 excepted:
+      // 3 cyclists, the busier uptown bike scene) / 0 moto / 0 e-bike / 0 rc /
       // 0 street tricycle (the Bronx d2 keeps its level-specific 1 moto + 1 e-bike
       // swap), and the CROWD CUT thins the generic walkers (peds <= 1, no breakers,
       // no ladies) so the trash is easier to service. Critters (rat/dog/raccoon/cat/
@@ -2892,6 +2897,9 @@
             // Manhattan (Uptown d1, Harlem d6): a few more e-scooter + bicycle riders on the sidewalk.
             if ((t === "escooter" || t === "bike") && (day === 1 || day === 6))
               base += 1;
+            // Gramercy Park (Monday, d1): a BUSIER uptown bike scene — 3 cyclists on
+            // the street (the only day exempt from the two-wheeler traffic cap).
+            if (t === "bike" && day === 1) base = 3;
             // Crazy homeless guy: handled by specific spawn block, not npcCounts
             if (t === "crazy") base = 0;
             c[t] = base;
@@ -2910,14 +2918,16 @@
         // ---- TRAFFIC CAP v2: quiet the street so the trash is easier to service. ----
         // Generic two-wheelers are GONE on every day EXCEPT the Bronx (d2), where
         // the kid's tricycle is deliberately swapped for 1 moto + 1 e-bike (that
-        // swap is level-SPECIFIC and stays). Cars + e-scooters keep their 1 cap
-        // (already minimal). The old per-day rules underneath (daily ramp, Bronx
-        // two-wheelers, Manhattan +1 escooter/bike) are left intact for reference.
+        // swap is level-SPECIFIC and stays), and EXCEPT Gramercy Park (d1), where
+        // the busier uptown bike scene keeps 3 cyclists on the street. Cars +
+        // e-scooters keep their 1 cap (already minimal). The old per-day rules
+        // underneath (daily ramp, Bronx two-wheelers, Manhattan +1 escooter/bike)
+        // are left intact for reference.
         const TRAFFIC_CAP = {
           car: 1,
           moto: day === 2 ? 1 : 0,
           ebike: day === 2 ? 1 : 0,
-          bike: 0,
+          bike: day === 1 ? 3 : 0, // Gramercy Park (d1): the busier uptown bike scene (3 cyclists)
           escooter: 1,
           rc: 0,
           tric: 0,
@@ -10003,6 +10013,96 @@
             drop: 0,
             cd: 0,
             yellow: true,
+            yb: yb, // the bottle group — so the bump can kick it away and despawn it
+          });
+        }
+      }
+      // ==================== KICKED PISS BOTTLE & STAIN ====================
+      // Bumping a piss bottle (the "Yuck!" trip) also KICKS the bottle away — it tumbles,
+      // fades and despawns — and leaves a piss stain on the pavement where it stood: the
+      // mess stays, the hazard doesn't.
+      let pissKicks = [];
+      function spawnPissStain(wx, wy, kickAng) {
+        const g = new THREE.Group();
+        const disc = (r, x, y, op, sx, sy, col) => {
+          const m = new THREE.Mesh(
+            new THREE.CircleGeometry(r, 14),
+            new THREE.MeshLambertMaterial({
+              color: col || 0xc9a227,
+              transparent: true,
+              opacity: op,
+            }),
+          );
+          m.position.set(x, y, 0); // CircleGeometry lies flat in XY (Z-up world)
+          m.scale.set(sx, sy, 1); // squashed circle = organic splash blob
+          g.add(m);
+        };
+        // a liquid SPLASH: overlapping round blobs + a glossy inner core + a tail of
+        // droplets trailing in the direction the bottle was kicked
+        disc(R(0.22, 0.3), 0, 0, 0.8, R(1, 1.25), R(0.6, 0.85));
+        disc(R(0.15, 0.22), R(-0.1, 0.12), R(-0.08, 0.1), 0.7, R(0.8, 1.1), R(0.6, 0.9));
+        disc(R(0.08, 0.13), R(-0.05, 0.05), R(-0.04, 0.06), 0.9, 1, 1, 0xe2b83e); // glossy core
+        for (let i = 0; i < 6; i++) {
+          const a = kickAng + R(-0.9, 0.9);
+          const d = R(0.3, 0.95);
+          disc(R(0.035, 0.09), Math.cos(a) * d, Math.sin(a) * d, R(0.45, 0.8), 1, 1);
+        }
+        // the stain sits ON the pavement (the bottle always stands on the street next to
+        // the curb — groundZAt also lifts it onto driveway slabs if ever bumped there)
+        g.position.set(wx, wy, groundZAt(wx, wy) + 0.02);
+        dynamicGroup.add(g); // the mess stays for the rest of the level (never fades)
+      }
+      function kickPissBottle(hz) {
+        const g = hz.yb;
+        if (!g) return;
+        hz.kicked = true;
+        hz.r = 0; // the bottle is gone — the trip hazard goes with it
+        const a = R(0, Math.PI * 2); // the kick direction
+        spawnPissStain(hz.wx, hz.wy, a); // the mess is left behind where it stood
+        awardPrankPoints(10, hz.wx, hz.wy); // +10 points, bubble pops up at the bottle
+        if (g.parent) g.parent.remove(g); // out of the street block...
+        g.position.set(hz.wx, hz.wy, GZ + 0.1);
+        // ...into the live world, with CLONED materials so the fade never leaks into the
+        // glass/caps shared by every other bottle
+        g.traverse((o) => {
+          if (o.isMesh && o.material) {
+            o.material = o.material.clone();
+            o.material.transparent = true;
+            o.material.userData.baseOp = o.material.opacity;
+          }
+        });
+        dynamicGroup.add(g);
+        pissKicks.push({
+          g: g,
+          t: 0,
+          dur: 0.45,
+          vx: Math.cos(a) * R(2.5, 4.5),
+          vy: Math.sin(a) * R(2.5, 4.5),
+          vz: R(2.0, 3.5),
+          rx: R(4, 9) * (Math.random() < 0.5 ? -1 : 1),
+          rz: R(4, 9) * (Math.random() < 0.5 ? -1 : 1),
+        });
+      }
+      function updatePissKicks(dt) {
+        for (let i = pissKicks.length - 1; i >= 0; i--) {
+          const k = pissKicks[i];
+          k.t += dt;
+          const q = 1 - k.t / k.dur;
+          if (q <= 0) {
+            if (k.g.parent) k.g.parent.remove(k.g);
+            disposeObj(k.g);
+            pissKicks.splice(i, 1);
+            continue;
+          }
+          k.vz -= 12 * dt; // gravity
+          k.g.position.x += k.vx * dt;
+          k.g.position.y += k.vy * dt;
+          k.g.position.z = Math.max(0.05, k.g.position.z + k.vz * dt);
+          k.g.rotation.x += k.rx * dt;
+          k.g.rotation.z += k.rz * dt;
+          k.g.traverse((o) => {
+            if (o.isMesh && o.material)
+              o.material.opacity = (o.material.userData.baseOp || 1) * q;
           });
         }
       }
@@ -10130,6 +10230,7 @@
                 p.wx -= (dx / d) * 0.12; // gentle shove back so the bump feels physical
                 p.wy -= (dy / d) * 0.12;
                 SFX.playConeKnock();
+                awardPrankPoints(10, p.wx, p.wy); // +10 points, bubble pops over the worker
                 if (Math.random() < 0.5)
                   Voice.say(
                     pick([
@@ -17247,10 +17348,10 @@
         g.add(ant);
         return g;
       }
-      function makeBicycle(eBike) {
+      function makeBicycle(eBike, isDelivery) {
         const g = new THREE.Group();
         const rider = makePerson({
-          shirt: eBike ? 0x2fa05a : 0xcc3333,
+          shirt: isDelivery ? 0xe8752a : eBike ? 0x2fa05a : 0xcc3333,
           pants: pick(PANTS),
           hair: pick(HAIRS),
         });
@@ -17350,6 +17451,19 @@
           const batt = BX(0.2, 0.14, 0.16, M(0x23262b));
           batt.position.set(0.16, 0, 0.44);
           g.add(batt);
+        }
+        if (isDelivery) {
+          // DELIVERY COURIER: a red pizza bag strapped to a little rear rack
+          const rack = BX(0.3, 0.05, 0.05, dark);
+          rack.position.set(-0.55, 0, 0.62);
+          g.add(rack);
+          const bag = BX(0.42, 0.34, 0.3, M(0xd4342a));
+          bag.position.set(-0.55, 0, 0.79);
+          g.add(bag);
+          const logo = CY(0.09, 0.09, 0.02, M(0xffffff), 16);
+          logo.rotation.z = Math.PI / 2;
+          logo.position.set(-0.55, 0.19, 0.79);
+          g.add(logo);
         }
         // Bend the knees and hold arms forward for cycling pose
         rider.legL.rotation.x = -0.3;
@@ -17788,7 +17902,16 @@
             c._naturalLane = c.wy > -1.2 ? 0.5 : -8.5;
             c.boxW = 0.25;
             c.boxL = 0.6;
-            c.data = makeBicycle(false);
+            // Spread multiple cyclists along the street so they never bunch up as a
+            // pack (Gramercy Park runs 3 + the delivery courier).
+            if (c.isDelivery) {
+              c.wx = p.wx + R(20, 45); // the courier rolls in on his own timing
+            } else {
+              const nBikes = creatures.filter((o) => o.type === "bike").length;
+              c.wx = p.wx + nBikes * 24 + R(0, 10);
+            }
+            c.data = makeBicycle(false, c.isDelivery);
+            if (c.isDelivery) c.boxL = 0.8; // the pizza bag sticks out behind
             break;
           case "ebike":
             c.wy = R(-2.4, -0.3);
@@ -19218,7 +19341,7 @@
             wy: 3.2,
           });
           mg.g.rotation.z = -Math.PI / 2; // start facing the street (updateCreatures turns him)
-          mg.g.position.set(mg.wx, mg.wy, GZ);
+       mg.g.position.set(mg.wx, mg.wy, GZ);
           mg.homeX = mg.wx;
           mg.homeY = mg.wy;
         }
@@ -20281,6 +20404,14 @@
           pizzaRat.wy = R(2.0, 3.5);
           pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
         }
+        // GRAMERCY PARK DELIVERY CYCLIST (Monday, day 1): the level's mascot. A pizza
+        // courier with a red bag rides the street like any other cyclist — UNTIL the
+        // worker gets within 12u, when he slams the throttle (2.2x) and bells "Order
+        // up!" — the pizza IS the deadline. Bumping him is a write-up (the "delivery"
+        // offense). Level 1 ONLY — other days keep their quiet two-wheeler cap.
+        if (level === 1) {
+          const dv = addCreature("bike", { isDelivery: true });
+        }
         // Bodega cats: Manhattan + Bronx + Flatbush + Bed-Stuy only. Exactly 4 per level, each
         // in front of a different store on the block (all four put a store on the
         // first house of every block).
@@ -20455,7 +20586,8 @@
         bonusTally = 0;
         complaints = 0;
         dayScore = 0; // per-day score (weekScore keeps running across the whole week)
-        monsterNextAt = MONSTER_SCORE_STEP; // fresh $5000 monster milestone for this day
+        monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this day
+        healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this day
         health = maxHealth;
         p.wx = PLAYER_START_X;
         p.wy = 2.5;
@@ -20532,11 +20664,39 @@
         dayScore += v; // today's tally (shown on the day-end report)
         weekScore += v; // running total across all 7 days (the hi-score candidate)
         if (isBonus) bonusTally += v;
-        // Monster energy milestone: every $5000 of score (today's day) pops one up near the worker.
+        checkHealerMilestone();
+        // Red Bull (Monster) energy milestone: every $30,000 of SCORE pops one up near the worker.
         if (state === "play" && score >= monsterNextAt) {
           spawnMonsterNearPlayer();
           monsterNextAt += MONSTER_SCORE_STEP;
         }
+      }
+      // STREET CASH: money that feeds ONLY the street-cash tally (the HUD's STREET CASH $
+      // counter and the $5,000 healer milestones) — never the score / dayScore / weekScore.
+      // Prank payouts (piss-bottle kicks, cat teasing, cone knocks) flow through here so the
+      // fun stuff pays out as cash and encourages mongo/treasure/prank collecting for power-ups.
+      function addStreetCash(n) {
+        bonusTally += n * scoreMultiplier();
+        checkHealerMilestone();
+      }
+      // STREET CASH milestone: every $5,000 banked (mongo / treasures / street cash / prank
+      // payouts) drops a random healer — coffee or BEC sandwich — near the worker. Shared by
+      // addScore (bonus pickups) and addStreetCash (pranks) so every source of street cash
+      // can cross a milestone.
+      function checkHealerMilestone() {
+        if (state === "play" && bonusTally >= healerNextAt) {
+          spawnHealerNearPlayer();
+          healerNextAt += POWERUP_CASH_STEP;
+        }
+      }
+      // PRANK PAYOUT: knocking a piss bottle, messing with the bodega cats, or knocking
+      // down a roadwork traffic cone each pay 10 CASH (20 on Bed-Stuy's double-time Sunday,
+      // via scoreMultiplier). It goes to STREET CASH only — the score total stays clean.
+      // The payout pops up as a small "+10 points" bubble right where it happened (2 seconds).
+      function awardPrankPoints(n, wx, wy) {
+        const v = n * scoreMultiplier();
+        addStreetCash(n);
+        if (state === "play") spawnBubble("+" + v + " points", wx, wy, "score");
       }
       // ==================== FLYING CAN SYSTEM ====================
       function spawnDustEffect(wx, wy) {
@@ -21522,8 +21682,12 @@
       const RUN_IT_UP_SPEED_MULT = 1.3; // "RUN IT UP!": a bit faster — applied to the worker's
                                         // walk/strafe speed ONLY while immune (p.immuneT > 0), so
                                         // normal walking stays exactly PLAYER_SPEED / LAT_SPEED
-      const MONSTER_SCORE_STEP = 5000; // a new Monster can spawns every this much score, near the player
+      const MONSTER_SCORE_STEP = 30000; // a new Monster (Red Bull) can spawns every this much SCORE, near the player
+      const POWERUP_CASH_STEP = 5000; // a healer (coffee or BEC) drops every this much STREET CASH — rewards mongo/treasure/cash + pranks
+      const POOP_SLOW_MULT = 0.72; // stepping in dog shit slows the worker a little — until the brown shoe-print trail ends
       const HP_HIT_VEHICLE = 8; // a vehicle run-over hurts (kept light so it feels fair)
+      const CRAZY_STALK_MIN = 2.6; // Gramercy knife maniac stalk speed (L1 tuning: a real threat,
+      const CRAZY_STALK_MAX = 4.3; // still dodgeable against the worker's ~8.5 pace)
       const HP_HIT_HAZARD = 5; // a hard static hazard (e.g. hydrant) nicks you a little
       const HP_HIT_DRIVETRIC = 4; // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
       const HP_HIT_PANHANDLER = 1; // a panhandler's shove-and-stink does only very minor damage (the smell, not the elbow)
@@ -22007,6 +22171,7 @@
         updateBlocks(dt);
         cleanupLandedCans();
         updateFootprints(dt);
+        updatePissKicks(dt); // kicked piss bottles: tumbling, fading, despawn
         updateHUD();
         const g = worker.group;
         const fallEnd = DYING_SPIN + DYING_FALL;
@@ -22164,6 +22329,11 @@
           "Failure to give access to bike lane",
           "Cyclist's lane rights not respected",
           "Failure to acknowledge the bike lane",
+        ],
+        // --- the Gramercy Park delivery cyclist: the pizza IS the deadline ---
+        delivery: [
+          "Failure to yield to a licensed pizza courier",
+          "The 30-minute window was violated",
         ],
         ebike: [
           "Failure to yield to an e-bike operator",
@@ -22776,38 +22946,36 @@
         });
       }
       function powerupCounts(level) {
-        // Only the healers (coffee + BEC) are pre-placed on the street. The Monster
-        // can is now SCORE-TRIGGERED (see spawnMonsterNearPlayer + addScore) and does
-        // not spawn at level start.
-        return { coffee: 1, bec: 1 };
+        // Nothing is pre-placed on the street: healers (coffee + BEC) appear ONLY via the
+        // $5,000 street-cash milestones (see checkHealerMilestone + spawnHealerNearPlayer),
+        // and the Monster can is SCORE-TRIGGERED (see spawnMonsterNearPlayer + addScore).
+        return { coffee: 0, bec: 0 };
       }
       function spawnPowerups(level) {
-        // The healers are placed in the BACK HALF of the route:
-        //   coffee -> the middle of the level (~40-65% along)
-        //   BEC    -> near the end of the level (~65-92% along)
-        // The Monster is NOT placed here — it spawns on a score milestone (see addScore).
-        const span = ROUTE_FINISH_X - ROUTE_START_X;
-        // The healers land on the sidewalk / front-lawn grass in front of a house (never in an
-        // intersection gap) - snap each to the house cell under its route position.
-        // Flatbush: sidewalk only (no front-lawn spawning — porch and steps clip items).
-        spawnPowerup(
-          "coffee",
-          snapToHouseCell(ROUTE_START_X + span * R(0.4, 0.65)),
-          R(0.5, spawnMaxY()),
-        );
-        spawnPowerup(
-          "bec",
-          snapToHouseCell(ROUTE_START_X + span * R(0.65, 0.92)),
-          R(0.5, spawnMaxY()),
-        );
+        // No pre-placed healers — coffee and BEC spawn mid-route ONLY when the worker banks
+        // a $5,000 street-cash milestone (checkHealerMilestone). (Kept as a no-op so the
+        // level-start call site stays intact.)
       }
-      // A Monster energy can pops up near the worker every MONSTER_SCORE_STEP points
-      // (5000) of score, dropped on the sidewalk just ahead so you can grab it right away.
+      // A Monster (Red Bull) energy can pops up every MONSTER_SCORE_STEP (30000) of SCORE.
       let monsterNextAt = MONSTER_SCORE_STEP; // next score milestone at which the Monster spawns
-      function spawnMonsterNearPlayer() {
-        const wx = snapToHouseCell(p.wx); // in front of the nearest house to the worker - on the sidewalk/grass, never in an intersection
+      // Power-ups (healers + Red Bull) must be VISIBLE to the worker and reachable: they
+      // spawn a few units AHEAD on the route (where the camera is already looking), on the
+      // sidewalk / front lawn in front of the nearest house — never ON TOP of him (he'd
+      // walk through it blind) and never behind (he'd never see it come into the world).
+      function spawnPowerupAhead(type) {
+        const wx = snapToHouseCell(clamp(p.wx + R(2.5, 5.5), ROUTE_START_X, ROUTE_FINISH_X));
         const wy = clamp(p.wy + R(-0.9, 0.9), 0.5, spawnMaxY());
-        spawnPowerup("monster", wx, wy);
+        spawnPowerup(type, wx, wy);
+      }
+      function spawnMonsterNearPlayer() {
+        spawnPowerupAhead("monster");
+      }
+      // A random healer (coffee OR a BEC sandwich) drops near the worker every
+      // POWERUP_CASH_STEP (5000) of STREET CASH — the reward for collecting mongo /
+      // treasures / street cash and having fun with the street (cones, cats, bottles).
+      let healerNextAt = POWERUP_CASH_STEP; // next street-cash milestone at which a healer spawns
+      function spawnHealerNearPlayer() {
+        spawnPowerupAhead(Math.random() < 0.5 ? "coffee" : "bec");
       }
       function consumePowerup(b) {
         if (b.type === "monster") {
@@ -23278,7 +23446,7 @@
               );
             } else {
               doStun(0.8, "trip");
-              if (hz.yellow)
+              if (hz.yellow) {
                 Voice.say(
                   "Yuck! Piss bottle!",
                   3,
@@ -23288,6 +23456,8 @@
                   WORKER_GENDER,
                   "worker",
                 );
+                if (!hz.kicked) kickPissBottle(hz); // kicked away — the stain stays behind
+              }
               if (hz.drop > 0 && carry !== "none" && Math.random() < hz.drop)
                 dropCarried();
             }
@@ -24116,7 +24286,7 @@
             p.wx -= (dx / nl) * 1.6;
             p.wy = clamp(p.wy - (dy / nl) * 1.6, -9.4, workerMaxY());
             dropCarried();
-            hurtNPC(HP_HIT_VEHICLE, c.type); // get run over = lose health; cause IS the NPC (car/bike/ebike/moto/tric/dealer...) for the write-up stamp
+            hurtNPC(HP_HIT_VEHICLE, c.isDelivery ? "delivery" : c.type); // get run over = lose health; cause IS the NPC (car/bike/ebike/moto/tric/dealer...) for the write-up stamp
             p.invuln = 1.6;
             doStun(1.2, "hit");
             if (c.type === "car" || c.type === "moto")
@@ -24129,6 +24299,8 @@
                 c.gender,
                 "driver",
               );
+            else if (c.isDelivery)
+              Voice.say("Pizza!", 1.0, 1.4, c.wx, c.wy, "male", "bike");
             else
               Voice.say("Hey! Hurry up!", 5, 0.85, c.wx, c.wy, c.gender, "ped");
           }
@@ -24292,7 +24464,10 @@
         // runs a bit faster. The boost is gated on immuneT, so the moment the buff ends the
         // usual walk pace (PLAYER_SPEED forward, LAT_SPEED strafe) is back exactly as-is.
         const immuneBoost = p.immuneT > 0 ? RUN_IT_UP_SPEED_MULT : 1;
-        const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost; // backing up is a touch slower
+        // Stepping in dog shit: the worker is slowed a little for as long as he keeps
+        // leaving the brown shoe-print trail (p.poopSteps), then full speed comes back.
+        const poopSlow = p.poopSteps > 0 ? POOP_SLOW_MULT : 1;
+        const speed = Math.abs(f) * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * poopSlow; // backing up is a touch slower
         const lat = l; // strafe component (continuous)
         // The worker's PRE-MOVE spot. The truck push-out further down only
         // resolves motion the WORKER made into the truck: if he was already
@@ -24301,8 +24476,8 @@
         // shove / slide him along with itself.
         const prevWx = p.wx,
           prevWy = p.wy;
-        p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * dt;
-        p.wy = clamp(p.wy + lat * LAT_SPEED * immuneBoost * dt, -9.4, workerMaxY());
+        p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * poopSlow * dt;
+        p.wy = clamp(p.wy + lat * LAT_SPEED * immuneBoost * poopSlow * dt, -9.4, workerMaxY());
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
         // and reaching Intersection 7 (the last one before Block 8) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
@@ -24578,37 +24753,72 @@
         //     rolling off ahead of him.
         const hopperOff = truck.hopperOff != null ? truck.hopperOff : -4.3;
         const rearX = truck.wx + hopperOff; // where the truck's rear (hopper) is
-        // Gap between the worker and the truck's rear: EMPTY-HANDED (carry ===
-        // "none") the driver pulls in closer (~0.9u) so the player can maneuver
-        // right up against the hopper; carrying trash keeps the 1.5u working gap.
-        const target = carry === "none" ? 0.9 : 1.5;
-        const err = rearX - (p.wx + target); // <0: too far behind, >0: too far ahead (needs to back up)
-        const DEAD = 0.8; // dead zone around the worker: hold position
+        // Gap between the worker and the truck's rear. Going FORWARD it has to be WIDE
+        // ENOUGH that the worker can walk FORWARD and around the hopper's corner to the
+        // rear opening — at the old 0.9u gap the straight-line walk to the scoop crossed
+        // the truck's side ~0.3u in front of the rear corner, so carrying a bag meant
+        // ploughing into the side of the hopper. ~3.6u gives a clear approach corridor to
+        // the back of the truck; carrying trash uses a touch more (4.1u) so the dump spot
+        // sits comfortably ahead, not under the worker's feet.
+        // BACKING UP is a different story: the rear should reverse only until it is JUST
+        // ahead of the worker (~1.5u — past the deepest carrying approach, 1.15u, so he
+        // can load immediately). Backing all the way out to the forward target felt like
+        // the driver stopping far too far away.
+        const target = carry === "none" ? 3.6 : 4.1;
+        const backTarget = 1.5; // the back-up rest position: "just ahead of the worker"
+        const DEAD = 0.8; // dead zone around the rest position: hold
         const MAXSP = PLAYER_SPEED; // fast enough to keep up with a sprinting worker
+        // Two rest positions (hysteresis): in FOLLOW mode the rear rests at the forward
+        // target (a clear approach corridor to the scoop); when the driver backs up he
+        // enters CLOSE mode and rests JUST ahead of the worker (~1.5u — past the deepest
+        // carrying approach, 1.15u, so he can load immediately). The two rest bands don't
+        // overlap, so the mode is what keeps the truck from oscillating between them.
+        if (truck._mode == null) truck._mode = "follow";
         let sp = 0;
-        if (Math.abs(err) > DEAD) {
-          // Proportional control: the creep speed scales with the gap and is capped,
-          // so the truck eases in without blasting past its hopper position.
-          const v = Math.min(MAXSP, (Math.abs(err) - DEAD) * 2.0);
-          if (err < 0) {
-            // Hopper is behind the worker -> drive forward (+x). Always permitted,
-            // no matter where the worker is (sidewalk, street, anywhere).
-            sp = v;
-          } else if (canBackUp()) {
-            // Hopper is ahead of the worker -> the driver backs up (-x) to re-
-            // position... but ONLY when the worker is out in the street, to the
-            // left or right of the truck. Never on the sidewalk, never with the
-            // worker directly in the truck's own lane (directly behind it).
-            sp = -v;
+        if (truck._mode === "close") {
+          // Close rest: rear just ahead of the worker.
+          const backErr = rearX - (p.wx + backTarget);
+          if (backErr > DEAD) {
+            // Rear drifted ahead of the worker -> back up (-x)... but ONLY when the
+            // worker is out in the street, to the left or right of the truck. Never on
+            // the sidewalk, never with the worker directly in the truck's own lane
+            // (directly behind it). Proportional easing: eases in without blasting.
+            if (canBackUp()) sp = -Math.min(MAXSP, (backErr - DEAD) * 2.0);
+          } else if (backErr < -DEAD) {
+            // Worker pulled ahead -> drive forward (+x). This puts the truck back in
+            // FOLLOW mode: the forward target (3.6/4.1u) takes over, so the rear
+            // restores the FULL approach corridor to the scoop — after a back-up the
+            // driver must not keep the tight "just ahead" gap, or the worker has to
+            // walk behind the truck to dump.
+            sp = Math.min(MAXSP, (-backErr - DEAD) * 2.0);
+            truck._mode = "follow";
           }
-          // otherwise the driver holds position and waits
+        } else {
+          // Follow rest: rear at the forward target.
+          const fwdErr = rearX - (p.wx + target);
+          if (fwdErr < -DEAD) {
+            // Hopper is behind the worker -> drive forward (+x). Always permitted,
+            // no matter where the worker is (sidewalk, street, anywhere). Proportional
+            // easing: the creep speed scales with the gap and is capped, so the truck
+            // eases in without blasting past its hopper position.
+            sp = Math.min(MAXSP, (-fwdErr - DEAD) * 2.0);
+          } else if (fwdErr > DEAD && canBackUp()) {
+            // Hopper is ahead of the worker -> the driver backs up (-x) to re-position,
+            // easing in the same proportional way... but ONLY when the worker is out in
+            // the street, to the left or right of the truck. Never on the sidewalk, never
+            // with the worker directly in the truck's own lane (directly behind it).
+            sp = -Math.min(MAXSP, (fwdErr - DEAD) * 2.0);
+            truck._mode = "close"; // heading to the "just ahead" rest position
+          }
         }
+        // otherwise the driver holds position and waits
         truck.sp = sp;
-        if (Math.abs(err) > 40) {
+        if (p.wx + backTarget - rearX > 40) {
           // Safety net: if a pause/reset/world-reposition ever let the gap blow up,
           // snap the truck to its proper spot (rear at worker + target) instead of
           // having it drive across the whole street to catch up.
           truck.wx = p.wx + target - hopperOff;
+          truck._mode = "follow";
         } else {
           truck.wx += sp * dt;
         }
@@ -25052,10 +25262,24 @@
       const CURB_PASS_LANE = -0.9; // curb-side pass lane: clear of the truck's inner edge, on the road
       const OUTER_PASS_LANE = -8.5; // outer-road pass lane: clear of the truck's outer edge
       function clampRoadVehicle(v) {
-        // A car/moto is a vehicle that must stay on the asphalt — never the sidewalk.
+        // A car is a vehicle that belongs on the asphalt - and "on the asphalt" means
+        // its WHOLE BODY: a car is 1.19u wide, so its centre may never pass the curb
+        // line minus half its width. The old clamp used the centre only, which let a
+        // car's body sit almost a metre up on the sidewalk. A moto is the exception the
+        // old code missed: it may pop the curb for a moment (the shoulder) to let
+        // traffic past, and nothing may ride the walk for longer than its timer.
         if (v.type !== "car" && v.type !== "moto") return;
-        if (v.wy > ROAD_MAX_Y) v.wy = ROAD_MAX_Y;
-        else if (v.wy < ROAD_MIN_Y) v.wy = ROAD_MIN_Y;
+        if (v.type === "moto" && v._negoShoulder > 0) {
+          const top = Math.min(creatureMaxY() - 0.35, 4.3);
+          const bot = NEGO_EDGE_CURB + negoHW(v) + 0.5;
+          if (v.wy > top) v.wy = top;
+          else if (v.wy < bot) v.wy = bot;
+          return;
+        }
+        const hi = negoCurbY(v),
+          lo = negoFarY(v);
+        if (v.wy > hi) v.wy = hi;
+        else if (v.wy < lo) v.wy = lo;
       }
       function clampRoadVehicles(list) {
         for (let i = 0; i < list.length; i++) clampRoadVehicle(list[i]);
@@ -25077,109 +25301,459 @@
         if (isLaneClear(other, v.wx, v.boxW, all)) return other;
         return own; // both occupied — still commit to a lane and push through
       }
-      // ==================== VEHICLE COLLISION SEPARATION ====================
-      function separateVehicles(vehicles, dt) {
-        // Gently push vehicles apart if their bounding boxes overlap — smoothed by dt
-        for (let i = 0; i < vehicles.length; i++) {
-          const a = vehicles[i];
-          for (let j = i + 1; j < vehicles.length; j++) {
-            const b = vehicles[j];
-            // Skip non-vehicle types and pedestrians
-            if (!a.boxW || !b.boxW) continue;
-            if (a.type === "ped" || a.type === "lady") continue;
-            if (b.type === "ped" || b.type === "lady") continue;
-            // Check X overlap — only care about vehicles that are truly alongside each other
-            const dx = Math.abs(a.wx - b.wx);
-            const maxXOverlap = a.boxL + b.boxL;
-            if (dx >= maxXOverlap + 0.8) continue;
-            // Check Y overlap
-            const dy = Math.abs(a.wy - b.wy);
-            const maxYOverlap = a.boxW + b.boxW + 0.3;
-            if (dy >= maxYOverlap) continue;
-            // They're overlapping — gently push apart over multiple frames using dt scaling
-            const overlapY = maxYOverlap - dy;
-            if (overlapY > 0.05) {
-              let aSpeed = a.curSp || a.sp;
-              let bSpeed = b.curSp || b.sp;
-              const gentleness = Math.min(1, overlapY / 2.0);
-              const pushRate = 4 * gentleness;
-
-              // === EMERGENCY: Heavy bounding-box overlap — hard brake on BOTH vehicles ===
-              if (overlapY > 0.6) {
-                if (aSpeed > 1) a.curSp = Math.max(0, a.curSp - aSpeed * 3);
-                if (bSpeed > 1) b.curSp = Math.max(0, b.curSp - bSpeed * 3);
-                // Both push apart symmetrically regardless of speed
-                const isACurbBike =
-                  (a.type === "bike" || a.type === "ebike") && a.wy > -2.0;
-                const isBCurbBike =
-                  (b.type === "bike" || b.type === "ebike") && b.wy > -2.0;
-                if (isACurbBike || isBCurbBike) {
-                  const bikeSpread = pushRate * 2.5;
-                  a.wy += bikeSpread * dt;
-                  b.wy -= bikeSpread * dt;
-                } else {
-                  a.wy += pushRate * dt;
-                  b.wy -= pushRate * dt;
-                }
-              } else if (overlapY > 0.2) {
-                const isACurbBike =
-                  (a.type === "bike" || a.type === "ebike") && a.wy > -2.0;
-                const isBCurbBike =
-                  (b.type === "bike" || b.type === "ebike") && b.wy > -2.0;
-                if (isACurbBike || isBCurbBike) {
-                  const bikeSpread = pushRate * 1.5;
-                  a.wy += bikeSpread * dt;
-                  b.wy -= bikeSpread * dt;
-                } else {
-                  if (a.wy >= b.wy) {
-                    a.wy += pushRate * dt;
-                    b.wy -= pushRate * dt;
-                  } else {
-                    a.wy -= pushRate * dt;
-                    b.wy += pushRate * dt;
-                  }
-                }
-              } else if (overlapY > 0.1) {
-                const isACurbBike =
-                  (a.type === "bike" || a.type === "ebike") && a.wy > -2.0;
-                const isBCurbBike =
-                  (b.type === "bike" || b.type === "ebike") && b.wy > -2.0;
-                if (isACurbBike || isBCurbBike) {
-                  const bikeSpread = pushRate * 1.5;
-                  a.wy += bikeSpread * dt;
-                  b.wy -= bikeSpread * dt;
-                } else {
-                  if (aSpeed > bSpeed + 0.3) {
-                    a.wy -= pushRate * dt;
-                  } else if (bSpeed > aSpeed + 0.3) {
-                    b.wy += pushRate * dt;
-                  } else if (a.wy >= b.wy) {
-                    a.wy += pushRate * 0.7 * dt;
-                    b.wy -= pushRate * 0.7 * dt;
-                  } else {
-                    a.wy -= pushRate * 0.7 * dt;
-                    b.wy += pushRate * 0.7 * dt;
-                  }
-                }
-              } else {
-                if (aSpeed > bSpeed + 0.3) {
-                  a.wy -= pushRate * dt;
-                } else if (bSpeed > aSpeed + 0.3) {
-                  b.wy += pushRate * dt;
-                } else {
-                  const smallBack = pushRate * dt * 0.25;
-                  if (a.wx < b.wx) {
-                    a.wx -= smallBack;
-                    a.wy += pushRate * dt * 0.4;
-                  } else {
-                    b.wx -= smallBack;
-                    b.wy -= pushRate * dt * 0.4;
-                  }
-                }
-              }
+      // ==================== TRAFFIC NEGOTIATION - "THE COURTESY SYSTEM" ====================
+      // The street is a four-lane road (two each way) with a curb at y = 0.5 and the
+      // far asphalt edge at y = -9.5. The old code let cars, motos, bikes, e-bikes and
+      // scooters all pick lanes by coin flip, with the car and bike lanes OVERLAPPING by
+      // design - and nothing ever talked to each other about who gets to be where. That
+      // is what "knotting" was: a car and a rider agreed on the same sliver of road, the
+      // collision code bounced them apart, the lane controller pulled them back together,
+      // and both machines rode at a crawl, forever.
+      //
+      // This is the fix, run once per frame BEFORE any of them moves:
+      //   1. EVERY machine publishes the lanes it is willing to occupy this frame
+      //      (a car's body must fit entirely below the curb; a rider may also take a
+      //      sidewalk lane - the shoulder - to let the traffic by).
+      //   2. THE LANE IS GRANTED TO THE FIRST MACHINE THAT WANTS IT, by seniority
+      //      (already riding in it), then mass (the car gets it over the rider), then
+      //      lead position (whoever is in front of everyone else on the street owns the
+      //      tie). Deterministic, so nobody flaps between lanes.
+      //   3. EVERY machine that did not win its lane gets a free one - and if none are
+      //      free, it HOLDS ITS PLACE: the machine behind it brakes to the agreed gap
+      //      (negoFollowSp) instead of ramming, so the street queues, not knots.
+      // The separation pass (below) is now the last-resort safety net, not the traffic
+      // system: it only cleans up bodies that are already inside each other.
+      const NEGO_EDGE_CURB = 0.5; // world y of the curb line (0 = curb edge, +y = walk)
+      const NEGO_EDGE_FAR = -9.5; // world y of the far asphalt edge
+      const NEGO_JAM = 1.35; // minimum bumper-to-bumper gap, in world units
+      const NEGO_HORIZON = 1.6; // seconds of speed the follow model plans for
+      const NEGO_CLOSURE = 0.35; // extra gap demanded per unit of closing speed
+      const NEGO_TAU = 1.4; // seconds of travel the gap model assumes
+      const NEGO_KP = 1.15; // how hard the brakes bite per unit of missing gap
+      const NEGO_HOLD = 0.3; // s a granted lane is "mine" (seniority, stops flapping)
+      const NEGO_SHOULDER_T = 4.5; // s a rider may ride the sidewalk to let traffic past
+      const NEGO_KNOT_T = 1.1; // s of grinding before a rider takes the shoulder
+      const NEGO_MASS = { car: 6, moto: 3, ebike: 1.9, bike: 1.7, escooter: 1.3, rc: 0.6, tric: 0.5 };
+      const NEGO_TALKER = { car: 1, moto: 1, bike: 1, ebike: 1 };
+      const NEGO_SHOULDER = { moto: 1, bike: 1, ebike: 1 };
+      const NEGO_CLAIMS = [];
+      function negoHW(v) { return Math.max(0.2, v.boxW || 0.4); }
+      function negoHL(v) { return Math.max(0.2, v.boxL || 0.5); }
+      function negoMass(v) { return NEGO_MASS[v.type] || 1; }
+      function negoVel(v) { const s = v.curSp !== undefined ? v.curSp : v.sp || 0; return s > 0 ? s : 0; }
+      function negoIsTraffic(v) {
+        return !!v && v.boxW !== undefined && !!NEGO_TALKER[v.type] && !v.hidden && !v.isDrivewayTric;
+      }
+      function negoCanShoulder(v) { return !!NEGO_SHOULDER[v.type]; }
+      function negoCurbY(v) { return NEGO_EDGE_CURB - negoHW(v) - 0.06; } // car body stays BELOW the curb
+      function negoFarY(v) { return NEGO_EDGE_FAR + negoHW(v) + 0.1; }
+      function negoTruckBand() {
+        if (!truck || !truck.active) return null;
+        const bCurb = truck.boxWCurb != null ? truck.boxWCurb : truck.boxW || 1.9;
+        const bStreet = truck.boxWStreet != null ? truck.boxWStreet : truck.boxW || 1.9;
+        const hi = truck.wy - bCurb; // curb-side face of the truck body
+        const lo = truck.wy - bStreet; // street-side face of the truck body
+        return [lo, hi];
+      }
+      function negoClearOfTruck(v) {
+        const band = negoTruckBand();
+        if (!band) return true;
+        const hw = negoHW(v);
+        return v.wy + hw <= band[1] + 0.05 || v.wy - hw >= band[0] - 0.05;
+      }
+      function negoLegalY(v, y) {
+        const hw = negoHW(v);
+        if (y + hw > NEGO_EDGE_CURB + 0.05) return false; // never a body up on the walk
+        if (y - hw < NEGO_EDGE_FAR - 0.05) return false;
+        const band = negoTruckBand();
+        if (band && y + hw > band[1] && y - hw < band[0]) return false; // inside the truck band
+        return true;
+      }
+      function negoRowLanes(lo, hi, half) {
+        // Even centre-lines between lo and hi (hi = curb-most, lo = farthest) where a
+        // machine of half-width `half` fits, spaced so two of them never interpenetrate.
+        const pitch = Math.max(0.9, half * 2 + 0.34);
+        const room = hi - lo;
+        const n = Math.max(1, Math.floor(room / pitch) + 1);
+        const span = (n - 1) * pitch,
+          mid = (hi + lo) / 2;
+        const out = [];
+        for (let k = 0; k < n; k++) out.push(mid + span / 2 - k * pitch); // curb-most first
+        return out;
+      }
+      function negoStrips(v) {
+        // The road, minus the truck's own band: one strip per side of the truck.
+        const half = negoHW(v);
+        const top = negoCurbY(v),
+          bot = negoFarY(v);
+        if (top < bot) return [];
+        const band = negoTruckBand();
+        if (!band) return [[bot, top]];
+        const out = [];
+        if (top >= band[1] + half + 0.12) out.push([band[1] + half + 0.12, top]); // curb strip
+        if (band[0] - half - 0.12 >= bot) out.push([bot, band[0] - half - 0.12]); // outer strip
+        return out;
+      }
+      function negoLanes(v) {
+        const rows = negoStrips(v),
+          half = negoHW(v),
+          out = [];
+        for (let i = 0; i < rows.length; i++) {
+          const r = negoRowLanes(rows[i][0], rows[i][1], half);
+          for (let k = 0; k < r.length; k++) out.push(r[k]);
+        }
+        if (!out.length) out.push(clamp(v.wy, Math.min(negoFarY(v), negoCurbY(v)), Math.max(negoFarY(v), negoCurbY(v))));
+        return out;
+      }
+      function negoWalkLanes(v) {
+        // The sidewalk shoulder: where a rider may pop the curb to let the traffic past.
+        const half = negoHW(v);
+        const top = Math.min(creatureMaxY() - 0.5, 4.3);
+        const bot = NEGO_EDGE_CURB + half + 0.8;
+        if (top < bot) return [];
+        return negoRowLanes(bot, top, half);
+      }
+      function negoCorridor(v) {
+        // The length of road this machine "owns" around its current position: a little
+        // slack behind, and speed * horizon in front. A claim only fights other claims
+        // whose corridors overlap - a car 30u away is NOT competing for our lane.
+        const hl = negoHL(v),
+          sp = Math.max(negoVel(v), v.sp || 0);
+        return [v.wx - hl - NEGO_JAM * 2, v.wx + hl + sp * NEGO_HORIZON + NEGO_JAM];
+      }
+      function negoClaimHit(v, y) {
+        for (let i = 0; i < NEGO_CLAIMS.length; i++) {
+          const k = NEGO_CLAIMS[i];
+          if (k.v === v) continue;
+          if (Math.abs(k.y - y) >= k.hw + negoHW(v) + 0.12) continue;
+          const cor = negoCorridor(v);
+          if (cor[1] <= k.x0 || cor[0] >= k.x1) continue;
+          return k;
+        }
+        return null;
+      }
+      function negoGrant(v, y, walk) {
+        const cor = negoCorridor(v);
+        NEGO_CLAIMS.push({ v: v, y: y, hw: negoHW(v), x0: cor[0], x1: cor[1] });
+        v._negoLane = y;
+        v._negoWalk = !!walk;
+        v._negoHold = NEGO_HOLD;
+      }
+      function negoBidOrder(a, b) {
+        // Deterministic seniority: current lane-holders first, then the HEAVY machine
+        // (a car gets its lane over a rider), then who is furthest AHEAD of everyone.
+        const ka = a._negoHold > 0 ? 1 : 0,
+          kb = b._negoHold > 0 ? 1 : 0;
+        if (ka !== kb) return kb - ka;
+        const dm = negoMass(b) - negoMass(a);
+        if (dm > 0.001) return 1;
+        if (dm < -0.001) return -1;
+        return b.wx - a.wx;
+      }
+      function negoBid(v) {
+        // 1) SENIORITY: keep the lane we already won, if it is still legal and free.
+        if (v._negoLane !== undefined && v._negoHold > 0) {
+          const home = v._negoWalk ? negoWalkLanes(v) : negoLanes(v);
+          if (home.indexOf(v._negoLane) >= 0 && !negoClaimHit(v, v._negoLane)) {
+            negoGrant(v, v._negoLane, v._negoWalk);
+            return;
+          }
+        }
+        const wantWalk = v._negoWalk && v._negoShoulder > 0;
+        const lanes = wantWalk ? negoWalkLanes(v) : negoLanes(v);
+        // 2) BID: the free lane that costs the least steering wins (ties go curb-most,
+        //    with a small preference for the machine's own natural lane).
+        let bestY,
+          bestCost = 1e9;
+        for (let i = 0; i < lanes.length; i++) {
+          const y = lanes[i];
+          if (negoClaimHit(v, y)) continue;
+          let cost = Math.abs(y - v.wy);
+          if (v._naturalLane !== undefined) cost += Math.abs(y - v._naturalLane) * 0.2;
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestY = y;
+          }
+        }
+        if (bestY !== undefined) {
+          negoGrant(v, bestY, wantWalk);
+          return;
+        }
+        // 3) EVERYTHING TAKEN: a two-wheeler answers politely and pops the curb for a
+        //    few seconds (the shoulder), so the car in front of it has the whole lane.
+        if (negoCanShoulder(v)) {
+          const wl = negoWalkLanes(v);
+          for (let i = 0; i < wl.length; i++) {
+            if (negoClaimHit(v, wl[i])) continue;
+            v._negoShoulder = NEGO_SHOULDER_T;
+            negoGrant(v, wl[i], true);
+            negoTalk(v);
+            return;
+          }
+        }
+        // 4) ... and anything else holds its place: nobody behind it rams it, everyone
+        //    behind it brakes to the agreed gap (negoFollowSp) and the street queues.
+        negoGrant(v, v._negoLane !== undefined ? v._negoLane : lanes[0], !!v._negoWalk);
+      }
+      function negotiateTraffic(list, dt) {
+        // THE ONCE-PER-FRAME pass that keeps the street from knotting. Runs
+        // BEFORE any vehicle moves, so by the time each case-block steers, it already
+        // knows the lane it won.
+        NEGO_CLAIMS.length = 0;
+        const cands = [];
+        for (let i = 0; i < list.length; i++) {
+          const v = list[i];
+          if (!negoIsTraffic(v)) continue;
+          v._negoHold = Math.max(0, (v._negoHold || 0) - dt);
+          v._negoShoulder = Math.max(0, (v._negoShoulder || 0) - dt);
+          v._negoKnot = Math.max(0, (v._negoKnot || 0) - dt);
+          v._negoLead = null;
+          v._negoGap = 1e9;
+          cands.push(v);
+        }
+        if (!cands.length) return;
+        // THE KNOT WATCHDOG: a machine that is still physically inside another one
+        // after the last frame's separation gets its knot clock running; past the
+        // limit a rider takes the shoulder DECISIVELY, so the overlap can only ever
+        // be temporary - the street can jam, it can never lock.
+        for (let i = 0; i < cands.length; i++) {
+          const v = cands[i];
+          const lead = negoLeadOf(v, cands);
+          if (lead && lead.gap < 0.02) v._negoKnot += dt;
+          if (v._negoKnot > NEGO_KNOT_T && negoCanShoulder(v) && v._negoShoulder <= 0) {
+            const wl = negoWalkLanes(v);
+            for (let k = 0; k < wl.length; k++) {
+              if (negoClaimHit(v, wl[k])) continue;
+              v._negoShoulder = NEGO_SHOULDER_T;
+              v._negoKnot = 0;
+              negoGrant(v, wl[k], true);
+              cands.splice(i, 1); // it is on the walk now - out of the road bidding
+              break;
             }
           }
         }
+        cands.sort(negoBidOrder);
+        for (let i = 0; i < cands.length; i++) negoBid(cands[i]);
+      }
+      function negoLeadOf(v, list) {
+        // The nearest machine physically in front of us and overlapping our body band -
+        // the one whose gap our brakes are measured against (a negative gap means we
+        // are already inside it: match its pace and slide, never ram).
+        const hw = negoHW(v),
+          hl = negoHL(v);
+        let best = null;
+        for (let i = 0; i < list.length; i++) {
+          const o = list[i];
+          if (!negoIsTraffic(o) || o === v) continue;
+          if (Math.abs(o.wy - v.wy) >= negoHW(o) + hw) continue;
+          const dx = o.wx - v.wx;
+          if (dx <= 0) continue;
+          const gap = dx - negoHL(o) - hl;
+          if (!best || gap < best.gap) best = { o: o, gap: gap };
+        }
+        return best;
+      }
+      function negoFollowSp(v, freeSp, list) {
+        // THE FOLLOW MODEL: what speed keeps us a polite gap behind the machine we are
+        // actually following. It replaces the old hard "match obstacle speed" braking -
+        // when the leader is slow we slow TO it (matching a 1-3 u/s rider for a beat is
+        // a queue, not a jam, because the leader will pull away and the queue dissolves
+        // the moment a lane frees), and when the gap is fat we are free to run.
+        const lead = negoLeadOf(v, list);
+        v._negoLead = lead ? lead.o : null;
+        v._negoGap = lead ? lead.gap : 1e9;
+        if (!lead) return freeSp;
+        const own = Math.max(0.01, negoVel(v));
+        const lSp = Math.max(0, negoVel(lead.o));
+        const want = NEGO_JAM + own * NEGO_TAU + Math.max(0, own - lSp) * NEGO_CLOSURE;
+        if (lead.gap >= want) return freeSp;
+        if (lead.gap <= 0.02) return Math.min(freeSp, lSp * 0.9); // inside it: match it
+        return Math.max(0, Math.min(freeSp, lSp + (lead.gap - want) * NEGO_KP));
+      }
+      function negoFloorSp(v, sp, floorSp) {
+        // "No crawling" only applies while our own lane is genuinely open. It used to be
+        // re-asserted unconditionally after every brake, which made a car physically
+        // unable to slow for the machine in front of it - it could only ever plough in,
+        // and that ploughing is what started the knots.
+        if (v._negoGap === undefined || v._negoGap === 1e9) return Math.max(sp, floorSp);
+        const own = Math.max(0.01, negoVel(v));
+        const want = NEGO_JAM + own * NEGO_TAU + NEGO_JAM * 2;
+        if (v._negoGap < want * 2) return sp; // a real leader ahead: the queue rules
+        return Math.max(sp, floorSp);
+      }
+      function negoLaneOf(v, fallback) {
+        // The lane the negotiation gave us this frame, with the old lane choice as a
+        // fallback for the very first frames before a grant has landed.
+        return v._negoLane !== undefined ? v._negoLane : fallback;
+      }
+      function negoFreeLaneFor(v) {
+        // The cheapest unclaimed legal lane - the "excuse me, coming past you" lane.
+        const lanes = negoLanes(v);
+        let bestY,
+          bestCost = 1e9;
+        for (let i = 0; i < lanes.length; i++) {
+          const y = lanes[i];
+          if (negoClaimHit(v, y)) continue;
+          const cost = Math.abs(y - v.wy);
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestY = y;
+          }
+        }
+        return bestY;
+      }
+      function negoEscapeLane(v) {
+        // Where to run when the truck hopper is blocking us: the cheapest free legal
+        // lane, and for a two-wheeler the sidewalk if the road is full.
+        const free = negoFreeLaneFor(v);
+        if (free !== undefined) return free;
+        if (negoCanShoulder(v)) {
+          const wl = negoWalkLanes(v);
+          if (wl.length) return wl[0];
+        }
+        const lanes = negoLanes(v);
+        return lanes[0];
+      }
+      function negoRecycle(v, plyr) {
+        // Place a recycled rider on a legal, unclaimed lane near the curb - NEVER the
+        // middle of the road (that is the truck's band: a rider dropped in it used to
+        // freeze at the hopper and get rear-ended by everything behind it).
+        v._negoLane = undefined;
+        v._negoShoulder = 0;
+        v._negoWalk = false;
+        v._negoHold = 0;
+        v.wx = plyr.wx + 42;
+        v.curSp = v.sp;
+        v.detourTimer = undefined;
+        const lanes = negoLanes(v);
+        let y = lanes[0];
+        for (let i = 0; i < lanes.length; i++) {
+          if (negoClaimHit(v, lanes[i])) continue;
+          y = lanes[i];
+          break;
+        }
+        v.wy = v._baseWy = v.targetWy = v._negoLane = y;
+        if (v._homeLane !== undefined) v._homeLane = y;
+        if (v._passSide !== undefined) v._passSide = y;
+      }
+      function negoTalk(v) {
+        // The negotiation, made audible: a rare, cooldown-gated line so the street
+        // reads as traffic that gets out of the way on purpose, not bodies that grind.
+        if (typeof Voice === "undefined" || !Voice.say) return;
+        if (v.vcd > 0) return;
+        v.vcd = 10;
+        const lines =
+          v.type === "moto"
+            ? ["After you!", "Watch it, pal."]
+            : ["Move it, move it!", "C'mon, c'mon."];
+        Voice.say(lines[(Math.random() * lines.length) | 0], 0.85, v.type === "moto" ? 1.0 : 1.15, v.wx, v.wy, "male", v.type);
+      }
+      // ==================== VEHICLE COLLISION SEPARATION ====================
+      function separateVehicles(vehicles, dt) {
+        // LAST-RESORT de-interpenetration. negotiateTraffic() is what keeps the street
+        // apart; this only cleans up bodies that still ended up inside each other (a
+        // recycle landing on somebody, the truck ejecting a rider into an occupied
+        // lane). Three rules the old version broke - and each of them used to start a
+        // knot on its own:
+        //   1. push along the axis that ACTUALLY frees both machines - two in the same
+        //      lane give ground front-to-back, never sideways into a third machine;
+        //   2. always push along the TRUE SIGN of the offset (the old code moved a.wy
+        //      up and b.wy down in ARRAY order, so a pair could be shoved toward each
+        //      other, swapping sides every few frames - the "knot" felt in-game);
+        //   3. hand most of the shove to the LIGHTER machine, and move its committed
+        //      lane with it, so the lane controller AGREES with the separation instead
+        //      of pulling the body straight back into the overlap.
+        for (let i = 0; i < vehicles.length; i++) {
+          const a = vehicles[i];
+          if (!a.boxW || a.type === "ped" || a.type === "lady") continue;
+          for (let j = i + 1; j < vehicles.length; j++) {
+            const b = vehicles[j];
+            if (!b.boxW || b.type === "ped" || b.type === "lady") continue;
+            const dy = a.wy - b.wy,
+              dx = a.wx - b.wx;
+            const penY = negoHW(a) + negoHW(b) - Math.abs(dy); // >0 = inside, sideways
+            const penX = negoHL(a) + negoHL(b) - Math.abs(dx); // >0 = inside, lengthwise
+            if (penY <= 0 || penX <= 0) continue;
+            const ma = negoMass(a),
+              mb = negoMass(b);
+            const wa = mb / (ma + mb),
+              wb = ma / (ma + mb); // the heavy one barely moves
+            const s = dy >= 0 ? 1 : -1; // a is the curb-side machine when s = +1
+            const need = penY + 0.06;
+            const sideFree =
+              (negoLegalY(a, a.wy + s * need) && negoLegalY(b, b.wy - s * need)) ||
+              (negoLegalY(a, a.wy - s * need) && negoLegalY(b, b.wy + s * need));
+            if (penX < penY && (penX < 0.5 || !sideFree)) {
+              // Front-to-back: the TRAILING machine gives ground (never shove sideways)
+              const fs = dx >= 0 ? 1 : -1;
+              const amt = Math.min(penX, 5 * dt);
+              if (amt <= 0) continue;
+              if (fs > 0) {
+                a.wx += amt * wa;
+                b.wx -= amt * wb;
+              } else {
+                a.wx -= amt * wa;
+                b.wx += amt * wb;
+              }
+              continue;
+            }
+            if (!sideFree) {
+              // Nowhere sideways either: the lighter two-wheeler is sent to the
+              // shoulder (it pops the curb) and the pair also gives ground lengthwise.
+              if (penY > 0.35) {
+                const light = ma < mb ? a : b;
+                if (negoCanShoulder(light)) {
+                  const wl = negoWalkLanes(light);
+                  for (let k = 0; k < wl.length; k++) {
+                    if (negoClaimHit(light, wl[k])) continue;
+                    light._negoShoulder = NEGO_SHOULDER_T;
+                    light._negoLane = wl[k];
+                    light._negoWalk = true;
+                    break;
+                  }
+                }
+              }
+              const fs2 = dx >= 0 ? 1 : -1;
+              const amt2 = Math.min(penX, 4 * dt);
+              if (fs2 > 0) {
+                a.wx += amt2 * wa;
+                b.wx -= amt2 * wb;
+              } else {
+                a.wx -= amt2 * wa;
+                b.wx += amt2 * wb;
+              }
+              continue;
+            }
+            // Sideways: push along the direction that is legal for BOTH bodies
+            let dA = 0,
+              dB = 0;
+            if (negoLegalY(a, a.wy + s * need) && negoLegalY(b, b.wy - s * need)) {
+              dA = s;
+              dB = -s;
+            } else {
+              dA = -s;
+              dB = s;
+            }
+            const amt = Math.min(penY, 5 * dt);
+            if (amt <= 0) continue;
+            negoShiftLane(a, dA * amt * wa);
+            negoShiftLane(b, dB * amt * wb);
+          }
+        }
+      }
+      function negoShiftLane(v, dyv) {
+        // Move a machine's COMMITTED lane with its body. Without this the separation
+        // push and the lane controller disagree - the push shifts wy, the controller
+        // pulls it straight back to the old centre, and the pair grinds forever. That
+        // disagreement was the knot.
+        if (!dyv) return;
+        v.wy += dyv;
+        if (v._negoLane !== undefined) v._negoLane += dyv;
+        if (v._passSide !== undefined) v._passSide += dyv;
+        if (v._baseWy !== undefined) v._baseWy += dyv;
+        if (v.targetWy !== undefined) v.targetWy += dyv;
+        if (v._lane !== undefined) v._lane += dyv;
+        if (typeof v._homeLane === "number") v._homeLane += dyv;
       }
       // ==================== PHYSICAL TRUCK COLLISION RESOLUTION ====================
       function resolveTruckCollisions(vehicles, dt) {
@@ -25224,10 +25798,10 @@
                 let targetLane;
                 let pushSpeed;
                 if (v.type === "bike" || v.type === "ebike") {
-                  targetLane = v.wy > -4.5 ? 0.5 : -8.5; // curb-side lane or outer road
+                  targetLane = negoEscapeLane(v); // a legal curb/outer lane (or the walk)
                   pushSpeed = 5.0;
                 } else if (v.type === "car" || v.type === "moto") {
-                  targetLane = v.wy > -4.5 ? -0.6 : -9.0; // curb car lane or outer road
+                  targetLane = negoEscapeLane(v); // a legal curb/outer lane, body-clear
                   pushSpeed = 4.0;
                 } else {
                   continue; // skip unknown types
@@ -25330,6 +25904,10 @@
           animateGhostArms();
           animateGhostGlow(); // the static spectral objects breathe (afterlife glow)
         }
+        // TRAFFIC TALK: one arbitration pass for the whole street BEFORE anyone
+        // moves - this is what keeps cars, motos, bikes, e-bikes and scooters from
+        // bumping into each other and knotting up.
+        negotiateTraffic(creatures, dt);
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
@@ -27098,6 +27676,9 @@
                   c.state = "chasing";
                   c.stateT = 0;
                   c.dir = tx > 0 ? 1 : -1;
+                  // messing with the cat pays +10 — the bubble pops OVER THE WORKER so it
+                  // gets its own screen space (the cat's "Hiss!" bubble is anchored on the cat)
+                  awardPrankPoints(10, p.wx, p.wy);
                   // Restore upright alert posture when startled
                   parts.headPivot.rotation.y = 0;
                   parts.headPivot.rotation.z = 0;
@@ -28374,6 +28955,20 @@
               const sprintBe = npcRoadRules(c, dt); // yield to closing cars/motos: swerve or sprint
               const obstBe = findVehicleAhead(c, creatures);
               let spBe = c.sp;
+              // TRAFFIC TALK: the negotiated lane (or the sidewalk shoulder a rider may
+              // use to let traffic past). Bikes used to all be pulled onto ONE curb
+              // centre line - the exact spot where cars sit - which is the lock-up.
+              const negoBe = negoLaneOf(c, c._baseWy === undefined ? c._naturalLane : c._baseWy);
+              if (negoBe !== undefined) {
+                c._baseWy = c.targetWy = negoBe;
+              }
+              const negoShouldering = !!c._negoWalk && c._negoShoulder > 0;
+              if (negoShouldering) {
+                // Pulled up on the sidewalk to let the traffic by: keep rolling gently,
+                // and negotiateTraffic() merges us back when the shoulder runs out.
+                spBe = negoFollowSp(c, c.sp * 0.9, creatures);
+                c.detourTimer = undefined;
+              } else
               if (obstBe) {
                 // Check if obstacle is the truck — bike takes curb-side passing lane
                 const isTruckObstacle = obstBe.isTruck;
@@ -28453,9 +29048,10 @@
                     distToTruckNearby < 15.0 &&
                     (c.type === "bike" || c.type === "ebike");
 
-                  spBe = Math.min(c.sp, obstBe.sp + 1.5);
-                  const minSafeSpeedBe = Math.max(0.5, distToObstacleB * 3.5);
-                  spBe = Math.min(spBe, minSafeSpeedBe);
+                  // TRAFFIC TALK: the negotiation owns the gap - brake to the agreed
+                  // distance and MATCH the leader's pace (even 1-3 u/s for a beat)
+                  // instead of the old 0.5 u/s crawl floor that caused the knot.
+                  spBe = negoFollowSp(c, c.sp, creatures);
 
                   if (bikeNearTruck) {
                     // Detect if the lead vehicle is another bike also near the hopper — that means we're in a bike queue!
@@ -28562,6 +29158,21 @@
                 if (c.detourTimer <= 0) c.detourTimer = undefined;
               }
               spBe = Math.max(spBe, sprintBe || 0); // never crawl in front of closing traffic
+              // DELIVERY COURIER (Gramercy Park mascot): the pizza IS the deadline —
+              // when the worker gets within 12u he slams the throttle (2.2x) and bells.
+              if (c.isDelivery) {
+                const dxD = p.wx - c.wx;
+                const dyD = p.wy - c.wy;
+                if (dxD * dxD + dyD * dyD < 144) {
+                  spBe = Math.max(spBe, c.sp * 2.2);
+                  if (!c._orderCd) c._orderCd = 0;
+                  c._orderCd -= dt;
+                  if (c._orderCd <= 0) {
+                    c._orderCd = 12;
+                    Voice.say("Order up!", 1.2, 1.25, c.wx, c.wy, "male", "bike");
+                  }
+                }
+              }
               const aBe = 9 * dt;
               c.curSp += (spBe - c.curSp) * aBe;
               // Safety clamp
@@ -28586,12 +29197,10 @@
                 c.targetWy = c._baseWy;
                 c.curSp = 0;
               } else if (tx < -58) {
-                // Recycle vehicles that fall far behind the player
-                c.wx = p.wx + 42;
-                c.wy = clamp(R(-3.5, -6.5), -8.5, -1.5);
-                c._baseWy = c.targetWy = c.wy;
-                c.curSp = c.sp;
-                c.detourTimer = undefined;
+                // Recycle a rider that falls far behind the player - onto a LEGAL,
+                // unclaimed lane (never the middle of the road, where the truck's
+                // hopper used to freeze them and rear-end everything behind).
+                negoRecycle(c, p);
               }
               break;
             }
@@ -28605,9 +29214,14 @@
               }
               // Check for obstacles ahead (truck + other vehicles)
               let obstacle = findVehicleAhead(c, creatures);
-              // NO CRAWLING: a car always moves at least at the worker's walk pace (8.5).
-              // Hard brakes for the truck hopper / point-blank vehicles are re-applied below.
-              let desiredSp = Math.max(c.sp, CAR_MIN_SP);
+              // TRAFFIC TALK: negotiateTraffic() already settled who owns which lane
+              // this frame. The car cruises the lane it WON - not the coin-flip lane it
+              // may be sharing with another car (two cars in one lane used to be the knot).
+              c._passSide = negoLaneOf(c, c._passSide === undefined ? CURB_PASS_LANE : c._passSide);
+              // NO CRAWLING on an open road, and HONEST BRAKING behind a leader: the
+              // follow gap is the brake, and the no-crawl floor is only re-asserted
+              // (via negoFloorSp) while the lane is genuinely clear.
+              let desiredSp = negoFollowSp(c, Math.max(c.sp, CAR_MIN_SP), creatures);
 
               // === CRITICAL: Direct hopper proximity check — prevents driving into the truck ===
               // If car's Y overlaps truck's body AND car is approaching from behind, must brake/steer
@@ -28641,8 +29255,8 @@
                 //    of the truck's real 3D side at the 5%-smaller 1.19 half-width)
                 // Passing on YOUR side means no car ever crosses the truck's lane, and both
                 // sides flow instead of queueing behind a single pass lane.
-                const inPassLane = c.wy <= -8.3 || c.wy >= -1.0; // fully clear of the truck's Y
-                const sideLane = choosePassLane(c, creatures); // clearest side (curb OR outer) — pass on either side, never queue
+                const inPassLane = negoClearOfTruck(c); // the car's WHOLE body is clear of the truck's band
+                const sideLane = negoLaneOf(c, choosePassLane(c, creatures)); // negotiated lane first, old fallback after
 
                 // Check if car is in the truck's Y-zone — MUST NOT enter hopper area
                 const inTruckYZone = overlapsTruckY && nearHopperSide;
@@ -28701,26 +29315,22 @@
                     desiredSp = Math.max(CAR_MIN_SP, desiredSp); // keep moving while we do
                   }
                 } else {
-                  // Obstacle is another vehicle — slow down normally
-                  desiredSp = Math.min(c.sp, obstacle.sp);
-                  if (distToObstacle < 1.5) {
-                    desiredSp = Math.max(0, distToObstacle * 1.5);
-                  } else if (distToObstacle < 3.0) {
-                    desiredSp = Math.min(desiredSp, distToObstacle * 2.0);
-                  } else if (distToObstacle < 6.0) {
-                    desiredSp = Math.min(desiredSp, distToObstacle * 1.5);
-                  }
-                  // Try to change lane around slower vehicles
-                  let canDetour = false;
+                  // Obstacle is another vehicle. The negotiation already knows exactly
+                  // who we are following and how much gap we agreed on, so negoFollowSp
+                  // does the braking - matching the leader's pace (even down to 1-3 u/s
+                  // for a beat) is a polite queue, not a jam. The only question left is
+                  // OVERTAKING: if we are quicker and a lane is genuinely free, take it;
+                  // otherwise stay in line behind it.
+                  desiredSp = negoFollowSp(c, Math.max(c.sp, CAR_MIN_SP), creatures);
+                  const passSide = negoFreeLaneFor(c);
                   if (
                     c.curSp > obstacle.sp + 0.5 &&
-                    c.detourTimer === undefined
+                    c.detourTimer === undefined &&
+                    passSide !== undefined
                   ) {
-                    if (isLaneClear(sideLane, c.wx, c.boxW, creatures)) {
-                      canDetour = true;
-                      c.detourY = sideLane;
-                      c.detourTimer = R(0.4, 0.7);
-                    }
+                    c.detourY = passSide;
+                    c.detourTimer = R(0.5, 0.9);
+                    c._negoLane = passSide; // commit: the negotiation now knows we moved
                   }
                 }
               } else if (c.detourTimer !== undefined) {
@@ -28749,7 +29359,7 @@
                     }
                   }
                 }
-                desiredSp = Math.max(desiredSp, 15); // full throttle to clear the rider quickly
+                desiredSp = Math.max(desiredSp, Math.min(c.sp * 1.45, CAR_MIN_SP * 2)); // brisk, not reckless - negoFollowSp still owns the brakes
               }
               if (c.riderLane !== undefined) {
                 c.wy += (c.riderLane - c.wy) * Math.min(1, 4.5 * dt);
@@ -28757,12 +29367,13 @@
                   c.riderLane = undefined;
               }
 
-              // Re-assert the no-crawling floor after all follow/slow-down logic,
-              // then re-apply the emergency stop right at the truck hopper (safety first).
-              // Only while the nose is still BEHIND the rear face (approaching) and in the
-              // truck's Y zone — a car alongside/past it must not be braked just for being
-              // next to the truck (that pinned it in the middle lane with no escape).
-              if (desiredSp < CAR_MIN_SP) desiredSp = CAR_MIN_SP;
+              // TRAFFIC TALK: the no-crawling floor is re-asserted ONLY while our own
+              // lane is open. It used to be applied unconditionally, which meant a car
+              // was physically incapable of slowing for the machine in front of it: it
+              // ploughed into bikes and motos, the pair bounced apart, the lane
+              // controller pulled both back onto the same centre line, and the knot was
+              // born.
+              desiredSp = negoFloorSp(c, desiredSp, CAR_MIN_SP);
               if (truck.active && overlapsTruckY && nearHopperSide) {
                 const dtTruck = truck.wx - truck.boxL - c.wx;
                 if (dtTruck > 0 && dtTruck < 14) {
@@ -28809,7 +29420,10 @@
                 c._passSide = Math.random() < 0.5 ? CURB_PASS_LANE : OUTER_PASS_LANE;
               }
               let obstacleM = findVehicleAhead(c, creatures);
-              let desiredSpM = c.sp;
+              // TRAFFIC TALK: a moto rides the lane the negotiation gave it - and,
+              // unlike a car, it may pop the curb onto the sidewalk to let traffic past.
+              c._passSide = negoLaneOf(c, c._passSide === undefined ? CURB_PASS_LANE : c._passSide);
+              let desiredSpM = negoFollowSp(c, c.sp, creatures);
               const sprintM = npcRoadRules(c, dt); // a car is closing on us — move over or sprint (never just wait)
 
               // === CRITICAL: Direct hopper proximity check ===
@@ -28836,8 +29450,8 @@
                 const isTruckObstacle = obstacleM.isTruck;
                 const distToObstacleM = obstacleM.dist;
                 // Pass on the clearest side — curb lane OR outer road. Never dead-stop behind the truck.
-                const sideLaneM = choosePassLane(c, creatures);
-                const inPassLaneM = c.wy <= -7.2 || c.wy >= -1.8; // clear of the truck's Y on either side
+                const sideLaneM = negoLaneOf(c, choosePassLane(c, creatures)); // negotiated lane first
+                const inPassLaneM = negoClearOfTruck(c); // the moto's body is clear of the truck's band on its side
 
                 const inTruckYZoneM = overlapsMotoTruckY && nearHopperSideM;
 
@@ -28889,14 +29503,14 @@
                     }
                   }
                 } else {
-                  // Obstacle is another vehicle — slow down normally
-                  desiredSpM = Math.min(c.sp, obstacleM.sp);
-                  if (distToObstacleM < 1.5) {
-                    desiredSpM = Math.max(0, distToObstacleM * 2.0);
-                  } else if (distToObstacleM < 3.0) {
-                    desiredSpM = Math.min(desiredSpM, distToObstacleM * 2.5);
-                  } else if (distToObstacleM < 6.0) {
-                    desiredSpM = Math.min(desiredSpM, distToObstacleM * 1.5);
+                  // Obstacle is another vehicle - the negotiation owns the gap: brake to
+                  // the agreed distance (matching a slow leader for a beat is a queue,
+                  // not a jam), and only change lanes if one is genuinely free.
+                  desiredSpM = negoFollowSp(c, c.sp, creatures);
+                  const passSideM = negoFreeLaneFor(c);
+                  if (passSideM !== undefined && c.curSp > obstacleM.sp + 0.5) {
+                    c.targetWy = passSideM;
+                    c._negoLane = passSideM;
                   }
                 }
               } else if (c.detourTimer !== undefined) {
@@ -29294,7 +29908,7 @@
                 // Face the direction of movement (away from worker)
                 c.g.rotation.z = Math.atan2(dy, dx);
                 // Run away fast
-                const runSp = 1.8;
+                const runSp = 2.2; // L1 tuning: flees a touch faster, keeps the "gone" beat snappy
                 c.wx += (dx / d) * runSp * dt;
                 c.wy = clamp(c.wy + (dy / d) * runSp * dt, 0.5, 4.5);
                 // Quick running animation
@@ -29310,7 +29924,7 @@
                   const behavior = Math.random();
                   if (behavior < 0.3) {
                     // Keep walking forward (much faster now)
-                    c.crazySpeed = R(1.8, 3.5);
+                    c.crazySpeed = R(2.0, 3.8); // L1 tuning: forward walks push harder
                     c.crazyAngle = 0;
                     c.crazyTimer = R(0.8, 2.5);
                   } else if (behavior < 0.42) {
@@ -29337,7 +29951,7 @@
                     const dx = p.wx - c.wx;
                     const dy = p.wy - c.wy;
                     c.crazyAngle = Math.atan2(dy, dx);
-                    c.crazySpeed = R(2.0, 3.8); // faster when stalking
+                    c.crazySpeed = R(CRAZY_STALK_MIN, CRAZY_STALK_MAX); // faster when stalking (L1 tuning)
                     c.crazyTimer = R(1.0, 2.5);
                   }
                 }
@@ -30244,6 +30858,10 @@
         };
       }
       const BUBBLE_PAD = 8; // minimum gap kept between bubbles so they never touch
+      // The bubblePop / burstPop animations OVERSHOOT to 1.10 / 1.15x scale at their 60%
+      // keyframe, so every box in the layout math is inflated by this margin: boxes never
+      // touch even at the pop's peak, which is what makes the no-overlap guarantee real.
+      const BUBBLE_PEAK_MARGIN = 1.08;
       function rectsOverlap(a, b) {
         return (
           a.x < b.x + b.w &&
@@ -30253,12 +30871,16 @@
         );
       }
       // Live on-screen box of a bubble (getBoundingClientRect reflects the CSS
-      // translate that hangs it above its head). null if it isn't measurable.
+      // translate that hangs it above its head), inflated to the pop's peak scale
+      // so a bubble that is still popping cannot be crowded into by a new one.
       function bubbleBox(el) {
         if (el && typeof el.getBoundingClientRect === "function") {
           const r = el.getBoundingClientRect();
-          if (r && r.width > 0 && r.height > 0)
-            return { x: r.left, y: r.top, w: r.width, h: r.height };
+          if (r && r.width > 0 && r.height > 0) {
+            const x = r.left - r.width * 0.04;
+            const y = r.top - r.height * 0.04;
+            return { x: x, y: y, w: r.width * 1.08, h: r.height * 1.08 };
+          }
         }
         return null;
       }
@@ -30282,7 +30904,14 @@
         const w = (el && el.offsetWidth) || 140;
         const h = (el && el.offsetHeight) || 30;
         const occ = occupiedBoxes(el);
-        const boxAt = (cx, by) => ({ x: cx - w / 2, y: by - h, w: w, h: h });
+        const overlaps = (x, y, ww, hh) =>
+          occ.some((o) => rectsOverlap({ x: x, y: y, w: ww, h: hh }, o));
+        const boxAt = (cx, by) => ({
+          x: cx - (w * BUBBLE_PEAK_MARGIN) / 2,
+          y: by - h * BUBBLE_PEAK_MARGIN,
+          w: w * BUBBLE_PEAK_MARGIN,
+          h: h * BUBBLE_PEAK_MARGIN,
+        });
         const cands = [];
         for (let k = 0; k < 6; k++)
           cands.push([ax, ay - 12 - k * (h + 12)]); // above head, stacking up
@@ -30296,27 +30925,26 @@
           cands.push([w / 2 + BUBBLE_PAD, by]);
           cands.push([innerWidth - w / 2 - BUBBLE_PAD, by]);
         }
+        // Clamps sized so the PEAK-scale box (not just the resting box) stays on screen.
+        const minX = (w * BUBBLE_PEAK_MARGIN) / 2 + BUBBLE_PAD;
+        const maxX = innerWidth - (w * BUBBLE_PEAK_MARGIN) / 2 - BUBBLE_PAD;
+        const minY = h * BUBBLE_PEAK_MARGIN + BUBBLE_PAD;
+        const maxY = innerHeight - BUBBLE_PAD;
         let best = null;
         for (const [cx, by] of cands) {
-          const ccx = Math.max(
-            w / 2 + BUBBLE_PAD,
-            Math.min(cx, innerWidth - w / 2 - BUBBLE_PAD),
-          );
-          const cby = Math.max(
-            h + BUBBLE_PAD,
-            Math.min(by, innerHeight - BUBBLE_PAD),
-          );
-          if (!occ.some((o) => rectsOverlap(boxAt(ccx, cby), o))) {
+          const ccx = Math.max(minX, Math.min(cx, maxX));
+          const cby = Math.max(minY, Math.min(by, maxY));
+          if (!overlaps(ccx - (w * BUBBLE_PEAK_MARGIN) / 2, cby - h * BUBBLE_PEAK_MARGIN, w * BUBBLE_PEAK_MARGIN, h * BUBBLE_PEAK_MARGIN)) {
             best = { cx: ccx, by: cby };
             break;
           }
         }
         if (!best)
           best = {
-            cx: w / 2 + BUBBLE_PAD,
+            cx: minX,
             by: Math.min(
               h + BUBBLE_PAD + occ.length * (h + 14),
-              innerHeight - BUBBLE_PAD,
+              maxY,
             ),
           };
         // transform is translate(-50%,-110%): centerX == left, bottom == top - 0.1h.
@@ -30327,7 +30955,8 @@
       function spawnBubble(text, wx, wy, speaker, style) {
         const el = document.createElement("div");
         let cls = "bubble";
-        if (speaker === "worker") cls = "bubble bub-worker";
+        if (speaker === "score") cls = "bubble bub-score";
+        else if (speaker === "worker") cls = "bubble bub-worker";
         else if (speaker === "dog") cls = "bubble bub-dog";
         else if (speaker === "ped" || speaker === "lady")
           cls = "bubble bub-ped";
@@ -30364,21 +30993,30 @@
           x: innerWidth / 2,
           y: innerHeight * 0.3,
         };
-        const spot = findFreeSpot(el, s.x, s.y);
-        speechBubbles.push({
+        // Score pop-ups ("+10 points") are short: exactly 2 seconds, in and out.
+        const life =
+          speaker === "score"
+            ? 2.0
+            : Math.max(1.9, Math.min(4.2, 1.2 + String(text).length * 0.028));
+        // Register the bubble BEFORE laying it out: two bubbles born the same
+        // frame at the same spot (a cat's "Hiss!" + its "+10 points" together)
+        // must both see each other as occupied, or they'd land on the same slot.
+        const rec = {
           el: el,
           wx: wx,
           wy: wy,
-          life: Math.max(1.9, Math.min(4.2, 1.2 + String(text).length * 0.028)),
-          max: Math.max(1.9, Math.min(4.2, 1.2 + String(text).length * 0.028)),
+          life: life,
+          max: life,
           text: text,
           lockedX: s.x,
           lockedY: s.y,
-          spotX: spot.cx,
-          spotY: spot.by,
           speaker: speaker,
           burst: isBurst,
-        });
+        };
+        speechBubbles.push(rec);
+        const spot = findFreeSpot(el, s.x, s.y);
+        rec.spotX = spot.cx;
+        rec.spotY = spot.by;
       }
       function updateBubbles(dt) {
         for (let i = speechBubbles.length - 1; i >= 0; i--) {
@@ -31601,6 +32239,7 @@
           updateBlocks(dt);
           cleanupLandedCans();
           updateFootprints(dt);
+          updatePissKicks(dt); // kicked piss bottles: tumbling, fading, despawn
           collideStatic(dt);
           collideLandedCans();
           collideCreatures();

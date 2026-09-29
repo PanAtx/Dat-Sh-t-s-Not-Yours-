@@ -30,6 +30,12 @@ check(
   !code.includes('s.y - b.offsetLine'),
   'updateBubbles no longer re-projects (bubbles are frozen)',
 );
+check(
+  code.indexOf('speechBubbles.push(rec)') < code.lastIndexOf('findFreeSpot(el, s.x, s.y)') &&
+    code.indexOf('speechBubbles.push(rec)') > code.lastIndexOf('function spawnBubble'),
+  'spawnBubble registers the bubble BEFORE laying it out (same-frame siblings see each other)',
+);
+check(code.includes('const BUBBLE_PEAK_MARGIN ='), 'peak-scale margin exists (pop overshoot 1.10/1.15x)');
 
 // --- behavioral test: run the REAL findFreeSpot against a mock DOM ------------
 function grabLayoutBlock() {
@@ -129,6 +135,23 @@ speechBubbles.length = 0;
   const a = place('OW!', true, 400, 300);
   const b = place('Watch it!', false, 400, 300);
   check(!api.rectsOverlap(a, b), 'burst + plain same-anchor bubbles do not overlap');
+}
+
+// 5) TWO bubbles born the SAME FRAME at the same anchor (a cat's "Hiss!" and its
+//    "+10 points" together) each get their own slot — spawnBubble registers the
+//    record in speechBubbles BEFORE calling findFreeSpot, so emulate that order.
+speechBubbles.length = 0;
+{
+  const placeSim = (text, ax, ay) => {
+    const el = makeEl(text, false);
+    speechBubbles.push({ el }); // register first, exactly like spawnBubble now does
+    api.findFreeSpot(el, ax, ay);
+    return el.getBoundingClientRect();
+  };
+  const a = placeSim('Hiss!', 450, 320);
+  const b = placeSim('+10 points', 450, 320);
+  check(!api.rectsOverlap(a, b), 'same-frame same-anchor bubbles (voice + score) do not overlap');
+  check(onScreen(a) && onScreen(b), 'same-frame same-anchor bubbles are both on-screen');
 }
 
 console.log(
