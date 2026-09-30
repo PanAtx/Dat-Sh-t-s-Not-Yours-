@@ -247,7 +247,7 @@ check('loadCanGltf sharpens the highlights (m.roughness = 0.7) so the ribs catch
   /async function loadCanGltf\(\)[\s\S]{0,2400}?m\.roughness = 0\.7/.test(html));
 check('makeGltfLoader attaches local DRACOLoader (./draco/)',
   /function makeGltfLoader\(\)[\s\S]{0,600}?setDecoderPath\("\.\/draco\/"\)/.test(html));
-check('PRELOAD has truck compressed size', html.includes('url: "nyc_truck-compressed.glb", size: 10280012'));
+check('PRELOAD has truck compressed size', html.includes('url: "nyc_truck-compressed.glb", size: 5295160'));
 check('PRELOAD has can compressed size', html.includes('url: "nyc_can-compressed.glb", size: 3181560'));
 check('old nyc_truck.glb no longer loaded/preloaded', !/getModelUrl\("nyc_truck\.glb"\)/.test(html) && !/url: "nyc_truck\.glb"/.test(html));
 check('old nyc_can.glb no longer loaded/preloaded', !/getModelUrl\("nyc_can\.glb"\)/.test(html) && !/url: "nyc_can\.glb"/.test(html));

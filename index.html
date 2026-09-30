@@ -2605,7 +2605,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.334</div>
+          <div id="app-version" class="menu-version">v1.0.335</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2762,7 +2762,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.334';
+      const APP_VERSION = '1.0.335';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5871,6 +5871,21 @@
       let _modelCache = null;
       const _modelMemCache = {}; // url -> blob URL, for assets that downloaded fine but the
       // persistent Cache couldn't hold them (see preloadAssetsToCache)
+      // ---- Per-asset cache versions (bump ONE value to re-fetch ONE asset, not all) ----
+      // The browser Cache API persists across sessions, so a file that changed on disk (e.g. a
+      // re-compressed model) would otherwise keep serving its STALE cached bytes. An asset's
+      // cache key is its plain url, or "url?v=N" when N is set below. Bumping N makes the old
+      // entry stop matching, so that ONE asset re-downloads on the next load while every
+      // untouched asset keeps serving from cache. The network fetch still uses the PLAIN url
+      // (static servers ignore query strings), so we just re-fetch the same file under a new
+      // key. To bust a different asset later, add/raise its value here.
+      const _modelCacheVersions = {
+        "nyc_truck-compressed.glb": 2, // v2: 31.4MB->5.3MB re-compress (Draco); KHR_texture_transform + EXT_texture_webp preserved
+      };
+      function _modelCacheKey(url) {
+        const v = _modelCacheVersions[url];
+        return typeof v === "number" && v > 0 ? url + "?v=" + v : url;
+      }
       // ---- fetchWithTimeout: wrap fetch() so a hung network call (iOS offline / DNS limbo)
       //      can never block the asset gate forever. On iOS Safari in airplane mode,
       //      fetch() can hang for minutes instead of rejecting fast. This helper aborts
@@ -5938,7 +5953,7 @@
         const cache = await _modelGetCache();
         if (cache) {
           try {
-            const hit = await cache.match(url);
+            const hit = await cache.match(_modelCacheKey(url));
             if (hit) {
               const blob = await hit.blob();
               if (onProgress) onProgress(blob.size, blob.size); // instant: already have it
@@ -5981,7 +5996,7 @@
               // the bytes we just downloaded (the caller still has them via the blob URL).
               let persisted = false;
               try {
-                await cache.put(url, new Response(blob));
+                await cache.put(_modelCacheKey(url), new Response(blob));
                 persisted = true;
               } catch (ce) {
                 console.warn(
@@ -35265,7 +35280,7 @@
       // them, so they keep their existing "cache as they play" behaviour (see SFX radio
       // code) and are never required before the game can start.
       const PRELOAD_ASSETS = [
-        { url: "nyc_truck-compressed.glb", size: 10280012, label: "DSNY TRUCK" },
+        { url: "nyc_truck-compressed.glb", size: 5295160, label: "DSNY TRUCK" },
         {
           url: "bec-compressed.glb",
           size: 621776,
@@ -35483,7 +35498,7 @@
               continue;
             } // in-memory fallback also means it's loaded
             try {
-              if (await c.match(a.url)) m++;
+              if (await c.match(_modelCacheKey(a.url))) m++;
             } catch (e) {}
           }
           const r = await _radioCacheStats();
