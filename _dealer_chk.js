@@ -69,18 +69,21 @@ check(
 );
 
 console.log("[2] spawn rules");
-const spawnIdx = html.indexOf("// Bronx drug dealers: exactly TWO");
+const spawnIdx = html.indexOf("// Bronx drug dealers: one burly dealer on EVERY");
 const spawnEnd = html.indexOf("// Manhattan Pizza Rat");
 const spawnBlock = html.slice(spawnIdx, spawnEnd);
 check(
   "dealer spawn is gated to Bronx levels",
   spawnBlock.indexOf("if (isBronxLevel()) {") >= 0,
 );
-check("exactly 2 dealers per level", /for \(let dI = 0; dI < 2; dI\+\+\)/.test(spawnBlock));
 check(
-  "deals pick 2 DISTINCT active blocks (shuffle 1..5, take 2)",
-  /dealerBlockIdx = \[1, 2, 3, 4, 5\]/.test(spawnBlock) &&
-    spawnBlock.indexOf("LEVEL_BLOCKS[dealerBlockIdx[dI]]") >= 0,
+  "one dealer on EVERY active block (5 per level)",
+  /for \(let dI = 1; dI <= 5; dI\+\+\)/.test(spawnBlock),
+);
+check(
+  "loops over ALL five active blocks (no shuffle, no take-2)",
+  spawnBlock.indexOf("LEVEL_BLOCKS[dI]") >= 0 &&
+    spawnBlock.indexOf("dealerBlockIdx") < 0,
 );
 check(
   "dealer stands on the bottom stoop step (y 5.6, z 0.47)",
@@ -98,6 +101,22 @@ check(
 check(
   "stash table sits beside the dealer on the stoop",
   spawnBlock.indexOf("stash.position.set(stoopX - side * 0.6, 5.62, dl.baseZ)") >= 0,
+);
+check(
+  "each dealer gets a LURE on the sidewalk in front of his stoop (garbage or bonus)",
+  spawnBlock.indexOf("const lureY = 4.4;") >= 0 &&
+    spawnBlock.indexOf("makeCurbBag(lureX, lureY, hb.house)") >= 0 &&
+    spawnBlock.indexOf("hb.can = makeCurbCan(lureX, lureY, hb.house)") >= 0 &&
+    spawnBlock.indexOf("spawnBonus(lureX, lureY)") >= 0,
+);
+check(
+  "lure spot is INSIDE the 2.2u punch corner (max possible distance < 2.2)",
+  Math.hypot(1.0, 5.6 - 4.4) < 2.2,
+);
+check(
+  "lure registers on a REAL house cell (collectible + recyclable, no orphaned cans)",
+  spawnBlock.indexOf("b.worldX === bl.x + houseI * 8") >= 0 &&
+    spawnBlock.indexOf("!hb.can)") >= 0,
 );
 
 console.log("[3] wiring");
@@ -267,6 +286,80 @@ check("sales pitch is on a cooldown (no instant repeat)", voices.length === 0);
 c.talkCd = 0;
 runCase(c, p, 0.016);
 check("sales pitch can fire again after the cooldown", voices.length === 1);
+
+// (f) LURE: over many randomized spawns, exactly ONE collectible is made and it
+// always lands INSIDE the dealer's 2.2u punch corner.
+console.log("[5] RUNTIME: lure placement");
+const lureStart = html.indexOf("// The LURE:");
+const lureEnd = html.indexOf("// Bronx panhandlers:");
+// The snippet ends with the closing braces of the dealer for-loop + if, so
+// strip those two trailing braces before running it standalone.
+const lureCode = html.slice(lureStart, lureEnd).replace(/\}\s*\}\s*$/, "");
+check("lure code block exists in the dealer spawn", lureStart >= 0 && lureEnd > lureStart);
+let nLureBags = 0,
+  nLureCans = 0,
+  nLureBonus = 0;
+let lureOk = true,
+  lureCountOk = true;
+for (let t = 0; t < 400; t++) {
+  const side = Math.random() < 0.5 ? 1 : -1;
+  const dl = { wx: 100 + side * 0.45, wy: 5.6 }; // stoopX 100 + side * 0.45
+  const bl = { x: 96 }; // a real active block (x 96..480)
+  const houseI = 1 + ((Math.random() * 8) | 0);
+  const stubBlocks = [
+    {
+      worldX: bl.x + houseI * 8,
+      house: {},
+      can: Math.random() < 0.5 ? { state: "curb" } : null,
+    },
+  ];
+  const placed = [];
+  // The stubs record through `placed`; the snippet's own hb/hb.house refs hit the stub.
+  const R = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  // Wrap builders so they record, then run the snippet with them in scope.
+  const fn = new Function(
+    "dl",
+    "bl",
+    "houseI",
+    "blocks",
+    "R",
+    "clamp",
+    "BLOCK_W",
+    "placed",
+    "makeCurbBag",
+    "makeCurbCan",
+    "spawnBonus",
+    lureCode,
+  );
+  fn(
+    dl,
+    bl,
+    houseI,
+    stubBlocks,
+    R,
+    clamp,
+    80,
+    placed,
+    (x, y) => placed.push({ x, y, kind: "bag" }),
+    (x, y) => placed.push({ x, y, kind: "can" }),
+    (x, y) => placed.push({ x, y, kind: "bonus" }),
+  );
+  if (placed.length !== 1) lureCountOk = false;
+  for (const pl of placed) {
+    if (Math.hypot(pl.x - dl.wx, pl.y - dl.wy) >= 2.2) lureOk = false;
+    if (pl.x < bl.x + 1 || pl.x > bl.x + 80 - 1) lureOk = false;
+    if (pl.kind === "bag") nLureBags++;
+    else if (pl.kind === "can") nLureCans++;
+    else nLureBonus++;
+  }
+}
+check("exactly ONE lure per dealer (400/400)", lureCountOk);
+check("every lure lands INSIDE the 2.2u punch corner", lureOk);
+check(
+  "lure mix draws all three kinds over 400 runs (bag / can / bonus)",
+  nLureBags > 0 && nLureCans > 0 && nLureBonus > 0,
+);
 
 console.log(`\nDEALER RESULT: ${pass} ok, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

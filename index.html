@@ -2516,7 +2516,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.328</div>
+          <div id="app-version" class="menu-version">v1.0.329</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.328';
+      const APP_VERSION = '1.0.329';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3421,7 +3421,7 @@
         rc: 1,
         jacker: 1,
         crazy: 0,
-        dealer: 0, // Bronx-only: exactly 2 per level, spawned separately on stoops
+        dealer: 0, // Bronx-only: one per active block (5 per level), spawned separately on stoops
         panhandler: 0, // Bronx-only: exactly 2 per level, in front of the corner store
         scholar: 0, // Flatbush-only: an observant Orthodox Jewish scholar strolling the sidewalk
         football: 0, // Bed-Stuy-only: ONE high-school football player per level, spawned separately on one block
@@ -21589,22 +21589,13 @@
             }
           }
         }
-        // Bronx drug dealers: exactly TWO burly dealers per Bronx level, each
-        // guarding a weed/fentanyl stash on a DIFFERENT active block's stoop
-        // (two dealers never share a block). They stand on the bottom stoop
-        // step, watch the street, and punch the worker if he comes close.
+        // Bronx drug dealers: one burly dealer on EVERY active block (all five,
+        // indices 1..5, x 96..480) — each guarding a weed/fentanyl stash on a
+        // different stoop. They stand on the bottom stoop step, watch the
+        // street, and punch the worker if he comes close.
         if (isBronxLevel()) {
-          // Active shift blocks for a Bronx level are indices 1..5 (x 96..480).
-          // Shuffle and take the first two -> always on separate blocks.
-          const dealerBlockIdx = [1, 2, 3, 4, 5];
-          for (let dI = dealerBlockIdx.length - 1; dI > 0; dI--) {
-            const j = (Math.random() * (dI + 1)) | 0;
-            const t = dealerBlockIdx[dI];
-            dealerBlockIdx[dI] = dealerBlockIdx[j];
-            dealerBlockIdx[j] = t;
-          }
-          for (let dI = 0; dI < 2; dI++) {
-            const bl = LEVEL_BLOCKS[dealerBlockIdx[dI]];
+          for (let dI = 1; dI <= 5; dI++) {
+            const bl = LEVEL_BLOCKS[dI];
             // Residential houses are index 1..8 (0 and 9 are storefronts);
             // every one of them has a Bronx row-house stoop.
             const houseI = 1 + ((Math.random() * 8) | 0);
@@ -21622,6 +21613,24 @@
             const stash = makeDealerStash();
             stash.position.set(stoopX - side * 0.6, 5.62, dl.baseZ);
             dynamicGroup.add(stash);
+            // The LURE: always ONE collectible on the sidewalk right in front of
+            // his stoop, INSIDE his 2.2u punch corner — curb garbage (a bag, or a
+            // can when this cell's can slot is free) or a bonus (mongo / street
+            // cash / treasure). Grabbing it puts the worker in punch range.
+            const lureX = clamp(dl.wx + R(-1.0, 1.0), bl.x + 1, bl.x + BLOCK_W - 1);
+            const lureY = 4.4; // dy 1.2 + dx <= 1.0 -> at most ~1.56u from the dealer
+            const hb = blocks.find(
+              (b) => b.worldX === bl.x + houseI * 8 && b.house,
+            );
+            if (Math.random() < 0.5 && hb) {
+              // Garbage: a curb bag, or a can (only when the cell's can slot is
+              // free, so we never orphan a pre-spawned can).
+              if (Math.random() < 0.5 || !hb.can)
+                makeCurbBag(lureX, lureY, hb.house);
+              else hb.can = makeCurbCan(lureX, lureY, hb.house);
+            } else {
+              spawnBonus(lureX, lureY); // mongo / street cash / treasure
+            }
           }
         }
         // Bronx panhandlers: exactly TWO per level, loitering in front of the
