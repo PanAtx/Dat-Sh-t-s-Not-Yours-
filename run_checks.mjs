@@ -23,6 +23,7 @@ const suites = [
   ['traffic negotiation (knot fix)', 'node', '_traffic_nego_chk.js'],
   ['slapstick + weather (squash-stretch / hat pop / bag cascade / rain)', 'node', '_slapstick_weather_chk.js'],
   ['punchback (retaliation vs the 12 attack NPCs)', 'node', '_punch_back_chk.js'],
+  ['write-up stamp fits mobile (CSS invariants)', 'node', '_writeup_mobile_chk.js'],
   ['health carry-over (no refill at level start - street-cash healer / write-up restores)', 'node', '_health_carryover_chk.js'],
   ['danger zone POW! + 1980s arcade voice ("San Man Needs Food Badly")', 'node', '_danger_pow_chk.js'],
   ['25 new street treasures (kinds 42-66 + spawnBonus draw)', 'node', '_treasures25_chk.js'],

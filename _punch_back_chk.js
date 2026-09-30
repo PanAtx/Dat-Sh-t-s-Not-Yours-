@@ -106,13 +106,15 @@ console.log('[3] markPunchback — the real function in a harness');
   const causesLit = src.match(/const PUNCHBACK_CAUSES = \[[\s\S]*?\];/)[0];
   const mp = extract('markPunchback');
   const p = { attackerT: 0, attackerCause: '' };
-  let dropped = 0;
-  new Function('p', 'dropCarried', causesLit + '\n' + mp + '\nmarkPunchback("dealer");')(
+  let dropped = 0, raged = 0;
+  new Function('p', 'dropCarried', 'startRage', causesLit + '\n' + mp + '\nmarkPunchback("dealer");')(
     p,
-    () => dropped++
+    () => dropped++,
+    () => raged++
   );
   check('hit by a dealer: 10s window armed + cause recorded', p.attackerT === 10 && p.attackerCause === 'dealer');
   check('hit: his hands empty (dropCarried called once)', dropped === 1);
+  check('hit: BEAST MODE armed (startRage called once)', raged === 1);
 }
 
 console.log('');
@@ -122,7 +124,7 @@ console.log('[4] tryPunchBack — the real function in a harness');
   const causesArr = (causesLit.match(/"(\w+)"/g) || []).map((s) => s.slice(1, -1));
   const tp = extract('tryPunchBack');
   function run(p, creatures) {
-    const out = { said: [], punch: 0 };
+    const out = { said: [], punch: 0, rage: 0 };
     const fn = new Function(
       'p',
       'creatures',
@@ -132,6 +134,7 @@ console.log('[4] tryPunchBack — the real function in a harness');
       'Voice',
       'SFX',
       'WORKER_GENDER',
+      'endRage',
       tp + '\nreturn tryPunchBack();'
     );
     const ok = fn(
@@ -142,7 +145,8 @@ console.log('[4] tryPunchBack — the real function in a harness');
       (a) => a[0],
       { say: (t) => out.said.push(t) },
       { playPunchSound: () => out.punch++ },
-      'male'
+      'male',
+      () => out.rage++
     );
     return { ok: ok, out: out, p: p };
   }
@@ -164,6 +168,7 @@ console.log('[4] tryPunchBack — the real function in a harness');
     Math.abs(r1.p.facing - Math.atan2(2 - 2, 1.5 - 0)) < 1e-9
   );
   check('the worker taunts (a voice line) + the WHOOSH/THUMP SFX fires', r1.out.said.length === 1 && r1.out.punch === 1);
+  check('a successful punch closes the BEAST MODE window (endRage called once)', r1.out.rage === 1);
   const r2 = run(mkP(), [ped, copFar]); // nobody in the 2.0u reach
   check(
     'whiff (only a ped 0.5u + a cop 3u): NO punch, NO SFX (falls through to the pickup/throw handling)',
