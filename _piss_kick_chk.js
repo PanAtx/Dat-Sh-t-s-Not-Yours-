@@ -1,6 +1,7 @@
-// _piss_kick_chk.js — the piss-bottle bump: the worker stumbles (existing trip) AND the
-// bottle gets KICKED away (tumble + fade + despawn), leaving a piss STAIN on the
-// pavement where it stood. Extracts the real kickPissBottle / spawnPissStain /
+// _piss_kick_chk.js — the piss-bottle bump: the worker does NOT stumble — the bottle
+// gets KICKED away (tumble + fade + despawn), leaving a piss STAIN on the pavement
+// where it stood. Same for the sidewalk LITTER cluster: the bottles just SCATTER, no
+// trip. Extracts the real kickPissBottle / scatterLitter / spawnPissStain /
 // updatePissKicks from index.html and runs them against real three.js objects.
 const fs = require('fs');
 const path = require('path');
@@ -23,6 +24,32 @@ function extractBody(name, stopName) {
 // ---- static wiring ----------------------------------------------------------------
 check('spawn: the piss bottle hazard keeps a reference to its 3D group (yb)',
   /yellow: true,\s*yb: yb/.test(h));
+check('spawn: the litter hazard keeps a reference to its 3D cluster (litter)',
+  /type: "trip",\s*drop: 0,\s*cd: 0,\s*litter: g,/.test(h));
+check('collideStatic: the yellow (piss bottle) branch has NO doStun — kick, no stumble',
+  (function(){
+    const i = h.indexOf('} else if (hz.yellow) {');
+    const j = h.indexOf('} else if (hz.litter) {', i);
+    return i >= 0 && j > i && h.slice(i, j).indexOf('doStun') < 0;
+  })());
+check('collideStatic: the litter branch has NO doStun — the bottles just scatter',
+  (function(){
+    const i = h.indexOf('} else if (hz.litter) {');
+    const j = h.indexOf('doStun(0.8, "trip")', i);
+    return i >= 0 && j > i &&
+      h.slice(i, j).indexOf('doStun') < 0 &&
+      h.slice(i, j).indexOf('scatterLitter(hz, Math.atan2(hz.wy - p.wy, hz.wx - p.wx))') >= 0;
+  })());
+check('collideStatic: OTHER trip hazards (cans, cones...) STILL stumble the worker',
+  (function(){
+    const j = h.indexOf('doStun(0.8, "trip")', h.indexOf('} else if (hz.litter) {'));
+    return j > 0 && h.slice(j, j + 200).indexOf('dropCarried()') >= 0;
+  })());
+check('scatterLitter: the trip hazard dies with the bottles (scattered flag + r = 0)',
+  extractBody('scatterLitter').indexOf('hz.scattered = true;') >= 0 &&
+  extractBody('scatterLitter').indexOf('hz.r = 0;') >= 0);
+check('scatterLitter: materials are CLONED so the fade never leaks into the shared glass',
+  extractBody('scatterLitter').indexOf('o.material = o.material.clone()') >= 0);
 check('collideStatic: the yellow bump kicks the bottle (guarded so it only happens once)',
   h.indexOf('if (!hz.kicked) kickPissBottle(hz)') >= 0);
 check('kickPissBottle: the trip hazard dies with the bottle (kicked flag + r = 0)',
@@ -91,7 +118,7 @@ check('PRANK POINTS: score bubbles get the green bub-score class and a 2-second 
     extractBody('spawnPissStain', 'kickPissBottle') + '\n' +
     extractBody('kickPissBottle', 'updatePissKicks') + '\n' +
     extractBody('updatePissKicks', 'addWrapper') +
-    '\nreturn { kickPissBottle, spawnPissStain, updatePissKicks, kicks: () => pissKicks };';
+    '\nreturn { kickPissBottle, spawnPissStain, updatePissKicks, scatterLitter, kicks: () => pissKicks };';
   const api = new Function('THREE', 'R', 'GZ', 'groundZAt', 'dynamicGroup', 'disposeObj', 'awardPrankPoints', src)(
     THREE, R, GZ, groundZAt, dynamicGroup, disposeObj, awardPrankPointsSpy);
 
@@ -146,6 +173,60 @@ check('PRANK POINTS: score bubbles get the green bub-score class and a 2-second 
     dynamicGroup.children.length === 1 && dynamicGroup.children[0] !== bottle);
   check('kick: a second bump of the same (kicked) hazard cannot re-kick it',
     hz.kicked === true && api.kicks().length === 0);
+
+  // ---- live: the sidewalk LITTER cluster SCATTERS (no stumble, no stain) ----
+  const glassM2 = new THREE.MeshLambertMaterial({ color: 0xa9c9dd, transparent: true, opacity: 0.38 });
+  const capM2 = new THREE.MeshLambertMaterial({ color: 0xf5f0e8 });
+  const cluster = new THREE.Group();
+  const bts = [];
+  for (let i = 0; i < 3; i++) {
+    const bt = new THREE.Group();
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.4), glassM2);
+    bt.add(m);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), capM2);
+    c.position.y = 0.25;
+    bt.add(c);
+    bt.position.set(i - 1, i % 2 ? 0.25 : -0.25, 0.09);
+    cluster.add(bt);
+    bts.push(bt);
+  }
+  cluster.position.set(20 - 16, 2.0, GZ); // block-local (block worldX = 16)
+  blockGroup.add(cluster);
+  const hz2 = { wx: 20, wy: 2.0, r: 1.0, litter: cluster };
+
+  api.scatterLitter(hz2, 0);
+  check('scatter: the hazard is dead (scattered flag + radius zeroed)',
+    hz2.scattered === true && hz2.r === 0, 'r=' + hz2.r);
+  check('scatter: every bottle left the street block and joined the live world',
+    bts.every((bt) => bt.parent === dynamicGroup));
+  check('scatter: each bottle is at its own WORLD position (cluster center + offset)',
+    Math.abs(bts[0].position.x - 19) < 1e-6 && Math.abs(bts[0].position.y - 1.75) < 1e-6 &&
+    Math.abs(bts[1].position.x - 20) < 1e-6 && Math.abs(bts[1].position.y - 2.25) < 1e-6 &&
+    Math.abs(bts[2].position.x - 21) < 1e-6 && Math.abs(bts[2].position.y - 1.75) < 1e-6,
+    'b0=(' + bts[0].position.x + ',' + bts[0].position.y + ')');
+  check('scatter: the materials are cloned (the fade cannot leak into the shared glass)',
+    bts[0].children[0].material !== glassM2 && bts[0].children[1].material !== capM2);
+  check('scatter: NO stain and NO prank points for plain litter (only the 3 bottles are new)',
+    dynamicGroup.children.length === 4 && prankAwards.length === 1,
+    'dyn=' + dynamicGroup.children.length + ' awards=' + prankAwards.length);
+
+  const starts = bts.map((bt) => [bt.position.x, bt.position.y]);
+  for (let i = 0; i < 20; i++) api.updatePissKicks(1 / 60);
+  const moved = bts.map((bt, i) =>
+    Math.hypot(bt.position.x - starts[i][0], bt.position.y - starts[i][1]));
+  check('scatter: every bottle tumbles AWAY (each moved > 0.3u in 20 frames)',
+    moved.every((m) => m > 0.3), 'moved=' + moved.map((m) => m.toFixed(2)).join(','));
+  check('scatter: the SHARED glass of the other clusters is untouched',
+    glassM2.opacity === 0.38 && capM2.opacity === 1, 'glass=' + glassM2.opacity);
+
+  for (let i = 0; i < 40; i++) api.updatePissKicks(1 / 60);
+  check('scatter: after ~1s every bottle is despawned (removed + disposed, queue empty)',
+    bts.every((bt) => bt.parent === null && disposed.indexOf(bt) >= 0) && api.kicks().length === 0,
+    'queue=' + api.kicks().length);
+  check('scatter: the stain from the PISS kick is the only thing left on the pavement',
+    dynamicGroup.children.length === 1 && dynamicGroup.children[0] !== hz.yb);
+  check('scatter: a second bump of the same (scattered) hazard cannot re-scatter it',
+    hz2.scattered === true && api.kicks().length === 0);
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

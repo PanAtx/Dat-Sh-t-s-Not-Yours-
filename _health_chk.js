@@ -52,6 +52,8 @@ const MONSTER_SCORE_STEP = getNumConst('MONSTER_SCORE_STEP');
 
 // ---- mutable game state (the extracted functions close over these) ----
 let health = 100, maxHealth = 100;
+const DANGER_HP = 10; // 10% of the 100 pool (the real game: Math.ceil(maxHealth * 0.10))
+let dangerWarned = false; // the once-per-dangerous-stretch flag (the extracted heal/hurtNPC close over it)
 let state = 'play';
 let lastHitCause = 'route'; // the offense that put the worker down (hurtNPC records it; the write-up stamp cites it)
 const p = { wx: 88, wy: 2.5, stunT: 0, invuln: 0, immuneT: 0 };
@@ -132,6 +134,9 @@ function flushTimers(){
 const sfx = [];
 const SFX = {
   playHurtSound(){ sfx.push('hurt'); },
+  dingDingDing(){ sfx.push('ding3'); },
+  fireAlarmStart(){ sfx.push('alarmOn'); },
+  fireAlarmStop(){ sfx.push('alarmOff'); },
   playPowerUpSound(){ sfx.push('power'); },
   playRunItUpSound(){ sfx.push('run'); },
   playGameOver(){},
@@ -143,6 +148,18 @@ const Voice = { say(t){ voice.push(t); } };
 const WORKER_GENDER = 'male';
 const gameOverCalls = [];
 function gameOver(reason){ gameOverCalls.push(reason); }
+const dangerFlashes = [];
+function dangerFlash(){ dangerFlashes.push(1); } // the DANGER screen alarm (the extracted hurtNPC closes over it)
+function dangerBanner(){ bannerShows.push(1); } // the giant center-screen danger banner (the extracted hurtNPC closes over it)
+function dangerAlarmOn(){ alarmOns.push(1); } // the continuous fire alarm (dings + red glow)
+function dangerAlarmOff(){ alarmOffs.push(1); } // clears the fire alarm
+const bannerShows = [];
+const alarmOns = [];
+const alarmOffs = [];
+// Punchback hook: the extracted hurtNPC references these (mirrors index.html)
+const PUNCHBACK_CAUSES = ['dealer', 'pimp', 'mafia', 'crazy', 'crazyAlien', 'panhandler', 'rapper', 'cop', 'robber', 'football', 'bball', 'jacker'];
+const punchbackMarks = [];
+function markPunchback(cause){ punchbackMarks.push(cause); }
 const downTexts = [];
 function showDownText(){ downTexts.push('LODI'); }
 let dying = null;   // the out-of-health down-sequence state (startDyingSequence assigns it)
@@ -194,7 +211,7 @@ eval('var WRITEUP_REASONS = ' + src.slice(_wrIdx + 'const '.length, _wrI + 1) + 
 let ok = true;
 const check = function(label, cond){ console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
 const reset = function(){
-  health = 100; maxHealth = 100; state = 'play';
+  health = 100; maxHealth = 100; state = 'play'; dangerWarned = false;
   p.invuln = 0; p.immuneT = 0; p.stunT = 0; p.wx = 88; p.wy = 2.5;
   powerups.length = 0; starParticles.length = 0;
   sfx.length = 0; voice.length = 0; popups.length = 0; gameOverCalls.length = 0; downTexts.length = 0; dying = null; complaints = 0; lastHitCause = 'route'; pendingTimers.length = 0;
@@ -286,7 +303,7 @@ finishDying();
 check('LODI #1 -> one write-up logged', complaints === 1);
 check('LODI #1 -> the COMPLAINTS ISSUED box slams with the ink-stamp class', typeof $("tr").classList.contains === 'function' && $("tr").classList.contains('complaint-stamp'));
 check('LODI #1 -> NO game over (shift continues)', gameOverCalls.length === 0);
-check('LODI #1 -> worker back to full health', health === maxHealth);
+check('LODI #1 -> health FULLY restored (100) - the shift continues with a fresh worker (only the 3rd write-up stays down)', health === 100);
 check('LODI #1 -> state back to "play"', state === 'play');
 check('LODI #1 -> recovery i-frames granted', p.invuln > 0);
 check('LODI #1 -> the "WRITTEN UP!" callout showed', popups.some(e => e.className.indexOf('pop-writeup') >= 0 && e.textContent.indexOf('1/3') >= 0));

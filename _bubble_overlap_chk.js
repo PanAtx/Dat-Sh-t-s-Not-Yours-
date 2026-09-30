@@ -36,6 +36,18 @@ check(
   'spawnBubble registers the bubble BEFORE laying it out (same-frame siblings see each other)',
 );
 check(code.includes('const BUBBLE_PEAK_MARGIN ='), 'peak-scale margin exists (pop overshoot 1.10/1.15x)');
+check(
+  code.includes('typeof b.spotX === "number"') && code.includes('b.w * BUBBLE_PEAK_MARGIN'),
+  'occupiedBoxes prefers the STORED layout box (animation-independent, mid-pop safe)',
+);
+check(
+  code.includes('return { cx: best.cx, by: best.by, w: w, h: h }'),
+  'findFreeSpot returns the stable layout size (w/h) with the spot',
+);
+check(
+  code.includes('rec.w = spot.w') && code.includes('rec.h = spot.h'),
+  'spawnBubble stores the layout size on the record',
+);
 
 // --- behavioral test: run the REAL findFreeSpot against a mock DOM ------------
 function grabLayoutBlock() {
@@ -82,6 +94,31 @@ function makeEl(text, burst) {
     },
     remove() {},
   };
+}
+// A mock element that can simulate the bubblePop scale-in: its live rect SHRINKS
+// toward the center by popScale (0 = the first frame of the pop, 1 = resting).
+function makePoppableEl(text) {
+  const el = makeEl(text, false);
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  el.popScale = 1;
+  el.getBoundingClientRect = function () {
+    const full = makeEl(text, false).getBoundingClientRect();
+    const cx = (full.left + full.right) / 2;
+    const cy = (full.top + full.bottom) / 2;
+    const s = el.popScale;
+    return {
+      left: cx - (w * s) / 2,
+      top: cy - (h * s) / 2,
+      right: cx + (w * s) / 2,
+      bottom: cy + (h * s) / 2,
+      width: w * s,
+      height: h * s,
+    };
+  };
+  // The FULL resting box (what the pop ends at) — what overlap must be checked against.
+  el.restRect = () => makeEl(text, false).getBoundingClientRect();
+  return el;
 }
 function place(text, burst, ax, ay) {
   const el = makeEl(text, burst);
@@ -152,6 +189,30 @@ speechBubbles.length = 0;
   const b = placeSim('+10 points', 450, 320);
   check(!api.rectsOverlap(a, b), 'same-frame same-anchor bubbles (voice + score) do not overlap');
   check(onScreen(a) && onScreen(b), 'same-frame same-anchor bubbles are both on-screen');
+}
+
+// 6) THE HOPPER GUSH CASE: a bubble still mid-pop (scale ~0.05, its live rect a
+//    tiny sliver) must STILL block its full resting slot. "Hopper full,
+//    compacting!" is born on the same frame as the GROSS! bubble at the worker's
+//    head — if the layout measured the mid-pop rect, it would land on top of it.
+speechBubbles.length = 0;
+{
+  const el = makePoppableEl('GROSS!');
+  const rec = { el: el };
+  speechBubbles.push(rec); // register first, exactly like spawnBubble does
+  const spot = api.findFreeSpot(el, 450, 320);
+  rec.spotX = spot.cx;
+  rec.spotY = spot.by;
+  rec.w = spot.w;
+  rec.h = spot.h;
+  el.popScale = 0.05; // the pop has barely started: live rect is a sliver
+  const b = place('Hopper full, compacting!', false, 450, 320);
+  const rest = el.restRect();
+  check(
+    !api.rectsOverlap(b, rest),
+    'a MID-POP bubble still blocks its full slot (no overlap when the pop finishes)',
+  );
+  check(onScreen(b), 'the gush-frame sibling bubble stays on-screen');
 }
 
 console.log(

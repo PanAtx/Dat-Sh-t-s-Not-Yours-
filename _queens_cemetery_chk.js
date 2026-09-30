@@ -1495,10 +1495,12 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
   const runHazard = (hzType, r) => {
     const said = [];
     const rec = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
-    const p = { wx: 144, wy: 0.2, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0 };
+    const p = { wx: 144, wy: 0.2, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0, fleckSteps: 0, slipT: 0 };
     const blocks = [
       { hazards: [{ wx: 144, wy: 0.2, r: r, type: hzType, drop: 0, cd: 0 }] },
     ];
+    const SFX = { playSquelch: () => {} };
+    const dropPooFlecks = () => {};
     const Voice = { say: (t, dur, vol, x, y, g, sp) => said.push({ t: t, sp: sp }) };
     const hurtNPC = (a, cause) => {
       rec.hurt++;
@@ -1515,6 +1517,8 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
       'Voice',
       'hurtNPC',
       'doStun',
+      'SFX',
+      'dropPooFlecks',
       'WORKER_GENDER',
       'HP_HIT_GHOSTARM',
       'HP_HIT_HAZARD',
@@ -1524,7 +1528,7 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
       'dt',
       csSrc + '\n collideStatic(dt);',
     );
-    fn('play', p, blocks, Voice, hurtNPC, doStun, 'male', 4, 5, 0, function () {}, 'none', 0.016);
+    fn('play', p, blocks, Voice, hurtNPC, doStun, SFX, dropPooFlecks, 'male', 4, 5, 0, function () {}, 'none', 0.016);
     return { said: said, rec: rec, p: p };
   };
   // ghoststone (headstone / skull pile): SOLID, no damage, the line
@@ -1557,10 +1561,12 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
   const gsSide = (function () {
     const said = [];
     const rec = { hurt: 0, dmg: 0, cause: null, stuns: 0 };
-    const p = { wx: 144, wy: 0.2 + 0.5, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0 }; // 0.5u "south" of the hazard
+    const p = { wx: 144, wy: 0.2 + 0.5, invuln: 0, stunT: 0, immuneT: 0, poopSteps: 0, fleckSteps: 0, slipT: 0 }; // 0.5u "south" of the hazard
     const blocks = [
       { hazards: [{ wx: 144, wy: 0.2, r: 0.85, type: 'ghoststone', drop: 0, cd: 0 }] },
     ];
+    const SFX = { playSquelch: () => {} };
+    const dropPooFlecks = () => {};
     const Voice = { say: (t, dur, vol, x, y, g, sp) => said.push({ t: t, sp: sp }) };
     const hurtNPC = (a, cause) => {
       rec.hurt++;
@@ -1577,6 +1583,8 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
       'Voice',
       'hurtNPC',
       'doStun',
+      'SFX',
+      'dropPooFlecks',
       'WORKER_GENDER',
       'HP_HIT_GHOSTARM',
       'HP_HIT_HAZARD',
@@ -1586,7 +1594,7 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
       'dt',
       csSrc + '\n collideStatic(dt);',
     );
-    fn('play', p, blocks, Voice, hurtNPC, doStun, 'male', 4, 5, 0, function () {}, 'none', 0.016);
+    fn('play', p, blocks, Voice, hurtNPC, doStun, SFX, dropPooFlecks, 'male', 4, 5, 0, function () {}, 'none', 0.016);
     return { said: said, rec: rec, p: p };
   })();
   check(
