@@ -1853,6 +1853,31 @@
         background: #9ef0b2;
         color: #0c3a1a;
       }
+      /* BEAST MODE tap cue: the "Tap ACT to Punch" score bubble pulses and emits a
+         tap-ripple ring so touch players know to hit the ACT button. transform-only
+         on purpose — opacity is JS-driven in updateBubbles, so it still fades in/out. */
+      .bubble.bub-tap {
+        border-color: rgba(255, 59, 74, 0.9);
+        box-shadow: 0 0 18px rgba(255, 59, 74, 0.65);
+        animation: tapPulse 0.85s ease-in-out infinite;
+      }
+      .bubble.bub-tap::before {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border-radius: 18px;
+        border: 2px solid rgba(255, 59, 74, 0.75);
+        pointer-events: none;
+        animation: tapRipple 1.1s ease-out infinite;
+      }
+      @keyframes tapPulse {
+        0%, 100% { transform: translate(-50%, -110%) scale(1); }
+        50% { transform: translate(-50%, -110%) scale(1.14); }
+      }
+      @keyframes tapRipple {
+        0% { transform: scale(0.92); opacity: 0.85; }
+        100% { transform: scale(1.55); opacity: 0; }
+      }
       .bubble.bub-gross {
         background: #97a05f;
         color: #1c2405;
@@ -2260,6 +2285,34 @@
           0 0 30px rgba(46, 224, 144, 0.65),
           inset 0 0 20px rgba(140, 255, 190, 0.45);
       }
+      /* BEAST MODE: the ACT button flips red + pulses while the punch window is live
+         (its label is swapped to "PUNCH!" in startRage / restored in endRage). */
+      #actbtn.act-rage {
+        border-color: rgba(255, 59, 74, 0.85);
+        background: radial-gradient(
+          circle at 45% 40%,
+          rgba(255, 59, 74, 0.34),
+          rgba(255, 59, 74, 0.1) 78%
+        );
+        box-shadow:
+          0 0 26px rgba(255, 59, 74, 0.6),
+          0 4px 18px rgba(0, 0, 0, 0.35),
+          inset 0 0 16px rgba(255, 59, 74, 0.32);
+        animation: actRagePulse 0.7s ease-in-out infinite;
+      }
+      #actbtn.act-rage span {
+        color: rgba(255, 224, 224, 0.95);
+        text-shadow: 0 0 10px rgba(255, 59, 74, 0.9);
+        animation: actRageLabel 0.7s ease-in-out infinite;
+      }
+      @keyframes actRagePulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+      }
+      @keyframes actRageLabel {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.65; }
+      }
       /* ===== Car-stereo NOW PLAYING widget: LED-pixel title + fake spectrum bars + MUTE / SKIP ===== */
       /* z-index 30 sits the widget above the menu modal (z 20) and the touch pad (z 12),
    but below reward popups (z 55) and the rotate-to-landscape gate (z 60). It is a
@@ -2516,7 +2569,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.331</div>
+          <div id="app-version" class="menu-version">v1.0.332</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2726,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.331';
+      const APP_VERSION = '1.0.332';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3325,6 +3378,13 @@
       let carry = "none",
         carried = null,
         hopperAnim = 0;
+      // MULTI-CARRY: the worker can sling SMALL bags (everything but the green
+      // heavy one) — the active bag in the hand plus up to MAX_SMALL_BAGS-1 more
+      // riding on his body. Heavy bags, cans, and litter baskets still take BOTH
+      // hands: no stacking, and nothing else can be picked up while one is held.
+      const MAX_SMALL_BAGS = 3;
+      let bagStack = [];
+      let haulCount = 0; // HAUL REWARD: small bags dumped in the current carry run
       let hopperLoad = 0,
         hopperCycling = false,
         hopperCycleT = 0;
@@ -4457,6 +4517,15 @@
           this.noise(0.12, "bandpass", 1400, 0.45); // the whoosh as the arm whips out
           this.tone("sine", 180, 55, 0.2, 0.9, 0.13); // the THUMP on impact
           this.noise(0.1, "lowpass", 240, 0.5, 0.14); // the body thump
+        },
+        // BEAST MODE: the "snap-to-anger" sting as the 10s punchback window arms —
+        // a low GROWL that snaps UP into a higher angry note (two square tones)
+        // with a short breathy huff (the puff of rage).
+        playBeastSting() {
+          this.ensure();
+          this.tone("square", 98, 82, 0.14, 0.42, 0.0); // the low growl
+          this.tone("square", 294, 392, 0.2, 0.4, 0.13); // the snap up into anger
+          this.noise(0.12, "bandpass", 900, 0.28, 0.08); // the breathy huff
         },
         // Thunder (rainy shifts): a deep sub-sine BOOM under a long low rumble with a
         // rolling tail — procedural, fired ~1-2s after the lightning flash.
@@ -6280,6 +6349,12 @@
       let litterBasketPlaced = false;
       let litterBaskets = []; // live baskets: { kind, state, g, hx, hy, wx, wy }
       let litterBasketHomes = null; // [{ wx, wy }] corner homes, computed once
+      // DOLLAR SLICES: pizza slices spewed by the GRAMERCY delivery bike (Level 1)
+      // when it clips the sanitation worker. Each is the SAME wedge shape the pizza
+      // rat carries (makePizzaSlice), tumbles out of the bag in a short arc, lands on
+      // the road, and stays pickable for a while. Picking one up = +25 street cash +
+      // a bit of health; the worker yells "Free Dollar Slice!".
+      let droppedSlices = []; // live slices: { g, wx, wy, vx, vy, vz, rotZ, rotY, landed, t, life }
 
       async function loadLitterbasketGltf() {
         if (LITTERBASKET_TPL) return Promise.resolve(true);
@@ -9315,6 +9390,7 @@
           e2.position.set(0.05, 0.02, 0.72);
           g.add(e2);
           const ant = CY(0.008, 0.008, 0.12, MS(0xb8963a), 6);
+          ant.rotation.x = Math.PI / 2; // antenna stands up (axis Z)
           ant.position.z = 0.88;
           g.add(ant);
           const tip = SP(0.02, MS(0xf5d76a));
@@ -9336,12 +9412,12 @@
           carB.position.set(0, -0.1, 0.06);
           g.add(carB);
           const wb1 = CY(0.045, 0.045, 0.04, M(0x1a1a1a), 10);
-          wb1.rotation.x = Math.PI / 2;
-          wb1.position.set(-0.1, -0.17, 0.06);
+          wb1.rotation.z = Math.PI / 2; // axle across (X), wheel flat under the car
+          wb1.position.set(-0.1, -0.1, 0.045);
           g.add(wb1);
           const wb2 = CY(0.045, 0.045, 0.04, M(0x1a1a1a), 10);
-          wb2.rotation.x = Math.PI / 2;
-          wb2.position.set(0.1, -0.17, 0.06);
+          wb2.rotation.z = Math.PI / 2;
+          wb2.position.set(0.1, -0.1, 0.045);
           g.add(wb2);
         } else if (kind === 49) {
           // a first-edition-looking harry potter
@@ -9387,19 +9463,19 @@
           roll.position.set(0, 0, 0.12);
           g.add(roll);
           const silv = MS(0xc0c8d0);
-          const sh1 = BX(0.015, 0.4, 0.015, silv);
-          sh1.position.set(0.24, 0, 0.2);
+          const sh1 = BX(0.28, 0.015, 0.015, silv);
+          sh1.position.set(0.39, 0, 0.12); // spoon handle out of the +X end
           g.add(sh1);
           const sp1 = SP(0.035, silv, 10);
-          sp1.scale.y = 1.5;
-          sp1.position.set(0.24, 0, 0.42);
+          sp1.scale.x = 1.5;
+          sp1.position.set(0.56, 0, 0.12);
           g.add(sp1);
-          const sh2 = BX(0.03, 0.4, 0.012, silv);
-          sh2.position.set(-0.24, 0, 0.2);
+          const sh2 = BX(0.28, 0.03, 0.012, silv);
+          sh2.position.set(-0.39, 0, 0.12); // fork handle out of the -X end
           g.add(sh2);
           for (let i = 0; i < 3; i++) {
-            const tn = BX(0.006, 0.06, 0.012, silv);
-            tn.position.set(-0.255 + i * 0.015, 0, 0.44);
+            const tn = BX(0.06, 0.006, 0.012, silv);
+            tn.position.set(-0.56, -0.015 + i * 0.015, 0.12);
             g.add(tn);
           }
         } else if (kind === 52) {
@@ -9441,27 +9517,29 @@
             rifleM = M(0x5a3a1a);
           for (let i = 0; i < 4; i++) {
             const sx = -0.315 + i * 0.21;
-            const bod = BX(0.09, 0.2, 0.06, solM);
-            bod.position.set(sx, 0, 0.14);
+            const bod = BX(0.09, 0.09, 0.14, solM);
+            bod.position.set(sx, 0, 0.11); // stands upright on the tray
             g.add(bod);
             const hd = SP(0.045, solM, 10);
-            hd.position.set(sx, 0, 0.28);
+            hd.position.set(sx, 0, 0.22);
             g.add(hd);
             const hat = CY(0.055, 0.055, 0.035, M(0x3a5a2a), 10);
             hat.rotation.x = Math.PI / 2;
-            hat.position.set(sx, 0, 0.33);
+            hat.position.set(sx, 0, 0.28);
             g.add(hat);
-            const rf = BX(0.02, 0.28, 0.02, rifleM);
-            rf.position.set(sx + 0.08, 0, 0.16);
+            const rf = BX(0.02, 0.02, 0.2, rifleM);
+            rf.position.set(sx + 0.08, 0, 0.14); // rifle held upright
             g.add(rf);
           }
         } else if (kind === 54) {
           // a brass navigation compass
           const brass = MS(0xb8963a);
           const ft1 = CY(0.02, 0.02, 0.07, brass, 8);
+          ft1.rotation.x = Math.PI / 2; // upright pegs under the case
           ft1.position.set(-0.1, 0, 0.035);
           g.add(ft1);
           const ft2 = CY(0.02, 0.02, 0.07, brass, 8);
+          ft2.rotation.x = Math.PI / 2;
           ft2.position.set(0.1, 0, 0.035);
           g.add(ft2);
           const ccase = CY(0.16, 0.16, 0.07, brass, 20);
@@ -9479,6 +9557,7 @@
           pin.position.z = 0.146;
           g.add(pin);
           const bow = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.01, 8, 12), brass);
+          bow.rotation.y = Math.PI / 2; // carry ring stands up (YZ plane)
           bow.position.set(0, 0.2, 0.1);
           g.add(bow);
         } else if (kind === 55) {
@@ -9592,7 +9671,7 @@
           blade.rotation.z = 0.25;
           g.add(blade);
           const pivot = CY(0.03, 0.03, 0.05, MS(0xb8963a), 10);
-          pivot.rotation.x = Math.PI / 2;
+          // no rotation: hinge axis stays along Y (horizontal), knife lies flat
           pivot.position.set(0.1, 0, 0.02);
           g.add(pivot);
         } else if (kind === 60) {
@@ -9617,11 +9696,12 @@
           spout.position.set(0.18, 0, 0.2);
           g.add(spout);
           const handleC = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 14, Math.PI * 1.4), silver);
+          handleC.rotation.x = Math.PI / 2; // handle loop stands up (XZ plane)
           handleC.position.set(-0.16, 0, 0.16);
           g.add(handleC);
           const cup = CY(0.045, 0.06, 0.07, M(0xf5f2e8), 12);
           cup.rotation.x = Math.PI / 2;
-          cup.position.set(0.26, 0, 0.085);
+          cup.position.set(0.26, 0, 0.035); // sits on the ground
           g.add(cup);
         } else if (kind === 61) {
           // binoculars in a leather case
@@ -9684,6 +9764,7 @@
           for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 5; c++) {
               const ky = CY(0.02, 0.02, 0.02, km, 8);
+              ky.rotation.x = Math.PI / 2 - 0.4; // perpendicular to the tilted keypad
               ky.position.set(-0.14 + c * 0.07, -0.16 + r * 0.06, 0.4 - r * 0.025);
               g.add(ky);
             }
@@ -9696,8 +9777,8 @@
           drawer.position.set(0, -0.1, 0.02);
           g.add(drawer);
           const dknob = CY(0.02, 0.02, 0.02, MS(0xb8963a), 8);
-          dknob.rotation.x = Math.PI / 2;
-          dknob.position.set(0, -0.1, 0.055);
+          // no rotation: knob axis along Y, protruding from the drawer front
+          dknob.position.set(0, -0.15, 0.055);
           g.add(dknob);
         } else if (kind === 64) {
           // a vintage model airplane, resting on the ground like an airplane
@@ -15188,6 +15269,101 @@
         }
         return g;
       }
+      // PIZZA SLICE: the classic wedge — one SOLID tan crust/dough body with yellow
+      // cheese + red-sauce insets on top, a raised crust rim, brown pepperoni and
+      // browned-cheese bits scattered across. BUILT IN THE XZ PLANE, EXTRUDED UP (Y),
+      // the same way the PIZZA RAT carries it in his mouth (rat local +X = forward,
+      // +Y = lateral, +Z = up; the group origin sits ON the road surface at world
+      // z = GZ = 0.30, so every slice part stays at local z >= 0.03 -> world >= 0.33,
+      // floating clear of the concrete). Shared by:
+      //  - the PIZZA RAT's mouth (big slice, L = 0.42, tip at x = 0.42 at the nose),
+      //  - the DOLLAR SLICE a pizza delivery bike spews when it clips the sanitation
+      //    worker (Level 1): a full-size slice that the worker can pick up for +25
+      //    street cash + a bit of health ("Free Dollar Slice!").
+      function makePizzaSlice(L, tipX) {
+        L = L || 0.42;
+        tipX = tipX || 0;
+        const g = new THREE.Group();
+        const sliceW = 0.17; // half-width at the crust edge
+        const zBase = 0.03; // slice bottom: 0.33 world, 3 cm above the 0.30 road top
+        // A flat triangular "wedge" of given footprint inset + vertical height,
+        // extruded straight UP (closed solid: bottom + top caps + 3 side walls)
+        // and seated at z = zBase + zOff. bevelEnabled:false keeps the caps flush.
+        const wedge = (inset, height, zOff, color) => {
+          const L2 = L * inset,
+            W2 = sliceW * inset;
+          const s = new THREE.Shape();
+          s.moveTo(0, 0);
+          s.lineTo(L2, -W2);
+          s.lineTo(L2, W2);
+          s.closePath();
+          const mesh = new THREE.Mesh(
+            new THREE.ExtrudeGeometry(s, {
+              depth: height,
+              bevelEnabled: false,
+            }),
+            M(color),
+          );
+          mesh.position.set(tipX, 0, zBase + zOff);
+          mesh.castShadow = true;
+          g.add(mesh);
+          return mesh;
+        };
+        // SOLID tan base body — the full footprint, one closed solid, so the
+        // slice is opaque and you can never see through it to the sidewalk.
+        // Its top is the outermost tan "crust" ring seen from above.
+        wedge(1.0, 0.04, 0.0, 0xc49a4a); // tan crust/dough body
+        // Red sauce ring — inset cap slightly below the cheese top.
+        wedge(0.97, 0.012, 0.03, 0xc0392b); // red tomato sauce
+        // YELLOW melted cheese — fills the ENTIRE slice footprint (inset 1.0) so
+        // there's no gap to the crust edge. This is the top surface the toppings
+        // (brown bits + pepperoni) rest on.
+        wedge(1.0, 0.012, 0.034, 0xf1c243); // yellow melted cheese
+        // Crust — a raised, rounded rim along the far edge of the slice.
+        // Modeled as a thin box (the crust is the doughy rim, not the whole slice).
+        const crustThick = 0.03;
+        const crustHeight = 0.05;
+        const crustGeo = new THREE.BoxGeometry(crustThick, sliceW * 2, crustHeight);
+        const crust = new THREE.Mesh(crustGeo, M(0xc49a4a));
+        crust.position.set(tipX + L + crustThick / 2, 0, zBase + 0.045);
+        crust.castShadow = true;
+        g.add(crust);
+        // Pepperoni — squashed BROWN discs resting on the white cheese top
+        const pepM = M(0x6b4423);
+        [
+          [0.14, 0.0],
+          [0.22, 0.045],
+          [0.22, -0.05],
+          [0.32, 0.0],
+          [0.36, 0.06],
+          [0.4, 0.0],
+        ].forEach((pp) => {
+          const pep = SPH(0.026, pepM, 8, 6);
+          pep.scale.set(1, 1, 0.35);
+          pep.position.set(tipX + pp[0] * (L / 0.42), pp[1], zBase + 0.04);
+          g.add(pep);
+        });
+        // Browned cheese "bits" — small BROWN specks scattered across the
+        // yellow cheese (the browned/charred bits of melted mozzarella).
+        const bitM = M(0xb5773a);
+        [
+          [0.1, 0.02],
+          [0.17, -0.02],
+          [0.25, 0.03],
+          [0.25, -0.03],
+          [0.3, 0.02],
+          [0.33, 0.01],
+          [0.38, -0.03],
+          [0.39, 0.04],
+          [0.39, -0.05],
+        ].forEach((pp) => {
+          const bit = SPH(0.013, bitM, 8, 6);
+          bit.scale.set(1, 1, 0.4);
+          bit.position.set(tipX + pp[0] * (L / 0.42), pp[1], zBase + 0.046);
+          g.add(bit);
+        });
+        return g;
+      }
       function makeRat(pizza) {
         const g = new THREE.Group();
         const fur = M(0x55504a),
@@ -15260,91 +15436,15 @@
         // The group origin sits ON the road surface (world z = GZ = 0.30, and the
         // ground strips top out at exactly 0.30), so every slice part stays at
         // local z >= 0.03 -> world >= 0.33, floating clear of the concrete.
-        // It is a REAL slice: one SOLID tan body (closed solid => nothing shows
-        // through to the sidewalk) with yellow-cheese + red-sauce insets on top,
-        // so from above you see a yellow centre -> red ring -> tan crust edge,
-        // with brown bits and pepperoni scattered across the cheese.
+        // makePizzaSlice builds the REAL slice (tan solid body + yellow-cheese +
+        // red-sauce insets + crust rim + brown pepperoni + browned-cheese bits)
+        // in exactly this XZ/extruded-up orientation — the same shape the
+        // GRAMERCY delivery bike spews when it clips the worker (Level 1).
         if (pizza) {
           const tipX = 0.42; // tip starts right at the mouth (nose is at 0.42)
           const sliceL = 0.42; // length — almost the rat's own body length
-          const sliceW = 0.17; // half-width at the crust edge
-          const zBase = 0.03; // slice bottom: 0.33 world, 3 cm above the 0.30 road top
-          // A flat triangular "wedge" of given footprint inset + vertical height,
-          // extruded straight UP (closed solid: bottom + top caps + 3 side walls)
-          // and seated at z = zBase + zOff. bevelEnabled:false keeps the caps flush.
-          const wedge = (inset, height, zOff, color) => {
-            const L2 = sliceL * inset,
-              W2 = sliceW * inset;
-            const s = new THREE.Shape();
-            s.moveTo(0, 0);
-            s.lineTo(L2, -W2);
-            s.lineTo(L2, W2);
-            s.closePath();
-            const mesh = new THREE.Mesh(
-              new THREE.ExtrudeGeometry(s, {
-                depth: height,
-                bevelEnabled: false,
-              }),
-              M(color),
-            );
-            mesh.position.set(tipX, 0, zBase + zOff);
-            mesh.castShadow = true;
-            g.add(mesh);
-            return mesh;
-          };
-          // SOLID tan base body — the full footprint, one closed solid, so the
-          // slice is opaque and you can never see through it to the sidewalk.
-          // Its top is the outermost tan "crust" ring seen from above.
-          wedge(1.0, 0.04, 0.0, 0xc49a4a); // tan crust/dough body
-          // Red sauce ring — inset cap slightly below the cheese top.
-          wedge(0.97, 0.012, 0.03, 0xc0392b); // red tomato sauce
-          // YELLOW melted cheese — fills the ENTIRE slice footprint (inset 1.0) so
-          // there's no gap to the crust edge. This is the top surface the toppings
-          // (brown bits + pepperoni) rest on.
-          wedge(1.0, 0.012, 0.034, 0xf1c243); // yellow melted cheese
-          // Crust — a raised, rounded rim along the far edge of the slice.
-          // Modeled as a thin box (the crust is the doughy rim, not the whole slice).
-          const crustThick = 0.03;
-          const crustHeight = 0.05;
-          const crustGeo = new THREE.BoxGeometry(crustThick, sliceW * 2, crustHeight);
-          const crust = new THREE.Mesh(crustGeo, M(0xc49a4a));
-          crust.position.set(tipX + sliceL + crustThick / 2, 0, zBase + 0.045);
-          crust.castShadow = true;
-          g.add(crust);
-          // Pepperoni — squashed BROWN discs resting on the white cheese top
-          const pepM = M(0x6b4423);
-          [
-            [0.14, 0.0],
-            [0.22, 0.045],
-            [0.22, -0.05],
-            [0.32, 0.0],
-            [0.36, 0.06],
-            [0.40, 0.0],
-          ].forEach((pp) => {
-            const pep = SPH(0.026, pepM, 8, 6);
-            pep.scale.set(1, 1, 0.35);
-            pep.position.set(tipX + pp[0], pp[1], zBase + 0.04);
-            g.add(pep);
-          });
-          // Browned cheese "bits" — small BROWN specks scattered across the
-          // yellow cheese (the browned/charred bits of melted mozzarella).
-          const bitM = M(0xb5773a);
-          [
-            [0.1, 0.02],
-            [0.17, -0.02],
-            [0.25, 0.03],
-            [0.25, -0.03],
-            [0.3, 0.02],
-            [0.33, 0.01],
-            [0.38, -0.03],
-            [0.39, 0.04],
-            [0.39, -0.05],
-          ].forEach((pp) => {
-            const bit = SPH(0.013, bitM, 8, 6);
-            bit.scale.set(1, 1, 0.4);
-            bit.position.set(tipX + pp[0], pp[1], zBase + 0.046);
-            g.add(bit);
-          });
+          const slice = makePizzaSlice(sliceL, tipX);
+          for (const o of slice.children) g.add(o);
         }
 
         return g;
@@ -18845,10 +18945,39 @@
           const bag = BX(0.42, 0.34, 0.3, M(0xd4342a));
           bag.position.set(-0.55, 0, 0.79);
           g.add(bag);
-          const logo = CY(0.09, 0.09, 0.02, M(0xffffff), 16);
-          logo.rotation.z = Math.PI / 2;
-          logo.position.set(-0.55, 0.19, 0.79);
-          g.add(logo);
+          // PIZZA LOGO: a small pizza emblem on the bag's SIDE — white plate,
+          // brown crust ring, golden cheese face and pepperoni dots — stacked
+          // out from the bag's lateral face. The discs face ±Y (rotation.x = PI
+          // puts the cylinder axis on Y) so they read from the 45-degree
+          // isometric camera (a .z = PI/2 disc, axis along X, is edge-on and
+          // invisible from this camera). Both sides get one.
+          const mkPizzaLogo = (side) => {
+            const plate = CY(0.105, 0.105, 0.015, M(0xffffff), 16);
+            plate.rotation.x = Math.PI;
+            plate.position.set(-0.55, side * 0.185, 0.79);
+            g.add(plate);
+            const crust = CY(0.088, 0.088, 0.015, M(0xc98a3a), 16);
+            crust.rotation.x = Math.PI;
+            crust.position.set(-0.55, side * 0.197, 0.79);
+            g.add(crust);
+            const cheese = CY(0.068, 0.068, 0.015, M(0xf5c84c), 16);
+            cheese.rotation.x = Math.PI;
+            cheese.position.set(-0.55, side * 0.209, 0.79);
+            g.add(cheese);
+            for (let i = 0; i < 4; i++) {
+              const a = (i * Math.PI) / 2 + Math.PI / 4;
+              const pep = CY(0.017, 0.017, 0.012, M(0xb0322a), 8);
+              pep.rotation.x = Math.PI;
+              pep.position.set(
+                -0.55 + Math.cos(a) * 0.04,
+                side * 0.221,
+                0.79 + Math.sin(a) * 0.04,
+              );
+              g.add(pep);
+            }
+          };
+          mkPizzaLogo(1);
+          mkPizzaLogo(-1);
         }
         // Bend the knees and hold arms forward for cycling pose
         rider.legL.rotation.x = -0.3;
@@ -21974,6 +22103,13 @@
         camFollow = 0; // fresh shift / back to menu: the lane follow starts dead-centered (no stale offset from the last run leaking into the backdrop frame)
         if (carried && carried.g.parent) carried.g.parent.remove(carried.g);
         if (carried) disposeObj(carried.g);
+        // MULTI-CARRY: the slung small bags leave the scene with the shift.
+        for (let i = 0; i < bagStack.length; i++) {
+          if (bagStack[i].g.parent) bagStack[i].g.parent.remove(bagStack[i].g);
+          disposeObj(bagStack[i].g);
+        }
+        bagStack.length = 0;
+        haulCount = 0; // the haul run ends with the shift
         carried = null;
         carry = "none";
         // SCORE + STREET CASH CARRY OVER across days / levels — a level complete or a
@@ -22003,6 +22139,7 @@
         p.punchTarget = null;
         p.attackerT = 0;
         p.attackerCause = "";
+        endRage(); // fresh shift: clear any stale BEAST MODE (restore the face, remove the halo + fist rig)
         p.rainQuip = false; // the rainy-day Karen quip is once per day, not per restart
         p.drenched = false; // soaked at least once this shift
         p.hopperGushArmed = true; // the compaction gush reaction is armed for the shift
@@ -22021,6 +22158,7 @@
         powerups.length = 0;
         starParticles.length = 0;
         flyingCans.length = 0;
+        droppedSlices.length = 0; // live pizza slices clear with the world (their 3D groups dispose in the dynamicGroup loop below)
         dustParticles.length = 0;
         landedCans.length = 0;
         flyingBags.length = 0;
@@ -22826,6 +22964,142 @@
           }
         }
       }
+      // ==================== DOLLAR SLICES (Level 1 pizza-delivery pickup) ====================
+      // The GRAMERCY delivery cyclist (Level 1) spews a real pizza slice when his
+      // bike clips the sanitation worker. The slice tumbles out of the bag in a
+      // short arc, lands on the road, and stays pickable for a while. Picking one
+      // up = +25 street cash + a bit of health; the worker yells "Free Dollar
+      // Slice!". The slice reuses makePizzaSlice (the exact same wedge the pizza
+      // rat carries) — built flat in the XZ plane (road = X axis, cross-street =
+      // Y), extruded up, riding on the road surface at GZ.
+      // The zebra crosswalk bars sit RAISED at z 0.32-0.38 (0.06 thick on the
+      // 0.30 road plane), so a slice resting at GZ = 0.30 gets clipped by a bar
+      // it lands on. If the slice's spot is on a crosswalk, rest it ON TOP of
+      // the bar (z 0.38) — the wedge's 0.03 self-float then matches its float
+      // on plain asphalt. Band math mirrors buildIntersections().
+      function sliceRestZ(wx, wy) {
+        const halfW = CROSS_W / 2;
+        const cwOffset = halfW + 3.5;
+        const barHalf = 1.4; // zebra bar width / 2 (barW = 2.8)
+        const tyN = 0.5 - 0.25; // near-side curb-line level (roadYMax - 0.25)
+        const tyF = -9.5 + 0.25; // far-side curb-line level (roadYMin + 0.25)
+        const CR = 2.0; // corner radius
+        for (const xInt of LEVEL_XS) {
+          const cx = xInt + IW / 2; // center of the intersection gap
+          // Main-road crosswalks: 2.8u-wide (X) bars stacked down the road
+          // (y -9.0..0.0, the 0.5u curb-inset band), at cx +/- (halfW + 3.5).
+          if (
+            (Math.abs(wx - (cx - cwOffset)) < barHalf ||
+              Math.abs(wx - (cx + cwOffset)) < barHalf) &&
+            wy > -9.0 &&
+            wy < 0.0
+          )
+            return GZ + 0.08; // on top of the bar
+          // Cross-street crosswalks: 2.8u-wide (Y) bars just past the curb
+          // return, across the cross-street (x: cx +/- halfW).
+          if (
+            wx > cx - halfW &&
+            wx < cx + halfW &&
+            (Math.abs(wy - (tyN + CR + 1.5)) < barHalf ||
+              Math.abs(wy - (tyF - CR - 1.5)) < barHalf)
+          )
+            return GZ + 0.08;
+        }
+        return GZ;
+      }
+      function spawnDroppedSlice(wx, wy) {
+        const g = makePizzaSlice(0.42, 0); // full-size slice, tip at the group origin
+        // The slice is a flat wedge in the XZ plane; give it a random heading so
+        // it looks naturally tossed, then rest it on the road surface.
+        g.rotation.z = R(0, Math.PI * 2);
+        g.position.set(wx, wy, GZ);
+        dynamicGroup.add(g);
+        droppedSlices.push({
+          g: g,
+          wx: wx,
+          wy: wy,
+          // small hop so it visibly tumbles out of the bag, then settles
+          vx: R(-0.6, 0.6),
+          vy: R(-0.6, 0.6),
+          vz: R(0.9, 1.5), // up
+          rotZ: R(-2.5, 2.5), // spin while in the air
+          landed: false,
+          t: 0,
+          life: 25, // seconds before it wilts and vanishes
+        });
+        SFX.playPlopSound(); // a soft "plop" as it leaves the bag
+      }
+      function updateDroppedSlices(dt) {
+        for (let i = droppedSlices.length - 1; i >= 0; i--) {
+          const s = droppedSlices[i];
+          s.t += dt;
+          if (!s.landed) {
+            // short hop: horizontal drift + a vertical arc under gravity
+            s.wx += s.vx * dt;
+            s.wy += s.vy * dt;
+            s.vz -= dt * 2.4; // gravity
+            if (s.vz <= 0) {
+              s.vz = 0;
+              s.landed = true;
+            }
+            s.g.position.set(s.wx, s.wy, sliceRestZ(s.wx, s.wy) + s.vz * 0.5);
+            s.g.rotation.z += s.rotZ * dt; // tumble while airborne
+          } else {
+            // landed — settle on the road (ON TOP of a zebra bar, if that's
+            // where it came down — see sliceRestZ), then wilt after a while
+            s.g.position.set(s.wx, s.wy, sliceRestZ(s.wx, s.wy));
+            s.life -= dt;
+            // fade out over the last 4s of its life
+            const fade = Math.min(1, s.life / 4);
+            if (fade < 1) {
+              s.g.traverse((o) => {
+                if (o.material) {
+                  o.material.transparent = true;
+                  o.material.opacity = fade;
+                }
+              });
+            }
+            if (s.life <= 0) {
+              if (s.g.parent) s.g.parent.remove(s.g);
+              disposeObj(s.g);
+              droppedSlices.splice(i, 1);
+            }
+          }
+        }
+      }
+      function removeDroppedSlice(i) {
+        const s = droppedSlices[i];
+        if (!s) return;
+        if (s.g.parent) s.g.parent.remove(s.g);
+        disposeObj(s.g);
+        droppedSlices.splice(i, 1);
+      }
+      // DOLLAR SLICE pickup is WALK-OVER: stepping on a landed slice picks it up
+      // instantly — no ACT button. The free slice is a street bonus (cash +
+      // health), not cargo, so it works even while carrying a bag/can.
+      function tryWalkOverSlice() {
+        if (state !== "play" || p.stunT > 0) return;
+        for (let i = 0; i < droppedSlices.length; i++) {
+          const s = droppedSlices[i];
+          if (s.landed && dist(s.wx, s.wy) < 1.2) {
+            removeDroppedSlice(i);
+            addStreetCash(25);
+            heal(15);
+            spawnBubble("+25 points", s.wx, s.wy, "score");
+            Voice.say(
+              "Free Dollar Slice!",
+              1.2,
+              1.4,
+              p.wx,
+              p.wy,
+              WORKER_GENDER,
+              "worker",
+            );
+            SFX.playMoneySound();
+            return;
+          }
+        }
+      }
       function checkHouse(h) {
         if (!h || h.serviced) return;
         const bagsOK = h.bags.every((b) => b.state === "dumped");
@@ -22910,6 +23184,26 @@
         }
         item.g.rotation.set(0, 0, 0);
       }
+      // MULTI-CARRY: where a slung (non-active) small bag rides on the worker —
+      // he NEVER carries one behind his back: the bags stack on one another
+      // OUT FRONT of him in a comical tippy tower. The hand bag sits at
+      // (0.72, 0.15, 0.5) and spans ~0.5..1.65 (the bag is ~1.15 tall, base
+      // at its origin), so slot 0 perches on the hand bag's shoulders and slot
+      // 1 stacks on slot 0, each one higher AND leaning a touch further out —
+      // three bags read as "loaded up" instead of one bag in a fist.
+      function attachStacked(item, slot) {
+        worker.group.add(item.g);
+        const bx = slot === 0 ? 0.8 : 0.94; // higher up = leans further out front
+        const by = 0.15;
+        const bz = slot === 0 ? 0.88 : 1.3; // slot 0 on the hand bag, slot 1 on slot 0
+        item.g.position.set(bx, by, bz);
+        item.g.rotation.set(0, 0, 0);
+        // The resting spot the bag sits in — the walk wobble (see the slung-bag
+        // wobble in updatePlayer) offsets the bag AROUND this position, and
+        // sway is the current spring-lagged offset (starts at rest).
+        item.baseSlot = { x: bx, y: by, z: bz };
+        item.sway = { x: 0, y: 0, z: 0 };
+      }
       // The worker's one-line reaction to whatever a bag turns out to contain.
       // Ordinary bags get no comment at all.
       function speakBagType(bag) {
@@ -22933,6 +23227,32 @@
         Voice.say(line, 3.4, 0.8, p.wx, p.wy, WORKER_GENDER, "worker");
       }
       function pickUp(item) {
+        // MULTI-CARRY: only SMALL bags (everything but the green heavy one)
+        // stack — up to MAX_SMALL_BAGS at once. A heavy bag, a can, or a
+        // litter basket takes BOTH hands: it can't join a bag stack, and
+        // nothing else can be picked up while one is held.
+        const smallBag = item.kind === "bag" && item.type !== "heavy";
+        const handsFree = carry === "none";
+        const canStack =
+          smallBag &&
+          carry === "bag" &&
+          carried &&
+          carried.type !== "heavy" &&
+          bagStack.length < MAX_SMALL_BAGS - 1;
+        if (!handsFree && !canStack) {
+          Voice.say(
+            carry === "bag" && bagStack.length === MAX_SMALL_BAGS - 1
+              ? "I've got three bags on me already!"
+              : "Both hands are full!",
+            2,
+            0.8,
+            p.wx,
+            p.wy,
+            WORKER_GENDER,
+            "worker"
+          );
+          return false;
+        }
         if (item.kind === "litterbasket" && item.state === "placed") {
           carry = "litterBasket";
           item.state = "carried";
@@ -22940,15 +23260,33 @@
         } else if (item.kind === "can" && item.state === "droppedEmpty") {
           carry = "canEmpty";
           item.state = "carriedEmpty";
+        } else if (canStack) {
+          // The active bag stays in the hand — this one slings onto the
+          // worker's body and rides along until it's hauled to the hopper.
+          item.state = "carried";
+          bagStack.push(item);
+          attachStacked(item, bagStack.length - 1);
+          speakBagType(item); // only special bags get a comment
         } else {
           carry = item.kind === "bag" ? "bag" : "canFull";
           item.state = "carried";
           if (item.kind === "bag") speakBagType(item); // only special bags get a comment
         }
-        carried = item;
-        attachCarried(item);
+        if (!canStack) {
+          carried = item;
+          attachCarried(item);
+        }
         SFX.playPickupSound();
+        return true;
       }
+      // HAUL REWARD: the worker's brag lines when he hauls a FULL stack
+      // (MAX_SMALL_BAGS small bags in hand) all the way to the truck and
+      // dumps it in one run.
+      const HAUL_LINES = [
+        "Three in one run! I'm a machine!",
+        "Full stack, all in the hopper! Watch that!",
+        "I could haul all day, I'm telling you!",
+      ];
       function tossBag(bag) {
         bag.state = "dumped";
         if (typeof recordDayGot === "function") recordDayGot("bags");
@@ -22982,6 +23320,41 @@
         SFX.playTossSound();
         carried = null;
         carry = "none";
+        // HAUL REWARD: count each small bag hauled up to the truck this run.
+        haulCount++;
+        // MULTI-CARRY: the dump freed the hand — the next slung small bag moves
+        // into it so the worker keeps hauling without stopping.
+        if (bagStack.length) {
+          const next = bagStack.shift();
+          next.state = "carried";
+          carried = next;
+          carry = "bag";
+          next.g.position.set(0.72, 0.15, 0.5);
+          next.g.rotation.set(0, 0, 0);
+        }
+        // HAUL REWARD: the slung stack is now FULLY empty (the last bag of the
+        // run was just dumped) AND his hands are free — the run is over. If he
+        // hauled a full stack (3 in hand) all the way to the hopper, pay the
+        // bonus, pop the score bubble, and let him brag. DUMPING ONE BAG AT A
+        // TIME NEVER FIRES: the counter resets to 0 the moment the run ends, so
+        // 3 only accumulates while bags ride on his body. (While the stack
+        // still has bags, the counter KEEPS accumulating across dumps.)
+        if (bagStack.length === 0 && carry === "none") {
+          if (haulCount >= MAX_SMALL_BAGS) {
+            addScore(40, true);
+            spawnBubble("+40 HAUL", p.wx, p.wy, "score");
+            Voice.say(
+              pick(HAUL_LINES),
+              3.4,
+              R(0.9, 1.1),
+              p.wx,
+              p.wy,
+              WORKER_GENDER,
+              "worker",
+            );
+          }
+          haulCount = 0; // run over — the next haul starts counting fresh
+        }
       }
       function dumpCan() {
         const c = carried;
@@ -23111,6 +23484,19 @@
         worker.group.remove(item.g);
         dynamicGroup.add(item.g);
         item.g.position.set(item.wx, item.wy, GZ);
+        // MULTI-CARRY: the whole slung stack spills with the active item — every
+        // extra small bag drops back to the curb around the worker's feet.
+        for (let i = 0; i < bagStack.length; i++) {
+          const s = bagStack[i];
+          s.wx = p.wx - 0.4 + R(-0.3, 0.3);
+          s.wy = clamp(p.wy + R(0.6, 1.2), -2, workerMaxY());
+          s.state = "curb";
+          if (s.g.parent) s.g.parent.remove(s.g);
+          dynamicGroup.add(s.g);
+          s.g.position.set(s.wx, s.wy, GZ);
+        }
+        bagStack.length = 0;
+        haulCount = 0; // a drop ABORTS the haul run — no bonus for bags that never reached the truck
         carried = null;
         carry = "none";
         SFX.playDropSound();
@@ -23759,12 +24145,141 @@
         "bball",
         "jacker",
       ];
-      // A hit from one of the 12 attack NPCs arms the 10s punchback window and
-      // empties his hands (the carried trash drops).
+      // A hit from one of the 12 attack NPCs arms the 10s punchback window,
+      // empties his hands (the carried trash drops) and SNAPS him into BEAST MODE
+      // (the "I can punch back" visual state - see below).
       function markPunchback(cause) {
         p.attackerCause = cause;
         p.attackerT = 10; // 10s window from the hit
         dropCarried(); // the carried trash drops
+        startRage(); // BEAST MODE: the visual cue that he can punch back now
+      }
+      // ==================== BEAST MODE (the "I can punch back" visual state) ====================
+      // While the 10s punchback window is open the worker SNAPS into BEAST MODE so the
+      // player knows the interact key now throws a punch: a jagged red "BEAST MODE!" comic
+      // burst + a "Tap ACT to Punch" score popup at the moment of the hit, then a PERSISTENT state for
+      // the rest of the window - his face goes RED (it pulses: a fast, aggressive pulse when
+      // an attacker is actually within the 2.0u punch reach), a red "rage halo" ring on the
+      // ground under his feet, and a clenched fist (work-glove orange) bobbing above his cap.
+      // endRage() restores the face (the skin tone PERSISTS across days, so a missed restore
+      // would leave him permanently red) and removes + disposes the halo/fist rig.
+      const RAGE_STATE = {
+        on: false, // the BEAST MODE state is currently active
+        rig: null, // the halo + fist group (parented to worker.group, so it follows him)
+        fist: null, // the clenched-fist sub-group (bob + wobble + scale)
+        haloMat: null, // the red ring material (opacity pulse)
+        base: new THREE.Color(), // the skin tone before rage (restored by endRage)
+        red: new THREE.Color(0xff2a1a), // the angry-red target of the face lerp
+        phase: 0, // the pulse phase (advances FASTER when an attacker is in reach)
+      };
+      // Build the BEAST MODE rig: a red "rage halo" ring on the ground + a clenched
+      // fist (work-glove orange) bobbing above the cap. Parented to worker.group so it
+      // follows the worker automatically (and is independent of the hat-pop gag).
+      function makeRageRig() {
+        const g = new THREE.Group();
+        const halo = makeHalo(0xff2a1a, 0.95); // the red rage ring on the ground
+        RAGE_STATE.haloMat = halo.material;
+        g.add(halo);
+        const fistG = new THREE.Group();
+        const fistMat = M(0xff5722); // the same orange as his rubber work gloves
+        const knuckle = BX(0.15, 0.15, 0.11, fistMat);
+        fistG.add(knuckle); // the knuckle block
+        const thumb = BX(0.055, 0.09, 0.07, fistMat);
+        thumb.position.set(0.1, -0.04, 0.05);
+        fistG.add(thumb); // the thumb nub
+        fistG.position.set(0, 0.1, 2.34); // floating just above the cap (cap sits at z 1.87)
+        fistG.rotation.x = 0.5; // a slight tilt so the fist reads from the side view
+        g.add(fistG);
+        RAGE_STATE.fist = fistG;
+        return g;
+      }
+      // Arm the BEAST MODE state. Idempotent: a re-hit mid-window only re-pops the
+      // bubbles (the rig persists, and the base skin tone is only captured the first
+      // time so the pulse lerp never starts from an already-flushed face).
+      function startRage() {
+        if (!worker) return;
+        if (!RAGE_STATE.on) {
+          RAGE_STATE.on = true;
+          RAGE_STATE.base.copy(worker.skinMat.color); // capture the skin tone BEFORE rage
+          RAGE_STATE.rig = makeRageRig();
+          worker.group.add(RAGE_STATE.rig);
+          SFX.playBeastSting(); // the snap-to-anger sting
+        }
+        spawnBubble("BEAST MODE!", p.wx, p.wy, "worker", "burst"); // the jagged red comic burst
+        spawnBubble("Tap ACT to Punch", p.wx, p.wy, "score", "tap"); // pulse: the tap cue
+        // Mobile / touch: the ACT button flips to "PUNCH!" for the whole window.
+        const rageBtn = document.getElementById("actbtn");
+        if (rageBtn) {
+          rageBtn.classList.add("act-rage");
+          const rageLbl = rageBtn.querySelector("span");
+          if (rageLbl) rageLbl.textContent = "PUNCH!";
+        }
+        Voice.say(
+          pick([
+            "That's IT!",
+            "Oh, it's ON now!",
+            "You just made a BIG mistake!",
+            "Now you're talking to ME!",
+          ]),
+          2.5,
+          0.85,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+        );
+      }
+      // Clear the BEAST MODE state: restore the face, remove the halo + fist rig from
+      // the worker and dispose its geometry. Idempotent (safe to call from the punch
+      // landing, the window expiry and every world reset).
+      function endRage() {
+        if (!RAGE_STATE.on) return;
+        RAGE_STATE.on = false;
+        if (worker && worker.skinMat)
+          worker.skinMat.color.copy(RAGE_STATE.base); // restore the skin tone
+        if (worker && RAGE_STATE.rig) {
+          worker.group.remove(RAGE_STATE.rig);
+          disposeObj(RAGE_STATE.rig); // free the halo + fist geometry
+        }
+        RAGE_STATE.rig = null;
+        RAGE_STATE.fist = null;
+        RAGE_STATE.haloMat = null;
+        // Restore the ACT button label.
+        const rageBtn = document.getElementById("actbtn");
+        if (rageBtn) {
+          rageBtn.classList.remove("act-rage");
+          const rageLbl = rageBtn.querySelector("span");
+          if (rageLbl) rageLbl.textContent = "ACT";
+        }
+      }
+      // Per-frame while the window is open: pulse the face red, bob/wobble the fist and
+      // throb the halo. The pulse advances FASTER when an attacker is actually within the
+      // 2.0u punch reach (the last-mile "punch NOW" cue) and the fist scales up with it.
+      function updateRage(dt) {
+        if (!RAGE_STATE.on) return;
+        let inReach = false;
+        for (let i = 0; i < creatures.length; i++) {
+          const c = creatures[i];
+          if (PUNCHBACK_CAUSES.indexOf(c.type) < 0) continue;
+          if (dist(c.wx, c.wy) < 2.0) {
+            inReach = true;
+            break;
+          }
+        }
+        RAGE_STATE.phase += dt * (inReach ? 11 : 5.5); // faster, aggressive pulse in reach
+        const wave = (Math.sin(RAGE_STATE.phase) + 1) * 0.5; // 0..1
+        if (worker && worker.skinMat)
+          worker.skinMat.color
+            .copy(RAGE_STATE.base)
+            .lerp(RAGE_STATE.red, wave * 0.65); // the face flushes toward angry red
+        if (RAGE_STATE.haloMat) RAGE_STATE.haloMat.opacity = 0.4 + 0.3 * wave;
+        if (RAGE_STATE.fist) {
+          RAGE_STATE.fist.position.z =
+            2.34 + 0.06 * Math.sin(RAGE_STATE.phase * 0.5); // the bob
+          RAGE_STATE.fist.rotation.x =
+            0.5 + 0.18 * Math.sin(RAGE_STATE.phase * 0.33); // the wobble
+          RAGE_STATE.fist.scale.setScalar(1 + (inReach ? 0.18 : 0.09) * wave); // scale up
+        }
       }
       // The interact key in the window: find the nearest attacking creature within the
       // 2.0u punch reach and throw the jab. Returns true when a punch went out (the
@@ -23788,6 +24303,7 @@
         p.punchLandT = 0.14; // the smash frame at the moment of contact (0.14s in)
         p.punchTarget = best;
         p.attackerT = 0; // one punch per window
+        endRage(); // the window is over: clear BEAST MODE (the "POW!" burst takes over)
         Voice.say(
           pick([
             "Knuckle sandwich!",
@@ -24000,6 +24516,7 @@
         updateBonuses(dt);
         updatePowerups(dt);
         updateFlyingCans(dt);
+        updateDroppedSlices(dt);
         updateFlyingBags(dt);
         updateFlyingBaskets(dt);
         updateDustParticles(dt);
@@ -25067,6 +25584,51 @@
             carry === "litterBasket" ? nearHopperLitter() : nearHopper();
           if (near)
             return carry === "litterBasket" ? dumpLitterBasket() : dumpCan();
+          // MULTI-CARRY: not at the scoop yet — grab the NEXT small bag instead
+          // of just complaining (heavy cargo already returned above; a full
+          // stack skips this and keeps the old "get closer" behavior).
+          if (
+            carry === "bag" &&
+            carried &&
+            carried.type !== "heavy" &&
+            bagStack.length < MAX_SMALL_BAGS - 1
+          ) {
+            let sb = null,
+              sbd = 2.4;
+            for (let i = 0; i < blocks.length; i++) {
+              const hh = blocks[i].house;
+              if (!hh) continue; // the cemetery block has no house record (b.house = null)
+              for (const bag of hh.bags) {
+                if (bag.state !== "curb") continue;
+                const d = dist(bag.wx, bag.wy);
+                if (d < sbd) {
+                  sbd = d;
+                  sb = bag;
+                }
+              }
+              const c = hh.can;
+              if (c && (c.state === "curb" || c.state === "droppedEmpty")) {
+                const d = dist(c.wx, c.wy);
+                if (d < sbd) {
+                  sbd = d;
+                  sb = c;
+                }
+              }
+            }
+            // Litter baskets sit on the corners (not per-house) — nearest one in range.
+            for (const bsk of litterBaskets) {
+              if (bsk.state !== "placed") continue;
+              const d = dist(bsk.wx, bsk.wy);
+              if (d < sbd) {
+                sbd = d;
+                sb = bsk;
+              }
+            }
+            if (sb) {
+              pickUp(sb); // speaks "hands full" when it's a heavy item / can / basket
+              return;
+            }
+          }
           // Carrying trash but standing too far from the rear scoop to dump it.
           Voice.say(
             "I need to get closer to the truck!",
@@ -25112,6 +25674,8 @@
             }
           }
           if (best) return pickUp(best);
+          // (DOLLAR SLICE pickup moved to WALK-OVER — see tryWalkOverSlice: the
+          // free slice is picked up by stepping on it, no ACT button.)
         }
         // shoo nearby critters
         let shooed = false;
@@ -25960,26 +26524,21 @@
             if (c.vcd <= 0) {
               c.vcd = 2.5;
               if (c.type === "jacker") {
-                // He keeps his own damage action: a mid-jackhammer bump earns a whack.
-                Voice.say(
-                  "Don't mess with city progress!",
-                  2.4,
-                  1.1,
-                  c.wx,
-                  c.wy,
-                  c.gender,
-                  "jacker",
-                );
-                Voice.say(
-                  "Don't mess with city progress!",
-                  2.4,
-                  0.95,
-                  p.wx,
-                  p.wy,
-                  WORKER_GENDER,
-                  "worker",
-                );
-                hurtNPC(HP_HIT_JACKER, "jacker");
+                // He keeps his own damage action: a mid-jackhammer bump earns a
+                // PUNCH. The bump only ARMS the over-hand windup (like the mack
+                // daddy's) — the per-frame driver in the jacker update case plays
+                // the swing, and the BLOW (line / WHACK! burst / damage / yelp)
+                // lands ON THE SMASH (swingT >= 0.48, the work glove driving
+                // down in front of him), so the worker SEES the windup BEFORE
+                // he gets hit; a full sprint through the windup escapes the
+                // punch (a whiff). The whack's hurtNPC (cause "jacker") arms
+                // the 10s punchback window — this punch is what lets the
+                // worker fight back (BEAST MODE).
+                if (!c.swinging && p.invuln <= 0 && p.immuneT <= 0) {
+                  c.swinging = true;
+                  c.swingT = 0;
+                  c.swingHitDone = false; // the smash frame delivers (or whiffs) the blow
+                }
               } else {
                 // A very minor arcade bump, tagged to the NPC for the write-up stamp.
                 hurtNPC(HP_HIT_BUMPER, c.type);
@@ -26206,6 +26765,29 @@
             hurtNPC(HP_HIT_VEHICLE, c.isDelivery ? "delivery" : c.type); // get run over = lose health; cause IS the NPC (car/bike/ebike/moto/tric/dealer...) for the write-up stamp
             p.invuln = 1.6;
             doStun(1.2, "hit");
+            // DOLLAR SLICE (Level 1): the GRAMERCY delivery cyclist's bike clips the
+            // worker - a real pizza slice tumbles out of his bag onto the road.
+            // Picking it up = +25 street cash + 15 health. Cooldown-gated so one hit
+            // = one slice (the worker is invulnerable for 1.6s anyway, but this keeps
+            // a stale creature from double-dropping on a re-collide frame).
+            if (
+              c.isDelivery &&
+              level === 1 &&
+              (c.sliceDropCd || 0) <= 0 &&
+              droppedSlices.length < 4
+            ) {
+              c.sliceDropCd = 3;
+              spawnDroppedSlice(p.wx, p.wy);
+              Voice.say(
+                "Free Dollar Slice!",
+                1.2,
+                1.4,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+            }
             if (c.type === "car" || c.type === "moto")
               Voice.say(
                 "Watch the road!",
@@ -26682,7 +27264,10 @@
         }
         p.invuln = Math.max(0, p.invuln - dt);
         p.immuneT = Math.max(0, p.immuneT - dt);
+        p.attackerT = Math.max(0, p.attackerT - dt); // the 10s punchback window actually expires now
         p.shake = Math.max(0, p.shake - dt * 1.3);
+        if (p.attackerT > 0) updateRage(dt); // BEAST MODE: pulse the face, bob the fist, throb the halo
+        else if (RAGE_STATE.on) endRage(); // window expired: clear BEAST MODE
         routeDist += speed * dt;
         if (routeDist > 150) {
           routeDist = 0;
@@ -26752,6 +27337,39 @@
           p.wy + sy,
           wStepTop > GZ ? wStepTop : GZ,
         );
+        // SLUNG-BAG WOBBLE: the extra small bags stacked on one another OUT
+        // FRONT of him sway as a comical tippy tower — spring-lagged, and each
+        // step the whole pile bobs, shuffles side to side, and TIPS
+        // forward/back (rotation about the side axis). Higher up the stack a
+        // bag sits, the BIGGER its sway and the LATER it reacts to the stride,
+        // so the top bag lags a beat behind the one under it, like a pile
+        // about to topple. The moment he stops the offsets snap back to the
+        // resting slot a bit faster so the pile settles and stands still.
+        for (let i = 0; i < bagStack.length; i++) {
+          const sb = bagStack[i];
+          if (!sb.g || !sb.baseSlot) continue;
+          if (!sb.sway) sb.sway = { x: 0, y: 0, z: 0 };
+          const sway = sb.sway;
+          const w = amp > 0.02 ? amp / 0.7 : 0; // 0..1 walk intensity
+          const hi = 1 + i * 0.6; // higher up the stack = bigger, laggier sway
+          const lag = 0.9 + i * 0.35; // the top bag reacts a beat after the one below
+          const tx = Math.sin(p.phase - lag) * 0.06 * hi * w; // bob forward/back, lagging the stride
+          const ty = Math.sin(p.phase + i * 0.8) * 0.04 * hi * w; // side-to-side shuffle
+          const tz = Math.abs(Math.sin(p.phase * 2)) * 0.07 * hi * w; // bounce each step
+          const k = Math.min(1, dt * (w > 0 ? 9 : 14)); // faster settle when stopped
+          sway.x += (tx - sway.x) * k;
+          sway.y += (ty - sway.y) * k;
+          sway.z += (tz - sway.z) * k;
+          sb.g.position.set(
+            sb.baseSlot.x + sway.x,
+            sb.baseSlot.y + sway.y,
+            sb.baseSlot.z + sway.z,
+          );
+          // The tower tips: lean into the forward/back bob (rotate about the
+          // side axis), sway side to side (about the front axis), plus a touch
+          // of yaw for swing flavor.
+          sb.g.rotation.set(sway.y * 1.6, sway.x * 2.2, sway.y * 0.5);
+        }
         // invulnerability flashing — and IMMUNITY ("Monster") flashes RAPIDLY with a
         // constant burst of colorful stars shooting off the worker
         let vis = true;
@@ -27968,6 +28586,7 @@
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
           if (c.ghostCd > 0) c.ghostCd -= dt;
           if (c.rapCd > 0) c.rapCd -= dt; // the rapper's shove cooldown (Bed-Stuy mixtape) // the ghost's scare cooldown (cemetery)
+          if (c.sliceDropCd > 0) c.sliceDropCd -= dt; // delivery-bike slice drop cooldown (Level 1)
           const tx = c.wx - p.wx;
           // PUNCHBACK SCARE-OFF: a punched NPC bolts AWAY from the worker at ~7 u/s for
           // 5s - this preempts the type's own AI for those frames (the legs keep pumping
@@ -31708,22 +32327,120 @@
             case "jacker": {
               // grinding the sidewalk: the hammer judders down into the concrete,
               // the whole tool shivers, the worker vibrates with it, and small bits
-              // of concrete chip off the chisel tip. He never says a word.
+              // of concrete chip off the chisel tip. He only ever talks when he's
+              // PUNCHING the worker out of his work zone (below).
               c.hamT += dt;
-              // Sinusoidal grind sway: the whole worker rocks around his locked SE facing,
-              // driven by the jackhammer's judder clock (c.hamT, NOT the global clock) so the
-              // body sway stays locked to the tool's vibration. Small amplitude (0.045 rad ~ 2.6deg).
-              c.g.rotation.z = JACKER_FACE_SE + Math.sin(c.hamT * 18) * 0.045;
               const vib = Math.abs(Math.sin(c.hamT * 24));
-              if (c.hammer) {
-                c.hammer.position.z = 0.14 + vib * 0.055;
-                c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.035;
-                c.hammer.rotation.z = Math.sin(c.hamT * 27) * 0.02;
-              }
-              if (c.parts) {
-                const tr = Math.sin(c.hamT * 40) * 0.05;
-                c.parts.armL.rotation.x = tr;
-                c.parts.armR.rotation.x = -tr;
+              if (c.swinging && c.parts) {
+                // PUNCH (armed in collideCreatures when the worker bumps him):
+                // the jackhammer STAYS in the left hand (it keeps juddering, just
+                // softer with one hand off the handle), and the RIGHT work glove
+                // comes off the handle for an over-hand swing — the same windup
+                // as the mack daddy's, a bare fist instead of a bat. Rotating
+                // armR around local Y (the lateral axis) carries the glove DOWN ->
+                // BEHIND -> UP over the head -> FORWARD -> back DOWN onto the
+                // worker (+X local — he's facing him). ~0.85s total — well inside
+                // the 2.5s bump cooldown, so a retrigger can never interrupt.
+                c.swingT = (c.swingT || 0) + dt;
+                const t = c.swingT;
+                const ss = (u) => u * u * (3 - 2 * u); // smoothstep
+                let ang;
+                if (t < 0.3) {
+                  const u = t / 0.3;
+                  ang = 2.2 * u * (2 - u); // ease-out windup, glove raised high behind
+                } else if (t < 0.48) {
+                  ang = 2.2 + 2.8 * ss((t - 0.3) / 0.18); // the SMASH over the top
+                } else if (t < 0.85) {
+                  ang = 5.0 + 1.2831853 * ss((t - 0.48) / 0.37); // follow-through settles to rest
+                } else {
+                  ang = 0;
+                  c.swinging = false;
+                }
+                c.parts.armR.rotation.y = ang;
+                c.parts.armR.rotation.x = 0; // the swing owns the arm (overrides the idle jitter)
+                c.parts.armL.rotation.x = Math.sin(c.hamT * 40) * 0.05; // the left hand stays braced
+                if (c.hammer) {
+                  c.hammer.position.z = 0.14 + vib * 0.02; // softer judder: one hand off the handle
+                  c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.015;
+                  c.hammer.rotation.z = 0;
+                }
+                // The body leans with the swing (the rig has no torso pivot):
+                // back in the windup, forward into the smash.
+                c.g.rotation.y = -Math.sin(ang) * 0.15;
+                // Ease the body toward the worker (he grinds facing SE at rest;
+                // the turn is SMOOTH, not a hard snap — he's mid-jackhammer).
+                const face = Math.atan2(p.wy - c.wy, p.wx - c.wx);
+                const dAng = Math.atan2(
+                  Math.sin(face - c.g.rotation.z),
+                  Math.cos(face - c.g.rotation.z),
+                );
+                c.g.rotation.z += dAng * Math.min(1, dt * 9);
+                // THE BLOW LANDS ON THE SMASH (not on the bump): the first frame
+                // past the smash (t >= 0.48) is the frame the glove is driving
+                // DOWN in front of him — the worker sees the over-hand windup
+                // BEFORE he gets whacked. Range is re-checked against the worker's
+                // CURRENT position (a full sprint escapes the punch and the swing
+                // whiffs); i-frames / immunity / play state are re-checked too,
+                // and hurtNPC re-checks them as well.
+                if (!c.swingHitDone && t >= 0.48) {
+                  c.swingHitDone = true;
+                  const iDx = c.wx - p.wx,
+                    iDy = c.wy - p.wy;
+                  const iD = Math.sqrt(iDx * iDx + iDy * iDy) || 0.001;
+                  if (iD <= 2.2 && p.invuln <= 0 && p.immuneT <= 0 && state === "play") {
+                    const inx = -iDx / iD,
+                      iny = -iDy / iD; // jacker -> worker, measured NOW (at impact)
+                    Voice.say(
+                      "Don't mess with city progress!",
+                      2.4,
+                      1.1,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "jacker",
+                    );
+                    SFX.playHurtSound();
+                    hurtNPC(HP_HIT_JACKER, "jacker"); // the whack: minor damage + arms the 10s punchback window (BEAST MODE)
+                    doStun(0.35, "hit"); // a short stumble — a shove-punch, not a beatdown
+                    // The blow shoves the worker back a touch so a hit reads as
+                    // a whack, not just a wall
+                    p.wx += inx * 0.4;
+                    p.wy = clamp(p.wy + iny * 0.3, -9.4, workerMaxY());
+                    // a jagged WHACK! burst at the glove
+                    const az = c.g.rotation.z;
+                    spawnBubble(
+                      "WHACK!",
+                      c.wx + Math.cos(az) * 0.9,
+                      c.wy + Math.sin(az) * 0.9,
+                      "jacker",
+                      "burst",
+                    );
+                  }
+                }
+              } else {
+                // Sinusoidal grind sway: the whole worker rocks around his SE facing,
+                // driven by the jackhammer's judder clock (c.hamT, NOT the global
+                // clock) so the body sway stays locked to the tool's vibration.
+                // Eased (not snapped) so a finished punch settles back into the
+                // grind smoothly.
+                const base = JACKER_FACE_SE + Math.sin(c.hamT * 18) * 0.045;
+                const dA = Math.atan2(
+                  Math.sin(base - c.g.rotation.z),
+                  Math.cos(base - c.g.rotation.z),
+                );
+                c.g.rotation.z += dA * Math.min(1, dt * 6);
+                c.g.rotation.y *= Math.max(0, 1 - dt * 10); // the punch lean decays back to level
+                if (c.hammer) {
+                  c.hammer.position.z = 0.14 + vib * 0.055;
+                  c.hammer.rotation.y = Math.sin(c.hamT * 33) * 0.035;
+                  c.hammer.rotation.z = Math.sin(c.hamT * 27) * 0.02;
+                }
+                if (c.parts) {
+                  const tr = Math.sin(c.hamT * 40) * 0.05;
+                  c.parts.armL.rotation.x = tr;
+                  c.parts.armR.rotation.x = -tr;
+                  c.parts.armR.rotation.y = 0; // the swing angle resets with the punch
+                }
               }
               c.g.position.z = GZ + vib * 0.012; // he shudders with the tool
               c.gravCd -= dt;
@@ -31739,6 +32456,9 @@
                 c.wx = p.wx + 42;
                 c.wy = R(1.2, 4.2);
                 c.g.rotation.z = JACKER_FACE_SE;
+                c.g.rotation.y = 0;
+                c.swinging = false; // never carry a swing across the teleport
+                c.swingT = 0;
               }
               break;
             }
@@ -33078,6 +33798,7 @@
           style === "burst" ||
           (speaker === "worker" && /^ow/i.test(String(text).trim()));
         if (isBurst) cls += " bub-burst";
+        if (style === "tap") cls += " bub-tap"; // BEAST MODE: pulse + tap-ripple cue
         el.className = cls;
         el.textContent = text;
         document.body.appendChild(el);
@@ -33313,6 +34034,7 @@
         updateBonuses(dt);
         updatePowerups(dt);
         updateFlyingCans(dt);
+        updateDroppedSlices(dt);
         updateFlyingBags(dt);
         updateFlyingBaskets(dt);
         updateDustParticles(dt);
@@ -33542,16 +34264,9 @@
       function routeComplete() {
         state = "dayend";
         SFX.playHopperJingle();
-        const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
-        Voice.say(
-          "That's the " + d.day + " route, " + d.borough + ". Clean sweep!",
-          1,
-          1.0,
-          p.wx,
-          p.wy,
-          WORKER_GENDER,
-          "worker",
-        );
+        // (The end-of-day "That's the [day] route, [borough]. Clean sweep!"
+        // speech bubble was removed on request — the day-end report screen
+        // below is the only level-end feedback now.)
         if (weekScore > hi) {
           hi = weekScore;
           try {
@@ -34400,6 +35115,8 @@
           updateBonuses(dt);
           updatePowerups(dt);
           updateFlyingCans(dt);
+          updateDroppedSlices(dt);
+          tryWalkOverSlice(); // walk-over pickup: step on a slice, no ACT button
           updateFlyingBags(dt);
           updateFlyingBaskets(dt);
           updateDustParticles(dt);

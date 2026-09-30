@@ -59,7 +59,7 @@ const isBedStuyLevel = function(){ return bedStuy; };
 const fns = ['rollBagType','makeBag','speakBagType','pickUp','nearHopper','nearHopperHeavy','tossBag','tryInteract'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','M','MS','BX','CY','SP','R','truck','p','dynamicGroup','worker','flyingBags','SFX','Voice','WORKER_GENDER','GZ','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','dist','state','blocks','creatures','litterBaskets','addScore','hopperDeposit','disposeObj','checkHouse','attachCarried','dumpCan','dumpLitterBasket','nearHopperLitter','isBedStuyLevel',
-  'var carry="none", carried=null;\n' + fns + '\n' +
+  'var carry="none", carried=null; const MAX_SMALL_BAGS=3; var bagStack=[]; var haulCount = 0; function attachStacked(it,slot){ worker.group.add(it.g); }\n' + fns + '\n' +
   'return { rollBagType, makeBag, speakBagType, pickUp, nearHopper, nearHopperHeavy, tryInteract, ' +
   'carry:()=>carry, carried:()=>carried, flying:()=>flyingBags, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'

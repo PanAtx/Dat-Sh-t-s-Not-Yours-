@@ -100,7 +100,7 @@ const fns = ["makeBag", "tossBag", "addHopperLump"].map((n) => extractFn(html, n
 const api = new Function(
   "THREE", "M", "MS", "BX", "SP", "CY", "R", "p", "dynamicGroup", "flyingBags", "SFX", "disposeObj",
   "hopperTrash", "worldGroup", "hopperLoad", "hopperLumps", "HOPPER_CYCLE_AT", "hopperTopZ",
-  fns + "\nreturn { makeBag: makeBag, tossBag: tossBag, addHopperLump: addHopperLump };"
+  "var carry=\"none\", carried=null; var bagStack=[]; var haulCount = 0; const MAX_SMALL_BAGS=3;\n" + fns + "\nreturn { makeBag: makeBag, tossBag: tossBag, addHopperLump: addHopperLump };"
 )(THREE, M, MS, BX, SP, CY, R, p, dynamicGroup, flyingBags, SFX, disposeObj,
   hopperTrash, worldGroup, hopperLoad, hopperLumps, HOPPER_CYCLE_AT, hopperTopZ);
 

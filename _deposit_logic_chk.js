@@ -30,7 +30,7 @@ function checkHouse(){ calls.house++; }
 const body = ['nearHopper', 'nearHopperHeavy', 'tossBag', 'updateFlyingBags', 'tryInteract'].map(n => extractFn(html, n)).join('\n');
 const api = new Function(
   'truck','p','flyingBags','dynamicGroup','SFX','Voice','hopperWorldX','hopperAimX','hopperWorldY','hopperTopZ','GZ','state','blocks','creatures','pickUp','dumpCan','disposeObj','addScore','hopperDeposit','checkHouse','WORKER_GENDER','HEAVY_DUMP_RADIUS',
-  'var carry="none", carried=null;\n' + body + '\n' +
+  'var carry="none", carried=null; const MAX_SMALL_BAGS=3; var bagStack=[]; var haulCount = 0; var litterBaskets=[]; function dist(x,y){ return Math.hypot(x-p.wx, y-p.wy); }\n' + body + '\n' +
   'return { nearHopper, tossBag, updateFlyingBags, tryInteract, setCarry:function(c,i){carry=c;carried=i;}, getCarry:function(){return carry;} };'
 )(truck, p, flyingBags, dynamicGroup, SFX, Voice, hopperWorldX, hopperAimX, hopperWorldY, hopperTopZ, 0.01, 'play', [], [], ()=>{}, ()=>{calls.deposit++;}, disposeObj, addScore, hopperDeposit, checkHouse, 'male', 3.6);
 

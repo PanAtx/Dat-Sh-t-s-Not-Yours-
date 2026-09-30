@@ -65,8 +65,8 @@ const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
   'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
   'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W',
-  'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
-  'function tossBag(){} function dumpCan(){}\n' +
+  'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[]; const MAX_SMALL_BAGS=3; var bagStack=[];\n' +
+  'function tossBag(){} function dumpCan(){} function speakBagType(){} function attachStacked(it,slot){ worker.group.add(it.g); }\n' +
   fns + '\n' +
   'return { nearHopper, pickUp, attachCarried, dumpLitterBasket, updateFlyingBaskets, resetLitterBaskets, placeLitterBasket, dropCarried, tryInteract, buildLitterTrash, ' +
   'carry:()=>carry, carried:()=>carried, baskets:()=>litterBaskets, homes:()=>litterBasketHomes, flying:()=>flyingBaskets, ' +
@@ -217,6 +217,7 @@ check('picking up a BONES basket -> the worker says a bones line ("It\'s full of
   b.bone = true; // simulate the Maspeth cemetery-corner basket (full of skulls + bones)
   b.state = 'placed';
   p.wx = b.hx; p.wy = b.hy;
+  api.setCarried('none', null); // fresh hands: the previous test left a basket carried
   api.pickUp(b);
   const lines = ['It\'s full of bones!', 'There\'s a skull in here!'];
   assert.strictEqual(api.carry(), 'litterBasket');
@@ -230,6 +231,7 @@ check('picking up a NORMAL basket (no bones) -> NO bones line is said', ()=>{
   b.bone = false; // a regular litter basket
   b.state = 'placed';
   p.wx = b.hx; p.wy = b.hy;
+  api.setCarried('none', null); // fresh hands: the previous test left a basket carried
   api.pickUp(b);
   const lines = ['It\'s full of bones!', 'There\'s a skull in here!'];
   assert.strictEqual(api.carry(), 'litterBasket');

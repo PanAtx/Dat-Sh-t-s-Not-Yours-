@@ -319,7 +319,7 @@ const clamp = (v,a,b)=>v<a?a:(v>b?b:v);
 function addScore(){} function hopperDeposit(){} function checkHouse(){}
 const api = new Function(
   'truck','p','dynamicGroup','flyingBags','flyingCans','flyingBaskets','SFX','Voice','R','clamp','state','blocks','creatures','WORKER_GENDER','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','addScore','hopperDeposit','checkHouse',
-  'var carry="none", carried=null; function pickUp(){}\n' + body + '\n' +
+  'var carry="none", carried=null; const MAX_SMALL_BAGS=3; var bagStack=[]; var haulCount = 0; var litterBaskets=[]; function pickUp(){}\n' + body + '\n' +
   'return { nearHopper, nearHopperHeavy, nearHopperLitter, tryInteract, ' +
   'setCarry:function(c,i){ carry=c; carried=i; }, getCarry:function(){ return carry; } };'
 )(truck, p, dynamicGroup, flyingBags, flyingCans, flyingBaskets, SFX, Voice, R, clamp, 'play', [], [], 'male', LITTER_DUMP_RADIUS, HEAVY_DUMP_RADIUS, addScore, hopperDeposit, checkHouse);
