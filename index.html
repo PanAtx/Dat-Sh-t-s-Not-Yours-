@@ -2516,7 +2516,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.329</div>
+          <div id="app-version" class="menu-version">v1.0.330</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.329';
+      const APP_VERSION = '1.0.330';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9698,31 +9698,35 @@
           dknob.position.set(0, -0.1, 0.055);
           g.add(dknob);
         } else if (kind === 64) {
-          // a vintage model airplane
-          const fus = CY(0.05, 0.09, 0.7, M(0xc44b4b), 10);
-          fus.rotation.x = Math.PI / 2;
-          fus.position.z = 0.35;
+          // a vintage model airplane, resting on the ground like an airplane
+          // would: fuselage HORIZONTAL (axis along Y, nose at +Y), the wings
+          // level and perpendicular to the fuselage (span across X), a vertical
+          // tail fin standing up at the rear, and landing wheels on the ground.
+          const fus = CY(0.05, 0.09, 0.7, M(0xc44b4b), 10); // no rotation: axis lies along Y
+          fus.position.set(0, 0, 0.15);
           g.add(fus);
           const nose = SP(0.05, M(0xf5d76a), 10);
-          nose.position.z = 0.72;
+          nose.position.set(0, 0.4, 0.15);
           g.add(nose);
           const prop = BX(0.2, 0.02, 0.02, M(0x3a2a1a));
-          prop.position.z = 0.76;
+          prop.position.set(0, 0.45, 0.15);
           g.add(prop);
           const wing = BX(0.9, 0.16, 0.03, M(0xd45b4b));
-          wing.position.z = 0.35;
+          wing.position.set(0, 0.05, 0.2); // span across X, level above the fuselage
           g.add(wing);
           const tailW = BX(0.35, 0.12, 0.02, M(0xd45b4b));
-          tailW.position.set(0, 0, 0.08);
+          tailW.position.set(0, -0.33, 0.28); // horizontal tail at the rear
           g.add(tailW);
-          const tailV = BX(0.02, 0.2, 0.06, M(0xd45b4b));
-          tailV.position.set(0, 0, 0.12);
+          const tailV = BX(0.02, 0.15, 0.2, M(0xd45b4b));
+          tailV.position.set(0, -0.35, 0.34); // vertical fin standing up
           g.add(tailV);
-          const st1 = CY(0.015, 0.015, 0.1, M(0x3a3a3a), 8);
-          st1.position.set(-0.1, 0, 0.05);
+          const st1 = CY(0.05, 0.05, 0.03, M(0x3a3a3a), 8);
+          st1.rotation.z = Math.PI / 2; // axle across (X), wheel bottom on the ground
+          st1.position.set(-0.12, 0.1, 0.05);
           g.add(st1);
-          const st2 = CY(0.015, 0.015, 0.1, M(0x3a3a3a), 8);
-          st2.position.set(0.1, 0, 0.05);
+          const st2 = CY(0.05, 0.05, 0.03, M(0x3a3a3a), 8);
+          st2.rotation.z = Math.PI / 2;
+          st2.position.set(0.12, 0.1, 0.05);
           g.add(st2);
         } else if (kind === 65) {
           // a 1970s lava lamp
