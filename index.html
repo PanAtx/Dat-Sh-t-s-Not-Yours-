@@ -2615,7 +2615,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.338</div>
+          <div id="app-version" class="menu-version">v1.0.340</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2772,7 +2772,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.338';
+      const APP_VERSION = '1.0.340';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3502,11 +3502,13 @@
       // Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
       // TRAFFIC CAP v2 (tame the street, by design): npcCounts() clamps every level's
       // road traffic DOWN -- 1 car / 1 e-scooter / 0 bike (Gramercy Park d1 excepted:
-      // 3 cyclists, the busier uptown bike scene) / 0 moto / 0 e-bike / 0 rc /
-      // 0 street tricycle (the Bronx d2 keeps its level-specific 1 moto + 1 e-bike
-      // swap), and the CROWD CUT thins the generic walkers (peds <= 1, no breakers,
-      // no ladies) so the trash is easier to service. Critters (rat/dog/raccoon/cat/
-      // squirrel) + dogwalkers + every level-SPECIFIC character are untouched.
+      // 3 cyclists, the busier uptown bike scene; Maspeth d4 excepted: 2 cyclists,
+      // the real-world cycling hub) / 0 moto / 0 e-bike (Bronx d2 + Maspeth d4
+      // excepted: 1 each) / 0 rc / 0 street tricycle (the Bronx d2 keeps its
+      // level-specific 1 moto + 1 e-bike swap), and the CROWD CUT thins the
+      // generic walkers (peds <= 1, no breakers, no ladies) so the trash is
+      // easier to service. Critters (rat/dog/raccoon/cat/squirrel) + dogwalkers
+      // + every level-SPECIFIC character are untouched.
       const BASE_NPC_COUNTS = {
         ped: 2,
         car: 1,
@@ -3618,16 +3620,27 @@
         // ---- TRAFFIC CAP v2: quiet the street so the trash is easier to service. ----
         // Generic two-wheelers are GONE on every day EXCEPT the Bronx (d2), where
         // the kid's tricycle is deliberately swapped for 1 moto + 1 e-bike (that
-        // swap is level-SPECIFIC and stays), and EXCEPT Gramercy Park (d1), where
-        // the busier uptown bike scene keeps 3 cyclists on the street. Cars +
+        // swap is level-SPECIFIC and stays), EXCEPT Gramercy Park (d1), where
+        // the busier uptown bike scene keeps 3 cyclists on the street, and
+        // EXCEPT Maspeth (d4), where the real-world cycling hub runs 2 cyclists
+        // + 1 e-bike + 1 moto (see the level-specific boost just above). Cars +
         // e-scooters keep their 1 cap (already minimal). The old per-day rules
         // underneath (daily ramp, Bronx two-wheelers, Manhattan +1 escooter/bike)
         // are left intact for reference.
+        // Maspeth (Queens, d4): a real-world cycling hub — the street runs real
+        // two-wheeled traffic: 2 cyclists + 1 e-bike + 1 moto. The boost sits
+        // BEFORE the cap (the cap is a ceiling, never a floor) so the scene
+        // survives, exactly like the Bronx d2 swap.
+        if (day === 4) {
+          c.bike = Math.max(c.bike, 2);
+          c.ebike = Math.max(c.ebike, 1);
+          c.moto = Math.max(c.moto, 1);
+        }
         const TRAFFIC_CAP = {
           car: 1,
-          moto: day === 2 ? 1 : 0,
-          ebike: day === 2 ? 1 : 0,
-          bike: day === 1 ? 3 : 0, // Gramercy Park (d1): the busier uptown bike scene (3 cyclists)
+          moto: day === 2 || day === 4 ? 1 : 0,
+          ebike: day === 2 || day === 4 ? 1 : 0,
+          bike: day === 1 ? 3 : day === 4 ? 2 : 0, // Gramercy Park (d1): 3 cyclists; Maspeth (d4): the cycling hub (2 cyclists)
           escooter: 1,
           rc: 0,
           tric: 0,
