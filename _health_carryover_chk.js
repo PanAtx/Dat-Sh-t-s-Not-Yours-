@@ -75,11 +75,16 @@ console.log('[2] write-up: finishDying refills to FULL health (shift continues)'
     fd.indexOf('gameOver("writeup")') >= 0 &&
       fd.indexOf('return;') > fd.indexOf('gameOver("writeup")') &&
       fd.indexOf('health = maxHealth') > fd.indexOf('return;') &&
-      fd.indexOf('p.invuln = 3') > fd.indexOf('return;'),
+      fd.indexOf('p.invuln = WRITEUP_RECOVERY_INVULN') > fd.indexOf('return;'),
   );
   check(
-    'the get-up block still grants the 3s grace (p.invuln = 3) + state back to "play"',
-    /p\.invuln = 3;/.test(fd) && /state = "play";/.test(fd),
+    'the get-up block grants recovery i-frames (p.invuln = WRITEUP_RECOVERY_INVULN) + state back to "play"',
+    /p\.invuln = WRITEUP_RECOVERY_INVULN;/.test(fd) && /state = "play";/.test(fd),
+  );
+  const wm = src.match(/const WRITEUP_RECOVERY_INVULN = ([\d.]+);/);
+  check(
+    'the recovery i-frames outlast the 5s WRITTEN UP stamp (untouchable a bit AFTER it fades)',
+    wm && parseFloat(wm[1]) >= 5 + 1,
   );
 }
 
@@ -138,6 +143,7 @@ console.log('');
 console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
 {
   const fd = extract('finishDying');
+  const wmv = src.match(/const WRITEUP_RECOVERY_INVULN = ([\d.]+);/)[1];
   function runFinishDying(nWriteUps, startHealth) {
     const out = { died: 0 };
     const fn = new Function(
@@ -151,7 +157,8 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
       'updateHUD',
       'GZ',
       'out',
-      'var dying = { t: 0 }; var state = "dying";' +
+      'var WRITEUP_RECOVERY_INVULN = ' + wmv + ';' +
+         'var dying = { t: 0 }; var state = "dying";' +
         'var health = ' +
         startHealth +
         '; var maxHealth = 100;' +
@@ -182,17 +189,17 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
   }
   const r1 = runFinishDying(1, 35);
   check(
-    'write-up 1/3 at 35 hp: the worker gets up (state "play", 3s grace) FULL health - refilled to 100',
-    r1.state === 'play' && r1.invuln === 3 && r1.health === 100 && r1.died === 0,
+    'write-up 1/3 at 35 hp: the worker gets up (state "play", recovery grace outlasting the 5s stamp) FULL health - refilled to 100',
+    r1.state === 'play' && r1.invuln === parseFloat(wmv) && r1.health === 100 && r1.died === 0,
   );
   const r2 = runFinishDying(2, 0);
   check(
     'write-up 2/3 at 0 hp (fully down): gets up FULL health (100) - the shift continues fresh',
-    r2.state === 'play' && r2.invuln === 3 && r2.health === 100 && r2.died === 0,
+    r2.state === 'play' && r2.invuln === parseFloat(wmv) && r2.health === 100 && r2.died === 0,
   );
   const r3 = runFinishDying(3, 0);
   check(
-    'write-up 3/3: NO get-up (state stays "dying", no 3s grace) and NO refill - the delayed game over takes over (run ends down)',
+    'write-up 3/3: NO get-up (state stays "dying", no recovery grace) and NO refill - the delayed game over takes over (run ends down)',
     r3.state === 'dying' && r3.invuln === 0 && r3.health === 0,
   );
 }

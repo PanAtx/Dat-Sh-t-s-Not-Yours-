@@ -49,6 +49,7 @@ const POWERUP_IMMUNE_DUR = getNumConst('POWERUP_IMMUNE_DUR');
 const HP_HIT_VEHICLE = getNumConst('HP_HIT_VEHICLE');
 const HP_HIT_HAZARD = getNumConst('HP_HIT_HAZARD');
 const MONSTER_SCORE_STEP = getNumConst('MONSTER_SCORE_STEP');
+const WRITEUP_RECOVERY_INVULN = getNumConst('WRITEUP_RECOVERY_INVULN'); // write-up recovery i-frame duration (must outlast the 5s stamp)
 
 // ---- mutable game state (the extracted functions close over these) ----
 let health = 100, maxHealth = 100;
@@ -305,7 +306,7 @@ check('LODI #1 -> the COMPLAINTS ISSUED box slams with the ink-stamp class', typ
 check('LODI #1 -> NO game over (shift continues)', gameOverCalls.length === 0);
 check('LODI #1 -> health FULLY restored (100) - the shift continues with a fresh worker (only the 3rd write-up stays down)', health === 100);
 check('LODI #1 -> state back to "play"', state === 'play');
-check('LODI #1 -> recovery i-frames granted', p.invuln > 0);
+check('LODI #1 -> recovery i-frames granted (outlast the 5s stamp: fair get-up)', p.invuln === WRITEUP_RECOVERY_INVULN && WRITEUP_RECOVERY_INVULN > 6);
 check('LODI #1 -> the "WRITTEN UP!" callout showed', popups.some(e => e.className.indexOf('pop-writeup') >= 0 && e.textContent.indexOf('1/3') >= 0));
 
 state = 'dying'; dying = { t: 99 }; health = 0;
