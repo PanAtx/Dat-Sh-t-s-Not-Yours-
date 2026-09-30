@@ -60,8 +60,8 @@ console.log('[1] static wiring: the old arcade-voice stack is GONE, the fire ala
     src.indexOf('#dangerFlash.alarm') >= 0 && /dangerAlarmGlow 0\.45s[^\n]*infinite/.test(src) && src.indexOf('@keyframes dangerAlarmGlow') >= 0 && src.indexOf('setInterval(tick, 450)') >= 0);
   check('SFX: a metallic DING (C6 2093 fundamental + 3136 bright partial + 4186 strike transient)',
     src.indexOf('ding(when, vol)') >= 0 && src.indexOf('2093, 2093') >= 0 && src.indexOf('3136, 3136') >= 0 && src.indexOf('4186, 4186') >= 0);
-  check('SFX: DING DING DING — three fast dings, the 3rd hits harder (1.05 > 0.85)',
-    src.indexOf('dingDingDing()') >= 0 && src.indexOf('this.ding(0, 0.85)') >= 0 && src.indexOf('this.ding(0.18, 0.85)') >= 0 && src.indexOf('this.ding(0.36, 1.05)') >= 0);
+  check('SFX: DING DING DING — three fast dings, LOW volume, the 3rd hits harder (0.45 > 0.35)',
+    src.indexOf('dingDingDing()') >= 0 && src.indexOf('this.ding(0, 0.35)') >= 0 && src.indexOf('this.ding(0.18, 0.35)') >= 0 && src.indexOf('this.ding(0.36, 0.45)') >= 0);
   check('SFX: the fire alarm is a continuous 450ms stream, one at a time (re-fire no-op), stop is clean',
     src.indexOf('fireAlarmStart()') >= 0 && src.indexOf('if (this._alarmTimer) return;') >= 0 && src.indexOf('clearInterval(this._alarmTimer)') >= 0);
   check('SFX.ensure(): a suspended AudioContext is resumed (the alarm cannot die on autoplay policy)',
@@ -227,8 +227,9 @@ console.log('[3] SFX: the REAL alarm engine on a mock AudioContext (timing + one
   check('DING DING DING: strikes at t = 0, 0.18, 0.36 (three fast hits)',
     r1.oscStarts[0] === 0 && r1.oscStarts[3] === 0.18 && r1.oscStarts[6] === 0.36, JSON.stringify(r1.oscStarts));
   check('DING DING DING: the C6 2093 bell fundamental is struck', r1.freqs.indexOf(2093) >= 0, JSON.stringify(r1.freqs));
-  check('DING DING DING: the 3rd ding hits harder (gain ramp 1.05 vs 0.85)',
-    r1.gainRamps.indexOf(1.05) >= 0 && r1.gainRamps.indexOf(0.85) >= 0, JSON.stringify(r1.gainRamps));
+  check('DING DING DING: the 3rd ding hits harder (gain ramp 0.45 vs 0.35) and stays LOW (no ramp above 0.5)',
+    r1.gainRamps.indexOf(0.45) >= 0 && r1.gainRamps.indexOf(0.35) >= 0 &&
+      r1.gainRamps.every(function(g){ return g <= 0.5; }), JSON.stringify(r1.gainRamps));
 
   // ---- FIRE ALARM: one ding immediately, then a 450ms interval stream ----
   const ac2 = makeAC('running');

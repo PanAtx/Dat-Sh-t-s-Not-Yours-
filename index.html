@@ -2516,7 +2516,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.324</div>
+          <div id="app-version" class="menu-version">v1.0.325</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.324';
+      const APP_VERSION = '1.0.325';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4582,11 +4582,12 @@
         },
         // DING DING DING: three fast dings — the alarm call the instant a hit
         // drops the worker into the danger zone (once per dangerous stretch).
+        // Kept LOW-volume: it warns, it does not drown out the street.
         dingDingDing() {
           this.ensure();
-          this.ding(0, 0.85);
-          this.ding(0.18, 0.85);
-          this.ding(0.36, 1.05); // the third one hits harder — the emphatic finish
+          this.ding(0, 0.35);
+          this.ding(0.18, 0.35);
+          this.ding(0.36, 0.45); // the third one hits harder — the emphatic finish
         },
         // FIRE ALARM: a CONTINUOUS stream of dings — one every 0.45s, each
         // strike's decay tail bleeding into the next so the ring never drops
@@ -4598,7 +4599,7 @@
           this.ensure();
           if (!this.ctx) return; // no Web Audio: the red glow still warns
           if (this._alarmTimer) return; // already sounding
-          const tick = () => this.ding(0, 0.55);
+          const tick = () => this.ding(0, 0.3); // low volume: an insistent ring, not a siren blaster
           tick();
           this._alarmTimer = setInterval(tick, 450);
         },
