@@ -2516,7 +2516,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.330</div>
+          <div id="app-version" class="menu-version">v1.0.331</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.330';
+      const APP_VERSION = '1.0.331';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9645,28 +9645,30 @@
           bridge.position.set(0.35, 0, 0.12);
           g.add(bridge);
         } else if (kind === 62) {
-          // an old-school skateboard
-          const deck = BX(0.7, 0.04, 0.9, M(0xc44b4b));
+          // an old-school skateboard lying FLAT on the ground: the deck's
+          // length runs along Y (horizontal), its thickness is in Z, the
+          // trucks sit under the deck, and the four wheels touch the ground.
+          const deck = BX(0.7, 0.9, 0.04, M(0xc44b4b));
           deck.position.z = 0.1;
           g.add(deck);
           const trM = M(0x2a2a2a);
-          const t1 = BX(0.16, 0.05, 0.1, trM);
-          t1.position.set(0, 0, 0.065);
+          const t1 = BX(0.16, 0.1, 0.06, trM);
+          t1.position.set(0, 0.35, 0.08);
           g.add(t1);
-          const t2 = BX(0.16, 0.05, 0.1, trM);
-          t2.position.set(0, 0, 0.835);
+          const t2 = BX(0.16, 0.1, 0.06, trM);
+          t2.position.set(0, -0.35, 0.08);
           g.add(t2);
           const wheelM = M(0xf5e8c8);
           const wPos = [
-            [-0.12, 0.065],
-            [0.12, 0.065],
-            [-0.12, 0.835],
-            [0.12, 0.835],
+            [-0.12, 0.35],
+            [0.12, 0.35],
+            [-0.12, -0.35],
+            [0.12, -0.35],
           ];
           for (const wp of wPos) {
             const wh = CY(0.04, 0.04, 0.06, wheelM, 12);
-            wh.rotation.z = Math.PI / 2;
-            wh.position.set(wp[0], 0, wp[1]);
+            wh.rotation.z = Math.PI / 2; // axle across (X), wheel on the ground
+            wh.position.set(wp[0], wp[1], 0.04);
             g.add(wh);
           }
         } else if (kind === 63) {
