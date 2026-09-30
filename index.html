@@ -2516,7 +2516,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.325</div>
+          <div id="app-version" class="menu-version">v1.0.328</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2673,7 +2673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.325';
+      const APP_VERSION = '1.0.328';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9162,6 +9162,609 @@
           root.rotation.x = Math.PI / 2;
           root.position.z = 0.055; // below the crown; the tip points down (-Z)
           g.add(root);
+        } else if (kind === 42) {
+          // vintage stamp collection in an open album
+          const page = BX(1.1, 0.85, 0.02, M(0xe8e2cf));
+          page.position.set(0, 0, 0.01);
+          g.add(page);
+          const page2 = BX(1.04, 0.78, 0.02, M(0xf0ead8));
+          page2.position.set(0.05, -0.02, 0.032);
+          g.add(page2);
+          const stampCols = [0xc44b4b, 0x4b6fc4, 0x5aa34b, 0xd4a03c];
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 4; c++) {
+              const st = BX(0.09, 0.11, 0.006, M(stampCols[(r + c) % 4]));
+              st.position.set(-0.39 + c * 0.13, -0.24 + r * 0.14, 0.045);
+              g.add(st);
+            }
+          }
+        } else if (kind === 43) {
+          // mason jar stuffed with old pennies
+          const glassM = new THREE.MeshLambertMaterial({ color: 0xcfe4e8, transparent: true, opacity: 0.35 });
+          const jar = CY(0.24, 0.26, 0.55, glassM, 14);
+          jar.rotation.x = Math.PI / 2;
+          jar.position.z = 0.275;
+          g.add(jar);
+          const rim = CY(0.27, 0.27, 0.06, MS(0xb8963a), 14);
+          rim.rotation.x = Math.PI / 2;
+          rim.position.z = 0.58;
+          g.add(rim);
+          const coinM = M(0xb06a3a);
+          for (let i = 0; i < 8; i++) {
+            const cn = CY(0.13, 0.13, 0.02, coinM, 12);
+            cn.rotation.x = Math.PI / 2;
+            cn.position.set(R(-0.05, 0.05), R(-0.05, 0.05), 0.06 + i * 0.055);
+            g.add(cn);
+          }
+          const spill1 = CY(0.13, 0.13, 0.02, coinM, 12);
+          spill1.rotation.x = Math.PI / 2;
+          spill1.position.set(0.45, 0.2, 0.01);
+          g.add(spill1);
+          const spill2 = CY(0.13, 0.13, 0.02, coinM, 12);
+          spill2.rotation.x = Math.PI / 2;
+          spill2.position.set(-0.42, -0.25, 0.01);
+          g.add(spill2);
+        } else if (kind === 44) {
+          // worn wooden chess set, mid-game
+          const board = BX(1.0, 1.0, 0.06, M(0x6a4a26));
+          board.position.z = 0.03;
+          g.add(board);
+          const sqM = M(0x2a2a2a);
+          for (let i = 0; i < 6; i++) {
+            for (let j = 0; j < 6; j++) {
+              if ((i + j) % 2) continue;
+              const sq = BX(0.125, 0.125, 0.008, sqM);
+              sq.position.set(-0.4375 + i * 0.125, -0.4375 + j * 0.125, 0.065);
+              g.add(sq);
+            }
+          }
+          const darkM = M(0x3a2a1a);
+          const king = CY(0.035, 0.045, 0.2, darkM, 8);
+          king.rotation.x = Math.PI / 2;
+          king.position.set(0.3, 0.28, 0.16);
+          g.add(king);
+          const kArm = BX(0.05, 0.012, 0.012, darkM);
+          kArm.position.set(0.3, 0.28, 0.28);
+          g.add(kArm);
+          const kArm2 = BX(0.012, 0.05, 0.012, darkM);
+          kArm2.position.set(0.3, 0.28, 0.28);
+          g.add(kArm2);
+          const pawnM = M(0xe8dcc8);
+          const p1 = CY(0.028, 0.04, 0.13, pawnM, 8);
+          p1.rotation.x = Math.PI / 2;
+          p1.position.set(-0.35, 0.2, 0.125);
+          g.add(p1);
+          const p2 = CY(0.028, 0.04, 0.13, pawnM, 8);
+          p2.rotation.x = Math.PI / 2;
+          p2.position.set(-0.2, 0.35, 0.125);
+          g.add(p2);
+        } else if (kind === 45) {
+          // a 1987 NES cartridge
+          const cart = BX(0.5, 0.6, 0.12, M(0x4a4a4a));
+          cart.position.z = 0.06;
+          g.add(cart);
+          const ridge = BX(0.52, 0.16, 0.14, M(0x3a3a3a));
+          ridge.position.set(0, 0.22, 0.06);
+          g.add(ridge);
+          for (let i = 0; i < 3; i++) {
+            const gr = BX(0.02, 0.14, 0.15, M(0x2a2a2a));
+            gr.position.set(-0.14 + i * 0.14, 0.22, 0.06);
+            g.add(gr);
+          }
+          const label = BX(0.44, 0.34, 0.015, M(0xe8c46a));
+          label.position.set(0, -0.08, 0.128);
+          g.add(label);
+          const logo = BX(0.2, 0.07, 0.006, M(0xb06a3a));
+          logo.position.set(0, 0.02, 0.137);
+          g.add(logo);
+          const logo2 = BX(0.14, 0.05, 0.006, M(0xc44b4b));
+          logo2.position.set(0, -0.08, 0.137);
+          g.add(logo2);
+        } else if (kind === 46) {
+          // an etch-a-sketch
+          const frame = BX(0.9, 0.7, 0.1, M(0xc43a2a));
+          frame.position.z = 0.05;
+          g.add(frame);
+          const screen = BX(0.74, 0.54, 0.02, M(0xcfe0ea));
+          screen.position.z = 0.105;
+          g.add(screen);
+          const knobM = M(0x1a1a1a);
+          for (let i = 0; i < 3; i++) {
+            const kb = CY(0.05, 0.05, 0.05, knobM, 10);
+            kb.rotation.x = Math.PI / 2;
+            kb.position.set(-0.28 + i * 0.28, -0.22, 0.13);
+            g.add(kb);
+          }
+        } else if (kind === 47) {
+          // a wind-up tin robot
+          const tinM = M(0xd8a84a),
+            tinD = M(0x8a6a2a);
+          const f1 = BX(0.12, 0.06, 0.06, tinD);
+          f1.position.set(-0.12, 0, 0.03);
+          g.add(f1);
+          const f2 = BX(0.12, 0.06, 0.06, tinD);
+          f2.position.set(0.12, 0, 0.03);
+          g.add(f2);
+          const l1 = BX(0.08, 0.24, 0.08, tinD);
+          l1.position.set(-0.12, 0, 0.18);
+          g.add(l1);
+          const l2 = BX(0.08, 0.24, 0.08, tinD);
+          l2.position.set(0.12, 0, 0.18);
+          g.add(l2);
+          const body = BX(0.45, 0.5, 0.22, tinM);
+          body.position.z = 0.42;
+          g.add(body);
+          const a1 = CY(0.04, 0.04, 0.18, tinM, 8);
+          a1.rotation.z = Math.PI / 2;
+          a1.position.set(0.31, 0, 0.42);
+          g.add(a1);
+          const a2 = CY(0.04, 0.04, 0.18, tinM, 8);
+          a2.rotation.z = Math.PI / 2;
+          a2.position.set(-0.31, 0, 0.42);
+          g.add(a2);
+          const head = BX(0.22, 0.2, 0.16, M(0xc48a3a));
+          head.position.z = 0.63;
+          g.add(head);
+          const dome = SP(0.09, tinM, 12);
+          dome.position.z = 0.76;
+          g.add(dome);
+          const e1 = SP(0.03, M(0x1a1a1a));
+          e1.position.set(-0.05, 0.02, 0.72);
+          g.add(e1);
+          const e2 = SP(0.03, M(0x1a1a1a));
+          e2.position.set(0.05, 0.02, 0.72);
+          g.add(e2);
+          const ant = CY(0.008, 0.008, 0.12, MS(0xb8963a), 6);
+          ant.position.z = 0.88;
+          g.add(ant);
+          const tip = SP(0.02, MS(0xf5d76a));
+          tip.position.z = 0.95;
+          g.add(tip);
+        } else if (kind === 48) {
+          // a sealed hot wheels in blister
+          const card = BX(0.5, 0.7, 0.03, M(0xc42a2a));
+          card.position.z = 0.015;
+          g.add(card);
+          const band = BX(0.5, 0.16, 0.035, M(0xf5e8c8));
+          band.position.set(0, 0.27, 0.015);
+          g.add(band);
+          const glassM2 = new THREE.MeshLambertMaterial({ color: 0xcfe4e8, transparent: true, opacity: 0.3 });
+          const blister = BX(0.4, 0.34, 0.05, glassM2);
+          blister.position.set(0, -0.06, 0.06);
+          g.add(blister);
+          const carB = BX(0.3, 0.08, 0.06, MS(0x3a6fd0));
+          carB.position.set(0, -0.1, 0.06);
+          g.add(carB);
+          const wb1 = CY(0.045, 0.045, 0.04, M(0x1a1a1a), 10);
+          wb1.rotation.x = Math.PI / 2;
+          wb1.position.set(-0.1, -0.17, 0.06);
+          g.add(wb1);
+          const wb2 = CY(0.045, 0.045, 0.04, M(0x1a1a1a), 10);
+          wb2.rotation.x = Math.PI / 2;
+          wb2.position.set(0.1, -0.17, 0.06);
+          g.add(wb2);
+        } else if (kind === 49) {
+          // a first-edition-looking harry potter
+          const back = BX(0.35, 0.5, 0.02, M(0x2a4a2a));
+          back.position.set(0, 0, 0.02);
+          g.add(back);
+          const pages = BX(0.33, 0.48, 0.1, M(0xf0ead8));
+          pages.position.set(0, 0, 0.07);
+          g.add(pages);
+          const front = BX(0.35, 0.5, 0.02, M(0x3a5a3a));
+          front.position.set(0, 0, 0.14);
+          g.add(front);
+          const bolt1 = BX(0.03, 0.14, 0.006, M(0xf5d76a));
+          bolt1.position.set(0.05, 0.02, 0.153);
+          g.add(bolt1);
+          const bolt2 = BX(0.03, 0.1, 0.006, M(0xf5d76a));
+          bolt2.position.set(-0.02, -0.1, 0.153);
+          g.add(bolt2);
+        } else if (kind === 50) {
+          // a vintage gold watch
+          const strap = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.032, 8, 20), MS(0xc0c8d0));
+          strap.position.z = 0.092;
+          strap.castShadow = true;
+          g.add(strap);
+          const bez = CY(0.09, 0.09, 0.04, MS(0xd8e0e8), 20);
+          bez.rotation.x = Math.PI / 2;
+          bez.position.z = 0.092;
+          g.add(bez);
+          const dial = new THREE.Mesh(new THREE.CircleGeometry(0.075, 24), M(0xf5f2e8));
+          dial.position.z = 0.113;
+          g.add(dial);
+          const hand1 = BX(0.008, 0.055, 0.004, M(0x1a1a1a));
+          hand1.position.set(0.005, 0.02, 0.117);
+          g.add(hand1);
+          const hand2 = BX(0.008, 0.04, 0.004, M(0x1a1a1a));
+          hand2.position.set(-0.015, -0.01, 0.117);
+          g.add(hand2);
+        } else if (kind === 51) {
+          // a rolled-up set of silver flatware
+          const rollM = M(0xe8e2cf);
+          const roll = CY(0.12, 0.12, 0.5, rollM, 12);
+          roll.rotation.z = Math.PI / 2;
+          roll.position.set(0, 0, 0.12);
+          g.add(roll);
+          const silv = MS(0xc0c8d0);
+          const sh1 = BX(0.015, 0.4, 0.015, silv);
+          sh1.position.set(0.24, 0, 0.2);
+          g.add(sh1);
+          const sp1 = SP(0.035, silv, 10);
+          sp1.scale.y = 1.5;
+          sp1.position.set(0.24, 0, 0.42);
+          g.add(sp1);
+          const sh2 = BX(0.03, 0.4, 0.012, silv);
+          sh2.position.set(-0.24, 0, 0.2);
+          g.add(sh2);
+          for (let i = 0; i < 3; i++) {
+            const tn = BX(0.006, 0.06, 0.012, silv);
+            tn.position.set(-0.255 + i * 0.015, 0, 0.44);
+            g.add(tn);
+          }
+        } else if (kind === 52) {
+          // a hummel porcelain figurine
+          const base = CY(0.14, 0.17, 0.04, M(0x8a6a4a), 14);
+          base.rotation.x = Math.PI / 2;
+          base.position.z = 0.02;
+          g.add(base);
+          const robe = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.4, 14), M(0xf0e8d8));
+          robe.rotation.x = Math.PI / 2;
+          robe.position.z = 0.24;
+          g.add(robe);
+          const chest = CY(0.06, 0.1, 0.14, M(0xf5f0e4), 10);
+          chest.rotation.x = Math.PI / 2;
+          chest.position.z = 0.48;
+          g.add(chest);
+          const arm1 = SP(0.035, M(0xf5f0e4));
+          arm1.position.set(-0.11, 0, 0.48);
+          g.add(arm1);
+          const arm2 = SP(0.035, M(0xf5f0e4));
+          arm2.position.set(0.11, 0, 0.48);
+          g.add(arm2);
+          const head = SP(0.09, M(0xf5e0d0), 12);
+          head.position.z = 0.66;
+          g.add(head);
+          const cap = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.09, 12), M(0x2a4a6a));
+          cap.rotation.x = Math.PI / 2;
+          cap.position.z = 0.77;
+          g.add(cap);
+          const tuft = SP(0.03, M(0x8a6a4a));
+          tuft.position.set(0, 0.07, 0.7);
+          g.add(tuft);
+        } else if (kind === 53) {
+          // a box of toy soldiers
+          const tray = BX(0.84, 0.32, 0.04, M(0x6a4a26));
+          tray.position.z = 0.02;
+          g.add(tray);
+          const solM = M(0x4a6a3a),
+            rifleM = M(0x5a3a1a);
+          for (let i = 0; i < 4; i++) {
+            const sx = -0.315 + i * 0.21;
+            const bod = BX(0.09, 0.2, 0.06, solM);
+            bod.position.set(sx, 0, 0.14);
+            g.add(bod);
+            const hd = SP(0.045, solM, 10);
+            hd.position.set(sx, 0, 0.28);
+            g.add(hd);
+            const hat = CY(0.055, 0.055, 0.035, M(0x3a5a2a), 10);
+            hat.rotation.x = Math.PI / 2;
+            hat.position.set(sx, 0, 0.33);
+            g.add(hat);
+            const rf = BX(0.02, 0.28, 0.02, rifleM);
+            rf.position.set(sx + 0.08, 0, 0.16);
+            g.add(rf);
+          }
+        } else if (kind === 54) {
+          // a brass navigation compass
+          const brass = MS(0xb8963a);
+          const ft1 = CY(0.02, 0.02, 0.07, brass, 8);
+          ft1.position.set(-0.1, 0, 0.035);
+          g.add(ft1);
+          const ft2 = CY(0.02, 0.02, 0.07, brass, 8);
+          ft2.position.set(0.1, 0, 0.035);
+          g.add(ft2);
+          const ccase = CY(0.16, 0.16, 0.07, brass, 20);
+          ccase.rotation.x = Math.PI / 2;
+          ccase.position.z = 0.1;
+          g.add(ccase);
+          const face = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24), M(0xf5f0e0));
+          face.position.z = 0.136;
+          g.add(face);
+          const needle = BX(0.014, 0.2, 0.006, M(0xc44b4b));
+          needle.position.set(0, 0, 0.142);
+          needle.rotation.y = 0.6;
+          g.add(needle);
+          const pin = SP(0.015, brass, 8);
+          pin.position.z = 0.146;
+          g.add(pin);
+          const bow = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.01, 8, 12), brass);
+          bow.position.set(0, 0.2, 0.1);
+          g.add(bow);
+        } else if (kind === 55) {
+          // an antique typewriter
+          const base = BX(0.5, 0.4, 0.08, M(0x2a2a2a));
+          base.position.z = 0.04;
+          g.add(base);
+          const body = BX(0.46, 0.3, 0.14, M(0x3a3a3a));
+          body.position.set(0, 0.04, 0.15);
+          g.add(body);
+          const platen = CY(0.055, 0.055, 0.36, M(0x1a1a1a), 12);
+          platen.rotation.z = Math.PI / 2;
+          platen.position.set(0, 0.1, 0.3);
+          g.add(platen);
+          const keyM = MS(0xc0c8d0);
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 7; c++) {
+              const ky = SP(0.018, keyM, 8);
+              ky.position.set(-0.18 + c * 0.06, -0.08 - r * 0.06, 0.095);
+              g.add(ky);
+            }
+          }
+          const paper = BX(0.28, 0.22, 0.006, M(0xf5f2e8));
+          paper.position.set(0, 0.12, 0.48);
+          paper.rotation.z = 0.08;
+          g.add(paper);
+        } else if (kind === 56) {
+          // a stack of rare vinyl records
+          const slv = [0xc44b4b, 0x4b6fc4, 0xd4a03c];
+          for (let i = 0; i < 3; i++) {
+            const sl = BX(0.14, 0.5, 0.5, M(slv[i]));
+            sl.position.set(-0.2 + i * 0.24, 0, 0.25);
+            sl.rotation.y = -0.18 + i * 0.22;
+            g.add(sl);
+            const disc = BX(0.03, 0.46, 0.5, M(0x1a1a1a));
+            disc.position.set(-0.26 + i * 0.24, 0, 0.25);
+            disc.rotation.y = -0.18 + i * 0.22;
+            g.add(disc);
+          }
+        } else if (kind === 57) {
+          // a vintage snow globe
+          const base = CY(0.18, 0.24, 0.1, M(0x6a4a26), 14);
+          base.rotation.x = Math.PI / 2;
+          base.position.z = 0.05;
+          g.add(base);
+          const rim = CY(0.17, 0.17, 0.03, MS(0xb8963a), 14);
+          rim.rotation.x = Math.PI / 2;
+          rim.position.z = 0.115;
+          g.add(rim);
+          const glassM3 = new THREE.MeshLambertMaterial({ color: 0xcfe4e8, transparent: true, opacity: 0.3 });
+          const dome = SP(0.22, glassM3, 16);
+          dome.position.z = 0.35;
+          g.add(dome);
+          const bldM = M(0x8a9aa8);
+          const b1 = BX(0.05, 0.12, 0.05, bldM);
+          b1.position.set(-0.08, 0, 0.19);
+          g.add(b1);
+          const b2 = BX(0.05, 0.16, 0.05, bldM);
+          b2.position.set(0.05, 0, 0.21);
+          g.add(b2);
+          const b3 = BX(0.05, 0.09, 0.05, bldM);
+          b3.position.set(0.14, 0, 0.175);
+          g.add(b3);
+          const snowM = M(0xf5f5f5);
+          const snowPos = [
+            [-0.06, 0.12, 0.3],
+            [0.1, -0.05, 0.42],
+            [-0.12, -0.08, 0.48],
+            [0.02, 0.15, 0.5],
+            [0.12, 0.1, 0.3],
+          ];
+          for (const sp of snowPos) {
+            const fl = SP(0.008, snowM);
+            fl.position.set(sp[0], sp[1], sp[2]);
+            g.add(fl);
+          }
+        } else if (kind === 58) {
+          // an antique music box with a ballerina
+          const mbox = BX(0.5, 0.35, 0.16, M(0x5a3a1a));
+          mbox.position.z = 0.08;
+          g.add(mbox);
+          const lid = BX(0.5, 0.35, 0.02, M(0x6a4a26));
+          lid.position.set(0, 0.102, 0.319);
+          lid.rotation.x = 2.0;
+          g.add(lid);
+          const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.06, 10), M(0xf5f0e4));
+          skirt.rotation.x = Math.PI / 2;
+          skirt.position.set(0.15, 0, 0.2);
+          g.add(skirt);
+          const torso = CY(0.02, 0.03, 0.08, M(0xf5f0e4), 8);
+          torso.rotation.x = Math.PI / 2;
+          torso.position.set(0.15, 0, 0.28);
+          g.add(torso);
+          const head = SP(0.03, M(0xf5e0d0));
+          head.position.set(0.15, 0, 0.35);
+          g.add(head);
+          const crank = CY(0.015, 0.015, 0.12, MS(0xb8963a), 8);
+          crank.rotation.z = Math.PI / 2;
+          crank.position.set(-0.31, 0, 0.08);
+          g.add(crank);
+          const knob = SP(0.025, MS(0xb8963a), 8);
+          knob.position.set(-0.38, 0, 0.08);
+          g.add(knob);
+        } else if (kind === 59) {
+          // a brass pocket knife, half-open
+          const handle = BX(0.5, 0.08, 0.04, M(0x6a4a26));
+          handle.position.set(-0.05, 0, 0.02);
+          g.add(handle);
+          const blade = BX(0.3, 0.06, 0.015, MS(0xc0c8d0));
+          blade.position.set(0.3, 0, 0.02);
+          blade.rotation.z = 0.25;
+          g.add(blade);
+          const pivot = CY(0.03, 0.03, 0.05, MS(0xb8963a), 10);
+          pivot.rotation.x = Math.PI / 2;
+          pivot.position.set(0.1, 0, 0.02);
+          g.add(pivot);
+        } else if (kind === 60) {
+          // an english china tea set
+          const silver = MS(0xc0c8d0);
+          const plate = CY(0.19, 0.22, 0.02, M(0xf5f2e8), 18);
+          plate.rotation.x = Math.PI / 2;
+          plate.position.z = 0.01;
+          g.add(plate);
+          const teapot = SP(0.14, silver, 14);
+          teapot.position.set(0, 0, 0.15);
+          g.add(teapot);
+          const lid = CY(0.05, 0.07, 0.04, silver, 12);
+          lid.rotation.x = Math.PI / 2;
+          lid.position.z = 0.29;
+          g.add(lid);
+          const knob = SP(0.02, silver, 8);
+          knob.position.z = 0.325;
+          g.add(knob);
+          const spout = CY(0.025, 0.04, 0.12, silver, 10);
+          spout.rotation.z = Math.PI / 2 - 0.5;
+          spout.position.set(0.18, 0, 0.2);
+          g.add(spout);
+          const handleC = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 14, Math.PI * 1.4), silver);
+          handleC.position.set(-0.16, 0, 0.16);
+          g.add(handleC);
+          const cup = CY(0.045, 0.06, 0.07, M(0xf5f2e8), 12);
+          cup.rotation.x = Math.PI / 2;
+          cup.position.set(0.26, 0, 0.085);
+          g.add(cup);
+        } else if (kind === 61) {
+          // binoculars in a leather case
+          const caseB = BX(0.45, 0.6, 0.12, M(0x4a3a2a));
+          caseB.position.z = 0.06;
+          g.add(caseB);
+          const flap = BX(0.45, 0.6, 0.02, M(0x5a4a3a));
+          flap.position.set(0.225, 0, 0.06);
+          flap.rotation.y = 0.5;
+          g.add(flap);
+          const binM = MS(0xb8963a);
+          const t1 = CY(0.09, 0.09, 0.35, binM, 12);
+          t1.rotation.z = Math.PI / 2;
+          t1.position.set(0.35, 0.1, 0.12);
+          g.add(t1);
+          const t2 = CY(0.09, 0.09, 0.35, binM, 12);
+          t2.rotation.z = Math.PI / 2;
+          t2.position.set(0.35, -0.1, 0.12);
+          g.add(t2);
+          const bridge = BX(0.06, 0.3, 0.08, binM);
+          bridge.position.set(0.35, 0, 0.12);
+          g.add(bridge);
+        } else if (kind === 62) {
+          // an old-school skateboard
+          const deck = BX(0.7, 0.04, 0.9, M(0xc44b4b));
+          deck.position.z = 0.1;
+          g.add(deck);
+          const trM = M(0x2a2a2a);
+          const t1 = BX(0.16, 0.05, 0.1, trM);
+          t1.position.set(0, 0, 0.065);
+          g.add(t1);
+          const t2 = BX(0.16, 0.05, 0.1, trM);
+          t2.position.set(0, 0, 0.835);
+          g.add(t2);
+          const wheelM = M(0xf5e8c8);
+          const wPos = [
+            [-0.12, 0.065],
+            [0.12, 0.065],
+            [-0.12, 0.835],
+            [0.12, 0.835],
+          ];
+          for (const wp of wPos) {
+            const wh = CY(0.04, 0.04, 0.06, wheelM, 12);
+            wh.rotation.z = Math.PI / 2;
+            wh.position.set(wp[0], 0, wp[1]);
+            g.add(wh);
+          }
+        } else if (kind === 63) {
+          // a 1950s cash register
+          const body = BX(0.5, 0.5, 0.35, MS(0xc0c8d0));
+          body.position.z = 0.175;
+          g.add(body);
+          const keys = BX(0.42, 0.2, 0.02, M(0x3a3a3a));
+          keys.position.set(0, -0.1, 0.36);
+          keys.rotation.x = -0.4;
+          g.add(keys);
+          const km = MS(0xf5e8c8);
+          for (let r = 0; r < 3; r++) {
+            for (let c = 0; c < 5; c++) {
+              const ky = CY(0.02, 0.02, 0.02, km, 8);
+              ky.position.set(-0.14 + c * 0.07, -0.16 + r * 0.06, 0.4 - r * 0.025);
+              g.add(ky);
+            }
+          }
+          const bell = CY(0.05, 0.05, 0.03, MS(0xb8963a), 12);
+          bell.rotation.x = Math.PI / 2;
+          bell.position.set(0.18, 0.06, 0.38);
+          g.add(bell);
+          const drawer = BX(0.4, 0.08, 0.06, MS(0x8a8f96));
+          drawer.position.set(0, -0.1, 0.02);
+          g.add(drawer);
+          const dknob = CY(0.02, 0.02, 0.02, MS(0xb8963a), 8);
+          dknob.rotation.x = Math.PI / 2;
+          dknob.position.set(0, -0.1, 0.055);
+          g.add(dknob);
+        } else if (kind === 64) {
+          // a vintage model airplane
+          const fus = CY(0.05, 0.09, 0.7, M(0xc44b4b), 10);
+          fus.rotation.x = Math.PI / 2;
+          fus.position.z = 0.35;
+          g.add(fus);
+          const nose = SP(0.05, M(0xf5d76a), 10);
+          nose.position.z = 0.72;
+          g.add(nose);
+          const prop = BX(0.2, 0.02, 0.02, M(0x3a2a1a));
+          prop.position.z = 0.76;
+          g.add(prop);
+          const wing = BX(0.9, 0.16, 0.03, M(0xd45b4b));
+          wing.position.z = 0.35;
+          g.add(wing);
+          const tailW = BX(0.35, 0.12, 0.02, M(0xd45b4b));
+          tailW.position.set(0, 0, 0.08);
+          g.add(tailW);
+          const tailV = BX(0.02, 0.2, 0.06, M(0xd45b4b));
+          tailV.position.set(0, 0, 0.12);
+          g.add(tailV);
+          const st1 = CY(0.015, 0.015, 0.1, M(0x3a3a3a), 8);
+          st1.position.set(-0.1, 0, 0.05);
+          g.add(st1);
+          const st2 = CY(0.015, 0.015, 0.1, M(0x3a3a3a), 8);
+          st2.position.set(0.1, 0, 0.05);
+          g.add(st2);
+        } else if (kind === 65) {
+          // a 1970s lava lamp
+          const base = CY(0.1, 0.16, 0.14, M(0x2a2a2a), 14);
+          base.rotation.x = Math.PI / 2;
+          base.position.z = 0.07;
+          g.add(base);
+          const glassM4 = new THREE.MeshLambertMaterial({ color: 0xcfe4e8, transparent: true, opacity: 0.35 });
+          const vase = CY(0.06, 0.12, 0.4, glassM4, 12);
+          vase.rotation.x = Math.PI / 2;
+          vase.position.z = 0.34;
+          g.add(vase);
+          const waxM = new THREE.MeshLambertMaterial({ color: 0xd03a2a, emissive: 0x5a1a10, emissiveIntensity: 0.5 });
+          const blob = SP(0.05, waxM, 10);
+          blob.position.set(0.02, 0, 0.28);
+          g.add(blob);
+          const blob2 = SP(0.04, waxM, 10);
+          blob2.position.set(-0.03, 0.03, 0.42);
+          g.add(blob2);
+          const cap = CY(0.07, 0.09, 0.08, M(0x2a2a2a), 14);
+          cap.rotation.x = Math.PI / 2;
+          cap.position.z = 0.58;
+          g.add(cap);
+        } else if (kind === 66) {
+          // a kodak box brownie camera
+          const box = BX(0.55, 0.35, 0.12, MS(0xb8963a));
+          box.position.z = 0.06;
+          g.add(box);
+          const band = BX(0.55, 0.08, 0.13, M(0xc44b4b));
+          band.position.set(0, 0.12, 0.06);
+          g.add(band);
+          const lens = CY(0.06, 0.06, 0.05, MS(0x8a8f96), 14);
+          lens.rotation.x = Math.PI / 2;
+          lens.position.z = 0.14;
+          g.add(lens);
+          const lensG = new THREE.Mesh(new THREE.CircleGeometry(0.04, 16), M(0x1a2a3a));
+          lensG.position.z = 0.166;
+          g.add(lensG);
+          const vf = CY(0.025, 0.025, 0.03, M(0x1a1a1a), 10);
+          vf.rotation.x = Math.PI / 2;
+          vf.position.set(0.15, 0.1, 0.13);
+          g.add(vf);
         }
         return g;
       }
@@ -21358,12 +21961,12 @@
         if (carried) disposeObj(carried.g);
         carried = null;
         carry = "none";
-        score = 0;
-        bonusTally = 0;
-        complaints = 0;
-        dayScore = 0; // per-day score (weekScore keeps running across the whole week)
-        monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this day
-        healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this day
+        // SCORE + STREET CASH CARRY OVER across days / levels — a level complete or a
+        // restart never zeroes them; ONLY a brand-new run (startGame, from the menu /
+        // game over / week complete) does. The power-up milestones keep running with
+        // the tallies so the "every $5,000 / every $30,000" rule holds across the week.
+        complaints = 0; // per-day report counter
+        dayScore = 0; // per-day score for the day-end report (the HUD score keeps running)
         // health does NOT refill at the start of a level: the pain carries over —
         // only a street-cash healer power-up (or a write-up, if the shift continues) restores it.
         dangerWarned = false; // fresh shift: re-arm the danger warning (a carried-over low health warns on the first hit)
@@ -22543,6 +23146,32 @@
         39: "Ghostly pocket watch!",
         40: "Ghostly gold coins!",
         41: "Ghostly gold tooth!",
+        // --- the 2025 street finds: vintage collectibles (kinds 42-66) ---
+        42: "Vintage stamps!",
+        43: "Wheat-penny jar!",
+        44: "Chess set!",
+        45: "Zelda cartridge!",
+        46: "Etch A Sketch!",
+        47: "Tin robot!",
+        48: "Sealed Hot Wheels!",
+        49: "Harry Potter!",
+        50: "Rolex watch!",
+        51: "Silver flatware!",
+        52: "Hummel figurine!",
+        53: "Toy soldiers!",
+        54: "Brass compass!",
+        55: "Old typewriter!",
+        56: "Rare vinyl records!",
+        57: "Snow globe!",
+        58: "Music box!",
+        59: "Pocket knife!",
+        60: "English china!",
+        61: "Brass binoculars!",
+        62: "Old-school skateboard!",
+        63: "Vintage cash register!",
+        64: "Model airplane!",
+        65: "Lava lamp!",
+        66: "Kodak Brownie!",
       };
       // The named mongo scrap the worker hauls in — each is spoken + shown under "MONGO!".
       const MONGO_NAMES = {
@@ -22571,7 +23200,8 @@
           type = "cash";
           voice = "Street cash!";
         } else {
-          const tKind = (Math.random() * 38) | 0; // 38 distinct treasures (kinds 0-37)
+          let tKind = (Math.random() * 63) | 0; // 63 distinct street treasures (kinds 0-37 + 42-66)
+          if (tKind >= 38) tKind += 4; // remap 38-62 -> 42-66; kinds 38-41 stay cemetery-exclusive
           g = makeTreasure(tKind);
           val = 50 + 25 * ((Math.random() * 9) | 0); // every treasure is worth $50-$250 in $25 steps
           type = "treasure";
@@ -33029,6 +33659,10 @@
         dangerWarned = false; // fresh week: the danger warning starts armed
         dangerAlarmOff(); // fresh week: clear any stale fire alarm (the continuous dings + red glow)
         weekScore = 0; // fresh running total
+        score = 0; // fresh run: the HUD score starts at zero (it carries over across days otherwise)
+        bonusTally = 0; // fresh run: the street cash starts at zero (it carries over across days otherwise)
+        monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this run
+        healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
         // New game = new worker: set the skin tone ONCE here so it stays the same
         // across every level until the game is restarted (not re-rolled per shift).
         if (worker && worker.skinMat)
@@ -33116,6 +33750,8 @@
         weekScore = 0;
         score = 0;
         bonusTally = 0;
+        monsterNextAt = MONSTER_SCORE_STEP; // a fresh run from the menu restarts the milestones too
+        healerNextAt = POWERUP_CASH_STEP;
         complaints = 0;
         resetWorldState(); // rebuild a clean street + re-anchor the worker at the start
         ["over", "complete", "day-intro", "day-stats", "week-complete"].forEach(

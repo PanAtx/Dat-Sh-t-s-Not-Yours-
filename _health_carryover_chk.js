@@ -2,11 +2,17 @@
 // start of the next level - the pain carries over. A Street Cash healer power-up
 // (coffee / BEC, spawned at the $5,000 milestone) restores it; so does a write-up
 // where the shift continues (the worker comes back FULL).
-//   1) resetWorldState (fresh day / new level) no longer refills health,
+// SCORE + STREET CASH carry-over check too: the HUD score and the street-cash
+// tally (and the power-up milestones that ride on them) do NOT reset to 0 at a
+// level restart or a level completion - only startGame (a brand-new run) zeroes
+// them.
+//   1) resetWorldState (fresh day / new level) no longer refills health and
+//      no longer zeroes score / street cash / the milestones,
 //   2) finishDying (a write-up, shift continues) DOES refill to FULL health -
 //      the worker gets up at maxHealth (the 3rd write-up path returns before
 //      the refill, so the run ends down),
-//   3) startGame (a brand-new week = a fresh worker) DOES start healthy,
+//   3) startGame (a brand-new week = a fresh worker) DOES start healthy and
+//      zeroes score / street cash / weekScore / the milestones,
 //   4) heal() (power-up) and hurtNPC() (damage) are untouched - heal() is the
 //      only restore path, capped at maxHealth.
 // Runs the REAL finishDying / startGame extracted from index.html in a harness.
@@ -40,18 +46,21 @@ console.log('[1] level start: resetWorldState no longer refills health');
   const rws = extract('resetWorldState');
   check('resetWorldState has NO health = maxHealth refill', rws.indexOf('health = maxHealth') < 0);
   check(
-    'the reset keeps refilling the per-day counters (score / complaints / dayScore / monster + healer milestones)',
-    /score = 0;/.test(rws) &&
-      /complaints = 0;/.test(rws) &&
-      /dayScore = 0;/.test(rws) &&
-      /monsterNextAt = MONSTER_SCORE_STEP;/.test(rws) &&
-      /healerNextAt = POWERUP_CASH_STEP;/.test(rws),
+    'the reset keeps refilling ONLY the per-day report counters (complaints / dayScore)',
+    /complaints = 0;/.test(rws) && /dayScore = 0;/.test(rws),
   );
-  const i1 = rws.indexOf('healerNextAt = POWERUP_CASH_STEP');
+  check(
+    'score / street cash / the power-up milestones CARRY OVER across days (no score = 0, bonusTally = 0 or milestone reset in resetWorldState)',
+    !/(^|\s)score = 0;/.test(rws) &&
+      !/bonusTally = 0;/.test(rws) &&
+      !/monsterNextAt = MONSTER_SCORE_STEP;/.test(rws) &&
+      !/healerNextAt = POWERUP_CASH_STEP;/.test(rws),
+  );
+  const i1 = rws.indexOf('dayScore = 0;');
   const i2 = rws.indexOf('p.wx = PLAYER_START_X');
   const slice = i1 >= 0 && i2 > i1 ? rws.slice(i1, i2) : '';
   check(
-    'between the healer-milestone reset and the worker re-anchor there is NO health assignment',
+    'between the dayScore reset and the worker re-anchor there is NO health assignment',
     slice.length > 0 && !/health\s*=\s*maxHealth/.test(slice),
   );
 }
@@ -84,8 +93,24 @@ console.log('[3] fresh week: startGame starts healthy (a new run = a new worker)
       sg.indexOf('health = maxHealth') > sg.indexOf('level = START_LEVEL') &&
       sg.indexOf('health = maxHealth') < sg.indexOf('showDayIntro()'),
   );
+  check(
+    'startGame: a brand-new run zeroes the carried-over tallies (score / bonusTally / weekScore) + resets the power-up milestones (before showDayIntro)',
+    sg.indexOf('weekScore = 0') >= 0 &&
+      sg.indexOf('score = 0') > sg.indexOf('weekScore = 0') &&
+      sg.indexOf('bonusTally = 0') > sg.indexOf('score = 0') &&
+      sg.indexOf('monsterNextAt = MONSTER_SCORE_STEP') > sg.indexOf('bonusTally = 0') &&
+      sg.indexOf('healerNextAt = POWERUP_CASH_STEP') > sg.indexOf('monsterNextAt = MONSTER_SCORE_STEP') &&
+      sg.indexOf('healerNextAt = POWERUP_CASH_STEP') < sg.indexOf('showDayIntro()'),
+  );
   const qg = extract('quitGame');
   check('quitGame (back to the menu) does NOT refill health either', qg.indexOf('health = maxHealth') < 0);
+  check(
+    'quitGame (back to the menu) zeroes the tallies + milestones too (the next start is a fresh run)',
+    qg.indexOf('score = 0') >= 0 &&
+      qg.indexOf('bonusTally = 0') >= 0 &&
+      qg.indexOf('monsterNextAt = MONSTER_SCORE_STEP') >= 0 &&
+      qg.indexOf('healerNextAt = POWERUP_CASH_STEP') >= 0,
+  );
 }
 
 console.log('');
@@ -181,11 +206,13 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
     'showDayIntro',
     'out',
     'var _preloading = false; var level = 99; var weekScore = 55; var START_LEVEL = 6;' +
+      'var score = 424242; var bonusTally = 555555; var monsterNextAt = 999999; var healerNextAt = 987654;' +
+      'var MONSTER_SCORE_STEP = 30000; var POWERUP_CASH_STEP = 5000;' +
       'var SKIN_TONES = [0x000000];' +
       'var health = 0; var maxHealth = 100;' +
       'var dangerWarned = true; function dangerAlarmOff(){}' +
       sg +
-      '\nstartGame();\nreturn { health: health, level: level, weekScore: weekScore, introduced: out.introduced, dangerWarned: dangerWarned };'
+      '\nstartGame();\nreturn { health: health, level: level, weekScore: weekScore, score: score, bonusTally: bonusTally, monsterNextAt: monsterNextAt, healerNextAt: healerNextAt, introduced: out.introduced, dangerWarned: dangerWarned };'
   );
   const r = fn(
     null,
@@ -197,6 +224,10 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
   check(
     'startGame: a battered worker (0 hp) starts the FRESH WEEK healthy (100) at the first day, week total reset',
     r.health === 100 && r.level === 6 && r.weekScore === 0 && r.introduced === 1,
+  );
+  check(
+    'startGame: a carried-over run (score 424242 / street cash 555555 / stale milestones) is ZEROED for the fresh week - the tallies start at 0 and the milestones back at the first step (30000 / 5000)',
+    r.score === 0 && r.bonusTally === 0 && r.monsterNextAt === 30000 && r.healerNextAt === 5000,
   );
   check(
     'startGame: a stale danger flag (warned in the previous run) is re-armed for the fresh week',
