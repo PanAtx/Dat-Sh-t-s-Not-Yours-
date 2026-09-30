@@ -2208,8 +2208,8 @@
    Large translucent circle = travel radius, small translucent circle = the stick.
    Keyboard / gamepad input is mirrored onto this pad, so it also shows what's pressed on desktop. */
       :root {
-        --joy: min(calc(36 * var(--vh)), calc(24 * var(--vw)), 200px);
-        --act: min(calc(24 * var(--vh)), calc(16 * var(--vw)), 132px);
+        --joy: min(36vh, 24vw, 200px);
+        --act: min(24vh, 16vw, 132px);
       }
       #vpad {
         position: fixed;
@@ -2586,7 +2586,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.333</div>
+          <div id="app-version" class="menu-version">v1.0.334</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2751,7 +2751,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.333';
+      const APP_VERSION = '1.0.334';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // ==================== 16:9 STAGE (letterbox) ====================
