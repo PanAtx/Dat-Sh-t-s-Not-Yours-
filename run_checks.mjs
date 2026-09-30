@@ -27,6 +27,7 @@ const suites = [
   ['health carry-over (no refill at level start - street-cash healer / write-up restores)', 'node', '_health_carryover_chk.js'],
   ['danger zone POW! + 1980s arcade voice ("San Man Needs Food Badly")', 'node', '_danger_pow_chk.js'],
   ['25 new street treasures (kinds 42-66 + spawnBonus draw)', 'node', '_treasures25_chk.js'],
+  ['pigeon flocks stay around the worker + scare payout (+10 street cash)', 'node', '_pigeon_chk.js'],
 ];
 
 let allPass = true;

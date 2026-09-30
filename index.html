@@ -2615,7 +2615,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.337</div>
+          <div id="app-version" class="menu-version">v1.0.338</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2772,7 +2772,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.337';
+      const APP_VERSION = '1.0.338';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -21676,11 +21676,12 @@
           }
         }
 
-        // pigeon flocks: more flocks on busy Manhattan sidewalks
+        // pigeon flocks: more flocks on busy Manhattan sidewalks — seeded mostly
+        // AHEAD of the worker so you actually see them pecking as you walk
         const flockCount = borough === "MANHATTAN" ? 3 : 2;
         for (let fI = 0; fI < flockCount; fI++) {
-          const flock = 1 + ((Math.random() * 3) | 0);
-          const fpx = p.wx + R(-45, 55),
+          const flock = 2 + ((Math.random() * 3) | 0);
+          const fpx = p.wx + R(-15, 45),
             fpy = R(1.5, 4.4);
           const fsd = makeSeedScatter();
           fsd.position.set(fpx, fpy, GZ);
@@ -30613,17 +30614,19 @@
                 c.wingR.rotation.x = fl;
                 if (c.flyT <= 0) {
                   c.g.visible = false;
-                  c.returnT = R(5, 10); // gone for a while — the bird comes back to peck again
+                  c.returnT = R(3, 6); // gone a bit — the bird comes back to peck again
                 }
               } else if (c.g.visible === false) {
-                // gone: come back and land somewhere on the sidewalk, so the birds keep
-                // being around all shift instead of disappearing forever
+                // gone: come back and re-land NEAR the worker (ahead or behind, 6u off
+                // so it never lands on top of him — no stand-still farming), so the
+                // birds keep being around all shift instead of stranding themselves
+                // far behind the route like the old absolute R(-45, 60) re-land did
                 if (state === "play") {
                   c.returnT = (c.returnT || 5) - dt;
                   if (c.returnT <= 0) {
                     c.g.visible = true;
-                    c.wx = R(-45, 60);
-                    c.wy = R(1.2, 4.8); // re-land on the concrete
+                    c.wx = p.wx + (Math.random() < 0.5 ? -1 : 1) * R(6, 20);
+                    c.wy = R(1.5, 4.4); // re-land on the concrete
                     c.gz = 0;
                     c.peck = R(0, 6.28);
                   }
@@ -30637,6 +30640,9 @@
                 c.flyT = 1.1;
                 c.gz = 0.5;
                 c.fleeAng = Math.atan2(c.wy - p.wy, c.wx - p.wx) + R(-1.8, 1.8); // every bird picks a DIFFERENT scatter direction
+                // scaring them away pays: +10 STREET CASH per bird (same payout as the
+                // squirrel chase — feeds the cash tally + healer milestones)
+                awardPrankPoints(10, p.wx, p.wy);
                 Voice.say(
                   "scram birds!",
                   2.2,
