@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.349</div>
+          <div id="app-version" class="menu-version">v1.0.350</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.349';
+      const APP_VERSION = '1.0.350';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -20359,6 +20359,28 @@
         house.bags.push(bag);
         return bag;
       }
+      // Maspeth (Queens) DEBRIS BOX: a storm-debris box (like Sunday's) with some
+      // STREET CASH hidden under it — the cash pops out the moment the worker picks
+      // the box up (it's a normal $100 cash pickup on the ground where the box was).
+      function makeCurbBox(wx, wy, house) {
+        const g = makeBag("stormbox");
+        const bag = {
+          kind: "bag",
+          state: "curb",
+          wx: wx,
+          wy: wy,
+          h: house,
+          g: g,
+          type: "stormbox",
+        };
+        g.position.set(wx, wy, GZ);
+        dynamicGroup.add(g);
+        house.bags.push(bag);
+        // The street cash under the box: a hair off the box's center so it's revealed
+        // (and in reach) the instant the box is carried away.
+        spawnCash(wx + R(-0.9, 0.9), wy + R(-0.9, 0.9));
+        return bag;
+      }
       function makeCurbCan(wx, wy, house) {
         const g = makeCan(true);
         const can = {
@@ -20580,6 +20602,14 @@
           // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start.
           // Higher spawn rate (0.85): sidewalk + front-lawn grass, in front of THIS house only.
           if (Math.random() < 0.85) spawnBonus(houseX(), sideY());
+          // Maspeth (Queens): STORM-DEBRIS boxes like Sunday's — ONE OR TWO PER BLOCK
+          // (spawned once, on the block's first cell), each with street cash under it.
+          if (isQueensBlock && houseIdx === 0) {
+            const nBoxes = Math.random() < 0.5 ? 1 : 2; // one or two per block
+            for (let bx = 0; bx < nBoxes; bx++) {
+              makeCurbBox(b.blockX + R(2.0, 78.0), R(0.5, spawnMaxY()), house);
+            }
+          }
         }
         // lane markings & sidewalk joints (scroll with the block)
         const dashM = M(0xcfd5da);
@@ -23878,6 +23908,25 @@
         7: "Stainless steel faucet!",
         8: "Copper tubing!",
       };
+      // A plain STREET CASH pickup (the makeCash bonus, $100, "Street cash!") — used by
+      // the Maspeth debris boxes (the cash hidden under a box) and any other fixed cash.
+      function spawnCash(wx, wy) {
+        const g = makeCash();
+        const lift = CASH_LIFT;
+        g.position.set(wx, wy, GZ + lift);
+        g.rotation.z = R(-0.5, 0.5); // a natural resting angle — looks placed, never spinning
+        dynamicGroup.add(g);
+        bonuses.push({
+          g: g,
+          wx: wx,
+          wy: wy,
+          val: 100,
+          type: "cash",
+          voice: "Street cash!",
+          t: R(0, 6),
+          lift: lift,
+        });
+      }
       function spawnBonus(wx, wy) {
         const r = Math.random();
         let g, val, type, voice;
