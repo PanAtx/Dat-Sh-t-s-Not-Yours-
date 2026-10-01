@@ -94,9 +94,12 @@ check('crowd cut drops the breaker on EVERY level (npcCounts(d).breaker === 0 al
 check('Staten Island (d5) has no fentanyl addict (npcCounts(5).yeller === 0)', npcCounts(5).yeller === 0, 'yeller=' + npcCounts(5).yeller);
 check('Staten Island (d5) has no breaker (npcCounts(5).breaker === 0)', npcCounts(5).breaker === 0, 'breaker=' + npcCounts(5).breaker);
 check('Staten Island (d5) has no hooker (npcCounts(5).hooker === 0)', npcCounts(5).hooker === 0, 'hooker=' + npcCounts(5).hooker);
-// The SI override only touches d5: every other day keeps its existing roster for these types.
+// The SI override only touches d5; the Maspeth (d4) override thins the generic
+// walkers (no fentanyl addict, no dogwalker). Every OTHER day keeps its roster.
 // (yeller is also zero on Flatbush d3; breaker on Bronx d2 + Queens d4; hooker on Flatbush d3 + Queens d4 — all pre-existing.)
-[1, 2, 4, 6, 7].forEach(d => check('day ' + d + ' keeps the fentanyl addict (yeller)', npcCounts(d).yeller === BASE_NPC_COUNTS.yeller));
+[1, 2, 6, 7].forEach(d => check('day ' + d + ' keeps the fentanyl addict (yeller)', npcCounts(d).yeller === BASE_NPC_COUNTS.yeller));
+check('Maspeth (d4) has no fentanyl addict (npcCounts(4).yeller === 0)', npcCounts(4).yeller === 0, 'yeller=' + npcCounts(4).yeller);
+check('Maspeth (d4) has no dogwalker (npcCounts(4).dogwalker === 0)', npcCounts(4).dogwalker === 0, 'dogwalker=' + npcCounts(4).dogwalker);
 [1, 2, 6, 7].forEach(d => check('day ' + d + ' keeps the hooker', npcCounts(d).hooker === BASE_NPC_COUNTS.hooker));
 
 console.log(ok ? '\nROSTER CHECKS PASSED' : '\nROSTER CHECKS FAILED');

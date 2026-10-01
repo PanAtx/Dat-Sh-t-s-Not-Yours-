@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.344</div>
+          <div id="app-version" class="menu-version">v1.0.345</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.344';
+      const APP_VERSION = '1.0.345';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3414,6 +3414,7 @@
         stunT: 0,
         stunDur: 1,
         invuln: 0,
+        startInvuln: true, // fresh-week grace: the worker is i-framed until he first moves (cleared on the first movement key in updatePlayer)
         immuneT: 0,
         shake: 0,
         facing: 0,
@@ -3583,8 +3584,14 @@
             if (day === 3 && (t === "hooker" || t === "yeller" || t === "tric"))
               base = 0;
             // Queens (Maspeth, day 4): no hookers — the Polish women stand the corners
-            // instead (spawned separately, one per active block).
-            if (day === 4 && t === "hooker") base = 0;
+            // instead (spawned separately, one per active block). The street also thins
+            // the generic walkers (no fentanyl addict, no dogwalker) so the block reads
+            // cleaner, exactly like the Staten Island cut.
+            if (
+              day === 4 &&
+              (t === "hooker" || t === "yeller" || t === "dogwalker")
+            )
+              base = 0;
             // Bronx (Mott Haven, d2): no breakers - no dance crews on these streets.
             if (day === 2 && t === "breaker") base = 0;
             // Queens (Maspeth): no breakers - the nosy homeowner shadows the streets
@@ -15648,6 +15655,94 @@
         };
         return g;
       }
+      // the Maspeth (Queens, Thursday) skunk: a proper QUADRUPED - four legs on
+      // hip/shoulder pivots reaching the ground, a puffy plume tail held STRAIGHT
+      // UP, a white dorsal stripe running the length of the back, and a jet-black
+      // body (distinct from the grey raccoon). The diagonal-trot gait swings all
+      // four legs (see animSkunk).
+      function makeSkunk(mom) {
+        const g = new THREE.Group();
+        const black = M(0x17171a), // jet-black coat
+          white = M(0xf2f0ea), // white dorsal stripe + plume
+          eyeM = M(0x14100e);
+        // low, X-elongated quadruped body (head->tail along X)
+        const body = SPH(0.1, black);
+        body.scale.set(2.5, 1.4, 1.6);
+        body.position.set(-0.06, 0, 0.22);
+        g.add(body);
+        // the white dorsal stripe: a bright band running ALONG the back (X-elongated)
+        const stripe = SPH(0.09, white);
+        stripe.scale.set(2.2, 1.0, 0.5);
+        stripe.position.set(-0.05, 0, 0.36);
+        g.add(stripe);
+        // head + muzzle + nose
+        const head = SPH(0.08, black);
+        head.scale.set(1.15, 1.1, 1.0);
+        head.position.set(0.4, 0, 0.26);
+        g.add(head);
+        const muzzle = SPH(0.045, white);
+        muzzle.scale.set(0.85, 0.8, 0.95);
+        muzzle.position.set(0.5, 0, 0.24);
+        g.add(muzzle);
+        const nose = SPH(0.018, M(0x0c0c0e));
+        nose.position.set(0.55, 0, 0.25);
+        g.add(nose);
+        [-1, 1].forEach((s) => {
+          const eye = SPH(0.013, eyeM);
+          eye.position.set(0.43, s * 0.03, 0.31);
+          g.add(eye);
+          const ear = SPH(0.03, black);
+          ear.scale.set(0.7, 1.0, 0.5);
+          ear.position.set(0.36, s * 0.08, 0.38);
+          g.add(ear);
+        });
+        // four legs on hip/shoulder pivots reaching the ground: [0]=limb, [1]=foot
+        const legDefs = {
+          legFL: [0.16, 0.12],
+          legFR: [0.16, -0.12],
+          legHL: [-0.18, 0.12],
+          legHR: [-0.18, -0.12],
+        };
+        const skLegs = {};
+        Object.keys(legDefs).forEach((name) => {
+          const p = legDefs[name];
+          const pivot = new THREE.Group();
+          pivot.position.set(p[0], p[1], 0.13); // hip at the body's underside
+          const limb = CY(0.032, 0.038, 0.13, black, 10);
+          limb.rotation.x = Math.PI / 2; // hang down from the hip
+          limb.position.set(0, 0, -0.065);
+          pivot.add(limb); // [0] = limb
+          const foot = SPH(0.04, black);
+          foot.scale.set(1.1, 1.0, 0.7);
+          foot.position.set(0, 0, -0.13); // reaches the ground: 0.13 - 0.13 = 0
+          pivot.add(foot); // [1] = foot
+          g.add(pivot);
+          skLegs[name] = pivot;
+        });
+        // the puffy plume tail: three segments stacked STRAIGHT UP (along Z)
+        const tailPivot = new THREE.Group();
+        tailPivot.position.set(-0.3, 0, 0.26); // behind the body, at the tail base
+        g.add(tailPivot);
+        const t1 = SPH(0.06, white); // base
+        t1.position.set(0, 0, 0);
+        tailPivot.add(t1); // [0] = base
+        const t2 = SPH(0.08, white); // mid (puffiest)
+        t2.position.set(0, 0, 0.085);
+        tailPivot.add(t2); // [1] = mid
+        const tTip = SPH(0.05, white); // tip
+        tTip.position.set(0, 0, 0.19);
+        tailPivot.add(tTip); // [2] = tip
+        if (mom) g.scale.set(0.8, 0.8, 0.8); // a MOM skunk is 0.8x
+        g.userData.skunk = {
+          legFL: skLegs.legFL,
+          legFR: skLegs.legFR,
+          legHL: skLegs.legHL,
+          legHR: skLegs.legHR,
+          tailPivot: tailPivot,
+          body: body,
+        };
+        return g;
+      }
       function makeSquirrel() {
         const g = new THREE.Group();
         const fur = M(0x5f646b), // dark ash-grey coat (was too light a grey)
@@ -19420,6 +19515,17 @@
             c.ty = R(1, creatureMaxY());
             c.data = makeRaccoon();
             break;
+          case "skunk":
+            // the Maspeth (Queens, Thursday) skunk: a stink-scented quadruped
+            // trotting the street; the spawn block sets c.mom for a MOM skunk
+            c.wy = R(1, creatureMaxY());
+            c.sp = 2.6;
+            c.dir = Math.random() < 0.5 ? -1 : 1;
+            c.t = 0;
+            c.tx = c.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
+            c.ty = R(1, creatureMaxY());
+            c.data = makeSkunk(!!c.mom);
+            break;
           case "squirrel":
             c.wy = R(1.5, 4.5);
             c.sp = R(2.4, 3.4); // calmer scurry — the old 4-5.5 read as a full sprint
@@ -21497,6 +21603,21 @@
             pb.sis = pl.pw; // his sister — the bump gate arms the brother of the bumped lady
             pb.g.position.set(pb.wx, pb.wy, GZ);
           }
+          // The Maspeth skunks: the stink-scented quadrupeds that trot the Maspeth
+          // streets — one big MOM (c.mom) + one regular. They wander the street and
+          // bolt when the worker gets close. (Queens-only, like the polish ladies.)
+          const skunkBlocks = LEVEL_BLOCKS.filter(
+            (b) => b.garbage === true && b.x >= 0 && b.x < QUEENS_CEMETERY_X,
+          );
+          [true, false].forEach((isMom) => {
+            const sb = skunkBlocks[(Math.random() * skunkBlocks.length) | 0];
+            const sk = addCreature("skunk", isMom ? { mom: true } : null);
+            sk.wx = sb.x + 10 + R(0, 60);
+            sk.wy = R(1.0, 4.5);
+            sk.tx = sk.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
+            sk.ty = R(1.0, 6);
+            sk.g.position.set(sk.wx, sk.wy, GZ);
+          });
           // The nosy homeowners: ONE PER ACTIVE BLOCK — each block's homeowner
           // STAYS ON THEIR BLOCK (never crosses the street), wears a UNIQUE outfit
           // color, and shadows the worker around 3-4 houses asking stupid trash
@@ -27449,6 +27570,13 @@
             }
           }
         }
+        // START INVULN: a fresh week opens with the worker i-framed; the grace holds
+        // only while he stands still (f/l both 0). The moment he presses a movement
+        // key it's cleared and the normal i-frame decay below applies.
+        if (p.startInvuln) {
+          if (f !== 0 || l !== 0) p.startInvuln = false;
+          else p.invuln = 99999;
+        }
         p.invuln = Math.max(0, p.invuln - dt);
         p.immuneT = Math.max(0, p.immuneT - dt);
         p.attackerT = Math.max(0, p.attackerT - dt); // the 10s punchback window actually expires now
@@ -27780,6 +27908,19 @@
         parts.legHL.rotation.y = -s;
         // the bushy tail wags with a slower wave
         parts.tailPivot.rotation.z = Math.sin(c.phase * 0.5) * 0.18;
+      }
+      // the Maspeth skunk's gait: a diagonal trot - FL+HR swing fore-aft together,
+      // FR+HL the opposite way; the plume wags on a slower wave
+      function animSkunk(c, dphase) {
+        c.phase = (c.phase || 0) + dphase;
+        const parts = c.g.userData.skunk;
+        if (!parts) return;
+        const s = Math.sin(c.phase) * 0.7;
+        parts.legFL.rotation.y = s;
+        parts.legHR.rotation.y = s;
+        parts.legFR.rotation.y = -s;
+        parts.legHL.rotation.y = -s;
+        parts.tailPivot.rotation.y = Math.sin(c.phase * 0.5) * 0.22; // plume wag
       }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
@@ -30817,6 +30958,35 @@
                   c.ty = R(1, creatureMaxY());
                 }
                 animRaccoon(c, dt * racSp * 5.5); // legs scurry at his actual walking speed
+              }
+              c.g.position.z = c.g.position.z; // keep
+              break;
+            }
+            case "skunk": {
+              // the Maspeth skunk: a stink-scented quadruped that trots the street
+              // (target-wander gait like the raccoon), and bolts when the worker
+              // gets too close (the stink tell)
+              const skSp = Math.max(c.sp, npcRoadRules(c, dt) || 0);
+              if (c.flee > 0) {
+                c.flee -= dt;
+                const away = c.wx >= p.wx ? 1 : -1;
+                c.wx += away * 7 * dt;
+                c.wy = clamp(c.wy + (Math.random() - 0.5) * 6 * dt, 0.8, creatureMaxY());
+                c.g.rotation.z =
+                  away >= 0 ? R(-0.2, 0.2) : Math.PI + R(-0.2, 0.2);
+                animSkunk(c, dt * 7 * 5.5);
+              } else {
+                const dx = c.tx - c.wx,
+                  dy = c.ty - c.wy;
+                const dl = Math.hypot(dx, dy) || 1;
+                c.wx += (dx / dl) * skSp * dt;
+                c.wy = clamp(c.wy + (dy / dl) * skSp * dt, 0.8, creatureMaxY());
+                c.g.rotation.z = Math.atan2(dy, dx); // face the direction it trots
+                if (dl < 0.6) {
+                  c.tx = R(p.wx - 30, p.wx + 40);
+                  c.ty = R(1, creatureMaxY());
+                }
+                animSkunk(c, dt * skSp * 5.5);
               }
               c.g.position.z = c.g.position.z; // keep
               break;

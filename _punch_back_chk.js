@@ -46,13 +46,13 @@ console.log('[1] punchback source wiring');
   );
   const causes = src.match(/const PUNCHBACK_CAUSES = \[[\s\S]*?\];/);
   check(
-    'PUNCHBACK_CAUSES lists exactly the 13 attack NPCs',
-    causes && (causes[0].match(/"\w+"/g) || []).length === 13,
+    'PUNCHBACK_CAUSES lists exactly the 14 attack NPCs',
+    causes && (causes[0].match(/"\w+"/g) || []).length === 14,
   );
   check(
-    'the 13 are exactly: dealer pimp mafia crazy crazyAlien panhandler rapper cop robber football bball jacker polishboy',
+    'the 14 are exactly: dealer pimp mafia crazy crazyAlien panhandler rapper cop robber football bball jacker polishboy drunk',
     causes &&
-      ['dealer', 'pimp', 'mafia', 'crazy', 'crazyAlien', 'panhandler', 'rapper', 'cop', 'robber', 'football', 'bball', 'jacker', 'polishboy'].every(
+      ['dealer', 'pimp', 'mafia', 'crazy', 'crazyAlien', 'panhandler', 'rapper', 'cop', 'robber', 'football', 'bball', 'jacker', 'polishboy', 'drunk'].every(
         (t) => causes[0].indexOf('"' + t + '"') >= 0
       ),
   );
@@ -63,7 +63,7 @@ console.log('[1] punchback source wiring');
   );
   const hn = extract('hurtNPC');
   check(
-    'hurtNPC hook: the 13-cause hit arms the window BEFORE the death check (absorbed i-frame hits do not arm it)',
+    'hurtNPC hook: the 14-cause hit arms the window BEFORE the death check (absorbed i-frame hits do not arm it)',
     /PUNCHBACK_CAUSES\.indexOf\(cause \|\| "route"\) >= 0\) markPunchback\(cause\);/.test(hn) &&
       hn.indexOf('markPunchback(cause)') < hn.indexOf('if (health <= 0)') &&
       hn.indexOf('if (health <= 0)') >= 0,
