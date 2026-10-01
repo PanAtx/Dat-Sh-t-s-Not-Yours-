@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.345</div>
+          <div id="app-version" class="menu-version">v1.0.346</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.345';
+      const APP_VERSION = '1.0.346';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -15660,7 +15660,7 @@
       // UP, a white dorsal stripe running the length of the back, and a jet-black
       // body (distinct from the grey raccoon). The diagonal-trot gait swings all
       // four legs (see animSkunk).
-      function makeSkunk(mom) {
+      function makeSkunk(mom, baby) {
         const g = new THREE.Group();
         const black = M(0x17171a), // jet-black coat
           white = M(0xf2f0ea), // white dorsal stripe + plume
@@ -15719,20 +15719,33 @@
           g.add(pivot);
           skLegs[name] = pivot;
         });
-        // the puffy plume tail: three segments stacked STRAIGHT UP (along Z)
+        // the puffy plume tail: three BLACK fluff tufts stacked STRAIGHT UP
+        // (along Z) around a WHITE stripe that runs LONGITUDINALLY down the
+        // center of the plume — the white core shows along the whole length
+        // (the black tufts wrap around it), and the plume is TALL and very
+        // noticeable, held upright.
         const tailPivot = new THREE.Group();
         tailPivot.position.set(-0.3, 0, 0.26); // behind the body, at the tail base
+        tailPivot.rotation.x = -0.2; // a slight back lean at rest (a spray straightens it)
         g.add(tailPivot);
-        const t1 = SPH(0.06, white); // base
-        t1.position.set(0, 0, 0);
+        const t1 = SPH(0.06, black); // base tuft
+        t1.scale.set(2.5, 2.2, 2.6);
+        t1.position.set(0, 0, 0.05);
         tailPivot.add(t1); // [0] = base
-        const t2 = SPH(0.08, white); // mid (puffiest)
-        t2.position.set(0, 0, 0.085);
+        const t2 = SPH(0.06, black); // mid tuft (puffiest)
+        t2.scale.set(3.2, 2.8, 3.0);
+        t2.position.set(0, 0, 0.32);
         tailPivot.add(t2); // [1] = mid
-        const tTip = SPH(0.05, white); // tip
-        tTip.position.set(0, 0, 0.19);
+        const tTip = SPH(0.06, black); // tip tuft
+        tTip.scale.set(2.6, 2.2, 2.6);
+        tTip.position.set(0, 0, 0.6);
         tailPivot.add(tTip); // [2] = tip
-        if (mom) g.scale.set(0.8, 0.8, 0.8); // a MOM skunk is 0.8x
+        const tStripe = SPH(0.06, white); // the white center stripe (the long white core)
+        tStripe.scale.set(1.5, 1.3, 9.6);
+        tStripe.position.set(0, 0, 0.35);
+        tailPivot.add(tStripe); // [3] = the white longitudinal stripe
+        if (baby) g.scale.set(0.45, 0.45, 0.45); // the BABY skunks are much smaller
+        // a MOM skunk is full-size (the biggest of the family)
         g.userData.skunk = {
           legFL: skLegs.legFL,
           legFR: skLegs.legFR,
@@ -19524,7 +19537,7 @@
             c.t = 0;
             c.tx = c.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
             c.ty = R(1, creatureMaxY());
-            c.data = makeSkunk(!!c.mom);
+            c.data = makeSkunk(!!c.mom, !!c.baby);
             break;
           case "squirrel":
             c.wy = R(1.5, 4.5);
@@ -21603,20 +21616,30 @@
             pb.sis = pl.pw; // his sister — the bump gate arms the brother of the bumped lady
             pb.g.position.set(pb.wx, pb.wy, GZ);
           }
-          // The Maspeth skunks: the stink-scented quadrupeds that trot the Maspeth
-          // streets — one big MOM (c.mom) + one regular. They wander the street and
-          // bolt when the worker gets close. (Queens-only, like the polish ladies.)
+          // The Maspeth skunks: the stink-scented quadrupeds that walk the Maspeth
+          // front yard — one big MOM (c.mom) + her TWO babies (c.baby), trotting
+          // along the sidewalk. The MOM sprays the worker when he gets close.
+          // (Queens-only, like the polish ladies.)
           const skunkBlocks = LEVEL_BLOCKS.filter(
             (b) => b.garbage === true && b.x >= 0 && b.x < QUEENS_CEMETERY_X,
           );
-          [true, false].forEach((isMom) => {
-            const sb = skunkBlocks[(Math.random() * skunkBlocks.length) | 0];
-            const sk = addCreature("skunk", isMom ? { mom: true } : null);
-            sk.wx = sb.x + 10 + R(0, 60);
-            sk.wy = R(1.0, 4.5);
-            sk.tx = sk.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
-            sk.ty = R(1.0, 6);
-            sk.g.position.set(sk.wx, sk.wy, GZ);
+          const sb = skunkBlocks[(Math.random() * skunkBlocks.length) | 0];
+          const mom = addCreature("skunk", { mom: true });
+          mom.wx = sb.x + 10 + R(0, 60);
+          mom.wy = R(4.2, 5.0); // on the front yard, along the sidewalk
+          mom.t = 0;
+          mom.tx = mom.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
+          mom.ty = mom.wy;
+          mom.sprayCd = 0;
+          mom.sprayT = 0;
+          mom.g.position.set(mom.wx, mom.wy, GZ);
+          [0.5, -0.5].forEach((off) => {
+            const bb = addCreature("skunk", { baby: true });
+            bb.follow = mom; // trots right behind mom
+            bb.offY = off * 0.5; // a little to one side of mom
+            bb.wx = mom.wx - 1.5;
+            bb.wy = mom.wy + off * 0.5;
+            bb.g.position.set(bb.wx, bb.wy, GZ);
           });
           // The nosy homeowners: ONE PER ACTIVE BLOCK — each block's homeowner
           // STAYS ON THEIR BLOCK (never crosses the street), wears a UNIQUE outfit
@@ -25967,7 +25990,8 @@
           if (
             (c.type === "rat" ||
               c.type === "raccoon" ||
-              c.type === "squirrel") &&
+              c.type === "squirrel" ||
+              c.type === "skunk") &&
             dist(c.wx, c.wy) < 2.8
           ) {
             c.flee = 1.6;
@@ -27064,6 +27088,13 @@
             Voice.say("Rabies!", 1.0, 1.5, p.wx, p.wy, WORKER_GENDER, "worker");
             if (carry !== "none" && Math.random() < 0.5) dropCarried();
             doStun(0.7, "trip");
+          } else if (c.type === "skunk") {
+            // bumping a skunk: it huffs and bolts (the real hazard is the spray)
+            c.flee = 2.0;
+            c.dir = dx >= 0 ? -1 : 1;
+            Voice.say("Hmph!", 1.6, 1.4, c.wx, c.wy, null, "skunk");
+            if (carry !== "none" && Math.random() < 0.3) dropCarried();
+            doStun(0.3, "trip");
           } else {
             // vehicles: knockback + drop + stun + i-frames
             const nl = Math.sqrt(d2) || 1;
@@ -27921,6 +27952,7 @@
         parts.legFR.rotation.y = -s;
         parts.legHL.rotation.y = -s;
         parts.tailPivot.rotation.y = Math.sin(c.phase * 0.5) * 0.22; // plume wag
+        parts.tailPivot.rotation.x = c.sprayT > 0 ? 0.15 : -0.2; // the plume straightens (raises) during a spray
       }
       // Pedaling animation: legs rotate in circles at the pedals, arms stay fixed
       function animPedal(c, dphase) {
@@ -30963,9 +30995,12 @@
               break;
             }
             case "skunk": {
-              // the Maspeth skunk: a stink-scented quadruped that trots the street
-              // (target-wander gait like the raccoon), and bolts when the worker
-              // gets too close (the stink tell)
+              // the Maspeth skunk: the MOM trots the front yard along the
+              // sidewalk with her TWO babies (they follow her); when the worker
+              // gets close she stops, raises the plume and SPRAYS him (damage +
+              // "Man, I stink!"). A bumped skunk bolts away.
+              c.sprayCd = c.sprayCd > 0 ? c.sprayCd - dt : 0;
+              c.sprayT = c.sprayT > 0 ? c.sprayT - dt : 0;
               const skSp = Math.max(c.sp, npcRoadRules(c, dt) || 0);
               if (c.flee > 0) {
                 c.flee -= dt;
@@ -30975,18 +31010,74 @@
                 c.g.rotation.z =
                   away >= 0 ? R(-0.2, 0.2) : Math.PI + R(-0.2, 0.2);
                 animSkunk(c, dt * 7 * 5.5);
+              } else if (c.baby && c.follow && c.follow !== c) {
+                // a baby skunk: trots right behind mom (a little to one side)
+                const fw = c.follow;
+                const tx = fw.wx - (fw.dir || 1) * 1.3;
+                const ty = fw.wy + (c.offY || 0);
+                const dx = tx - c.wx,
+                  dy = ty - c.wy;
+                const dl = Math.hypot(dx, dy) || 1;
+                if (dl > 0.5) {
+                  const step = Math.min(skSp * dt, dl - 0.5);
+                  c.wx += (dx / dl) * step;
+                  c.wy = clamp(c.wy + (dy / dl) * step, 0.8, creatureMaxY());
+                  c.g.rotation.z = Math.atan2(dy, dx);
+                  c.dir = dx >= 0 ? 1 : -1;
+                }
+                animSkunk(c, dt * skSp * 5.5);
               } else {
+                // the mom: target-wander gait, kept to the front-yard strip along the sidewalk
+                c.t = (c.t || 0) + dt;
+                if (c.t > 3) {
+                  c.t = R(1, 3);
+                  c.tx = R(p.wx - 30, p.wx + 40);
+                  c.ty = R(4.2, 5.0); // the front yard along the sidewalk
+                }
                 const dx = c.tx - c.wx,
                   dy = c.ty - c.wy;
                 const dl = Math.hypot(dx, dy) || 1;
-                c.wx += (dx / dl) * skSp * dt;
-                c.wy = clamp(c.wy + (dy / dl) * skSp * dt, 0.8, creatureMaxY());
-                c.g.rotation.z = Math.atan2(dy, dx); // face the direction it trots
-                if (dl < 0.6) {
-                  c.tx = R(p.wx - 30, p.wx + 40);
-                  c.ty = R(1, creatureMaxY());
+                if (dl > 0.6) {
+                  c.wx += (dx / dl) * skSp * dt;
+                  c.wy = clamp(c.wy + (dy / dl) * skSp * dt, 0.8, creatureMaxY());
+                  c.g.rotation.z = Math.atan2(dy, dx); // face the direction it trots
                 }
                 animSkunk(c, dt * skSp * 5.5);
+                // the mom's SPRAY: the worker is close (and the cooldown is up) —
+                // she raises the plume, sprays, and the worker takes the stink hit.
+                if (c.mom && c.sprayCd <= 0 && c.sprayT <= 0 && state === "play") {
+                  const sd = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+                  if (sd < SKUNK_SPRAY_R) {
+                    c.sprayCd = SKUNK_SPRAY_CD;
+                    c.sprayT = 1.2;
+                    const nl = sd || 0.001;
+                    const nx = (p.wx - c.wx) / nl;
+                    const ny = (p.wy - c.wy) / nl;
+                    p.wx += nx * 0.7; // shove the worker back
+                    p.wy = clamp(p.wy + ny * 0.5, -9.4, workerMaxY());
+                    spawnDustEffect(c.wx, c.wy); // the stink cloud
+                    hurtNPC(HP_HIT_SKUNK, "skunk", true); // no generic yelp — custom line
+                    Voice.say(
+                      pick(SKUNK_SPRAY_LINES),
+                      2.6,
+                      R(1.25, 1.4),
+                      c.wx,
+                      c.wy,
+                      null,
+                      "skunk",
+                    );
+                    Voice.say(
+                      "Man, I stink!",
+                      2.4,
+                      0.95,
+                      p.wx,
+                      p.wy,
+                      WORKER_GENDER,
+                      "worker",
+                    );
+                    doStun(0.4, "trip");
+                  }
+                }
               }
               c.g.position.z = c.g.position.z; // keep
               break;
