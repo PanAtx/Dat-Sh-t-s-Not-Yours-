@@ -2615,7 +2615,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.340</div>
+          <div id="app-version" class="menu-version">v1.0.341</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2772,7 +2772,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.340';
+      const APP_VERSION = '1.0.341';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3417,7 +3417,7 @@
         punchT: 0, // punchback jab: 0.34s arm-jab + forward lean (decays in updatePlayer)
         punchLandT: 0, // the smash frame fires at 0.14s in (POW burst + squeal + scare-off)
         punchTarget: null, // the attacker being punched (the creature record)
-        attackerT: 0, // punchback window: 10s after being hit by one of the 12 attack NPCs
+        attackerT: 0, // punchback window: 10s after being hit by one of the 13 attack NPCs
         attackerCause: "", // the offense that armed the punchback window
         rainQuip: false, // per-day gate for the "Do you pick up in the rain?" Karen line
       };
@@ -5394,15 +5394,35 @@
         0x4a4a7a, // slate violet
         0xb08a3e, // old gold
       ];
-      // The boy's temper: threats + curses in Polish, spat as he follows the worker
-      // around the corner after a bump (protecting his sister's innocence).
+      // His fists: when the worker bumps one of his sisters (an arcade bump), the
+      // little brother storms over and throws AT MOST 2 whacks (the same over-hand
+      // windup -> smash as the mack daddy's) — a lot lighter than the mack's
+      // (HP_HIT_PIMP 20): a scared kid, not a street pro. The blow's hurtNPC
+      // (cause "polishboy") arms the 10s punchback window; a landed punchback
+      // scares him off (the generic scare block) and the bout is over.
+      const HP_HIT_POLISHBOY = 3;
+      // The boy's temper: BROKEN ENGLISH (so the worker KNOWS why he's after
+      // him — his sister) mixed with Polish curses, spat as he follows the
+      // worker around the corner after a bump (protecting his sister's innocence).
       const POLISH_BOY_CURSES = [
+        "No talk to sister!",
+        "Sister no like you!",
+        "Kurwa! Stay away from her!",
+        "I tell you! No touch my sister!",
+        "You go away! Or I hit you!",
         "Odstąp od mojej siostry!",
         "Ty chuliganie, zostaw ją w spokoju!",
         "Będę za tobą po całym rogu!",
-        "Ostatnie ostrzeżenie, brudniku!",
-        "Moja siostra jest niewinna, a ty — szmatko!",
         "Twoja matka by się wstydziła!",
+      ];
+      // The first line when he walks up to the worker (saidOpen): ALWAYS broken
+      // English, so the worker hears WHY the little brother is angry before the
+      // whack lands.
+      const POLISH_BOY_OPEN = [
+        "You speak my sister?",
+        "No talk to sister!",
+        "Sister no like you!",
+        "Kurwa! Stay away from her!",
       ];
       // The nosy Maspeth homeowner: 32 STUPID questions, cycled as they shadow the
       // worker around 3-4 houses (pickup days/times, what counts as trash, the dead
@@ -13668,49 +13688,6 @@
       // display window, side door + glass + handle, entrance mat, canvas name sign).
       // Kept as its own builder so Maspeth's store can be tuned independently.
       const QUEENS_STORE_W = 6.5;
-      function makePolishDeliSign(food) {
-        // The Polish deli's window ADVERTISEMENT: a poster-sized small rectangle stuck
-        // in the display window (NOT on the door) — cream paper with a red border and a
-        // PICKLE or a PIEROGI drawn on it, picked at random per store. The deli itself
-        // is the Maspeth corner store (name from the MASPETH_STORE_NAMES pool). Local
-        // coords assume the facade at y = -2.4 (d/2 = 2.4) facing -Y; the display
-        // window is centered at z = 0.3 + 1.15, so the poster sits at z 1.45.
-        const g = new THREE.Group();
-        // The poster sits IN FRONT of the red frame. The paper's front face must be
-        // clearly ahead of the border's front face (no co-planar faces -> no Z-fighting).
-        const paper = BX(1.05, 0.03, 0.85, M(0xf2ead8));
-        paper.position.set(0, -2.54, 1.45); // front face y -2.555 (border's is -2.535)
-        g.add(paper);
-        const border = BX(1.15, 0.02, 0.95, M(0x8a2d4e));
-        border.position.set(0, -2.525, 1.45);
-        g.add(border);
-        // THE EMBLEM: a pickle (a LONG, THIN green capsule + a distinct stem) or a
-        // pierogi (a pale pinched half-moon with a crimped edge), random per store.
-        if (food === "pierogi") {
-          const dumpling = SPH(0.13, M(0xe8d5a0));
-          dumpling.scale.set(1.5, 0.7, 0.9);
-          dumpling.position.set(0, -2.56, 1.45);
-          g.add(dumpling);
-          // the crimped (pinched) edge: a row of small dough bumps, not one flat strip
-          for (let i = 0; i < 5; i++) {
-            const bump = SPH(0.035, M(0xd8c08a));
-            bump.position.set(-0.15 + i * 0.075, -2.56, 1.56);
-            g.add(bump);
-          }
-        } else {
-          // a long, thin capsule (length:width ~3.4, not a round pepper) in a
-          // brighter pickle green, with a distinct stalk at the top
-          const pickle = SPH(0.11, M(0x7aa52a));
-          pickle.scale.set(0.6, 0.55, 2.4);
-          pickle.position.set(0, -2.56, 1.45);
-          g.add(pickle);
-          const stem = CY(0.015, 0.022, 0.09, M(0x4a7a1a), 8);
-          stem.rotation.x = Math.PI / 2; // cylinder axis (Y) -> vertical Z (the stem points up)
-          stem.position.set(0, -2.56, 1.72);
-          g.add(stem);
-        }
-        return g;
-      }
       function makeQueensStore(storeOptions) {
         const g = new THREE.Group();
         const cols = [
@@ -13823,18 +13800,6 @@
         const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
         signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
         g.add(signCrown);
-        // POLISH DELI: a store whose name is a deli gets a poster-sized ADVERTISEMENT
-        // stuck in the display window (off to one side of the divider, away from the
-        // door) — a pickle or a pierogi (random per store) — the deli itself being
-        // the Maspeth corner store (name from MASPETH_STORE_NAMES).
-        if (/DELI/i.test(storeOptions.storeName)) {
-          const deliSign = makePolishDeliSign(
-            Math.random() < 0.5 ? "pickle" : "pierogi",
-          );
-          deliSign.position.x = storeOptions.isLeft ? 0.95 : -0.95;
-          g.add(deliSign);
-        }
-
         // Step data for collision: the entrance MAT, centered under the door (cx offset).
         g.userData.step = {
           cx: doorX,
@@ -19583,13 +19548,20 @@
             }
             break;
           case "polishboy":
-            // The nice Polish boy (Maspeth, the ladies' brother): a CAUCASIAN
-            // sidewalk regular who hangs around the corner store (the deli, if there
-            // is one). He RECOGNIZES the worker as the guy who pesters his sister:
-            // aggro starts on proximity alone — see the "polishboy" case in
-            // updateCreatures.
+            // The little Polish brother (Maspeth, one per lady — spawned on HER
+            // block): a CAUCASIAN sidewalk regular. The worker's BUMP on his
+            // sister arms him — walk up, broken-English threat, whack, 4s
+            // back-off, re-engage; a counter-punch scares him off — see the
+            // "polishboy" case in updateCreatures.
             c.wy = R(1.6, 3.6);
             c.cd = 0;
+            c.aggro = false; // dormant until the worker BUMPS his sister
+            c.hot = false;
+            c.punches = 0; // one whack per bout; the 4s back-off resets it
+            c.backoffT = 0;
+            c.saidOpen = false; // the English opener lands once, when he walks up
+            c.scared = false; // a COUNTER-PUNCH sets this (landPunch) -> scared-leash
+            c.scaredT = 0;
             c.data = makePerson({
               skin: pick(POLISH_SKIN), // caucasian only, like the whole Maspeth clan
               shirt: pick(SHIRTS),
@@ -20343,15 +20315,6 @@
         // landing top instead of clipping into the 0.3..0.36 slab.
         const stLocal = hg.userData.step;
         const houseX = baseX + hg.position.x; // regular houses stay at x=4.0; Flatbush corner stores track their anchored x
-        // Maspeth corner store spot (world x, block y, isDeli) — the Polish boy hangs
-        // around one of these (the deli, if the level has one).
-        if (isQueensStore) {
-          queensStoreSpots.push({
-            x: houseX,
-            y: HOUSE_Y,
-            deli: /DELI/i.test(storeOptions.storeName),
-          });
-        }
         const stepCx = stLocal.cx || 0; // step offset from house center (0 for centered, 1.6 for Bronx stoop)
         house.step = {
           x0: houseX + stepCx - stLocal.hw,
@@ -20639,7 +20602,6 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
-        queensStoreSpots = []; // Maspeth corner stores get re-collected this level
         // On Manhattan + Bronx levels, pick the appropriate store name pool and shuffle it
         let storePool = null;
         let isUptown = false;
@@ -21397,6 +21359,7 @@
           polishDressQueue = polishDressQueue.concat(
             POLISH_DRESSES.slice().sort(() => Math.random() - 0.5),
           );
+          polishLadies = []; // [ { pw, bl } ] — the trash anchor pass below, and the bump gate arms each lady's brother
           for (const bl of polishBlocks) {
             const pw = addCreature("polish");
             const onLawn = Math.random() < 0.5;
@@ -21404,27 +21367,59 @@
             pw.wy = onLawn ? R(5.0, 7.0) : R(1.4, 4.2);
             pw.g.position.set(pw.wx, pw.wy, GZ);
             pw.g.rotation.z = -Math.PI / 2; // facing the street, like the hooker
+            polishLadies.push({ pw: pw, bl: bl });
           }
-          // The nice Polish boy: he hangs around the corner store — the Polish
-          // deli if the level has one, else a random corner store. He recognizes
-          // the worker as the guy who pesters his sister: a polite ask when you
-          // get near, then a very loud follow-me tantrum in Polish.
-          {
-            const deliSpot =
-              queensStoreSpots.find((s) => s.deli) ||
-              queensStoreSpots[(Math.random() * queensStoreSpots.length) | 0];
-            if (deliSpot) {
-              const pb = addCreature("polishboy");
-              pb.wx = deliSpot.x + R(-2.5, 2.5); // on the sidewalk in front of the store
-              pb.wy = R(1.8, 3.6);
-              pb.loiter = {
-                minX: deliSpot.x - 4,
-                maxX: deliSpot.x + 4,
-                dir: Math.random() < 0.5 ? -1 : 1,
-              };
-              pb.aggro = false;
-              pb.g.position.set(pb.wx, pb.wy, GZ);
+          // Her trash, at HER feet: the nearest curb bag of her block is re-anchored
+          // right by her (or a fresh one is created if the curb is bare), so the
+          // worker's pickup — not the bump — is what sets her brother off. The bag
+          // stays on the walkable curb band (y 0.7..4.8) so it is always within
+          // 2.5u of the lady, even when she stands deep on the lawn. (Cemetery
+          // block: no house, no bags — nothing to anchor, the fence is her curb.)
+          for (const pl of polishLadies) {
+            const pw = pl.pw;
+            const cells = blocks.filter(
+              (b) => b.house && b.house.bags && b.blockX === pl.bl.x,
+            );
+            let best = null;
+            let bestD = Infinity;
+            for (const cl of cells) {
+              for (const bag of cl.house.bags) {
+                if (bag.state !== "curb") continue;
+                const bd = Math.hypot(bag.wx - pw.wx, bag.wy - pw.wy);
+                if (bd < bestD) {
+                  bestD = bd;
+                  best = bag;
+                }
+              }
             }
+            const tx = pw.wx + R(-1.0, 1.0);
+            const ty = clamp(pw.wy - R(1.0, 1.8), 0.7, 4.8);
+            if (best) {
+              best.wx = tx;
+              best.wy = ty;
+              best.g.position.x = tx;
+              best.g.position.y = ty;
+            } else if (cells.length) {
+              makeCurbBag(tx, ty, cells[0].house);
+            }
+          }
+          // The little Polish brothers: ONE PER LADY, spawned on HER block. He
+          // loiters the sidewalk near his sister; the worker's bump on HIS
+          // sister (an arcade bump) arms him — he walks up to the worker, spits
+          // a Polish threat, whacks, backs off 4s, and re-engages until the
+          // worker punches back (the boy walks away) or the temper cools.
+          for (const pl of polishLadies) {
+            const pb = addCreature("polishboy");
+            pb.wx = pl.pw.wx + R(-6, 6); // on the same block as his sister
+            pb.wy = R(1.8, 3.6);
+            pb.loiter = {
+              minX: pl.bl.x + 10,
+              maxX: pl.bl.x + 70,
+              dir: Math.random() < 0.5 ? -1 : 1,
+            };
+            pb.aggro = false;
+            pb.sis = pl.pw; // his sister — the bump gate arms the brother of the bumped lady
+            pb.g.position.set(pb.wx, pb.wy, GZ);
           }
           // The nosy homeowners: ONE PER ACTIVE BLOCK — each block's homeowner
           // STAYS ON THEIR BLOCK (never crosses the street), wears a UNIQUE outfit
@@ -24187,7 +24182,7 @@
       let soccerShirtQueue = []; // spawnWorld feeds it 3 distinct shirt colors per team (one per kid)
       let teeballShirtQueue = []; // the Staten Island spawn feeds 3 distinct shirts for the tee-ball trio
       let polishDressQueue = []; // Queens spawn block feeds one UNIQUE dress color per Polish lady
-      let queensStoreSpots = []; // Maspeth corner stores: { x, y, deli } — the Polish boy hangs around one
+      let polishLadies = []; // Maspeth: [ { pw, bl } ] — each Polish lady + her block; her LITTLE BROTHER (polishboy) spawns on her block and is armed by a bump on HER
       let soccerTeams = []; // one team per Flatbush block: { kids, leader, ball, ballG, minX, maxX, midX, goalL, goalR, owner, receiver, celebrateT, score, scorer, ... }
       let teeballTeam = null; // the Staten Island tee-ball trio (ONE team on ONE random block): { kids, leader, ball, ballG, minX, maxX, midX, owner, receiver, ... }
       const DRIVETR_LATERAL = 1.0; // half the clear driveway width (the 3.0-wide concrete slab is 3.0 wide, but the
@@ -24201,8 +24196,8 @@
           dangerAlarmOff(); // out of the red: the fire alarm (continuous dings + red glow) is CLEARED
         }
       }
-      // ==================== PUNCHBACK (retaliation vs the 12 attack NPCs) ====================
-      // Any of the 12 attack NPCs that hits the worker arms a 10-second PUNCH window:
+      // ==================== PUNCHBACK (retaliation vs the 13 attack NPCs) ====================
+      // Any of the 13 attack NPCs that hits the worker arms a 10-second PUNCH window:
       // get close (within 2.0u), press the interact key and the worker throws a full
       // jab - WHOOSH SFX, a red jagged "POW!" burst at the fist, the NPC's squeal,
       // the attacker disarmed, a 5s scare-off (flee at ~7 u/s) and a bonus "mark"
@@ -24220,8 +24215,9 @@
         "football",
         "bball",
         "jacker",
+        "polishboy", // the Maspeth ladies' little brother (his 2-whack hot bout)
       ];
-      // A hit from one of the 12 attack NPCs arms the 10s punchback window,
+      // A hit from one of the 13 attack NPCs arms the 10s punchback window,
       // empties his hands (the carried trash drops) and SNAPS him into BEAST MODE
       // (the "I can punch back" visual state - see below).
       function markPunchback(cause) {
@@ -24427,6 +24423,18 @@
         // Scare off: 5s of fleeing at ~7 u/s (the generic block in updateCreatures)
         c.scareT = 5;
         c.dir = c.wx >= p.wx ? 1 : -1; // bolt AWAY from the worker
+        if (c.type === "polishboy") {
+          // The scared Polish boy: his bout is OVER - the counter-punch makes
+          // him walk away (the scared-leash in his AI: after the 5s flee he
+          // keeps walking off, then re-roots at his sister's block). No more
+          // whacks until a NEW bump re-arms him (his sister refuses again).
+          c.scared = true;
+          c.scaredT = 6; // the walk-away: 6s away from the worker
+          c.aggro = false;
+          c.aggroT = 0;
+          c.hot = false;
+          c.punches = 0;
+        }
         // Mark drop: a bonus at his feet
         spawnBonus(c.wx, c.wy);
       }
@@ -24463,7 +24471,7 @@
             "worker",
           );
         }
-        // PUNCHBACK: one of the 12 attack NPCs hit us - arm the 10s counter-punch window
+        // PUNCHBACK: one of the 13 attack NPCs hit us - arm the 10s counter-punch window
         if (PUNCHBACK_CAUSES.indexOf(cause || "route") >= 0) markPunchback(cause);
         // DANGER: the FIRST hit that drops him to the dangerous level (<= DANGER_HP,
         // still standing) — the giant one-line "SAN MAN NEEDS FOOD BADLY!" alarm: a
@@ -26640,7 +26648,13 @@
                     c.gender,
                     "hooker",
                   );
-                else if (c.type === "polish")
+                else if (c.type === "polish") {
+                  // Her LITTLE BROTHER (spawned on her own block) is armed by
+                  // this bump: he walks up to the worker, spits a broken-
+                  // English threat, whacks, backs off 4s, and re-engages — until the
+                  // worker punches back (the boy walks away) or the temper
+                  // cools. This bump also arms the 10s punchback window
+                  // ("polish" is a PUNCHBACK_CAUSE).
                   Voice.say(
                     pick([
                       "You're not Polish!",
@@ -26656,7 +26670,26 @@
                     c.gender,
                     "polish",
                   );
-                else if (c.type === "skater")
+                  const pl = polishLadies.find((e) => e.pw === c);
+                  if (pl) {
+                    let boy = null;
+                    for (const q of creatures) {
+                      if (q.type === "polishboy" && q.sis === pl.pw) boy = q;
+                    }
+                    if (boy) {
+                      boy.scareT = 0; // a NEW bump re-arms: mid-flee, he bolts back
+                      boy.scared = false; // a counter-punch walk-away is cancelled by a new bump
+                      boy.aggro = true;
+                      boy.hot = true;
+                      boy.aggroT = 12; // the temper: the bout's clock
+                      boy.punches = 0;
+                      boy.backoffT = 0;
+                      boy.saidOpen = false; // the English opener lands when he walks up
+                      boy.sayCd = 0.5;
+                      boy.punchCd = 0.8;
+                    }
+                  }
+                } else if (c.type === "skater")
                   Voice.say(
                     "Whoa! Like, watch it, bro!",
                     3,
@@ -29020,73 +29053,187 @@
               break;
             }
             case "polishboy": {
-              // The nice Polish boy: he hangs around his corner store — a slow
-              // back-and-forth on the sidewalk in front of it. He RECOGNIZES the
-              // worker as the guy who pesters his sister: the moment you're near
-              // (~11u) he's polite on the record, then FOLLOWS you around the
-              // corner of the block, cursing in Polish — until the worker gets
-              // ahead of the corner (45u) or the temper cools (14s), then he
-              // drifts back to the store. NO BUMP REQUIRED.
+              // The little Polish brother (Maspeth, one per lady — spawned on
+              // HER block). He loiters the sidewalk near his sister; the
+              // worker's BUMP on his sister arms him (the "polish" branch in
+              // collideCreatures) and the bout runs:
+              //   WALK_UP (sprint at the worker, from up to a block away)
+              //   -> DIALOGUE (the Polish opener, spat once, sets saidOpen)
+              //   -> PUNCH (ONE whack — over-hand windup -> smash,
+              //      HP_HIT_POLISHBOY: a scared kid, not a street pro)
+              //   -> BACK_OFF (4s, backoffT) -> RE-ENGAGE (walk up again)...
+              //   EXITS: a COUNTER-PUNCH (landPunch sets scared: the generic
+              //   5s flee, then the scared-leash walk-away, then re-root at his
+              //   sister's block) or the TEMPER (aggroT, 12s) cooling.
               const L = c.loiter;
-              // The recognition: proximity alone is enough to set him off
-              if (!c.aggro && L) {
-                const pd = Math.hypot(p.wx - c.wx, p.wy - c.wy);
-                if (pd < 11) {
-                  c.aggro = true;
-                  c.aggroT = 14;
-                  if (!c.recognized) {
-                    c.recognized = true;
-                    c.sayCd = 0; // the recognition line lands immediately
+              // The SCARED-LEASH (counter-punch exit): after the generic 5s
+              // flee (the scareT block above preempts this AI), he walks away
+              // at a slow pace for scaredT seconds — then re-roots at his
+              // sister's block. The bout is OVER; only a NEW bump re-arms him.
+              if (c.scared) {
+                c.scaredT = (c.scaredT || 0) - dt;
+                const sdx = c.wx >= p.wx ? 1 : -1;
+                c.wx += sdx * 2 * dt; // a slow, dignified walk away
+                c.wy = clamp(c.wy + (3.2 - c.wy) * Math.min(1, dt), 1.2, 4.4); // back to the sidewalk
+                if (c.g) c.g.rotation.z = sdx >= 0 ? 0 : Math.PI;
+                animParts(c, 2 * dt * 2.2);
+                if (c.scaredT <= 0 || Math.abs(p.wx - c.wx) > 45) {
+                  c.scared = false;
+                  c.scaredT = 0;
+                  c.aggro = false;
+                  c.aggroT = 0;
+                  c.hot = false;
+                  c.punches = 0;
+                  c.backoffT = 0;
+                  c.saidOpen = false;
+                  if (L && (c.wx < L.minX - 10 || c.wx > L.maxX + 10))
+                    c.wx = (L.minX + L.maxX) / 2; // re-root at his sister's block
+                }
+                c.cd -= dt;
+                break;
+              }
+              if (c.aggro) {
+                c.aggroT -= dt;
+                const dx = p.wx - c.wx;
+                // TEMPER EXPIRY (12s): the bout cools — he drifts back to his
+                // sister's block. (No corner escape: the bump arms him from any
+                // distance, and the temper — not distance — releases him.)
+                if (c.aggroT <= 0) {
+                  c.aggro = false;
+                  c.aggroT = 0;
+                  c.hot = false;
+                  c.punches = 0;
+                  c.backoffT = 0;
+                  c.saidOpen = false;
+                  if (L && (c.wx < L.minX - 10 || c.wx > L.maxX + 10))
+                    c.wx = (L.minX + L.maxX) / 2;
+                } else if (c.backoffT > 0) {
+                  // BACK_OFF: 4s of walking away from the worker — a scared kid
+                  // regrouping before he storms back.
+                  c.backoffT -= dt;
+                  const bdx = c.wx >= p.wx ? 1 : -1;
+                  c.wx += bdx * 1.6 * dt;
+                  c.wy = clamp(c.wy + (3.2 - c.wy) * Math.min(1, dt * 1.5), 1.2, 4.4);
+                  if (c.g) c.g.rotation.z = bdx >= 0 ? 0 : Math.PI;
+                  animParts(c, 1.6 * dt * 2.2);
+                  if (c.backoffT <= 0) {
+                    c.punches = 0; // RE-ENGAGE: a fresh whack is armed
+                    c.punchCd = 0.8;
+                    c.sayCd = R(1.2, 2.4); // another curse lands on the way back up
+                  }
+                } else if (Math.abs(dx) > 1.8) {
+                  // WALK_UP: a scared kid in a full sprint at the worker — he
+                  // storms up onto the lawn to reach a worker by his sister.
+                  c.wx += (dx > 0 ? 1 : -1) * 2.6 * dt;
+                  c.wy = clamp(
+                    c.wy + (p.wy - c.wy) * Math.min(1, dt * 2),
+                    1.2,
+                    6.8,
+                  );
+                  if (c.g) c.g.rotation.z = dx >= 0 ? 0 : Math.PI; // face the worker
+                  animParts(c, 2.6 * dt * 2.4);
+                  c.sayCd = (c.sayCd || 0) - dt;
+                  if (c.sayCd <= 0) {
                     Voice.say(
-                      pick([
-                        "Hey, please stop talking to my sister.",
-                        "She's my sister — please leave her be.",
-                        "My sister asked me to tell you to back off.",
-                      ]),
-                      3,
-                      1.05,
+                      pick(POLISH_BOY_CURSES),
+                      4,
+                      0.95,
                       c.wx,
                       c.wy,
                       c.gender,
                       "ped",
                     );
-                  } else {
-                    c.sayCd = 1.2; // temper flares again: curses resume shortly
+                    c.sayCd = R(2.2, 3.4);
+                  }
+                } else {
+                  // AT THE WORKER — DIALOGUE then PUNCH. The broken-English
+                  // opener lands once (saidOpen); ONE whack — the over-hand windup
+                  // -> smash (HP_HIT_POLISHBOY: a scared kid, not a street
+                  // pro). The blow's hurtNPC (cause "polishboy") arms the 10s
+                  // punchback window; a landed punchback scares him off (the
+                  // scared-leash above) and the bout is over.
+                  if (!c.saidOpen) {
+                    c.saidOpen = true;
+                    Voice.say(
+                      pick(POLISH_BOY_OPEN),
+                      3.5,
+                      0.9,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "ped",
+                    );
+                    c.sayCd = 0.6;
+                  }
+                  c.punchCd = (c.punchCd || 0) - dt;
+                  if (
+                    !c.swinging &&
+                    c.punchCd <= 0 &&
+                    p.invuln <= 0 &&
+                    p.immuneT <= 0 &&
+                    state === "play"
+                  ) {
+                    c.swinging = true;
+                    c.swingT = 0;
+                    c.swingHitDone = false;
+                  }
+                  if (c.swinging) {
+                    c.swingT = (c.swingT || 0) + dt;
+                    const t = c.swingT;
+                    const ss = (u) => u * u * (3 - 2 * u); // smoothstep
+                    let ang;
+                    if (t < 0.3) {
+                      ang = 2.2 * (t / 0.3) * (2 - t / 0.3); // ease-out windup, fist raised high
+                    } else if (t < 0.48) {
+                      ang = 2.2 + 2.8 * ss((t - 0.3) / 0.18); // the SMASH over the top
+                    } else if (t < 0.85) {
+                      ang = 5.0 + 1.2831853 * ss((t - 0.48) / 0.37); // the follow-through settles to rest
+                    } else {
+                      ang = 0;
+                      c.swinging = false;
+                    }
+                    if (c.parts) {
+                      c.parts.armR.rotation.y = ang;
+                      c.parts.upper.rotation.y = -Math.sin(ang) * 0.3; // lean back in the windup, forward into the smash
+                    }
+                    if (!c.swingHitDone && t >= 0.48) {
+                      c.swingHitDone = true;
+                      const iDx = c.wx - p.wx,
+                        iDy = c.wy - p.wy;
+                      const iD = Math.sqrt(iDx * iDx + iDy * iDy) || 0.001;
+                      if (
+                        iD <= 2.2 &&
+                        p.invuln <= 0 &&
+                        p.immuneT <= 0 &&
+                        state === "play"
+                      ) {
+                        const inx = -iDx / iD,
+                          iny = -iDy / iD; // boy -> worker, measured at impact
+                        SFX.playHurtSound();
+                        hurtNPC(HP_HIT_POLISHBOY, "polishboy");
+                        doStun(0.45, "hit");
+                        // the blow shoves the worker back a touch past the push-out
+                        p.wx += inx * 0.45;
+                        p.wy = clamp(p.wy + iny * 0.3, -9.4, workerMaxY());
+                        c.punches++;
+                        c.backoffT = 4; // BACK_OFF: 4s of walking away, then RE-ENGAGE
+                        Voice.say(
+                          pick(POLISH_BOY_CURSES),
+                          3.5,
+                          0.9,
+                          c.wx,
+                          c.wy,
+                          c.gender,
+                          "ped",
+                        );
+                      } else {
+                        c.punchCd = 0.6; // whiff (the worker stepped out): wind up again
+                      }
+                    }
                   }
                 }
-              }
-              if (c.aggro) {
-                c.aggroT -= dt;
-                const dx = p.wx - c.wx;
-                const sp = 1.5; // a little braver than the worker's walk
-                if (Math.abs(dx) > 2.2) {
-                  c.wx += (dx > 0 ? 1 : -1) * sp * dt;
-                  animParts(c, sp * dt * 2.4);
-                }
-                c.wy = clamp(c.wy + (p.wy - c.wy) * Math.min(1, dt * 2), 1.2, 4.4);
-                if (c.g) c.g.rotation.z = dx >= 0 ? 0 : Math.PI; // face the worker
-                c.sayCd = (c.sayCd || 0) - dt;
-                if (c.sayCd <= 0 && Math.abs(dx) < 30) {
-                  Voice.say(
-                    pick(POLISH_BOY_CURSES),
-                    4,
-                    0.95,
-                    c.wx,
-                    c.wy,
-                    c.gender,
-                    "ped",
-                  );
-                  c.sayCd = R(2.2, 3.4);
-                }
-                // The worker made it around the corner, or the temper cooled
-                if (dx > 45 || c.aggroT <= 0) {
-                  c.aggro = false;
-                  c.aggroT = 0;
-                  // If he lost the block entirely, re-root himself at the store
-                  if (c.wx < L.minX - 10 || c.wx > L.maxX + 10)
-                    c.wx = (L.minX + L.maxX) / 2;
-                }
               } else if (L) {
+                // LOITER: the slow back-and-forth on his sister's block.
                 const sp = 0.7;
                 c.wx += L.dir * sp * dt;
                 if (c.wx > L.maxX) {

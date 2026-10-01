@@ -131,7 +131,7 @@ check('AI: NEVER recycles — each block keeps its own lady (no tx < -55 telepor
   aiCase.indexOf('NEVER recycles') >= 0 && aiCase.indexOf('tx < -55') < 0 && aiCase.indexOf('p.wx + 42') < 0);
 
 // ================= 5. BUMP LINES (collideCreatures) =================
-const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 28000);
+const bumpSec = src.slice(src.indexOf('function collideCreatures'), src.indexOf('function collideCreatures') + 60000);
 check('bump GATE includes polish (so she actually says something)',
   /c\.type === "jacker" \|\|[\s\S]{0,120}c\.type === "polish" \|\|/.test(bumpSec));
 [
@@ -144,7 +144,7 @@ check('bump GATE includes polish (so she actually says something)',
   check('bump line present: "' + line + '"', bumpSec.indexOf('"' + line + '"') >= 0);
 });
 check('bump: speaks with the "polish" speaker id (female voice)',
-  /c\.type === "polish"\)\s*\n\s*Voice\.say\([\s\S]{0,500}"polish",/.test(bumpSec) && bumpSec.indexOf('c.gender') >= 0);
+  /c\.type === "polish"\)[\s\S]{0,2000}Voice\.say\([\s\S]{0,800}c\.gender[\s\S]{0,120}"polish"/.test(bumpSec));
 
 // ================= 6. BUBBLE STYLE =================
 check('bubble CSS: .bub-polish defined', /bubble\.bub-polish/.test(src));
@@ -172,10 +172,11 @@ check('spawn block: dresses UNIQUE per block (palette shuffled into polishDressQ
   src.indexOf('let polishDressQueue = []') >= 0 &&
   addSec.indexOf('polishDressQueue.shift()') >= 0 &&
   addSec.indexOf('makePolishGirl(pdress)') >= 0);
-check('spawn: one nice Polish boy per Queens level, loitering in front of a corner store (her brother)',
+check('spawn: one nice Polish boy per ACTIVE block, on HER block (pb.sis = pl.pw) — the redesign (no corner store)',
   src.indexOf('addCreature("polishboy")') >= 0 &&
-  src.indexOf('queensStoreSpots') >= 0 &&
-  src.indexOf('pb.loiter') >= 0);
+  src.indexOf('pb.sis = pl.pw') >= 0 &&
+  src.indexOf('pb.loiter') >= 0 &&
+  src.indexOf('queensStoreSpots') < 0);
 
 // ================= 8. DOG COUNT SCALED BY SCORE =================
 const dogSec = (() => {

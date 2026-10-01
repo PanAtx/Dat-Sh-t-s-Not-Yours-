@@ -1,5 +1,5 @@
-// Punchback check (retaliation vs the 12 attack NPCs):
-//   1) any of the 12 attack NPCs that hits the worker arms a 10s PUNCH window
+// Punchback check (retaliation vs the 13 attack NPCs):
+//   1) any of the 13 attack NPCs that hits the worker arms a 10s PUNCH window
 //      (markPunchback, called from the hurtNPC hook) and empties his hands,
 //   2) the interact key in the window throws a jab at the nearest attacker within
 //      2.0u (tryPunchBack: face snap, 0.34s punchT, 0.14s land frame, one punch
@@ -46,13 +46,13 @@ console.log('[1] punchback source wiring');
   );
   const causes = src.match(/const PUNCHBACK_CAUSES = \[[\s\S]*?\];/);
   check(
-    'PUNCHBACK_CAUSES lists exactly the 12 attack NPCs',
-    causes && (causes[0].match(/"\w+"/g) || []).length === 12,
+    'PUNCHBACK_CAUSES lists exactly the 13 attack NPCs',
+    causes && (causes[0].match(/"\w+"/g) || []).length === 13,
   );
   check(
-    'the 12 are exactly: dealer pimp mafia crazy crazyAlien panhandler rapper cop robber football bball jacker',
+    'the 13 are exactly: dealer pimp mafia crazy crazyAlien panhandler rapper cop robber football bball jacker polishboy',
     causes &&
-      ['dealer', 'pimp', 'mafia', 'crazy', 'crazyAlien', 'panhandler', 'rapper', 'cop', 'robber', 'football', 'bball', 'jacker'].every(
+      ['dealer', 'pimp', 'mafia', 'crazy', 'crazyAlien', 'panhandler', 'rapper', 'cop', 'robber', 'football', 'bball', 'jacker', 'polishboy'].every(
         (t) => causes[0].indexOf('"' + t + '"') >= 0
       ),
   );
@@ -63,7 +63,7 @@ console.log('[1] punchback source wiring');
   );
   const hn = extract('hurtNPC');
   check(
-    'hurtNPC hook: the 12-cause hit arms the window BEFORE the death check (absorbed i-frame hits do not arm it)',
+    'hurtNPC hook: the 13-cause hit arms the window BEFORE the death check (absorbed i-frame hits do not arm it)',
     /PUNCHBACK_CAUSES\.indexOf\(cause \|\| "route"\) >= 0\) markPunchback\(cause\);/.test(hn) &&
       hn.indexOf('markPunchback(cause)') < hn.indexOf('if (health <= 0)') &&
       hn.indexOf('if (health <= 0)') >= 0,
