@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.346</div>
+          <div id="app-version" class="menu-version">v1.0.347</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.346';
+      const APP_VERSION = '1.0.347';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -24021,6 +24021,14 @@
       const HP_HIT_HAZARD = 5; // a hard static hazard (e.g. hydrant) nicks you a little
       const HP_HIT_DRIVETRIC = 4; // a Flatbush driveway tricycle lunges: a light bump (lighter than a vehicle)
       const HP_HIT_PANHANDLER = 1; // a panhandler's shove-and-stink does only very minor damage (the smell, not the elbow)
+      const HP_HIT_SKUNK = 4; // the Maspeth skunk's SPRAY: the stink stuns (worse than a bump, lighter than a run-over)
+      const SKUNK_SPRAY_R = 2.5; // the worker has to get pretty close before the skunk sprays
+      const SKUNK_SPRAY_CD = 3.0; // the skunk's spray cooldown (no re-spray every frame)
+      const SKUNK_SPRAY_LINES = [
+        "Hrrrp!",
+        "Get away from me!",
+        "That's my last warning!",
+      ];
       const HP_HIT_JACKER = 2; // bumping the jackhammer guy does minor damage (the buzz, not a beatdown)
       const HP_HIT_SCHOLAR = 2; // bumping the Flatbush scholar offends him - a light bump (respect the observant citizen)
       const HP_HIT_HOPPER = 4; // rainy-day hopper JUCE splash: a nasty nick (worse than a bump, lighter than a run-over)
