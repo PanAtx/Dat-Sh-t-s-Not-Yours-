@@ -6,6 +6,13 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, orientation=landscape"
     />
+    <!-- iOS < 16.4 ignores the manifest display/orientation for home-screen
+         launches unless apple-mobile-web-app-capable is set; without it the app opens as a
+         plain Safari page with browser chrome (the squished look). black-translucent lets
+         the canvas run edge-to-edge under the status bar. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
       http-equiv="Cache-Control"
       content="no-cache, no-store, must-revalidate"
@@ -128,8 +135,8 @@
       }
       #tl {
         position: absolute;
-        top: 16px;
-        left: 20px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        left: calc(20px + env(safe-area-inset-left, 0px));
         font-size: 20px;
         letter-spacing: 2px;
       }
@@ -320,8 +327,8 @@
       }
       #tr {
         position: absolute;
-        top: 16px;
-        right: 20px;
+        top: calc(16px + env(safe-area-inset-top, 0px));
+        right: calc(20px + env(safe-area-inset-right, 0px));
         text-align: right;
         font-size: 13px;
         letter-spacing: 1px;
@@ -2214,7 +2221,7 @@
       }
       #joy {
         position: absolute;
-        left: max(90px, 9vw);
+        left: calc(max(90px, 9vw) + env(safe-area-inset-left, 0px));
         bottom: 56px;
         bottom: calc(56px + env(safe-area-inset-bottom, 0px));
         width: var(--joy);
@@ -2254,7 +2261,7 @@
       }
       #actbtn {
         position: absolute;
-        right: max(90px, 9vw);
+        right: calc(max(90px, 9vw) + env(safe-area-inset-right, 0px));
         bottom: 56px;
         bottom: calc(56px + env(safe-area-inset-bottom, 0px));
         width: var(--act);
@@ -2332,7 +2339,7 @@
    where it becomes the pre-game music player. */
       #radio {
         position: fixed;
-        top: 14px;
+        top: calc(14px + env(safe-area-inset-top, 0px));
         left: 50%;
         transform: translateX(-50%);
         z-index: 30;
@@ -2615,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.343</div>
+          <div id="app-version" class="menu-version">v1.0.344</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2772,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.343';
+      const APP_VERSION = '1.0.344';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3736,6 +3743,7 @@
         try {
           window.focus();
         } catch (e) {}
+        setTimeout(fitGameBox, 150); // re-fit once the rotated viewport settles (older iOS fires this early)
       });
       // Keep the game in fullscreen unless the player explicitly quits: if the browser
       // drops us out of fullscreen on its own (a drag / edge-swipe on mobile does this),
@@ -4412,6 +4420,24 @@
           groundGroup.add(g);
         }
       }
+            // iOS (esp. < 16.4 standalone apps) can leave position:fixed / inset:0 boxes sized to
+      // the LAUNCH viewport after a rotation (stale initial containing block), so #game
+      // ends up smaller than the screen and the player sees white bands around the canvas.
+      // innerWidth/innerHeight DO update on rotation, so pinning the fixed boxes to them
+      // keeps the game edge-to-edge in every orientation on every device.
+      function fitGameBox() {
+        const w = window.innerWidth,
+          h = window.innerHeight;
+        for (const id of ["game", "hud", "vpad", "rotate", "loading", "menu"]) {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.width = w + "px";
+            el.style.height = h + "px";
+          }
+        }
+      }
+      fitGameBox();
+      window.addEventListener("resize", fitGameBox);
       window.addEventListener("resize", () => {
         const f = makeFrustum();
         _baseFrustum = f; // keep the base frustum in sync so the zoom re-scales from the new aspect

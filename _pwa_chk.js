@@ -108,12 +108,15 @@ const SFX = new Function('return {' + sfxCode + '};')();
   SFX.radioEl = null;
   let releaseSlow = null;
   const slowFlag = { v: false };
+  let slowUsed = false; // only the FIRST track is held slow, so releaseSlow() unblocks the whole pass
   global.fetch = async url => {
     if (url === 'music/') return { ok: false };
     if (url === 'music/manifest.json') return { ok: true, json: async () => FILES };
     if (url.indexOf('music/') === 0){
       netFetches++;
-      const blob = slowFlag.v ? new Promise(res => { releaseSlow = () => res(new Blob(['fake-mp3'])); }) : Promise.resolve(new Blob(['fake-mp3']));
+      let slowP = null;
+      if (slowFlag.v && !slowUsed) { slowUsed = true; slowP = new Promise(res => { releaseSlow = () => res(new Blob(["fake-mp3"])); }); }
+      const blob = slowP ? slowP : Promise.resolve(new Blob(["fake-mp3"]));
       return { ok: true, headers: { get: () => String(1000 * 1024) }, blob: async () => blob };
     }
     return { ok: false };
@@ -131,6 +134,18 @@ const SFX = new Function('return {' + sfxCode + '};')();
   await p1;
   slowFlag.v = false;
 
+  // (5) iPhone 13 standalone + full-screen wiring
+  check(`apple-mobile-web-app-capable meta present`, html.indexOf(`<meta name="apple-mobile-web-app-capable" content="yes" />`) >= 0);
+  check(`mobile-web-app-capable meta present (spec name)`, html.indexOf(`<meta name="mobile-web-app-capable" content="yes" />`) >= 0);
+  check(`status bar is black-translucent (edge-to-edge under the notch)`, html.indexOf(`<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />`) >= 0);
+  check(`viewport-fit=cover is set`, html.indexOf(`viewport-fit=cover`) >= 0);
+  check(`fitGameBox() pins fixed boxes to the live layout viewport`, html.indexOf(`function fitGameBox()`) >= 0);
+  check(`fitGameBox runs at boot and on every resize`, /fitGameBox\(\);\s*window\.addEventListener\("resize", fitGameBox\)/.test(html));
+  check(`orientationchange re-fits after the rotated viewport settles`, /orientationchange[\s\S]{0,240}setTimeout\(fitGameBox, 150\)/.test(html));
+  check(`joystick is padded by safe-area-inset-left`, html.indexOf(`left: calc(max(90px, 9vw) + env(safe-area-inset-left, 0px));`) >= 0);
+  check(`ACT pad is padded by safe-area-inset-right`, html.indexOf(`right: calc(max(90px, 9vw) + env(safe-area-inset-right, 0px));`) >= 0);
+  check(`HUD corners are padded by safe-area insets`, html.indexOf(`top: calc(16px + env(safe-area-inset-top, 0px));`) >= 0 && html.indexOf(`left: calc(20px + env(safe-area-inset-left, 0px));`) >= 0 && html.indexOf(`right: calc(20px + env(safe-area-inset-right, 0px));`) >= 0);
+  check(`radio bar is padded by safe-area-inset-top`, html.indexOf(`top: calc(14px + env(safe-area-inset-top, 0px));`) >= 0);
   const ok = checks.every(Boolean);
   console.log(ok ? 'PWA + RADIO WARM OK (' + checks.length + ' checks)' : 'PWA CHECKS FAILED');
   process.exit(ok ? 0 : 1);
