@@ -35,7 +35,7 @@ check('collideStatic: the yellow (piss bottle) branch has NO doStun — kick, no
 check('collideStatic: the litter branch has NO doStun — the bottles just scatter',
   (function(){
     const i = h.indexOf('} else if (hz.litter) {');
-    const j = h.indexOf('doStun(0.8, "trip")', i);
+    const j = h.indexOf('} else if (hz.type === "acorn") {', i); // the branch that follows the litter branch (Maspeth oak-block acorns)
     return i >= 0 && j > i &&
       h.slice(i, j).indexOf('doStun') < 0 &&
       h.slice(i, j).indexOf('scatterLitter(hz, Math.atan2(hz.wy - p.wy, hz.wx - p.wx))') >= 0;

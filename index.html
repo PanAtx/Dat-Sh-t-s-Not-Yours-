@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.353</div>
+          <div id="app-version" class="menu-version">v1.0.355</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.353';
+      const APP_VERSION = '1.0.355';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -2858,6 +2858,19 @@
       const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 384
       const CEM_FENCE_Y = 5.4; // iron fence line: right up against the sidewalk edge (y 5.0)
       const CEM_BACK_Y = 12.0; // back edge of the cemetery grass
+      // ==================== QUEENS OAK TREE + ACORNS (Maspeth, the 3rd block) ====================
+      // ONE block of the Maspeth route (Block 3, x=192 — mid-route, NEVER the
+      // cemetery) carries a BIG OAK (a sidewalk tree scaled up ~1.65x, its
+      // canopy overhangs the walk), and its sidewalk is scattered with acorns.
+      // A worker boot landing on a loose acorn SKIDS off it — the marble skid:
+      // a full slip-and-fall (a longer trip stun than the normal 0.8) + a soft
+      // HP nick. Then a squirrel scurries over, takes the acorn, and runs off
+      // with it (it already cradles a comically big one between its paws — the
+      // ground acorn vanishes on the grab).
+      const QUEENS_OAK_BLOCK = 2; // the 3rd block (x=192) — one big oak, never the cemetery
+      const QUEENS_OAK_X = LEVEL_BLOCKS[QUEENS_OAK_BLOCK].x; // 192
+      const QUEENS_OAK_CELL = 3; // the 4th cell of the block carries the trunk
+      const ACORN_COUNT = 14; // acorns scattered all over the block's sidewalk
       // 8 intersections (cross-streets), each starting 80u into its preceding segment:
       const LEVEL_XS = [80, 176, 272, 368, 464, 560, 656, 752];
       const ROUTE_START_X = 80; // barrier: worker can't walk back before Intersection 1
@@ -15935,6 +15948,44 @@
         g.scale.setScalar(0.7); // smaller squirrel — scales about its base so it stays grounded
         return g;
       }
+      // A loose ACORN lying on the Maspeth sidewalk (the oak block): the same
+      // nut + cap + stem build as the squirrel's cradled one, a touch BIGGER so
+      // it reads from across the block, resting flat on the concrete.
+      function makeAcorn() {
+        const g = new THREE.Group();
+        const nut = SPH(0.1, M(0xc79b5f), 24, 18); // smooth light-tan nut
+        nut.scale.set(0.85, 0.8, 1.0);
+        nut.position.z = 0.085; // resting on the concrete
+        g.add(nut);
+        const cap = SPH(0.105, M(0x5d3f22), 24, 18); // dark cross-hatched cap riding on top
+        cap.scale.set(0.9, 0.85, 0.6);
+        cap.position.z = 0.155;
+        g.add(cap);
+        const stem = CY(0.012, 0.016, 0.05, M(0x3c2814), 10); // little nub
+        stem.rotation.x = Math.PI / 2; // point it along the up axis, like the limbs
+        stem.position.z = 0.225;
+        g.add(stem);
+        g.rotation.z = R(0, Math.PI * 2); // a random roll on the concrete
+        return g;
+      }
+      // ==================== Maspeth ACORN SQUIRREL (the oak block's nut thief) ====================
+      // When the worker slips on a sidewalk acorn, ONE squirrel is sent for it
+      // (acornSquirrelCd keeps a slip from summoning a whole colony — one
+      // courier per ~6s). It spawns a few units off the nut, sprints to it
+      // (c.acornHunt, driven at the top of case "squirrel"), grabs it — the
+      // ground acorn vanishes, it already cradles a comically big one between
+      // its paws — then BOLTS off with it and rejoins the regular scurry.
+      let acornSquirrelCd = 0;
+      function queueAcornSquirrel(hz) {
+        if (!isQueensLevel() || acornSquirrelCd > 0) return;
+        acornSquirrelCd = 6; // one courier per ~6s
+        const c = addCreature("squirrel", {
+          wx: hz.wx + (Math.random() < 0.5 ? -1 : 1) * R(9, 16),
+          wy: R(1.5, 4.5),
+        });
+        c.acornHunt = hz; // the mission (see case "squirrel")
+        c.sp = 7; // a proper sprint for the job
+      }
       function makeDog(dogSize = 'medium') {
         const g = new THREE.Group();
         const furC = pick([0x8a6a45, 0x6a5642, 0x4a4038, 0x9c8468]);
@@ -20743,6 +20794,13 @@
           !(
             isQueensBlock &&
             (houseIdx === 0 || houseIdx === QUEENS_HOUSES_PER_BLOCK - 1)
+          ) &&
+          // The Maspeth OAK block's trunk cell gets the ONE big oak instead (below) —
+          // a second, small tree would clip the canopy.
+          !(
+            isQueensBlock &&
+            b.blockX === QUEENS_OAK_X &&
+            houseIdx === QUEENS_OAK_CELL
           )
         ) {
           // Manhattan, Flatbush, Bronx, Maspeth, Staten Island: trees are on the sidewalk near the curb.
@@ -20763,6 +20821,55 @@
           b.group.add(t);
           if (!b.trees) b.trees = [];
           b.trees.push({ wx: baseX + tx, wy: ty });
+        }
+        // Maspeth OAK BLOCK (the 3rd block, x=192 — never the cemetery): ONE big
+        // oak (a sidewalk tree scaled up — its canopy overhangs the walk) +
+        // acorns scattered ALL OVER the block's sidewalk. The acorns are the
+        // marble-skid hazard: a boot landing on one slips the worker (see
+        // collideStatic's "acorn" branch) and sends a squirrel to steal the
+        // nut and run (queueAcornSquirrel + case "squirrel" mission).
+        if (
+          isQueensBlock &&
+          b.blockX === QUEENS_OAK_X &&
+          houseIdx === QUEENS_OAK_CELL
+        ) {
+          const oak = makeSidewalkTree();
+          oak.scale.setScalar(1.65); // the BIG tree of the block
+          const oakX = R(0.8, cellW - 0.8),
+            oakY = R(0.9, 1.7);
+          oak.position.set(oakX, oakY, 0);
+          b.group.add(oak);
+          if (!b.trees) b.trees = [];
+          b.trees.push({
+            wx: baseX + oakX,
+            wy: oakY,
+          }); // solid: walkers + worker route around the trunk
+          // acorns ALL OVER the block's sidewalk (kept clear of the trunk, on
+          // the concrete only — y 0.6..4.6). Each is a one-shot trip hazard.
+          for (let a = 0; a < ACORN_COUNT; a++) {
+            let ax = 0,
+              ay = 0,
+              tries = 0;
+            do {
+              ax = R(2.0, 78.0);
+              ay = R(0.6, 4.6);
+              tries++;
+            } while (
+              tries < 24 &&
+              (ax - oakX) * (ax - oakX) + (ay - oakY) * (ay - oakY) < 1.6 * 1.6
+            ); // never on top of the trunk
+            const ac = makeAcorn();
+            ac.position.set(baseX + ax, ay, GZ);
+            groundGroup.add(ac);
+            b.hazards.push({
+              wx: baseX + ax,
+              wy: ay,
+              r: 0.55,
+              type: "acorn",
+              cd: 0,
+              g: ac, // the mesh the squirrel's grab removes
+            });
+          }
         }
         // USPS blue collection boxes — one on EVERY 5TH STREET CORNER, counting
         // from the FIRST CORNER of Block 2 (world x=96): boxes at x=96, 368, 576.
@@ -24174,6 +24281,7 @@
       const HP_GHOST_STREET = 4; // the ghost-touch EXTRA (on top of HP_HIT_GHOST): touching ANY cemetery ghost — street OR sidewalk — costs the full 10 HP (the dead claim the whole block)
       const HP_HIT_RAVEN = 4; // the cemetery raven's swoop strike — a fast, sharp hit (the beak, not a beatdown)
       const HP_HIT_GHOSTARM = 4; // a Maspeth spectral arm reaches out of the ground and GRABS the worker — a chilly, sharp yank (matches the raven's light strike)
+      const HP_HIT_ACORN = 2; // a Maspeth oak-block acorn slip is a soft tumble — the marble skid: lighter than a hazard nick
       // The Staten Island car washer: a full-pressure hose blast is a SOAKING, not a beatdown —
       // lighter than a hazard nick, but it stings and knocks the worker back a step.
       const HP_HIT_CARWASH = 3;
@@ -26377,6 +26485,31 @@
               // Sidewalk litter bottles: they just SCATTER — the worker does NOT stumble
               if (!hz.scattered)
                 scatterLitter(hz, Math.atan2(hz.wy - p.wy, hz.wx - p.wx));
+            } else if (hz.type === "acorn") {
+              // Maspeth oak block: a boot lands on a loose acorn and SKIDS off it —
+              // the marble skid: a full slip-and-fall (a LONGER trip stun than the
+              // normal 0.8) + a soft nick. One squirrel per acorn is sent to steal
+              // the nut and run (the ground acorn vanishes on its grab).
+              hurtNPC(HP_HIT_ACORN, "acorn");
+              doStun(1.1, "trip");
+              const ACORN_SLIP_LINES = [
+                "Whoa! Slipping!",
+                "Acorns! My boots!",
+                "Marbles on this sidewalk!",
+              ];
+              Voice.say(
+                pick(ACORN_SLIP_LINES),
+                2.4,
+                0.9,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+              );
+              if (!hz.got) {
+                hz.got = true;
+                queueAcornSquirrel(hz);
+              }
             } else {
               doStun(0.8, "trip");
               if (hz.drop > 0 && carry !== "none" && Math.random() < hz.drop)
@@ -29050,6 +29183,7 @@
         return stop;
       }
       function updateCreatures(dt) {
+        if (acornSquirrelCd > 0) acornSquirrelCd -= dt; // the oak block's squirrel courier cooldown
         // ===== Maspeth ghost spawner (once per frame) =====
         // The spawner FILLS THE VISIBLE SCREEN: every tick it tops up to 4 ghosts on
         // the NEXT slots of the street/curb/sidewalk slot grid (round-robin keeps the
@@ -31241,6 +31375,41 @@
             case "squirrel": {
               // scurrying keeps its legs running: animate the cycle at the speed it's actually moving
               const sqParts = c.g.userData.squirrel;
+              if (c.acornHunt) {
+                // The oak-block mission: sprint to the slipped acorn, grab it
+                // (the ground acorn vanishes — the cradled one IS the loot),
+                // then the FLEE branch below bolts it off with the nut and it
+                // rejoins the regular scurry.
+                const hz = c.acornHunt;
+                if (hz.dead || !hz.g) {
+                  c.acornHunt = null; // already taken / gone
+                } else {
+                  const dx = hz.wx - c.wx,
+                    dy = hz.wy - c.wy;
+                  const d = Math.sqrt(dx * dx + dy * dy) || 0.001;
+                  if (d < 0.6) {
+                    // the grab: the sidewalk acorn is gone — between his paws now
+                    hz.dead = true;
+                    if (hz.g.parent) hz.g.parent.remove(hz.g);
+                    c.acornHunt = null;
+                    c.dir = dx >= 0 ? 1 : -1; // bolt the way it was already heading
+                    c.flee = 2.6; // run off with the nut
+                  } else {
+                    const step = 7.0 * dt;
+                    c.wx += (dx / d) * Math.min(step, d);
+                    c.wy += (dy / d) * Math.min(step, d);
+                  }
+                  animSquirrel(c, dt * 7.0 * 5.5);
+                  sqParts.acorn.position.set(0.13, 0, 0.24); // cradled while hunting
+                  sqParts.headPivot.rotation.z = 0;
+                  c.settle = 0;
+                  c.g.scale.set(1, 1, 1);
+                  c.g.rotation.z = dx >= 0 ? 0 : Math.PI; // face the acorn
+                  c.hop = Math.max(0, Math.sin(c.phase)) * 0.3; // stride-locked bounce
+                  c.g.position.z = GZ + c.hop;
+                  break;
+                }
+              }
               if (c.flee > 0) {
                 c.flee -= dt;
                 c.wx += (c.dir || 1) * 8.5 * dt; // bolt away from the worker that spooked it
