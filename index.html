@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.350</div>
+          <div id="app-version" class="menu-version">v1.0.352</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.350';
+      const APP_VERSION = '1.0.352';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3510,11 +3510,11 @@
       // Street-hazard roster (Monday baseline) — deliberately SPARSE so the first shift is easy.
       // TRAFFIC CAP v2 (tame the street, by design): npcCounts() clamps every level's
       // road traffic DOWN -- 1 car / 1 e-scooter / 0 bike (Gramercy Park d1 excepted:
-      // 3 cyclists, the busier uptown bike scene; Maspeth d4 excepted: 2 cyclists,
-      // the real-world cycling hub) / 0 moto / 0 e-bike (Bronx d2 + Maspeth d4
-      // excepted: 1 each) / 0 rc / 0 street tricycle (the Bronx d2 keeps its
-      // level-specific 1 moto + 1 e-bike swap), and the CROWD CUT thins the
-      // generic walkers (peds <= 1, no breakers, no ladies) so the trash is
+      // 3 cyclists, the busier uptown bike scene; Maspeth d4 excepted: 2 pizza-delivery
+      // couriers — the ONLY bike riders on the street that day, in hi-vis vests) /
+      // 0 moto / 0 e-bike (Bronx d2 excepted: 1 each) / 0 rc / 0 street tricycle (the
+      // Bronx d2 keeps its level-specific 1 moto + 1 e-bike swap), and the CROWD CUT
+      // thins the generic walkers (peds <= 1, no breakers, no ladies) so the trash is
       // easier to service. Critters (rat/dog/raccoon/cat/squirrel) + dogwalkers
       // + every level-SPECIFIC character are untouched.
       const BASE_NPC_COUNTS = {
@@ -3553,7 +3553,7 @@
         rc: true,
       }; // +1 per day (the crowd/traffic that gets busier each level). Cars + peds stay at their light
       // baseline all week (deliberately calmer street - not part of the daily ramp).
-      const GATED_NPC = { moto: 3, ebike: 3, rc: 5 }; // appear only from that day: 0 before, then 1 on that day, +1 each day after (ebike gated from Thu = lighter Flatbush two-wheeler traffic)
+      const GATED_NPC = { moto: 3, ebike: 3, rc: 5 }; // appear only from that day: 0 before, then 1 on that day, +1 each day after (ebike gated from Thu = lighter two-wheeler traffic; Maspeth d4 runs delivery couriers instead)
       const AMBIENT_NPC = { rat: 1, raccoon: 1, squirrel: 1 }; // constant critters (kept for reference/tests)
       function npcCounts(day) {
         const extra = Math.max(0, (day || 1) - 1); // +0 on Monday ... +6 by Sunday
@@ -3636,25 +3636,30 @@
         // the kid's tricycle is deliberately swapped for 1 moto + 1 e-bike (that
         // swap is level-SPECIFIC and stays), EXCEPT Gramercy Park (d1), where
         // the busier uptown bike scene keeps 3 cyclists on the street, and
-        // EXCEPT Maspeth (d4), where the real-world cycling hub runs 2 cyclists
-        // + 1 e-bike + 1 moto (see the level-specific boost just above). Cars +
+        // EXCEPT Maspeth (d4), where the ONLY bike riders are 2 pizza-delivery
+        // couriers (the Level 1 Gramercy guys, in hi-vis vests) who deliver food
+        // and leave street drops (see the level-specific boost just above). Cars +
         // e-scooters keep their 1 cap (already minimal). The old per-day rules
         // underneath (daily ramp, Bronx two-wheelers, Manhattan +1 escooter/bike)
         // are left intact for reference.
-        // Maspeth (Queens, d4): a real-world cycling hub — the street runs real
-        // two-wheeled traffic: 2 cyclists + 1 e-bike + 1 moto. The boost sits
-        // BEFORE the cap (the cap is a ceiling, never a floor) so the scene
-        // survives, exactly like the Bronx d2 swap.
+        // Maspeth (Queens, d4): the ONLY bike riders on the street are the PIZZA
+        // DELIVERY guys — the generic cyclists + e-bike are pulled over and given
+        // the red bag (see case "bike" in addCreature: every d4 bike spawns as a
+        // delivery courier with a hi-vis vest). They deliver food and sometimes
+        // leave a pizza or tacos on the road for the worker to pick up. The 1
+        // moto stays (a motorcycle is not a bike). The boost sits BEFORE the cap
+        // (the cap is a ceiling, never a floor) so the scene survives, exactly
+        // like the Bronx d2 swap.
         if (day === 4) {
-          c.bike = Math.max(c.bike, 2);
-          c.ebike = Math.max(c.ebike, 1);
+          c.bike = Math.max(c.bike, 2); // 2 delivery couriers — the day's only bike riders
+          c.ebike = 0; // no generic e-bike on Maspeth (the couriers ARE the bikes)
           c.moto = Math.max(c.moto, 1);
         }
         const TRAFFIC_CAP = {
           car: 1,
           moto: day === 2 || day === 4 ? 1 : 0,
-          ebike: day === 2 || day === 4 ? 1 : 0,
-          bike: day === 1 ? 3 : day === 4 ? 2 : 0, // Gramercy Park (d1): 3 cyclists; Maspeth (d4): the cycling hub (2 cyclists)
+          ebike: day === 2 ? 1 : 0, // Maspeth (d4) runs delivery couriers instead of an e-bike
+          bike: day === 1 ? 3 : day === 4 ? 2 : 0, // Gramercy Park (d1): 3 cyclists; Maspeth (d4): 2 pizza-delivery couriers (the ONLY bike riders)
           escooter: 1,
           rc: 0,
           tric: 0,
@@ -6476,12 +6481,15 @@
       let litterBasketPlaced = false;
       let litterBaskets = []; // live baskets: { kind, state, g, hx, hy, wx, wy }
       let litterBasketHomes = null; // [{ wx, wy }] corner homes, computed once
-      // DOLLAR SLICES: pizza slices spewed by the GRAMERCY delivery bike (Level 1)
-      // when it clips the sanitation worker. Each is the SAME wedge shape the pizza
-      // rat carries (makePizzaSlice), tumbles out of the bag in a short arc, lands on
-      // the road, and stays pickable for a while. Picking one up = +25 street cash +
-      // a bit of health; the worker yells "Free Dollar Slice!".
-      let droppedSlices = []; // live slices: { g, wx, wy, vx, vy, vz, rotZ, rotY, landed, t, life }
+      // DOLLAR SLICES: food drops from the delivery bikes — the GRAMERCY courier
+      // (Level 1) spews one when his bike clips the sanitation worker, and the
+      // QUEENS (Maspeth, Level 4) delivery guys — the ONLY bike riders on the
+      // street that day, in hi-vis vests — leave one on the road as they roll.
+      // Each is the SAME wedge shape the pizza rat carries (makePizzaSlice) or a
+      // small street taco (makeTaco), tumbles out in a short arc, lands on the
+      // road, and stays pickable for a while. Picking one up = +25 street cash +
+      // a bit of health; the worker yells "Free Dollar Slice!" / "Free taco!".
+      let droppedSlices = []; // live drops: { g, wx, wy, vx, vy, vz, rotZ, rotY, landed, t, life, food }
 
       async function loadLitterbasketGltf() {
         if (LITTERBASKET_TPL) return Promise.resolve(true);
@@ -15484,6 +15492,49 @@
         });
         return g;
       }
+      // TACO: the QUEENS (Maspeth, Level 4) delivery guys' other street drop — a
+      // small street taco: a golden corn shell (a flat base + two side panels
+      // tilted up into a shallow U) with green lettuce, red tomato and yellow
+      // cheese bulging out the top. Built flat in the XZ plane (road = X axis,
+      // cross-street = Y), the same way makePizzaSlice is, riding on the road
+      // surface at GZ via the same 0.03 self-float (the group origin sits ON
+      // the road at world z = 0.30).
+      function makeTaco() {
+        const g = new THREE.Group();
+        const shell = M(0xdca53f); // golden corn shell
+        const zBase = 0.03; // 0.33 world, 3 cm above the 0.30 road top
+        // Shell base — the flat bottom the taco rests on.
+        const base = BX(0.36, 0.2, 0.02, shell);
+        base.position.set(0.18, 0, zBase + 0.01);
+        g.add(base);
+        // Two side panels, thin in Y, rising up in Z and tilted INWARD at the
+        // top (a rotation about X tips the +Z top edge toward the center).
+        [-1, 1].forEach((s) => {
+          const side = BX(0.36, 0.02, 0.1, shell);
+          side.position.set(0.18, s * 0.09, zBase + 0.06);
+          side.rotation.x = s * 0.35;
+          g.add(side);
+        });
+        // Fillings — squashed bulges poking out the top, between the shell sides.
+        const lettuce = M(0x6fae3c),
+          tomato = M(0xc0392b),
+          cheese = M(0xf1c243);
+        [
+          [0.08, 0.05, lettuce],
+          [0.2, -0.04, lettuce],
+          [0.3, 0.05, lettuce],
+          [0.15, -0.03, tomato],
+          [0.27, 0.02, tomato],
+          [0.11, -0.05, cheese],
+          [0.24, 0.05, cheese],
+        ].forEach((f) => {
+          const m = SPH(0.045, f[2], 8, 6);
+          m.scale.set(1, 1, 0.7);
+          m.position.set(f[0], f[1], zBase + 0.1);
+          g.add(m);
+        });
+        return g;
+      }
       function makeRat(pizza) {
         const g = new THREE.Group();
         const fur = M(0x55504a),
@@ -19054,7 +19105,7 @@
         g.add(ant);
         return g;
       }
-      function makeBicycle(eBike, isDelivery) {
+      function makeBicycle(eBike, isDelivery, hiVis) {
         const g = new THREE.Group();
         const rider = makePerson({
           shirt: isDelivery ? 0xe8752a : eBike ? 0x2fa05a : 0xcc3333,
@@ -19063,6 +19114,18 @@
         });
         rider.g.position.set(-0.1, 0, 0);
         g.add(rider.g);
+        if (hiVis) {
+          // HIGH-VIS VEST (the Queens delivery guys): an orange sleeveless vest
+          // over the shirt + a silver reflective chest band — the same hi-vis
+          // look as the jackhammer guy. Added to the rider's UPPER group so it
+          // rides the torso (makePerson's torso sits at z 1.15-0.62 in it).
+          const vest = BX(0.23, 0.6, 0.64, M(0xff6a1a));
+          vest.position.z = 1.15 - 0.62;
+          rider.g.userData.parts.upper.add(vest);
+          const band = BX(0.26, 0.64, 0.1, M(0xd8e35a));
+          band.position.z = 1.3 - 0.62;
+          rider.g.userData.parts.upper.add(band);
+        }
         const frame = M(eBike ? 0x2fa05a : 0x33557a);
         const wheelM = M(0x23262b);
         const dark = M(0x23262b);
@@ -19650,14 +19713,22 @@
             c.boxL = 0.6;
             // Spread multiple cyclists along the street so they never bunch up as a
             // pack (Gramercy Park runs 3 + the delivery courier).
-            if (c.isDelivery) {
-              c.wx = p.wx + R(20, 45); // the courier rolls in on his own timing
+            // Maspeth (Queens, d4): the ONLY bike riders on the street are PIZZA
+            // DELIVERY guys — every bike that spawns that day gets the red bag
+            // (and a hi-vis vest); they deliver food and leave street drops.
+            const isDeliv = c.isDelivery || isQueensLevel();
+            if (isDeliv) {
+              const nDeliv = creatures.filter(
+                (o) => o.type === "bike" && o.isDelivery,
+              ).length;
+              c.wx = p.wx + 20 + nDeliv * 24 + R(0, 12); // the couriers roll in on their own timing
             } else {
               const nBikes = creatures.filter((o) => o.type === "bike").length;
               c.wx = p.wx + nBikes * 24 + R(0, 10);
             }
-            c.data = makeBicycle(false, c.isDelivery);
-            if (c.isDelivery) c.boxL = 0.8; // the pizza bag sticks out behind
+            c.isDelivery = isDeliv;
+            c.data = makeBicycle(false, isDeliv, isDeliv && isQueensLevel());
+            if (isDeliv) c.boxL = 0.8; // the pizza bag sticks out behind
             break;
           case "ebike":
             c.wy = R(-2.4, -0.3);
@@ -23285,14 +23356,17 @@
           }
         }
       }
-      // ==================== DOLLAR SLICES (Level 1 pizza-delivery pickup) ====================
-      // The GRAMERCY delivery cyclist (Level 1) spews a real pizza slice when his
-      // bike clips the sanitation worker. The slice tumbles out of the bag in a
-      // short arc, lands on the road, and stays pickable for a while. Picking one
-      // up = +25 street cash + a bit of health; the worker yells "Free Dollar
-      // Slice!". The slice reuses makePizzaSlice (the exact same wedge the pizza
-      // rat carries) — built flat in the XZ plane (road = X axis, cross-street =
-      // Y), extruded up, riding on the road surface at GZ.
+      // ==================== DOLLAR SLICES / STREET FOOD DROPS (delivery-bike pickup) ====================
+      // The delivery bikes drop food on the road: the GRAMERCY courier (Level 1)
+      // spews a real pizza slice when his bike clips the sanitation worker, and
+      // the QUEENS (Maspeth, Level 4) delivery guys — the day's ONLY bike riders,
+      // in hi-vis vests — leave a pizza or a taco behind them as they roll. The
+      // drop tumbles out in a short arc, lands on the road, and stays pickable
+      // for a while. Picking it up (walk-over) = +25 street cash + a bit of
+      // health; the worker yells "Free Dollar Slice!" / "Free taco!". The slice
+      // reuses makePizzaSlice (the exact same wedge the pizza rat carries) and
+      // the tacos use makeTaco — both built flat in the XZ plane (road = X axis,
+      // cross-street = Y), extruded up, riding on the road surface at GZ.
       // The zebra crosswalk bars sit RAISED at z 0.32-0.38 (0.06 thick on the
       // 0.30 road plane), so a slice resting at GZ = 0.30 gets clipped by a bar
       // it lands on. If the slice's spot is on a crosswalk, rest it ON TOP of
@@ -23328,10 +23402,15 @@
         }
         return GZ;
       }
-      function spawnDroppedSlice(wx, wy) {
-        const g = makePizzaSlice(0.42, 0); // full-size slice, tip at the group origin
-        // The slice is a flat wedge in the XZ plane; give it a random heading so
-        // it looks naturally tossed, then rest it on the road surface.
+      function spawnDroppedSlice(wx, wy, kind) {
+        // kind: "pizza" (the Level 1 spew + the default) or "taco" (the Queens
+        // delivery guys' other street drop)
+        const g =
+          kind === "taco"
+            ? makeTaco()
+            : makePizzaSlice(0.42, 0); // full-size slice, tip at the group origin
+        // The drop is a flat wedge (or shell) in the XZ plane; give it a random
+        // heading so it looks naturally tossed, then rest it on the road surface.
         g.rotation.z = R(0, Math.PI * 2);
         g.position.set(wx, wy, GZ);
         dynamicGroup.add(g);
@@ -23347,6 +23426,7 @@
           landed: false,
           t: 0,
           life: 25, // seconds before it wilts and vanishes
+          food: kind === "taco" ? "taco" : "pizza",
         });
         SFX.playPlopSound(); // a soft "plop" as it leaves the bag
       }
@@ -23395,9 +23475,10 @@
         disposeObj(s.g);
         droppedSlices.splice(i, 1);
       }
-      // DOLLAR SLICE pickup is WALK-OVER: stepping on a landed slice picks it up
-      // instantly — no ACT button. The free slice is a street bonus (cash +
-      // health), not cargo, so it works even while carrying a bag/can.
+      // STREET FOOD pickup is WALK-OVER: stepping on a landed drop (a pizza
+      // slice or a tacos) picks it up instantly — no ACT button. The free food
+      // is a street bonus (cash + health), not cargo, so it works even while
+      // carrying a bag/can.
       function tryWalkOverSlice() {
         if (state !== "play" || p.stunT > 0) return;
         for (let i = 0; i < droppedSlices.length; i++) {
@@ -23408,7 +23489,7 @@
             heal(15);
             spawnBubble("+25 points", s.wx, s.wy, "score");
             Voice.say(
-              "Free Dollar Slice!",
+              s.food === "taco" ? "Free taco!" : "Free Dollar Slice!",
               1.2,
               1.4,
               p.wx,
@@ -29012,6 +29093,28 @@
           if (c.ghostCd > 0) c.ghostCd -= dt;
           if (c.rapCd > 0) c.rapCd -= dt; // the rapper's shove cooldown (Bed-Stuy mixtape) // the ghost's scare cooldown (cemetery)
           if (c.sliceDropCd > 0) c.sliceDropCd -= dt; // delivery-bike slice drop cooldown (Level 1)
+          // Maspeth (Queens, d4): the delivery guys DELIVER food — as they roll
+          // along they sometimes leave a pizza or a taco on the road just
+          // behind the bike, for the worker to pick up (+25 street cash + a bit
+          // of health, "Free Dollar Slice!" / "Free taco!"). Cooldown-gated so
+          // the street gets the occasional drop, not a conveyor belt.
+          if (c.isDelivery && isQueensLevel()) {
+            c.foodCd = (c.foodCd || R(5, 10)) - dt;
+            if (c.foodCd <= 0) {
+              c.foodCd = R(9, 16);
+              if (
+                (c.curSp || 0) > 0.5 &&
+                droppedSlices.length < 5 &&
+                Math.random() < 0.8
+              ) {
+                spawnDroppedSlice(
+                  c.wx - (c.curSp || 0) * 0.5, // just behind the bike, on the road
+                  c.wy,
+                  Math.random() < 0.4 ? "taco" : "pizza",
+                );
+              }
+            }
+          }
           const tx = c.wx - p.wx;
           // PUNCHBACK SCARE-OFF: a punched NPC bolts AWAY from the worker at ~7 u/s for
           // 5s - this preempts the type's own AI for those frames (the legs keep pumping
