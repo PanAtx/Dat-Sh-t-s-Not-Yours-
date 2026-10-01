@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.356</div>
+          <div id="app-version" class="menu-version">v1.0.357</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.356';
+      const APP_VERSION = '1.0.357';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -24139,7 +24139,7 @@
           type = "cash";
           voice = "Street cash!";
         } else {
-          let tKind = (Math.random() * 64) | 0; // 64 distinct street treasures (kinds 0-37 + 43-67)
+          let tKind = (Math.random() * 63) | 0; // 63 distinct street treasures (kinds 0-37 + 43-67)
           if (tKind >= 38) tKind += 5; // remap 38-62 -> 43-67; kinds 38-42 stay cemetery-exclusive
           g = makeTreasure(tKind);
           val = 50 + 25 * ((Math.random() * 9) | 0); // every treasure is worth $50-$250 in $25 steps

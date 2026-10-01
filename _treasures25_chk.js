@@ -1,8 +1,8 @@
-// _treasures25_chk.js — smoke-test the 25 new street-treasure kinds (42-66) added
+// _treasures25_chk.js — smoke-test the 25 new street-treasure kinds (43-67) added
 // to makeTreasure(): everything builds, grounded (z >= 0), footprint inside the
 // pickup radius (1.8), no undefined materials, every kind has a spoken name, and
-// the spawnBonus draw now covers all 63 street kinds without ever landing on the
-// cemetery-exclusive kinds 38-41.
+// the spawnBonus draw now covers all 64 street kinds without ever landing on the
+// cemetery-exclusive kinds 38-42.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -67,8 +67,8 @@ function stats(g) {
   return { meshes, minZ, maxR, badMat };
 }
 
-console.log('makeTreasure(kinds 42-66) — the 25 new street finds:');
-for (let k = 42; k <= 66; k++) {
+console.log('makeTreasure(kinds 43-67) — the 25 new street finds:');
+for (let k = 43; k <= 67; k++) {
   let worst = { meshes: 1e9, minZ: 0, maxR: -1, badMat: false };
   for (let run = 0; run < 3; run++) {  // 3 runs to sample the R() jitter
     const s = stats(makeTreasure(k));
@@ -90,15 +90,15 @@ console.log('spawnBonus draw (10k samples):');
   let min = 999, max = -1, bad = 0;
   for (let i = 0; i < 10000; i++) {
     let tKind = (Math.random() * 63) | 0; // same logic as index.html spawnBonus
-    if (tKind >= 38) tKind += 4;
+    if (tKind >= 38) tKind += 5;
     min = Math.min(min, tKind);
     max = Math.max(max, tKind);
-    if (tKind >= 38 && tKind <= 41) bad++;            // cemetery-exclusive kinds must never spawn on the street
-    if (tKind < 0 || tKind > 66) bad++;             // nothing out of range
+    if (tKind >= 38 && tKind <= 42) bad++;            // cemetery-exclusive kinds must never spawn on the street
+    if (tKind < 0 || tKind > 67) bad++;             // nothing out of range
   }
-  check('range covered: min ' + min + ' / max ' + max, min === 0 && max === 66);
-  check('zero samples on cemetery kinds 38-41', bad === 0);
-  // runtime guard: the remap (tKind += 4) reassigns tKind, so it MUST be `let` —
+  check('range covered: min ' + min + ' / max ' + max, min === 0 && max === 67);
+  check('zero samples on cemetery kinds 38-42', bad === 0);
+  // runtime guard: the remap (tKind += 5) reassigns tKind, so it MUST be `let` —
   // `const tKind` throws "Assignment to constant variable" the moment a draw hits 38+
   check(
     'index.html spawnBonus declares tKind with let (const would throw on the remap)',
@@ -106,5 +106,5 @@ console.log('spawnBonus draw (10k samples):');
   );
 }
 
-console.log(ok ? 'TREASURES 42-66 ALL CHECKS PASS' : 'TREASURES 42-66 FAILURES');
+console.log(ok ? 'TREASURES 43-67 ALL CHECKS PASS' : 'TREASURES 43-67 FAILURES');
 process.exit(ok ? 0 : 1);

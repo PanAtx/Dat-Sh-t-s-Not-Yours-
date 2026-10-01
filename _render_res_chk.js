@@ -45,7 +45,7 @@ check(
   (() => {
     const i = h.indexOf('window.addEventListener("resize"');
     if (i < 0) return false;
-    const seg = h.slice(i, i + 400);
+    const seg = h.slice(i, i + 600);
     return seg.indexOf("applyRenderSize();") >= 0 && seg.indexOf("renderer.setSize(innerWidth, innerHeight)") === -1;
   })()
 );

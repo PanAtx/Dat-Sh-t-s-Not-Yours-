@@ -52,8 +52,9 @@ check('bodega cat not in npcCounts (spawned separately on Manhattan)', npcCounts
 // The cap is a CEILING (never a floor): quiet days keep less, busy days are reduced down.
 // Level-SPECIFIC two-wheeler scenes survive the cap: Gramercy Park (d1) keeps 3
 // cyclists; Bronx (d2) swaps the tricycle for 1 moto + 1 e-bike; Maspeth (d4), the
-// real-world cycling hub, runs 2 cyclists + 1 e-bike + 1 moto. Every other day is
-// quiet: 1 car / 1 e-scooter, no bikes/motos/e-bikes, 0 rc / 0 street tricycles.
+// real-world cycling hub, runs 2 pizza-delivery couriers + 1 moto (the couriers
+// ARE the bikes — no generic e-bike). Every other day is quiet: 1 car / 1
+// e-scooter, no bikes/motos/e-bikes, 0 rc / 0 street tricycles.
 const CAP_CEIL = { car: 1, bike: 3, escooter: 1, moto: 1, ebike: 1, rc: 0, tric: 0 };
 check('no level runs more road traffic than the cap ceiling (car/escooter/moto/ebike <= 1, bike <= 3, rc/tric = 0)',
   [1, 2, 3, 4, 5, 6, 7].every(d => Object.keys(CAP_CEIL).every(k => npcCounts(d)[k] <= CAP_CEIL[k])));
@@ -63,9 +64,9 @@ check('d1 (Gramercy Park) keeps its busier uptown bike scene (3 cyclists, 1 car/
   npcCounts(1).bike === 3 && npcCounts(1).car === 1 && npcCounts(1).escooter === 1 && npcCounts(1).moto === 0 && npcCounts(1).ebike === 0 && npcCounts(1).rc === 0 && npcCounts(1).tric === 0);
 [3, 5, 6, 7].forEach(d => check('day ' + d + ' stays quiet (1 car/escooter, 0 bike/moto/ebike, 0 rc/tric)',
   npcCounts(d).car === 1 && npcCounts(d).escooter === 1 && npcCounts(d).bike === 0 && npcCounts(d).moto === 0 && npcCounts(d).ebike === 0 && npcCounts(d).rc === 0 && npcCounts(d).tric === 0));
-// ---- Maspeth (Queens, d4): the real-world cycling hub — 2 cyclists + 1 e-bike + 1 moto ----
-check('Maspeth (d4) runs a two-wheeled scene (2 cyclists + 1 e-bike + 1 moto, 1 car/escooter, 0 rc/tric)',
-  npcCounts(4).bike === 2 && npcCounts(4).ebike === 1 && npcCounts(4).moto === 1 && npcCounts(4).car === 1 && npcCounts(4).escooter === 1 && npcCounts(4).rc === 0 && npcCounts(4).tric === 0,
+// ---- Maspeth (Queens, d4): the real-world cycling hub — 2 pizza-delivery couriers + 1 moto ----
+check('Maspeth (d4) runs a two-wheeled scene (2 pizza-delivery couriers + 1 moto, no e-bike, 1 car/escooter, 0 rc/tric)',
+  npcCounts(4).bike === 2 && npcCounts(4).ebike === 0 && npcCounts(4).moto === 1 && npcCounts(4).car === 1 && npcCounts(4).escooter === 1 && npcCounts(4).rc === 0 && npcCounts(4).tric === 0,
   'bike=' + npcCounts(4).bike + ' ebike=' + npcCounts(4).ebike + ' moto=' + npcCounts(4).moto);
 check('Maspeth two-wheeler scene only touches d4 (d3/d5/d6/d7 stay 0 for bike/moto/ebike)',
   [3, 5, 6, 7].every(d => npcCounts(d).bike === 0 && npcCounts(d).moto === 0 && npcCounts(d).ebike === 0));
@@ -79,10 +80,10 @@ check('cap/cut never touches the untouched types on d1/d6 (rat/dogwalker/yeller/
 // ---- Bronx (d2): the kid's tricycle is swapped for real two-wheelers — 1 moto + 1 e-bike ----
 check('Bronx (d2) spawns 1 moto + 1 e-bike (two-wheeled traffic instead of the tricycle)',
   npcCounts(2).moto === 1 && npcCounts(2).ebike === 1, 'moto=' + npcCounts(2).moto + ' ebike=' + npcCounts(2).ebike);
-check('Bronx two-wheeler override only touches d2 (d1 stays at 0; d3/d5/d6/d7 stay quiet at 0; only d4 = Maspeth is also 1)',
+check('Bronx two-wheeler override only touches d2 (d1 stays at 0; d3/d5/d6/d7 stay quiet at 0; only d4 = Maspeth also runs a moto, no e-bike)',
   npcCounts(1).moto === 0 && npcCounts(1).ebike === 0 &&
   [3, 5, 6, 7].every(d => npcCounts(d).moto === 0 && npcCounts(d).ebike === 0) &&
-  npcCounts(4).moto === 1 && npcCounts(4).ebike === 1);
+  npcCounts(4).moto === 1 && npcCounts(4).ebike === 0);
 // ---- Bronx (d2): no breakers on these streets ----
 check('Bronx (d2) has no breaker (npcCounts(2).breaker === 0)', npcCounts(2).breaker === 0, 'breaker=' + npcCounts(2).breaker);
 // ---- Queens/Maspeth (d4): the isQueensLevel gate zeroes breakers entirely ----

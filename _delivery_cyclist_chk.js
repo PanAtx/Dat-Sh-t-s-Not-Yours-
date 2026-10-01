@@ -10,8 +10,8 @@ function check(n, c, e) {
 }
 
 // ---- the courier's look: makeBicycle(eBike, isDelivery) + red pizza bag ----------
-check('makeBicycle accepts an isDelivery flag (red courier jersey)',
-  /function makeBicycle\(eBike, isDelivery\)/.test(h) &&
+check('makeBicycle accepts an isDelivery flag (red courier jersey + hi-vis vest on Queens)',
+  /function makeBicycle\(eBike, isDelivery, hiVis\)/.test(h) &&
   /shirt: isDelivery \? 0xe8752a :/.test(h));
 check('makeBicycle mounts a red pizza bag + rack + white logo on the delivery build',
   (function(){
@@ -27,7 +27,7 @@ check('delivery courier spawns on day 1 (level === 1) as a flagged bike',
 check('normal bikes are SPREAD along the street (nBikes * 24), no more pack bunching',
   /const nBikes = creatures\.filter\(\(o\) => o\.type === "bike"\)\.length;\s*c\.wx = p\.wx \+ nBikes \* 24 \+ R\(0, 10\);/.test(h));
 check('the courier gets a longer hitbox for the pizza bag',
-  /if \(c\.isDelivery\) c\.boxL = 0\.8;/.test(h));
+  /if \(isDeliv\) c\.boxL = 0\.8;/.test(h));
 
 // ---- the mascot behavior: throttle + bell ----------------------------------------
 check('courier slams the throttle (2.2x) only when the worker is within 12u',
@@ -64,7 +64,7 @@ check('WRITEUP_REASONS has a "delivery" entry (courier lines)',
   const grab = (name) => { const s = h.indexOf('const ' + name + ' ='); return h.slice(s, h.indexOf('};', s) + 2); };
   const fn = h.slice(
     h.indexOf('function npcCounts('),
-    h.indexOf('}\r\n', h.indexOf('return c;', h.indexOf('function npcCounts('))) + 3,
+    h.indexOf('}\n', h.indexOf('return c;', h.indexOf('function npcCounts('))) + 2,
   );
   eval(
     grab('BASE_NPC_COUNTS').replace('const', 'var') + ';' +
