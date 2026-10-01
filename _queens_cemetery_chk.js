@@ -7,7 +7,8 @@
 //   - addCreature case "ghost" + case "raven" + ghostified cemetery homeowner
 //   - updateCreatures case "ghost" (fade-in, drift, float, creepy lines, roam the STREET +
 //     CURB + SIDEWALK in front of the fence — NEVER the graveyard)
-//     + case "raven" (circling the sky -> diving onto the worker's head -> climbing back)
+//     + case "raven" (circling the sky -> diving onto the worker's head -> climbing back
+//     -> the ONE-TIME heirloom-ring swoop: "Caw! Mine!", the ring is removed for good)
 //     + ghost spawner timer
 //   - collideCreatures ghost branch (scare + HP drain, NOT solid, cooldown)
 //   - worker fence clamp (impassable) + front & side fence (open green back, corners cornered)
@@ -192,6 +193,12 @@ check(
   cemBlock.indexOf('RAVEN_PERCH = { x: per.x, y: per.y, top: per.top }') >= 0
 );
 check(
+  'the HEIRLOOM ring (kind 42) rests on the raven perch headstone, recorded for the raven to grab',
+  cemBlock.indexOf('const heirloom = makeTreasure(42)') >= 0 &&
+    cemBlock.indexOf('RAVEN_PERCH.ring = heirloom') >= 0 &&
+    cemBlock.indexOf('RAVEN_PERCH.ringBase =') >= 0
+);
+check(
   'the fence runs along the sidewalk (front, BLOCK_W) + both sides (CEM_BACK_Y-CEM_FENCE_Y, parallel to the cross street) — the BACK is open green grass (no back wall)',
   cemBlock.indexOf('const fence = makeCemeteryFence(BLOCK_W)') >= 0 &&
     cemBlock.indexOf('const sideLen = CEM_BACK_Y - CEM_FENCE_Y') >= 0 &&
@@ -341,18 +348,20 @@ check(
 const mtEnd = src.indexOf('// ==================== HOUSES, MAILBOXES, TREES');
 const treasureSec = src.slice(src.indexOf('function makeTreasure('), mtEnd > 0 ? mtEnd : undefined);
 check(
-  'makeTreasure has ghostly kinds 38 (gold ring), 39 (pocket watch), 40 (gold coins), 41 (gold tooth)',
+  'makeTreasure has ghostly kinds 38 (gold ring), 39 (pocket watch), 40 (gold coins), 41 (gold tooth), 42 (heirloom ring)',
   treasureSec.indexOf('kind === 38') >= 0 &&
     treasureSec.indexOf('kind === 39') >= 0 &&
     treasureSec.indexOf('kind === 40') >= 0 &&
-    treasureSec.indexOf('kind === 41') >= 0
+    treasureSec.indexOf('kind === 41') >= 0 &&
+    treasureSec.indexOf('kind === 42') >= 0
 );
 check(
   'TREASURE_NAMES names the ghostly finds',
   src.indexOf('38: "Ghostly gold ring!"') >= 0 &&
     src.indexOf('39: "Ghostly pocket watch!"') >= 0 &&
     src.indexOf('40: "Ghostly gold coins!"') >= 0 &&
-    src.indexOf('41: "Ghostly gold tooth!"') >= 0
+    src.indexOf('41: "Ghostly gold tooth!"') >= 0 &&
+    src.indexOf('42: "Ghostly heirloom ring!"') >= 0
 );
 check(
   'gold tooth is a SINGLE molar (crown + tapered root), not a cluster of teeth',
@@ -368,9 +377,9 @@ const sGT = (() => {
   }
 })();
 check(
-  'spawnGhostTreasure: floating LOW (baseLift 0.15, hugging the ground), $300-$600 in $50 steps, type "treasure", kinds 38/39/40/41',
+  'spawnGhostTreasure: floating LOW (baseLift 0.15, hugging the ground), $300-$600 in $50 steps, type "treasure", kinds 38/39/40/41/42',
   sGT.length > 0 &&
-    sGT.indexOf('pick([38, 39, 40, 41])') >= 0 &&
+    sGT.indexOf('pick([38, 39, 40, 41, 42])') >= 0 &&
     sGT.indexOf('const baseLift = 0.15') >= 0 &&
     sGT.indexOf('baseLift: baseLift') >= 0 &&
     sGT.indexOf('val: 300 + 50 * ((Math.random() * 7) | 0)') >= 0 &&
@@ -754,7 +763,7 @@ check(
   (() => {
     const i = addSec.indexOf('case "raven":');
     if (i < 0) return false;
-    const sec = addSec.slice(i, i + 1400);
+    const sec = addSec.slice(i, i + 1700);
     return (
       sec.indexOf('c.data = makeRaven()') >= 0 &&
       sec.indexOf('c.ravState = "circling"') >= 0 &&
@@ -768,7 +777,7 @@ check(
   (() => {
     const i = src.indexOf('case "raven": {');
     if (i < 0) return false;
-    const sec = src.slice(i, i + 4600);
+    const sec = src.slice(i, i + 7000);
     return (
       sec.indexOf('c.ravState === "circling"') >= 0 &&
       sec.indexOf('c.ravState === "diving"') >= 0 &&
@@ -783,7 +792,7 @@ check(
   (() => {
     const i = src.indexOf('case "raven": {');
     if (i < 0) return false;
-    const sec = src.slice(i, i + 4600);
+    const sec = src.slice(i, i + 7000);
     return (
       sec.indexOf('if (!c.ravStruck && hd < 2.2)') >= 0 &&
       sec.indexOf('hurtNPC(HP_HIT_RAVEN, "raven")') >= 0 &&
@@ -1002,6 +1011,8 @@ console.log('[functional] raven AI (circling -> diving onto the head -> returnin
     ravStruck: false,
     ravT: 0,
     hopT: 0,
+    ravRingCd: 999, // the heirloom swoop is gated OFF in this phase
+    ravGrabbed: false,
     cirCx,
     cirCy: 1.5,
     cirRx: 30,
@@ -1028,12 +1039,13 @@ console.log('[functional] raven AI (circling -> diving onto the head -> returnin
     'HP_HIT_RAVEN',
     'R',
     'GZ',
+    'RAVEN_PERCH',
     'switch (c.type) {\n' + ravenCaseSrc + '\n}',
   );
   let diveSeen = false;
   let circledAgain = false;
   for (let i = 0; i < 900; i++) {
-    stepRaven(ravenC, 0.1, pR, 'play', VoiceR, stunR, hurtR, 4, R, GZ);
+    stepRaven(ravenC, 0.1, pR, 'play', VoiceR, stunR, hurtR, 4, R, GZ, null);
     if (ravenC.ravState === 'diving') diveSeen = true;
     if (i > 12 && ravenC.ravState === 'circling') {
       circledAgain = true;
@@ -1054,6 +1066,73 @@ console.log('[functional] raven AI (circling -> diving onto the head -> returnin
     'raven: CLIMBS BACK up to the sky and resumes circling (no repeat strike in one dive)',
     circledAgain && ravenC.ravState === 'circling' && ravenC.g.position.z > GZ + 4.0,
     'z=' + ravenC.g.position.z + ' state=' + ravenC.ravState
+  );
+
+  // Phase 2: the HEIRLOOM swoop - the raven dives down to the ring on the perch
+  // headstone and GRABS it ONCE ("Caw! Mine!"); the ring is removed from the scene.
+  check(
+    'raven source: the one-time heirloom grab exists (snatch -> "Caw! Mine!" -> parent.remove, RAVEN_PERCH.ring = null)',
+    src.indexOf('c.ravState = "snatch";') >= 0 &&
+      src.indexOf('"Caw! Mine!"') >= 0 &&
+      src.indexOf('heirloom.parent.remove(heirloom)') >= 0 &&
+      src.indexOf('RAVEN_PERCH.ring = null;') >= 0 &&
+      src.indexOf('c.ravGrabbed = true;') >= 0
+  );
+  const removedR = { v: false };
+  const ringR = {
+    position: { z: GZ + 1.73 + 0.12 },
+    rotation: { z: 0 },
+    parent: { remove: () => (removedR.v = true) },
+  };
+  const perchR = {
+    x: QUEENS_CEMETERY_X + 48,
+    y: 4.0,
+    top: 1.73,
+    ring: ringR,
+    ringBase: GZ + 1.73 + 0.12,
+  };
+  const recR2 = { hurt: 0, cause: null, said: [] };
+  const VoiceR2 = { say: (t) => recR2.said.push(t) };
+  const hurtR2 = (a, cause) => {
+    recR2.hurt++;
+    recR2.cause = cause;
+  };
+  const ravenC2 = Object.assign({}, ravenC, {
+    ravState: 'circling',
+    ravCd: 999, // no worker strike in this phase
+    ravRingCd: 0.05, // the heirloom swoop triggers on the first frame
+    ravGrabbed: false,
+    ravT: 0,
+    hopT: 0,
+    g: {
+      userData: { rav: { wingL: { rotation: {} }, wingR: { rotation: {} } } },
+      position: { z: GZ + 5.2 },
+      rotation: { z: 0 },
+    },
+  });
+  const pR2 = { wx: QUEENS_CEMETERY_X - 300, wy: 3 }; // the worker is far away - no strike
+  let snatchSeen = false;
+  for (let i = 0; i < 300; i++) {
+    stepRaven(ravenC2, 0.1, pR2, 'play', VoiceR2, stunR, hurtR2, 4, R, GZ, perchR);
+    if (ravenC2.ravState === 'snatch') snatchSeen = true;
+  }
+  check(
+    'raven: swoops down to the heirloom ring on the perch headstone (the "snatch" state)',
+    snatchSeen,
+    'states never left circling'
+  );
+  check(
+    'raven: GRABS the ring ONCE - "Caw! Mine!" + the ring is REMOVED from the scene (gone for good)',
+    recR2.said.indexOf('Caw! Mine!') >= 0 &&
+      removedR.v === true &&
+      perchR.ring === null &&
+      ravenC2.ravGrabbed === true,
+    'said=' + JSON.stringify(recR2.said) + ' removed=' + removedR.v
+  );
+  check(
+    'raven: the heirloom swoop does NOT strike the worker (no damage, no scare)',
+    recR2.hurt === 0,
+    'rec=' + JSON.stringify(recR2)
   );
 }
 

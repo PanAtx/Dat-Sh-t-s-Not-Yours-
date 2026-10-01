@@ -2615,7 +2615,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.342</div>
+          <div id="app-version" class="menu-version">v1.0.343</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2772,7 +2772,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.342';
+      const APP_VERSION = '1.0.343';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9332,6 +9332,44 @@
           root.position.z = 0.055; // below the crown; the tip points down (-Z)
           g.add(root);
         } else if (kind === 42) {
+          // ghostly heirloom — a DIAMOND & GOLD WEDDING RING, glowing in the
+          // cemetery light. A classic round brilliant-set ring: a glowing gold
+          // band (a thin torus standing upright) with a large pale-blue diamond
+          // on top (two cones tip-to-tip — a proper brilliant silhouette) held
+          // by four tiny gold prongs. It "came from a burial."
+          const ghG = MS(0xf5d76a, {
+            emissive: 0xd8a830,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.95,
+          });
+          const band = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.022, 10, 22), ghG);
+          band.position.z = 0.2; // the ring stands upright (torus plane = X-Y)
+          g.add(band);
+          // the diamond: two cones base-to-base at the top of the band
+          const dM = MS(0xd8f4ff, {
+            emissive: 0x86d6ff,
+            emissiveIntensity: 0.9,
+            transparent: true,
+            opacity: 0.95,
+          });
+          const dTop = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.055, 6), dM);
+          dTop.rotation.x = Math.PI / 2; // apex points up (Z)
+          dTop.position.z = 0.2 + 0.15 + 0.027;
+          g.add(dTop);
+          const dBot = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.05, 6), dM);
+          dBot.rotation.x = -Math.PI / 2; // apex points DOWN (into the prongs)
+          dBot.position.z = 0.2 + 0.15 - 0.025;
+          g.add(dBot);
+          // four gold prongs holding the stone
+          for (let pi = 0; pi < 4; pi++) {
+            const a = (pi * Math.PI) / 2 + Math.PI / 4;
+            const pr = CY(0.008, 0.008, 0.04, ghG, 6);
+            pr.rotation.x = Math.PI / 2;
+            pr.position.set(Math.cos(a) * 0.045, Math.sin(a) * 0.045, 0.2 + 0.15 - 0.005);
+            g.add(pr);
+          }
+        } else if (kind === 43) {
           // vintage stamp collection in an open album
           const page = BX(1.1, 0.85, 0.02, M(0xe8e2cf));
           page.position.set(0, 0, 0.01);
@@ -9347,7 +9385,7 @@
               g.add(st);
             }
           }
-        } else if (kind === 43) {
+        } else if (kind === 44) {
           // mason jar stuffed with old pennies
           const glassM = new THREE.MeshLambertMaterial({ color: 0xcfe4e8, transparent: true, opacity: 0.35 });
           const jar = CY(0.24, 0.26, 0.55, glassM, 14);
@@ -9373,7 +9411,7 @@
           spill2.rotation.x = Math.PI / 2;
           spill2.position.set(-0.42, -0.25, 0.01);
           g.add(spill2);
-        } else if (kind === 44) {
+        } else if (kind === 45) {
           // worn wooden chess set, mid-game
           const board = BX(1.0, 1.0, 0.06, M(0x6a4a26));
           board.position.z = 0.03;
@@ -9407,7 +9445,7 @@
           p2.rotation.x = Math.PI / 2;
           p2.position.set(-0.2, 0.35, 0.125);
           g.add(p2);
-        } else if (kind === 45) {
+        } else if (kind === 46) {
           // a 1987 NES cartridge
           const cart = BX(0.5, 0.6, 0.12, M(0x4a4a4a));
           cart.position.z = 0.06;
@@ -9429,7 +9467,7 @@
           const logo2 = BX(0.14, 0.05, 0.006, M(0xc44b4b));
           logo2.position.set(0, -0.08, 0.137);
           g.add(logo2);
-        } else if (kind === 46) {
+        } else if (kind === 47) {
           // an etch-a-sketch
           const frame = BX(0.9, 0.7, 0.1, M(0xc43a2a));
           frame.position.z = 0.05;
@@ -9444,7 +9482,7 @@
             kb.position.set(-0.28 + i * 0.28, -0.22, 0.13);
             g.add(kb);
           }
-        } else if (kind === 47) {
+        } else if (kind === 48) {
           // a wind-up tin robot
           const tinM = M(0xd8a84a),
             tinD = M(0x8a6a2a);
@@ -9490,7 +9528,7 @@
           const tip = SP(0.02, MS(0xf5d76a));
           tip.position.z = 0.95;
           g.add(tip);
-        } else if (kind === 48) {
+        } else if (kind === 49) {
           // a sealed hot wheels in blister
           const card = BX(0.5, 0.7, 0.03, M(0xc42a2a));
           card.position.z = 0.015;
@@ -9513,7 +9551,7 @@
           wb2.rotation.z = Math.PI / 2;
           wb2.position.set(0.1, -0.1, 0.045);
           g.add(wb2);
-        } else if (kind === 49) {
+        } else if (kind === 50) {
           // a first-edition-looking harry potter
           const back = BX(0.35, 0.5, 0.02, M(0x2a4a2a));
           back.position.set(0, 0, 0.02);
@@ -9530,7 +9568,7 @@
           const bolt2 = BX(0.03, 0.1, 0.006, M(0xf5d76a));
           bolt2.position.set(-0.02, -0.1, 0.153);
           g.add(bolt2);
-        } else if (kind === 50) {
+        } else if (kind === 51) {
           // a vintage gold watch
           const strap = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.032, 8, 20), MS(0xc0c8d0));
           strap.position.z = 0.092;
@@ -9549,7 +9587,7 @@
           const hand2 = BX(0.008, 0.04, 0.004, M(0x1a1a1a));
           hand2.position.set(-0.015, -0.01, 0.117);
           g.add(hand2);
-        } else if (kind === 51) {
+        } else if (kind === 52) {
           // a rolled-up set of silver flatware
           const rollM = M(0xe8e2cf);
           const roll = CY(0.12, 0.12, 0.5, rollM, 12);
@@ -9572,7 +9610,7 @@
             tn.position.set(-0.56, -0.015 + i * 0.015, 0.12);
             g.add(tn);
           }
-        } else if (kind === 52) {
+        } else if (kind === 53) {
           // a hummel porcelain figurine
           const base = CY(0.14, 0.17, 0.04, M(0x8a6a4a), 14);
           base.rotation.x = Math.PI / 2;
@@ -9602,7 +9640,7 @@
           const tuft = SP(0.03, M(0x8a6a4a));
           tuft.position.set(0, 0.07, 0.7);
           g.add(tuft);
-        } else if (kind === 53) {
+        } else if (kind === 54) {
           // a box of toy soldiers
           const tray = BX(0.84, 0.32, 0.04, M(0x6a4a26));
           tray.position.z = 0.02;
@@ -9625,7 +9663,7 @@
             rf.position.set(sx + 0.08, 0, 0.14); // rifle held upright
             g.add(rf);
           }
-        } else if (kind === 54) {
+        } else if (kind === 55) {
           // a brass navigation compass
           const brass = MS(0xb8963a);
           const ft1 = CY(0.02, 0.02, 0.07, brass, 8);
@@ -9654,7 +9692,7 @@
           bow.rotation.y = Math.PI / 2; // carry ring stands up (YZ plane)
           bow.position.set(0, 0.2, 0.1);
           g.add(bow);
-        } else if (kind === 55) {
+        } else if (kind === 56) {
           // an antique typewriter
           const base = BX(0.5, 0.4, 0.08, M(0x2a2a2a));
           base.position.z = 0.04;
@@ -9678,7 +9716,7 @@
           paper.position.set(0, 0.12, 0.48);
           paper.rotation.z = 0.08;
           g.add(paper);
-        } else if (kind === 56) {
+        } else if (kind === 57) {
           // a stack of rare vinyl records
           const slv = [0xc44b4b, 0x4b6fc4, 0xd4a03c];
           for (let i = 0; i < 3; i++) {
@@ -9691,7 +9729,7 @@
             disc.rotation.y = -0.18 + i * 0.22;
             g.add(disc);
           }
-        } else if (kind === 57) {
+        } else if (kind === 58) {
           // a vintage snow globe
           const base = CY(0.18, 0.24, 0.1, M(0x6a4a26), 14);
           base.rotation.x = Math.PI / 2;
@@ -9728,7 +9766,7 @@
             fl.position.set(sp[0], sp[1], sp[2]);
             g.add(fl);
           }
-        } else if (kind === 58) {
+        } else if (kind === 59) {
           // an antique music box with a ballerina
           const mbox = BX(0.5, 0.35, 0.16, M(0x5a3a1a));
           mbox.position.z = 0.08;
@@ -9755,7 +9793,7 @@
           const knob = SP(0.025, MS(0xb8963a), 8);
           knob.position.set(-0.38, 0, 0.08);
           g.add(knob);
-        } else if (kind === 59) {
+        } else if (kind === 60) {
           // a brass pocket knife, half-open
           const handle = BX(0.5, 0.08, 0.04, M(0x6a4a26));
           handle.position.set(-0.05, 0, 0.02);
@@ -9768,7 +9806,7 @@
           // no rotation: hinge axis stays along Y (horizontal), knife lies flat
           pivot.position.set(0.1, 0, 0.02);
           g.add(pivot);
-        } else if (kind === 60) {
+        } else if (kind === 61) {
           // an english china tea set
           const silver = MS(0xc0c8d0);
           const plate = CY(0.19, 0.22, 0.02, M(0xf5f2e8), 18);
@@ -9797,7 +9835,7 @@
           cup.rotation.x = Math.PI / 2;
           cup.position.set(0.26, 0, 0.035); // sits on the ground
           g.add(cup);
-        } else if (kind === 61) {
+        } else if (kind === 62) {
           // binoculars in a leather case
           const caseB = BX(0.45, 0.6, 0.12, M(0x4a3a2a));
           caseB.position.z = 0.06;
@@ -9818,7 +9856,7 @@
           const bridge = BX(0.06, 0.3, 0.08, binM);
           bridge.position.set(0.35, 0, 0.12);
           g.add(bridge);
-        } else if (kind === 62) {
+        } else if (kind === 63) {
           // an old-school skateboard lying FLAT on the ground: the deck's
           // length runs along Y (horizontal), its thickness is in Z, the
           // trucks sit under the deck, and the four wheels touch the ground.
@@ -9845,7 +9883,7 @@
             wh.position.set(wp[0], wp[1], 0.04);
             g.add(wh);
           }
-        } else if (kind === 63) {
+        } else if (kind === 64) {
           // a 1950s cash register
           const body = BX(0.5, 0.5, 0.35, MS(0xc0c8d0));
           body.position.z = 0.175;
@@ -9874,7 +9912,7 @@
           // no rotation: knob axis along Y, protruding from the drawer front
           dknob.position.set(0, -0.15, 0.055);
           g.add(dknob);
-        } else if (kind === 64) {
+        } else if (kind === 65) {
           // a vintage model airplane, resting on the ground like an airplane
           // would: fuselage HORIZONTAL (axis along Y, nose at +Y), the wings
           // level and perpendicular to the fuselage (span across X), a vertical
@@ -9905,7 +9943,7 @@
           st2.rotation.z = Math.PI / 2;
           st2.position.set(0.12, 0.1, 0.05);
           g.add(st2);
-        } else if (kind === 65) {
+        } else if (kind === 66) {
           // a 1970s lava lamp
           const base = CY(0.1, 0.16, 0.14, M(0x2a2a2a), 14);
           base.rotation.x = Math.PI / 2;
@@ -9927,7 +9965,7 @@
           cap.rotation.x = Math.PI / 2;
           cap.position.z = 0.58;
           g.add(cap);
-        } else if (kind === 66) {
+        } else if (kind === 67) {
           // a kodak box brownie camera
           const box = BX(0.55, 0.35, 0.12, MS(0xb8963a));
           box.position.z = 0.06;
@@ -10284,6 +10322,16 @@
         // then glides back), so we only record the perch spot here.
         const per = stones[(Math.random() * stones.length) | 0];
         RAVEN_PERCH = { x: per.x, y: per.y, top: per.top };
+        // The HEIRLOOM: a glowing diamond-and-gold wedding ring (kind 42) resting
+        // on the raven's perch headstone. The raven swoops down and GRABS it once
+        // ("Caw! Mine!") — the cemetery's lost love, carried off into the sky.
+        const heirloom = makeTreasure(42);
+        heirloom.position.set(per.x, per.y, GZ + per.top + 0.12);
+        heirloom.scale.setScalar(0.9);
+        heirloom.rotation.z = Math.random() * Math.PI * 2;
+        g.add(heirloom);
+        RAVEN_PERCH.ring = heirloom;
+        RAVEN_PERCH.ringBase = GZ + per.top + 0.12;
         return g;
       }
       // ==================== MASPETH STREET GHOSTS (arms / headstones / skulls) ====================
@@ -19597,6 +19645,8 @@
             c.ravState = "circling";
             c.ravCd = 3.0; // breather before the first dive
             c.ravStruck = false; // one hit per dive
+            c.ravGrabbed = false; // the heirloom ring: grabbed at most ONCE
+            c.ravRingCd = 8.0; // breather before the heirloom swoop
             c.ravT = 0; // phase timer within the current state
             c.hopT = 0; // wing-flap phase
             // the circling orbit above the street + sidewalk band (in front of the fence)
@@ -23617,32 +23667,33 @@
         39: "Ghostly pocket watch!",
         40: "Ghostly gold coins!",
         41: "Ghostly gold tooth!",
-        // --- the 2025 street finds: vintage collectibles (kinds 42-66) ---
-        42: "Vintage stamps!",
-        43: "Wheat-penny jar!",
-        44: "Chess set!",
-        45: "Zelda cartridge!",
-        46: "Etch A Sketch!",
-        47: "Tin robot!",
-        48: "Sealed Hot Wheels!",
-        49: "Harry Potter!",
-        50: "Rolex watch!",
-        51: "Silver flatware!",
-        52: "Hummel figurine!",
-        53: "Toy soldiers!",
-        54: "Brass compass!",
-        55: "Old typewriter!",
-        56: "Rare vinyl records!",
-        57: "Snow globe!",
-        58: "Music box!",
-        59: "Pocket knife!",
-        60: "English china!",
-        61: "Brass binoculars!",
-        62: "Old-school skateboard!",
-        63: "Vintage cash register!",
-        64: "Model airplane!",
-        65: "Lava lamp!",
-        66: "Kodak Brownie!",
+        42: "Ghostly heirloom ring!",
+        // --- the 2025 street finds: vintage collectibles (kinds 43-67) ---
+        43: "Vintage stamps!",
+        44: "Wheat-penny jar!",
+        45: "Chess set!",
+        46: "Zelda cartridge!",
+        47: "Etch A Sketch!",
+        48: "Tin robot!",
+        49: "Sealed Hot Wheels!",
+        50: "Harry Potter!",
+        51: "Rolex watch!",
+        52: "Silver flatware!",
+        53: "Hummel figurine!",
+        54: "Toy soldiers!",
+        55: "Brass compass!",
+        56: "Old typewriter!",
+        57: "Rare vinyl records!",
+        58: "Snow globe!",
+        59: "Music box!",
+        60: "Pocket knife!",
+        61: "English china!",
+        62: "Brass binoculars!",
+        63: "Old-school skateboard!",
+        64: "Vintage cash register!",
+        65: "Model airplane!",
+        66: "Lava lamp!",
+        67: "Kodak Brownie!",
       };
       // The named mongo scrap the worker hauls in — each is spoken + shown under "MONGO!".
       const MONGO_NAMES = {
@@ -23671,13 +23722,13 @@
           type = "cash";
           voice = "Street cash!";
         } else {
-          let tKind = (Math.random() * 63) | 0; // 63 distinct street treasures (kinds 0-37 + 42-66)
-          if (tKind >= 38) tKind += 4; // remap 38-62 -> 42-66; kinds 38-41 stay cemetery-exclusive
+          let tKind = (Math.random() * 64) | 0; // 64 distinct street treasures (kinds 0-37 + 43-67)
+          if (tKind >= 38) tKind += 5; // remap 38-62 -> 43-67; kinds 38-42 stay cemetery-exclusive
           g = makeTreasure(tKind);
           val = 50 + 25 * ((Math.random() * 9) | 0); // every treasure is worth $50-$250 in $25 steps
           type = "treasure";
           // kind 2 (easel painting) is always a "masterpiece" of a famous painter;
-          // every other find is announced by what it actually is (all 37 others are named)
+          // every other find is announced by what it actually is (all others are named)
           if (tKind === 2)
             voice = pick([
               "Picasso!",
@@ -23706,12 +23757,12 @@
           lift: lift,
         });
       }
-      // Ghostly treasure (the Maspeth cemetery's ONLY finds): kinds 38/39/40, floating
+      // Ghostly treasure (the Maspeth cemetery's ONLY finds): kinds 38-42, floating
       // IN THE AIR just behind the iron fence. It bobs up and down (updateBonuses),
       // and the worker can grab it from the sidewalk — his 1.8u pickup radius reaches
       // across the fence gap even though he himself can't get past the fence line.
       function spawnGhostTreasure(wx, wy, kind) {
-        const k = kind != null ? kind : pick([38, 39, 40, 41]);
+        const k = kind != null ? kind : pick([38, 39, 40, 41, 42]);
         const g = makeTreasure(k);
         // Floating, but LOW — hugging the ground so it reads as a spectral find
         // drifting just off the street/sidewalk (not high in the air). The group's
@@ -30441,6 +30492,20 @@
                 rdy = p.wy - c.wy;
               const rd = Math.hypot(rdx, rdy); // horizontal distance to the worker
               const headZ = GZ + 1.7; // the top of the worker's head
+              // The HEIRLOOM ring rests on the raven's perch headstone: it hovers
+              // and spins while the raven flies, and the raven swoops down to
+              // GRAB it once ("Caw! Mine!") — after that it's gone for good.
+              const heirloom = RAVEN_PERCH ? RAVEN_PERCH.ring : null;
+              if (heirloom && !c.ravGrabbed) {
+                c.ringT = (c.ringT || 0) + dt;
+                heirloom.position.z = RAVEN_PERCH.ringBase + Math.sin(c.ringT * 1.4) * 0.05;
+                heirloom.rotation.z += dt * 0.9; // slow spin
+              }
+              c.ravRingCd = c.ravRingCd > 0 ? c.ravRingCd - dt : 0;
+              if (heirloom && !c.ravGrabbed && state === "play" && c.ravRingCd <= 0 && c.ravState === "circling") {
+                c.ravState = "snatch";
+                c.ravT = 0;
+              }
               if (c.ravState === "circling") {
                 // circle the sky above the street + sidewalk band
                 c.cirAngle += dt * 0.45;
@@ -30462,6 +30527,41 @@
                   c.ravState = "diving";
                   c.ravStruck = false;
                   c.ravT = 0;
+                }
+              } else if (c.ravState === "snatch") {
+                // the HEIRLOOM swoop: dive down to the ring on the perch headstone
+                const rx = RAVEN_PERCH.x - c.wx,
+                  ry = RAVEN_PERCH.y - c.wy,
+                  rz = heirloom.position.z - (c.g ? c.g.position.z : c.cirZ);
+                const sd = Math.hypot(rx, ry, rz);
+                c.ravT += dt;
+                c.hopT += dt;
+                if (sd > 0.3) {
+                  c.wx += (rx / sd) * c.sp * dt;
+                  c.wy += (ry / sd) * c.sp * dt;
+                  if (c.g) c.g.position.z += (rz / sd) * c.sp * dt;
+                }
+                c.dir = rx >= 0 ? 1 : -1;
+                if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+                if (RAV) {
+                  const f = Math.sin(c.hopT * 26) * 0.9; // frantic flap
+                  RAV.wingL.rotation.y = 0.3 + f;
+                  RAV.wingR.rotation.y = -0.3 - f;
+                }
+                if (sd < 0.8) {
+                  if (heirloom && !c.ravGrabbed) {
+                    c.ravGrabbed = true;
+                    if (heirloom.parent) heirloom.parent.remove(heirloom);
+                    RAVEN_PERCH.ring = null;
+                    Voice.say("Caw! Mine!", 1.2, 1.4, c.wx, c.wy, "male", "raven");
+                  }
+                  c.ravState = "returning";
+                  c.ravT = 0;
+                } else if (c.ravT > 2.5) {
+                  // never reached the ring - climb back and try again a little later
+                  c.ravState = "returning";
+                  c.ravT = 0;
+                  c.ravRingCd = 6.0;
                 }
               } else if (c.ravState === "diving") {
                 // DIVES straight down onto the worker's head, wings beating hard
