@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.347</div>
+          <div id="app-version" class="menu-version">v1.0.348</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.347';
+      const APP_VERSION = '1.0.348';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -22418,6 +22418,7 @@
         camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; camXSmooth = 0; // fresh shift starts at the truck: reset the hopper zoom + drift (force a frustum rewrite next frame)
         p.stunT = 0;
         p.invuln = 0;
+        p.startInvuln = true; // fresh shift: the worker is i-framed until he first moves (keyboard / gamepad / virtual gamepad)
         p.immuneT = 0;
         p.phase = 0;
         p.shake = 0;
@@ -27610,11 +27611,14 @@
           }
         }
         // START INVULN: a fresh week opens with the worker i-framed; the grace holds
-        // only while he stands still (f/l both 0). The moment he presses a movement
-        // key it's cleared and the normal i-frame decay below applies.
+        // only while he stands still (f/l both 0). The moment he first moves (keyboard,
+        // gamepad, or virtual gamepad) the grace ends INSTANTLY — invuln is hard-reset
+        // to 0 (NOT left to decay from 99999, which would keep him i-framed for hours).
         if (p.startInvuln) {
-          if (f !== 0 || l !== 0) p.startInvuln = false;
-          else p.invuln = 99999;
+          if (f !== 0 || l !== 0) {
+            p.startInvuln = false;
+            p.invuln = 0;
+          } else p.invuln = 99999;
         }
         p.invuln = Math.max(0, p.invuln - dt);
         p.immuneT = Math.max(0, p.immuneT - dt);
