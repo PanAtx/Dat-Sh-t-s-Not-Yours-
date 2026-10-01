@@ -368,12 +368,12 @@ const sGT = (() => {
   }
 })();
 check(
-  'spawnGhostTreasure: floating LOW (baseLift 0.15, hugging the ground), $100-$200, type "treasure", kinds 38/39/40/41',
+  'spawnGhostTreasure: floating LOW (baseLift 0.15, hugging the ground), $300-$600 in $50 steps, type "treasure", kinds 38/39/40/41',
   sGT.length > 0 &&
     sGT.indexOf('pick([38, 39, 40, 41])') >= 0 &&
     sGT.indexOf('const baseLift = 0.15') >= 0 &&
     sGT.indexOf('baseLift: baseLift') >= 0 &&
-    sGT.indexOf('val: 100 + 50') >= 0 &&
+    sGT.indexOf('val: 300 + 50 * ((Math.random() * 7) | 0)') >= 0 &&
     sGT.indexOf('type: "treasure"') >= 0
 );
 check(
@@ -504,7 +504,7 @@ check(
 );
 check(
   'ghost collision radius 1.0 (a floating touch has a little reach)',
-  src.slice(ccStart, ccStart + 5000).indexOf('c.type === "ghost") rad = 1.0') >= 0
+  src.slice(ccStart, ccStart + 8000).indexOf('c.type === "ghost") rad = 1.0') >= 0
 );
 check('HP_HIT_GHOST is the DANGEROUS ghost damage (6, heavier than a hazard, lighter than a vehicle)', /const HP_HIT_GHOST = 6;/.test(src));
 check(
@@ -605,7 +605,7 @@ check(
     );
     const ti = src.slice(
       src.indexOf('function tryInteract()'),
-      src.indexOf('function tryInteract()') + 2400
+      src.indexOf('function tryInteract()') + 3000
     );
     return (
       fb.indexOf('if (!h) continue') >= 0 &&
@@ -643,7 +643,7 @@ check(
 
 // ================= 10. SPAWNWORLD RESIDENTS =================
 const swIdx = src.indexOf('function spawnWorld(');
-const swSec = src.slice(swIdx, swIdx + 40000);
+const swSec = src.slice(swIdx, swIdx + 60000);
 check(
   'spawnWorld: NO pre-spawned ghosts — the pack is built LIVE by the spawner (gated on workerOnCemeteryBlock) so the worker never faces a wall at the entrance',
   swSec.indexOf('spawnCemeteryGhost()') < 0 &&
