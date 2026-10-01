@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.352</div>
+          <div id="app-version" class="menu-version">v1.0.353</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.352';
+      const APP_VERSION = '1.0.353';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3637,16 +3637,17 @@
         // swap is level-SPECIFIC and stays), EXCEPT Gramercy Park (d1), where
         // the busier uptown bike scene keeps 3 cyclists on the street, and
         // EXCEPT Maspeth (d4), where the ONLY bike riders are 2 pizza-delivery
-        // couriers (the Level 1 Gramercy guys, in hi-vis vests) who deliver food
-        // and leave street drops (see the level-specific boost just above). Cars +
+        // couriers (the Level 1 Gramercy guys, in hi-vis vests) who drop a pizza
+        // or tacos when the worker bumps them (see the level-specific boost just
+        // above). Cars +
         // e-scooters keep their 1 cap (already minimal). The old per-day rules
         // underneath (daily ramp, Bronx two-wheelers, Manhattan +1 escooter/bike)
         // are left intact for reference.
         // Maspeth (Queens, d4): the ONLY bike riders on the street are the PIZZA
         // DELIVERY guys — the generic cyclists + e-bike are pulled over and given
         // the red bag (see case "bike" in addCreature: every d4 bike spawns as a
-        // delivery courier with a hi-vis vest). They deliver food and sometimes
-        // leave a pizza or tacos on the road for the worker to pick up. The 1
+        // delivery courier with a hi-vis vest). When the worker bumps them, a
+        // pizza or a tacos tumbles out of the bag for the pickup. The 1
         // moto stays (a motorcycle is not a bike). The boost sits BEFORE the cap
         // (the cap is a ceiling, never a floor) so the scene survives, exactly
         // like the Bronx d2 swap.
@@ -6484,11 +6485,12 @@
       // DOLLAR SLICES: food drops from the delivery bikes — the GRAMERCY courier
       // (Level 1) spews one when his bike clips the sanitation worker, and the
       // QUEENS (Maspeth, Level 4) delivery guys — the ONLY bike riders on the
-      // street that day, in hi-vis vests — leave one on the road as they roll.
-      // Each is the SAME wedge shape the pizza rat carries (makePizzaSlice) or a
-      // small street taco (makeTaco), tumbles out in a short arc, lands on the
-      // road, and stays pickable for a while. Picking one up = +25 street cash +
-      // a bit of health; the worker yells "Free Dollar Slice!" / "Free taco!".
+      // street that day, in hi-vis vests — drop one when the worker bumps into
+      // their bike (a PIZZA or a TACOS). Each is the SAME wedge shape the pizza
+      // rat carries (makePizzaSlice) or a small street taco (makeTaco), tumbles
+      // out in a short arc, lands on the road, and stays pickable for a while.
+      // Picking one up = +25 street cash + a bit of health; the worker yells
+      // "Free Dollar Slice!" / "Free taco!".
       let droppedSlices = []; // live drops: { g, wx, wy, vx, vy, vz, rotZ, rotY, landed, t, life, food }
 
       async function loadLitterbasketGltf() {
@@ -19715,7 +19717,8 @@
             // pack (Gramercy Park runs 3 + the delivery courier).
             // Maspeth (Queens, d4): the ONLY bike riders on the street are PIZZA
             // DELIVERY guys — every bike that spawns that day gets the red bag
-            // (and a hi-vis vest); they deliver food and leave street drops.
+            // (and a hi-vis vest); when the worker bumps them, a pizza or a
+            // tacos tumbles out of the bag for the pickup.
             const isDeliv = c.isDelivery || isQueensLevel();
             if (isDeliv) {
               const nDeliv = creatures.filter(
@@ -23357,16 +23360,17 @@
         }
       }
       // ==================== DOLLAR SLICES / STREET FOOD DROPS (delivery-bike pickup) ====================
-      // The delivery bikes drop food on the road: the GRAMERCY courier (Level 1)
-      // spews a real pizza slice when his bike clips the sanitation worker, and
-      // the QUEENS (Maspeth, Level 4) delivery guys — the day's ONLY bike riders,
-      // in hi-vis vests — leave a pizza or a taco behind them as they roll. The
-      // drop tumbles out in a short arc, lands on the road, and stays pickable
-      // for a while. Picking it up (walk-over) = +25 street cash + a bit of
-      // health; the worker yells "Free Dollar Slice!" / "Free taco!". The slice
-      // reuses makePizzaSlice (the exact same wedge the pizza rat carries) and
-      // the tacos use makeTaco — both built flat in the XZ plane (road = X axis,
-      // cross-street = Y), extruded up, riding on the road surface at GZ.
+      // The delivery bikes drop food on the road ONLY when the worker bumps into
+      // them: the GRAMERCY courier (Level 1) spews a real pizza slice when his
+      // bike clips the sanitation worker, and the QUEENS (Maspeth, Level 4)
+      // delivery guys — the day's ONLY bike riders, in hi-vis vests — leave a
+      // pizza or a tacos when bumped. The drop tumbles out in a short arc, lands
+      // on the road, and stays pickable for a while. Picking it up (walk-over) =
+      // +25 street cash + a bit of health; the worker yells "Free Dollar Slice!"
+      // / "Free taco!". The slice reuses makePizzaSlice (the exact same wedge the
+      // pizza rat carries) and the tacos use makeTaco — both built flat in the
+      // XZ plane (road = X axis, cross-street = Y), extruded up, riding on the
+      // road surface at GZ.
       // The zebra crosswalk bars sit RAISED at z 0.32-0.38 (0.06 thick on the
       // 0.30 road plane), so a slice resting at GZ = 0.30 gets clipped by a bar
       // it lands on. If the slice's spot is on a crosswalk, rest it ON TOP of
@@ -27243,21 +27247,27 @@
             hurtNPC(HP_HIT_VEHICLE, c.isDelivery ? "delivery" : c.type); // get run over = lose health; cause IS the NPC (car/bike/ebike/moto/tric/dealer...) for the write-up stamp
             p.invuln = 1.6;
             doStun(1.2, "hit");
-            // DOLLAR SLICE (Level 1): the GRAMERCY delivery cyclist's bike clips the
-            // worker - a real pizza slice tumbles out of his bag onto the road.
-            // Picking it up = +25 street cash + 15 health. Cooldown-gated so one hit
-            // = one slice (the worker is invulnerable for 1.6s anyway, but this keeps
-            // a stale creature from double-dropping on a re-collide frame).
+            // DOLLAR SLICE (Level 1) / STREET FOOD (Queens, d4): the delivery
+            // cyclist's bike clips the worker - food tumbles out of his bag onto
+            // the road. Level 1 spews a pizza slice; the QUEENS delivery guys
+            // (the day's only bike riders) leave a PIZZA OR A TACOS (bump is the
+            // ONLY way their food drops — they don't leave food as they roll).
+            // Picking it up = +25 street cash + 15 health. Cooldown-gated so one
+            // hit = one drop (the worker is invulnerable for 1.6s anyway, but
+            // this keeps a stale creature from double-dropping on a re-collide
+            // frame).
             if (
               c.isDelivery &&
-              level === 1 &&
+              (level === 1 || isQueensLevel()) &&
               (c.sliceDropCd || 0) <= 0 &&
               droppedSlices.length < 4
             ) {
               c.sliceDropCd = 3;
-              spawnDroppedSlice(p.wx, p.wy);
+              const kind =
+                isQueensLevel() && Math.random() < 0.4 ? "taco" : "pizza";
+              spawnDroppedSlice(p.wx, p.wy, kind);
               Voice.say(
-                "Free Dollar Slice!",
+                kind === "taco" ? "Free taco!" : "Free Dollar Slice!",
                 1.2,
                 1.4,
                 p.wx,
@@ -29092,29 +29102,7 @@
           if (c.vcd > 0) c.vcd -= dt; // voice cooldown so bumping a person doesn't spam audio every frame
           if (c.ghostCd > 0) c.ghostCd -= dt;
           if (c.rapCd > 0) c.rapCd -= dt; // the rapper's shove cooldown (Bed-Stuy mixtape) // the ghost's scare cooldown (cemetery)
-          if (c.sliceDropCd > 0) c.sliceDropCd -= dt; // delivery-bike slice drop cooldown (Level 1)
-          // Maspeth (Queens, d4): the delivery guys DELIVER food — as they roll
-          // along they sometimes leave a pizza or a taco on the road just
-          // behind the bike, for the worker to pick up (+25 street cash + a bit
-          // of health, "Free Dollar Slice!" / "Free taco!"). Cooldown-gated so
-          // the street gets the occasional drop, not a conveyor belt.
-          if (c.isDelivery && isQueensLevel()) {
-            c.foodCd = (c.foodCd || R(5, 10)) - dt;
-            if (c.foodCd <= 0) {
-              c.foodCd = R(9, 16);
-              if (
-                (c.curSp || 0) > 0.5 &&
-                droppedSlices.length < 5 &&
-                Math.random() < 0.8
-              ) {
-                spawnDroppedSlice(
-                  c.wx - (c.curSp || 0) * 0.5, // just behind the bike, on the road
-                  c.wy,
-                  Math.random() < 0.4 ? "taco" : "pizza",
-                );
-              }
-            }
-          }
+          if (c.sliceDropCd > 0) c.sliceDropCd -= dt; // delivery-bike slice drop cooldown (Level 1 + Queens bump drops)
           const tx = c.wx - p.wx;
           // PUNCHBACK SCARE-OFF: a punched NPC bolts AWAY from the worker at ~7 u/s for
           // 5s - this preempts the type's own AI for those frames (the legs keep pumping
