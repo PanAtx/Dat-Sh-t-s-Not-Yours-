@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.348</div>
+          <div id="app-version" class="menu-version">v1.0.349</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.348';
+      const APP_VERSION = '1.0.349';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -27735,7 +27735,11 @@
           vis = Math.floor(performance.now() / 60) % 2 === 0; // ~8 flips/sec, fast
           if (Math.random() < 0.5) spawnStars(p.wx, p.wy, 2); // trickle of stars while immune
         } else if (p.invuln > 0) {
-          vis = Math.floor(p.invuln * 12) % 2 === 0;
+          // The start-of-level grace (startInvuln) holds invuln at a CONSTANT 99999 every
+          // frame, so the flash below (which only toggles while invuln DECREASES) would be
+          // frozen on one parity and render the worker invisible the whole time. Keep him
+          // fully visible during the grace; the flash is for real post-hit i-frames only.
+          vis = p.startInvuln ? true : Math.floor(p.invuln * 12) % 2 === 0;
         }
         worker.group.traverse((o) => {
           if (o.isMesh) o.visible = vis;
