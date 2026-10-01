@@ -2622,7 +2622,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.355</div>
+          <div id="app-version" class="menu-version">v1.0.356</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2779,7 +2779,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.355';
+      const APP_VERSION = '1.0.356';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -20824,7 +20824,8 @@
         }
         // Maspeth OAK BLOCK (the 3rd block, x=192 — never the cemetery): ONE big
         // oak (a sidewalk tree scaled up — its canopy overhangs the walk) +
-        // acorns scattered ALL OVER the block's sidewalk. The acorns are the
+        // acorns on the LEFT SIDE of the tree, on the sidewalk (so the player
+        // sees them easily before the trunk). The acorns are the
         // marble-skid hazard: a boot landing on one slips the worker (see
         // collideStatic's "acorn" branch) and sends a squirrel to steal the
         // nut and run (queueAcornSquirrel + case "squirrel" mission).
@@ -20844,19 +20845,23 @@
             wx: baseX + oakX,
             wy: oakY,
           }); // solid: walkers + worker route around the trunk
-          // acorns ALL OVER the block's sidewalk (kept clear of the trunk, on
-          // the concrete only — y 0.6..4.6). Each is a one-shot trip hazard.
+          // acorns on the LEFT SIDE of the tree, on the sidewalk (x 2..18 —
+          // strictly left of the trunk's cell 3, block-local 20.8..27.2 — so the
+          // player sees a clear line of them coming BEFORE the oak), kept clear
+          // of the trunk, on the concrete only (y 0.6..4.6). Each is a one-shot
+          // trip hazard.
+          const trunkX = queensCellX(QUEENS_OAK_CELL) + oakX; // the trunk in block-local x
           for (let a = 0; a < ACORN_COUNT; a++) {
             let ax = 0,
               ay = 0,
               tries = 0;
             do {
-              ax = R(2.0, 78.0);
+              ax = R(2.0, 18.0); // the LEFT side of the tree
               ay = R(0.6, 4.6);
               tries++;
             } while (
               tries < 24 &&
-              (ax - oakX) * (ax - oakX) + (ay - oakY) * (ay - oakY) < 1.6 * 1.6
+              (ax - trunkX) * (ax - trunkX) + (ay - oakY) * (ay - oakY) < 1.6 * 1.6
             ); // never on top of the trunk
             const ac = makeAcorn();
             ac.position.set(baseX + ax, ay, GZ);
@@ -26493,9 +26498,9 @@
               hurtNPC(HP_HIT_ACORN, "acorn");
               doStun(1.1, "trip");
               const ACORN_SLIP_LINES = [
-                "Whoa! Slipping!",
-                "Acorns! My boots!",
-                "Marbles on this sidewalk!",
+                "WHOA! Acorns!",
+                "I'm rolling!",
+                "Who put these marbles here?!",
               ];
               Voice.say(
                 pick(ACORN_SLIP_LINES),

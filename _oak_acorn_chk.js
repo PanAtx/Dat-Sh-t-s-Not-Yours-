@@ -74,7 +74,8 @@ check('oak is a scaled-up sidewalk tree (makeSidewalkTree + setScalar 1.65)', pl
 check('oak registered as a SOLID b.trees obstacle (workers/walkers route around)', plant.indexOf('b.trees.push(') >= 0 && plant.indexOf('wx: baseX + oakX') >= 0);
 check('acorns loop plants ACORN_COUNT meshes on the sidewalk (y 0.6..4.6)', plant.indexOf('a < ACORN_COUNT') >= 0 && plant.indexOf('ay = R(0.6, 4.6)') >= 0 && plant.indexOf('groundGroup.add(ac)') >= 0);
 check('acorns register as "acorn" hazards with their mesh attached', plant.indexOf('type: "acorn"') >= 0 && plant.indexOf('g: ac') >= 0);
-check('acorns kept clear of the trunk (min 1.6u, retry loop)', plant.indexOf('(ax - oakX) * (ax - oakX) + (ay - oakY) * (ay - oakY) < 1.6 * 1.6') >= 0 && plant.indexOf('tries < 24') >= 0);
+check('acorns sit on the LEFT SIDE of the tree (x 2.0..18.0 — max 18.0 < cell-3 start 20.8)', plant.indexOf('ax = R(2.0, 18.0)') >= 0 && 18.0 < 8 + (3 - 1) * 6.4, 'cell3 start=' + (8 + (3 - 1) * 6.4));
+check('trunk-clearance uses the trunk BLOCK-LOCAL x (trunkX = queensCellX + oakX)', plant.indexOf('const trunkX = queensCellX(QUEENS_OAK_CELL) + oakX') >= 0 && plant.indexOf('(ax - trunkX) * (ax - trunkX) + (ay - oakY) * (ay - oakY) < 1.6 * 1.6') >= 0 && plant.indexOf('tries < 24') >= 0);
 const oakGateCount = src.split('b.blockX === QUEENS_OAK_X &&').length - 1;
 check('the oak cell suppresses the regular tree AND plants the oak (gate used twice)', oakGateCount >= 2, 'n=' + oakGateCount);
 
@@ -86,7 +87,8 @@ const slipEnd = acornIdx >= 0 ? src.indexOf('} else {\n              doStun(0.8,
 const slip = acornIdx >= 0 && slipEnd > acornIdx ? src.slice(acornIdx, slipEnd) : '';
 check('step-on: hurtNPC(HP_HIT_ACORN, "acorn") — the write-up cause is "acorn"', slip.indexOf('hurtNPC(HP_HIT_ACORN, "acorn")') >= 0);
 check('step-on: doStun(1.1, "trip") — a LONGER fall than the normal 0.8 trip', slip.indexOf('doStun(1.1, "trip")') >= 0);
-check('step-on: a slip voice line (Whoa! Slipping! / Acorns! My boots! / Marbles on this sidewalk!)', slip.indexOf('Whoa! Slipping!') >= 0 && slip.indexOf('Acorns! My boots!') >= 0 && slip.indexOf('Marbles on this sidewalk!') >= 0);
+check('step-on: a slip voice line (WHOA! Acorns! / I\'m rolling! / Who put these marbles here?!)', slip.indexOf('WHOA! Acorns!') >= 0 && slip.indexOf('I\'m rolling!') >= 0 && slip.indexOf('Who put these marbles here?!') >= 0);
+check('step-on: the OLD slip lines are gone (Whoa! Slipping! / Acorns! My boots! / Marbles on this sidewalk!)', slip.indexOf('Whoa! Slipping!') < 0 && slip.indexOf('Acorns! My boots!') < 0 && slip.indexOf('Marbles on this sidewalk!') < 0);
 check('step-on: one squirrel per acorn (hz.got gate + queueAcornSquirrel)', slip.indexOf('if (!hz.got)') >= 0 && slip.indexOf('hz.got = true') >= 0 && slip.indexOf('queueAcornSquirrel(hz)') >= 0);
 check('the generic trip hazards (0.8 stun) are untouched after the acorn branch', slipEnd > acornIdx && src.slice(slipEnd, slipEnd + 200).indexOf('doStun(0.8, "trip")') >= 0);
 
