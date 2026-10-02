@@ -35,7 +35,7 @@ const state = 'play', blocks=[], creatures=[], WORKER_GENDER='male';
 const dist = (x,y)=>Math.hypot(x-p.wx, y-p.wy);
 const SFX = { playPickupSound(){}, playCanDropSound(){}, playTossSound(){}, playDropSound(){} };
 const Voice = { say(){} };
-const BONUS = true, BONUS_BASKET_COUNT = 8;
+const BONUS = true, BONUS_BASKET_COUNT = 4;
 const fns = ['computeNormalLitterBasketHomes','nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets','resetLitterBaskets','placeLitterBasket','dropCarried','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE','CROSS_W','IW','LEVEL_XS','R','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','dist','SFX','Voice','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT','isBedStuyLevel',
@@ -63,6 +63,11 @@ const assert2 = require('assert');
 // Service EVERY basket (empty it into the truck), exactly as the worker would.
 check('overtime street spawns baskets to service', ()=>{
   assert2.ok(baskets.length > 0, 'expected overtime baskets, got ' + baskets.length);
+});
+check('baskets sit ONLY on the two middle blocks: 190, 274 (Block 3) + 286, 370 (Block 4)', ()=>{
+  const xs = baskets.map(b => b.wx).sort((a, b) => a - b);
+  assert2.deepStrictEqual(xs, [190, 274, 286, 370],
+    'expected 4 baskets at 190/274/286/370 (only the middle blocks), got ' + JSON.stringify(xs));
 });
 for (const b of baskets) service(b);
 
