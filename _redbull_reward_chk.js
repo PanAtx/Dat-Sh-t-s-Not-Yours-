@@ -2,7 +2,7 @@
 // Thursday. Previously `thursdayRedBull` was set on a win but NEVER consumed, so the
 // promised Red Bull never appeared. This checks the showDayIntro spawn snippet: with
 // the flag set, it (1) calls spawnPowerup("monster", x, y) at a valid in-route house cell
-// on the 2nd block, and (2) clears the one-shot flag.
+// by the Cemetery, and (2) clears the one-shot flag.
 const fs = require('fs');
 const assert = require('assert');
 const html = fs.readFileSync(__dirname + '/index.html', 'utf8');

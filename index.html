@@ -420,6 +420,74 @@
           width 0.12s linear,
           background 0.4s ease;
       }
+      /* ---- OVERTIME goal panel: the two WIN-condition counters (baskets + street cash) ---- */
+       #bonus-goal {
+         position: fixed;
+         top: calc(150px + env(safe-area-inset-top, 0px));
+         left: calc(20px + env(safe-area-inset-left, 0px));
+         z-index: 12;
+         display: flex;
+         flex-direction: column;
+         gap: 6px;
+         pointer-events: none;
+         user-select: none;
+         -webkit-user-select: none;
+       }
+      #bonus-goal.hidden {
+        display: none;
+      }
+      .bonus-goal-chip {
+        position: relative;
+        overflow: hidden;
+        font-family: "Press Start 2P", Courier, monospace;
+        font-size: clamp(9px, 2.1vw, 14px);
+        letter-spacing: 1px;
+        color: #d7ffe6;
+        background: rgba(4, 22, 12, 0.62);
+        border: 2px solid rgba(46, 224, 144, 0.7);
+        border-radius: 999px;
+        padding: 6px 12px;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+        box-shadow: 0 0 12px rgba(46, 224, 144, 0.25);
+        white-space: nowrap;
+        transition:
+          color 0.2s ease,
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+      /* Progress fill: a soft green glow that grows left→right as each goal is
+         approached. Driven by --prog (0–100 %) set in updateBonusHUD().
+         Sits behind the text, clipped to the pill shape. */
+      .bonus-goal-chip::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: var(--prog, 0%);
+        background: rgba(41, 224, 122, 0.22);
+        border-radius: inherit;
+        transition: width 0.35s ease-out;
+        pointer-events: none;
+      }
+      /* ---- goal-met: the chip goes GREEN + a one-shot scale pulse ---- */
+      .bonus-goal-chip.goal-met {
+        color: #04120a;
+        background: #29e07a;
+        border-color: #8effc2;
+        box-shadow: 0 0 18px rgba(41, 224, 122, 0.9);
+        animation: goalPulse 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 1;
+      }
+      .bonus-goal-chip.goal-met::before {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.18);
+      }
+      @keyframes goalPulse {
+        0%   { transform: scale(1); }
+        35%  { transform: scale(1.16); }
+        65%  { transform: scale(0.95); }
+        100% { transform: scale(1); }
+      }
       /* ---- pressure tiers (JS toggles these as the clock runs low) ---- */
       #bonus-clock.bc-warn #bonus-clock-num {
         color: #ffcf4d;
@@ -2767,6 +2835,11 @@
       <div id="bonus-clock-pop"><span id="bonus-clock-num">30</span></div>
     </div>
     <div id="bonus-clock-bar" class="hidden"><i id="bonus-clock-fill"></i></div>
+    <!-- OVERTIME goal panel: the two WIN conditions (service every basket + bank $3000) -->
+    <div id="bonus-goal" class="hidden">
+      <div id="bonus-baskets" class="bonus-goal-chip"><span id="bonus-baskets-text">BASKETS 0 / 6</span></div>
+      <div id="bonus-cash" class="bonus-goal-chip">CASH <span id="bonus-cash-val">$0</span> / $3,000</div>
+    </div>
     <div id="hud">
       <div id="tl" class="hudbox"
         ><div class="hp"
@@ -2841,7 +2914,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.375</div>
+          <div id="app-version" class="menu-version">v1.0.376</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3083,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.375';
+      const APP_VERSION = '1.0.376';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3721,15 +3794,18 @@
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
       // ---- OVERTIME BASKETS: the bonus round that fires right AFTER level 3 (Wednesday)
-      //      and BEFORE level 4 (Thursday). A separate all-store street where the ONLY job
-      //      is servicing litter baskets. A 30s clock starts the instant the worker moves:
-      //      service EVERY basket in time -> keep the money AND earn a Red Bull on
-      //      Thursday's 2nd-block first corner. Miss it -> the bonus money is rolled back.
+      //      and BEFORE level 4 (Thursday). A separate all-store street where the job is
+      //      servicing litter baskets. A 30s clock starts the instant the worker moves:
+      //      service EVERY basket AND bank at least $3000 in street cash in time -> keep
+      //      the money AND earn a Red Bull on Thursday by the Cemetery. Miss
+      //      either and the bonus money is rolled back.
       const BONUS_DAY_TRIGGER = 3; // bonus fires when the player finishes this level
-      const BONUS_TIME = 30; // seconds to service every basket — a TIGHT 30s clock (was 60s): the same 6-basket sweep but half the time = a real challenge
-      const BONUS_BASKET_COUNT = 6; // baskets on the bonus street: Block 2 = 94 & 178, Block 3 = 190 & 274, Block 4 = 286 & 370. Last block carries none.
-      const BONUS_BLOCKS = 5; // the overtime street is only 5 blocks long (Blocks 1-5, x=0..464) — a shorter, punchier shift
-      const BONUS_ROUTE_END_X = 480; // far edge of the 5th intersection (464..480): the worker can't walk past the end of the street
+      const BONUS_TIME = 30; // seconds to service every basket AND hit the $3000 street-cash goal — a TIGHT 30s clock
+      const BONUS_BASKET_COUNT = 6; // baskets on the bonus street: Block 2 = 94 & 178, Block 3 = 190 & 274. First + last block carry none.
+      const BONUS_BLOCKS = 4; // the overtime street is only 4 blocks long (Blocks 1-4, x=0..368) — cut by one block from the old 5-block street
+      const BONUS_ROUTE_END_X = 384; // far edge of the 4th intersection (368..384): the worker can't walk past the end of the street
+      const BONUS_CASH_GOAL = 3000; // WIN also requires >= this much STREET CASH banked in the round (in addition to every basket)
+      const BONUS_CASH_MULT = 2; // overtime loot is worth this x more, so the $3000 goal stays reachable on the (now shorter) street
       let BONUS = false; // true while the bonus world is live
       let bonusDoneThisRun = false; // fires once per week (reset by startGame)
       let bonusClock = BONUS_TIME; // remaining seconds (counts down once the worker moves)
@@ -3739,6 +3815,9 @@
       let bonusStartScore = 0; // score snapshot at the start (rolled back on a loss)
       let bonusStartDayScore = 0; // dayScore snapshot at the start
       let bonusStartWeekScore = 0; // weekScore snapshot at the start
+      let bonusStartBonusTally = 0; // street-cash (bonusTally) snapshot at the start -> the overtime street-cash counter
+      let bonusCashGoalMet = false; // level-local: the $3000 street-cash goal was banked this round
+      let overtimeCashLastShown = -1; // last whole street-cash value rendered, so the counter pops once per change
       let thursdayRedBull = false; // true -> spawn a Red Bull on the next (Thursday) level
       let bonusResultTimer = 0; // the interlude -> overtime-complete report handoff
       let bonusHopStart = 0; // >0 (perf.now ms) while the victory hop animates
@@ -4298,7 +4377,7 @@
         // The ground is FIXED (covers the whole finite route, x = -60 .. 840) instead of
         // scrolling infinitely — the level is a bounded block-and-intersection route.
         const GROUND_L = -60,
-          GROUND_R = BONUS ? 490 : 840; // overtime = a short 5-block street (ends just past the last basket at x=478)
+          GROUND_R = BONUS ? 390 : 840; // overtime = a short 4-block street (ends just past the last basket at x=384)
         const GW = GROUND_R - GROUND_L;
         const GCX = (GROUND_L + GROUND_R) / 2;
         groundStrip(GW, 10, 0.3, -4.5, 0x3a4046, GCX); // asphalt
@@ -7109,22 +7188,20 @@
         // first three days — so they read as "a basket on the corner" rather than a
         // straight line down the middle of the sidewalk.
         if (BONUS) {
-          // Overtime corner baskets — on the FIRST block you walk (Block 2) and the two
-          // MIDDLE blocks (Blocks 3 & 4), each on BOTH corners. The LAST block (Block 5)
-          // and the exit corner past it carry NO baskets. Each basket sits in its block's
-          // intersection gap (gap center +/- offset), exactly like the normal days: near
-          // corner = the gap BEFORE the block (+1 side), far corner = the gap AFTER the
-          // block (-1 side). Result: Block 2 = 94 & 178, Block 3 = 190 & 274, Block 4 = 286 & 370.
-          const off = CROSS_W / 2 + 1.5; // 6 — corner offset from the gap centerline
-          // [intersection x, +1 = block's NEAR (east) corner | -1 = block's FAR (west) corner]
-          const corners = [
-            [80, +1], // 94   Block 2 near
-            [176, -1], // 178  Block 2 far
-            [176, +1], // 190  Block 3 near
-            [272, -1], // 274  Block 3 far
-            [272, +1], // 286  Block 4 near
-            [368, -1], // 370  Block 4 far
-          ];
+            // Overtime corner baskets — on the TWO MIDDLE blocks of the (now 4-block)
+            // street (Blocks 2 & 3), each on BOTH corners. The FIRST block (Block 1) and
+            // the LAST block (Block 4) carry NO baskets. Each basket sits in its block's
+            // intersection gap (gap center +/- offset), exactly like the normal days: near
+            // corner = the gap BEFORE the block (+1 side), far corner = the gap AFTER the
+            // block (-1 side). Result: Block 2 = 94 & 178, Block 3 = 190 & 274.
+            const off = CROSS_W / 2 + 1.5; // 6 — corner offset from the gap centerline
+            // [intersection x, +1 = block's NEAR (east) corner | -1 = block's FAR (west) corner]
+            const corners = [
+              [80, +1], // 94   Block 2 near
+              [176, -1], // 178  Block 2 far
+              [176, +1], // 190  Block 3 near
+              [272, -1], // 274  Block 3 far
+            ];
           litterBasketHomes = [];
           for (const c of corners) {
             litterBasketHomes.push({ wx: c[0] + IW / 2 + c[1] * off, wy: 1.8 });
@@ -21119,8 +21196,9 @@
             }
           }
           // pre-spawned bonus loot (treasure / mongo / street cash) — ALWAYS spawned, and on
-          // the OVERTIME street it's the "money" the worker grabs for the bonus pot.
-          if (Math.random() < 0.85) spawnBonus(houseX(), sideY());
+          // the OVERTIME street it's the "money" the worker banks for the round. Overtime is
+          // GUARANTEED loot on every house (vs 85% elsewhere) so the $3000 cash goal is fair.
+          if (BONUS || Math.random() < 0.85) spawnBonus(houseX(), sideY());
         }
         // lane markings & sidewalk joints (scroll with the block)
         const dashM = M(0xcfd5da);
@@ -21463,7 +21541,7 @@
           // Rats scurry BACK AND FORTH along the store street (bi-directional by default),
           // and the PIZZA RAT is always here — a street rat lugging a giant slice. They roam
           // the curb band (y 0.8..2.2) and recycle around the worker, so they stay on the
-          // 5-block overtime street. Bumping a rat is a prank (see the rat case + collide).
+          // 4-block overtime street. Bumping a rat is a prank (see the rat case + collide).
           for (let r = 0; r < 3; r++) addCreature("rat");
           // The PIZZA RAT (a rare slice-carrying rat) — always present on overtime.
           const pizzaRat = addCreature("rat");
@@ -21477,7 +21555,7 @@
           // Manhattan style, wy 4.5). Bump one for a Hiss! + a trip. No recycling: each
           // cat stays at its store for the whole overtime street.
           {
-            const active = [0, 1, 2, 3, 4]; // the 5 overtime blocks
+            const active = [0, 1, 2, 3]; // the 4 overtime blocks
             for (let i = active.length - 1; i > 0; i--) {
               const j = (Math.random() * (i + 1)) | 0;
               const t = active[i];
@@ -24703,8 +24781,16 @@
               : GZ + (b.lift || 0),
           );
           if (state === "play" && dist(b.wx, b.wy) < 1.8) {
-            addScore(b.val, true);
+            const v = b.val * (BONUS ? BONUS_CASH_MULT : 1); // overtime loot is worth 2x -> the $3000 goal stays reachable
+            addScore(v, true);
             if (typeof recordDayGot === "function") recordDayGot(b.type);
+            if (BONUS) {
+              const earned = overtimeCashEarned(); // the overtime street-cash counter (this round's banked $)
+              if (!bonusCashGoalMet && earned >= BONUS_CASH_GOAL) {
+                bonusCashGoalMet = true; // level-local: the $3000 street-cash goal is banked — now just finish the baskets
+                if (typeof SFX !== "undefined" && SFX && SFX.bonusWin) SFX.bonusWin();
+              }
+            }
             if (b.type === "treasure") SFX.playTreasureJingle();
             else if (b.type === "cash") SFX.playMoneySound();
             else SFX.playKaChing();
@@ -26314,6 +26400,76 @@
         g.scale.setScalar(1.25); // a bit larger for presence
         return g;
       }
+      // ==================== GHOSTLY RED BULL (Thursday cemetery reward) ====================
+      // After an OVERTIME win, the promised Red Bull doesn't just sit on the ground — it is
+      // held UP in the air by a translucent, glowing GHOSTLY ARM + HAND that reaches up from
+      // the ground, cradling the can with its fingers. The can carries a soft SPECTRAL AURA.
+      // IMPORTANT: this is purely a visual present for the pickup — the arm/hand are NOT a
+      // hazard, so touching/walking past them NEVER affects the worker's HEALTH (the Red Bull
+      // powerup only ever GRANTS immunity + the "RUN IT UP!" speed boost on pickup).
+      // Reuses makeMonster() for the can (its green ground-halo is stripped and replaced with
+      // our own spectral ground-halo + aura, so the "natural colors" tests on makeMonster stay green).
+      function makeGhostBull() {
+        const g = new THREE.Group();
+        // ghostly, translucent, glowing material (NOT a solid object) — pale spectral green
+        const gm = new THREE.MeshLambertMaterial({
+          color: 0xd8fff0,
+          emissive: 0x2fffc4,
+          emissiveIntensity: 0.85,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+        // the ghostly forearm: thick at the elbow (bottom), tapering to the wrist (top), rising from the ground
+        const arm = CY(0.1, 0.17, 1.0, gm, 12);
+        arm.rotation.x = Math.PI / 2; // stand vertical (cylinder axis -> game +Z "up")
+        arm.position.z = 0.5; // spans z=0 (elbow, on the ground) .. z=1.0 (wrist)
+        g.add(arm);
+        // the palm
+        const palm = SP(0.17, gm, 12);
+        palm.position.z = 1.0;
+        g.add(palm);
+        // four fingers cupping around the lower part of the can (a clear "holding" grip)
+        for (let f = 0; f < 4; f++) {
+          const a = (f / 4) * Math.PI * 2 + 0.5;
+          const finger = CY(0.03, 0.045, 0.34, gm, 6);
+          finger.rotation.x = Math.PI / 2;
+          finger.position.set(Math.cos(a) * 0.14, Math.sin(a) * 0.14, 1.12);
+          g.add(finger);
+        }
+        // the Red Bull can, HELD UP in the ghost's hand — strip makeMonster's green ground-halo
+        // (we add our own spectral ground-halo + aura below) so it reads as a ghost, not a healer.
+        const can = makeMonster();
+        for (let i = can.children.length - 1; i >= 0; i--) {
+          const c = can.children[i];
+          if (c.userData && c.userData.halo) can.remove(c);
+        }
+        can.position.z = 0.98; // base of the can sits in the palm
+        g.add(can);
+        // ghostly AURA around the can — two layered additive shells for a soft spectral glow
+        const auraMat = (op) =>
+          new THREE.MeshBasicMaterial({
+            color: 0x6dffc9,
+            transparent: true,
+            opacity: op,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+        const aura1 = SP(0.42, auraMat(0.2), 18);
+        aura1.position.z = 1.38; // centered on the can (can spans ~0.98 .. ~1.75)
+        g.add(aura1);
+        const aura2 = SP(0.64, auraMat(0.1), 18);
+        aura2.position.z = 1.38;
+        g.add(aura2);
+        // spectral ground-halo (found by updatePowerups via userData.halo, so it breathes)
+        g.add(makeHalo(0x7dffb0));
+        // tag the animated parts for the per-frame ghostly present
+        g.userData.ghostCan = can;
+        g.userData.ghostAura1 = aura1;
+        g.userData.ghostAura2 = aura2;
+        return g;
+      }
       // ---- Power-up spawning (count scales with the current level / route) ----
       // Snap a route X to the nearest ACTUAL house cell, so a pickup ALWAYS sits in front of a
       // house (on its sidewalk / front-lawn grass) and never in a street, cross-street, or the
@@ -26333,9 +26489,11 @@
         }
         return best + 0.8 + Math.random() * (BW - 1.6); // front of that house, sidewalk -> grass
       }
-      function spawnPowerup(type, wx, wy) {
-        const g =
-          type === "coffee"
+      function spawnPowerup(type, wx, wy, opts) {
+        const ghostly = !!(opts && opts.ghostly);
+        const g = ghostly
+          ? makeGhostBull()
+          : type === "coffee"
             ? makeCoffee()
             : type === "bec"
               ? makeBEC()
@@ -26353,8 +26511,9 @@
           wy: wy,
           type: type,
           t: R(0, 6),
-          halo: halo, // coffee + BEC + Monster all carry a pulsing green ground-halo
+          halo: halo, // coffee + BEC + Monster all carry a pulsing green ground-halo (the ghost carries a spectral one)
           baseScale: g.scale.x,
+          ghostly: ghostly, // Thursday cemetery Red Bull: a ghostly arm+hand present. Pickup ONLY — never a health hazard.
         });
       }
       function powerupCounts(level) {
@@ -26439,15 +26598,40 @@
         for (let i = powerups.length - 1; i >= 0; i--) {
           const b = powerups[i];
           b.t += dt;
-          // gentle bob that stays just ABOVE the sidewalk so the base never dips into the walk
-          b.g.position.set(
-            b.wx,
-            b.wy,
-            GZ + CURB_LIFT + 0.03 + Math.sin(b.t * 2.6) * 0.025,
-          );
-          // slow presentational spin around the vertical axis (the Monster can spins a bit faster)
-          const spinRate = b.type === "monster" ? 2.4 : 0.9;
-          b.g.rotation.z = (b.g.rotation.z || 0) + dt * spinRate;
+          if (b.ghostly) {
+            // GHOSTLY RED BULL present: the arm+hand holds the can aloft — a slow, unhurried
+            // turn (NOT the fast pickup spin), a gentle float, the can bobbing in the hand,
+            // and the spectral aura breathing. Non-damaging: purely a pickup.
+            b.g.position.set(
+              b.wx,
+              b.wy,
+              GZ + CURB_LIFT + 0.03 + Math.sin(b.t * 1.8) * 0.05,
+            );
+            b.g.rotation.z = (b.g.rotation.z || 0) + dt * 0.35;
+            const gcan = b.g.userData && b.g.userData.ghostCan;
+            if (gcan) gcan.position.z = 0.98 + Math.sin(b.t * 2.2) * 0.04;
+            const ap = 0.5 + 0.5 * Math.sin(b.t * 3.2); // 0..1 breathing pulse
+            const a1 = b.g.userData && b.g.userData.ghostAura1;
+            const a2 = b.g.userData && b.g.userData.ghostAura2;
+            if (a1) {
+              a1.scale.setScalar(1 + 0.12 * ap);
+              a1.material.opacity = 0.14 + 0.12 * ap;
+            }
+            if (a2) {
+              a2.scale.setScalar(1 + 0.18 * ap);
+              a2.material.opacity = 0.06 + 0.08 * ap;
+            }
+          } else {
+            // gentle bob that stays just ABOVE the sidewalk so the base never dips into the walk
+            b.g.position.set(
+              b.wx,
+              b.wy,
+              GZ + CURB_LIFT + 0.03 + Math.sin(b.t * 2.6) * 0.025,
+            );
+            // slow presentational spin around the vertical axis (the Monster can spins a bit faster)
+            const spinRate = b.type === "monster" ? 2.4 : 0.9;
+            b.g.rotation.z = (b.g.rotation.z || 0) + dt * spinRate;
+          }
           // coffee + BEC + Monster carry a pulsing GREEN ground-halo (the model itself keeps its normal colors)
           if (b.halo) {
             const k = 0.5 + 0.5 * Math.sin(b.t * 4.5); // 0..1 breathing pulse
@@ -28161,7 +28345,7 @@
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
         // and reaching Intersection 7 (the last one before Block 8) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
-        if (BONUS && p.wx > BONUS_ROUTE_END_X) p.wx = BONUS_ROUTE_END_X; // 5-block street: can't walk past its end
+        if (BONUS && p.wx > BONUS_ROUTE_END_X) p.wx = BONUS_ROUTE_END_X; // 4-block street: can't walk past its end
         if (p.wx >= ROUTE_FINISH_X && state === "play" && !BONUS) {
           startRouteEnd();
           return;
@@ -35845,7 +36029,7 @@
           const rbWx = snapToHouseCell(
             clamp(rbCornerX, ROUTE_START_X, ROUTE_FINISH_X),
           );
-          spawnPowerup("monster", rbWx, 2.0);
+          spawnPowerup("monster", rbWx, 2.0, { ghostly: true });
           thursdayRedBull = false;
         }
         ["menu", "over", "complete", "day-stats", "week-complete", "bonus-result"].forEach(
@@ -35876,7 +36060,7 @@
       // ==================== OVERTIME BASKETS — the bonus round after level 3 ====================
       // A standalone, all-store, litter-basket-only street. A 30s clock starts the moment
       // the worker moves: service EVERY basket in time to keep the money you earn in the
-      // round AND earn a Red Bull on Thursday's 2nd-block first corner. Miss it and the
+      // round AND earn a Red Bull on Thursday by the Cemetery. Miss it and the
       // bonus money is rolled straight back out. The round then advances to level 4.
       function startBonusRound() {
         BONUS = true;
@@ -35891,18 +36075,26 @@
         bonusStartScore = score; // snapshot the money so a loss can roll it back out
         bonusStartDayScore = dayScore;
         bonusStartWeekScore = weekScore;
+        bonusStartBonusTally = bonusTally; // snapshot street cash so the round's own $ counter reads 0
+        bonusCashGoalMet = false; // the $3000 street-cash goal is per-round; re-arm it
+        overtimeCashLastShown = -1; // force the overtime street-cash counter to paint $0
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0]; // Flatbush (lvl 3)
         resetWorldState(); // builds the all-store street + the bonus basket line + the loot
         $("day-intro-day").textContent = "OVERTIME!";
         $("day-intro-loc").textContent = d.borough + " \u00b7 " + d.area;
         $("day-intro-forecast").textContent = "";
         const sp = $("day-intro-special");
-        sp.textContent = "OVERTIME BASKETS! SERVICE EVERY BASKET IN 30 SECONDS";
+        sp.textContent =
+          "OVERTIME BASKETS! SERVICE EVERY BASKET + BANK $3,000 IN 30 SECONDS";
         sp.classList.add("show");
         const obj = document.querySelector("#day-intro .obj");
         if (obj)
           obj.innerHTML =
-            "GRAB ALL THE TREASURE &middot; MONGO &middot; STREET CASH<br/>" +
+            "SERVICE EVERY BASKET (<b>" +
+            BONUS_BASKET_COUNT +
+            "</b>) &middot; BANK <b>$" +
+            BONUS_CASH_GOAL.toLocaleString() +
+            "</b> STREET CASH<br/>" +
             "THE CLOCK STARTS THE MOMENT YOU MOVE<br/>" +
             "MISS IT &rarr; YOU KEEP NOTHING &middot; NAIL IT &rarr; RED BULL ON THURSDAY";
         $("btnBeginDay").textContent = "START OVERTIME";
@@ -35924,6 +36116,13 @@
         vt.l = 0;
         vt.act = false;
       }
+      // OVERTIME street-cash counter (LEVEL-LOCAL): the money the worker banks DURING this
+      // overtime round. It reads the global street-cash tally (bonusTally) minus the
+      // snapshot taken in startBonusRound, so it's a clean "how much have I made in
+      // overtime" number — the thing the HUD counter and the $3000 goal both track.
+      function overtimeCashEarned() {
+        return Math.max(0, bonusTally - bonusStartBonusTally);
+      }
       function updateBonusHUD() {
         const el = $("bonus-clock");
         if (!el) return;
@@ -35931,6 +36130,8 @@
         const fill = $("bonus-clock-fill");
         el.classList.remove("hidden");
         if (bar) bar.classList.remove("hidden");
+        const goal = $("bonus-goal");
+        if (goal) goal.classList.remove("hidden");
         const t = Math.max(0, bonusClock);
         const frac =
           BONUS_TIME > 0 ? Math.max(0, Math.min(1, t / BONUS_TIME)) : 0;
@@ -35976,11 +36177,42 @@
         // Baskets-left tally (kept for the smaller HUD line if present).
         // A "dumped" basket (emptied, in its toss-back flight) is already DONE — keep it
         // off the "left" tally so the HUD agrees with the win condition above.
+        // ---- OVERTIME goal panel: BASKETS serviced + the round's own STREET CASH counter ----
+        // The clock is the time; these two are the WIN conditions. The cash counter is
+        // level-local (overtimeCashEarned) and turns green the instant the $3000 goal is met.
         const left = litterBaskets.filter(
           (b) => b.state !== "serviced" && b.state !== "dumped",
         ).length;
+        const done = litterBaskets.length - left;
         const bb = $("bonus-baskets");
-        if (bb) bb.textContent = "BASKETS LEFT " + left + " / " + litterBaskets.length;
+        if (bb) {
+          const bbt = $("bonus-baskets-text");
+          if (bbt) bbt.textContent = "BASKETS " + done + " / " + litterBaskets.length;
+          bb.style.setProperty("--prog", (litterBaskets.length > 0 ? (done / litterBaskets.length * 100) : 0).toFixed(1) + "%");
+          bb.classList.toggle("goal-met", litterBaskets.length > 0 && done >= litterBaskets.length);
+        }
+        const cash = $("bonus-cash");
+        if (cash) {
+          const got = overtimeCashEarned();
+          cash.classList.toggle("goal-met", got >= BONUS_CASH_GOAL);
+          cash.style.setProperty("--prog", Math.min(100, (got / BONUS_CASH_GOAL * 100)).toFixed(1) + "%");
+          const shown = Math.floor(got);
+          if (shown !== overtimeCashLastShown) {
+            overtimeCashLastShown = shown;
+            const cv = $("bonus-cash-val");
+            if (cv) {
+              cv.textContent = "$" + shown.toLocaleString();
+              if (cv.animate)
+                cv.animate(
+                  [
+                    { transform: "scale(1.35)", opacity: 0.35 },
+                    { transform: "scale(1)", opacity: 1 },
+                  ],
+                  { duration: 180, easing: "ease-out" },
+                );
+            }
+          }
+        }
       }
       // Hide + reset the game-show clock (used when the round ends / resumes / resets).
       function hideBonusClock() {
@@ -35996,11 +36228,12 @@
         }
         const vig = $("bonus-crit-vignette");
         if (vig) vig.classList.remove("on");
+        const goal = $("bonus-goal");
+        if (goal) goal.classList.add("hidden");
       }
       function resolveBonus(won) {
         if (bonusResultShown) return;
         bonusResultShown = true;
-        const gained = score - bonusStartScore;
         if (!won) {
           // Too slow — the bonus round's money is forfeited (rolled straight back out).
           score = bonusStartScore;
@@ -36031,19 +36264,34 @@
         clearTimeout(bonusResultTimer);
         bonusResultTimer = setTimeout(function () {
           endBonusVerdict();
-          showBonusResult(won, gained);
+          showBonusResult(won);
         }, won ? 7600 : 3400);
       }
-      function showBonusResult(won, gained) {
+      function showBonusResult(won) {
         state = "bonusend"; // freeze: the result card owns the input now
         $("bonus-result-title").textContent = won ? "OVERTIME COMPLETE!" : "TIME'S UP!";
-        $("bonus-result-msg").innerHTML = won
-          ? "YOU KEPT <b>$" +
-            pad(gained) +
-            "</b><br/>AND EARNED A <b>RED BULL</b> ON THURSDAY'S 2ND BLOCK!"
-          : "TOO SLOW! THE <b>$" +
-            pad(Math.max(0, gained)) +
-            "</b> YOU MADE IN OVERTIME IS GONE.";
+        if (won) {
+          $("bonus-result-msg").innerHTML =
+            "YOU KEPT <b>$" +
+            pad(overtimeCashEarned()) +
+            "</b> IN STREET CASH<br/>AND EARNED A <b>RED BULL</b> ON THURSDAY BY THE CEMETERY!";
+        } else {
+          // Tell the worker EXACTLY what didn't land: un-serviced baskets and/or cash short
+          const reasons = [];
+          const left = litterBaskets.filter(
+            (b) => b.state !== "serviced" && b.state !== "dumped",
+          ).length;
+          if (left > 0)
+            reasons.push("SERVICED <b>" + (litterBaskets.length - left) + "/" + litterBaskets.length + "</b> BASKETS");
+          if (overtimeCashEarned() < BONUS_CASH_GOAL)
+            reasons.push("BANKED ONLY <b>$" + Math.floor(overtimeCashEarned()).toLocaleString() + "</b> / $" + BONUS_CASH_GOAL.toLocaleString());
+          $("bonus-result-msg").innerHTML =
+            "TIME'S UP — " +
+            reasons.join("<br/>") +
+            "<br/>THE <b>$" +
+            pad(Math.max(0, overtimeCashEarned())) +
+            "</b> YOU BANKED IN OVERTIME IS GONE.";
+        }
         ["menu", "over", "complete", "day-intro", "day-stats", "week-complete"].forEach(
           function (id) {
             $(id).classList.add("hidden");
@@ -37092,7 +37340,7 @@
               bb.state === "serviced" || bb.state === "dumped";
             const allDone =
               litterBaskets.length > 0 && litterBaskets.every(basketDone);
-            if (allDone) {
+            if (allDone && overtimeCashEarned() >= BONUS_CASH_GOAL) {
               resolveBonus(true);
             } else if (bonusClockStarted) {
               bonusClock -= dt;
