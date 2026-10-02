@@ -16,7 +16,8 @@ function extractFn(src, name){
   return src.slice(idx, i);
 }
 // World constants (mirror index.html)
-const BW = 8, HOUSES_PER_BLOCK = 10;
+const BW = 8, HOUSES_PER_BLOCK = 10, IW = 16, CROSS_W = 9;
+const QUEENS_CEMETERY_X = 384; // the 5th block (the Maspeth cemetery)
 const LEVEL_BLOCKS = [
   { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true },
   { x: 288, garbage: true }, { x: 384, garbage: true }, { x: 480, garbage: true },
@@ -24,6 +25,8 @@ const LEVEL_BLOCKS = [
 ];
 const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
 const PLAYER_START_X = 88, ROUTE_START_X = 80, ROUTE_FINISH_X = 656;
+// The cemetery's near corner == its first bones/skull basket's x (gap center + offset).
+const rbCornerX = QUEENS_CEMETERY_X - IW / 2 + (CROSS_W / 2 + 1.5); // 382
 
 // Real snapToHouseCell from index.html, driven by the constants above.
 const snapToHouseCell = new Function('LEVEL_BLOCKS', 'BW', 'HOUSES_PER_BLOCK',
@@ -35,32 +38,31 @@ const snippet =
   'var spawned = [];\n' +
   'function spawnPowerup(type, wx, wy){ spawned.push({ type: type, wx: wx, wy: wy }); }\n' +
   'if (thursdayRedBull) {\n' +
-  '  const rbWx = snapToHouseCell(clamp(PLAYER_START_X + 16, ROUTE_START_X, ROUTE_FINISH_X));\n' +
+  '  const rbWx = snapToHouseCell(clamp(rbCornerX, ROUTE_START_X, ROUTE_FINISH_X));\n' +
   '  spawnPowerup("monster", rbWx, 2.0);\n' +
   '  thursdayRedBull = false;\n' +
   '}\n' +
   'return { thursdayRedBull: thursdayRedBull, spawned: spawned };';
-const res = new Function('snapToHouseCell', 'clamp', 'PLAYER_START_X', 'ROUTE_START_X', 'ROUTE_FINISH_X', snippet)(
-  snapToHouseCell, clamp, PLAYER_START_X, ROUTE_START_X, ROUTE_FINISH_X);
+const res = new Function('snapToHouseCell', 'clamp', 'rbCornerX', 'ROUTE_START_X', 'ROUTE_FINISH_X', snippet)(
+  snapToHouseCell, clamp, rbCornerX, ROUTE_START_X, ROUTE_FINISH_X);
 
-check('a Red Bull (Monster) is spawned on Thursday after a win', ()=>{
+check('a Red Bull (Monster) is spawned after winning overtime', ()=>{
   assert.strictEqual(res.spawned.length, 1, 'expected exactly one powerup spawn, got ' + res.spawned.length);
   assert.strictEqual(res.spawned[0].type, 'monster', 'the reward must be the Red Bull ("monster")');
 });
-check('the Red Bull lands on the 2nd block (x in 96..176), in-route, on a valid house cell', ()=>{
+check('the Red Bull waits at the cemetery FIRST corner (Maspeth block x 384..464), by the first bones basket (x=382)', ()=>{
   const wx = res.spawned[0].wx;
-  assert.ok(wx >= 96 && wx <= 176, 'Red Bull x=' + wx + ' should be on Block 2 (96..176)');
+  assert.ok(wx >= 384 && wx <= 464, 'Red Bull x=' + wx + ' should be on the cemetery block (384..464)');
   assert.ok(wx >= ROUTE_START_X && wx <= ROUTE_FINISH_X, 'x must be within the route');
-  // On a real house cell: within a house slot of some block (BW*10 = 80 wide block).
-  const inAHouse = LEVEL_BLOCKS.some(bl => wx >= bl.x && wx <= bl.x + BW * HOUSES_PER_BLOCK);
-  assert.ok(inAHouse, 'Red Bull should sit in front of a house cell, not in an intersection gap');
+  // In the cemetery's FIRST cell (x 384..392) — right by the first bones/skull basket.
+  assert.ok(wx >= 384 && wx <= 384 + BW, 'Red Bull should sit in the cemetery first cell (384..392)');
 });
 check('the one-shot flag is consumed (no double Red Bull on later days)', ()=>{
   assert.strictEqual(res.thursdayRedBull, false, 'thursdayRedBull must be cleared after spawning');
 });
-check('the worker starts at x=88, so the can is just ahead (not on top of him)', ()=>{
+check('the can sits just past the first bones basket (x=382), so the worker grabs it before the ghost', ()=>{
   const wx = res.spawned[0].wx;
-  assert.ok(wx > PLAYER_START_X, 'Red Bull x=' + wx + ' should be ahead of the spawn (x=88)');
+  assert.ok(wx > 382, 'Red Bull x=' + wx + ' should be just past the first bones basket (x=382)');
 });
 
 console.log('\n' + pass + ' Red Bull reward checks passed' + (process.exitCode ? ' (some FAILED)' : ' — all OK'));

@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.358</div>
+          <div id="app-version" class="menu-version">v1.0.359</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.358';
+      const APP_VERSION = '1.0.359';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7109,20 +7109,33 @@
         // first three days — so they read as "a basket on the corner" rather than a
         // straight line down the middle of the sidewalk.
         if (BONUS) {
-          // 2 baskets per intersection (both corners); span as many intersections as the
-          // count needs so BONUS_BASKET_COUNT stays the single source of truth (8 -> 4).
-          // Start ONE intersection ahead of the worker: no basket on the worker's OWN
-          // starting corner (Intersection 1) — the line begins at the first corner of the
-          // SECOND block (Intersection 2, x=176) instead.
-          const offsets = [-(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5];
-          const needed = Math.ceil(BONUS_BASKET_COUNT / offsets.length);
-          const bonusIntersections = LEVEL_XS.slice(1, 1 + needed); // first corner of the second block
+          // Overtime corner baskets — one per corner, laid out as a clean run down the
+          // 5-block street (Blocks 2-5) rather than a straight sidewalk line. Each corner
+          // sits in its block's intersection gap (gap center +/- offset), exactly like the
+          // normal days. Two deliberate breaks in the "2 per gap" rhythm:
+          //   * Block 2 (the SECOND block) OPENS the line on its NEAR corner (x=94). It
+          //     used to be skipped along with the worker's starting corner (x=88), leaving
+          //     a dead gap at the head of the street — the first basket on the second block
+          //     is required, so it's back.
+          //   * Block 5 (the LAST block) DROPS its NEAR corner (x=382). It clumped with
+          //     Block 4's far corner (x=370) on the same cross-street, so only Block 5's
+          //     far/exit corner stays.
+          // The worker still starts at x=88, one corner ahead of the line's head (x=94).
+          const off = CROSS_W / 2 + 1.5; // 6 — corner offset from the gap centerline
+          // [intersection x, +1 = block's NEAR (east) corner | -1 = block's FAR (west) corner]
+          const corners = [
+            [80, +1], //  94  Block 2 near   (ADDED — opens the street)
+            [176, -1], // 178  Block 2 far
+            [176, +1], // 190  Block 3 near
+            [272, -1], // 274  Block 3 far
+            [272, +1], // 286  Block 4 near
+            [368, -1], // 370  Block 4 far   (Block 5 near, x=382, intentionally dropped)
+            [464, -1], // 466  Block 5 far/exit
+            [464, +1], // 478  exit corner past Block 5
+          ];
           litterBasketHomes = [];
-          for (let i = 0; i < bonusIntersections.length; i++) {
-            const cx = bonusIntersections[i] + IW / 2;
-            for (let o = 0; o < offsets.length; o++) {
-              litterBasketHomes.push({ wx: cx + offsets[o], wy: 1.8 });
-            }
+          for (const c of corners) {
+            litterBasketHomes.push({ wx: c[0] + IW / 2 + c[1] * off, wy: 1.8 });
           }
         } else {
           // RECOMPUTE the normal corner layout on every non-overtime reset. The overtime
@@ -35720,12 +35733,17 @@
         }
         resetWorldState(); // (re)build the street for this day + re-anchor the worker at the start
         // OVERTIME REWARD: if the worker nailed the overtime round, a Red Bull (Monster)
-        // is waiting on Thursday's 2nd-block first corner. Spawn it AFTER resetWorldState
-        // (which clears powerups + disposes the dynamic group) so it actually persists,
-        // then consume the one-shot flag.
+        // waits at the FIRST corner of the Maspeth CEMETERY — right by the first
+        // bones/skull basket — as the payoff, so the worker can grab it and push through
+        // the cemetery ghost. Set only by an overtime win, and the level after Wednesday
+        // is ALWAYS Thursday (the cemetery), so this corner is guaranteed when it fires.
+        // Spawn it AFTER resetWorldState (which clears powerups + disposes the dynamic
+        // group) so it actually persists, then consume the one-shot flag.
         if (thursdayRedBull) {
+          // The cemetery's near corner == its first bones/skull basket's x (gap center + offset).
+          const rbCornerX = QUEENS_CEMETERY_X - IW / 2 + (CROSS_W / 2 + 1.5);
           const rbWx = snapToHouseCell(
-            clamp(PLAYER_START_X + 16, ROUTE_START_X, ROUTE_FINISH_X),
+            clamp(rbCornerX, ROUTE_START_X, ROUTE_FINISH_X),
           );
           spawnPowerup("monster", rbWx, 2.0);
           thursdayRedBull = false;
@@ -35905,12 +35923,14 @@
           SFX.bonusLose();
           showVerdict("YOU FAILED", false);
         }
-        // Let the moment land, THEN hand off to the overtime-complete report.
+        // Let the moment land, THEN hand off to the overtime-complete report. The WIN
+        // celebration lingers a bit longer so it lands; the LOSE dejection ("YOU FAILED"
+        // + the slumped worker) holds long enough that it's unmistakably a failure.
         clearTimeout(bonusResultTimer);
         bonusResultTimer = setTimeout(function () {
           endBonusVerdict();
           showBonusResult(won, gained);
-        }, won ? 2800 : 2400);
+        }, won ? 4500 : 3400);
       }
       function showBonusResult(won, gained) {
         state = "bonusend"; // freeze: the result card owns the input now
@@ -36335,6 +36355,17 @@
         // from full health reaches the danger threshold.
         // Play state only; i-frames absorb the hit like any other source (press again).
         if (e.code === "KeyH" && state === "play") hurtNPC(10, "route");
+        // TEST MODE: J = skip straight to the OVERTIME (bonus) round from any state.
+        // Sets the level to the bonus trigger day (Wednesday/Flatbush) so the round and
+        // its Thursday aftermath line up, resets the one-shot flags, and drops the worker
+        // into the 60s basket-service shift (the clock starts on the worker's first move).
+        if (e.code === "KeyJ" && !_preloading) {
+          level = BONUS_DAY_TRIGGER;
+          bonusDoneThisRun = false;
+          thursdayRedBull = false;
+          startBonusRound();
+          beginDay();
+        }
         if (e.code === "Enter" && state !== "play") advanceGame();
       });
       window.addEventListener("keyup", (e) => {
