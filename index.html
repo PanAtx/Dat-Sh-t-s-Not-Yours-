@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.361</div>
+          <div id="app-version" class="menu-version">v1.0.363</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.361';
+      const APP_VERSION = '1.0.363';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -35922,7 +35922,7 @@
         bonusResultTimer = setTimeout(function () {
           endBonusVerdict();
           showBonusResult(won, gained);
-        }, won ? 4500 : 3400);
+        }, won ? 4700 : 3400);
       }
       function showBonusResult(won, gained) {
         state = "bonusend"; // freeze: the result card owns the input now
@@ -36054,20 +36054,68 @@
         }
         confettiParts.length = 0;
       }
-      // ---- the bonusend interlude tick (confetti + the victory hop) ----
+      // ---- the bonusend interlude tick (confetti + the WIN celebration) ----
+      // On a win the worker does a little prize routine for the player to enjoy:
+      //   HOP  (jump up, fist in the air) -> SPIN (a full turn, arms in a V) ->
+      //   DANCE (face the camera, bob the body, flap the arms like wings, stomp) ->
+      //   SETTLE (holds the triumphant fist-up pose until the result card appears).
+      // Driven off bonusHopStart (perf.now ms), which is only ever set on a win, so a
+      // losing beat stays the simple slumped pose.
       function updateBonusInterlude(dt) {
         updateConfetti(dt);
-        if (bonusHopStart) {
-          const el = performance.now() - bonusHopStart;
-          if (el < 900) {
-            const k = 1 - el / 900;
-            if (worker)
-              worker.group.position.z =
-                GZ + Math.abs(Math.sin((el / 900) * Math.PI * 3)) * 0.55 * k;
-          } else {
-            if (worker) worker.group.position.z = GZ;
-            bonusHopStart = 0;
+        if (!bonusHopStart || !worker || !wparts) return;
+        const el = performance.now() - bonusHopStart;
+        const HOP_END = 900,
+          SPIN_END = 1800,
+          DANCE_END = 4200;
+        if (el < HOP_END) {
+          // HOP — the celebratory jump; the right fist is already up from bonusPose.
+          const k = 1 - el / HOP_END;
+          worker.group.position.z =
+            GZ + Math.abs(Math.sin((el / HOP_END) * Math.PI * 3)) * 0.55 * k;
+          worker.group.rotation.z = p.facing;
+          worker.group.rotation.x = 0;
+          wparts.armL.rotation.set(0, -0.35, 0); // left relaxed
+          wparts.armR.rotation.set(0, Math.PI, 0); // right fist up
+          wparts.legL.rotation.set(0, 0, 0);
+          wparts.legR.rotation.set(0, 0, 0);
+        } else if (el < SPIN_END) {
+          // SPIN — one full 360° turn with both arms up in a V and a bounce.
+          const s = (el - HOP_END) / (SPIN_END - HOP_END); // 0..1
+          worker.group.rotation.z = p.facing + s * Math.PI * 2; // one clean revolution
+          worker.group.position.z = GZ + Math.abs(Math.sin(s * Math.PI * 3)) * 0.4;
+          worker.group.rotation.x = 0;
+          wparts.armL.rotation.set(0, Math.PI - 0.45, 0); // arms up in a "V"
+          wparts.armR.rotation.set(0, Math.PI + 0.45, 0);
+          wparts.legL.rotation.set(0, 0, 0);
+          wparts.legR.rotation.set(0, 0, 0);
+        } else if (el < DANCE_END) {
+          // DANCE — face the player, rock to the beat, flap the arms out like wings and stomp.
+          const d = (el - SPIN_END) / (DANCE_END - SPIN_END); // 0..1 (used to ease the sway down)
+          const t = (el - SPIN_END) * 0.011; // a lively tempo (radians-ish)
+          const beat = Math.sin(t * 6.283); // one oscillation per "beat"
+          worker.group.rotation.z = p.facing; // face the camera for the finish
+          worker.group.rotation.x = Math.sin(t * 3.1415) * 0.14 * (1 - d * 0.45); // gentle rock, settles
+          worker.group.position.z = GZ + Math.abs(Math.sin(t * 6.283)) * 0.3; // bounce to the beat
+          const flap = 1.15 + beat * 0.55; // arms out to the sides, flapping up/down (mirrored)
+          wparts.armL.rotation.set(flap, 0, 0);
+          wparts.armR.rotation.set(-flap, 0, 0);
+          const stomp = Math.max(0, beat); // alternate a knee-up on each beat
+          wparts.legL.rotation.set(stomp * 0.5, 0, 0);
+          wparts.legR.rotation.set(stomp * -0.32, 0, 0);
+        } else {
+          // SETTLE — hold the triumphant standing pose (right fist up) and stop animating.
+          worker.group.position.z = GZ;
+          worker.group.rotation.set(0, 0, p.facing);
+          wparts.legL.rotation.set(0, 0, 0);
+          wparts.legR.rotation.set(0, 0, 0);
+          wparts.armL.rotation.set(0, -0.35, 0);
+          wparts.armR.rotation.set(0, Math.PI, 0);
+          if (worker.hat) {
+            worker.hat.position.z = 1.87;
+            worker.hat.rotation.x = 0;
           }
+          bonusHopStart = 0;
         }
       }
       function startGame() {
