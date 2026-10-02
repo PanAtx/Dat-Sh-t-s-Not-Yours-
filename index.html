@@ -2764,7 +2764,7 @@
     <div id="bonus-crit-vignette"></div>
     <div id="bonus-clock" class="hidden">
       <div id="bonus-clock-label">OVERTIME &middot; SERVICE THE BASKETS</div>
-      <div id="bonus-clock-pop"><span id="bonus-clock-num">60</span></div>
+      <div id="bonus-clock-pop"><span id="bonus-clock-num">30</span></div>
     </div>
     <div id="bonus-clock-bar" class="hidden"><i id="bonus-clock-fill"></i></div>
     <div id="hud">
@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.373</div>
+          <div id="app-version" class="menu-version">v1.0.374</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.373';
+      const APP_VERSION = '1.0.374';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3722,11 +3722,11 @@
       let dayScore = 0; // score earned today only
       // ---- OVERTIME BASKETS: the bonus round that fires right AFTER level 3 (Wednesday)
       //      and BEFORE level 4 (Thursday). A separate all-store street where the ONLY job
-      //      is servicing litter baskets. A 60s clock starts the instant the worker moves:
+      //      is servicing litter baskets. A 30s clock starts the instant the worker moves:
       //      service EVERY basket in time -> keep the money AND earn a Red Bull on
       //      Thursday's 2nd-block first corner. Miss it -> the bonus money is rolled back.
       const BONUS_DAY_TRIGGER = 3; // bonus fires when the player finishes this level
-      const BONUS_TIME = 60; // seconds to service every basket (6 baskets on the first + middle blocks — a short sweep from the x=88 start)
+      const BONUS_TIME = 30; // seconds to service every basket — a TIGHT 30s clock (was 60s): the same 6-basket sweep but half the time = a real challenge
       const BONUS_BASKET_COUNT = 6; // baskets on the bonus street: Block 2 = 94 & 178, Block 3 = 190 & 274, Block 4 = 286 & 370. Last block carries none.
       const BONUS_BLOCKS = 5; // the overtime street is only 5 blocks long (Blocks 1-5, x=0..464) — a shorter, punchier shift
       const BONUS_ROUTE_END_X = 480; // far edge of the 5th intersection (464..480): the worker can't walk past the end of the street
@@ -35874,7 +35874,7 @@
         vt.act = false;
       }
       // ==================== OVERTIME BASKETS — the bonus round after level 3 ====================
-      // A standalone, all-store, litter-basket-only street. A 60s clock starts the moment
+      // A standalone, all-store, litter-basket-only street. A 30s clock starts the moment
       // the worker moves: service EVERY basket in time to keep the money you earn in the
       // round AND earn a Red Bull on Thursday's 2nd-block first corner. Miss it and the
       // bonus money is rolled straight back out. The round then advances to level 4.
@@ -35897,7 +35897,7 @@
         $("day-intro-loc").textContent = d.borough + " \u00b7 " + d.area;
         $("day-intro-forecast").textContent = "";
         const sp = $("day-intro-special");
-        sp.textContent = "OVERTIME BASKETS! SERVICE EVERY BASKET IN 60 SECONDS";
+        sp.textContent = "OVERTIME BASKETS! SERVICE EVERY BASKET IN 30 SECONDS";
         sp.classList.add("show");
         const obj = document.querySelector("#day-intro .obj");
         if (obj)
