@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.365</div>
+          <div id="app-version" class="menu-version">v1.0.367</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.365';
+      const APP_VERSION = '1.0.367';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -20969,6 +20969,7 @@
         else if (isBronxLevel()) HOUSE_Y = 9.5; // Mott Haven: move buildings and stoop forward
         else if (isBedStuyLevel()) HOUSE_Y = 9.5; // Bed-Stuy brownstones: Mott Haven setback (no porch)
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
+        if (BONUS) HOUSE_Y = 7.4; // OVERTIME: no front yard — pull the storefront face flush to the sidewalk edge (front at y = 5.0). Drives BOTH hg.position.y and the step/stairs/front-wall collision records below, so the worker can't clip the shop.
         // Shift house row right within the block to balance spacing (not flush with intersection).
         // Maspeth: center the house in its own cell (6.4u middle cells -> tighter rows).
         hg.position.x = isQueensBlock ? cellW / 2 : 4.0;
@@ -21413,10 +21414,10 @@
               // (worker push-out, walkers route around, ball bounces off).
               if (i === 2 || i === 5 || i === 8) {
                 const t = makeSidewalkTree();
-                t.position.set(0, 3.4, 0);
+                t.position.set(0, 1.3, 0); // hug the curb (near the road edge, y~0.5), not mid-walk
                 g.add(t);
                 if (!b.trees) b.trees = [];
-                b.trees.push({ wx: worldX, wy: 3.4 });
+                b.trees.push({ wx: worldX, wy: 1.3 });
               }
             }
           }
