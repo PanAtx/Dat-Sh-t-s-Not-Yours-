@@ -34,6 +34,7 @@ const suites = [
   ['overtime WIN celebration (hop -> spin -> dance -> settle)', 'node', '_bonus_dance_chk.js'],
   ['overtime reward (Red Bull actually spawns on Thursday after a win)', 'node', '_redbull_reward_chk.js'],
   ['overtime store row is a continuous wall (no slip-through the gaps/sides)', 'node', '_overtime_storewall_chk.js'],
+  ['overtime street critters (randomized curb trees + rats/pizza rat + bodega cats)', 'node', '_overtime_critters_chk.js'],
 ];
 
 let allPass = true;

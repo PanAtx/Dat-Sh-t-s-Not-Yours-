@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.372</div>
+          <div id="app-version" class="menu-version">v1.0.373</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.372';
+      const APP_VERSION = '1.0.373';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -21446,14 +21446,62 @@
               // (worker push-out, walkers route around, ball bounces off).
               if (i === 2 || i === 5 || i === 8) {
                 const t = makeSidewalkTree();
-                t.position.set(0, 1.3, 0); // hug the curb (near the road edge, y~0.5), not mid-walk
+                // Near the curb but NOT in a dead-straight line: each tree jitters a little
+                // along the walk (x) and across it (y) so the worker can't just run straight
+                // through a row of trunk-aligned trees. Keep them in the curb band (y 0.8..1.8)
+                // so they still read as sidewalk trees hugging the road edge.
+                const tx = R(0.5, 3.5); // a bit off the cell edge, random along the walk
+                const ty = R(0.8, 1.8); // near the curb, but each tree sits at a slightly different depth
+                t.position.set(tx, ty, 0);
                 g.add(t);
                 if (!b.trees) b.trees = [];
-                b.trees.push({ wx: worldX, wy: 1.3 });
+                b.trees.push({ wx: worldX + tx, wy: ty });
               }
             }
           }
-          return; // done — a clean bonus street (no cars / crowd / critters / hazards)
+          // ==================== OVERTIME CRITTERS (rats + bodega cats) ====================
+          // Rats scurry BACK AND FORTH along the store street (bi-directional by default),
+          // and the PIZZA RAT is always here — a street rat lugging a giant slice. They roam
+          // the curb band (y 0.8..2.2) and recycle around the worker, so they stay on the
+          // 5-block overtime street. Bumping a rat is a prank (see the rat case + collide).
+          for (let r = 0; r < 3; r++) addCreature("rat");
+          // The PIZZA RAT (a rare slice-carrying rat) — always present on overtime.
+          const pizzaRat = addCreature("rat");
+          dynamicGroup.remove(pizzaRat.g);
+          pizzaRat.g = makeRat(true); // the giant-slice variant
+          dynamicGroup.add(pizzaRat.g);
+          pizzaRat.wy = R(1.2, 2.4);
+          pizzaRat.g.position.set(pizzaRat.wx, pizzaRat.wy, GZ);
+          // Bodega cats: the whole street is stores, so bring back the classic four — each
+          // sits on the sidewalk in front of a different block's storefront (Flatbush/
+          // Manhattan style, wy 4.5). Bump one for a Hiss! + a trip. No recycling: each
+          // cat stays at its store for the whole overtime street.
+          {
+            const active = [0, 1, 2, 3, 4]; // the 5 overtime blocks
+            for (let i = active.length - 1; i > 0; i--) {
+              const j = (Math.random() * (i + 1)) | 0;
+              const t = active[i];
+              active[i] = active[j];
+              active[j] = t;
+            }
+            const catBlocks = active.slice(0, 4);
+            const coats = ["tuxedo", "grey", "orange", "tabby"];
+            for (let i = coats.length - 1; i > 0; i--) {
+              const j = (Math.random() * (i + 1)) | 0;
+              const t = coats[i];
+              coats[i] = coats[j];
+              coats[j] = t;
+            }
+            for (let i = 0; i < 4; i++) {
+              const bl = LEVEL_BLOCKS[catBlocks[i]];
+              const bc = addCreature("cat", { palette: coats[i] });
+              bc.wx = bl.x + 3.0; // in front of the block's first store door
+              bc.wy = 4.5; // on the sidewalk in front of the storefront
+              bc.yMax = 4.5; // chase clamp ceiling (its home line)
+              bc.g.position.set(bc.wx, bc.wy, GZ);
+            }
+          }
+          return; // done — a clean bonus street (baskets + loot + a few critters, no cars / crowd / hazards)
         }
 
         // On Manhattan + Bronx levels, pick the appropriate store name pool and shuffle it
