@@ -84,6 +84,16 @@ const checks = [
     ),
   ],
   [
+    'makeFlatbushStore insets the name sign inside the body when packed (overtime row) so adjacent signs cannot Z-fight',
+    /function makeFlatbushStore[\s\S]*?const signW = storeOptions\.packedRow \? w - 0\.6 : 6\.8;[\s\S]*?const crownW = storeOptions\.packedRow \? w - 0\.4 : 7\.0;[\s\S]*?BX\(signW, 0\.15, 0\.5[\s\S]*?PlaneGeometry\(signW, 0\.48\)[\s\S]*?BX\(crownW, 0\.06, 0\.08/.test(
+      html,
+    ),
+  ],
+  [
+    'overtime (BONUS) store row sets packedRow: true so the name sign stays inside the body',
+    /const storeOptions = \{[\s\S]*?packedRow: true,[\s\S]*?\};/.test(html),
+  ],
+  [
     'makeFlatbushStore has a thin buildingFront stop line',
     /function makeFlatbushStore[\s\S]*?g\.userData\.buildingFront = \{[\s\S]*?hd: 0,[\s\S]*?\};/.test(
       html,

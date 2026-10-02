@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.368</div>
+          <div id="app-version" class="menu-version">v1.0.369</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.368';
+      const APP_VERSION = '1.0.369';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -14093,7 +14093,14 @@
         mat.position.set(doorX, -d / 2 - 0.5, 0.31);
         g.add(mat);
         // Sign board above window (solid backing)
-        const signBoard = BX(6.8, 0.15, 0.5, M(0x1a1a1a));
+        // In the OVERTIME (BONUS) row the stores are scaled up to ~the cell width and
+        // packed edge-to-edge, so the sign must stay INSIDE the body — an overhanging
+        // sign (wider than the body) would overlap the neighbours' coplanar signs and
+        // Z-fight. packedRow insets the sign to clear the seams; corner stores keep the
+        // full-width awning sign (6.8u on the 6.5u body).
+        const signW = storeOptions.packedRow ? w - 0.6 : 6.8;
+        const crownW = storeOptions.packedRow ? w - 0.4 : 7.0;
+        const signBoard = BX(signW, 0.15, 0.5, M(0x1a1a1a));
         signBoard.position.set(0, -d / 2 - 0.075, 0.3 + 2.4);
         g.add(signBoard);
         // Store name sign — plane mesh facing outward (not a sprite that always faces camera)
@@ -14102,14 +14109,14 @@
           storeOptions.isUptown,
         );
         const signPlane = new THREE.Mesh(
-          new THREE.PlaneGeometry(6.8, 0.48),
+          new THREE.PlaneGeometry(signW, 0.48),
           signMat,
         );
         signPlane.position.set(0, -d / 2 - 0.16, 0.3 + 2.4);
         signPlane.rotation.x = Math.PI / 2; // Face outward from building (-Y direction)
         g.add(signPlane);
         // Sign crown molding
-        const signCrown = BX(7.0, 0.06, 0.08, M(0x666666));
+        const signCrown = BX(crownW, 0.06, 0.08, M(0x666666));
         signCrown.position.set(0, -d / 2 - 0.14, 0.3 + 2.62);
         g.add(signCrown);
         // Step data for collision: the entrance MAT, centered under the door (cx offset).
@@ -21406,6 +21413,7 @@
                 storeName: storeName,
                 isUptown: false,
                 isLeft: i === 0,
+                packedRow: true, // continuous row: stores scale to ~cell width, so the name sign must stay INSIDE the body (no overhang) to avoid Z-fighting at the seams
               };
               makeBlockContents(b, worldX, i, storeOptions);
               blocks.push(b);
