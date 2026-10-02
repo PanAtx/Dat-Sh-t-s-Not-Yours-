@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.363</div>
+          <div id="app-version" class="menu-version">v1.0.365</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.363';
+      const APP_VERSION = '1.0.365';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -35910,6 +35910,7 @@
         if (won) {
           SFX.bonusWin();
           startConfetti();
+          confettiCannon(); // a radial burst fired from the worker himself
           showVerdict("GOOD WORK! YOU DID IT!", true);
         } else {
           SFX.bonusLose();
@@ -35918,11 +35919,12 @@
         // Let the moment land, THEN hand off to the overtime-complete report. The WIN
         // celebration lingers a bit longer so it lands; the LOSE dejection ("YOU FAILED"
         // + the slumped worker) holds long enough that it's unmistakably a failure.
+        // The WIN routine (hop -> spin -> slow dance -> catch) runs ~7s, so wait past it.
         clearTimeout(bonusResultTimer);
         bonusResultTimer = setTimeout(function () {
           endBonusVerdict();
           showBonusResult(won, gained);
-        }, won ? 4700 : 3400);
+        }, won ? 7600 : 3400);
       }
       function showBonusResult(won, gained) {
         state = "bonusend"; // freeze: the result card owns the input now
@@ -36054,20 +36056,75 @@
         }
         confettiParts.length = 0;
       }
+      // ---- confetti CANNON: a radial burst fired from the worker on a win ----
+      // A separate, self-contained system (its own array + updater) so it can't
+      // regress the top-of-screen confetti. Particles shoot UP + outward from his
+      // chest, arc under gravity, flutter, and are culled by age or the ground.
+      const cannonParts = [];
+      function confettiCannon() {
+        if (!p) return;
+        const ox = p.wx,
+          oy = p.wy,
+          oz = 2.2; // fire from roughly his chest/shoulder height
+        for (let i = 0; i < 90; i++) {
+          const col = CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0];
+          const m = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 0.03, 0.24),
+            new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }),
+          );
+          m.position.set(ox, oy, oz);
+          m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = R(3.5, 9); // radial speed
+          worldGroup.add(m); // worldGroup is rotated +45deg; the worker lives here, so the cannon must too
+          cannonParts.push({
+            m: m,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            vz: R(9, 15), // the upward launch
+            grav: -22,
+            rx: (Math.random() - 0.5) * 1.2,
+            ry: (Math.random() - 0.5) * 1.6,
+            life: 2.4,
+          });
+        }
+      }
+      function updateCannon(dt) {
+        if (cannonParts.length === 0) return;
+        for (let i = cannonParts.length - 1; i >= 0; i--) {
+          const c = cannonParts[i];
+          c.life -= dt;
+          c.vz += c.grav * dt;
+          c.m.position.x += c.vx * dt;
+          c.m.position.y += c.vy * dt;
+          c.m.position.z += c.vz * dt;
+          c.m.rotation.x += c.rx;
+          c.m.rotation.y += c.ry;
+          if (c.life <= 0 || c.m.position.z < -0.5) {
+            if (c.m.parent) c.m.parent.remove(c.m);
+            c.m.geometry && c.m.geometry.dispose();
+            c.m.material && c.m.material.dispose();
+            cannonParts.splice(i, 1);
+          }
+        }
+      }
       // ---- the bonusend interlude tick (confetti + the WIN celebration) ----
       // On a win the worker does a little prize routine for the player to enjoy:
-      //   HOP  (jump up, fist in the air) -> SPIN (a full turn, arms in a V) ->
-      //   DANCE (face the camera, bob the body, flap the arms like wings, stomp) ->
-      //   SETTLE (holds the triumphant fist-up pose until the result card appears).
+      //   HOP  (jump up, fist in the air) -> SPIN (a full turn, arms in a V, TOSS the cap) ->
+      //   DANCE (face the camera, groove at a relaxed tempo, cap on display overhead) ->
+      //   CATCH (strike the finish pose, cap drops back on his head) -> SETTLE (hold the pose).
+      // Deliberately SLOW so the player can enjoy it as a reward for winning overtime.
       // Driven off bonusHopStart (perf.now ms), which is only ever set on a win, so a
       // losing beat stays the simple slumped pose.
       function updateBonusInterlude(dt) {
         updateConfetti(dt);
+        updateCannon(dt);
         if (!bonusHopStart || !worker || !wparts) return;
         const el = performance.now() - bonusHopStart;
-        const HOP_END = 900,
-          SPIN_END = 1800,
-          DANCE_END = 4200;
+        const HOP_END = 1000,
+          SPIN_END = 2600,
+          DANCE_END = 6600,
+          CATCH_END = 7000;
         if (el < HOP_END) {
           // HOP — the celebratory jump; the right fist is already up from bonusPose.
           const k = 1 - el / HOP_END;
@@ -36079,32 +36136,59 @@
           wparts.armR.rotation.set(0, Math.PI, 0); // right fist up
           wparts.legL.rotation.set(0, 0, 0);
           wparts.legR.rotation.set(0, 0, 0);
+          if (worker.hat) {
+            worker.hat.position.z = 1.87; // cap stays on his head through the hop
+            worker.hat.rotation.x = 0;
+          }
         } else if (el < SPIN_END) {
-          // SPIN — one full 360° turn with both arms up in a V and a bounce.
+          // SPIN — one slow, elegant 360° turn, arms in a V, and he TOSS the cap up.
           const s = (el - HOP_END) / (SPIN_END - HOP_END); // 0..1
           worker.group.rotation.z = p.facing + s * Math.PI * 2; // one clean revolution
-          worker.group.position.z = GZ + Math.abs(Math.sin(s * Math.PI * 3)) * 0.4;
+          worker.group.position.z = GZ + Math.abs(Math.sin(s * Math.PI * 3)) * 0.35;
           worker.group.rotation.x = 0;
           wparts.armL.rotation.set(0, Math.PI - 0.45, 0); // arms up in a "V"
           wparts.armR.rotation.set(0, Math.PI + 0.45, 0);
           wparts.legL.rotation.set(0, 0, 0);
           wparts.legR.rotation.set(0, 0, 0);
+          if (worker.hat) {
+            worker.hat.position.z = 1.87 + 1.55 * s; // the cap LAUNCHES off his head
+            worker.hat.rotation.x = s * Math.PI * 2; // and flips once as it rises
+          }
         } else if (el < DANCE_END) {
-          // DANCE — face the player, rock to the beat, flap the arms out like wings and stomp.
-          const d = (el - SPIN_END) / (DANCE_END - SPIN_END); // 0..1 (used to ease the sway down)
-          const t = (el - SPIN_END) * 0.011; // a lively tempo (radians-ish)
-          const beat = Math.sin(t * 6.283); // one oscillation per "beat"
+          // DANCE — face the player and groove at a relaxed tempo: sway, bounce,
+          // flap the arms like wings and stomp, while the cap hovers on display overhead.
+          const d = (el - SPIN_END) / (DANCE_END - SPIN_END); // 0..1 (eases the sway down)
+          const sec = (el - SPIN_END) * 0.001; // seconds into the dance
+          const beat = Math.sin(sec * 2.2 * Math.PI * 2); // ~2.2 beats/sec (groovy, watchable)
           worker.group.rotation.z = p.facing; // face the camera for the finish
-          worker.group.rotation.x = Math.sin(t * 3.1415) * 0.14 * (1 - d * 0.45); // gentle rock, settles
-          worker.group.position.z = GZ + Math.abs(Math.sin(t * 6.283)) * 0.3; // bounce to the beat
-          const flap = 1.15 + beat * 0.55; // arms out to the sides, flapping up/down (mirrored)
+          worker.group.rotation.x = Math.sin(sec * 1.1 * Math.PI * 2) * 0.16 * (1 - d * 0.35); // slow sway
+          worker.group.position.z = GZ + Math.abs(beat) * 0.3; // bounce to the beat
+          const flap = 1.05 + beat * 0.5; // arms out to the sides, flapping (mirrored)
           wparts.armL.rotation.set(flap, 0, 0);
           wparts.armR.rotation.set(-flap, 0, 0);
           const stomp = Math.max(0, beat); // alternate a knee-up on each beat
-          wparts.legL.rotation.set(stomp * 0.5, 0, 0);
-          wparts.legR.rotation.set(stomp * -0.32, 0, 0);
+          wparts.legL.rotation.set(stomp * 0.42, 0, 0);
+          wparts.legR.rotation.set(stomp * -0.28, 0, 0);
+          if (worker.hat) {
+            worker.hat.position.z = 3.4 + Math.sin(sec * 2.2 * Math.PI * 2) * 0.12; // overhead display
+            worker.hat.rotation.x = Math.PI * 2 + sec * 1.6; // a slow continuous spin
+          }
+        } else if (el < CATCH_END) {
+          // CATCH — strike the finish pose and bring the cap back down onto his head.
+          const c = (el - DANCE_END) / (CATCH_END - DANCE_END); // 0..1
+          const ease = c * c * (3 - 2 * c); // smoothstep
+          worker.group.position.z = GZ;
+          worker.group.rotation.set(0, 0, p.facing);
+          wparts.armL.rotation.set(0, -0.35, 0);
+          wparts.armR.rotation.set(0, Math.PI, 0); // fist up
+          wparts.legL.rotation.set(0, 0, 0);
+          wparts.legR.rotation.set(0, 0, 0);
+          if (worker.hat) {
+            worker.hat.position.z = 3.4 + (1.87 - 3.4) * ease; // the cap drops 3.4 -> 1.87
+            worker.hat.rotation.x = Math.PI * 2 * (1 - ease); // unwinds as it lands
+          }
         } else {
-          // SETTLE — hold the triumphant standing pose (right fist up) and stop animating.
+          // SETTLE — hold the triumphant fist-up pose, cap back on his head.
           worker.group.position.z = GZ;
           worker.group.rotation.set(0, 0, p.facing);
           wparts.legL.rotation.set(0, 0, 0);
@@ -36112,7 +36196,7 @@
           wparts.armL.rotation.set(0, -0.35, 0);
           wparts.armR.rotation.set(0, Math.PI, 0);
           if (worker.hat) {
-            worker.hat.position.z = 1.87;
+            worker.hat.position.z = 1.87; // CAUGHT: the cap lands right back on his head
             worker.hat.rotation.x = 0;
           }
           bonusHopStart = 0;
