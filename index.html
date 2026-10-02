@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.370</div>
+          <div id="app-version" class="menu-version">v1.0.372</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.370';
+      const APP_VERSION = '1.0.372';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -21064,6 +21064,16 @@
         if (BONUS && b.buildingFront) {
           b.buildingFront.x0 = baseX;
           b.buildingFront.x1 = baseX + cellW;
+          // OVERTIME block-edge SIDE WALLS: the block's outer edges sit against the
+          // 16u cross-street gaps. The worker can be at/behind the storefront front
+          // face (high y) only inside those gaps (no store clamps him there). If he
+          // then strafes along that high-y line into the block, he'd enter a store's
+          // SIDE and the front-wall clamp would yank his y back to the front face
+          // (a "teleport to the door"). Mark the outer edges so the collision step
+          // holds him IN X at the side face (in place) instead, and the player can
+          // steer him down to the storefront on purpose. Mirrors the cemetery fences.
+          if (houseIdx === 0) b.bonusSideLeft = baseX;
+          if (houseIdx === HOUSES_PER_BLOCK - 1) b.bonusSideRight = baseX + cellW;
         }
         b.house = house;
         } // end !isCemCell (cemetery cells have no house/store/step/stairs/front wall)
@@ -28161,6 +28171,33 @@
         // and beside it. The clamp triggers at the SAME y it clamps to, so holding the stick
         // into the wall is a stable stop instead of a creep-forward / snap-back flicker.
         const WALL_STOP = 0.3; // keep the worker's center this far off the wall (body half-width ~0.28)
+        // === OVERTIME (BONUS) block-edge SIDE WALLS — run BEFORE the front-wall clamp below ===
+        // Hitting a storefront's SIDE must stop the worker IN X (in place), not yank his y
+        // to the front face. The worker can only be at/behind the front face (y >= stopY)
+        // inside the 16u cross-street gaps, so this only bites near a block's outer edge:
+        // hold him a body-width off the store's side face, leaving wy untouched. Only the
+        // near-edge band (SIDE_REACH) is walled, so he stays free deep in the cross-street.
+        // Mirrors the cemetery side-fence scheme (a side face never touches wy).
+        const BONUS_SIDE_STOP = 0.3; // body-width off the store's side face
+        const BONUS_SIDE_REACH = 1.5; // max realistic one-step overshoot past the face
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const b = blocks[bi];
+          if ((b.bonusSideLeft == null && b.bonusSideRight == null) || !b.buildingFront) continue;
+          const sStop = b.buildingFront.y1 - WALL_STOP; // this store's front-face stop line
+          if (p.wy < sStop) continue; // below the face (front approach) -> the y-clamp handles it
+          if (
+            b.bonusSideLeft != null &&
+            p.wx > b.bonusSideLeft - BONUS_SIDE_STOP &&
+            p.wx < b.bonusSideLeft + BONUS_SIDE_REACH
+          )
+            p.wx = b.bonusSideLeft - BONUS_SIDE_STOP;
+          if (
+            b.bonusSideRight != null &&
+            p.wx < b.bonusSideRight + BONUS_SIDE_STOP &&
+            p.wx > b.bonusSideRight - BONUS_SIDE_REACH
+          )
+            p.wx = b.bonusSideRight + BONUS_SIDE_STOP;
+        }
         for (let bi = 0; bi < blocks.length; bi++) {
           const b = blocks[bi];
           if (!b.buildingFront) continue;
