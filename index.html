@@ -2841,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.367</div>
+          <div id="app-version" class="menu-version">v1.0.368</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3010,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.367';
+      const APP_VERSION = '1.0.368';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -20969,7 +20969,7 @@
         else if (isBronxLevel()) HOUSE_Y = 9.5; // Mott Haven: move buildings and stoop forward
         else if (isBedStuyLevel()) HOUSE_Y = 9.5; // Bed-Stuy brownstones: Mott Haven setback (no porch)
         else if (borough === "BROOKLYN") HOUSE_Y = 10.5; // porch needs more setback from sidewalk
-        if (BONUS) HOUSE_Y = 7.4; // OVERTIME: no front yard — pull the storefront face flush to the sidewalk edge (front at y = 5.0). Drives BOTH hg.position.y and the step/stairs/front-wall collision records below, so the worker can't clip the shop.
+        if (BONUS) HOUSE_Y = 7.9; // OVERTIME: storefront sits just BEHIND the sidewalk edge (front face at y = 5.5, mat at y = 5.0) — a thin front apron, not a full front yard. Drives BOTH hg.position.y and the step/stairs/front-wall collision records below, so the worker can't clip the shop.
         // Shift house row right within the block to balance spacing (not flush with intersection).
         // Maspeth: center the house in its own cell (6.4u middle cells -> tighter rows).
         hg.position.x = isQueensBlock ? cellW / 2 : 4.0;
@@ -20986,12 +20986,14 @@
           const halfW = QUEENS_STORE_W / 2;
           hg.position.x = storeOptions.isLeft ? halfW : BW - halfW;
         }
-        // OVERTIME BASKETS: the bonus street is a continuous ROW of stores — center each one
-        // in its own cell AND stretch it to fill the full 8u cell (a touch of overlap to hide
-        // any seam) so the storefronts run edge-to-edge with NO space / driveway between them.
+        // OVERTIME BASKETS: the bonus street is a continuous ROW of stores — center each one in
+        // its own cell and stretch it to just under the cell width (7.8u of 8u) so the storefronts
+        // run edge-to-edge with a THIN seam between them. The small gap (not overlap) keeps the
+        // two solid store bodies from sharing a coplanar face, which is what caused the Z-fighting
+        // flicker where adjacent stores used to touch / overlap.
         if (BONUS) {
           hg.position.x = cellW / 2;
-          hg.scale.x = (cellW / FLATBUSH_STORE_W) * 1.01; // 6.5u store -> ~8u, closing the gap
+          hg.scale.x = (cellW - 0.2) / FLATBUSH_STORE_W; // 6.5u -> 7.8u: just under the cell => thin seam, no overlap
         }
         hg.position.y = HOUSE_Y;
         b.group.add(hg);
