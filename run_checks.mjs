@@ -29,6 +29,9 @@ const suites = [
   ['25 new street treasures (kinds 43-67 + spawnBonus draw)', 'node', '_treasures25_chk.js'],
   ['pigeon flocks stay around the worker + scare payout (+10 street cash)', 'node', '_pigeon_chk.js'],
   ['per-day NPC roster + traffic cap v2 (Maspeth d4 two-wheeler scene)', 'node', '_roster_chk.js'],
+  ['litter baskets (pickup / carry / dump / return-flight / bones)', 'node', '_litterbasket_chk.js'],
+  ['overtime win condition (win fires the instant the last basket is emptied)', 'node', '_bonus_win_chk.js'],
+  ['overtime reward (Red Bull actually spawns on Thursday after a win)', 'node', '_redbull_reward_chk.js'],
 ];
 
 let allPass = true;

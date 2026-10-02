@@ -325,6 +325,156 @@
         color: #bfe9ff;
         white-space: nowrap;
       }
+      /* ===== OVERTIME BASKETS — the big GAME-SHOW countdown (top-center) =====
+         Big number that POPS on every second, a full-width depleting top bar, and
+         escalating pressure as :00 nears: color ramps gold->amber->red, a pulse
+         that gets FASTER the lower the time, a shake + red vignette in the final
+         seconds. Driven by updateBonusHUD(); only visible during the bonus round. */
+      #bonus-crit-vignette {
+        position: fixed;
+        inset: 0;
+        z-index: 9;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.35s ease;
+      }
+      #bonus-crit-vignette.on {
+        opacity: 1;
+        box-shadow: inset 0 0 150px 55px rgba(255, 26, 18, 0.55);
+        animation: bc-vig-pulse var(--bc-pulse, 0.5s) ease-in-out infinite;
+      }
+      @keyframes bc-vig-pulse {
+        0%,
+        100% {
+          box-shadow: inset 0 0 110px 30px rgba(255, 26, 18, 0.34);
+        }
+        50% {
+          box-shadow: inset 0 0 210px 95px rgba(255, 26, 18, 0.72);
+        }
+      }
+      #bonus-clock {
+        position: fixed;
+        top: calc(74px + env(safe-area-inset-top, 0px));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 12;
+        pointer-events: none;
+        text-align: center;
+        user-select: none;
+        -webkit-user-select: none;
+        will-change: transform;
+      }
+      #bonus-clock.hidden {
+        display: none;
+      }
+      #bonus-clock-label {
+        font-family: "Press Start 2P", Courier, monospace;
+        font-size: clamp(8px, 1.9vw, 13px);
+        letter-spacing: 3px;
+        color: #9fe8b8;
+        text-shadow:
+          0 0 8px rgba(46, 224, 144, 0.6),
+          2px 2px 0 rgba(0, 0, 0, 0.8);
+        margin-bottom: 1px;
+      }
+      #bonus-clock-pop {
+        will-change: transform;
+      }
+      #bonus-clock-num {
+        display: inline-block;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(52px, 16vw, 132px);
+        line-height: 0.9;
+        color: #ffd66b;
+        -webkit-text-stroke: 2px rgba(0, 0, 0, 0.55);
+        letter-spacing: 2px;
+        text-shadow:
+          0 0 20px rgba(255, 214, 107, 0.55),
+          0 4px 0 rgba(0, 0, 0, 0.5),
+          0 9px 20px rgba(0, 0, 0, 0.6);
+        will-change: transform;
+      }
+      /* full-width depleting time bar across the very top of the screen */
+      #bonus-clock-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 9px;
+        z-index: 12;
+        pointer-events: none;
+        background: rgba(0, 0, 0, 0.4);
+        overflow: hidden;
+      }
+      #bonus-clock-bar.hidden {
+        display: none;
+      }
+      #bonus-clock-fill {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, #39f78e, #c6ff5a);
+        box-shadow: 0 0 12px rgba(57, 247, 142, 0.85);
+        border-radius: 0 0 6px 0;
+        transition:
+          width 0.12s linear,
+          background 0.4s ease;
+      }
+      /* ---- pressure tiers (JS toggles these as the clock runs low) ---- */
+      #bonus-clock.bc-warn #bonus-clock-num {
+        color: #ffcf4d;
+      }
+      #bonus-clock-bar.bc-warn #bonus-clock-fill {
+        background: linear-gradient(90deg, #ffb84d, #ffd66b);
+      }
+      #bonus-clock.bc-danger #bonus-clock-num {
+        color: #ff8a3d;
+      }
+      #bonus-clock-bar.bc-danger #bonus-clock-fill {
+        background: linear-gradient(90deg, #ff7a3d, #ff5b4d);
+      }
+      #bonus-clock.bc-critical #bonus-clock-num {
+        color: #ff3b30;
+      }
+      #bonus-clock-bar.bc-critical #bonus-clock-fill {
+        background: linear-gradient(90deg, #ff3b30, #ff0f0f);
+      }
+      /* sustained pulse (on the wrapper) gets FASTER as time runs low via --bc-pulse */
+      #bonus-clock.bc-danger #bonus-clock-pop,
+      #bonus-clock.bc-critical #bonus-clock-pop {
+        animation: bc-pulse var(--bc-pulse, 0.6s) ease-in-out infinite;
+      }
+      @keyframes bc-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.14);
+        }
+      }
+      /* critical: the whole clock shakes (keeps the -50% centering in every frame) */
+      #bonus-clock.bc-critical {
+        animation: bc-shake var(--bc-pulse, 0.35s) ease-in-out infinite;
+      }
+      @keyframes bc-shake {
+        0%,
+        100% {
+          transform: translateX(-50%) translate(0, 0);
+        }
+        20% {
+          transform: translateX(-50%) translate(-4px, 2px);
+        }
+        40% {
+          transform: translateX(-50%) translate(4px, -2px);
+        }
+        60% {
+          transform: translateX(-50%) translate(-3px, -2px);
+        }
+        80% {
+          transform: translateX(-50%) translate(3px, 2px);
+        }
+      }
       #tr {
         position: absolute;
         top: calc(16px + env(safe-area-inset-top, 0px));
@@ -748,6 +898,7 @@
       #btnRestart2,
       #btnBeginDay,
       #btnNextDay,
+      #btnBonusContinue,
       #btnWeekRestart,
       #btnResume,
       #btnQuit2 {
@@ -768,6 +919,7 @@
       #btnRestart2:hover,
       #btnBeginDay:hover,
       #btnNextDay:hover,
+      #btnBonusContinue:hover,
       #btnWeekRestart:hover,
       #btnResume:hover,
       #btnQuit2:hover {
@@ -1092,6 +1244,66 @@
       #day-stats button {
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.6s
           both;
+      }
+      /* ===== OVERTIME BASKETS — the win/lose result card shown after the round ===== */
+      #bonus-result-title {
+        margin-bottom: clamp(6px, 1.4vh, 12px);
+        animation: day-title-enter 0.8s cubic-bezier(0.2, 1.3, 0.4, 1);
+      }
+      #bonus-result .tag {
+        animation: complete-fade-in 0.5s ease-out 0.5s both;
+      }
+      #bonus-result-msg {
+        font-family: "Courier New", monospace;
+        color: #cfe6ff;
+        font-size: clamp(13px, 2.4vw, 18px);
+        letter-spacing: 1px;
+        line-height: 1.7;
+        margin: clamp(8px, 1.6vh, 14px) 0;
+        animation: complete-fade-in 0.5s ease-out 0.7s both;
+      }
+      #bonus-result button {
+        animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.4s
+          both;
+      }
+      /* OVERTIME BASKETS: the GOOD WORK! / YOU FAILED verdict banner (over the 3D world) */
+      #bonus-verdict {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 53;
+      }
+      #bonus-verdict-text {
+        font-family: "Impact", "Haettenschweiler", "Arial Black", sans-serif;
+        font-size: clamp(2.6rem, 12vw, 7rem);
+        letter-spacing: 2px;
+        text-align: center;
+        line-height: 1.05;
+        padding: 0 16px;
+        text-transform: uppercase;
+        text-shadow: 0 4px 0 rgba(0, 0, 0, 0.55), 0 0 26px rgba(0, 0, 0, 0.6);
+      }
+      #bonus-verdict.win #bonus-verdict-text {
+        color: #7cfc00;
+      }
+      #bonus-verdict.lose #bonus-verdict-text {
+        color: #ff2b2b;
+      }
+      #bonus-verdict:not(.hidden) #bonus-verdict-text {
+        animation: bvpop 0.34s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+      }
+      @keyframes bvpop {
+        from {
+          opacity: 0;
+          transform: scale(0.5) translateY(22px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
       }
       /* Week complete: big celebration */
       #week-complete .panel {
@@ -2548,6 +2760,13 @@
     <div id="splat"></div>
     <div id="dangerFlash"></div>
     <div id="dangerBanner">SAN MAN NEEDS FOOD BADLY!</div>
+    <!-- OVERTIME BASKETS: the game-show countdown (big number + top depleting bar) -->
+    <div id="bonus-crit-vignette"></div>
+    <div id="bonus-clock" class="hidden">
+      <div id="bonus-clock-label">OVERTIME &middot; SERVICE THE BASKETS</div>
+      <div id="bonus-clock-pop"><span id="bonus-clock-num">60</span></div>
+    </div>
+    <div id="bonus-clock-bar" class="hidden"><i id="bonus-clock-fill"></i></div>
     <div id="hud">
       <div id="tl" class="hudbox"
         ><div class="hp"
@@ -2622,7 +2841,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.357</div>
+          <div id="app-version" class="menu-version">v1.0.358</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -2746,6 +2965,18 @@
         <button id="btnNextDay">NEXT DAY</button>
       </div></div
     >
+    <div id="bonus-result" class="modal hidden"
+      ><div class="panel">
+        <h2 id="bonus-result-title">OVERTIME BASKETS</h2>
+        <div class="tag">OVERTIME BASKET SHIFT — FLATBUSH / BROOKLYN</div>
+        <div id="bonus-result-msg"
+          >TOO SLOW! THE <b>$0</b> YOU MADE IN OVERTIME IS GONE.</div
+        >
+        <button id="btnBonusContinue">CONTINUE</button>
+      </div></div
+    >
+    <!-- OVERTIME BASKETS: the big GOOD WORK! / YOU FAILED verdict banner (over the 3D world) -->
+    <div id="bonus-verdict" class="hidden"><div id="bonus-verdict-text"></div></div>
     <div id="week-complete" class="modal hidden"
       ><div class="panel">
         <h1 id="week-title">WEEK COMPLETE</h1>
@@ -2779,7 +3010,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.357';
+      const APP_VERSION = '1.0.358';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3489,6 +3720,31 @@
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
+      // ---- OVERTIME BASKETS: the bonus round that fires right AFTER level 3 (Wednesday)
+      //      and BEFORE level 4 (Thursday). A separate all-store street where the ONLY job
+      //      is servicing litter baskets. A 60s clock starts the instant the worker moves:
+      //      service EVERY basket in time -> keep the money AND earn a Red Bull on
+      //      Thursday's 2nd-block first corner. Miss it -> the bonus money is rolled back.
+      const BONUS_DAY_TRIGGER = 3; // bonus fires when the player finishes this level
+      const BONUS_TIME = 60; // seconds to service every basket (60s: baskets now sit on the corners, ~390u sweep from the x=88 start)
+      const BONUS_BASKET_COUNT = 8; // baskets on the bonus street (spread along the route)
+      const BONUS_BLOCKS = 5; // the overtime street is only 5 blocks long (Blocks 1-5, x=0..464) — a shorter, punchier shift
+      const BONUS_ROUTE_END_X = 480; // far edge of the 5th intersection (464..480): the worker can't walk past the end of the street
+      let BONUS = false; // true while the bonus world is live
+      let bonusDoneThisRun = false; // fires once per week (reset by startGame)
+      let bonusClock = BONUS_TIME; // remaining seconds (counts down once the worker moves)
+      let bonusClockStarted = false; // set on the worker's first move
+      let bonusResultShown = false; // true once the win/lose modal is up
+      let _bcLast = -1; // last whole second shown, so the big number pops once per tick
+      let bonusStartScore = 0; // score snapshot at the start (rolled back on a loss)
+      let bonusStartDayScore = 0; // dayScore snapshot at the start
+      let bonusStartWeekScore = 0; // weekScore snapshot at the start
+      let thursdayRedBull = false; // true -> spawn a Red Bull on the next (Thursday) level
+      let bonusResultTimer = 0; // the interlude -> overtime-complete report handoff
+      let bonusHopStart = 0; // >0 (perf.now ms) while the victory hop animates
+      const confettiParts = [];
+      let confettiOn = false;
+      const CONFETTI_COLORS = [0xff3b30, 0x34c759, 0x0a84ff, 0xffd60a, 0xffffff, 0xff9500];
       let dayStats = null; // { bags|cans|baskets|mongo|treasure|cash : {got,total} }
       let dayBonusGot = { mongo: 0, treasure: 0, cash: 0 };
       function newDayStats() {
@@ -4042,14 +4298,21 @@
         // The ground is FIXED (covers the whole finite route, x = -60 .. 840) instead of
         // scrolling infinitely — the level is a bounded block-and-intersection route.
         const GROUND_L = -60,
-          GROUND_R = 840;
+          GROUND_R = BONUS ? 490 : 840; // overtime = a short 5-block street (ends just past the last basket at x=478)
         const GW = GROUND_R - GROUND_L;
         const GCX = (GROUND_L + GROUND_R) / 2;
         groundStrip(GW, 10, 0.3, -4.5, 0x3a4046, GCX); // asphalt
         groundStrip(GW, 4.5, 0.3, -11.75, 0x8d949c, GCX); // far-side sidewalk (y -9.5..-14, past the far road edge)
         groundStrip(GW, 10, 0.3, -19, 0x35522c, GCX); // park beyond the far sidewalk
         groundStrip(GW, 4.5, 0.3, 2.75, 0x9a9a94, GCX); // sidewalk (warm concrete)
-        if (isManhattanLevel()) {
+        if (BONUS) {
+          console.log("  -> OVERTIME BASKETS street: all-concrete storefront avenue");
+          // A brand-new street: NO grass lawns, NO driveways — just a continuous concrete
+          // sidewalk + a concrete building apron out to the far park line. Every building
+          // is a store, so the worker has flat, open ground the whole way.
+          groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front apron (concrete, no lawns)
+          groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // back apron (concrete, no lawns)
+        } else if (isManhattanLevel()) {
           console.log("  -> Manhattan path: concrete lawns");
           groundStrip(GW, 3.5, 0.3, 6.75, 0x8d949c, GCX); // front lawns as concrete (Manhattan has no grass)
           groundStrip(GW, 15.5, 0.3, 16.25, 0x8d949c, GCX); // park behind brownstones as concrete
@@ -4637,6 +4900,26 @@
           this.tone("square", 98, 82, 0.14, 0.42, 0.0); // the low growl
           this.tone("square", 294, 392, 0.2, 0.4, 0.13); // the snap up into anger
           this.noise(0.12, "bandpass", 900, 0.28, 0.08); // the breathy huff
+        },
+        // OVERTIME WIN: a rising C-major fanfare (C5-E5-G5) into a held C6, plus a bright
+        // sparkle and a celebratory pop — the "you did it!" sting.
+        bonusWin() {
+          this.ensure();
+          this.tone("triangle", 523, 540, 0.14, 0.5, 0.0); // C5
+          this.tone("triangle", 659, 680, 0.14, 0.5, 0.12); // E5
+          this.tone("triangle", 784, 810, 0.16, 0.55, 0.24); // G5
+          this.tone("triangle", 1046, 1090, 0.5, 0.6, 0.36); // C6 (hold)
+          this.tone("square", 2093, 2093, 0.18, 0.12, 0.36); // sparkle
+          this.tone("square", 2637, 2637, 0.2, 0.1, 0.44); // sparkle 2
+          this.noise(0.3, "highpass", 3000, 0.15, 0.36); // the pop
+        },
+        // OVERTIME FAIL: a sad descending two-note (G4 -> Eb4) with a low "aww" thud.
+        bonusLose() {
+          this.ensure();
+          this.tone("sawtooth", 392, 370, 0.35, 0.4, 0.0); // G4 falling
+          this.tone("sawtooth", 311, 292, 0.5, 0.42, 0.32); // Eb4 falling (sad)
+          this.tone("sine", 98, 70, 0.7, 0.5, 0.34); // low "aww"
+          this.noise(0.4, "lowpass", 300, 0.2, 0.34); // the deflating tail
         },
         // Thunder (rainy shifts): a deep sub-sine BOOM under a long low rumble with a
         // rolling tail — procedural, fired ~1-2s after the lightning flash.
@@ -6794,32 +7077,61 @@
         return g;
       }
 
-      function placeLitterBasket() {
-        if (litterBasketPlaced || !LITTERBASKET_TPL) return;
-        litterBasketPlaced = true;
-        // ONE LITTER BASKET ON EVERY CORNER of the left (house-side) sidewalk,
-        // at both the approach and departure corners of Intersections 1–7
-        // (the active gameplay route; Intersection 8 sits past the finish line).
-        //   cx = xInt + IW/2; x = cx +/- (CROSS_W/2 + 1.5); y = 1.8.
-        // The VERY FIRST basket (the approach corner of the first intersection) is NOT
-        // placed, and the LAST TWO baskets (the pair at the final intersection) are NOT
-        // placed, so they don't need to be picked up -> 11 baskets, not 14.
-        litterBasketHomes = [];
+      // Compute the NORMAL (non-overtime) basket corner layout: one basket on every
+      // corner of Intersections 1-6 (the active route), skipping the very first corner.
+      // Isolated so BOTH placeLitterBasket and resetLitterBaskets can rebuild it —
+      // the overtime round overwrites litterBasketHomes, so a fresh normal reset must
+      // recompute these (or every day after overtime inherits the bonus layout).
+      function computeNormalLitterBasketHomes() {
+        const homes = [];
         const offsets = [-(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5];
         const activeIntersections = LEVEL_XS.slice(0, 6);
         activeIntersections.forEach(function (xInt, i) {
           const cx = xInt + IW / 2;
           for (let o = 0; o < offsets.length; o++) {
             if (i === 0 && o === 0) continue; // skip the very first corner basket
-            litterBasketHomes.push({ wx: cx + offsets[o], wy: 1.8 });
+            homes.push({ wx: cx + offsets[o], wy: 1.8 });
           }
         });
+        return homes;
+      }
+      function placeLitterBasket() {
+        if (litterBasketPlaced || !LITTERBASKET_TPL) return;
+        litterBasketPlaced = true;
+        litterBasketHomes = computeNormalLitterBasketHomes();
         resetLitterBaskets();
       }
       // Re-create every litter basket at its corner home. Disposes whatever is
       // currently out there (resting, carried, or mid-flight), then re-clones the
       // shared template into the persistent groundGroup. Safe to call on START SHIFT.
       function resetLitterBaskets() {
+        // OVERTIME BASKETS: place them ON THE INTERSECTION CORNERS — exactly like the
+        // first three days — so they read as "a basket on the corner" rather than a
+        // straight line down the middle of the sidewalk.
+        if (BONUS) {
+          // 2 baskets per intersection (both corners); span as many intersections as the
+          // count needs so BONUS_BASKET_COUNT stays the single source of truth (8 -> 4).
+          // Start ONE intersection ahead of the worker: no basket on the worker's OWN
+          // starting corner (Intersection 1) — the line begins at the first corner of the
+          // SECOND block (Intersection 2, x=176) instead.
+          const offsets = [-(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5];
+          const needed = Math.ceil(BONUS_BASKET_COUNT / offsets.length);
+          const bonusIntersections = LEVEL_XS.slice(1, 1 + needed); // first corner of the second block
+          litterBasketHomes = [];
+          for (let i = 0; i < bonusIntersections.length; i++) {
+            const cx = bonusIntersections[i] + IW / 2;
+            for (let o = 0; o < offsets.length; o++) {
+              litterBasketHomes.push({ wx: cx + offsets[o], wy: 1.8 });
+            }
+          }
+        } else {
+          // RECOMPUTE the normal corner layout on every non-overtime reset. The overtime
+          // round overwrites litterBasketHomes with its own (shorter) layout, and
+          // placeLitterBasket never re-runs (litterBasketPlaced is latched after the first
+          // load) — so without this, EVERY day after overtime silently inherits the bonus
+          // basket positions (e.g. Thursday "missing" its start + end corner baskets).
+          litterBasketHomes = computeNormalLitterBasketHomes();
+        }
         for (const b of litterBaskets) {
           if (b.g && b.g.parent) b.g.parent.remove(b.g);
           if (b.g) disposeObj(b.g);
@@ -12725,6 +13037,33 @@
         "MAMA AUNTIE'S MINI-MARKET: DUKA & DUCUNDA",
         "THE JERUSALEM & THE JAMAICA: MINI-MART",
         "THE LAUNDRY & THE LAMENT: WASH & FOLD",
+      ];
+
+      // OVERTIME BASKETS — the bonus round's storefronts. A NEW street where EVERY
+      // building is a shop (no houses): a lovingly exaggerated mix of Caribbean and
+      // Jewish corner businesses — restaurants, hats, music, a storefront church, a
+      // daycare, a deli... Humorous, all-caps signage to match the rest of the game.
+      const OVERTIME_STORE_NAMES = [
+        "DUTCH BROTHERS DELI: LAGERS & LOAFS",
+        "MAMA JOE'S JERK PIG: EAT & RUN",
+        "GOSPEL GROVE CHURCH: SUNDRY STORE",
+        "THE KIP & THE COCONUT: HATS & DRINKS",
+        "SUGAR MAMA'S: BREAD PASTE & BOTTLES",
+        "RABBI'S RECORDS: SOUL, REGGAE, SCHWAD",
+        "THE LITTLE MESHUGENA: KIDS & CLOTHES",
+        "SWEET TART: JAMAICAN COCOA CORNERS",
+        "BORSHT & BLASTERS: HOT & COLD",
+        "THE FIVE-CENT FOUNTAIN: TAP WATER",
+        "GOD'S GROCERY: OPEN TILL MIDNIGHT",
+        "KOSHER COCONUT: JUICE & LAGERS",
+        "BIG GUY'S BARBECUE: SLOW & SLOWER",
+        "THE TINY TALLIS: DAYCARE & KIPPOTS",
+        "RHYTHM & RITUAL: MUSIC & INCENSE",
+        "MAMEY & MATZO: TWO WORLDS, ONE SHOP",
+        "JERK IT & LEARN IT: FAST FOOD FAST",
+        "THE SABBATH SODA CO: FIZZ & FAITH",
+        "SCHWAD & SUGAR: BAKERY & BEANS",
+        "LUCKY LOAF & LOUD: BREAD & BASS",
       ];
 
       // Bed-Stuy (Brooklyn, level 7 — Sunday) corner stores — the neighborhood you'd
@@ -20641,6 +20980,13 @@
           const halfW = QUEENS_STORE_W / 2;
           hg.position.x = storeOptions.isLeft ? halfW : BW - halfW;
         }
+        // OVERTIME BASKETS: the bonus street is a continuous ROW of stores — center each one
+        // in its own cell AND stretch it to fill the full 8u cell (a touch of overlap to hide
+        // any seam) so the storefronts run edge-to-edge with NO space / driveway between them.
+        if (BONUS) {
+          hg.position.x = cellW / 2;
+          hg.scale.x = (cellW / FLATBUSH_STORE_W) * 1.01; // 6.5u store -> ~8u, closing the gap
+        }
         hg.position.y = HOUSE_Y;
         b.group.add(hg);
         // b.g is the house/store group itself — updateBulbGlow() reads blocks[i].g to drive
@@ -20707,34 +21053,37 @@
           // Maspeth cells are narrower (6.4u): keep trash inside THIS house's own cell.
           const houseX = () =>
             baseX + (isQueensBlock ? R(0.5, cellW - 0.5) : R(0.8, 7.2));
-          // curb trash layout (every house has something to collect)
-          const r = Math.random();
-          let nBags = 0,
-            hasCan = false;
-          if (r < 0.4) nBags = 1;
-          else if (r < 0.7) nBags = 2;
-          else if (r < 0.86) {
-            nBags = 1;
-            hasCan = true;
-          } else hasCan = true;
-          if (nBags === 2) {
-            makeCurbBag(houseX(), sideY(), house);
-            makeCurbBag(houseX(), sideY(), house);
-          } else if (nBags === 1) {
-            makeCurbBag(houseX(), sideY(), house);
-          }
-          if (hasCan) house.can = makeCurbCan(houseX(), sideY(), house);
-          // pre-spawned bonus (copper / street cash / treasure) placed in the world from the start.
-          // Higher spawn rate (0.85): sidewalk + front-lawn grass, in front of THIS house only.
-          if (Math.random() < 0.85) spawnBonus(houseX(), sideY());
-          // Maspeth (Queens): STORM-DEBRIS boxes like Sunday's — ONE OR TWO PER BLOCK
-          // (spawned once, on the block's first cell), each with street cash under it.
-          if (isQueensBlock && houseIdx === 0) {
-            const nBoxes = Math.random() < 0.5 ? 1 : 2; // one or two per block
-            for (let bx = 0; bx < nBoxes; bx++) {
-              makeCurbBox(b.blockX + R(2.0, 78.0), R(0.5, spawnMaxY()), house);
+          // OVERTIME BASKETS: this street is LITTER-BASKETS ONLY — no curb bags, cans, or
+          // storm boxes. On normal levels this whole section is the curb trash layout.
+          if (!BONUS) {
+            // curb trash layout (every house has something to collect)
+            const r = Math.random();
+            let nBags = 0,
+              hasCan = false;
+            if (r < 0.4) nBags = 1;
+            else if (r < 0.7) nBags = 2;
+            else if (r < 0.86) {
+              nBags = 1;
+              hasCan = true;
+            } else hasCan = true;
+            if (nBags === 2) {
+              makeCurbBag(houseX(), sideY(), house);
+              makeCurbBag(houseX(), sideY(), house);
+            } else if (nBags === 1) {
+              makeCurbBag(houseX(), sideY(), house);
+            }
+            if (hasCan) house.can = makeCurbCan(houseX(), sideY(), house);
+            // Maspeth (Queens): STORM-DEBRIS boxes — ONE OR TWO PER BLOCK (first cell).
+            if (isQueensBlock && houseIdx === 0) {
+              const nBoxes = Math.random() < 0.5 ? 1 : 2;
+              for (let bx = 0; bx < nBoxes; bx++) {
+                makeCurbBox(b.blockX + R(2.0, 78.0), R(0.5, spawnMaxY()), house);
+              }
             }
           }
+          // pre-spawned bonus loot (treasure / mongo / street cash) — ALWAYS spawned, and on
+          // the OVERTIME street it's the "money" the worker grabs for the bonus pot.
+          if (Math.random() < 0.85) spawnBonus(houseX(), sideY());
         }
         // lane markings & sidewalk joints (scroll with the block)
         const dashM = M(0xcfd5da);
@@ -21013,6 +21362,62 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
+
+        // OVERTIME BASKETS — a standalone all-store street (uses the Flatbush level data,
+        // so all the Flatbush storefront branches below apply naturally), but EVERY cell
+        // is a shop with OVERTIME names, there are NO curb bags / cans / storm boxes, and
+        // the ONLY things to service are the litter baskets (plus the treasure / mongo /
+        // street cash loot to grab for the bonus pot). No parked cars, crowd, critters or
+        // hazards — a clean, fast bonus street. The litter baskets are laid out in
+        // resetLitterBaskets() (the BONUS branch there).
+        if (BONUS) {
+          console.log(
+            "  -> OVERTIME BASKETS world: all-store street, baskets + loot only"
+          );
+          const pool = shuffleStoreNames(OVERTIME_STORE_NAMES);
+          let si = 0;
+          for (let blkIdx = 0; blkIdx < BONUS_BLOCKS; blkIdx++) {
+            const bl = LEVEL_BLOCKS[blkIdx];
+            for (let i = 0; i < HOUSES_PER_BLOCK; i++) {
+              const g = new THREE.Group();
+              const worldX = bl.x + i * BW;
+              const b = {
+                group: g,
+                worldX,
+                house: null,
+                hazards: [],
+                garbage: true, // -> loot (treasure/mongo/cash) spawns; bags/cans are gated off
+                blockX: bl.x,
+                passed: false,
+              };
+              g.position.x = worldX;
+              dynamicGroup.add(g);
+              const storeName = pool[si++ % pool.length];
+              const storeOptions = {
+                isStore: true,
+                storeName: storeName,
+                isUptown: false,
+                isLeft: i === 0,
+              };
+              makeBlockContents(b, worldX, i, storeOptions);
+              blocks.push(b);
+              // Trees along the store street: THREE sidewalk trees per block (i = 2 / 5 / 8,
+              // worldX = blockX+16 / +40 / +64) — spread across each block, clear of the
+              // intersection baskets (which sit at the cross-streets, y=1.8) and the worker's
+              // street->basket approach. Registered in b.trees so each is a solid obstacle
+              // (worker push-out, walkers route around, ball bounces off).
+              if (i === 2 || i === 5 || i === 8) {
+                const t = makeSidewalkTree();
+                t.position.set(0, 3.4, 0);
+                g.add(t);
+                if (!b.trees) b.trees = [];
+                b.trees.push({ wx: worldX, wy: 3.4 });
+              }
+            }
+          }
+          return; // done — a clean bonus street (no cars / crowd / critters / hazards)
+        }
+
         // On Manhattan + Bronx levels, pick the appropriate store name pool and shuffle it
         let storePool = null;
         let isUptown = false;
@@ -27641,6 +28046,8 @@
         // never visibly "lags behind" the input while turning. 40 = ~2 frames to 90% of
         // the turn at 60fps (was 22 = ~5 frames, which read as sluggish).
         if (f !== 0 || l !== 0) {
+          // OVERTIME BASKETS: the 30-second clock starts the moment the worker moves.
+          if (BONUS && !bonusClockStarted) bonusClockStarted = true;
           const target = Math.atan2(l, f);
           let diff = target - p.facing;
           while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -27668,10 +28075,12 @@
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
         // and reaching Intersection 7 (the last one before Block 8) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
-        if (p.wx >= ROUTE_FINISH_X && state === "play") {
+        if (BONUS && p.wx > BONUS_ROUTE_END_X) p.wx = BONUS_ROUTE_END_X; // 5-block street: can't walk past its end
+        if (p.wx >= ROUTE_FINISH_X && state === "play" && !BONUS) {
           startRouteEnd();
           return;
-        } // fist pump, cab hop-in, truck rolls out
+        } // fist pump, cab hop-in, truck rolls out (OVERTIME: the finish line is not the end —
+        // the round ends by servicing every basket or running the clock out)
         // brown footprint trail: one print per ~0.45 units walked while the trail is active.
         // The worker can ALSO be bleeding (p.bloodSteps, set when a leashdog bites him):
         // while bleeding the prints are RED and take priority over the other trails.
@@ -35234,6 +35643,13 @@
         joyPid = null;
       }
       function nextDay() {
+        // OVERTIME BASKETS: fires exactly ONCE, right after finishing level 3 (Wednesday)
+        // and BEFORE the Thursday (level 4) shift. It keeps the worker on the Flatbush
+        // (level 3) data for the world build, and advances to level 4 when it resolves.
+        if (level === BONUS_DAY_TRIGGER && !bonusDoneThisRun) {
+          startBonusRound();
+          return;
+        }
         level = Math.min(level + 1, MAX_LEVEL);
         showDayIntro(); // resetWorldState() rebuilds the street for the new (harder) day
       }
@@ -35257,7 +35673,7 @@
         }
         setTxt($("week-score"), pad(weekScore));
         setTxt($("week-hi"), pad(hi));
-        ["over", "complete", "day-intro", "day-stats"].forEach(function (id) {
+        ["over", "complete", "day-intro", "day-stats", "bonus-result"].forEach(function (id) {
           $(id).classList.add("hidden");
         });
         $("week-complete").classList.remove("hidden");
@@ -35272,6 +35688,10 @@
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         rollWeather(d); // a new sky for the new shift (Bed-Stuy's special day is always rain)
         $("day-intro-day").textContent = d.day;
+        // The day card is a NORMAL shift: restore the standard button label so it never
+        // lingers as "START OVERTIME" (that label is set only in startBonusRound). Every
+        // normal day card — Monday, Thursday, the rest of the week — gets this label.
+        $("btnBeginDay").textContent = "START THE SHIFT";
         // The day card names the weather too — the light / fog / rain match the words.
         $("day-intro-loc").textContent =
           d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
@@ -35299,7 +35719,18 @@
           sp.classList.remove("show");
         }
         resetWorldState(); // (re)build the street for this day + re-anchor the worker at the start
-        ["menu", "over", "complete", "day-stats", "week-complete"].forEach(
+        // OVERTIME REWARD: if the worker nailed the overtime round, a Red Bull (Monster)
+        // is waiting on Thursday's 2nd-block first corner. Spawn it AFTER resetWorldState
+        // (which clears powerups + disposes the dynamic group) so it actually persists,
+        // then consume the one-shot flag.
+        if (thursdayRedBull) {
+          const rbWx = snapToHouseCell(
+            clamp(PLAYER_START_X + 16, ROUTE_START_X, ROUTE_FINISH_X),
+          );
+          spawnPowerup("monster", rbWx, 2.0);
+          thursdayRedBull = false;
+        }
+        ["menu", "over", "complete", "day-stats", "week-complete", "bonus-result"].forEach(
           function (id) {
             $(id).classList.add("hidden");
           },
@@ -35324,6 +35755,309 @@
         vt.l = 0;
         vt.act = false;
       }
+      // ==================== OVERTIME BASKETS — the bonus round after level 3 ====================
+      // A standalone, all-store, litter-basket-only street. A 60s clock starts the moment
+      // the worker moves: service EVERY basket in time to keep the money you earn in the
+      // round AND earn a Red Bull on Thursday's 2nd-block first corner. Miss it and the
+      // bonus money is rolled straight back out. The round then advances to level 4.
+      function startBonusRound() {
+        BONUS = true;
+        bonusClock = BONUS_TIME;
+        bonusClockStarted = false;
+        bonusResultShown = false;
+        // Defensive: clear any leftover interlude state from a previous week's overtime.
+        clearTimeout(bonusResultTimer);
+        stopConfetti();
+        bonusHopStart = 0;
+        $("bonus-verdict").classList.add("hidden");
+        bonusStartScore = score; // snapshot the money so a loss can roll it back out
+        bonusStartDayScore = dayScore;
+        bonusStartWeekScore = weekScore;
+        const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0]; // Flatbush (lvl 3)
+        resetWorldState(); // builds the all-store street + the bonus basket line + the loot
+        $("day-intro-day").textContent = "OVERTIME!";
+        $("day-intro-loc").textContent = d.borough + " \u00b7 " + d.area;
+        $("day-intro-forecast").textContent = "";
+        const sp = $("day-intro-special");
+        sp.textContent = "OVERTIME BASKETS! SERVICE EVERY BASKET IN 60 SECONDS";
+        sp.classList.add("show");
+        const obj = document.querySelector("#day-intro .obj");
+        if (obj)
+          obj.innerHTML =
+            "GRAB ALL THE TREASURE &middot; MONGO &middot; STREET CASH<br/>" +
+            "THE CLOCK STARTS THE MOMENT YOU MOVE<br/>" +
+            "MISS IT &rarr; YOU KEEP NOTHING &middot; NAIL IT &rarr; RED BULL ON THURSDAY";
+        $("btnBeginDay").textContent = "START OVERTIME";
+        $("route").textContent = "OVERTIME BASKETS \u00b7 " + d.borough + " / " + d.area;
+        _bcLast = -1; // force the "60" to pop in on the first frame
+        hideBonusClock();
+        ["menu", "over", "complete", "day-stats", "week-complete", "bonus-result"].forEach(
+          function (id) {
+            $(id).classList.add("hidden");
+          },
+        );
+        $("day-intro").classList.remove("hidden");
+        state = "intro";
+        radioMode();
+        needsIdleRender = true;
+        lastT = performance.now();
+        $("vpad").classList.remove("on");
+        vt.f = 0;
+        vt.l = 0;
+        vt.act = false;
+      }
+      function updateBonusHUD() {
+        const el = $("bonus-clock");
+        if (!el) return;
+        const bar = $("bonus-clock-bar");
+        const fill = $("bonus-clock-fill");
+        el.classList.remove("hidden");
+        if (bar) bar.classList.remove("hidden");
+        const t = Math.max(0, bonusClock);
+        const frac =
+          BONUS_TIME > 0 ? Math.max(0, Math.min(1, t / BONUS_TIME)) : 0;
+        // Big game-show number: whole seconds, POPS on every change.
+        const secs = Math.ceil(t);
+        const num = $("bonus-clock-num");
+        if (num && secs !== _bcLast) {
+          _bcLast = secs;
+          num.textContent = String(secs);
+          if (num.animate)
+            num.animate(
+              [
+                { transform: "scale(1.45) translateY(-10px)", opacity: 0.25 },
+                { transform: "scale(1) translateY(0)", opacity: 1 },
+              ],
+              { duration: 240, easing: "cubic-bezier(0.2,1.4,0.4,1)" },
+            );
+        }
+        // Depleting top bar.
+        if (fill) fill.style.width = (frac * 100).toFixed(2) + "%";
+        // Pressure tiers + a pulse that gets FASTER as :00 nears
+        // (0.7s when calm -> 0.18s in the final seconds).
+        const pulse = (0.7 - 0.52 * (1 - frac)).toFixed(3) + "s";
+        el.style.setProperty("--bc-pulse", pulse);
+        const w = t <= 30 && t > 15;
+        const dg = t <= 15 && t > 8;
+        const cr = t <= 8;
+        el.classList.toggle("bc-warn", w);
+        el.classList.toggle("bc-danger", dg);
+        el.classList.toggle("bc-critical", cr);
+        if (bar) {
+          bar.style.setProperty("--bc-pulse", pulse);
+          bar.classList.toggle("bc-warn", w);
+          bar.classList.toggle("bc-danger", dg);
+          bar.classList.toggle("bc-critical", cr);
+        }
+        // Full-screen red vignette ramps in on the final 8 seconds.
+        const vig = $("bonus-crit-vignette");
+        if (vig) {
+          vig.style.setProperty("--bc-pulse", pulse);
+          vig.classList.toggle("on", cr);
+        }
+        // Baskets-left tally (kept for the smaller HUD line if present).
+        // A "dumped" basket (emptied, in its toss-back flight) is already DONE — keep it
+        // off the "left" tally so the HUD agrees with the win condition above.
+        const left = litterBaskets.filter(
+          (b) => b.state !== "serviced" && b.state !== "dumped",
+        ).length;
+        const bb = $("bonus-baskets");
+        if (bb) bb.textContent = "BASKETS LEFT " + left + " / " + litterBaskets.length;
+      }
+      // Hide + reset the game-show clock (used when the round ends / resumes / resets).
+      function hideBonusClock() {
+        const el = $("bonus-clock");
+        if (el) {
+          el.classList.add("hidden");
+          el.classList.remove("bc-warn", "bc-danger", "bc-critical");
+        }
+        const bar = $("bonus-clock-bar");
+        if (bar) {
+          bar.classList.add("hidden");
+          bar.classList.remove("bc-warn", "bc-danger", "bc-critical");
+        }
+        const vig = $("bonus-crit-vignette");
+        if (vig) vig.classList.remove("on");
+      }
+      function resolveBonus(won) {
+        if (bonusResultShown) return;
+        bonusResultShown = true;
+        const gained = score - bonusStartScore;
+        if (!won) {
+          // Too slow — the bonus round's money is forfeited (rolled straight back out).
+          score = bonusStartScore;
+          dayScore = bonusStartDayScore;
+          weekScore = bonusStartWeekScore;
+        } else {
+          thursdayRedBull = true; // -> the Red Bull spawns on the next (Thursday) level
+        }
+        // Freeze the input + the play sim NOW so the worker's win/lose pose holds (the play
+        // loop only overwrites it while state === "play"), then play the celebration/dejection.
+        state = "bonusend";
+        $("vpad").classList.remove("on");
+        hideBonusClock();
+        bonusPose(won);
+        if (won) {
+          SFX.bonusWin();
+          startConfetti();
+          showVerdict("GOOD WORK! YOU DID IT!", true);
+        } else {
+          SFX.bonusLose();
+          showVerdict("YOU FAILED", false);
+        }
+        // Let the moment land, THEN hand off to the overtime-complete report.
+        clearTimeout(bonusResultTimer);
+        bonusResultTimer = setTimeout(function () {
+          endBonusVerdict();
+          showBonusResult(won, gained);
+        }, won ? 2800 : 2400);
+      }
+      function showBonusResult(won, gained) {
+        state = "bonusend"; // freeze: the result card owns the input now
+        $("bonus-result-title").textContent = won ? "OVERTIME COMPLETE!" : "TIME'S UP!";
+        $("bonus-result-msg").innerHTML = won
+          ? "YOU KEPT <b>$" +
+            pad(gained) +
+            "</b><br/>AND EARNED A <b>RED BULL</b> ON THURSDAY'S 2ND BLOCK!"
+          : "TOO SLOW! THE <b>$" +
+            pad(Math.max(0, gained)) +
+            "</b> YOU MADE IN OVERTIME IS GONE.";
+        ["menu", "over", "complete", "day-intro", "day-stats", "week-complete"].forEach(
+          function (id) {
+            $(id).classList.add("hidden");
+          },
+        );
+        $("bonus-result").classList.remove("hidden");
+        hideBonusClock();
+        radioMode();
+        $("vpad").classList.remove("on");
+        vt.f = 0;
+        vt.l = 0;
+        vt.act = false;
+        needsIdleRender = true;
+        lastT = performance.now();
+      }
+      function continueAfterBonus() {
+        clearTimeout(bonusResultTimer);
+        $("bonus-verdict").classList.add("hidden");
+        $("bonus-result").classList.add("hidden");
+        hideBonusClock();
+        stopConfetti(); // clear any lingering confetti before the world rebuilds
+        bonusHopStart = 0;
+        BONUS = false; // back to normal world-building
+        bonusDoneThisRun = true; // the bonus fires once per week
+        level = BONUS_DAY_TRIGGER + 1; // advance to the Thursday (level 4) shift
+        showDayIntro(); // builds the real Thursday street (spawns the Red Bull if we won)
+      }
+      // ==================== OVERTIME WIN / FAIL — the worker's beat + confetti ====================
+      // The worker's victory (fist up + a little jump) or dejection (head down, arms drooping),
+      // plus the confetti burst on a win. The play loop is frozen (state="bonusend") so these
+      // poses hold; resetWorldState (via showDayIntro) restores the worker for the next shift.
+      function bonusPose(won) {
+        if (!worker || !wparts) return;
+        worker.group.rotation.z = p.facing; // keep his last facing
+        wparts.legL.rotation.set(0, 0, 0);
+        wparts.legR.rotation.set(0, 0, 0);
+        if (won) {
+          worker.group.rotation.x = 0;
+          worker.group.rotation.y = 0;
+          wparts.armL.rotation.y = -0.35; // the other arm relaxed
+          wparts.armR.rotation.y = Math.PI; // right fist straight up in the air
+          if (worker.hat) {
+            worker.hat.position.z = 1.87;
+            worker.hat.rotation.x = 0;
+          }
+          bonusHopStart = performance.now(); // the celebratory jump
+        } else {
+          worker.group.rotation.x = -0.35; // slump the upper body forward, head dropping
+          worker.group.rotation.y = 0;
+          wparts.armL.rotation.y = 0.6; // arms droop
+          wparts.armR.rotation.y = -0.6;
+          if (worker.hat) {
+            worker.hat.position.z = 1.72; // cap bows low over the brow
+            worker.hat.rotation.x = 0.95;
+          }
+        }
+      }
+      function showVerdict(text, win) {
+        const el = $("bonus-verdict");
+        if (!el) return;
+        el.classList.remove("hidden", "win", "lose");
+        el.classList.add(win ? "win" : "lose");
+        $("bonus-verdict-text").textContent = text;
+      }
+      function endBonusVerdict() {
+        const el = $("bonus-verdict");
+        if (el) el.classList.add("hidden");
+      }
+      // ---- confetti (falls from the top of the screen on a win) ----
+      function startConfetti() {
+        stopConfetti();
+        confettiOn = true;
+        for (let i = 0; i < 150; i++) {
+          const col = CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0];
+          const m = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 0.03, 0.24),
+            new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }),
+          );
+          m.position.set(p.wx + R(-8, 8), p.wy + R(-8, 8), 3.5 + Math.random() * 4.5);
+          m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+          worldGroup.add(m); // worldGroup is rotated +45deg; the worker lives here, so confetti must too
+          confettiParts.push({
+            m: m,
+            vy: 3.5 + Math.random() * 3.5,
+            rx: (Math.random() - 0.5) * 0.35,
+            ry: (Math.random() - 0.5) * 0.5,
+            phase: Math.random() * 6,
+          });
+        }
+      }
+      function updateConfetti(dt) {
+        if (!confettiOn) return;
+        let any = false;
+        for (let i = confettiParts.length - 1; i >= 0; i--) {
+          const c = confettiParts[i];
+          c.m.position.z -= c.vy * dt;
+          c.m.position.x += Math.sin(performance.now() * 0.003 + c.phase) * 0.25 * dt;
+          c.m.rotation.x += c.rx;
+          c.m.rotation.y += c.ry;
+          if (c.m.position.z < -0.5) {
+            if (c.m.parent) c.m.parent.remove(c.m);
+            c.m.geometry && c.m.geometry.dispose();
+            c.m.material && c.m.material.dispose();
+            confettiParts.splice(i, 1);
+          } else {
+            any = true;
+          }
+        }
+        if (!any) confettiOn = false;
+      }
+      function stopConfetti() {
+        confettiOn = false;
+        for (let i = 0; i < confettiParts.length; i++) {
+          const c = confettiParts[i];
+          if (c.m.parent) c.m.parent.remove(c.m);
+          if (c.m.geometry) c.m.geometry.dispose();
+          if (c.m.material) c.m.material.dispose();
+        }
+        confettiParts.length = 0;
+      }
+      // ---- the bonusend interlude tick (confetti + the victory hop) ----
+      function updateBonusInterlude(dt) {
+        updateConfetti(dt);
+        if (bonusHopStart) {
+          const el = performance.now() - bonusHopStart;
+          if (el < 900) {
+            const k = 1 - el / 900;
+            if (worker)
+              worker.group.position.z =
+                GZ + Math.abs(Math.sin((el / 900) * Math.PI * 3)) * 0.55 * k;
+          } else {
+            if (worker) worker.group.position.z = GZ;
+            bonusHopStart = 0;
+          }
+        }
+      }
       function startGame() {
         if (_preloading) return; // assets are still streaming in: never start the week until the gate is done
         enterLandscapeFullscreen();
@@ -35339,6 +36073,7 @@
         bonusTally = 0; // fresh run: the street cash starts at zero (it carries over across days otherwise)
         monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this run
         healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
+        thursdayRedBull = false; // fresh run: no leftover overtime Red Bull pending on Thursday
         // New game = new worker: set the skin tone ONCE here so it stays the same
         // across every level until the game is restarted (not re-rolled per shift).
         if (worker && worker.skinMat)
@@ -35353,6 +36088,8 @@
         if (state === "dying") return; // the down sequence is playing out — let it finish
         if (state === "routeend") return; // the drive-off cinematic is playing out — let it finish
         if (state === "play") return; // never restart mid-shift
+        if (state === "bonusend") // overtime result card up -> continue to Thursday
+          return continueAfterBonus();
         if (state === "intro") return beginDay();
         if (state === "dayend")
           return level < MAX_LEVEL ? nextDay() : showWeekComplete();
@@ -35768,6 +36505,9 @@
       $("btnNextDay").addEventListener("click", function () {
         advanceGame();
       }); // day-end report -> next day / finish the week
+      $("btnBonusContinue").addEventListener("click", function () {
+        continueAfterBonus(); // overtime result card -> Thursday (level 4)
+      }); // overtime result -> next day
       $("btnWeekRestart").addEventListener("click", function () {
         startGame();
       }); // week complete -> work another week
@@ -36043,9 +36783,9 @@
           return;
         }
         updateWeatherRain(dt); // the storm keeps falling in every live state (menu included — it's NYC)
-        if (state !== "play" && state !== "dying" && state !== "routeend") {
+        if (state !== "play" && state !== "dying" && state !== "routeend" && state !== "bonusend") {
           // IDLE on the menu / game-over: render ONE static backdrop frame, then do no work.
-          // ('dying' / 'routeend' are active: their sequences still animate + render every frame.)
+          // ('dying' / 'routeend' / 'bonusend' are active: they still animate + render every frame.)
           if (needsIdleRender) {
             needsIdleRender = false;
             positionCamera(0);
@@ -36078,6 +36818,26 @@
           updateConeProps(dt); // knockable traffic cones: bump detection + topple wobble
           updateHUD();
           updateBulbGlow(performance.now() / 1000); // porch light flicker (uses real time so flicker is consistent)
+          // ---- OVERTIME BASKETS: the round's end-of-turn resolution ----
+          // Win: service EVERY basket before the clock runs out. Lose: the clock hits 0.
+          // A basket is DONE the instant it is emptied into the hopper ("dumped") — the
+          // 0.8s toss-back flight is purely cosmetic. We must NOT require the landed
+          // "serviced" state, or the clock can expire while the last emptied basket is
+          // still flying home and cost the worker a round they already won.
+          if (BONUS && !bonusResultShown) {
+            const basketDone = (bb) =>
+              bb.state === "serviced" || bb.state === "dumped";
+            const allDone =
+              litterBaskets.length > 0 && litterBaskets.every(basketDone);
+            if (allDone) {
+              resolveBonus(true);
+            } else if (bonusClockStarted) {
+              bonusClock -= dt;
+              if (bonusClock < 0) bonusClock = 0;
+              if (bonusClock <= 0) resolveBonus(false);
+            }
+            if (!bonusResultShown) updateBonusHUD();
+          }
         } else if (state === "routeend") {
           // The worker is off limits (no input, no damage) but the hit GAG must still play
           // inside the cinematic: the hopper gush drench trips him (doStun -> p.stunT) and
@@ -36087,6 +36847,11 @@
           if (p.stunT > 0) p.stunT -= dt;
           updateGag(dt);
           updateRouteEnd(dt); // 'routeend': the level-complete cinematic (cheer -> walk -> board -> drive off)
+          updateBulbGlow(performance.now() / 1000);
+        } else if (state === "bonusend") {
+          // OVERTIME win/lose beat: keep the worker's pose + confetti + victory hop alive
+          // (the play sim is frozen, so this is the only thing animating during the interlude).
+          updateBonusInterlude(dt);
           updateBulbGlow(performance.now() / 1000);
         } else {
           updateDying(dt); // 'dying': play out the worker's down sequence (spin -> fall -> LODI hold)

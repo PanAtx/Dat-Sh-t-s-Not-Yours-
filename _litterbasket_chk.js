@@ -59,12 +59,12 @@ function disposeObj(){ calls.dispose++; }
 function resetCalls(){ calls.score=0; calls.deposit=0; calls.dispose=0; calls.voices.length=0; }
 
 // ---- build the real logic closure --------------------------------------------------
-const fns = ['nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets',
+const fns = ['computeNormalLitterBasketHomes','nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets',
   'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
   'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
-  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W',
+  'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[]; const MAX_SMALL_BAGS=3; var bagStack=[];\n' +
   'function tossBag(){} function dumpCan(){} function speakBagType(){} function attachStacked(it,slot){ worker.group.add(it.g); }\n' +
   fns + '\n' +
@@ -73,7 +73,7 @@ const api = new Function(
   'setCarried:function(c,i){ carry=c; carried=i; } };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
   CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, () => WORKER_MAX_Y,
-  dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => false, 384, 96);
+  dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => false, 384, 96, false, 8);
 // ---- 1) placement ------------------------------------------------------------------
 check('placeLitterBasket -> 11 baskets at corners (very first + last pair skipped), all "placed" on groundGroup, FULL of visible trash', ()=>{
   api.placeLitterBasket();
@@ -247,14 +247,14 @@ check('bone flag -> only the cemetery block\'s own two corners are bones (adjace
   const apiQ = new Function(
     'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
     'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
-    'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W',
+    'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT',
     'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
     'function tossBag(){} function dumpCan(){}\n' +
     fns + '\n' +
     'return { resetLitterBaskets, placeLitterBasket, baskets:()=>litterBaskets };'
   )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
     CROSS_W, IW, REAL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, () => WORKER_MAX_Y,
-    dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => true, 384, 80);
+    dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => true, 384, 80, false, 8);
   apiQ.placeLitterBasket();
   const bs = apiQ.baskets();
   assert.strictEqual(bs.length, 11, '11 baskets placed');
