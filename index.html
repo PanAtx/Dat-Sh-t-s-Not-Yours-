@@ -3362,7 +3362,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.381</div>
+          <div id="app-version" class="menu-version">v1.0.382</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3618,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.381';
+      const APP_VERSION = '1.0.382';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5399,6 +5399,13 @@
         radioBlobUrl: null,
         _radioCache: null,
         _radioSrcChanged: false,
+        // ---- TRAINER MENU MUSIC: a dedicated track that plays ONLY while the hidden
+        //      trainer overlay is open. It lives at the repo root (NOT in music/), so it
+        //      never enters the radio rotation / the game's playlist. trainerPlay()
+        //      pauses the station while it's on air; trainerStop() restores it. ----
+        TRAINER_TRACK: "Romeo Knight - Beat To The Pulp [Remastered].mp3",
+        trainerEl: null,
+        trainerRadioResumable: false,
         ensure() {
           if (this.ctx) {
             if (this.ctx.state === "suspended")
@@ -6001,6 +6008,50 @@
           this._radioCancel();
           this.radioNext();
         },
+        // ---- TRAINER MENU MUSIC: play the trainer's dedicated root-level track (never
+        //      part of the music/ rotation) while the trainer is open. If the station
+        //      is on air we pause it for the duration and bring it back on exit. ----
+        trainerPlay() {
+          try {
+            this.ensure(); // AudioContext ready (resumes a suspended ctx on iOS)
+            // Remember + pause the station so the trainer's track is the only thing on air
+            if (this.radioEl && !this.radioEl.paused) {
+              this.trainerRadioResumable = true;
+              this._radioCancel(); // clear any pending "advance to next" timer
+              this.radioEl.pause();
+            } else {
+              this.trainerRadioResumable = false;
+            }
+            if (!this.trainerEl) {
+              const el = (this.trainerEl = new Audio());
+              el.src = encodeURI(this.TRAINER_TRACK);
+              el.loop = true; // menu music: keep it going while the trainer is open
+            }
+            this.trainerEl.muted = this.radioMuted;
+            this.trainerEl.volume = this.radioMuted ? 0 : 0.9;
+            try {
+              this.trainerEl.currentTime = 0; // start from the top each time we open it
+            } catch (e) {}
+            const p = this.trainerEl.play();
+            if (p && p.catch) p.catch(() => {}); // autoplay blocked: stay silent, never break
+          } catch (e) {}
+        },
+        trainerStop() {
+          try {
+            if (this.trainerEl) {
+              this.trainerEl.pause();
+              try {
+                this.trainerEl.currentTime = 0;
+              } catch (e) {}
+            }
+            // Bring the station back on air ONLY if it was playing before the trainer
+            if (this.trainerRadioResumable && this.radioEl) {
+              const p = this.radioEl.play();
+              if (p && p.catch) p.catch(() => {});
+            }
+            this.trainerRadioResumable = false;
+          } catch (e) {}
+        },
         // ---- OFFLINE WARM-UP: once the menu is up, quietly pull the whole rotation
         //     into the radio cache in the background so the station starts OFFLINE on
         //     any later visit. Silent - it only fills the cache (no audio), it aborts
@@ -6229,6 +6280,10 @@
         if (SFX.radioEl) {
           SFX.radioEl.muted = SFX.radioMuted; // iOS: the muted property is the reliable mute path
           SFX.radioEl.volume = SFX.radioMuted ? 0 : 0.9; // belt-and-suspenders for non-iOS
+        }
+        if (SFX.trainerEl) {
+          SFX.trainerEl.muted = SFX.radioMuted; // keep the trainer's track in sync with MUTE
+          SFX.trainerEl.volume = SFX.radioMuted ? 0 : 0.9;
         }
         radioBox.classList.toggle("muted", SFX.radioMuted);
         $("btnMute").classList.toggle("off", SFX.radioMuted);
@@ -38123,6 +38178,11 @@
         vt.f = 0; vt.l = 0; vt.act = false;
         if (typeof joyPid !== "undefined") joyPid = null;
         TRAINER.prevTouchAct = false;
+        // Stop the trainer's track (it must not leak into the menu or the game) and
+        // restore the station if it was on air before we opened the trainer.
+        try {
+          if (typeof SFX !== "undefined" && SFX && typeof SFX.trainerStop === "function") SFX.trainerStop();
+        } catch (e) {}
       }
       function trainerBack() {
         closeTrainer();
@@ -38147,6 +38207,11 @@
         trainerInitScroll();
         trainerPaint();
         trainerBlip(520, 0.08);
+        // Start the trainer's dedicated menu track (a root-level mp3, NOT in the music/
+        // rotation). It plays ONLY while the trainer is open; closeTrainer() stops it.
+        try {
+          if (typeof SFX !== "undefined" && SFX && typeof SFX.trainerPlay === "function") SFX.trainerPlay();
+        } catch (e) {}
       }
       // ---- scrolling marquee (the -Pan- message) ----
       var TRAINER_MSG =
