@@ -3362,7 +3362,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.380</div>
+          <div id="app-version" class="menu-version">v1.0.381</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3618,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.380';
+      const APP_VERSION = '1.0.381';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -37956,7 +37956,7 @@
           { key: "start", label: "Start Game", type: "action" },
         ],
         renderer: null, scene: null, camera: null,
-        stars: null,
+        stars: null, starPos: null, starGeo: null, rotPhase: 0,
         scrollX: 0, lastAct: 0, prevTouchAct: false,
       };
       var TRAINER_AC = null;
@@ -37977,7 +37977,20 @@
           o.start(t); o.stop(t + (dur || 0.09) + 0.02);
         } catch (e) {}
       }
-      // ---- three.js stage: a clean black backdrop with a subtle drifting starfield ----
+      // ---- three.js stage: a starfield that FLYS toward the screen (along +z) and slowly
+      //      spins clockwise -> eases through a stop -> counter-clockwise -> stop -> repeat.
+      //      It's the calm "hyperspace" background behind the whole trainer. ----
+      var STAR_N = 600; // number of stars
+      var STAR_SPREAD = 34; // half-width of the tunnel (x & y)
+      var STAR_FAR = 140; // depth stars spawn from (negative z, in front of the camera)
+      var STAR_SPEED = 20; // units/sec the stars fly toward the camera
+      var SPIN_MAX = 0.22; // max |angular velocity| (rad/s) of the CW/CCW spin
+      var SPIN_FREQ = 0.45; // how fast the spin direction oscillates
+      function starSpawn(i3, pos) {
+        pos[i3] = (Math.random() * 2 - 1) * STAR_SPREAD;
+        pos[i3 + 1] = (Math.random() * 2 - 1) * STAR_SPREAD;
+        pos[i3 + 2] = -Math.random() * STAR_FAR;
+      }
       function trainerInit3D() {
         if (TRAINER.renderer) return;
         if (typeof THREE === "undefined") return; // CDN blocked: the DOM menu still works, just no 3D stage
@@ -37986,21 +37999,19 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000, 1);
         var scene = new THREE.Scene();
-        var camera = new THREE.PerspectiveCamera(72, 1, 0.1, 300);
-        camera.position.set(0, 3.4, 13);
-        camera.lookAt(0, 1.2, 0);
-        var N = 700, pos = new Float32Array(N * 3);
-        for (var i = 0; i < N; i++) {
-          pos[i * 3] = (Math.random() - 0.5) * 160;
-          pos[i * 3 + 1] = Math.random() * 50 - 2;
-          pos[i * 3 + 2] = -Math.random() * 140 + 12;
-        }
+        var camera = new THREE.PerspectiveCamera(80, 1, 0.1, 400);
+        camera.position.set(0, 0, 0);
+        camera.lookAt(0, 0, -1); // straight down the -z tunnel: stars fly right at the screen
+        var pos = new Float32Array(STAR_N * 3);
+        for (var i = 0; i < STAR_N; i++) starSpawn(i * 3, pos);
         var geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-        var stars = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x9fe8ff, size: 0.3, sizeAttenuation: true, transparent: true, opacity: 0.8 }));
+        var mat = new THREE.PointsMaterial({ color: 0xcfe8ff, size: 0.6, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false });
+        var stars = new THREE.Points(geo, mat);
         scene.add(stars);
         TRAINER.renderer = renderer; TRAINER.scene = scene; TRAINER.camera = camera;
-        TRAINER.stars = stars;
+        TRAINER.stars = stars; TRAINER.starPos = pos; TRAINER.starGeo = geo;
+        TRAINER.rotPhase = Math.random() * Math.PI * 2; // start the spin cycle at a random point
         trainerResize();
       }
       function trainerResize() {
@@ -38012,7 +38023,18 @@
       }
       function trainerRender(dt) {
         if (!TRAINER.renderer) return;
-        TRAINER.stars.rotation.y += dt * 0.015; // slow, unobtrusive starfield drift
+        var pos = TRAINER.starPos, n = pos.length / 3;
+        var dz = STAR_SPEED * dt;
+        for (var i = 0; i < n; i++) {
+          var iz = i * 3 + 2;
+          pos[iz] += dz; // fly toward the camera (+z)
+          if (pos[iz] > 0.5) starSpawn(iz - 2, pos); // passed the camera: respawn far away
+        }
+        TRAINER.starGeo.attributes.position.needsUpdate = true;
+        // spin: a sine angular velocity gives CW -> ease to a stop -> CCW -> stop -> repeat
+        TRAINER.rotPhase += dt;
+        var omega = SPIN_MAX * Math.sin(TRAINER.rotPhase * SPIN_FREQ);
+        TRAINER.stars.rotation.z += omega * dt;
         TRAINER.renderer.render(TRAINER.scene, TRAINER.camera);
       }
       // ---- DOM menu: build the rows, paint values, move the BLUE highlight ----
