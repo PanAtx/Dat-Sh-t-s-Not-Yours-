@@ -3362,7 +3362,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.383</div>
+          <div id="app-version" class="menu-version">v1.0.384</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3618,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.383';
+      const APP_VERSION = '1.0.384';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38047,8 +38047,8 @@
       var STAR_SPREAD = 34; // half-width of the tunnel (x & y)
       var STAR_FAR = 140; // depth the balls spawn from (negative z, in front of the camera)
       var STAR_SPEED = 20; // units/sec the balls fly toward the camera
-      var SPIN_MAX = 0.22; // max |angular velocity| (rad/s) of the CW/CCW spin
-      var SPIN_FREQ = 0.45; // how fast the spin direction oscillates
+      var SPIN_MAX = 0.5; // max |angular velocity| (rad/s) of the CW/CCW spin (a bit more rotation)
+      var SPIN_FREQ = 0.28; // how fast the spin direction oscillates (slower = each spin lasts longer)
       var STAR_COLORS = [0xff4040, 0x40ff6a, 0x4068ff, 0xffd23d, 0xc04dff]; // red, green, blue, yellow, purple
       var starData = []; // per-ball state: { x, y, z, size }
       var _starM4 = null; // one reused matrix (allocated lazily) so we don't build one every frame
@@ -38071,7 +38071,8 @@
         // Little colored BALLS (spheres), not white square points: one shared low-poly
         // sphere + per-instance color, drawn via InstancedMesh = a single draw call, so it
         // stays smooth even on a mobile GPU.
-        var ballGeo = new THREE.SphereGeometry(1, 10, 8);
+        // (higher segments keep close balls smooth instead of looking faceted/stretched)
+        var ballGeo = new THREE.SphereGeometry(1, 24, 18);
         var ballMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
         var balls = new THREE.InstancedMesh(ballGeo, ballMat, STAR_N);
         if (THREE.DynamicDrawUsage && balls.instanceMatrix && balls.instanceMatrix.setUsage)
@@ -38109,7 +38110,7 @@
         for (var i = 0; i < n; i++) {
           var d = data[i];
           d.z += dz; // fly toward the camera (+z)
-          if (d.z > 0.5) starSpawn(d); // passed the camera: respawn far away
+          if (d.z > 4) starSpawn(d); // recycle well before the near plane so balls never balloon/stretch
           _starM4.makeScale(d.size, d.size, d.size).setPosition(d.x, d.y, d.z);
           TRAINER.stars.setMatrixAt(i, _starM4);
         }
