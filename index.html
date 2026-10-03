@@ -750,12 +750,20 @@
       }
       .panel {
         border: 3px solid #2ee090;
-        background: linear-gradient(180deg, #07130d, #040a07);
-        padding: clamp(14px, 2.8vh, 34px) clamp(16px, 4vw, 48px);
+        border-radius: 12px;
+        background:
+          radial-gradient(
+            130% 80% at 50% -20%,
+            rgba(46, 224, 144, 0.16),
+            transparent 62%
+          ),
+          linear-gradient(180deg, #0b1c13 0%, #06100a 55%, #040a07 100%);
+        padding: clamp(18px, 3.2vh, 38px) clamp(18px, 4.5vw, 54px);
         text-align: center;
         box-shadow:
-          0 0 34px rgba(46, 224, 144, 0.4),
-          inset 0 0 60px rgba(0, 0, 0, 0.65);
+          0 14px 0 rgba(0, 0, 0, 0.5),
+          0 0 46px rgba(46, 224, 144, 0.42),
+          inset 0 0 70px rgba(0, 0, 0, 0.72);
         width: min(94vw, 680px);
         max-width: 94vw;
         max-height: calc(100vh - 24px);
@@ -764,11 +772,18 @@
         overflow: hidden;
       }
       .panel h1 {
-        font-family: "Courier New", monospace;
-        font-size: clamp(18px, 4.4vw, 34px);
-        letter-spacing: 5px;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(34px, 9vw, 68px);
+        letter-spacing: 3px;
+        line-height: 0.95;
+        text-transform: uppercase;
         color: #2ee090;
-        text-shadow: 0 0 14px rgba(46, 224, 144, 0.8);
+        transform: rotate(-1.5deg);
+        text-shadow:
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 26px currentColor;
+        margin-bottom: 14px;
       }
       .title-text {
         font-family: "Arial Black", Impact, sans-serif;
@@ -782,45 +797,101 @@
         letter-spacing: 2px;
       }
       .panel h2 {
-        font-family: "Courier New", monospace;
-        font-size: clamp(16px, 4vw, 26px);
-        letter-spacing: 4px;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(32px, 8.5vw, 64px);
+        letter-spacing: 3px;
+        line-height: 0.95;
+        text-transform: uppercase;
         color: #ff5252;
-        text-shadow: 0 0 14px rgba(255, 82, 82, 0.8);
+        transform: rotate(-1.5deg);
+        text-shadow:
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 26px currentColor;
+        margin-bottom: 14px;
       }
       .panel .tag {
-        font-family: "Courier New", monospace;
-        color: #9fe8b8;
-        letter-spacing: 2px;
-        font-size: clamp(10px, 1.7vw, 13px);
-        margin-top: 8px;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        color: #cdefff;
+        letter-spacing: 2.5px;
+        font-size: clamp(14px, 2.6vw, 22px);
+        line-height: 1.1;
+        margin: clamp(6px, 1.2vh, 10px) auto clamp(12px, 2vh, 20px);
+        display: inline-block;
+        padding: clamp(5px, 1vh, 9px) clamp(12px, 2.4vw, 20px);
+        background: rgba(2, 10, 7, 0.72);
+        border: 1px solid rgba(46, 224, 144, 0.45);
+        border-radius: 999px;
+        box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
+        white-space: normal;
+        max-width: 88%;
       }
       .panel .ctl {
-        font-family: "Courier New", monospace;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
         color: #cfe6ff;
-        font-size: clamp(11px, 1.8vw, 14px);
-        line-height: clamp(1.45, 2.3vh, 1.9);
-        margin: clamp(10px, 2vh, 20px) 0;
-        text-align: left;
+        font-size: clamp(15px, 2.6vw, 22px);
+        letter-spacing: 1.5px;
+        line-height: 1.25;
+        margin: clamp(12px, 2.2vh, 22px) auto;
+        text-align: center;
         display: inline-block;
+        max-width: 86%;
+        padding: clamp(8px, 1.4vh, 12px) clamp(14px, 3vw, 24px);
+        background: rgba(2, 10, 7, 0.6);
+        border: 1px dashed rgba(46, 224, 144, 0.4);
+        border-radius: 10px;
+        text-transform: uppercase;
       }
       .panel .score {
-        font-family: "Courier New", monospace;
-        font-size: clamp(14px, 2.6vw, 20px);
-        color: #ffd66b;
-        margin: clamp(8px, 1.6vh, 14px) 0 4px;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(20px, 4vw, 34px);
+        color: #ffd23a;
+        margin: clamp(10px, 1.8vh, 16px) 0 4px;
         letter-spacing: 2px;
+        line-height: 1.05;
+        text-shadow:
+          2px 2px 0 rgba(0, 0, 0, 0.75),
+          0 0 18px rgba(255, 210, 58, 0.5);
+      }
+      /* In-game menu panels "slam" in the moment they open (toggling display:none
+         back to flex restarts the animation each time). Scoped per-menu so the title
+         screen (#menu .panel, whose box is overridden to none) stays exactly as-is. */
+      #complete .panel,
+      #over .panel,
+      #day-stats .panel,
+      #bonus-result .panel,
+      #week-complete .panel,
+      #paused .panel,
+      #day-intro .panel,
+      #loading .panel {
+        animation: panel-pop-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+      }
+      @keyframes panel-pop-in {
+        0% {
+          transform: scale(0.82) rotate(-1.5deg);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.03) rotate(0.4deg);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1) rotate(0);
+          opacity: 1;
+        }
       }
       /* ===== Day intro + per-day collection breakdown (the 7-day level system) ===== */
       #day-intro .day {
-        font-family: "Arial Black", Impact, sans-serif;
-        font-size: clamp(26px, 7vw, 54px);
-        font-weight: bold;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(40px, 11vw, 88px);
         color: #2ee090;
-        letter-spacing: 6px;
+        letter-spacing: 3px;
+        line-height: 0.9;
+        text-transform: uppercase;
         text-shadow:
-          0 0 18px rgba(46, 224, 144, 0.85),
-          0 0 30px rgba(46, 224, 144, 0.4);
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 26px rgba(46, 224, 144, 0.7);
         margin-bottom: 4px;
         animation: day-title-enter 0.8s cubic-bezier(0.2, 1.3, 0.4, 1);
       }
@@ -922,27 +993,31 @@
       }
       .stat-row {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
         gap: 8px;
-        border-bottom: 1px dashed rgba(46, 224, 144, 0.35);
-        padding-bottom: 4px;
+        background: rgba(2, 12, 8, 0.55);
+        border: 1px solid rgba(46, 224, 144, 0.22);
+        border-left: 3px solid rgba(46, 224, 144, 0.5);
+        border-radius: 8px;
+        padding: clamp(5px, 1vh, 8px) clamp(8px, 1.6vw, 12px);
       }
       .stat-row .lbl {
-        font-family: "Arial Black", Impact, sans-serif;
-        font-weight: bold;
-        font-size: clamp(11px, 2vw, 16px);
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(14px, 2.4vw, 20px);
         letter-spacing: 1px;
-        color: #cfe6ff;
-        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+        color: #d6f0ff;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
       }
       .stat-row .val {
         font-family: "Courier New", monospace;
-        font-size: clamp(13px, 2.4vw, 19px);
+        font-size: clamp(14px, 2.6vw, 21px);
         font-weight: bold;
         color: #7dff9e;
         white-space: nowrap;
-        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+        text-shadow:
+          1px 1px 0 rgba(0, 0, 0, 0.5),
+          0 0 8px rgba(125, 255, 158, 0.35);
       }
       .stat-row .val .tot {
         color: #6d8f9f;
@@ -970,17 +1045,27 @@
       #btnWeekRestart,
       #btnResume,
       #btnQuit2 {
-        font-family: "Courier New", monospace;
-        font-size: clamp(14px, 2.6vw, 20px);
-        letter-spacing: 4px;
-        padding: clamp(10px, 2vh, 14px) clamp(28px, 6vw, 44px);
-        margin-top: clamp(10px, 2vh, 18px);
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(18px, 3.4vw, 28px);
+        letter-spacing: 2.5px;
+        text-transform: uppercase;
+        line-height: 1;
+        padding: clamp(11px, 2vh, 16px) clamp(30px, 6.5vw, 50px);
+        margin-top: clamp(12px, 2.2vh, 20px);
         cursor: pointer;
         color: #04140c;
-        background: #2ee090;
-        border: none;
-        box-shadow: 0 0 18px rgba(46, 224, 144, 0.7);
+        background: linear-gradient(180deg, #6bf3b6, #2ee090 55%, #1fae72);
+        border: 2px solid #bff7d8;
+        border-radius: 10px;
+        box-shadow:
+          0 6px 0 #0e7a4f,
+          0 8px 16px rgba(0, 0, 0, 0.5),
+          0 0 26px rgba(46, 224, 144, 0.55);
         pointer-events: auto;
+        transition:
+          transform 0.08s ease,
+          box-shadow 0.08s ease,
+          filter 0.12s ease;
       }
       #btnStart:hover,
       #btnRestart:hover,
@@ -991,7 +1076,27 @@
       #btnWeekRestart:hover,
       #btnResume:hover,
       #btnQuit2:hover {
-        background: #5cf0ad;
+        filter: brightness(1.08);
+        background: linear-gradient(180deg, #86f8c6, #3ee89e 55%, #26c488);
+        box-shadow:
+          0 6px 0 #0e7a4f,
+          0 10px 20px rgba(0, 0, 0, 0.55),
+          0 0 36px rgba(46, 224, 144, 0.8);
+      }
+      #btnStart:active,
+      #btnRestart:active,
+      #btnRestart2:active,
+      #btnBeginDay:active,
+      #btnNextDay:active,
+      #btnBonusContinue:active,
+      #btnWeekRestart:active,
+      #btnResume:active,
+      #btnQuit2:active {
+        transform: translateY(5px);
+        box-shadow:
+          0 1px 0 #0e7a4f,
+          0 3px 8px rgba(0, 0, 0, 0.5),
+          0 0 20px rgba(46, 224, 144, 0.5);
       }
       /* ===== SETTINGS PAGE (gear button next to START SHIFT) =====
          The start screen stays clean (logo fully visible): all graphics / FPS /
@@ -1133,11 +1238,12 @@
         text-align: center;
       }
       #complete h2 {
-        font-size: 36px;
+        font-size: clamp(34px, 9vw, 72px);
         color: #ffd700;
         text-shadow:
-          3px 3px 0 #b8860b,
-          0 0 25px rgba(255, 215, 0, 0.7);
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 28px rgba(255, 215, 0, 0.7);
         animation: complete-title-enter 0.7s cubic-bezier(0.2, 1.4, 0.5, 1);
         margin-bottom: 14px;
       }
@@ -1206,11 +1312,12 @@
         text-align: center;
       }
       #over h2 {
-        font-size: 32px;
+        font-size: clamp(32px, 8vw, 64px);
         color: #ff4444;
         text-shadow:
-          3px 3px 0 #8e1a1a,
-          0 0 20px rgba(255, 68, 68, 0.6);
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 28px rgba(255, 68, 68, 0.6);
         animation: over-title-enter 0.8s cubic-bezier(0.2, 1.3, 0.4, 1);
         margin-bottom: 14px;
       }
@@ -1249,11 +1356,12 @@
         overflow: hidden;
       }
       #day-stats h2 {
-        font-size: 32px;
+        font-size: clamp(30px, 8vw, 62px);
         color: #ff4444;
         text-shadow:
-          3px 3px 0 #8e1a1a,
-          0 0 18px rgba(255, 68, 68, 0.6);
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
+          0 0 26px rgba(255, 68, 68, 0.6);
         margin-bottom: 10px;
         animation: day-stats-title 0.7s cubic-bezier(0.2, 1.3, 0.4, 1);
       }
@@ -1378,10 +1486,11 @@
         text-align: center;
       }
       #week-complete h1 {
-        font-size: 38px;
+        font-size: clamp(36px, 10vw, 82px);
         color: #ffd700;
         text-shadow:
-          3px 3px 0 #b8860b,
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.85),
           0 0 30px rgba(255, 215, 0, 0.8);
         animation: week-title-enter 0.9s cubic-bezier(0.2, 1.5, 0.5, 1);
         margin-bottom: 14px;
@@ -1791,11 +1900,15 @@
         left: 20px;
         z-index: 10;
         pointer-events: none;
+        white-space: nowrap;
         font-family: "Courier New", Courier, monospace;
-        font-size: 11px;
-        letter-spacing: 2px;
-        color: rgba(125, 255, 158, 0.42);
-        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+        font-weight: bold;
+        font-size: clamp(14px, 2.8vw, 22px);
+        letter-spacing: 1.5px;
+        color: rgba(150, 255, 180, 0.85);
+        text-shadow:
+          0 0 6px rgba(0, 0, 0, 0.9),
+          1px 1px 0 rgba(0, 0, 0, 0.9);
       }
       /* Build tag on the pause / game-over / route-complete panels. Centered under
    the buttons, small + dim (a footer watermark). */
@@ -2914,7 +3027,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.378</div>
+          <div id="app-version" class="menu-version">v1.0.379</div>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3083,7 +3196,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.378';
+      const APP_VERSION = '1.0.379';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -3719,6 +3832,8 @@
         bonusTally = 0,
         complaints = 0;
       let paused = false; // true = a live shift is frozen (PAUSE overlay up); only meaningful when state === 'play'
+      let routeWriteupLock = false; // the end-of-route write-up is being read: block "next day" so the 3rd-strike suspension can't be skipped
+      let routeFailed = false; // the just-finished shift missed the 95% clean bar: replay THIS level from the start instead of advancing (a 3rd write-up still ends the run)
       let health = 100,
         maxHealth = 100; // worker health pool: NPCs drain it; it CARRIES OVER between levels (no refill on a new day or a restart) - a write-up where the shift continues brings the worker back FULL (only the 3rd write-up, which ends the run, stays down); a street-cash healer power-up also restores it (a fresh week starts healthy); 0 -> worker down (write-up); 3 write-ups -> game over
       const DANGER_HP = Math.ceil(maxHealth * 0.10); // the dangerous level: 10% or less of the health pool (10 of 100). The FIRST hit that drops the worker to this (while still standing) fires the giant "SAN MAN NEEDS FOOD BADLY!" screen alarm (center-screen banner + red flash + DING DING DING + the continuous fire alarm)
@@ -3829,6 +3944,7 @@
       function newDayStats() {
         return {
           bags: { got: 0, total: 0 },
+          debris: { got: 0, total: 0 }, // storm wreckage (stormbox + woodpile) — Sunday / Maspeth
           cans: { got: 0, total: 0 },
           baskets: { got: 0, total: 0 },
           mongo: { got: 0, total: 0 },
@@ -3846,7 +3962,15 @@
         for (let i = 0; i < blocks.length; i++) {
           const h = blocks[i].house;
           if (!h) continue;
-          dayStats.bags.total += (h.bags || []).length;
+          const bags = h.bags || [];
+          for (let j = 0; j < bags.length; j++) {
+            const b = bags[j];
+            // Storm wreckage (stormbox / woodpile) is tracked on its own line so the
+            // shift report shows how much debris was hauled; the rest count as bags.
+            if (b && (b.type === "stormbox" || b.type === "woodpile"))
+              dayStats.debris.total++;
+            else dayStats.bags.total++;
+          }
           if (h.can) dayStats.cans.total++;
         }
         for (let i = 0; i < litterBaskets.length; i++) dayStats.baskets.total++;
@@ -23191,7 +23315,10 @@
         // restart never zeroes them; ONLY a brand-new run (startGame, from the menu /
         // game over / week complete) does. The power-up milestones keep running with
         // the tallies so the "every $5,000 / every $30,000" rule holds across the week.
-        complaints = 0; // per-day report counter
+        // complaints: NOT reset here. The write-up strike record is now per LEVEL — it is cleared
+        // at the new-level boundaries (startGame / nextDay / continueAfterBonus / quitGame). A
+        // replay of a FAILED level (the 95% clean rule) must keep the strikes so a 3rd write-up
+        // can still suspend the worker.
         dayScore = 0; // per-day score for the day-end report (the HUD score keeps running)
         // health does NOT refill at the start of a level: the pain carries over —
         // only a street-cash healer power-up (or a write-up, if the shift continues) restores it.
@@ -24205,7 +24332,7 @@
       // missed cans / bags / baskets no longer count. Lights up one more HUD pip and
       // flashes; the 3rd write-up suspends the worker (the game-over screen).
       function addWriteUp() {
-        if (state !== "play" && state !== "dying") return complaints;
+        if (state !== "play" && state !== "dying" && state !== "dayend") return complaints; // +dayend: the end-of-route inspection writes the worker up at the shift report
         complaints++;
         SFX.playComplaintSound();
         updateHUD(); // the COMPLAINTS ISSUED tally (top right) lights up the new pip INSTANTLY
@@ -24376,7 +24503,13 @@
       ];
       function tossBag(bag) {
         bag.state = "dumped";
-        if (typeof recordDayGot === "function") recordDayGot("bags");
+        // Storm debris (stormbox / woodpile) tallies on its own counter so the shift
+        // report can show how much wreckage was hauled; everything else is a bag.
+        if (typeof recordDayGot === "function") {
+          if (bag && (bag.type === "stormbox" || bag.type === "woodpile"))
+            recordDayGot("debris");
+          else recordDayGot("bags");
+        }
         // Throw the bag in a basketball-style arc into the rear hopper (see
         // updateFlyingBags); it is absorbed into the pile on arrival.
         if (bag.g.parent) bag.g.parent.remove(bag.g);
@@ -25964,6 +26097,8 @@
         hopper: ["Bathing in public without permission"],
         // the catch-all, for when HR can't be bothered to be specific
         route: ["Failure to complete an established route"],
+        // --- the end-of-route inspection: the worker left too much on the street ---
+        unclean: ["Failed to clean route. Work left out."],
       };
       // Pick one offense line at random from the cause's list (HR has opinions).
       function writeupReason(cause) {
@@ -35536,19 +35671,31 @@
           "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
         const g = $("day-stats-grid");
         if (g) {
-          g.innerHTML =
-            statRow("GARBAGE BAGS", s.bags.got, s.bags.total, false, 0) +
-            statRow("GARBAGE CANS", s.cans.got, s.cans.total, false, 1) +
+          let idx = 0;
+          const parts = [
+            statRow("GARBAGE BAGS", s.bags.got, s.bags.total, false, idx++),
+          ];
+          // STORM DEBRIS gets its own row on the days it appears (Bed-Stuy Sunday and
+          // Maspeth's debris boxes) — highlighted like the other bonus pickups.
+          if (s.debris && (s.debris.total > 0 || s.debris.got > 0)) {
+            parts.push(
+              statRow("STORM DEBRIS", s.debris.got, s.debris.total, true, idx++),
+            );
+          }
+          parts.push(
+            statRow("GARBAGE CANS", s.cans.got, s.cans.total, false, idx++),
             statRow(
               "LITTER BASKETS",
               s.baskets.got,
               s.baskets.total,
               false,
-              2,
-            ) +
-            statRow("MONGO HAULED", s.mongo.got, s.mongo.total, true, 3) +
-            statRow("TREASURES", s.treasure.got, s.treasure.total, true, 4) +
-            statRow("STREET CASH", s.cash.got, s.cash.total, true, 5);
+              idx++,
+            ),
+            statRow("MONGO HAULED", s.mongo.got, s.mongo.total, true, idx++),
+            statRow("TREASURES", s.treasure.got, s.treasure.total, true, idx++),
+            statRow("STREET CASH", s.cash.got, s.cash.total, true, idx++),
+          );
+          g.innerHTML = parts.join("");
           // Animate the stat numbers counting up (guarded for Node test)
           if (
             typeof document !== "undefined" &&
@@ -35575,8 +35722,11 @@
         }
         setTxt($("day-stats-score"), pad(dayScore));
         setTxt($("day-stats-week"), pad(weekScore));
-        $("btnNextDay").textContent =
-          level < MAX_LEVEL ? "NEXT DAY \u25b6" : "FINISH WEEK \u2605";
+        $("btnNextDay").textContent = routeFailed
+          ? "RETRY THE SHIFT \u21bb"
+          : level < MAX_LEVEL
+            ? "NEXT DAY \u25b6"
+            : "FINISH WEEK \u2605";
       }
       // ==================== ROUTE-END CINEMATIC ====================
       // When the level is complete (route reached, or test-mode L) the worker takes the
@@ -35913,6 +36063,34 @@
         }
         routeComplete(); // the truck is gone — NOW the day-end report takes over
       }
+      // ==================== END-OF-ROUTE INSPECTION (the 95% clean rule) ====================
+      // A route only counts as "serviced" if the worker got at least 95% of everything on it —
+      // litter baskets + garbage bags + garbage cans + storm debris, combined. Below that, the
+      // supervisor writes him up: "Failed to clean route. Work left out." It lands in the SAME
+      // COMPLAINTS ISSUED tally as a worker-down write-up, so 3 write-ups still ends the run.
+      // (Bonus / overtime days never reach routeComplete — see the !BONUS guard in startRouteEnd.)
+      function routeCleanRatio() {
+        const ds = dayStats;
+        if (!ds) return 1;
+        const total =
+          (ds.bags.total + ds.cans.total + ds.baskets.total + ds.debris.total) || 0;
+        if (total <= 0) return 1; // nothing on the route: a clean sweep by definition
+        const serviced = ds.bags.got + ds.cans.got + ds.baskets.got + ds.debris.got;
+        return serviced / total;
+      }
+      function applyRouteWriteUp() {
+        lastHitCause = "unclean"; // the offense the supervisor stamps under the seal
+        const n = addWriteUp(); // +1 COMPLAINT ISSUED: HUD pips light up, the ink stamp slams, SFX
+        showWriteUpText(n); // "WRITTEN UP! n/3" + the offense line, slams over the day-end report
+        if (n >= 3) {
+          routeWriteupLock = true; // hold "next day" while the 3rd-strike stamp is being read
+          setTimeout(function () {
+            routeWriteupLock = false;
+            SFX.playSadTrombone(); // the "womp womp" as the suspended screen appears
+            gameOver("writeup");
+          }, 3000);
+        }
+      }
       function routeComplete() {
         state = "dayend";
         SFX.playHopperJingle();
@@ -35930,9 +36108,13 @@
             $(id).classList.add("hidden");
           },
         );
+        routeFailed = routeCleanRatio() < 0.95; // below the 95% clean bar -> the shift FAILED: replay this level instead of advancing
         showDayStats();
         $("day-stats").classList.remove("hidden");
         radioMode();
+        // END-OF-ROUTE INSPECTION: below 95% of the route's litter serviced -> a write-up
+        // (counts toward the 3-write-up suspension). A clean sweep gets no penalty at all.
+        if (routeFailed) applyRouteWriteUp();
         $("vpad").classList.remove("on");
         vt.f = 0;
         vt.l = 0;
@@ -35940,6 +36122,7 @@
         joyPid = null;
       }
       function nextDay() {
+        complaints = 0; // advancing to a new level (or entering overtime) clears the write-up strike record
         // OVERTIME BASKETS: fires exactly ONCE, right after finishing level 3 (Wednesday)
         // and BEFORE the Thursday (level 4) shift. It keeps the worker on the Flatbush
         // (level 3) data for the world build, and advances to level 4 when it resolves.
@@ -36014,6 +36197,17 @@
           sp.classList.add("show");
         } else {
           sp.classList.remove("show");
+        }
+        // The objective line lives on the SHARED day-intro card: the OVERTIME BASKETS bonus
+        // (startBonusRound) overwrites it with "service every basket" text. A normal day MUST
+        // restore it, or every day after the bonus — Sunday above all — would keep showing the
+        // overtime objective. Bed-Stuy (the special storm-debris day) gets its own: 2x pay +
+        // the four haul types. Every other day gets the standard shift objective.
+        const obj = document.querySelector("#day-intro .obj");
+        if (obj) {
+          obj.innerHTML = d.special
+            ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
+            : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";
         }
         resetWorldState(); // (re)build the street for this day + re-anchor the worker at the start
         // OVERTIME REWARD: if the worker nailed the overtime round, a Red Bull (Monster)
@@ -36316,6 +36510,7 @@
         bonusHopStart = 0;
         BONUS = false; // back to normal world-building
         bonusDoneThisRun = true; // the bonus fires once per week
+        complaints = 0; // the Thursday shift is a new level: clear the write-up strike record
         level = BONUS_DAY_TRIGGER + 1; // advance to the Thursday (level 4) shift
         showDayIntro(); // builds the real Thursday street (spawns the Red Bull if we won)
       }
@@ -36570,6 +36765,7 @@
         dangerAlarmOff(); // fresh week: clear any stale fire alarm (the continuous dings + red glow)
         weekScore = 0; // fresh running total
         score = 0; // fresh run: the HUD score starts at zero (it carries over across days otherwise)
+        complaints = 0; // fresh run: the write-up strike record starts clean (it persists across replays of a failed level otherwise)
         bonusTally = 0; // fresh run: the street cash starts at zero (it carries over across days otherwise)
         monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this run
         healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
@@ -36584,6 +36780,7 @@
       }
       function advanceGame() {
         if (_preloading) return; // "Getting Assets" screen is up: swallow every start/next input until it's done
+        if (routeWriteupLock) return; // the 3rd-strike route write-up is being read: don't let "next day" skip past the suspension
         // One "start / next" action (Space / Enter / gamepad / touch), routed by game state.
         if (state === "dying") return; // the down sequence is playing out — let it finish
         if (state === "routeend") return; // the drive-off cinematic is playing out — let it finish
@@ -36592,7 +36789,14 @@
           return continueAfterBonus();
         if (state === "intro") return beginDay();
         if (state === "dayend")
-          return level < MAX_LEVEL ? nextDay() : showWeekComplete();
+          // the 95% clean bar was missed -> replay the SAME level from the beginning (the strikes
+          // carry over; a 3rd write-up already ended the run before we could get here). Passing it
+          // advances instead. Bonus / overtime days never reach routeComplete, so they're unaffected.
+          return routeFailed
+            ? showDayIntro()
+            : level < MAX_LEVEL
+              ? nextDay()
+              : showWeekComplete();
         return startGame(); // 'menu' / 'over' / 'weekcomplete' -> start a fresh week
       }
       // ==================== PAUSE / QUIT (on-screen + gamepad system buttons) ====================

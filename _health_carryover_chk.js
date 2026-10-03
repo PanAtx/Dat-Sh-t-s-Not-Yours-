@@ -45,9 +45,17 @@ console.log('[1] level start: resetWorldState no longer refills health');
 {
   const rws = extract('resetWorldState');
   check('resetWorldState has NO health = maxHealth refill', rws.indexOf('health = maxHealth') < 0);
+  check('the reset still clears the per-day report score (dayScore = 0)', /dayScore = 0;/.test(rws));
   check(
-    'the reset keeps refilling ONLY the per-day report counters (complaints / dayScore)',
-    /complaints = 0;/.test(rws) && /dayScore = 0;/.test(rws),
+    'the reset NO LONGER clears complaints — the write-up strike record now SURVIVES a failed-level replay',
+    !/complaints\s*=\s*0;/.test(rws),
+  );
+  const sg2 = extract('startGame');
+  const nd2 = extract('nextDay');
+  const cab2 = extract('continueAfterBonus');
+  check(
+    'complaints ARE reset at the new-level boundaries (startGame / nextDay / continueAfterBonus) — a fresh level = a clean strike record',
+    /complaints = 0;/.test(sg2) && /complaints = 0;/.test(nd2) && /complaints = 0;/.test(cab2),
   );
   check(
     'score / street cash / the power-up milestones CARRY OVER across days (no score = 0, bonusTally = 0 or milestone reset in resetWorldState)',
