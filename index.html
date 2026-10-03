@@ -3362,7 +3362,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.384</div>
+          <div id="app-version" class="menu-version">v1.0.385</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3618,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.384';
+      const APP_VERSION = '1.0.385';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38051,7 +38051,6 @@
       var SPIN_FREQ = 0.28; // how fast the spin direction oscillates (slower = each spin lasts longer)
       var STAR_COLORS = [0xff4040, 0x40ff6a, 0x4068ff, 0xffd23d, 0xc04dff]; // red, green, blue, yellow, purple
       var starData = []; // per-ball state: { x, y, z, size }
-      var _starM4 = null; // one reused matrix (allocated lazily) so we don't build one every frame
       function starSpawn(d) {
         d.x = (Math.random() * 2 - 1) * STAR_SPREAD;
         d.y = (Math.random() * 2 - 1) * STAR_SPREAD;
@@ -38068,30 +38067,78 @@
         var camera = new THREE.PerspectiveCamera(80, 1, 0.1, 400);
         camera.position.set(0, 0, 0);
         camera.lookAt(0, 0, -1); // straight down the -z tunnel: stars fly right at the screen
-        // Little colored BALLS (spheres), not white square points: one shared low-poly
-        // sphere + per-instance color, drawn via InstancedMesh = a single draw call, so it
-        // stays smooth even on a mobile GPU.
-        // (higher segments keep close balls smooth instead of looking faceted/stretched)
-        var ballGeo = new THREE.SphereGeometry(1, 24, 18);
-        var ballMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-        var balls = new THREE.InstancedMesh(ballGeo, ballMat, STAR_N);
-        if (THREE.DynamicDrawUsage && balls.instanceMatrix && balls.instanceMatrix.setUsage)
-          balls.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        // A soft shaded "ball" drawn as a 2D image (grayscale, so each star's color tints it).
+        // Offset highlight top-left + a dark transparent rim reads like a 3D sphere, but as a
+        // flat camera-facing billboard it is ALWAYS a perfect circle -- no oval/stretching, no
+        // faceting, no shading artifacts as it grows.
+        function makeBallTexture() {
+          var s = 128, cv = document.createElement("canvas");
+          cv.width = cv.height = s;
+          var cx = cv.getContext("2d");
+          var g = cx.createRadialGradient(s * 0.36, s * 0.32, s * 0.02, s * 0.5, s * 0.5, s * 0.5);
+          g.addColorStop(0.00, "rgba(255,255,255,1)");   // bright specular highlight
+          g.addColorStop(0.30, "rgba(235,235,235,1)");   // lit body (full star color)
+          g.addColorStop(0.65, "rgba(150,150,150,1)");   // mid shade
+          g.addColorStop(0.90, "rgba(40,40,40,0.85)");   // dark rim
+          g.addColorStop(1.00, "rgba(0,0,0,0)");         // transparent -> clean round edge
+          cx.fillStyle = g; cx.fillRect(0, 0, s, s);
+          var tex = new THREE.CanvasTexture(cv);
+          tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+          tex.needsUpdate = true;
+          return tex;
+        }
+        // Little colored BALLS as camera-facing sprites = a 2D ball image plotted in 3D space.
+        // One THREE.Points + a tiny shader (per-star color + size) = a single draw call, smooth
+        // on a mobile GPU, always round, and it grows as it flies toward the camera.
+        var pos = new Float32Array(STAR_N * 3);
+        var col = new Float32Array(STAR_N * 3);
+        var siz = new Float32Array(STAR_N);
+        var _c = new THREE.Color();
         for (var i = 0; i < STAR_N; i++) {
-          var d = { x: 0, y: 0, z: 0, size: 0.35 + Math.random() * 0.5 };
+          var d = { x: 0, y: 0, z: 0, size: 0.6 + Math.random() * 0.8 };
           starSpawn(d);
           starData.push(d);
-          if (balls.setColorAt) balls.setColorAt(i, new THREE.Color(STAR_COLORS[(Math.random() * STAR_COLORS.length) | 0]));
+          pos[i * 3] = d.x; pos[i * 3 + 1] = d.y; pos[i * 3 + 2] = d.z;
+          _c.setHex(STAR_COLORS[(Math.random() * STAR_COLORS.length) | 0]);
+          col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
+          siz[i] = d.size;
         }
-        if (balls.instanceColor) balls.instanceColor.needsUpdate = true;
+        var ballGeo = new THREE.BufferGeometry();
+        var posAttr = new THREE.BufferAttribute(pos, 3);
+        if (THREE.DynamicDrawUsage && posAttr.setUsage) posAttr.setUsage(THREE.DynamicDrawUsage);
+        ballGeo.setAttribute("position", posAttr);
+        ballGeo.setAttribute("aColor", new THREE.BufferAttribute(col, 3));
+        ballGeo.setAttribute("size", new THREE.BufferAttribute(siz, 1));
+        var ballMat = new THREE.ShaderMaterial({
+          uniforms: { map: { value: makeBallTexture() }, scale: { value: 1 } },
+          vertexShader: [
+            "attribute vec3 aColor;",
+            "attribute float size;",
+            "varying vec3 vColor;",
+            "uniform float scale;",
+            "void main() {",
+            "  vColor = aColor;",
+            "  vec4 mv = modelViewMatrix * vec4(position, 1.0);",
+            "  gl_PointSize = size * (scale / -mv.z);",
+            "  gl_Position = projectionMatrix * mv;",
+            "}"
+          ].join("\n"),
+          fragmentShader: [
+            "uniform sampler2D map;",
+            "varying vec3 vColor;",
+            "void main() {",
+            "  vec4 t = texture2D(map, gl_PointCoord);",
+            "  if (t.a < 0.02) discard;",
+            "  gl_FragColor = vec4(vColor * t.rgb, t.a);",
+            "}"
+          ].join("\n"),
+          transparent: true,
+          depthWrite: false
+        });
+        var balls = new THREE.Points(ballGeo, ballMat);
         scene.add(balls);
-        // lighting so each ball reads as a shaded sphere (a lit side + a shadow side)
-        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-        var ballLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        ballLight.position.set(0.5, 0.9, 0.7);
-        scene.add(ballLight);
         TRAINER.renderer = renderer; TRAINER.scene = scene; TRAINER.camera = camera;
-        TRAINER.stars = balls; TRAINER.starData = starData;
+        TRAINER.stars = balls; TRAINER.starData = starData; TRAINER.starMat = ballMat;
         TRAINER.rotPhase = Math.random() * Math.PI * 2; // start the spin cycle at a random point
         trainerResize();
       }
@@ -38101,20 +38148,22 @@
         TRAINER.renderer.setSize(w, h, false);
         TRAINER.camera.aspect = w / h;
         TRAINER.camera.updateProjectionMatrix();
+        // point-sprite scale = drawing-buffer height/2 (includes pixelRatio) so gl_PointSize
+        // tracks the on-screen size and the balls grow as they approach the camera.
+        if (TRAINER.starMat) TRAINER.starMat.uniforms.scale.value = TRAINER.renderer.domElement.height * 0.5;
       }
       function trainerRender(dt) {
         if (!TRAINER.renderer) return;
-        if (!_starM4) _starM4 = new THREE.Matrix4();
         var dz = STAR_SPEED * dt;
         var data = TRAINER.starData, n = data.length;
+        var pos = TRAINER.stars.geometry.attributes.position;
         for (var i = 0; i < n; i++) {
           var d = data[i];
           d.z += dz; // fly toward the camera (+z)
           if (d.z > 4) starSpawn(d); // recycle well before the near plane so balls never balloon/stretch
-          _starM4.makeScale(d.size, d.size, d.size).setPosition(d.x, d.y, d.z);
-          TRAINER.stars.setMatrixAt(i, _starM4);
+          pos.setXYZ(i, d.x, d.y, d.z);
         }
-        TRAINER.stars.instanceMatrix.needsUpdate = true;
+        pos.needsUpdate = true;
         // spin: a sine angular velocity gives CW -> ease to a stop -> CCW -> stop -> repeat
         TRAINER.rotPhase += dt;
         var omega = SPIN_MAX * Math.sin(TRAINER.rotPhase * SPIN_FREQ);
