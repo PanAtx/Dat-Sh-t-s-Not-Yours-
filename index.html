@@ -3362,7 +3362,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.382</div>
+          <div id="app-version" class="menu-version">v1.0.383</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3618,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.382';
+      const APP_VERSION = '1.0.383';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -37623,7 +37623,9 @@
         vt.l = -nx; // screen left (nx<0) = +strafe
       }
       joy.addEventListener("pointerdown", (e) => {
-        if (state !== "play") return;
+        // The stick drives BOTH the live shift AND the trainer menu: vt.f/vt.l are polled
+        // by trainerPollTouch() when state === "trainer" (and by dominantMove() in play).
+        if (state !== "play" && state !== "trainer") return;
         e.preventDefault();
         joyPid = e.pointerId;
         try {
@@ -37647,9 +37649,15 @@
       actBtn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
         vt.act = true;
-        if (state === "play")
+        if (state === "play") {
           tryInteract(); // SPACE: pick up the trash / dump it into the truck hopper
-        else advanceGame(); // on a card: begin / next day / start a week
+        } else if (state === "trainer") {
+          // The trainer reads vt.act via trainerPollTouch() -> trainerAction() (select /
+          // toggle the highlighted row). Do NOT call advanceGame() here: in the trainer
+          // state it would fall through to startGame() and launch the game.
+        } else {
+          advanceGame(); // on a card: begin / next day / start a week
+        }
       });
       ["pointerup", "pointercancel", "pointerleave"].forEach((ev) =>
         actBtn.addEventListener(ev, () => {
@@ -38035,16 +38043,19 @@
       // ---- three.js stage: a starfield that FLYS toward the screen (along +z) and slowly
       //      spins clockwise -> eases through a stop -> counter-clockwise -> stop -> repeat.
       //      It's the calm "hyperspace" background behind the whole trainer. ----
-      var STAR_N = 600; // number of stars
+      var STAR_N = 600; // number of balls
       var STAR_SPREAD = 34; // half-width of the tunnel (x & y)
-      var STAR_FAR = 140; // depth stars spawn from (negative z, in front of the camera)
-      var STAR_SPEED = 20; // units/sec the stars fly toward the camera
+      var STAR_FAR = 140; // depth the balls spawn from (negative z, in front of the camera)
+      var STAR_SPEED = 20; // units/sec the balls fly toward the camera
       var SPIN_MAX = 0.22; // max |angular velocity| (rad/s) of the CW/CCW spin
       var SPIN_FREQ = 0.45; // how fast the spin direction oscillates
-      function starSpawn(i3, pos) {
-        pos[i3] = (Math.random() * 2 - 1) * STAR_SPREAD;
-        pos[i3 + 1] = (Math.random() * 2 - 1) * STAR_SPREAD;
-        pos[i3 + 2] = -Math.random() * STAR_FAR;
+      var STAR_COLORS = [0xff4040, 0x40ff6a, 0x4068ff, 0xffd23d, 0xc04dff]; // red, green, blue, yellow, purple
+      var starData = []; // per-ball state: { x, y, z, size }
+      var _starM4 = null; // one reused matrix (allocated lazily) so we don't build one every frame
+      function starSpawn(d) {
+        d.x = (Math.random() * 2 - 1) * STAR_SPREAD;
+        d.y = (Math.random() * 2 - 1) * STAR_SPREAD;
+        d.z = -Math.random() * STAR_FAR;
       }
       function trainerInit3D() {
         if (TRAINER.renderer) return;
@@ -38057,15 +38068,29 @@
         var camera = new THREE.PerspectiveCamera(80, 1, 0.1, 400);
         camera.position.set(0, 0, 0);
         camera.lookAt(0, 0, -1); // straight down the -z tunnel: stars fly right at the screen
-        var pos = new Float32Array(STAR_N * 3);
-        for (var i = 0; i < STAR_N; i++) starSpawn(i * 3, pos);
-        var geo = new THREE.BufferGeometry();
-        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-        var mat = new THREE.PointsMaterial({ color: 0xcfe8ff, size: 0.6, sizeAttenuation: true, transparent: true, opacity: 0.9, depthWrite: false });
-        var stars = new THREE.Points(geo, mat);
-        scene.add(stars);
+        // Little colored BALLS (spheres), not white square points: one shared low-poly
+        // sphere + per-instance color, drawn via InstancedMesh = a single draw call, so it
+        // stays smooth even on a mobile GPU.
+        var ballGeo = new THREE.SphereGeometry(1, 10, 8);
+        var ballMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        var balls = new THREE.InstancedMesh(ballGeo, ballMat, STAR_N);
+        if (THREE.DynamicDrawUsage && balls.instanceMatrix && balls.instanceMatrix.setUsage)
+          balls.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        for (var i = 0; i < STAR_N; i++) {
+          var d = { x: 0, y: 0, z: 0, size: 0.35 + Math.random() * 0.5 };
+          starSpawn(d);
+          starData.push(d);
+          if (balls.setColorAt) balls.setColorAt(i, new THREE.Color(STAR_COLORS[(Math.random() * STAR_COLORS.length) | 0]));
+        }
+        if (balls.instanceColor) balls.instanceColor.needsUpdate = true;
+        scene.add(balls);
+        // lighting so each ball reads as a shaded sphere (a lit side + a shadow side)
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        var ballLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        ballLight.position.set(0.5, 0.9, 0.7);
+        scene.add(ballLight);
         TRAINER.renderer = renderer; TRAINER.scene = scene; TRAINER.camera = camera;
-        TRAINER.stars = stars; TRAINER.starPos = pos; TRAINER.starGeo = geo;
+        TRAINER.stars = balls; TRAINER.starData = starData;
         TRAINER.rotPhase = Math.random() * Math.PI * 2; // start the spin cycle at a random point
         trainerResize();
       }
@@ -38078,14 +38103,17 @@
       }
       function trainerRender(dt) {
         if (!TRAINER.renderer) return;
-        var pos = TRAINER.starPos, n = pos.length / 3;
+        if (!_starM4) _starM4 = new THREE.Matrix4();
         var dz = STAR_SPEED * dt;
+        var data = TRAINER.starData, n = data.length;
         for (var i = 0; i < n; i++) {
-          var iz = i * 3 + 2;
-          pos[iz] += dz; // fly toward the camera (+z)
-          if (pos[iz] > 0.5) starSpawn(iz - 2, pos); // passed the camera: respawn far away
+          var d = data[i];
+          d.z += dz; // fly toward the camera (+z)
+          if (d.z > 0.5) starSpawn(d); // passed the camera: respawn far away
+          _starM4.makeScale(d.size, d.size, d.size).setPosition(d.x, d.y, d.z);
+          TRAINER.stars.setMatrixAt(i, _starM4);
         }
-        TRAINER.starGeo.attributes.position.needsUpdate = true;
+        TRAINER.stars.instanceMatrix.needsUpdate = true;
         // spin: a sine angular velocity gives CW -> ease to a stop -> CCW -> stop -> repeat
         TRAINER.rotPhase += dt;
         var omega = SPIN_MAX * Math.sin(TRAINER.rotPhase * SPIN_FREQ);
@@ -38171,6 +38199,7 @@
         startGame(); // startGame() honors CHEAT.startLevel for the chosen day
       }
       function closeTrainer() {
+        trainerExitFullscreen(); // leave full screen now that the trainer is closing
         TRAINER.open = false;
         var el = $("trainer"); if (el) el.classList.remove("open");
         document.body.classList.remove("trainer-open");
@@ -38191,8 +38220,28 @@
         needsIdleRender = true; // draw a fresh backdrop frame behind the menu
         radioMode();
       }
+      // Fullscreen the whole page (NOT just #trainer, so the on-screen joystick/ACT pad
+      // stays visible) when the trainer opens, and release it on exit. Best-effort:
+      // iOS Safari can't requestFullscreen from web content, so this no-ops there (the
+      // PWA standalone view already hides the browser chrome).
+      function trainerRequestFullscreen() {
+        try {
+          var el = document.documentElement;
+          var req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen || el.msRequestFullscreen;
+          if (req) { var r = req.call(el); if (r && r.catch) r.catch(function () {}); }
+        } catch (e) {}
+      }
+      function trainerExitFullscreen() {
+        try {
+          var d = document;
+          if (!(d.fullscreenElement || d.webkitFullscreenElement || d.msFullscreenElement)) return;
+          var exit = d.exitFullscreen || d.webkitExitFullscreen || d.msExitFullscreen;
+          if (exit) { var r = exit.call(d); if (r && r.catch) r.catch(function () {}); }
+        } catch (e) {}
+      }
       function openTrainer() {
         if (typeof _preloading !== "undefined" && _preloading) return; // assets still streaming
+        trainerRequestFullscreen(); // go full screen the moment the trainer opens (user gesture)
         trainerInit3D();
         trainerBuild();
         TRAINER.open = true;
