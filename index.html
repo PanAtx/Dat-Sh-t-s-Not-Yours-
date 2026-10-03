@@ -1110,7 +1110,8 @@
         justify-content: center;
         gap: clamp(8px, 1.4vw, 14px);
       }
-      #btnSettings {
+      #btnSettings,
+      #btnCredits {
         cursor: pointer;
         width: clamp(38px, 5vh, 48px);
         height: clamp(38px, 5vh, 48px);
@@ -1125,7 +1126,8 @@
         margin-top: clamp(10px, 2vh, 18px); /* match btnStart's margin so the pair sits level */
         pointer-events: auto;
       }
-      #btnSettings:hover {
+      #btnSettings:hover,
+      #btnCredits:hover {
         background: rgba(46, 224, 144, 0.25);
         color: #fff;
         box-shadow: 0 0 16px rgba(46, 224, 144, 0.6);
@@ -1227,6 +1229,197 @@
         color: rgba(125, 255, 158, 0.55);
         text-align: center;
       }
+      /* ===== CREDITS & ACKNOWLEDGEMENTS (the © button next to SETTINGS) =====
+         A small, scrollable window listing every asset / model / sound / artist
+         used, plus the AI + hardware credits. Links open in a new tab. Dismiss
+         via the ✕ button, a backdrop tap, or ESC. The card "pops" in with the
+         same spring easing as every other modal (panel-pop-in). */
+      #btnCredits .cg {
+        font-family: "Arial Black", "Courier New", monospace;
+        font-size: clamp(19px, 3.1vh, 27px);
+        line-height: 1;
+        color: #7dff9e;
+        text-shadow:
+          0 0 8px rgba(46, 224, 144, 0.7),
+          1px 1px 0 rgba(0, 0, 0, 0.85);
+      }
+      #btnCredits:hover .cg {
+        color: #fff;
+      }
+      /* Pinned to the TOP-RIGHT corner of the DSNY logo frame (inside the border),
+         mirroring the version tag (top-left), PA badge (bottom-right) and the M
+         badge (bottom-left). #btnCredits now lives inside .menu-logo-wrap, so this
+         absolute is relative to the frame; margin-top 0 overrides the shared rule. */
+      #btnCredits {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 4;
+        margin-top: 0;
+      }
+      #creditsPage {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(3, 7, 10, 0.9);
+        padding: 12px;
+        pointer-events: auto;
+        animation: crBg 0.35s ease-out both;
+      }
+      @keyframes crBg {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+      #creditsBox {
+        width: min(540px, 94vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        text-align: left;
+        background:
+          radial-gradient(130% 60% at 50% -15%, rgba(46, 224, 144, 0.16), transparent 60%),
+          linear-gradient(180deg, #07130d, #040a07);
+        border: 3px solid #2ee090;
+        border-radius: 14px;
+        box-shadow:
+          0 0 34px rgba(46, 224, 144, 0.42),
+          inset 0 0 60px rgba(0, 0, 0, 0.68);
+        padding: clamp(14px, 2.6vh, 24px) clamp(16px, 4vw, 28px) clamp(16px, 3vh, 26px);
+        font-family: "Courier New", Courier, monospace;
+        color: #eaf6ff;
+        pointer-events: auto;
+        animation: panel-pop-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+        scrollbar-width: thin;
+        scrollbar-color: #2ee090 rgba(46, 224, 144, 0.15);
+      }
+      #creditsBox::-webkit-scrollbar { width: 9px; }
+      #creditsBox::-webkit-scrollbar-track { background: rgba(46, 224, 144, 0.08); border-radius: 99px; }
+      #creditsBox::-webkit-scrollbar-thumb { background: rgba(46, 224, 144, 0.55); border-radius: 99px; }
+      #creditsBox::-webkit-scrollbar-thumb:hover { background: #2ee090; }
+      #creditsHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid rgba(46, 224, 144, 0.4);
+      }
+      #creditsHead .cr-title {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(20px, 3.6vw, 30px);
+        letter-spacing: 2px;
+        line-height: 1;
+        color: #7dff9e;
+        transform: rotate(-1.2deg);
+        text-shadow:
+          2px 2px 0 rgba(0, 0, 0, 0.85),
+          0 0 16px rgba(46, 224, 144, 0.6);
+      }
+      #btnCreditsClose {
+        flex: 0 0 auto;
+        cursor: pointer;
+        width: clamp(34px, 5vh, 44px);
+        height: clamp(34px, 5vh, 44px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #ff8a8a;
+        background: rgba(255, 82, 82, 0.08);
+        border: 2px solid rgba(255, 120, 120, 0.7);
+        border-radius: 8px;
+        font-size: clamp(16px, 2.4vh, 22px);
+        line-height: 1;
+        box-shadow: 0 0 10px rgba(255, 82, 82, 0.25);
+        transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+        pointer-events: auto;
+      }
+      #btnCreditsClose:hover {
+        color: #fff;
+        background: rgba(255, 82, 82, 0.3);
+        box-shadow: 0 0 16px rgba(255, 82, 82, 0.55);
+      }
+      .cr-sec {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(15px, 2.5vw, 20px);
+        letter-spacing: 2.5px;
+        color: #ffd23a;
+        margin: clamp(12px, 2.2vh, 18px) 0 4px;
+        padding-left: 2px;
+        text-shadow:
+          1.5px 1.5px 0 rgba(0, 0, 0, 0.85),
+          0 0 14px rgba(255, 210, 58, 0.4);
+        opacity: 0;
+        animation: crIn 0.45s ease-out forwards;
+      }
+      .cr-row {
+        padding: clamp(8px, 1.4vh, 12px) 2px;
+        border-bottom: 1px dashed rgba(46, 224, 144, 0.26);
+        opacity: 0;
+        animation: crIn 0.45s ease-out forwards;
+      }
+      .cr-row .cr-name {
+        display: block;
+        font-size: clamp(12px, 1.9vw, 14px);
+        letter-spacing: 1.5px;
+        color: #7dff9e;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
+        margin-bottom: 2px;
+      }
+      .cr-row .cr-cred {
+        display: block;
+        font-size: clamp(12px, 1.9vw, 14px);
+        line-height: 1.5;
+        color: #cfe8ff;
+        word-break: break-word;
+      }
+      .cr-cred a {
+        color: #6fd6ff;
+        text-decoration: none;
+        border-bottom: 1px solid rgba(111, 214, 255, 0.5);
+        padding-bottom: 1px;
+        transition: color 0.15s ease, border-color 0.15s ease, text-shadow 0.15s ease;
+      }
+      .cr-cred a:hover {
+        color: #bff0ff;
+        border-color: #6fd6ff;
+        text-shadow: 0 0 10px rgba(111, 214, 255, 0.7);
+      }
+      .cr-cred .sep { color: rgba(207, 232, 255, 0.4); padding: 0 4px; }
+      .cr-foot {
+        margin-top: clamp(12px, 2vh, 18px);
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: rgba(125, 255, 158, 0.55);
+        text-align: center;
+        opacity: 0;
+        animation: crIn 0.45s ease-out forwards;
+      }
+      @keyframes crIn {
+        from { opacity: 0; transform: translateY(9px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      /* stagger the section / row cascade as the window opens */
+      #creditsBox > *:nth-child(2)  { animation-delay: 0.05s; }
+      #creditsBox > *:nth-child(3)  { animation-delay: 0.09s; }
+      #creditsBox > *:nth-child(4)  { animation-delay: 0.13s; }
+      #creditsBox > *:nth-child(5)  { animation-delay: 0.17s; }
+      #creditsBox > *:nth-child(6)  { animation-delay: 0.21s; }
+      #creditsBox > *:nth-child(7)  { animation-delay: 0.25s; }
+      #creditsBox > *:nth-child(8)  { animation-delay: 0.29s; }
+      #creditsBox > *:nth-child(9)  { animation-delay: 0.33s; }
+      #creditsBox > *:nth-child(10) { animation-delay: 0.37s; }
+      #creditsBox > *:nth-child(11) { animation-delay: 0.41s; }
+      #creditsBox > *:nth-child(12) { animation-delay: 0.45s; }
+      #creditsBox > *:nth-child(13) { animation-delay: 0.49s; }
+      #creditsBox > *:nth-child(14) { animation-delay: 0.53s; }
+      #creditsBox > *:nth-child(15) { animation-delay: 0.57s; }
+      #creditsBox > *:nth-child(16) { animation-delay: 0.61s; }
+      #creditsBox > *:nth-child(17) { animation-delay: 0.65s; }
+      #creditsBox > *:nth-child(18) { animation-delay: 0.69s; }
+      #creditsBox > *:nth-child(19) { animation-delay: 0.73s; }
       .hidden {
         display: none !important;
       }
@@ -1882,7 +2075,8 @@
         top: 8px;
         left: 8px;
         z-index: 3;
-        pointer-events: none;
+        pointer-events: auto; /* the version number is the secret TRAINER trigger: click it */
+        cursor: pointer;
         font-family: "Courier New", Courier, monospace;
         font-size: clamp(9px, 1.2vw, 12px);
         letter-spacing: 2px;
@@ -2922,6 +3116,133 @@
           font-size: 11px;
         }
       }
+    /* ==================== HIDDEN TRAINER (secret warez-scene cheat menu) ==================== */
+    /* Full-screen black overlay. A three.js canvas paints the synthwave stage (grid +
+       stars + sun); the crisp DOM menu (logo, rows, marquee) sits on top. Active row
+       is highlighted BLUE. Driven by keyboard / gamepad / the on-screen joystick. */
+    #trainer {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: none;
+      background: #000;
+      overflow: hidden;
+      font-family: "Press Start 2P", "Courier New", monospace;
+    }
+    #trainer.open { display: block; }
+    #trainer-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .tr-exit {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      z-index: 3;
+      pointer-events: auto;
+      cursor: pointer;
+      background: rgba(10, 20, 40, 0.7);
+      border: 2px solid rgba(0, 200, 255, 0.4);
+      color: #bfeeff;
+      font-family: inherit;
+      font-size: clamp(11px, 1.2vw, 14px);
+      letter-spacing: 2px;
+      padding: 0.8vh 1.1vw;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tr-exit:active { border-color: #7fd0ff; background: rgba(20, 60, 120, 0.8); }
+    #trainer-ui {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0.8vh 4vw 10.5vh; /* bottom padding keeps the menu clear of the bottom-locked scroll bar */
+      box-sizing: border-box;
+      pointer-events: none; /* input is via keyboard / gamepad / the on-screen pad, not row clicks */
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+    #trainer-logo {
+      height: 40vh;              /* prominent: the logo takes up ~40% of the screen height */
+      width: min(92vw, 820px);
+      object-fit: contain;      /* keep its aspect ratio inside that tall box */
+      flex: 0 0 auto;
+      margin-bottom: 0.4vh;
+      animation: trainerLogoPulse 2.6s ease-in-out infinite;
+    }
+    @keyframes trainerLogoPulse {
+      0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.45)); }
+      50% { filter: drop-shadow(0 0 22px rgba(0, 220, 255, 0.85)); }
+    }
+    #trainer-rows {
+      display: flex;
+      flex-direction: column;
+      justify-content: center; /* compact options menu, centered in the middle, below the big logo */
+      gap: 1vh;                /* tight, consistent spacing between rows */
+      flex: 1 1 auto;
+      width: min(72vw, 520px);
+      padding: 0.4vh 0;
+      min-height: 0;
+    }
+    .tr-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1vh 1.5vw;
+      border: 2px solid rgba(0, 200, 255, 0.28);
+      background: rgba(6, 18, 30, 0.55);
+      color: #cfefff;
+      font-size: clamp(10px, 1.25vw, 15px);
+      letter-spacing: 1.5px;
+      transition: background 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
+    }
+    .tr-row .tr-val { color: #7fe7a0; font-weight: bold; }
+    .tr-row .tr-go { color: #ffe14d; }
+    .tr-row.active {
+      background: #1467ff; /* the BLUE highlight the spec calls for */
+      border-color: #7fd0ff;
+      color: #fff;
+      box-shadow: 0 0 22px rgba(40, 140, 255, 0.7), inset 0 0 14px rgba(120, 190, 255, 0.4);
+    }
+    .tr-row.active .tr-val,
+    .tr-row.active .tr-go { color: #fff; }
+    .tr-hint {
+      color: rgba(150, 220, 255, 0.72);
+      font-size: clamp(9px, 1.05vw, 12px);
+      letter-spacing: 1.5px;
+      margin-top: 1.4vh;
+    }
+    /* scrolling marquee pinned to the bottom of the trainer */
+    #trainer-scroll {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 9vh;
+      min-height: 44px;
+      overflow: hidden;
+      border-top: 2px solid rgba(0, 200, 255, 0.4);
+      background: linear-gradient(180deg, rgba(0, 20, 34, 0), rgba(0, 34, 54, 0.9));
+      display: flex;
+      align-items: center;
+    }
+    #trainer-scroll-inner {
+      display: inline-block;
+      white-space: nowrap;
+      will-change: transform;
+      font-size: clamp(11px, 1.3vw, 15px);
+      letter-spacing: 1.5px;
+      color: #5ff0b0;
+      text-shadow: 0 0 8px rgba(46, 224, 144, 0.7);
+    }
+    /* Float the on-screen touch pad ABOVE the trainer so the joystick + ACT still drive the
+       menu, and hide the in-shift PAUSE button (it's meaningless on the trainer). */
+    body.trainer-open #vpad { z-index: 50; }
+    body.trainer-open #vpad #btnPause { display: none; }
+    .menu-version:hover { color: #4dffb0; text-shadow: 0 0 10px rgba(46, 224, 144, 0.9); }
     </style>
     <link
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
@@ -3000,6 +3321,20 @@
       <button id="btnPause" aria-label="Pause">PAUSE / QUIT</button>
       <div id="actbtn"><span>ACT</span></div>
     </div>
+    <!-- ==================== HIDDEN TRAINER (secret warez-scene cheat menu) ====================
+         Click the version number on the main menu to open it. Black three.js synthwave
+         stage + a crisp DOM menu (logo, option rows, scrolling marquee). Driven by the
+         keyboard / gamepad / the on-screen joystick. The active row is highlighted BLUE. -->
+    <div id="trainer">
+      <canvas id="trainer-canvas"></canvas>
+      <button id="trainer-exit" class="tr-exit" aria-label="Exit trainer">&#10005; EXIT</button>
+      <div id="trainer-ui">
+        <img id="trainer-logo" src="atxlogo.png" alt="ATX" />
+        <div id="trainer-rows"></div>
+        <div class="tr-hint">&#9664; &#9654; SET&nbsp;&middot;&nbsp;&#9650; &#9660; SELECT&nbsp;&middot;&nbsp;ACT / ENTER&nbsp;OK&nbsp;&middot;&nbsp;ESC&nbsp;EXIT</div>
+      </div>
+      <div id="trainer-scroll"><div id="trainer-scroll-inner"></div></div>
+    </div>
     <div class="rotate-overlay">
       <div class="icon">&#128241;</div>
       <div class="msg">ROTATE YOUR DEVICE</div>
@@ -3027,7 +3362,8 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.379</div>
+          <div id="app-version" class="menu-version">v1.0.380</div>
+          <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -3074,6 +3410,92 @@
             <div class="set-foot">CHOICES SAVE ON THIS DEVICE</div>
           </div>
         </div> </div
+        <!-- CREDITS & ACKNOWLEDGEMENTS: small scrollable window, opened by the © button
+             next to SETTINGS. Lists every asset / model / sound / artist used, plus
+             the AI & hardware credits. Links open in a new tab. The ✕ button, a
+             backdrop tap, or ESC dismisses it. -->
+        <div id="creditsPage" class="hidden">
+          <div id="creditsBox">
+            <div id="creditsHead">
+              <span class="cr-title">CREDITS &amp; ACKNOWLEDGEMENTS</span>
+              <button id="btnCreditsClose" title="CLOSE" aria-label="Close credits and acknowledgements">&#10005;</button>
+            </div>
+
+            <div class="cr-sec">INSPIRATION &amp; DIRECTION</div>
+            <div class="cr-row">
+              <span class="cr-name">INSPIRATION</span>
+              <span class="cr-cred">Ed Logg and the Paperboy! Atari Arcade Game</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">DESIGN &amp; DIRECTION</span>
+              <span class="cr-cred">-Pan- of Anthrox</span>
+            </div>
+
+            <div class="cr-sec">ART &amp; ASSETS</div>
+            <div class="cr-row">
+              <span class="cr-name">LITTER BASKET</span>
+              <span class="cr-cred">Comrade_Zach <span class="sep">&#183;</span> <a href="https://www.printables.com" target="_blank" rel="noopener noreferrer">printables.com</a> <span class="sep">&#183;</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">LOW POLY CAR</span>
+              <span class="cr-cred">wufudufu <span class="sep">&#183;</span> <a href="https://www.free3d.com" target="_blank" rel="noopener noreferrer">free3d.com</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">RED BULL</span>
+              <span class="cr-cred">martin_dalm <span class="sep">&#183;</span> <a href="https://sketchfab.com" target="_blank" rel="noopener noreferrer">sketchfab.com</a> <span class="sep">&#183;</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">COFFEE CUP</span>
+              <span class="cr-cred">David Zerba <span class="sep">&#183;</span> <a href="https://sketchfab.com" target="_blank" rel="noopener noreferrer">sketchfab.com</a> <span class="sep">&#183;</span> <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">BEC SANDWICH</span>
+              <span class="cr-cred"><a href="https://www.meshy.ai" target="_blank" rel="noopener noreferrer">meshy.ai</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">GARBAGE CAN</span>
+              <span class="cr-cred"><a href="https://www.meshy.ai" target="_blank" rel="noopener noreferrer">meshy.ai</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">GARBAGE TRUCK</span>
+              <span class="cr-cred"><a href="https://www.meshy.ai" target="_blank" rel="noopener noreferrer">meshy.ai</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">CHALK OUTLINE</span>
+              <span class="cr-cred"><a href="https://toppng.com" target="_blank" rel="noopener noreferrer">toppng.com</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">KEST GAK LOGO</span>
+              <span class="cr-cred"><a href="https://whatnot.com" target="_blank" rel="noopener noreferrer">whatnot.com</a></span>
+            </div>
+
+            <div class="cr-sec">LOGO &amp; AUDIO</div>
+            <div class="cr-row">
+              <span class="cr-name">MAIN LOGO</span>
+              <span class="cr-cred"><a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer">Google Gemini</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">MUSIC</span>
+              <span class="cr-cred"><a href="https://suno.com" target="_blank" rel="noopener noreferrer">suno.com</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">LYRICS</span>
+              <span class="cr-cred"><a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer">Google Gemini</a></span>
+            </div>
+
+            <div class="cr-sec">TECH &amp; AI</div>
+            <div class="cr-row">
+              <span class="cr-name">AI MODEL &#183; QWEN 3.8 27B Q4_K_M</span>
+              <span class="cr-cred">All programming, level design, low poly models, animations &amp; sound effects.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">GPU &#183; R9700 AI PRO 32GB</span>
+              <span class="cr-cred">Provided by <a href="https://skeemerapp.com" target="_blank" rel="noopener noreferrer">skeemerapp.com</a> users.</span>
+            </div>
+
+            <div class="cr-foot">No copyright 2026 Dat Shit's Not Yours! &#183; THANK YOU FOR PLAYING</div>
+          </div>
+        </div>
     ></div>
     <!-- iOS Safari fullscreen nudge: hidden until the menu is shown on an iPhone/iPad
      in the browser (never in the installed app). See showIosFs(). -->
@@ -3196,7 +3618,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.379';
+      const APP_VERSION = '1.0.380';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4429,6 +4851,23 @@
       $("btnSettingsBack").addEventListener("click", closeSettings);
       window.addEventListener("keydown", function (e) {
         if (e.key === "Escape" && !$("settingsPage").classList.contains("hidden")) closeSettings();
+      });
+      // ---- CREDITS & ACKNOWLEDGEMENTS: the © button (next to the settings gear)
+      // opens the #creditsPage window; the ✕ button, the dark backdrop, or ESC close it.
+      function openCredits() {
+        $("creditsPage").classList.remove("hidden");
+      }
+      function closeCredits() {
+        $("creditsPage").classList.add("hidden");
+      }
+      $("btnCredits").addEventListener("click", openCredits);
+      $("btnCreditsClose").addEventListener("click", closeCredits);
+      // tap the dark backdrop (outside the card) to dismiss
+      $("creditsPage").addEventListener("click", function (e) {
+        if (e.target === this) closeCredits();
+      });
+      window.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !$("creditsPage").classList.contains("hidden")) closeCredits();
       });
       // ==================== THREE SETUP (diagonal top-right matrix) ====================
       function makeFrustum() {
@@ -28741,6 +29180,11 @@
         }
         p.invuln = Math.max(0, p.invuln - dt);
         p.immuneT = Math.max(0, p.immuneT - dt);
+        // TRAINER: Invincibility / "Always Run It Up!" keep the worker in permanent
+        // Monster-buff immunity (the existing p.immuneT machinery absorbs damage, stuns and
+        // collisions, and applies the Run It Up speed boost + auto-dump).
+        if (typeof CHEAT !== "undefined" && (CHEAT.invincible || CHEAT.runitup))
+          p.immuneT = POWERUP_IMMUNE_DUR;
         p.attackerT = Math.max(0, p.attackerT - dt); // the 10s punchback window actually expires now
         p.shake = Math.max(0, p.shake - dt * 1.3);
         if (p.attackerT > 0) updateRage(dt); // BEAST MODE: pulse the face, bob the fist, throb the halo
@@ -36082,7 +36526,7 @@
         lastHitCause = "unclean"; // the offense the supervisor stamps under the seal
         const n = addWriteUp(); // +1 COMPLAINT ISSUED: HUD pips light up, the ink stamp slams, SFX
         showWriteUpText(n); // "WRITTEN UP! n/3" + the offense line, slams over the day-end report
-        if (n >= 3) {
+        if (n >= 3 && !(typeof CHEAT !== "undefined" && CHEAT.infinite)) {
           routeWriteupLock = true; // hold "next day" while the 3rd-strike stamp is being read
           setTimeout(function () {
             routeWriteupLock = false;
@@ -36759,7 +37203,11 @@
         SFX.ensure();
         if (SFX.ctx && SFX.ctx.state === "suspended") SFX.ctx.resume();
         SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
+        // TRAINER: honor a chosen "Starting Level" (1..7 = Mon..Sun) when set; otherwise the normal START_LEVEL.
+        // (typeof guard keeps the startGame() test harness — which defines no CHEAT — passing.)
         level = START_LEVEL; // start on the configured first day (START_LEVEL = 6 → Saturday, Manhattan / Harlem)
+        if (typeof CHEAT !== "undefined" && CHEAT.startLevel >= 1 && CHEAT.startLevel <= MAX_LEVEL)
+          level = CHEAT.startLevel;
         health = maxHealth; // fresh week = a FRESH, healthy worker (health only auto-refills on a brand-new run)
         dangerWarned = false; // fresh week: the danger warning starts armed
         dangerAlarmOff(); // fresh week: clear any stale fire alarm (the continuous dings + red glow)
@@ -36979,6 +37427,19 @@
           gp.start = false;
           gp.select = false;
         }
+        // TRAINER: gamepad drives the secret trainer menu (dpad/stick navigate, A/X/B/Y act, Start/Select exit)
+        if (state === "trainer") {
+          if (gp.f > 0.25) trainerDir("up");
+          else if (gp.f < -0.25) trainerDir("down");
+          else if (gp.l > 0.25) trainerDir("left");
+          else if (gp.l < -0.25) trainerDir("right");
+          if (gp.act && !gp.pAct) trainerAction();
+          if ((gp.start || gp.select) && !(gp.pStart || gp.pSelect)) trainerBack();
+          gp.pAct = gp.act;
+          gp.pStart = !!gp.start;
+          gp.pSelect = !!gp.select;
+          return;
+        }
         if (gp.act && !gp.pAct) {
           if (state === "play" && !paused) tryInteract();
           else if (state !== "play") advanceGame();
@@ -37007,6 +37468,11 @@
         )
           e.preventDefault();
         keys[e.code] = true;
+        // TRAINER: keyboard drives the secret trainer menu (navigate / set / act / exit)
+        if (state === "trainer") {
+          trainerKey(e.code, e.repeat);
+          return;
+        }
         if (e.repeat) return;
         // ESC / P = pause / resume the live shift (mirrors the on-screen PAUSE + gamepad START)
         if (e.code === "Escape" || e.code === "KeyP") {
@@ -37466,6 +37932,259 @@
           }
         }
       }
+      // ==================== HIDDEN TRAINER (secret warez-scene cheat menu) ====================
+      // Opened by clicking the version number on the main menu. A black three.js synthwave
+      // stage (grid + stars + sun) with a crisp DOM menu on top: logo, option rows (active
+      // row highlighted BLUE) and a scrolling marquee. Driven by keyboard / gamepad / the
+      // on-screen joystick. Cheats:
+      //   infinite   -> complaints never trigger the 3rd-strike suspension
+      //   invincible -> the worker can't be hurt (permanent Monster immunity)
+      //   runitup    -> "Always Run It Up!" (permanent Monster buff + speed + auto-dump)
+      //   startLevel -> which day a fresh week begins on (1..7 = Mon..Sun)
+      var CHEAT = { infinite: false, invincible: false, runitup: false, startLevel: 1 };
+      var TRAINER_DAYS = [
+        "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
+      ];
+      var TRAINER = {
+        open: false,
+        sel: 0,
+        rows: [
+          { key: "infinite", label: "Infinite Complaints", type: "bool" },
+          { key: "invincible", label: "Invincibility", type: "bool" },
+          { key: "runitup", label: "Always Run It Up!", type: "bool" },
+          { key: "level", label: "Starting Level", type: "day" },
+          { key: "start", label: "Start Game", type: "action" },
+        ],
+        renderer: null, scene: null, camera: null,
+        stars: null,
+        scrollX: 0, lastAct: 0, prevTouchAct: false,
+      };
+      var TRAINER_AC = null;
+      // tiny self-contained WebAudio blips (menu ticks; harmless if audio is blocked)
+      function trainerBlip(freq, dur) {
+        try {
+          if (!TRAINER_AC) TRAINER_AC = new (window.AudioContext || window.webkitAudioContext)();
+          var ac = TRAINER_AC;
+          if (ac.state === "suspended") ac.resume();
+          var o = ac.createOscillator(), g = ac.createGain();
+          o.type = "square";
+          var t = ac.currentTime;
+          o.frequency.setValueAtTime(freq || 660, t);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.14, t + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.09));
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + (dur || 0.09) + 0.02);
+        } catch (e) {}
+      }
+      // ---- three.js stage: a clean black backdrop with a subtle drifting starfield ----
+      function trainerInit3D() {
+        if (TRAINER.renderer) return;
+        if (typeof THREE === "undefined") return; // CDN blocked: the DOM menu still works, just no 3D stage
+        var canvas = $("trainer-canvas");
+        var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setClearColor(0x000000, 1);
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(72, 1, 0.1, 300);
+        camera.position.set(0, 3.4, 13);
+        camera.lookAt(0, 1.2, 0);
+        var N = 700, pos = new Float32Array(N * 3);
+        for (var i = 0; i < N; i++) {
+          pos[i * 3] = (Math.random() - 0.5) * 160;
+          pos[i * 3 + 1] = Math.random() * 50 - 2;
+          pos[i * 3 + 2] = -Math.random() * 140 + 12;
+        }
+        var geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        var stars = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x9fe8ff, size: 0.3, sizeAttenuation: true, transparent: true, opacity: 0.8 }));
+        scene.add(stars);
+        TRAINER.renderer = renderer; TRAINER.scene = scene; TRAINER.camera = camera;
+        TRAINER.stars = stars;
+        trainerResize();
+      }
+      function trainerResize() {
+        if (!TRAINER.renderer) return;
+        var w = window.innerWidth, h = window.innerHeight;
+        TRAINER.renderer.setSize(w, h, false);
+        TRAINER.camera.aspect = w / h;
+        TRAINER.camera.updateProjectionMatrix();
+      }
+      function trainerRender(dt) {
+        if (!TRAINER.renderer) return;
+        TRAINER.stars.rotation.y += dt * 0.015; // slow, unobtrusive starfield drift
+        TRAINER.renderer.render(TRAINER.scene, TRAINER.camera);
+      }
+      // ---- DOM menu: build the rows, paint values, move the BLUE highlight ----
+      function rowValueText(r) {
+        if (r.type === "bool") return CHEAT[r.key] ? "YES" : "NO";
+        if (r.type === "day") return TRAINER_DAYS[CHEAT.startLevel - 1] || "MONDAY";
+        if (r.type === "action") return "GO";
+        return "";
+      }
+      function trainerBuild() {
+        var wrap = $("trainer-rows");
+        if (!wrap || wrap.children.length) return;
+        TRAINER.rows.forEach(function (r) {
+          var row = document.createElement("div");
+          row.className = "tr-row";
+          row.setAttribute("data-key", r.key);
+          var lab = document.createElement("span");
+          lab.className = "tr-lab";
+          lab.textContent = r.label;
+          var val = document.createElement("span");
+          val.className = r.type === "action" ? "tr-val tr-go" : "tr-val";
+          val.textContent = rowValueText(r);
+          row.appendChild(lab); row.appendChild(val);
+          wrap.appendChild(row);
+        });
+      }
+      function trainerPaint() {
+        var wrap = $("trainer-rows");
+        if (!wrap) return;
+        var kids = wrap.children;
+        for (var i = 0; i < kids.length; i++) {
+          kids[i].classList.toggle("active", i === TRAINER.sel);
+          var v = kids[i].querySelector(".tr-val");
+          if (v) v.textContent = rowValueText(TRAINER.rows[i]);
+        }
+      }
+      // ---- actions: navigate, set, act, start, close, open ----
+      function trainerThrottleOk() {
+        var now = performance.now();
+        if (now - TRAINER.lastAct < 140) return false;
+        TRAINER.lastAct = now;
+        return true;
+      }
+      function trainerDir(dir) {
+        if (!trainerThrottleOk()) return;
+        var n = TRAINER.rows.length;
+        if (dir === "up") TRAINER.sel = (TRAINER.sel - 1 + n) % n;
+        else if (dir === "down") TRAINER.sel = (TRAINER.sel + 1) % n;
+        else if (dir === "left") trainerChange(-1);
+        else if (dir === "right") trainerChange(1);
+        else return;
+        trainerPaint();
+        trainerBlip(dir === "left" || dir === "right" ? 660 : 440, 0.06);
+      }
+      function trainerChange(delta) {
+        var r = TRAINER.rows[TRAINER.sel];
+        if (r.type === "bool") CHEAT[r.key] = !CHEAT[r.key];
+        else if (r.type === "day") {
+          var v = CHEAT.startLevel + delta;
+          if (v < 1) v = TRAINER_DAYS.length;
+          if (v > TRAINER_DAYS.length) v = 1;
+          CHEAT.startLevel = v;
+        } else if (r.type === "action") trainerStart();
+      }
+      function trainerAction() {
+        if (!trainerThrottleOk()) return;
+        var r = TRAINER.rows[TRAINER.sel];
+        if (r.type === "action") { trainerStart(); return; }
+        if (r.type === "bool") CHEAT[r.key] = !CHEAT[r.key];
+        else if (r.type === "day") CHEAT.startLevel = CHEAT.startLevel >= TRAINER_DAYS.length ? 1 : CHEAT.startLevel + 1;
+        trainerPaint();
+        trainerBlip(720, 0.08);
+      }
+      function trainerStart() {
+        if (CHEAT.startLevel < 1 || CHEAT.startLevel > TRAINER_DAYS.length) CHEAT.startLevel = 1;
+        trainerBlip(880, 0.08);
+        setTimeout(function () { trainerBlip(1320, 0.12); }, 70);
+        closeTrainer();
+        startGame(); // startGame() honors CHEAT.startLevel for the chosen day
+      }
+      function closeTrainer() {
+        TRAINER.open = false;
+        var el = $("trainer"); if (el) el.classList.remove("open");
+        document.body.classList.remove("trainer-open");
+        var vp = $("vpad"); if (vp) vp.classList.remove("on");
+        vt.f = 0; vt.l = 0; vt.act = false;
+        if (typeof joyPid !== "undefined") joyPid = null;
+        TRAINER.prevTouchAct = false;
+      }
+      function trainerBack() {
+        closeTrainer();
+        state = "menu";
+        var m = $("menu"); if (m) m.classList.remove("hidden");
+        needsIdleRender = true; // draw a fresh backdrop frame behind the menu
+        radioMode();
+      }
+      function openTrainer() {
+        if (typeof _preloading !== "undefined" && _preloading) return; // assets still streaming
+        trainerInit3D();
+        trainerBuild();
+        TRAINER.open = true;
+        TRAINER.sel = 0;
+        TRAINER.lastAct = 0;
+        var el = $("trainer"); if (el) el.classList.add("open");
+        document.body.classList.add("trainer-open");
+        var vp = $("vpad"); if (vp) vp.classList.add("on"); // surface joystick + ACT so touch can drive the menu
+        vt.f = 0; vt.l = 0; vt.act = false;
+        state = "trainer";
+        trainerResize();
+        trainerInitScroll();
+        trainerPaint();
+        trainerBlip(520, 0.08);
+      }
+      // ---- scrolling marquee (the -Pan- message) ----
+      var TRAINER_MSG =
+        "Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        ";
+      function trainerInitScroll() {
+        var inner = $("trainer-scroll-inner");
+        if (!inner) return;
+        inner.textContent = TRAINER_MSG + TRAINER_MSG; // duplicate for a seamless loop
+        TRAINER.scrollX = 0;
+        inner.style.transform = "translateX(0px)";
+      }
+      function trainerUpdateScroll(dt) {
+        var inner = $("trainer-scroll-inner");
+        if (!inner) return;
+        TRAINER.scrollX -= 95 * dt; // px/s
+        var half = inner.scrollWidth / 2;
+        if (half > 0 && TRAINER.scrollX <= -half) TRAINER.scrollX += half;
+        inner.style.transform = "translateX(" + TRAINER.scrollX.toFixed(1) + "px)";
+      }
+      // ---- input: keyboard (event), gamepad (in pollGamepad), touch (polled here) ----
+      function trainerKey(code, repeat) {
+        if (code === "ArrowUp" || code === "KeyW") trainerDir("up");
+        else if (code === "ArrowDown" || code === "KeyS") trainerDir("down");
+        else if (code === "ArrowLeft" || code === "KeyA") trainerDir("left");
+        else if (code === "ArrowRight" || code === "KeyD") trainerDir("right");
+        else if (code === "Enter" || code === "Space" || code === "KeyE" || code === "KeyZ") trainerAction();
+        else if (code === "Escape" || code === "Backspace" || code === "KeyB") trainerBack();
+      }
+      function trainerPollTouch() {
+        if (vt.f > 0.35) trainerDir("up");
+        else if (vt.f < -0.35) trainerDir("down");
+        else if (vt.l > 0.35) trainerDir("left");
+        else if (vt.l < -0.35) trainerDir("right");
+        if (vt.act && !TRAINER.prevTouchAct) trainerAction();
+        TRAINER.prevTouchAct = !!vt.act;
+      }
+      // ---- per-frame trainer update (called from the main loop) ----
+      function trainerUpdate(dt) {
+        trainerRender(dt);
+        trainerUpdateScroll(dt);
+        trainerPollTouch();
+      }
+      // wire the secret trigger (the version number) + the on-screen EXIT button + resizes
+      (function () {
+        var ver = document.getElementById("app-version");
+        if (ver)
+          ver.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openTrainer();
+          });
+        var ex = document.getElementById("trainer-exit");
+        if (ex)
+          ex.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            trainerBack();
+          });
+        window.addEventListener("resize", function () { if (TRAINER.open) trainerResize(); });
+      })();
       function loop(now) {
         requestAnimationFrame(loop);
         // FPS cap: skip early rAF callbacks so we draw at most FPS_CAP frames/s.
@@ -37490,6 +38209,11 @@
         updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
         pollGamepad(); // cheap input poll: on the menu, gamepad START / ACT still begins the shift
         updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)
+        // TRAINER: the secret cheat menu runs its own three.js stage + marquee + touch input
+        if (state === "trainer") {
+          trainerUpdate(dt);
+          return;
+        }
         // PAUSE: a frozen shift still renders (so the PAUSED overlay sits over the live frame)
         // but does NO simulation. Toggling back resumes exactly where the worker stood.
         if (state === "play" && paused) {
