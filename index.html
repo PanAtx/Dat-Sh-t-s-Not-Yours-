@@ -3180,8 +3180,8 @@
       white-space: nowrap;
       line-height: 1.35;
       will-change: transform;
-      font-size: clamp(11px, 1.3vw, 15px);
-      letter-spacing: 1.5px;
+      font-size: clamp(22px, 2.6vw, 30px);
+      letter-spacing: 2px;
       color: #5ff0b0;
       text-shadow: 0 0 8px rgba(46, 224, 144, 0.7), 0 1px 2px rgba(0,0,0,0.9);
     }
@@ -3445,15 +3445,40 @@
       left: 0;
       right: 0;
       bottom: 0;
-      height: 9vh;
-      min-height: 44px;
+      height: 10vh;
+      min-height: 48px;
       overflow: hidden;
-      border-top: 2px solid rgba(0, 200, 255, 0.4);
+      border-top: none;
       background: linear-gradient(180deg, rgba(0, 20, 34, 0), rgba(0, 34, 54, 0.9));
       display: flex;
       align-items: center;
       z-index: 4;
       box-sizing: border-box;
+    }
+    /* Amiga copper bar: 8px rainbow blocks that shift left-to-right like a demo-scene effect */
+    #trainer-scroll::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg,
+        #ff0000 0px,  #ff0000 8px,
+        #ff8800 8px,  #ff8800 16px,
+        #ffff00 16px, #ffff00 24px,
+        #00ff00 24px, #00ff00 32px,
+        #00ffff 32px, #00ffff 40px,
+        #0000ff 40px, #0000ff 48px,
+        #ff00ff 48px, #ff00ff 56px
+      );
+      background-size: 56px 100%;
+      animation: copperBar 0.8s linear infinite;
+      z-index: 1;
+    }
+    @keyframes copperBar {
+      from { background-position: 0 0; }
+      to   { background-position: 56px 0; }
     }
     /* Float the on-screen touch pad ABOVE the trainer so the joystick + ACT still drive the
        menu, and hide the in-shift PAUSE button (it's meaningless on the trainer). */
@@ -3493,8 +3518,8 @@
       }
       .tr-row.active { transform: scale(1.02); }
       .tr-hint { font-size: clamp(7px, 1.4vh, 10px); margin-top: 0; }
-      #trainer-scroll { height: 5.5vh; min-height: 26px; }
-      #trainer-scroll-inner { font-size: clamp(8px, 1.6vh, 12px); }
+      #trainer-scroll { height: 7vh; min-height: 34px; }
+      #trainer-scroll-inner { font-size: clamp(16px, 3.2vh, 24px); }
       .tr-exit { top: 5px; right: 7px; font-size: 9px; padding: 4px 6px; }
     }
 
@@ -3667,7 +3692,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.396</div>
+          <div id="app-version" class="menu-version">v1.0.397</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3923,7 +3948,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.396';
+      const APP_VERSION = '1.0.397';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
