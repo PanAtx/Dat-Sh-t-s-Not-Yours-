@@ -3472,37 +3472,38 @@
     /* "Rotate your phone" prompt: hidden by default, shown only in portrait via the media query below */
     .tr-rotate-prompt { display: none; }
 
-    /* ===== MOBILE LANDSCAPE: fit the trainer on phones (e.g. iPhone 13 landscape 667×390) =====
-       On mobile landscape 100vh > visible viewport, so vh-based logo/padding can overflow.
-       Shrink the logo, tighten rows/gaps, and reduce bottom padding to just clear the scroll bar. */
+    /* ===== MOBILE LANDSCAPE: fit the trainer on phones (e.g. Samsung S21 Ultra 826×361, iPhone 13 667×390) =====
+       The logo should look prominent (like desktop), with options below and hint at the bottom.
+       Tighten rows/hint/scroll to make room for a larger logo. */
     @media (orientation: landscape) and (max-height: 500px) {
       #trainer-logo {
-        height: min(28vh, 180px);
-        width: min(38vw, 320px);
+        height: min(40vh, 280px); /* prominent: ~144px on S21, ~156px on iPhone 13 */
+        width: min(55vw, 420px);
         margin-bottom: 0.2vh;
       }
+      .tr-logo-wrap { margin-bottom: 0.1vh; }
       #trainer-ui {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.3vh;
-        padding: 0.4vh 3vw 7vh;
+        gap: 0.2vh;
+        padding: 0.3vh 3vw 6.5vh;
       }
       #trainer-rows {
         flex: 0 0 auto;
-        gap: 0.4vh;
+        gap: 0.3vh;
         padding: 0.1vh 0;
-        width: min(70vw, 400px);
+        width: min(65vw, 380px);
       }
       .tr-row {
-        padding: 0.6vh 1vw;
-        font-size: clamp(9px, 1.8vh, 13px);
+        padding: 0.5vh 1vw;
+        font-size: clamp(9px, 1.7vh, 12px);
       }
       .tr-row.active { transform: scale(1.02); }
-      .tr-hint { font-size: clamp(8px, 1.6vh, 10px); margin-top: 0.6vh; }
-      #trainer-scroll { height: 6vh; min-height: 30px; }
-      #trainer-scroll-inner { font-size: clamp(9px, 1.8vh, 13px); }
-      .tr-exit { top: 6px; right: 8px; font-size: 9px; padding: 5px 7px; }
+      .tr-hint { font-size: clamp(7px, 1.4vh, 10px); margin-top: 0.4vh; }
+      #trainer-scroll { height: 5.5vh; min-height: 26px; }
+      #trainer-scroll-inner { font-size: clamp(8px, 1.6vh, 12px); }
+      .tr-exit { top: 5px; right: 7px; font-size: 9px; padding: 4px 6px; }
     }
 
     /* ===== PORTRAIT: block the trainer and show a "rotate" prompt =====
@@ -3675,7 +3676,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.393</div>
+          <div id="app-version" class="menu-version">v1.0.394</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3931,7 +3932,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.393';
+      const APP_VERSION = '1.0.394';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
