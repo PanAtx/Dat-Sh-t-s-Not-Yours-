@@ -3455,7 +3455,7 @@
       z-index: 4;
       box-sizing: border-box;
     }
-    /* Amiga copper bar: 8px rainbow blocks that shift left-to-right like a demo-scene effect */
+    /* Amiga copper bar: smooth rainbow gradient that flows left-to-right like a classic demo-scene copper wash */
     #trainer-scroll::before {
       content: "";
       position: absolute;
@@ -3464,21 +3464,15 @@
       right: 0;
       height: 3px;
       background: linear-gradient(90deg,
-        #ff0000 0px,  #ff0000 8px,
-        #ff8800 8px,  #ff8800 16px,
-        #ffff00 16px, #ffff00 24px,
-        #00ff00 24px, #00ff00 32px,
-        #00ffff 32px, #00ffff 40px,
-        #0000ff 40px, #0000ff 48px,
-        #ff00ff 48px, #ff00ff 56px
+        #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000
       );
-      background-size: 56px 100%;
-      animation: copperBar 0.8s linear infinite;
+      background-size: 200% 100%;
+      animation: copperBar 1.5s linear infinite;
       z-index: 1;
     }
     @keyframes copperBar {
-      from { background-position: 0 0; }
-      to   { background-position: 56px 0; }
+      from { background-position: 0% 0; }
+      to   { background-position: 100% 0; }
     }
     /* Float the on-screen touch pad ABOVE the trainer so the joystick + ACT still drive the
        menu, and hide the in-shift PAUSE button (it's meaningless on the trainer). */
@@ -3692,7 +3686,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.397</div>
+          <div id="app-version" class="menu-version">v1.0.398</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3948,7 +3942,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.397';
+      const APP_VERSION = '1.0.398';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
