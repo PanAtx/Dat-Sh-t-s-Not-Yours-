@@ -3482,17 +3482,17 @@
         margin-bottom: 0.2vh;
       }
       #trainer-ui {
-        flex-direction: row;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2vw;
-        padding: 0.5vh 3vw 8vh;
+        gap: 0.3vh;
+        padding: 0.4vh 3vw 7vh;
       }
       #trainer-rows {
         flex: 0 0 auto;
-        gap: 0.5vh;
-        padding: 0.2vh 0;
-        width: min(42vw, 380px);
+        gap: 0.4vh;
+        padding: 0.1vh 0;
+        width: min(70vw, 400px);
       }
       .tr-row {
         padding: 0.6vh 1vw;
@@ -3675,7 +3675,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.392</div>
+          <div id="app-version" class="menu-version">v1.0.393</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3931,7 +3931,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.392';
+      const APP_VERSION = '1.0.393';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38608,7 +38608,8 @@
           if (v < 1) v = TRAINER_DAYS.length;
           if (v > TRAINER_DAYS.length) v = 1;
           CHEAT.startLevel = v;
-        } else if (r.type === "action") trainerStart();
+        }
+        // action rows: left/right do NOTHING (only ACT/Enter/Space via trainerAction() starts the game)
       }
       function trainerAction() {
         if (!trainerThrottleOk()) return;
