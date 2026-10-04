@@ -3128,8 +3128,27 @@
       background: #000;
       overflow: hidden;
       font-family: "Press Start 2P", "Courier New", monospace;
+      /* lock ALL touch gestures on the trainer: swipes can't pan, zoom, or break fullscreen.
+         This is essential on mobile browsers (Safari iOS, Chrome Android) where the default
+         touch-action on descendant elements would otherwise let a two-finger swipe exit
+         fullscreen and take the virtual gamepad with it. */
+      touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
     #trainer.open { display: block; }
+    /* lock touch on every interactive child of the trainer */
+    #trainer-ui,
+    #trainer-rows,
+    .tr-row,
+    #trainer-exit,
+    #trainer-logo,
+    #trainer-scroll,
+    #trainer-scroll-inner {
+      touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
     /* Demo-scene layer: the bouncing red ball. Kept ABOVE the starfield (z1), the DOM
        menu/logo/options (z3) and the marquee (z4) so it renders IN FRONT of every other
        object on the trainer. The canvas is transparent (cleared each frame) except where
@@ -3199,7 +3218,7 @@
       text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
     }
     #trainer-logo {
-      height: 40vh;              /* prominent: the logo takes up ~40% of the screen height */
+      height: min(40vh, 360px); /* prominent on desktop, capped so it can't overflow small viewports */
       width: min(92vw, 820px);
       object-fit: contain;      /* keep its aspect ratio inside that tall box */
       flex: 0 0 auto;
@@ -3326,6 +3345,35 @@
     body.trainer-open #vpad { z-index: 50; }
     body.trainer-open #vpad #btnPause { display: none; }
     .menu-version:hover { color: #4dffb0; text-shadow: 0 0 10px rgba(46, 224, 144, 0.9); }
+
+    /* ===== MOBILE: fit the trainer on phones (e.g. iPhone 13 portrait 390x667) =====
+       On mobile 100vh > visible viewport, so vh-based logo/padding can overflow and clip
+       the logo + rows. Shrink the logo, tighten rows/gaps, and reduce the bottom padding
+       (only needs to clear the scroll bar) so everything fits with nothing cut off. */
+    @media (max-width: 560px), (orientation: portrait) and (max-height: 760px) {
+      #trainer-logo {
+        height: min(26vh, 200px);
+        width: min(96vw, 560px);
+        margin-bottom: 0.2vh;
+      }
+      #trainer-ui {
+        padding: 0.4vh 3vw 9vh; /* keep the menu clear of the bottom scroll bar */
+      }
+      #trainer-rows {
+        gap: 0.6vh;
+        padding: 0.2vh 0;
+        width: min(90vw, 520px);
+      }
+      .tr-row {
+        padding: 0.7vh 1.2vw;
+        font-size: clamp(10px, 2.9vw, 14px);
+      }
+      .tr-row.active { transform: scale(1.02); }
+      .tr-hint { font-size: clamp(8px, 2.3vw, 11px); margin-top: 0.9vh; }
+      #trainer-scroll { height: 7vh; min-height: 34px; }
+      #trainer-scroll-inner { font-size: clamp(10px, 2.7vw, 14px); }
+      .tr-exit { top: 8px; right: 8px; font-size: 10px; padding: 6px 8px; }
+    }
     </style>
     <link
       href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
@@ -3446,7 +3494,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.388</div>
+          <div id="app-version" class="menu-version">v1.0.389</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3702,7 +3750,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.388';
+      const APP_VERSION = '1.0.389';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4758,6 +4806,10 @@
         },
         { passive: false },
       );
+      // iOS Safari: block pinch-zoom gestures (can break fullscreen + resize viewport)
+      document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+      document.addEventListener("gesturechange", function (e) { e.preventDefault(); });
+      document.addEventListener("gestureend", function (e) { e.preventDefault(); });
 
       // ===== Big animated "reward" popups (MONGO! / STREET CASH! / TREASURE!) =====
       function showPopup(kind, val, name) {
