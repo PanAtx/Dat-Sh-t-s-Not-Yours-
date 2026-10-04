@@ -3676,7 +3676,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.394</div>
+          <div id="app-version" class="menu-version">v1.0.395</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3932,7 +3932,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.394';
+      const APP_VERSION = '1.0.395';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38522,14 +38522,17 @@
       function trainerResize() {
         if (!TRAINER.renderer) return;
         var w = window.innerWidth, h = window.innerHeight;
-        TRAINER.renderer.setSize(w, h, false);
+        // Honor the game's RENDER_H setting (540/720/0/320/240) so slower devices
+        // get a smaller internal buffer → fewer pixels → smoother trainer.
+        var rh = (typeof RENDER_H !== "undefined") ? RENDER_H : 0;
+        var bh = rh > 0 ? Math.min(rh, h) : h; // capped buffer height
+        var bw = Math.round(bh * (w / h));     // matching width
+        TRAINER.renderer.setPixelRatio(1);
+        TRAINER.renderer.setSize(bw, bh, false); // false = CSS still fills the window
         TRAINER.camera.aspect = w / h;
         TRAINER.camera.updateProjectionMatrix();
-        // point-sprite scale = drawing-buffer height/2 (includes pixelRatio) so gl_PointSize
-        // tracks the on-screen size and the balls grow as they approach the camera.
+        // point-sprite scale = drawing-buffer height/2 so gl_PointSize tracks on-screen size
         if (TRAINER.starMat) TRAINER.starMat.uniforms.scale.value = TRAINER.renderer.domElement.height * 0.5;
-        // cap a ball at ~1/3 of the screen height so it stays a tidy round disc up close
-        // (kills the "stretched oval" look as it rushes past the camera).
         if (TRAINER.starMat) TRAINER.starMat.uniforms.maxSize.value = TRAINER.renderer.domElement.height * 0.33;
       }
       function trainerRender(dt) {
@@ -39069,21 +39072,30 @@
         trainerPollTouch();
       }
       // wire the secret trigger (the version number) + the on-screen EXIT button + resizes
+      // iOS fix: listen for BOTH click AND touchend (with preventDefault to avoid double-fire).
+      // On iPhone, the synthetic click event can be delayed or require multiple taps when
+      // touch-action / user-select / the global touchmove guard are all active.
       (function () {
-        var ver = document.getElementById("app-version");
-        if (ver)
-          ver.addEventListener("click", function (e) {
+        function wireTap(el, fn) {
+          if (!el) return;
+          var fired = false;
+          el.addEventListener("touchend", function (e) {
             e.preventDefault();
             e.stopPropagation();
-            openTrainer();
+            fired = true;
+            fn();
+            // clear the "fired" flag after the synthetic click window
+            setTimeout(function () { fired = false; }, 500);
           });
-        var ex = document.getElementById("trainer-exit");
-        if (ex)
-          ex.addEventListener("click", function (e) {
+          el.addEventListener("click", function (e) {
             e.preventDefault();
             e.stopPropagation();
-            trainerBack();
+            if (fired) return; // already handled by touchend
+            fn();
           });
+        }
+        wireTap(document.getElementById("app-version"), openTrainer);
+        wireTap(document.getElementById("trainer-exit"), trainerBack);
         window.addEventListener("resize", function () { if (TRAINER.open) { trainerResize(); tbSetSize(); } });
       })();
       function loop(now) {
@@ -39094,7 +39106,7 @@
         // 72fps) instead of quantizing DOWN to a sub-multiple (48fps).
         // (Menu idle frames + portrait freeze keep rendering normally — they're
         // a single static frame anyway.)
-        if (state === "play" && FPS_CAP > 0) {
+        if ((state === "play" || state === "trainer") && FPS_CAP > 0) {
           const minMs = Math.max(1, 1000 / FPS_CAP - 3);
           if (now - lastRenderT < minMs) return;
         }
