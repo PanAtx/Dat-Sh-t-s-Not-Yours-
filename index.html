@@ -133,6 +133,13 @@
           0 0 8px rgba(46, 224, 144, 0.55),
           2px 2px 0 rgba(0, 0, 0, 0.85);
       }
+      /* Fade the top readout cluster (worker health / distance / score / street cash /
+         complaints) so it sits behind the action instead of covering it. The glow
+         text-shadow still keeps it readable. */
+      #tl,
+      #tr {
+        opacity: 0.72;
+      }
       #tl {
         position: absolute;
         top: calc(16px + env(safe-area-inset-top, 0px));
@@ -2305,30 +2312,38 @@
         font-family: "Press Start 2P", "Courier New", monospace;
         font-size: min(8.5vw, 64px);
         font-weight: bold;
-        letter-spacing: 4px;
+        letter-spacing: 3px;
+      }
+      /* Bonus finds (MONGO / STREET CASH / TREASURE) get their OWN small size, so the
+         big dramatic callouts (LODI / POWER UP / RUN IT UP) that reuse the .popup
+         base stay large. */
+      .popup.pop-mongo,
+      .popup.pop-cash,
+      .popup.pop-treasure {
+        font-size: min(3.6vw, 22px);
       }
       .popup .pop-name {
         display: block;
-        margin-top: 12px;
-        font-size: min(3.6vw, 26px);
-        letter-spacing: 2px;
+        margin-top: 6px;
+        font-size: min(2.6vw, 15px);
+        letter-spacing: 1px;
         color: #fff;
-        background: rgba(0, 0, 0, 0.35);
-        padding: 7px 16px;
-        border: 2px solid rgba(255, 210, 58, 0.6);
-        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.28);
+        padding: 4px 9px;
+        border: 1px solid rgba(255, 210, 58, 0.45);
+        border-radius: 5px;
         white-space: normal;
-        max-width: 80vw;
+        max-width: 60vw;
       }
       .popup .pop-sub {
         display: block;
-        margin-top: 12px;
-        font-size: min(3vw, 22px);
-        letter-spacing: 3px;
+        margin-top: 6px;
+        font-size: min(2.6vw, 15px);
+        letter-spacing: 2px;
         color: #fff;
-        background: rgba(0, 0, 0, 0.3);
-        padding: 6px 14px;
-        border: 2px solid rgba(255, 255, 255, 0.35);
+        background: rgba(0, 0, 0, 0.28);
+        padding: 4px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
         border-radius: 4px;
       }
       /* ===== Comic-strip speech bubbles (worker + NPC lines, ~2s each) ===== */
@@ -2336,6 +2351,7 @@
         position: fixed;
         z-index: 50;
         pointer-events: none;
+        opacity: 0.45;
         transform: translate(-50%, -110%);
         background: #fff9e6;
         border: 3px solid #14141a;
@@ -2361,11 +2377,11 @@
         }
         60% {
           transform: translate(-50%, -110%) scale(1.1);
-          opacity: 0.8;
+          opacity: 0.45;
         }
         100% {
           transform: translate(-50%, -110%) scale(1);
-          opacity: 1;
+          opacity: 0.45;
         }
       }
       /* Worker: reserved light-green */
@@ -2539,11 +2555,11 @@
         }
         60% {
           transform: translate(-50%, -110%) scale(1.15) rotate(3deg);
-          opacity: 1;
+          opacity: 0.45;
         }
         100% {
           transform: translate(-50%, -110%) scale(1) rotate(-2deg);
-          opacity: 1;
+          opacity: 0.45;
         }
       }
       .pop-mongo {
@@ -2574,7 +2590,7 @@
         }
         30% {
           transform: translateX(-50%) scale(1.3);
-          opacity: 0.55;
+          opacity: 0.4;
         }
         50% {
           transform: translateX(-50%) scale(0.94);
@@ -2584,7 +2600,7 @@
         }
         85% {
           transform: translateX(-50%) scale(1);
-          opacity: 0.55;
+          opacity: 0.4;
         }
         100% {
           transform: translateX(-50%) scale(1.02);
@@ -2598,7 +2614,7 @@
         }
         38% {
           transform: translateX(-50%) rotate(6deg);
-          opacity: 0.55;
+          opacity: 0.4;
         }
         58% {
           transform: translateX(calc(-50% - 18px)) rotate(-4deg);
@@ -2618,38 +2634,34 @@
         }
         42% {
           transform: translateX(-50%) scale(1.35) rotate(9deg);
-          opacity: 0.55;
+          opacity: 0.4;
         }
         64% {
           transform: translateX(-50%) scale(0.97) rotate(-4deg);
         }
         84% {
           transform: translateX(-50%) scale(1.06) rotate(0);
-          opacity: 0.55;
+          opacity: 0.4;
         }
         100% {
           transform: translateX(-50%) scale(1) rotate(0);
           opacity: 0;
         }
       }
-      /* ===== Comic starburst bonus finds (MONGO! / STREET CASH! / TREASURE!) =====
-         The reward word slams in on a jagged starburst — Bangers lettering, a
-         solid comic color per reward, thick black drop-shadow outline. The find's
-         name + payout keep their plates below the star (unchanged). */
+      /* ===== Bonus find popups (MONGO! / STREET CASH! / TREASURE!) =====
+         A compact, unobtrusive badge: the reward word on a simple rounded pill
+         (Bangers lettering, a solid color per reward), with the find's name and
+         the point payout in small plates below. No comic starburst shape. */
       .popup .pop-star {
         display: inline-block;
         font-family: "Bangers", "Arial Black", Impact, sans-serif;
-        letter-spacing: 4px;
-        padding: 14px 46px 18px;
+        letter-spacing: 2px;
+        padding: 4px 14px 6px;
         color: #fff;
-        text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4);
-        clip-path: polygon(
-          50% 0, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
-          100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
-          50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
-          0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%
-        );
-        filter: drop-shadow(4px 5px 0 rgba(0, 0, 0, 0.5));
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.35));
       }
       .popup.pop-mongo .pop-star {
         background: #ff7a1a; /* mango-orange mongo */
@@ -3687,7 +3699,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.406</div>
+          <div id="app-version" class="menu-version">v1.0.407</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3943,7 +3955,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.406';
+      const APP_VERSION = '1.0.407';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete

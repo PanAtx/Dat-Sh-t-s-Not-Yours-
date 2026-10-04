@@ -469,7 +469,7 @@ check('burst hides the speech tail', /\.bubble\.bub-burst::after \{\s*display: n
 check('burst pop-in animation (burstPop keyframes)', src.indexOf('@keyframes burstPop') >= 0);
 check('spawnBubble auto-bursts the worker\'s "OW!" hit lines', /style === "burst" \|\|[\s\S]*?speaker === "worker" && \/\^ow\/i\.test\(String\(text\)\.trim\(\)\)/.test(src));
 check('Voice.say forwards the burst style to spawnBubble', /say\(text, gap, pitch, bx, by, gender, speaker, style\)/.test(src) && src.indexOf('spawnBubble(text, bx, by, speaker, style)') >= 0);
-check('.popup .pop-star CSS (Bangers + star clip-path for the bonus finds)', /\.popup \.pop-star \{[\s\S]*?Bangers[\s\S]*?clip-path: polygon\(/.test(src));
+check('.popup .pop-star CSS (compact Bangers pill for the bonus finds)', /\.popup \.pop-star \{[\s\S]*?Bangers[\s\S]*?border-radius:/.test(src));
 check('each reward keeps its own star color (mongo orange / cash green / treasure gold)', src.indexOf('.popup.pop-mongo .pop-star') >= 0 && src.indexOf('.popup.pop-cash .pop-star') >= 0 && src.indexOf('.popup.pop-treasure .pop-star') >= 0);
 check('showPopup wraps the reward word in the star', src.indexOf('let html = \'<span class="pop-star">\' + cfg.text + "</span>";') >= 0);
 check('WRITTEN UP / LODI / POWER UP popups are NOT star-wrapped (only bonus finds)', (function () {
