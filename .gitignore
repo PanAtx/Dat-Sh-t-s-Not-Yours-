@@ -20,3 +20,21 @@ _tex_*.*
 _test_outline*.svg
 three_r128.min.js
 _*.bak
+
+# local GLB / truck-texture tooling + scratch context dumps (never ship)
+_compress_glb.mjs
+_decode_verify.mjs
+_diag.js
+_glb_texture_edit.md
+_gltb_inspect.mjs
+_gltb_tools.mjs
+_gltb_verify.mjs
+_menu_style_chk.js
+_probe_glb.mjs
+_q6.js
+_q7.js
+_route_replay_chk.js
+_route_writeup_chk.js
+_tmp_*.js
+_truck_tex/
+newTruck2.glb
