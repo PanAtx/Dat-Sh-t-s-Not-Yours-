@@ -1727,6 +1727,72 @@
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.4s
           both;
       }
+      /* ===== MOBILE: keep the level-complete / report panels from clipping the bottom
+         button. .panel is max-height:100% + overflow:hidden, so on a short phone
+         (portrait) the NEXT DAY / START button gets cut off. Shrink the type + padding
+         so it all fits, and allow vertical scroll as a safety net so the button is ALWAYS
+         reachable. Reuses the existing small-phone media-query condition. ===== */
+      @media (max-width: 640px), (max-height: 500px) {
+        #day-stats .panel,
+        #complete .panel,
+        #over .panel,
+        #week-complete .panel,
+        #bonus-result .panel {
+          padding: clamp(10px, 1.6vh, 16px) clamp(10px, 3vw, 20px);
+          overflow-y: auto; /* safety net: the bottom button is always reachable */
+          -webkit-overflow-scrolling: touch;
+          max-height: calc(100vh - 24px);
+          max-height: calc(100dvh - 24px);
+        }
+        #day-stats h2,
+        #complete h2,
+        #over h2,
+        #week-complete h1 {
+          font-size: clamp(22px, 5.5vw, 34px);
+          margin-bottom: 8px;
+        }
+        #day-stats .tag,
+        #complete .tag,
+        #over .tag,
+        #week-complete .tag {
+          font-size: clamp(11px, 2vw, 14px);
+          margin: 6px auto 8px;
+          padding: 4px 10px;
+        }
+        #day-stats .score,
+        #complete .score,
+        #over .score,
+        #week-complete .score {
+          font-size: clamp(15px, 3vw, 22px);
+        }
+        #bonus-result-msg {
+          font-size: clamp(12px, 2.2vw, 16px);
+          line-height: 1.5;
+          margin: 8px 0;
+        }
+        #day-stats .stats-grid {
+          gap: 5px 10px;
+          margin: 8px auto;
+        }
+        .stat-row {
+          padding: 4px 8px;
+        }
+        .stat-row .lbl {
+          font-size: clamp(11px, 2vw, 14px);
+        }
+        .stat-row .val {
+          font-size: clamp(11px, 2vw, 15px);
+        }
+        #btnNextDay,
+        #btnRestart,
+        #btnRestart2,
+        #btnBonusContinue,
+        #btnWeekRestart {
+          font-size: clamp(14px, 2.8vw, 20px);
+          padding: clamp(9px, 1.6vh, 12px) clamp(20px, 5vw, 34px);
+          margin-top: 10px;
+        }
+      }
       /* ===== Pre-game asset preload screen ("Please Wait, Getting Assets") ===== */
       /* Sits ABOVE the start menu (#menu is z-index:20) and covers it while the 3D
    models + title images stream into the Cache. Opaque enough that the menu
@@ -3739,7 +3805,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.409</div>
+          <div id="app-version" class="menu-version">v1.0.410</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3995,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.409';
+      const APP_VERSION = '1.0.410';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -8707,15 +8773,6 @@
         hopperCycling = false;
         addScore(HOPPER_CYCLE_BONUS, true);
         SFX.playHopperJingle();
-        Voice.say(
-          "Hopper full, compacting!",
-          2.5,
-          0.9,
-          p.wx,
-          p.wy,
-          WORKER_GENDER,
-          "worker",
-        );
       }
       function updateHopperTrash(dt) {
         // wet residue from the rainy compactor: dark streaks that linger ~8s, dry out in
