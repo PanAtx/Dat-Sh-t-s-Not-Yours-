@@ -2346,6 +2346,44 @@
         border: 1px solid rgba(255, 255, 255, 0.25);
         border-radius: 4px;
       }
+      /* ===== Bonus pickup flight: the item DASHES to the STREET CASH counter (top-left,
+         or the overtime CASH-goal counter) and fades out as it goes, while the
+         PAUSE / QUIT pill briefly shows what was picked up + its value. This keeps the
+         reward readout in the corners instead of a big popup over the middle of the field. */
+      .pickup-fly {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 56;
+        width: 30px;
+        height: 30px;
+        margin: 0;
+        padding: 0;
+        border-radius: 50%;
+        pointer-events: none;
+        will-change: transform, opacity;
+        background: radial-gradient(
+          circle at 38% 34%,
+          #ffffff 0%,
+          rgba(255, 255, 255, 0.5) 16%,
+          var(--pc) 50%,
+          rgba(0, 0, 0, 0.55) 120%
+        );
+        box-shadow:
+          0 0 12px 2px var(--pc),
+          inset 0 -3px 6px rgba(0, 0, 0, 0.35),
+          inset 0 3px 6px rgba(255, 255, 255, 0.4);
+      }
+      /* the PAUSE / QUIT pill turns into the pickup readout for a moment (smaller text) */
+      #btnPause.pickup-toast {
+        color: #ffffff;
+        border-color: rgba(255, 255, 255, 0.6);
+        background: rgba(4, 18, 10, 0.55);
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+        font-size: 9px;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
+      }
       /* ===== Comic-strip speech bubbles (worker + NPC lines, ~2s each) ===== */
       .bubble {
         position: fixed;
@@ -3701,7 +3739,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.408</div>
+          <div id="app-version" class="menu-version">v1.0.409</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3957,7 +3995,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.408';
+      const APP_VERSION = '1.0.409';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5040,6 +5078,95 @@
         setTimeout(function () {
           if (el.parentNode) el.parentNode.removeChild(el);
         }, 1350);
+      }
+
+      // ===== Bonus pickup: the item DASHES to the STREET CASH counter (top-left) — or to
+      //     the overtime CASH-goal counter during the bonus round — shrinking and fading
+      //     out as it flies, while the PAUSE / QUIT pill briefly shows what was picked up
+      //     + its value. Replaces the big center popup so the reward readout stays in the
+      //     corners and the middle of the play field stays clear. =====
+      const PICKUP_META = {
+        mongo: { color: "#ff7a1a", label: "MONGO" },
+        cash: { color: "#1fb95d", label: "STREET CASH" },
+        treasure: { color: "#f2b705", label: "TREASURE" },
+      };
+      function pickupTargetCenter() {
+        // Overtime: the $3000 street-cash GOAL counter (the money only banks on a win).
+        // Otherwise: the top-left "STREET CASH $" HUD line.
+        let el = null;
+        try {
+          el = BONUS ? document.getElementById("bonus-cash") : document.querySelector("#tl .sub");
+        } catch (e) {
+          el = null;
+        }
+        if (el && typeof el.getBoundingClientRect === "function") {
+          const r = el.getBoundingClientRect();
+          if (r && r.width > 0 && r.height > 0)
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        return { x: 130, y: 48 }; // safe fallback near the top-left readout cluster
+      }
+      function flyPickupToCounter(kind, val, name, wx, wy, wz) {
+        const meta = PICKUP_META[kind] || PICKUP_META.mongo;
+        const dispName =
+          (name || meta.label).replace(/[!?.\s]+$/g, "").trim().toUpperCase() || meta.label;
+        const dispVal = "+$" + Math.round(val || 0);
+
+        // Start point: the item's projected screen spot (fall back to lower-center if off-screen).
+        let start = null;
+        if (typeof worldToScreen === "function") {
+          const s = worldToScreen(wx, wy, wz != null ? wz : 0);
+          if (s) start = s;
+        }
+        if (!start) start = { x: innerWidth / 2, y: innerHeight * 0.72 };
+        const target = pickupTargetCenter();
+
+        // ---- the flying chip: shrink + fade as it dashes to the counter ----
+        const chip = document.createElement("div");
+        chip.className = "pickup-fly";
+        chip.style.setProperty("--pc", meta.color);
+        chip.style.transform = "translate(" + (start.x - 15) + "px," + (start.y - 15) + "px)";
+        document.body.appendChild(chip);
+        const sx = start.x,
+          sy = start.y,
+          tx = target.x,
+          ty = target.y;
+        const D = 560; // ms — a quick dash to the counter
+        const t0 = performance.now();
+        const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+        function stepFly(now) {
+          let t = (now - t0) / D;
+          if (t >= 1) t = 1;
+          const e = easeOutCubic(t);
+          const x = sx + (tx - sx) * e;
+          const y = sy + (ty - sy) * e;
+          const scale = 1 - 0.45 * e; // shrink toward the counter
+          const opacity = Math.max(0, 1 - Math.pow(t, 1.25)); // fade out as it flies
+          chip.style.transform =
+            "translate(" + (x - 15) + "px," + (y - 15) + "px) scale(" + scale + ")";
+          chip.style.opacity = String(opacity);
+          if (t < 1) requestAnimationFrame(stepFly);
+          else if (chip.parentNode) chip.parentNode.removeChild(chip);
+        }
+        requestAnimationFrame(stepFly);
+
+        // ---- the PAUSE / QUIT pill briefly shows what was picked up + its value ----
+        const btn = document.getElementById("btnPause");
+        if (btn) {
+          if (btn.__origLabel === undefined) btn.__origLabel = btn.textContent;
+          if (btn.__toastTimer) {
+            clearTimeout(btn.__toastTimer);
+            btn.__toastTimer = null;
+          }
+          const shown = dispName.length > 18 ? meta.label : dispName;
+          btn.textContent = shown + "  " + dispVal;
+          btn.classList.add("pickup-toast");
+          btn.__toastTimer = setTimeout(function () {
+            btn.textContent = btn.__origLabel;
+            btn.classList.remove("pickup-toast");
+            btn.__toastTimer = null;
+          }, 900);
+        }
       }
       let blocks = [],
         creatures = [],
@@ -25764,12 +25891,17 @@
             if (b.type === "treasure") SFX.playTreasureJingle();
             else if (b.type === "cash") SFX.playMoneySound();
             else SFX.playKaChing();
-            showPopup(
+            // Fly the item to the STREET CASH counter (or the overtime CASH goal counter)
+            // and flash what was picked up + its value on the PAUSE / QUIT pill — instead
+            // of the old big center popup. `v * scoreMultiplier()` is the exact amount that
+            // just landed in the street-cash tally (2x in Bed-Stuy), so it matches the counter.
+            flyPickupToCounter(
               b.type || "mongo",
-              b.val,
-              b.type === "treasure" || b.type === "mongo"
-                ? (b.voice || "").replace(/[! ]+$/, "")
-                : undefined,
+              v * scoreMultiplier(),
+              b.type === "treasure" || b.type === "mongo" ? b.voice || "" : undefined,
+              b.wx,
+              b.wy,
+              b.g && b.g.position ? b.g.position.z : GZ + (b.lift || 0),
             );
             Voice.say(
               b.voice,
