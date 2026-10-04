@@ -3455,7 +3455,7 @@
       z-index: 4;
       box-sizing: border-box;
     }
-    /* Amiga copper bar: smooth rainbow gradient, truly seamless scroll via translateX */
+    /* Amiga copper bar: seamless rainbow via repeating gradient + translateX */
     #trainer-scroll::before {
       content: "";
       position: absolute;
@@ -3466,6 +3466,8 @@
       background: linear-gradient(90deg,
         #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000
       );
+      background-size: 50% 100%;
+      background-repeat: repeat-x;
       animation: copperBar 1.5s linear infinite;
       box-shadow: 0 1px 6px rgba(255, 128, 0, 0.35), 0 2px 10px rgba(100, 50, 255, 0.2);
       z-index: 1;
@@ -3481,6 +3483,8 @@
       background: linear-gradient(90deg,
         #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000
       );
+      background-size: 50% 100%;
+      background-repeat: repeat-x;
       animation: copperBarRev 1.5s linear infinite;
       opacity: 0.7;
       z-index: 1;
@@ -3705,7 +3709,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.399</div>
+          <div id="app-version" class="menu-version">v1.0.400</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3961,7 +3965,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.399';
+      const APP_VERSION = '1.0.400';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
