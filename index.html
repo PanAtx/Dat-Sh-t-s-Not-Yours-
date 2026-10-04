@@ -3223,11 +3223,26 @@
       object-fit: contain;      /* keep its aspect ratio inside that tall box */
       flex: 0 0 auto;
       margin-bottom: 0.4vh;
-      animation: trainerLogoPulse 2.6s ease-in-out infinite;
+      /* play-dough: stretch / squish / slight rotation, combined with the glow pulse */
+      animation: trainerLogoPulse 2.6s ease-in-out infinite,
+                 logoPlaydough 4.8s ease-in-out infinite;
+      will-change: transform, filter;
     }
     @keyframes trainerLogoPulse {
       0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.45)); }
       50% { filter: drop-shadow(0 0 22px rgba(0, 220, 255, 0.85)); }
+    }
+    /* Play-dough: the logo stretches horizontally, squishes vertically, rotates slightly
+       back and forth — like it's made of soft play-dough being gently squeezed and released.
+       The scale values are deliberately asymmetric (wider when shorter, taller when narrower)
+       to read as a volume-preserving squeeze, and the rotation is small (±2°) so it feels
+       organic, not mechanical. */
+    @keyframes logoPlaydough {
+      0%, 100% { transform: scale(1, 1) rotate(0deg); }
+      20%      { transform: scale(1.07, 0.93) rotate(1.8deg); }
+      40%      { transform: scale(0.94, 1.06) rotate(-1.2deg); }
+      60%      { transform: scale(1.05, 0.95) rotate(1deg); }
+      80%      { transform: scale(0.97, 1.03) rotate(-0.6deg); }
     }
     #trainer-rows {
       display: flex;
@@ -3346,33 +3361,82 @@
     body.trainer-open #vpad #btnPause { display: none; }
     .menu-version:hover { color: #4dffb0; text-shadow: 0 0 10px rgba(46, 224, 144, 0.9); }
 
-    /* ===== MOBILE: fit the trainer on phones (e.g. iPhone 13 portrait 390x667) =====
-       On mobile 100vh > visible viewport, so vh-based logo/padding can overflow and clip
-       the logo + rows. Shrink the logo, tighten rows/gaps, and reduce the bottom padding
-       (only needs to clear the scroll bar) so everything fits with nothing cut off. */
-    @media (max-width: 560px), (orientation: portrait) and (max-height: 760px) {
+    /* "Rotate your phone" prompt: hidden by default, shown only in portrait via the media query below */
+    .tr-rotate-prompt { display: none; }
+
+    /* ===== MOBILE LANDSCAPE: fit the trainer on phones (e.g. iPhone 13 landscape 667×390) =====
+       On mobile landscape 100vh > visible viewport, so vh-based logo/padding can overflow.
+       Shrink the logo, tighten rows/gaps, and reduce bottom padding to just clear the scroll bar. */
+    @media (orientation: landscape) and (max-height: 500px) {
       #trainer-logo {
-        height: min(26vh, 200px);
-        width: min(96vw, 560px);
+        height: min(28vh, 180px);
+        width: min(38vw, 320px);
         margin-bottom: 0.2vh;
       }
       #trainer-ui {
-        padding: 0.4vh 3vw 9vh; /* keep the menu clear of the bottom scroll bar */
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 2vw;
+        padding: 0.5vh 3vw 8vh;
       }
       #trainer-rows {
-        gap: 0.6vh;
+        flex: 0 0 auto;
+        gap: 0.5vh;
         padding: 0.2vh 0;
-        width: min(90vw, 520px);
+        width: min(42vw, 380px);
       }
       .tr-row {
-        padding: 0.7vh 1.2vw;
-        font-size: clamp(10px, 2.9vw, 14px);
+        padding: 0.6vh 1vw;
+        font-size: clamp(9px, 1.8vh, 13px);
       }
       .tr-row.active { transform: scale(1.02); }
-      .tr-hint { font-size: clamp(8px, 2.3vw, 11px); margin-top: 0.9vh; }
-      #trainer-scroll { height: 7vh; min-height: 34px; }
-      #trainer-scroll-inner { font-size: clamp(10px, 2.7vw, 14px); }
-      .tr-exit { top: 8px; right: 8px; font-size: 10px; padding: 6px 8px; }
+      .tr-hint { font-size: clamp(8px, 1.6vh, 10px); margin-top: 0.6vh; }
+      #trainer-scroll { height: 6vh; min-height: 30px; }
+      #trainer-scroll-inner { font-size: clamp(9px, 1.8vh, 13px); }
+      .tr-exit { top: 6px; right: 8px; font-size: 9px; padding: 5px 7px; }
+    }
+
+    /* ===== PORTRAIT: block the trainer and show a "rotate" prompt =====
+       The trainer is landscape-only. In portrait, hide the UI and show a clear instruction. */
+    @media (orientation: portrait) {
+      #trainer.open { display: block; }
+      /* hide the interactive UI; keep the starfield + rotate prompt */
+      #trainer-ui,
+      #trainer-ball-canvas,
+      #trainer-scroll,
+      .tr-exit { display: none; }
+      .tr-rotate-prompt {
+        display: flex !important;
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2vh;
+        color: #bfefff;
+        font-family: "Press Start 2P", monospace;
+        font-size: clamp(12px, 3.5vw, 18px);
+        letter-spacing: 2px;
+        text-align: center;
+        text-shadow: 0 0 12px rgba(0, 200, 255, 0.7);
+        animation: trRotatePulse 2s ease-in-out infinite;
+      }
+      .tr-rotate-prompt .tr-rotate-icon {
+        font-size: clamp(32px, 8vw, 56px);
+        animation: trRotateSpin 2s ease-in-out infinite;
+      }
+    }
+    @keyframes trRotatePulse {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+    @keyframes trRotateSpin {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(90deg); }
+      50% { transform: rotate(90deg); }
+      75% { transform: rotate(90deg); }
     }
     </style>
     <link
@@ -3466,6 +3530,12 @@
         <div class="tr-hint">&#9664; &#9654; SET&nbsp;&middot;&nbsp;&#9650; &#9660; SELECT&nbsp;&middot;&nbsp;ACT / ENTER&nbsp;OK&nbsp;&middot;&nbsp;ESC&nbsp;EXIT</div>
       </div>
       <div id="trainer-scroll"><div id="trainer-scroll-inner"></div></div>
+      <!-- shown only in portrait (via CSS media query): tells the user to rotate -->
+      <div class="tr-rotate-prompt">
+        <div class="tr-rotate-icon">&#128241;</div>
+        <div>ROTATE YOUR PHONE</div>
+        <div style="font-size:clamp(9px,2.5vw,13px);opacity:0.7;">THE TRAINER NEEDS LANDSCAPE MODE</div>
+      </div>
     </div>
     <div class="rotate-overlay">
       <div class="icon">&#128241;</div>
@@ -3494,7 +3564,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.389</div>
+          <div id="app-version" class="menu-version">v1.0.390</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3750,7 +3820,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.389';
+      const APP_VERSION = '1.0.390';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
