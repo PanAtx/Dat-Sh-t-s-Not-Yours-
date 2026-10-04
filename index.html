@@ -3189,6 +3189,9 @@
       display: inline-block;
       will-change: transform, color;
     }
+    /* ===== EXIT button: full demo-scene treatment =====
+       Flowing rainbow border, pulsing red/magenta glow, sweeping light streak,
+       glowing X that pulses. On hover/active everything intensifies. */
     .tr-exit {
       position: absolute;
       top: 14px;
@@ -3196,16 +3199,74 @@
       z-index: 3;
       pointer-events: auto;
       cursor: pointer;
-      background: rgba(10, 20, 40, 0.7);
-      border: 2px solid rgba(0, 200, 255, 0.4);
-      color: #bfeeff;
+      overflow: hidden;
+      border: 2px solid transparent;
+      background:
+        linear-gradient(135deg, rgba(40, 8, 18, 0.92), rgba(60, 10, 30, 0.92) 50%, rgba(40, 8, 18, 0.92)) padding-box,
+        linear-gradient(135deg, #ff3060, #ff8040, #ff3090, #ff3060) border-box;
+      background-size: auto, 300% 100%;
+      color: #ffb3c1;
       font-family: inherit;
       font-size: clamp(11px, 1.2vw, 14px);
+      font-weight: bold;
       letter-spacing: 2px;
       padding: 0.8vh 1.1vw;
       -webkit-tap-highlight-color: transparent;
+      animation: trExitBorder 3s linear infinite, trExitGlow 1.8s ease-in-out infinite;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
-    .tr-exit:active { border-color: #7fd0ff; background: rgba(20, 60, 120, 0.8); }
+    /* the X glyph: bright, glowing, pulsing */
+    .tr-exit::before {
+      content: "\2715";
+      display: inline-block;
+      margin-right: 4px;
+      font-size: 1.2em;
+      color: #ff5070;
+      text-shadow: 0 0 8px rgba(255, 60, 100, 0.9), 0 0 16px rgba(255, 60, 100, 0.5);
+      animation: trExitXPulse 1.4s ease-in-out infinite;
+    }
+    /* sweeping light streak across the button */
+    .tr-exit::after {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: -60%;
+      width: 40%;
+      background: linear-gradient(100deg, transparent 0%, rgba(255, 100, 140, 0.35) 50%, transparent 100%);
+      transform: skewX(-20deg);
+      animation: trExitSweep 2.6s ease-in-out infinite;
+      pointer-events: none;
+    }
+    .tr-exit:hover,
+    .tr-exit:active {
+      transform: scale(1.08);
+      box-shadow: 0 0 24px rgba(255, 60, 100, 0.8), inset 0 0 16px rgba(255, 80, 120, 0.4);
+      color: #fff;
+      background:
+        linear-gradient(135deg, rgba(60, 10, 24, 0.95), rgba(90, 15, 40, 0.95) 50%, rgba(60, 10, 24, 0.95)) padding-box,
+        linear-gradient(135deg, #ff3060, #ff8040, #ff3090, #ff3060) border-box;
+    }
+    .tr-exit:hover::before,
+    .tr-exit:active::before {
+      color: #fff;
+      text-shadow: 0 0 12px rgba(255, 80, 120, 1), 0 0 24px rgba(255, 60, 100, 0.7);
+    }
+    @keyframes trExitBorder {
+      from { background-position: 0 0, 0 0; }
+      to   { background-position: 0 0, 300% 0; }
+    }
+    @keyframes trExitGlow {
+      0%, 100% { box-shadow: 0 0 8px rgba(255, 50, 90, 0.3), inset 0 0 6px rgba(255, 60, 100, 0.15); }
+      50%      { box-shadow: 0 0 20px rgba(255, 60, 100, 0.6), inset 0 0 12px rgba(255, 80, 120, 0.3); }
+    }
+    @keyframes trExitXPulse {
+      0%, 100% { transform: scale(1); opacity: 0.85; }
+      50%      { transform: scale(1.25); opacity: 1; }
+    }
+    @keyframes trExitSweep {
+      0%   { left: -60%; }
+      55%  { left: 130%; }
+      100% { left: 130%; }
+    }
     #trainer-ui {
       position: absolute;
       inset: 0;
@@ -3223,26 +3284,39 @@
       object-fit: contain;      /* keep its aspect ratio inside that tall box */
       flex: 0 0 auto;
       margin-bottom: 0.4vh;
-      /* play-dough: stretch / squish / slight rotation, combined with the glow pulse */
-      animation: trainerLogoPulse 2.6s ease-in-out infinite,
-                 logoPlaydough 4.8s ease-in-out infinite;
+      /* single combined animation: play-dough stretch/squish/rotate + hue swirl + glow pulse */
+      animation: logoDemo 4.8s ease-in-out infinite;
       will-change: transform, filter;
     }
-    @keyframes trainerLogoPulse {
-      0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.45)); }
-      50% { filter: drop-shadow(0 0 22px rgba(0, 220, 255, 0.85)); }
-    }
-    /* Play-dough: the logo stretches horizontally, squishes vertically, rotates slightly
-       back and forth — like it's made of soft play-dough being gently squeezed and released.
-       The scale values are deliberately asymmetric (wider when shorter, taller when narrower)
-       to read as a volume-preserving squeeze, and the rotation is small (±2°) so it feels
-       organic, not mechanical. */
-    @keyframes logoPlaydough {
-      0%, 100% { transform: scale(1, 1) rotate(0deg); }
-      20%      { transform: scale(1.07, 0.93) rotate(1.8deg); }
-      40%      { transform: scale(0.94, 1.06) rotate(-1.2deg); }
-      60%      { transform: scale(1.05, 0.95) rotate(1deg); }
-      80%      { transform: scale(0.97, 1.03) rotate(-0.6deg); }
+    /* Combined demo-scene logo animation:
+       - transform: exaggerated play-dough squeeze (1.15×/0.88×) + rotation (±2.5°)
+       - filter: cyan glow pulse (breathes ~2.4s) + hue-rotate swirl (±15°)
+       All in one keyframe so there's no property conflict. */
+    @keyframes logoDemo {
+      0%, 100% {
+        transform: scale(1, 1) rotate(0deg);
+        filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.45)) hue-rotate(0deg);
+      }
+      20% {
+        transform: scale(1.15, 0.88) rotate(2.5deg);
+        filter: drop-shadow(0 0 18px rgba(0, 210, 255, 0.7)) hue-rotate(15deg);
+      }
+      40% {
+        transform: scale(0.88, 1.12) rotate(-2deg);
+        filter: drop-shadow(0 0 22px rgba(0, 220, 255, 0.85)) hue-rotate(-10deg);
+      }
+      50% {
+        transform: scale(1, 1) rotate(0deg);
+        filter: drop-shadow(0 0 22px rgba(0, 220, 255, 0.85)) hue-rotate(0deg);
+      }
+      60% {
+        transform: scale(1.10, 0.92) rotate(1.8deg);
+        filter: drop-shadow(0 0 16px rgba(0, 205, 255, 0.6)) hue-rotate(8deg);
+      }
+      80% {
+        transform: scale(0.93, 1.07) rotate(-1.2deg);
+        filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.45)) hue-rotate(-5deg);
+      }
     }
     #trainer-rows {
       display: flex;
@@ -3523,7 +3597,7 @@
     <div id="trainer">
       <canvas id="trainer-canvas"></canvas>
       <canvas id="trainer-ball-canvas"></canvas>
-      <button id="trainer-exit" class="tr-exit" aria-label="Exit trainer">&#10005; EXIT</button>
+      <button id="trainer-exit" class="tr-exit" aria-label="Exit trainer">EXIT</button>
       <div id="trainer-ui">
         <img id="trainer-logo" src="atxlogo.png" alt="ATX" />
         <div id="trainer-rows"></div>
@@ -3564,7 +3638,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.390</div>
+          <div id="app-version" class="menu-version">v1.0.391</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3820,7 +3894,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.390';
+      const APP_VERSION = '1.0.391';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
