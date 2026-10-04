@@ -3288,6 +3288,40 @@
       animation: logoDemo 4.8s ease-in-out infinite;
       will-change: transform, filter;
     }
+    /* Logo wrapper: positions the particle canvas over the logo */
+    .tr-logo-wrap {
+      position: relative;
+      flex: 0 0 auto;
+      margin-bottom: 0.4vh;
+    }
+    .tr-logo-wrap #trainer-logo { margin-bottom: 0; }
+    #logo-particles {
+      position: absolute;
+      inset: -12px; /* extend slightly beyond the logo for particle overflow */
+      width: calc(100% + 24px);
+      height: calc(100% + 24px);
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* EXIT ripple: radial shockwave that expands on hover */
+    .tr-exit-ripple {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 8px; height: 8px;
+      margin: -4px 0 0 -4px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 80, 120, 0);
+      pointer-events: none;
+      opacity: 0;
+    }
+    .tr-exit:hover .tr-exit-ripple,
+    .tr-exit:active .tr-exit-ripple {
+      animation: trExitRipple 0.8s ease-out;
+    }
+    @keyframes trExitRipple {
+      0%   { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-color: rgba(255, 80, 120, 0.8); opacity: 1; }
+      100% { width: 120px; height: 120px; margin: -60px 0 0 -60px; border-color: rgba(255, 80, 120, 0); opacity: 0; }
+    }
     /* Combined demo-scene logo animation:
        - transform: exaggerated play-dough squeeze (1.15×/0.88×) + rotation (±2.5°)
        - filter: cyan glow pulse (breathes ~2.4s) + hue-rotate swirl (±15°)
@@ -3597,9 +3631,12 @@
     <div id="trainer">
       <canvas id="trainer-canvas"></canvas>
       <canvas id="trainer-ball-canvas"></canvas>
-      <button id="trainer-exit" class="tr-exit" aria-label="Exit trainer">EXIT</button>
+      <button id="trainer-exit" class="tr-exit" aria-label="Exit trainer">EXIT<span class="tr-exit-ripple"></span></button>
       <div id="trainer-ui">
-        <img id="trainer-logo" src="atxlogo.png" alt="ATX" />
+        <div class="tr-logo-wrap">
+          <img id="trainer-logo" src="atxlogo.png" alt="ATX" />
+          <canvas id="logo-particles"></canvas>
+        </div>
         <div id="trainer-rows"></div>
         <div class="tr-hint">&#9664; &#9654; SET&nbsp;&middot;&nbsp;&#9650; &#9660; SELECT&nbsp;&middot;&nbsp;ACT / ENTER&nbsp;OK&nbsp;&middot;&nbsp;ESC&nbsp;EXIT</div>
       </div>
@@ -3638,7 +3675,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.391</div>
+          <div id="app-version" class="menu-version">v1.0.392</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3894,7 +3931,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.391';
+      const APP_VERSION = '1.0.392';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38320,6 +38357,62 @@
           o.start(t); o.stop(t + (dur || 0.09) + 0.02);
         } catch (e) {}
       }
+      // Power-up sweep: ascending frequency (200→1400Hz) + bright ping. Plays when trainer opens.
+      function trainerPowerUp() {
+        try {
+          if (!TRAINER_AC) TRAINER_AC = new (window.AudioContext || window.webkitAudioContext)();
+          var ac = TRAINER_AC;
+          if (ac.state === "suspended") ac.resume();
+          var t = ac.currentTime;
+          // ascending sweep
+          var o = ac.createOscillator(), g = ac.createGain();
+          o.type = "sawtooth";
+          o.frequency.setValueAtTime(180, t);
+          o.frequency.exponentialRampToValueAtTime(1400, t + 0.28);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.12, t + 0.03);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + 0.34);
+          // bright ping at the top
+          var o2 = ac.createOscillator(), g2 = ac.createGain();
+          o2.type = "sine";
+          o2.frequency.setValueAtTime(2200, t + 0.28);
+          g2.gain.setValueAtTime(0.0001, t + 0.28);
+          g2.gain.exponentialRampToValueAtTime(0.10, t + 0.30);
+          g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.48);
+          o2.connect(g2); g2.connect(ac.destination);
+          o2.start(t + 0.28); o2.stop(t + 0.5);
+        } catch (e) {}
+      }
+      // Power-down sweep: descending frequency (1200→120Hz) + soft thud. Plays when trainer closes.
+      function trainerPowerDown() {
+        try {
+          if (!TRAINER_AC) TRAINER_AC = new (window.AudioContext || window.webkitAudioContext)();
+          var ac = TRAINER_AC;
+          if (ac.state === "suspended") ac.resume();
+          var t = ac.currentTime;
+          // descending sweep
+          var o = ac.createOscillator(), g = ac.createGain();
+          o.type = "sawtooth";
+          o.frequency.setValueAtTime(1200, t);
+          o.frequency.exponentialRampToValueAtTime(100, t + 0.32);
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.10, t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+          o.connect(g); g.connect(ac.destination);
+          o.start(t); o.stop(t + 0.38);
+          // low thud at the bottom
+          var o2 = ac.createOscillator(), g2 = ac.createGain();
+          o2.type = "sine";
+          o2.frequency.setValueAtTime(60, t + 0.30);
+          g2.gain.setValueAtTime(0.0001, t + 0.30);
+          g2.gain.exponentialRampToValueAtTime(0.15, t + 0.32);
+          g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.52);
+          o2.connect(g2); g2.connect(ac.destination);
+          o2.start(t + 0.30); o2.stop(t + 0.54);
+        } catch (e) {}
+      }
       // ---- three.js stage: a starfield that FLYS toward the screen (along +z) and slowly
       //      spins clockwise -> eases through a stop -> counter-clockwise -> stop -> repeat.
       //      It's the calm "hyperspace" background behind the whole trainer. ----
@@ -38531,6 +38624,7 @@
         startGame(); // startGame() honors CHEAT.startLevel for the chosen day
       }
       function closeTrainer() {
+        trainerPowerDown(); // descending sweep + thud
         trainerExitFullscreen(); // leave full screen now that the trainer is closing
         TRAINER.open = false;
         var el = $("trainer"); if (el) el.classList.remove("open");
@@ -38573,6 +38667,7 @@
       }
       function openTrainer() {
         if (typeof _preloading !== "undefined" && _preloading) return; // assets still streaming
+        trainerPowerUp(); // ascending sweep + ping
         trainerRequestFullscreen(); // go full screen the moment the trainer opens (user gesture)
         trainerInit3D();
         trainerBuild();
@@ -38587,6 +38682,7 @@
         trainerResize();
         trainerInitScroll();
         tbReset(); // drop the red ball from the top-right and let it head left
+        logoPartInit(); // start the logo particle sparks
         trainerPaint();
         // Start the trainer's dedicated menu track (a root-level mp3, NOT in the music/
         // rotation). It plays ONLY while the trainer is open; closeTrainer() stops it.
@@ -38883,12 +38979,91 @@
         if (vt.act && !TRAINER.prevTouchAct) trainerAction();
         TRAINER.prevTouchAct = !!vt.act;
       }
+      // ---- Logo particle trail: cyan sparks that fly outward when the logo "squeezes" ----
+      var logoParts = []; // {x, y, vx, vy, life, maxLife, size}
+      var logoPartCtx = null;
+      var logoPartStart = 0; // timestamp when the logo animation started
+      var LOGO_PART_CYCLE = 4.8; // seconds — matches the CSS animation duration
+      // squeeze moments: 20% (0.96s) and 60% (2.88s) of the cycle
+      var LOGO_SQUEEZE_TIMES = [0.96, 2.88];
+      var LOGO_SQUEEZE_WINDOW = 0.12; // seconds around each squeeze to spawn
+
+      function logoPartInit() {
+        var cv = $("logo-particles");
+        if (!cv) return;
+        var rect = cv.getBoundingClientRect();
+        cv.width = rect.width * (window.devicePixelRatio || 1);
+        cv.height = rect.height * (window.devicePixelRatio || 1);
+        logoPartCtx = cv.getContext("2d");
+        logoPartCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+        logoPartStart = performance.now() / 1000;
+        logoParts = [];
+      }
+
+      function logoPartSpawn(cx, cy, count) {
+        for (var i = 0; i < count; i++) {
+          var angle = Math.random() * Math.PI * 2;
+          var speed = 40 + Math.random() * 120;
+          logoParts.push({
+            x: cx, y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 30, // slight upward bias
+            life: 0,
+            maxLife: 0.6 + Math.random() * 0.5,
+            size: 1.5 + Math.random() * 2.5,
+            hue: 175 + Math.random() * 30 // cyan range
+          });
+        }
+      }
+
+      function logoPartUpdate(dt) {
+        if (!logoPartCtx) return;
+        var cv = $("logo-particles");
+        if (!cv) return;
+        var w = cv.width / (window.devicePixelRatio || 1);
+        var h = cv.height / (window.devicePixelRatio || 1);
+        var cx = w / 2, cy = h / 2;
+
+        // check if we're at a squeeze moment
+        var t = (performance.now() / 1000 - logoPartStart) % LOGO_PART_CYCLE;
+        for (var s = 0; s < LOGO_SQUEEZE_TIMES.length; s++) {
+          var st = LOGO_SQUEEZE_TIMES[s];
+          var diff = Math.abs(t - st);
+          if (diff < LOGO_SQUEEZE_WINDOW || diff > LOGO_PART_CYCLE - LOGO_SQUEEZE_WINDOW) {
+            // spawn a burst (limited to avoid flooding)
+            if (logoParts.length < 80) logoPartSpawn(cx, cy, 6);
+          }
+        }
+
+        // update + draw
+        logoPartCtx.clearRect(0, 0, w, h);
+        for (var i = logoParts.length - 1; i >= 0; i--) {
+          var p = logoParts[i];
+          p.life += dt;
+          if (p.life >= p.maxLife) { logoParts.splice(i, 1); continue; }
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 20 * dt; // slight gravity
+          var alpha = 1 - p.life / p.maxLife;
+          logoPartCtx.beginPath();
+          logoPartCtx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+          logoPartCtx.fillStyle = "hsla(" + p.hue + ", 100%, 70%, " + (alpha * 0.9) + ")";
+          logoPartCtx.fill();
+          // glow
+          logoPartCtx.beginPath();
+          logoPartCtx.arc(p.x, p.y, p.size * alpha * 2.5, 0, Math.PI * 2);
+          logoPartCtx.fillStyle = "hsla(" + p.hue + ", 100%, 60%, " + (alpha * 0.2) + ")";
+          logoPartCtx.fill();
+        }
+      }
+
       // ---- per-frame trainer update (called from the main loop) ----
       function trainerUpdate(dt) {
         trainerRender(dt);
         trainerUpdateScroll(dt);
         tbUpdate(dt);   // the demo-scene ball: gravity, wall bounces, membrane hits
         tbRender();     // ...and its glow / trail / squash
+        logoPartUpdate(dt); // logo particle sparks
         trainerPollTouch();
       }
       // wire the secret trigger (the version number) + the on-screen EXIT button + resizes
