@@ -3288,21 +3288,13 @@
       animation: logoDemo 4.8s ease-in-out infinite;
       will-change: transform, filter;
     }
-    /* Logo wrapper: positions the particle canvas over the logo */
+    /* Logo wrapper */
     .tr-logo-wrap {
       position: relative;
       flex: 0 0 auto;
       margin-bottom: 0.4vh;
     }
     .tr-logo-wrap #trainer-logo { margin-bottom: 0; }
-    #logo-particles {
-      position: absolute;
-      inset: -12px; /* extend slightly beyond the logo for particle overflow */
-      width: calc(100% + 24px);
-      height: calc(100% + 24px);
-      pointer-events: none;
-      z-index: 2;
-    }
     /* EXIT ripple: radial shockwave that expands on hover */
     .tr-exit-ripple {
       position: absolute;
@@ -3477,30 +3469,30 @@
        Tighten rows/hint/scroll to make room for a larger logo. */
     @media (orientation: landscape) and (max-height: 500px) {
       #trainer-logo {
-        height: min(40vh, 280px); /* prominent: ~144px on S21, ~156px on iPhone 13 */
+        height: min(38vh, 260px); /* prominent but leaves room for spacing */
         width: min(55vw, 420px);
-        margin-bottom: 0.2vh;
+        margin-bottom: 0;
       }
-      .tr-logo-wrap { margin-bottom: 0.1vh; }
+      .tr-logo-wrap { margin-bottom: 0; }
       #trainer-ui {
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 0.2vh;
-        padding: 0.3vh 3vw 6.5vh;
+        gap: 2.5vh; /* equal breathing room between logo, rows, and hint */
+        padding: 1vh 3vw 6.5vh;
       }
       #trainer-rows {
         flex: 0 0 auto;
-        gap: 0.3vh;
-        padding: 0.1vh 0;
+        gap: 0.5vh;
+        padding: 0.2vh 0;
         width: min(65vw, 380px);
       }
       .tr-row {
-        padding: 0.5vh 1vw;
+        padding: 0.6vh 1vw;
         font-size: clamp(9px, 1.7vh, 12px);
       }
       .tr-row.active { transform: scale(1.02); }
-      .tr-hint { font-size: clamp(7px, 1.4vh, 10px); margin-top: 0.4vh; }
+      .tr-hint { font-size: clamp(7px, 1.4vh, 10px); margin-top: 0; }
       #trainer-scroll { height: 5.5vh; min-height: 26px; }
       #trainer-scroll-inner { font-size: clamp(8px, 1.6vh, 12px); }
       .tr-exit { top: 5px; right: 7px; font-size: 9px; padding: 4px 6px; }
@@ -3636,7 +3628,6 @@
       <div id="trainer-ui">
         <div class="tr-logo-wrap">
           <img id="trainer-logo" src="atxlogo.png" alt="ATX" />
-          <canvas id="logo-particles"></canvas>
         </div>
         <div id="trainer-rows"></div>
         <div class="tr-hint">&#9664; &#9654; SET&nbsp;&middot;&nbsp;&#9650; &#9660; SELECT&nbsp;&middot;&nbsp;ACT / ENTER&nbsp;OK&nbsp;&middot;&nbsp;ESC&nbsp;EXIT</div>
@@ -3676,7 +3667,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.395</div>
+          <div id="app-version" class="menu-version">v1.0.396</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3932,7 +3923,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.395';
+      const APP_VERSION = '1.0.396';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38687,7 +38678,6 @@
         trainerResize();
         trainerInitScroll();
         tbReset(); // drop the red ball from the top-right and let it head left
-        logoPartInit(); // start the logo particle sparks
         trainerPaint();
         // Start the trainer's dedicated menu track (a root-level mp3, NOT in the music/
         // rotation). It plays ONLY while the trainer is open; closeTrainer() stops it.
@@ -38700,7 +38690,7 @@
       // it like a rubber band / membrane: hit it and the strip dips, then oscillates
       // back up and throws the ball right back into the air.
       var TRAINER_MSG =
-        "Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        ";
+        "                                                  Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        ";
       function trainerInitScroll() {
         var inner = $("trainer-scroll-inner");
         if (!inner) return;
@@ -38984,83 +38974,6 @@
         if (vt.act && !TRAINER.prevTouchAct) trainerAction();
         TRAINER.prevTouchAct = !!vt.act;
       }
-      // ---- Logo particle trail: cyan sparks that fly outward when the logo "squeezes" ----
-      var logoParts = []; // {x, y, vx, vy, life, maxLife, size}
-      var logoPartCtx = null;
-      var logoPartStart = 0; // timestamp when the logo animation started
-      var LOGO_PART_CYCLE = 4.8; // seconds — matches the CSS animation duration
-      // squeeze moments: 20% (0.96s) and 60% (2.88s) of the cycle
-      var LOGO_SQUEEZE_TIMES = [0.96, 2.88];
-      var LOGO_SQUEEZE_WINDOW = 0.12; // seconds around each squeeze to spawn
-
-      function logoPartInit() {
-        var cv = $("logo-particles");
-        if (!cv) return;
-        var rect = cv.getBoundingClientRect();
-        cv.width = rect.width * (window.devicePixelRatio || 1);
-        cv.height = rect.height * (window.devicePixelRatio || 1);
-        logoPartCtx = cv.getContext("2d");
-        logoPartCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-        logoPartStart = performance.now() / 1000;
-        logoParts = [];
-      }
-
-      function logoPartSpawn(cx, cy, count) {
-        for (var i = 0; i < count; i++) {
-          var angle = Math.random() * Math.PI * 2;
-          var speed = 40 + Math.random() * 120;
-          logoParts.push({
-            x: cx, y: cy,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 30, // slight upward bias
-            life: 0,
-            maxLife: 0.6 + Math.random() * 0.5,
-            size: 1.5 + Math.random() * 2.5,
-            hue: 175 + Math.random() * 30 // cyan range
-          });
-        }
-      }
-
-      function logoPartUpdate(dt) {
-        if (!logoPartCtx) return;
-        var cv = $("logo-particles");
-        if (!cv) return;
-        var w = cv.width / (window.devicePixelRatio || 1);
-        var h = cv.height / (window.devicePixelRatio || 1);
-        var cx = w / 2, cy = h / 2;
-
-        // check if we're at a squeeze moment
-        var t = (performance.now() / 1000 - logoPartStart) % LOGO_PART_CYCLE;
-        for (var s = 0; s < LOGO_SQUEEZE_TIMES.length; s++) {
-          var st = LOGO_SQUEEZE_TIMES[s];
-          var diff = Math.abs(t - st);
-          if (diff < LOGO_SQUEEZE_WINDOW || diff > LOGO_PART_CYCLE - LOGO_SQUEEZE_WINDOW) {
-            // spawn a burst (limited to avoid flooding)
-            if (logoParts.length < 80) logoPartSpawn(cx, cy, 6);
-          }
-        }
-
-        // update + draw
-        logoPartCtx.clearRect(0, 0, w, h);
-        for (var i = logoParts.length - 1; i >= 0; i--) {
-          var p = logoParts[i];
-          p.life += dt;
-          if (p.life >= p.maxLife) { logoParts.splice(i, 1); continue; }
-          p.x += p.vx * dt;
-          p.y += p.vy * dt;
-          p.vy += 20 * dt; // slight gravity
-          var alpha = 1 - p.life / p.maxLife;
-          logoPartCtx.beginPath();
-          logoPartCtx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-          logoPartCtx.fillStyle = "hsla(" + p.hue + ", 100%, 70%, " + (alpha * 0.9) + ")";
-          logoPartCtx.fill();
-          // glow
-          logoPartCtx.beginPath();
-          logoPartCtx.arc(p.x, p.y, p.size * alpha * 2.5, 0, Math.PI * 2);
-          logoPartCtx.fillStyle = "hsla(" + p.hue + ", 100%, 60%, " + (alpha * 0.2) + ")";
-          logoPartCtx.fill();
-        }
-      }
 
       // ---- per-frame trainer update (called from the main loop) ----
       function trainerUpdate(dt) {
@@ -39068,7 +38981,6 @@
         trainerUpdateScroll(dt);
         tbUpdate(dt);   // the demo-scene ball: gravity, wall bounces, membrane hits
         tbRender();     // ...and its glow / trail / squash
-        logoPartUpdate(dt); // logo particle sparks
         trainerPollTouch();
       }
       // wire the secret trigger (the version number) + the on-screen EXIT button + resizes
