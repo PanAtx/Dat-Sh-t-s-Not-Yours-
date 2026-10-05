@@ -17,12 +17,15 @@ function extract(name){
   }
   return html.slice(idx, i + 1);
 }
+const HOPPER_DRENCH_RADIUS = 5.0;
 const code =
   extract('spawnHopperBurst') +
   '\n' +
   extract('hopperWetSpray') +
   '\n' +
-  extract('dropPickleDrips');
+  extract('dropPickleDrips') +
+  '\n' +
+  'function workerAtHopper(wx, wy){ return Math.hypot(p.wx - wx, p.wy - wy) <= HOPPER_DRENCH_RADIUS; }';
 
 // --- minimal THREE / world stubs (enough to run the spawner and inspect its output) ---
 let planeCount = 0, boxCount = 0, sphereCount = 0;
@@ -64,8 +67,8 @@ function splatJuice(){ splatRec.push(1); }
 function makeSpawner(weather, p, bag, residueBag){
   const dustParticles = bag;
   const hopperResidue = residueBag;
-  return new Function('THREE','dynamicGroup','dustParticles','pick','R','hopperTopZ','GZ','weather','p','ROUTE_START_X','ROUTE_FINISH_X','SFX','Voice','spawnBubble','nearHopper','WORKER_GENDER','worldGroup','hopperResidue','HP_HIT_HOPPER','PICKLE_TRAIL_STEPS','DRENCH_LINES','hurtNPC','doStun','splatJuice',
-    code + '\n;return spawnHopperBurst;')(THREE, dynamicGroup, dustParticles, pick, R, hopperTopZ, GZ, weather, p, ROUTE_START_X, ROUTE_FINISH_X, SFX, Voice, spawnBubble, nearHopper, WORKER_GENDER, worldGroup, hopperResidue, HP_HIT_HOPPER, PICKLE_TRAIL_STEPS, DRENCH_LINES, hurtNPC, doStun, splatJuice);
+  return new Function('THREE','dynamicGroup','dustParticles','pick','R','hopperTopZ','GZ','weather','p','ROUTE_START_X','ROUTE_FINISH_X','SFX','Voice','spawnBubble','nearHopper','HOPPER_DRENCH_RADIUS','WORKER_GENDER','worldGroup','hopperResidue','HP_HIT_HOPPER','PICKLE_TRAIL_STEPS','DRENCH_LINES','hurtNPC','doStun','splatJuice',
+    code + '\n;return spawnHopperBurst;')(THREE, dynamicGroup, dustParticles, pick, R, hopperTopZ, GZ, weather, p, ROUTE_START_X, ROUTE_FINISH_X, SFX, Voice, spawnBubble, nearHopper, HOPPER_DRENCH_RADIUS, WORKER_GENDER, worldGroup, hopperResidue, HP_HIT_HOPPER, PICKLE_TRAIL_STEPS, DRENCH_LINES, hurtNPC, doStun, splatJuice);
 }
 
 // Fire a full-intensity burst plus the lighter start/trickle intensities used in the game.
@@ -105,7 +108,7 @@ const rainBagLate = [];
 const residueLate = [];
 const pLate = { wx: ROUTE_FINISH_X, wy: -4.5 };
 const spLate = makeSpawner('rain', pLate, rainBagLate, residueLate); // level END
-spLate(-30, -4.5, 1.0);
+spLate(pLate.wx, pLate.wy, 1.0); // hopper right behind him: he's standing AT the hopper
 const lateWet = rainBagLate.filter(x => x.water);
 const avgSpeed = arr => arr.reduce((a, x) => a + Math.abs(x.vx), 0) / Math.max(1, arr.length);
 check('rain + level END: the gush is MUCH bigger (more bits, faster jet)', lateWet.length > earlyWet.length * 3 && avgSpeed(lateWet) > avgSpeed(earlyWet) * 1.5, 'early=' + earlyWet.length + '@' + avgSpeed(earlyWet).toFixed(2) + ' late=' + lateWet.length + '@' + avgSpeed(lateWet).toFixed(2));
@@ -124,15 +127,15 @@ check('every drench line is about hopper juice / pickle-water boots', DRENCH_LIN
 check('the soak pops a STAINED GROSS! bubble (speaker "gross")', bubbles.some(b => b.t === "GROSS!" && b.sp === "gross"), JSON.stringify(bubbles));
 check('the gush splash DRAINS health: hurtNPC(HP_HIT_HOPPER, "hopper", noYelp, allowCinematic)', hurtRec.length === 1 && hurtRec[0].amt === HP_HIT_HOPPER && hurtRec[0].cause === 'hopper' && hurtRec[0].noYelp === true && hurtRec[0].allowCinematic === true, JSON.stringify(hurtRec));
 check('static: hurtNPC honors the cinematic exception (route-end gush lands, other hits stay frozen)', html.indexOf('function hurtNPC(amount, cause, noYelp, allowCinematic)') >= 0 && html.indexOf('state !== "play" && !allowCinematic') >= 0);
-check('static: the drench no longer depends on nearHopper (the truck-hidden route-end bug)', code.indexOf('nearHopper') < 0);
+check('static: the drench is gated on PROXIMITY (workerAtHopper), NOT the truck-hidden nearHopper', code.indexOf('workerAtHopper(wx, wy)') >= 0 && code.indexOf('nearHopper') < 0);
 check('static: HP_HIT_HOPPER is a light splash (<= a vehicle run-over)', html.indexOf('const HP_HIT_HOPPER = 4;') >= 0 && HP_HIT_HOPPER <= 8);
 check('the juice splash TRIPS him (modest doStun "trip")', stunRec.length === 1 && stunRec[0].type === 'trip' && stunRec[0].dur >= 0.5, JSON.stringify(stunRec));
 check('the soak splashes water ON the worker (droplets near p.wx)', rainBagLate.some(x => x.water && Math.abs(x.wx - ROUTE_FINISH_X) < 1));
-spLate(-30, -4.5, 1.0); // the NEXT burst of the SAME compaction (the POP after the kick-in)
+spLate(pLate.wx, pLate.wy, 1.0); // the NEXT burst of the SAME compaction (the POP after the kick-in) — still AT the hopper
 check('the juice line does NOT repeat mid-compaction (the armed flag is consumed)', voiceRec.length === 1);
-check('static: the reaction is armed PER-COMPACTION (light spew re-arms, the gush consumes)', html.indexOf('if (intensity < 0.5) p.hopperGushArmed = true;') >= 0 && html.indexOf('if (wet >= 0.5 && intensity >= 0.5 && p.hopperGushArmed !== false)') >= 0);
-spLate(-30, -4.5, 0.14); // the continuous spew eases off: the flag RE-ARMS
-spLate(-30, -4.5, 1.0); // the NEXT compaction
+check('static: the reaction is armed PER-COMPACTION (light spew re-arms, the gush consumes)', html.indexOf('if (intensity < 0.5) p.hopperGushArmed = true;') >= 0 && html.indexOf('workerAtHopper(wx, wy) &&') >= 0 && html.indexOf('wet >= 0.5 &&') >= 0 && html.indexOf('p.hopperGushArmed !== false') >= 0);
+spLate(pLate.wx, pLate.wy, 0.14); // the continuous spew eases off: the flag RE-ARMS
+spLate(pLate.wx, pLate.wy, 1.0); // the NEXT compaction (still at the hopper)
 check('the NEXT compaction CATCHES him AGAIN: full reaction every gush (hurt + line + splat)', hurtRec.length === 2 && voiceRec.length === 2 && splatRec.length === 2 && stunRec.length === 2, 'hurt=' + hurtRec.length + ' voice=' + voiceRec.length + ' splat=' + splatRec.length + ' stun=' + stunRec.length);
 check('the juice line ROTATES on the 2nd gush (not a repeat)', voiceRec.length === 2 && voiceRec[1] === DRENCH_LINES[1], JSON.stringify(voiceRec));
 {
@@ -152,9 +155,20 @@ const midBag = [];
 const residueMid = [];
 const pMid = { wx: ROUTE_FINISH_X / 2, wy: -4.5 };
 const spMid = makeSpawner('rain', pMid, midBag, residueMid);
-spMid(-30, -4.5, 1.0);
+spMid(pMid.wx, pMid.wy, 1.0); // hopper right behind him: he's standing AT the hopper
 check('a MID-route (50%) compaction CATCHES the worker (hurt + juice line + GROSS)', hurtRec.length === 3 && hurtRec[2].cause === 'hopper' && voiceRec.length === 3 && pMid.drenched === true && bubbles.some(b => b.t === "GROSS!" && b.sp === "gross"));
 check('the mid-route splash arms the pickle boots (full green trail, self-bump pending) + NO residue before the peak', pMid.pickleSteps === PICKLE_TRAIL_STEPS && pMid.pickleBump === false && residueMid.length === 0, 'pickleSteps=' + pMid.pickleSteps + ' residue=' + residueMid.length);
+
+// ---- 5) the PROXIMITY GUARD: he's only DRENCHED if he's DIRECTLY BEHIND the hopper ----
+// Same route progress (wet >= 0.5) + a full gush (intensity 1.0), but the worker is OFF to
+// the side (on the sidewalk), 30u from the hopper — the water splashes out but never reaches him.
+const pSidewalk = { wx: ROUTE_FINISH_X, wy: -4.5 };
+const bagSidewalk = [];
+const spSidewalk = makeSpawner('rain', pSidewalk, bagSidewalk, []);
+const hurtBefore = hurtRec.length, voiceBefore = voiceRec.length;
+spSidewalk(pSidewalk.wx - 30, pSidewalk.wy, 1.0); // the hopper is 30u AWAY from him
+check('a gush with the worker on the SIDEWALK (30u from the hopper) does NOT drench him (no hurt, no line, not marked drenched)', hurtRec.length === hurtBefore && voiceRec.length === voiceBefore && pSidewalk.drenched !== true, 'hurt=' + hurtRec.length + ' voice=' + voiceRec.length + ' drenched=' + pSidewalk.drenched);
+check('the water still SPLASHES OUT (visual spray emits) — it just doesn\u2019t reach a worker who isn\u2019t behind the truck', bagSidewalk.some(x => x.water));
 
 // ---- 4) the SPLASH REACTION: the worker visibly staggers + the screen SPLATS -----
 check('static: the #splat olive-brine overlay exists (DOM + CSS flash + animation)', html.indexOf('<div id="splat"></div>') >= 0 && html.indexOf('#splat') >= 0 && html.indexOf('@keyframes splatFlash') >= 0);

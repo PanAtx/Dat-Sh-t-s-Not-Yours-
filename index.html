@@ -3806,7 +3806,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.433</div>
+          <div id="app-version" class="menu-version">v1.0.434</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.433';
+      const APP_VERSION = '1.0.434';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -24714,6 +24714,13 @@
         "Gross, gross, GROSS! Hopper juice! I tasted it — pickle water in my boots!",
         "That's hopper JUICE?! I got it in my MOUTH — my boots are pickles now!",
       ];
+      // how close the worker has to be to the hopper mouth for the gush to reach him: the
+      // water splashes out the BACK of the truck, so he has to be standing right behind it —
+      // not across the street, not out on the sidewalk.
+      const HOPPER_DRENCH_RADIUS = 5.0;
+      function workerAtHopper(wx, wy) {
+        return Math.hypot(p.wx - wx, p.wy - wy) <= HOPPER_DRENCH_RADIUS;
+      }
       function hopperWetSpray(wx, wy, intensity) {
         if (weather !== "rain") return; // dry loads never squirt
         const span = ROUTE_FINISH_X - ROUTE_START_X;
@@ -24807,16 +24814,21 @@
         }
         // the gush is strong enough to CATCH the worker from the MIDDLE of the route on
         // (not just the final peak) — the player sees it happen: hopper juice = HP + trip.
-        // (No proximity guard: the gush ONLY fires during the compaction cycle, which only
-        // starts with the worker standing at the scoop — and the truck-distance check goes
-        // false the moment the route-end cinematic hides the truck, exactly when the
-        // gush is biggest. The cycle IS the proximity proof.)
+        // (Proximity guard: the gush only CATCHES him if he's standing right behind the
+        // hopper — the water splashes out the back of the truck, so out on the sidewalk he's
+        // safe. workerAtHopper() has NO truck.hidden gate, so the route-end cinematic (truck
+        // hidden) still lands the splash while he's pumping the compactor right at the hopper.)
         // The reaction is ONCE PER COMPACTION, not once per shift: the continuous 0.14
         // spew (intensity < 0.5) re-arms the flag between compactions, so every gush that
         // catches the worker gets the FULL reaction (hurt + trip + line + splat + boots).
         // (wet = route progress; intensity = the compaction phase: 0.7 kick-in, 1.0 POP, 0.14 trickle.)
         if (intensity < 0.5) p.hopperGushArmed = true; // the spew eases off: next gush can catch him again
-        if (wet >= 0.5 && intensity >= 0.5 && p.hopperGushArmed !== false) {
+        if (
+          workerAtHopper(wx, wy) &&
+          wet >= 0.5 &&
+          intensity >= 0.5 &&
+          p.hopperGushArmed !== false
+        ) {
           p.hopperGushArmed = false; // spent: this compaction already drenched him
           p.drenched = true; // marks: soaked at least once this shift
           // allowCinematic: the compaction gush lands during the route-end ("routeend")
