@@ -25,7 +25,7 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#0a0d12" />
     <link rel="icon" type="image/png" href="icon-192.png" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
     <style>
       * {
         margin: 0;
@@ -3805,7 +3805,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.414</div>
+          <div id="app-version" class="menu-version">v1.0.415</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4060,7 +4060,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.414';
+      const APP_VERSION = '1.0.415';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -38907,7 +38907,9 @@
       }
       function closeTrainer() {
         trainerPowerDown(); // descending sweep + thud
-        trainerExitFullscreen(); // leave full screen now that the trainer is closing
+        // Keep full screen when the trainer closes — openTrainer() already requested it,
+        // and the player wants to stay in full screen (not drop back to the browser
+        // window). So we leave the fullscreen state as-is instead of exiting it here.
         TRAINER.open = false;
         var el = $("trainer"); if (el) el.classList.remove("open");
         document.body.classList.remove("trainer-open");
