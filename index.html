@@ -3805,7 +3805,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.411</div>
+          <div id="app-version" class="menu-version">v1.0.413</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.411';
+      const APP_VERSION = '1.0.413';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4118,16 +4118,29 @@
       const CROSS_H = 30; // cross-street LENGTH (across the road / Y) — runs from the far nose (y=-14) past the houses (y=+16), with room for the perpendicular crosswalks to sit clear of the main road on both sides
       const CROSS_CY = 1.0; // cross-street lateral centerline — spans y = -14 → +16 (still reaches the top-left corner, plus clearance below the road for the crosswalk)
       const CROSS_R = 3; // rounded radius — applied ONLY to the far "nose" (open side); the near side stays square so the road reaches the top-left corner
-      // 7 blocks, each 80u wide, separated by 16u intersections:
+      // 6 blocks, each 80u wide, separated by 16u intersections:
+      // 4 active blocks (2-5) between a start buffer (Block 1) and a finish
+      // buffer (Block 6). Route length is controlled HERE — ACTIVE_BLOCKS below
+      // (and every level-specific NPC, the litter-basket layout, and the finish
+      // line) all derive from it, so this is the single safe knob for length.
       const LEVEL_BLOCKS = [
         { x: 0, garbage: false }, // Block 1 — behind the start, NO garbage
         { x: 96, garbage: true }, // Block 2
         { x: 192, garbage: true }, // Block 3
         { x: 288, garbage: true }, // Block 4
-        { x: 384, garbage: true }, // Block 5
-        { x: 480, garbage: true }, // Block 6
-        { x: 576, garbage: false }, // Block 7 — past the finish, NO garbage
+        { x: 384, garbage: true }, // Block 5 — Maspeth cemetery (last active block)
+        { x: 480, garbage: false }, // Block 6 — past the finish, NO garbage
       ];
+      // The blocks the worker actually services (start/finish buffers excluded).
+      // EVERY level-specific spawner (Karens, housewives, Bronx dealers /
+      // panhandlers), the litter-basket layout, and the route finish all key off
+      // THIS list — so changing the route length is a safe one-line edit above.
+      const ACTIVE_BLOCKS = LEVEL_BLOCKS.filter((b) => b.garbage);
+      // The ORIGINAL LEVEL_BLOCKS indices of the active blocks (e.g. [1,2,3,4]).
+      // "Pick a random active block" spawners (cats, Bed-Stuy shootout, Harlem,
+      // Bronx, etc.) shuffle THIS instead of a hardcoded [1..5], so they can never
+      // land on a start/finish buffer no matter how long the route is.
+      const ACTIVE_BLOCK_IDX = LEVEL_BLOCKS.map((b, i) => (b.garbage ? i : -1)).filter((i) => i >= 0);
       // ==================== QUEENS CEMETERY (Maspeth, the 5th block) ====================
       // The 5th block of the Maspeth route is a CEMETERY — no houses, no corner
       // stores, no curb garbage, no mongo. A tall black wrought-iron fence runs
@@ -4152,12 +4165,12 @@
       const QUEENS_OAK_X = LEVEL_BLOCKS[QUEENS_OAK_BLOCK].x; // 192
       const QUEENS_OAK_CELL = 3; // the 4th cell of the block carries the trunk
       const ACORN_COUNT = 14; // acorns scattered all over the block's sidewalk
-      // 7 intersections (cross-streets), each starting 80u into its preceding segment:
-      const LEVEL_XS = [80, 176, 272, 368, 464, 560, 656];
+      // 6 intersections (cross-streets), each starting 80u into its preceding segment:
+      const LEVEL_XS = [80, 176, 272, 368, 464, 560];
       const ROUTE_START_X = 80; // barrier: worker can't walk back before Intersection 1
       const PLAYER_START_X = 88; // spawn in the middle of Intersection 1, facing Block 2
-      const ROUTE_FINISH_X = 560; // reaching Intersection 6 completes the route
-      const ROUTE_END_X = 672; // far edge of the route (Intersection 7)
+      const ROUTE_FINISH_X = 464; // end of the last active block (x=384) completes the route
+      const ROUTE_END_X = 576; // far edge of the route (the finish buffer block)
       const RUN_SPEED = 4; // SLOWED traffic floor (was 8.5) — also sets CAR_MIN_SP, so cars no longer "never crawl below the worker's walk pace"
       const PLAYER_SPEED = 8.5; // worker forward speed while W / UP / stick is held (no input = stands still) — eased back from 10 so the worker feels grounded, not flighty
       const LAT_SPEED = 6.5; // worker strafe speed (A/D / stick horizontal)
@@ -8317,11 +8330,11 @@
       function computeNormalLitterBasketHomes() {
         const homes = [];
         const offsets = [-(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5];
-        // The 7-block route has 5 active blocks (2-6); baskets belong only at the
-        // corners of the active route (Intersections 1-5). Intersection 6 (x=560) is
-        // the END of the last active block / the START of the buffer block, and
-        // Intersection 7 (x=656) is past the buffer — neither carries a basket.
-        const activeIntersections = LEVEL_XS.slice(0, 5);
+        // Baskets belong only at the corners of the ACTIVE route: one intersection
+        // per active block (LEVEL_XS[0..n-1]), which ends BEFORE the finish-buffer
+        // block — so the buffer never carries a basket and the count tracks the
+        // route length automatically (no more hardcoded 5).
+        const activeIntersections = LEVEL_XS.slice(0, ACTIVE_BLOCKS.length);
         activeIntersections.forEach(function (xInt, i) {
           const cx = xInt + IW / 2;
           for (let o = 0; o < offsets.length; o++) {
@@ -12881,17 +12894,21 @@
         body.position.z = 0.3 + h / 2;
         body.receiveShadow = false;
         g.add(body);
-        // A-frame roof
+        // A-frame gable roof: two slabs tilted (around the Y axis, since Z is up) to
+        // meet at a ridge running front-to-back (Y); each slopes down in +/-X.
         const roofMat = M(0x2e2a26);
-        const roofAngle = Math.atan2(h * 0.45, w * 0.55);
-        const roofLen = (w * 0.55) / Math.cos(roofAngle);
+        const run = w * 0.55; // ridge -> eave, horizontal half-span (along X)
+        const rise = h * 0.45; // ridge height above the eaves (along Z)
+        const top = 0.3 + h; // top of the building body
+        const roofAngle = Math.atan2(rise, run); // slope angle
+        const roofLen = Math.hypot(rise, run); // slope length (= run / cos(roofAngle))
         const roofL = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
-        roofL.position.set(0, 0, 0.3 + h + h * 0.22);
-        roofL.rotation.z = roofAngle;
+        roofL.position.set(-run / 2, 0, top + rise / 2);
+        roofL.rotation.y = -roofAngle;
         g.add(roofL);
         const roofR = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
-        roofR.position.set(0, 0, 0.3 + h + h * 0.22);
-        roofR.rotation.z = -roofAngle;
+        roofR.position.set(run / 2, 0, top + rise / 2);
+        roofR.rotation.y = roofAngle;
         g.add(roofR);
         // Elevated front porch (solid box with brick sides, cement top)
         const porchW = w * 0.8;
@@ -15862,17 +15879,21 @@
         body.position.z = 0.3 + h / 2;
         body.receiveShadow = false;
         g.add(body);
-        // A-frame gable roof (two angled slabs meeting at the ridge)
+        // A-frame gable roof: two slabs tilted (around the Y axis, since Z is up) to
+        // meet at a ridge running front-to-back (Y); each slopes down in +/-X.
         const roofMat = M(0x2e2a26);
-        const roofAngle = Math.atan2(h * 0.45, w * 0.55);
-        const roofLen = (w * 0.55) / Math.cos(roofAngle);
+        const run = w * 0.55; // ridge -> eave, horizontal half-span (along X)
+        const rise = h * 0.45; // ridge height above the eaves (along Z)
+        const top = 0.3 + h; // top of the building body
+        const roofAngle = Math.atan2(rise, run); // slope angle
+        const roofLen = Math.hypot(rise, run); // slope length (= run / cos(roofAngle))
         const roofL = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
-        roofL.position.set(0, 0, 0.3 + h + h * 0.22);
-        roofL.rotation.z = roofAngle;
+        roofL.position.set(-run / 2, 0, top + rise / 2);
+        roofL.rotation.y = -roofAngle;
         g.add(roofL);
         const roofR = BX(roofLen + 0.4, d + 1.0, 0.15, roofMat);
-        roofR.position.set(0, 0, 0.3 + h + h * 0.22);
-        roofR.rotation.z = -roofAngle;
+        roofR.position.set(run / 2, 0, top + rise / 2);
+        roofR.rotation.y = roofAngle;
         g.add(roofR);
         // Elevated front porch (solid brick base with cement top slab)
         const porchW = w * 0.8;
@@ -23645,7 +23666,7 @@
         // bonks put him down the write-up reads "Failed to obligate a disgruntled
         // homeowner".
         if (isStatenIslandLevel()) {
-          const karenBlocks = LEVEL_BLOCKS.filter((b, i) => (i + 1) % 2 === 1);
+          const karenBlocks = ACTIVE_BLOCKS.filter((b, i) => (i + 1) % 2 === 1);
           karenOutfitQueue = KAREN_OUTFITS.slice().sort(() => Math.random() - 0.5);
           for (let i = 0; i < karenBlocks.length; i++) {
             const bx = karenBlocks[i].x;
@@ -23670,7 +23691,7 @@
         // "I didn't mean it"; if her bonks put him down the write-up reads
         // "Failure to Dump the Load".
         if (isStatenIslandLevel()) {
-          const hwBlocks = LEVEL_BLOCKS.filter((b, i) => (i + 1) % 2 === 0);
+          const hwBlocks = ACTIVE_BLOCKS.filter((b, i) => (i + 1) % 2 === 0);
           housewifeOutfitQueue = HOUSEWIFE_OUTFITS.slice().sort(
             () => Math.random() - 0.5,
           );
@@ -23877,8 +23898,8 @@
           const cg = addCreature("crazy");
           let harlemCrazyIdx = -1;
           if (isHarlemLevel()) {
-            // ONE random garbage block, EXCLUDING index 2 (Block 3 = the pimp's corner)
-            const cand = [1, 3, 4, 5, 6];
+            // ONE random ACTIVE block, EXCLUDING index 2 (Block 3 = the pimp's corner)
+            const cand = ACTIVE_BLOCK_IDX.filter((i) => i !== 2);
             harlemCrazyIdx = cand[(Math.random() * cand.length) | 0];
             const b = LEVEL_BLOCKS[harlemCrazyIdx];
             cg.wx = b.x + 8; // at the BEGINNING of his block (the end the worker reaches first)
@@ -23902,7 +23923,7 @@
           // the worker crowds his court he hurls it at him ("You messin' with my
           // game!"). See case "bball" in updateCreatures for the ball state machine.
           if (isHarlemLevel()) {
-            const bbAvail = [1, 3, 4, 5, 6, 7].filter((i) => i !== harlemCrazyIdx);
+            const bbAvail = ACTIVE_BLOCK_IDX.filter((i) => i !== 2 && i !== harlemCrazyIdx);
             const bbIdx = bbAvail[(Math.random() * bbAvail.length) | 0];
             const bbBlock = LEVEL_BLOCKS[bbIdx];
             const bbX = bbBlock.x + BLOCK_W * 0.5; // center of his block
@@ -23929,8 +23950,8 @@
             // (harlemCrazyIdx), not the pimp (Block 3 = index 2), not the street-baller
             // (bbIdx). He starts at the beginning of his block and shadows the worker
             // around it (block-clamped), flinging bird seed that draws a pooping flock.
-            const chAvail = [1, 3, 4, 5, 6].filter(
-              (i) => LEVEL_BLOCKS[i] && i !== harlemCrazyIdx && i !== bbIdx,
+            const chAvail = ACTIVE_BLOCK_IDX.filter(
+              (i) => i !== 2 && i !== harlemCrazyIdx && i !== bbIdx,
             );
             if (chAvail.length) {
               const chIdx = chAvail[(Math.random() * chAvail.length) | 0];
@@ -23952,8 +23973,9 @@
         // different stoop. They stand on the bottom stoop step, watch the
         // street, and punch the worker if he comes close.
         if (isBronxLevel()) {
-          for (let dI = 1; dI <= 5; dI++) {
-            const bl = LEVEL_BLOCKS[dI];
+          // One dealer per ACTIVE block (derived from ACTIVE_BLOCKS, so the count
+          // follows the route length and never lands on a buffer block).
+          for (const bl of ACTIVE_BLOCKS) {
             // Residential houses are index 1..8 (0 and 9 are storefronts);
             // every one of them has a Bronx row-house stoop.
             const houseI = 1 + ((Math.random() * 8) | 0);
@@ -23998,7 +24020,7 @@
         // drink, or drugs. The stores are the end houses of each block (index
         // 0 and 9), so they never end up on a dealer's stoop (houses 1..8).
         if (isBronxLevel()) {
-          const phBlockIdx = [1, 2, 3, 4, 5];
+          const phBlockIdx = ACTIVE_BLOCKS.map((_, i) => i); // two random ACTIVE blocks
           for (let phS = phBlockIdx.length - 1; phS > 0; phS--) {
             const j = (Math.random() * (phS + 1)) | 0;
             const t = phBlockIdx[phS];
@@ -24006,7 +24028,7 @@
             phBlockIdx[j] = t;
           }
           for (let phI = 0; phI < 2; phI++) {
-            const bl = LEVEL_BLOCKS[phBlockIdx[phI]];
+            const bl = ACTIVE_BLOCKS[phBlockIdx[phI]];
             const storeI = Math.random() < 0.5 ? 0 : 9; // the block's store
             const storeX = bl.x + storeI * 8 + 4.0; // BW=8, house centers at +4
             const ph = addCreature("panhandler");
@@ -24027,7 +24049,7 @@
         // (homeX/homeY) and his hard bounds (blockMinX/blockMaxX). He drills his tackle
         // on the sanitation worker ("Hut... hut... HIKE!" -> charge -> "Ow! My meniscus!").
         if (isBedStuyLevel()) {
-          const fbIdx = 1 + ((Math.random() * 5) | 0); // active shift blocks 1..5 (x 96..480)
+          const fbIdx = ACTIVE_BLOCK_IDX[(Math.random() * ACTIVE_BLOCK_IDX.length) | 0]; // one random ACTIVE block
           const fbBlock = LEVEL_BLOCKS[fbIdx];
           const fb = addCreature("football");
           fb.homeX = fbBlock.x + R(20, 60); // mid-block frontage, never in a cross-street
@@ -24046,8 +24068,11 @@
         if (isBedStuyLevel()) {
           const fbC = creatures.find((x) => x.type === "football");
           const fbBlockX = fbC ? fbC.blockMinX - 6.0 : -1; // back to the block's origin x
-          let rpIdx = 1 + ((Math.random() * 5) | 0); // active shift blocks 1..5 (same pool)
-          if (fbC && LEVEL_BLOCKS[rpIdx].x === fbBlockX) rpIdx = 1 + (rpIdx % 5); // a guaranteed different block
+          let rpIdx = ACTIVE_BLOCK_IDX[(Math.random() * ACTIVE_BLOCK_IDX.length) | 0]; // one random ACTIVE block
+          if (fbC && LEVEL_BLOCKS[rpIdx].x === fbBlockX) {
+            const others = ACTIVE_BLOCK_IDX.filter((i) => i !== rpIdx); // a guaranteed different active block
+            if (others.length) rpIdx = others[(Math.random() * others.length) | 0];
+          }
           const rpBlock = LEVEL_BLOCKS[rpIdx];
           const rp = addCreature("rapper");
           rp.homeX = rpBlock.x + R(20, 60); // mid-block frontage
@@ -24072,8 +24097,8 @@
           if (fbC) takenX.add(Math.round(fbC.blockMinX - 6.0)); // back to the block's origin x
           if (rpC) takenX.add(Math.round(rpC.blockMinX - 6.0));
           // Pick a block with TWO cover fixtures a good gap apart, never the football/rapper
-          // block (the active shift blocks are shuffled for variety).
-          const pool = [1, 2, 3, 4, 5];
+          // block (the ACTIVE blocks are shuffled for variety).
+          const pool = ACTIVE_BLOCK_IDX.slice();
           for (let i = pool.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = pool[i];
@@ -24174,9 +24199,9 @@
         // whole level.
         const isFlatbushArea = borough === "BROOKLYN" && area === "FLATBUSH";
         if (isManhattanLevel() || isBronxLevel() || isFlatbushArea || isBedStuyLevel()) {
-          // Pick 4 different active shift blocks (2-7) to spread the cats along
-          // the route, and assign the 4 coats in a shuffled order.
-          const active = [1, 2, 3, 4, 5];
+          // Pick up to 4 ACTIVE blocks to spread the cats along the route, and assign
+          // the coats in a shuffled order (derived from ACTIVE_BLOCK_IDX, never a buffer).
+          const active = ACTIVE_BLOCK_IDX.slice();
           for (let i = active.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = active[i];
@@ -24231,7 +24256,7 @@
         // Queens-only coat, like the Bronx's "mott").
         if (isQueensLevel()) {
           // Cats are welcome on the cemetery block too (cats love graveyards) — include it
-          const active = [1, 2, 3, 4, 5];
+          const active = ACTIVE_BLOCK_IDX.slice();
           for (let i = active.length - 1; i > 0; i--) {
             const j = (Math.random() * (i + 1)) | 0;
             const t = active[i];
