@@ -1285,6 +1285,9 @@
         width: min(540px, 94vw);
         max-height: 92vh;
         overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* momentum / flick scrolling on iOS */
+        touch-action: pan-y; /* allow vertical touch-pan — overrides the global touch-action:none so it scrolls on mobile */
+        overscroll-behavior: contain; /* stop scroll-bounce leaking out to the page */
         text-align: left;
         background:
           radial-gradient(130% 60% at 50% -15%, rgba(46, 224, 144, 0.16), transparent 60%),
@@ -3806,7 +3809,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.440</div>
+          <div id="app-version" class="menu-version">v1.0.441</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4064,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.440';
+      const APP_VERSION = '1.0.441';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5128,6 +5131,13 @@
       document.addEventListener(
         "touchmove",
         function (e) {
+          // EXEMPT the credits window from the blanket preventDefault so it can
+          // touch-scroll natively on mobile (it has overflow-y:auto + a visible
+          // custom scrollbar). Everything else keeps the immersive "no page
+          // scroll" behavior. Touch events report e.target as the element the
+          // finger started on, so contains() also covers panning on any child row.
+          var box = document.getElementById("creditsBox");
+          if (box && e.target && (box === e.target || box.contains(e.target))) return;
           e.preventDefault();
         },
         { passive: false },
@@ -16925,6 +16935,196 @@
         kp.g.scale.set(0.6, 0.6, 0.6); // kid-sized
         return kp;
       }
+      // The Staten Island RC KID'S handheld radio transmitter — the little red box a
+      // small kid cradles in both hands while he drives the mini monster truck. A
+      // boxy controller with two thumb-sticks and a straight-up STICK ANTENNA (that
+      // antenna is the "it's a radio transmitter" tell). Local frame = makePerson's:
+      // x = forward (the direction the kid faces / drives), y = the shoulder line,
+      // z = up. Built small enough to sit in a kid's (0.6-scaled) hands.
+      function makeRCRemote() {
+        const g = new THREE.Group();
+        const red = M(0xc23a2e),
+          dark = M(0x1a1d20),
+          stick = M(0x2a2d31);
+        // the controller body (a chunky handheld, face toward the kid = +x front)
+        const body = BX(0.16, 0.1, 0.07, red);
+        g.add(body);
+        // two thumb-sticks poking up the top face
+        [0.035, -0.035].forEach((sy) => {
+          const st = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.014, 0.014, 0.04, 8),
+            dark,
+          );
+          st.castShadow = true;
+          st.position.set(0.02, sy, 0.055);
+          g.add(st);
+        });
+        // a couple of buttons on the face
+        [0.05, 0.09].forEach((bx) => {
+          const btn = BX(0.02, 0.02, 0.02, M(0x3a3f46));
+          btn.position.set(bx, -0.02, 0.045);
+          g.add(btn);
+        });
+        // the STRAIGHT-UP radio stick antenna (the transmitter tell)
+        const ant = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.01, 0.22, 6),
+          stick,
+        );
+        ant.castShadow = true;
+        ant.position.set(-0.05, 0.03, 0.12);
+        g.add(ant);
+        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), M(0xd03030));
+        tip.position.set(-0.05, 0.03, 0.24);
+        g.add(tip);
+        return g;
+      }
+      // The Staten Island RC MONSTER TRUCK — a HIGHER-POLY mini "Gravedigger" the
+      // kid drives: a wide low black chassis riding HIGH on four OVERSIZED knobby
+      // tires, a Gravedigger-style white skull + dark eyes on the nose, a glass
+      // windshield cab, and a TALL whip ANTENNA off the rear (the "but with an
+      // antenna" tell). Local frame = the other road vehicles' (see makeCar):
+      // x = forward/length (nose +x, tail -x), y = lateral (left/right), z = up.
+      // The four spin-able tires live on g.userData.wheels and the antenna on
+      // g.userData.antenna so the update loop can roll the wheels + flutter it.
+      function makeRCMonsterTruck() {
+        const g = new THREE.Group();
+        const black = M(0x111316),
+          dark = M(0x050607),
+          white = M(0xf2f2f2),
+          rim = M(0x9aa0a8),
+          glass = M(0x26364a),
+          tread = M(0x0b0c0e),
+          mast = M(0x2a2d31);
+        const wheels = [];
+        // wide, low chassis — raised high off the ground (monster-truck stance)
+        const chassis = BX(0.66, 0.36, 0.22, black);
+        chassis.position.set(0, 0, 0.44);
+        g.add(chassis);
+        // sloped hood out front (+x)
+        const hood = BX(0.32, 0.32, 0.26, black);
+        hood.position.set(0.24, 0, 0.48);
+        g.add(hood);
+        // cab behind the hood with a glass windshield
+        const cab = BX(0.32, 0.32, 0.36, black);
+        cab.position.set(-0.14, 0, 0.55);
+        g.add(cab);
+        const wind = BX(0.03, 0.26, 0.26, glass);
+        wind.position.set(0.04, 0, 0.56);
+        g.add(wind);
+        // Gravedigger's SKULL on the nose: a white snout with two dark eye sockets
+        const skull = BX(0.07, 0.24, 0.2, white);
+        skull.position.set(0.42, 0, 0.44);
+        g.add(skull);
+        const eyeM = M(0x0a0a0a);
+        [0.07, -0.07].forEach((ey) => {
+          const eye = BX(0.05, 0.05, 0.05, eyeM);
+          eye.position.set(0.44, ey, 0.48);
+          g.add(eye);
+        });
+        // two little fender flares over each wheel (monster-truck fenders)
+        [
+          [0.22, 0.28],
+          [0.22, -0.28],
+          [-0.22, 0.28],
+          [-0.22, -0.28],
+        ].forEach((fp) => {
+          const f = SPH(1, dark, 14, 10);
+          f.scale.set(0.16, 0.13, 0.12);
+          f.position.set(fp[0], fp[1], 0.42);
+          g.add(f);
+        });
+        // four OVERSIZED knobby tires (the "monster" in mini monster truck)
+        const wpos = [
+          [0.24, 0.26],
+          [0.24, -0.26],
+          [-0.24, 0.26],
+          [-0.24, -0.26],
+        ];
+        for (let i = 0; i < 4; i++) {
+          const wx = wpos[i][0],
+            wy = wpos[i][1];
+          // knobby tire: a chunky dark cylinder (its axis = local Y = the axle)
+          const tire = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22, 0.22, 0.18, 20),
+            tread,
+          );
+          tire.castShadow = true;
+          tire.position.set(wx, wy, 0.22);
+          g.add(tire);
+          // a lighter rim/hub so the wheel reads as a wheel, not a solid drum
+          const hub = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.1, 0.1, 0.2, 14),
+            rim,
+          );
+          hub.position.set(wx, wy, 0.22);
+          g.add(hub);
+          const hubCap = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.04, 0.04, 0.21, 10),
+            M(0xcfd6dd),
+          );
+          hubCap.position.set(wx, wy, 0.22);
+          g.add(hubCap);
+          // tread LUGS ringed around the tire in its X-Z cross-section (knobby read)
+          for (let k = 0; k < 10; k++) {
+            const a = (k / 10) * Math.PI * 2;
+            const lug = BX(0.04, 0.04, 0.05, dark);
+            lug.position.set(wx + Math.cos(a) * 0.22, wy, 0.22 + Math.sin(a) * 0.22);
+            lug.rotation.y = a; // fan each lug tangentially around the tread
+            g.add(lug);
+          }
+          wheels.push(tire, hub, hubCap);
+        }
+        // the TALL whip ANTENNA off the rear cab (the "but with an antenna" tell)
+        const antenna = new THREE.Group();
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.014, 0.02, 0.5, 6),
+          mast,
+        );
+        pole.castShadow = true;
+        antenna.add(pole);
+        const whip = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.008, 0.014, 0.26, 5),
+          mast,
+        );
+        whip.position.z = -0.34; // a short lower whip segment below the tip
+        antenna.add(whip);
+        const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), M(0xd03030));
+        antTip.position.z = 0.25;
+        antenna.add(antTip);
+        // a cylinder's default axis is local Y; tip it up to local Z (up)
+        antenna.rotation.x = Math.PI / 2;
+        antenna.position.set(-0.28, 0, 0.62);
+        g.add(antenna);
+        g.userData.wheels = wheels;
+        g.userData.antenna = antenna;
+        return g;
+      }
+      // The Staten Island RC KID — a small kid (makePerson, 0.6-scaled) who CRADLES
+      // the radio transmitter in both hands while he drives the mini monster truck.
+      // Both arms are bent forward (rotated about local Y) so the hands meet in front
+      // of the chest, and the remote is mounted there. The truck itself is a SEPARATE
+      // sub-object the kid's AI steers (c.rcCar) — the kid stays put near the worker
+      // and just hunches over the controls.
+      function makeRCKid(shirt) {
+        const kp = makePerson({
+          shirt: shirt || pick(SHIRTS),
+          pants: pick(PANTS),
+          hair: pick(HAIRS),
+        });
+        kp.g.scale.set(0.6, 0.6, 0.6); // kid-sized
+        const parts = kp.g.userData.parts;
+        // bend both arms forward so the hands meet in front of the chest (holding it)
+        parts.armL.rotation.y = -1.0;
+        parts.armR.rotation.y = -1.0;
+        // the radio transmitter, held up in BOTH hands at the chest (the bent
+        // hands meet at g-frame ~x 0.42, y +/-0.29, z ~1.11, so the remote sits
+        // right between them at hand height — raised well above the old low spot)
+        const remote = makeRCRemote();
+        remote.position.set(0.42, 0, 1.11); // in the hands, held up at chest height
+        kp.g.add(remote);
+        kp.remote = remote;
+        return kp;
+      }
       // A little REAL baseball, resting radius 0.16 (centre at 0.16 above the
       // ground so it sits ON the sidewalk). Cream sphere with the classic RED
       // STITCH SEAMS: two curved red arcs (torus arcs) on opposite sides — the
@@ -21496,6 +21696,25 @@
               c.data = makeTeeballKid(teeballShirt); // distinct shirt per kid (the group look)
             }
             break;
+          case "rckid":
+            // Staten Island RC KID (see the spawn in spawnWorld + the "rckid" case in
+            // updateCreatures): one small kid on the sidewalk holding a radio
+            // transmitter, driving a mini monster truck (c.rcCar) that zips the front
+            // lawns / sidewalk / curb / street near him. No boxW — the kid is NOT a
+            // vehicle: traffic, separation and truck-collision all skip him. The truck
+            // is a SEPARATE sub-object (not in the creatures list) that the kid steers,
+            // so it zips freely and isn't clamped to the road. Crowd routes around the
+            // kid (AVOID_TYPES.rckid). The spawner sets c.rcCar.wx/wy right after
+            // (it knows the kid's final spot); the truck mesh is added to the world
+            // exactly once here.
+            c.sp = 0; // the KID's follow-movement is driven by its own "rckid" case (capped pursuit of the worker) — the TRUCK moves on its own leash
+            c.dir = 1;
+            c.data = makeRCKid();
+            c.rcCar = { wx: c.wx, wy: c.wy, hdg: 0, tx: c.wx, ty: c.wy, spin: 0 };
+            c.rcCarG = makeRCMonsterTruck();
+            c.rcCarG.position.set(c.wx, c.wy, GZ);
+            dynamicGroup.add(c.rcCarG);
+            break;
           case "dogwalker":
             c.wy = R(1.0, creatureMaxY());
             c.sp = npcPace(); // NYC pace: a real spread of speeds (see npcPace)
@@ -23351,6 +23570,46 @@
               "ped",
             );
           }
+        }
+        // The Staten Island RC KID (New Dorp, day 5): ONE small kid on the sidewalk
+        // holding a radio transmitter, driving a Gravedigger-style mini monster truck
+        // (with a tall antenna) that zips around the front lawns, sidewalk, curb and
+        // street within a leash of him. At times it darts straight past the sanitation
+        // worker, tripping him (see collideCreatures + the "rckid" case in
+        // updateCreatures). The kid + truck are a FIXED feature of the block for the
+        // whole shift (no recycling) — the kid FOLLOWS the worker down the route,
+        // trailing a few units behind on the sidewalk, so the truck keeps cutting
+        // across his path.
+        if (isStatenIslandLevel()) {
+          // a clean block — skip the car-wash block (index 1) and the chalk
+          // crime-scene block (index 2), same rule as the tee-ball kids
+          const rcCands = LEVEL_BLOCKS.filter((b, i) => i !== 1 && i !== 2);
+          const rcBlock = rcCands[(Math.random() * rcCands.length) | 0];
+          const rcX = rcBlock.x + R(8, BLOCK_W - 8); // a spot along the block's sidewalk
+          const rcKid = addCreature("rckid");
+          rcKid.wx = rcX;
+          rcKid.wy = R(2.2, 4.4); // on the NEAR sidewalk band (sidewalk / front-lawn side)
+          rcKid.g.position.set(rcKid.wx, rcKid.wy, GZ);
+          // the mini monster truck starts out on the street in front of the kid, zipping
+          const rcT = rcKid.rcCar;
+          rcT.wx = rcX + R(1.5, 3.0);
+          rcT.wy = R(-4.0, -1.0); // out on the asphalt, ready to race
+          rcT.hdg = Math.random() < 0.5 ? 0 : Math.PI; // facing down the street
+          rcT.tx = rcT.wx + 4;
+          rcT.ty = rcT.wy;
+          rcT.spin = 0;
+          rcKid.rcCarG.position.set(rcT.wx, rcT.wy, GZ);
+          rcKid.rcCarG.rotation.z = rcT.hdg;
+          // open the shift with the kid hollering over his truck
+          Voice.say(
+            pick(RC_KID_LINES),
+            1.8,
+            1.25,
+            rcKid.wx,
+            rcKid.wy,
+            "male",
+            "kid",
+          );
         }
         const counts = npcCounts(level);
         for (const t in counts)
@@ -26419,6 +26678,30 @@
       const TEEBALL_WORKER_THROW_CD = 3.5; // min gap between throws aimed at the worker (no spam)
       const TEEBALL_R = 0.16; // the baseball's radius — spin rate = ground speed / R (no-slip rolling)
       const TEEBALL_MARGIN = 5; // keep the catch game a hair inside the block's cross-streets
+      // ---- Staten Island RC MONSTER TRUCK (a kid on the sidewalk drives a Gravedigger-
+      // style mini monster truck with a tall antenna; it zips the front lawns / sidewalk /
+      // curb / street and keeps darting past the worker, so he trips over it) ----
+      const HP_HIT_RCKID = 2; // the truck zips through the worker's shins — a TRIP, not a beatdown
+      const RC_KID_BEHIND = 3.2; // how far BEHIND the worker the kid trails (he FOLLOWS him down the block, on the near-side sidewalk)
+      const RC_KID_SP = 12.0; // the kid's follow-walk speed (u/s): capped a touch above the worker's MAX (PLAYER_SPEED 8.5 x RUN_IT_UP 1.3 = 11.05) so he always keeps up — he eases up (capped pursuit) instead of teleporting
+      const RC_TRUCK_RANGE = 8.5; // the truck roams within this leash of the KID (lawns -> curb -> street)
+      const RC_TRUCK_SP = 6.2; // the mini monster truck's zip speed (a little faster than the worker's walk)
+      const RC_TRUCK_TURN = 3.2; // how quickly the truck turns its heading (rad/s feel, low = lazy arcs)
+      const RC_TRUCK_STRIKE_CD = 2.6; // min gap between truck stumbles (no spam)
+      const RC_TRUCK_STRIKE_R = 1.05; // this close to the worker, the truck connects (a trip)
+      const RC_KID_LINES = [
+        "Woohoo!",
+        "Vroom vroom!",
+        "Grave-digger!",
+        "Watch out!",
+        "Again! Again!",
+      ]; // what the kid hollers as the truck zips around
+      const RC_WORKER_LINES = [
+        "Whoa — watch the truck!",
+        "My feet! My feet!",
+        "Slow down, kid!",
+        "There it goes!",
+      ]; // what the worker yells after the truck trips him
       // ---- Staten Island BLUE JAY (a full nest in a random tree on ONE random block) ----
       const HP_HIT_BLUEJAY = 2; // a wing-bonk: MINOR damage — it stings and stuns, it doesn't drop him (lighter than a hose blast)
       const BLUEJAY_TERRITORY = 26; // the worker this close to the NEST is in her territory (a bit past half her block)
@@ -28622,6 +28905,65 @@
               return;
             }
           }
+          // Staten Island RC monster truck: the kid's truck is a MOVING object that
+          // roams a leash around him (and he follows the worker), so it can zip
+          // straight into the worker's path. When it connects, the worker TRIPS over
+          // it — a stumble, not a run-over: a light hit + a trip stun, a line from
+          // each of them, and the truck bounces off and peels away. (Bumping the
+          // small KID himself is a separate, lighter contact — the "rckid" branch
+          // below.) This check sits BEFORE the generic radius gate, exactly like the
+          // tee-ball ball, because the truck can be a few units from the kid.
+          if (c.type === "rckid" && c.rcCar) {
+            const tdx = c.rcCar.wx - p.wx,
+              tdy = c.rcCar.wy - p.wy;
+            const t2 = tdx * tdx + tdy * tdy;
+            if (t2 <= RC_TRUCK_STRIKE_R * RC_TRUCK_STRIKE_R) {
+              if ((c.rcCar.strikeCd || 0) <= 0) {
+                c.rcCar.strikeCd = RC_TRUCK_STRIKE_CD; // one trip per encounter (no spam)
+                hurtNPC(HP_HIT_RCKID, "rckid");
+                doStun(0.55, "trip"); // a stumble — he catches himself, not a full run-over
+                Voice.say(
+                  pick(RC_WORKER_LINES),
+                  2.0,
+                  1.0,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                  "burst",
+                );
+                Voice.say(
+                  pick(RC_KID_LINES),
+                  1.8,
+                  1.3,
+                  c.wx,
+                  c.wy,
+                  "male",
+                  "kid",
+                );
+              }
+              // the truck bounces off the worker: reflect its heading away + nudge it back
+              const td = Math.sqrt(t2) || 0.001;
+              const nx = tdx / td,
+                ny = tdy / td; // from the worker toward the truck
+              const T = c.rcCar;
+              const dot = Math.cos(T.hdg) * nx + Math.sin(T.hdg) * ny;
+              if (dot > 0) {
+                // mirror the heading off the worker's normal (it bounces straight back)
+                T.hdg = Math.atan2(
+                  Math.sin(T.hdg) - 2 * dot * ny,
+                  Math.cos(T.hdg) - 2 * dot * nx,
+                );
+              }
+              T.wx += nx * 0.4;
+              T.wy += ny * 0.4;
+              T.hasTarget = false; // re-pick a fresh waypoint so it peels away cleanly
+              // the worker also hops a touch backward (he's been caught on his feet)
+              p.wx -= nx * 0.5;
+              p.wy = clamp(p.wy - ny * 0.4, -9.4, workerMaxY());
+              return;
+            }
+          }
           // Flatbush street-soccer ball: the worker can bonk the ball even when the
           // kid is still a few units away (the kid kicks it ahead and chases it), so
           // the ball gets its own range check BEFORE the generic kid-radius gate.
@@ -28712,6 +29054,8 @@
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
           else if (c.type === "teeball")
             rad = 0.9; // a small kid (its ball is checked separately in the branch)
+          else if (c.type === "rckid")
+            rad = 0.9; // a small kid (his RC truck is checked separately, up front)
           else if (c.type === "ghost") rad = 1.0; // a floating ghost's touch has a little reach
           if (d2 > rad * rad) continue;
           if (c.type === "soccer") {
@@ -28757,6 +29101,31 @@
                 c.wx,
                 c.wy,
                 c.gender,
+                "kid",
+              );
+            }
+            // solid: the worker bounces back off the kid
+            const d = Math.sqrt(d2) || 0.001;
+            p.wx -= (dx / d) * 1.1;
+            p.wy = clamp(p.wy - (dy / d) * 1.1, -9.4, workerMaxY());
+            return;
+          }
+          if (c.type === "rckid") {
+            // ===== Staten Island RC kid (kid contact) =====
+            // The worker bumps the small kid who's hunched over his radio transmitter:
+            // the kid fires a line and the worker bounces back with a light hit.
+            // (The moving TRUCK's stumble is handled up front, before the radius gate.)
+            if (c.kidCd <= 0) {
+              c.kidCd = 2.5;
+              hurtNPC(HP_HIT_RCKID, "rckid");
+              doStun(0.6, "hit");
+              Voice.say(
+                pick(RC_KID_LINES),
+                1.8,
+                1.25,
+                c.wx,
+                c.wy,
+                "male",
                 "kid",
               );
             }
@@ -30568,6 +30937,7 @@
         robber: 1, // Bed-Stuy shootout: the crouching masked robber
         soccer: 1, // Flatbush soccer kids: a solid obstacle the crowd routes around
         teeball: 1, // Staten Island tee-ball kids: a solid obstacle the crowd routes around
+        rckid: 1, // Staten Island RC kid: a small solid obstacle the crowd routes around
       };
       const AVOID_AHEAD = 6.0; // how far ahead (world units) a walker looks for an obstacle
       function npcWalkAroundObstacles(c, dt, yMin, yMax) {
@@ -34662,6 +35032,115 @@
                 c.curSp = 0;
                 c.detourTimer = undefined;
               }
+              break;
+            }
+            case "rckid": {
+              const T = c.rcCar;
+              if (T.hasTarget === undefined) T.hasTarget = true;
+              // ---- the KID: a fixed feature of the block who FOLLOWS the worker
+              // down the block. He trails RC_KID_BEHIND units BEHIND the worker on the
+              // near-side sidewalk and keeps up at a CAPPED walk speed (capped pursuit:
+              // he eases up, he never teleports and never random-walks — the old
+              // "jerky/shaking" bug). The truck he's driving keeps cutting across the
+              // worker's path for the whole shift — no recycling. ----
+              const kTargetX = p.wx - RC_KID_BEHIND; // a few units behind the worker
+              const kdx = kTargetX - c.wx;
+              const kStep = RC_KID_SP * dt; // capped follow-walk (u/s) allowed this frame
+              let kMoved = 0;
+              if (Math.abs(kdx) > 0.02) {
+                const sx = (kdx >= 0 ? 1 : -1) * Math.min(Math.abs(kdx), kStep);
+                c.wx += sx; // capped pursuit: he settles onto the spot, never snaps
+                kMoved = Math.abs(sx);
+              }
+              c.wy = clamp(c.wy, 2.0, 4.6); // stay on the near-side sidewalk band (never the street / stoops)
+              // legs pump while he's actually walking (the arms STAY fixed on the radio
+              // transmitter — do NOT swing them off the controller)
+              if (c.parts) {
+                if (kMoved > 0.0001) {
+                  c.phase = (c.phase || 0) + kMoved * 2.4;
+                  const ls = Math.sin(c.phase) * 0.42;
+                  c.parts.legL.rotation.y = ls;
+                  c.parts.legR.rotation.y = -ls;
+                } else {
+                  c.parts.legL.rotation.y *= 0.8; // settle to a standing rest
+                  c.parts.legR.rotation.y *= 0.8;
+                }
+              }
+              // stable facing: while he moves, ease (lerp) his heading toward the way he's
+              // walking; while he's still, HOLD his heading. No per-frame "spin to the
+              // zipping truck" — that instant snap each frame was the old shaking look.
+              if (kMoved > 0.0001) {
+                const faceA = kdx >= 0 ? 0 : Math.PI; // face the direction of travel (toward the worker)
+                let dFA = faceA - c.g.rotation.z;
+                while (dFA > Math.PI) dFA -= Math.PI * 2;
+                while (dFA < -Math.PI) dFA += Math.PI * 2;
+                c.g.rotation.z += clamp(dFA, -8 * dt, 8 * dt);
+              }
+              c.g.rotation.x = Math.sin(performance.now() * 0.004) * 0.04; // a little controller-hold bob
+              c.dir = Math.cos(c.g.rotation.z) >= 0 ? 1 : -1;
+              // ---- the mini monster truck: roams a leash around the KID, zipping
+              // lawns / curb / street. ----
+              // 1) a fresh waypoint when we've reached (or lost) the last one
+              if (!T.hasTarget) {
+                const a = Math.random() * Math.PI * 2;
+                const r = R(2.5, RC_TRUCK_RANGE);
+                T.tx = c.wx + Math.cos(a) * r;
+                T.ty = clamp(c.wy + Math.sin(a) * r, -7.5, 5.5); // street (-7.5) -> front lawn (+5.5)
+                T.hasTarget = true;
+              }
+              // 2) every so often, if the worker is within reach, aim a ZIP-PAST
+              // straight through him (the "darts in front of the worker" moment)
+              T.workerCd = T.workerCd === undefined ? R(3, 6) : T.workerCd - dt;
+              if (T.workerCd <= 0) {
+                T.workerCd = R(6, 11); // a fresh zip-past every ~6-11s
+                const wdx = p.wx - T.wx,
+                  wdy = p.wy - T.wy;
+                const wDist = Math.sqrt(wdx * wdx + wdy * wdy);
+                if (wDist < RC_TRUCK_RANGE + 2.5) {
+                  const inv = 1 / (wDist || 1);
+                  T.tx = p.wx + wdx * inv * R(3, 6); // a few units past the worker, along the line
+                  T.ty = clamp(p.wy + wdy * inv * R(3, 6), -7.5, 5.5);
+                  T.hasTarget = true;
+                }
+              }
+              // 3) steer toward the waypoint (a smoothed heading lerp = lazy RC arcs)
+              const toTx = T.tx - T.wx,
+                toTy = T.ty - T.wy;
+              const toT = Math.sqrt(toTx * toTx + toTy * toTy) || 1;
+              const desired = Math.atan2(toTy, toTx);
+              let dA = desired - T.hdg;
+              while (dA > Math.PI) dA -= Math.PI * 2;
+              while (dA < -Math.PI) dA += Math.PI * 2;
+              T.hdg += clamp(dA, -RC_TRUCK_TURN * dt, RC_TRUCK_TURN * dt);
+              // 4) roll forward at the zip speed
+              const step = RC_TRUCK_SP * dt;
+              T.wx += Math.cos(T.hdg) * step;
+              T.wy += Math.sin(T.hdg) * step;
+              // 5) keep it on the leash around the KID (bounce off the boundary)
+              const odx = T.wx - c.wx,
+                ody = T.wy - c.wy;
+              const od = Math.sqrt(odx * odx + ody * ody);
+              if (od > RC_TRUCK_RANGE) {
+                const nx = odx / (od || 1),
+                  ny = ody / (od || 1);
+                T.wx = c.wx + nx * RC_TRUCK_RANGE;
+                T.wy = c.wy + ny * RC_TRUCK_RANGE;
+                // reflect the heading back inside the leash (bounce off the edge)
+                const ref = Math.atan2(-ny, -nx);
+                let rd = ref - T.hdg;
+                while (rd > Math.PI) rd -= Math.PI * 2;
+                while (rd < -Math.PI) rd += Math.PI * 2;
+                T.hdg += clamp(rd, -Math.PI * 0.8, Math.PI * 0.8);
+              }
+              T.wy = clamp(T.wy, -8.0, 5.6); // never float above the lawn or sink below the road
+              // 6) reached the waypoint? pick a fresh one next frame
+              if (toT < 0.6) T.hasTarget = false;
+              // 7) roll the wheels (spin about their axle = local Y) + sync the mesh
+              const spinStep = step / 0.22; // ~no-slip roll for a 0.22-radius tire
+              const w = c.rcCarG.userData.wheels;
+              for (let i = 0; i < w.length; i++) w[i].rotation.y += spinStep;
+              c.rcCarG.position.set(T.wx, T.wy, GZ);
+              c.rcCarG.rotation.z = T.hdg;
               break;
             }
             case "bike":
