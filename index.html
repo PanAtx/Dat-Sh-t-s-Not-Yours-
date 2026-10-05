@@ -3809,7 +3809,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.441</div>
+          <div id="app-version" class="menu-version">v1.0.442</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4064,7 +4064,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.441';
+      const APP_VERSION = '1.0.442';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6401,6 +6401,32 @@
           this.tone("sawtooth", 200, 70, 0.24, 0.4);
           this.tone("square", 150, 55, 0.26, 0.34, 0.02);
           this.noise(0.18, "lowpass", 320, 0.5);
+        },
+        // --- Harlem (Saturday) alligator: the low RUMBLING GROWL as it rears up out
+        // of the open manhole — the TELL that something big is about to lunge. A slow
+        // saw + sub sine pitch down, with a rough low-pass rattle riding on top. ---
+        playGatorGrowl() {
+          this.ensure();
+          this.tone("sawtooth", 95, 52, 0.5, 0.42);
+          this.tone("sine", 60, 38, 0.55, 0.5);
+          this.noise(0.4, "lowpass", 480, 0.22);
+        },
+        // --- the CHOMP: a hard snap as the jaws slam shut — a falling saw, a percussive
+        // low "thock" (sine), and a bright noise burst through a bandpass (the snap). ---
+        playGatorChomp() {
+          this.ensure();
+          this.tone("sawtooth", 150, 58, 0.16, 0.5);
+          this.tone("sine", 120, 42, 0.2, 0.55);
+          this.noise(0.12, "bandpass", 950, 0.5);
+        },
+        // --- the TIRE-CLACK: teeth catching a bike/moto/car tire — a short high "clack"
+        // (two fast metallic thumps) + a rubbery "thud". Comedy, not a crash. ---
+        playGatorTireClack() {
+          this.ensure();
+          this.noise(0.05, "bandpass", 1150, 0.5);
+          this.tone("square", 360, 130, 0.09, 0.22);
+          this.noise(0.05, "bandpass", 1150, 0.4, 0.09);
+          this.tone("sine", 95, 55, 0.14, 0.3, 0.02);
         },
         // --- DANGER ALARM (the "San Man Needs Food Badly" fire alarm) ---
         // A single metallic DING: the bell fundamental (C6) + a bright partial
@@ -21495,6 +21521,160 @@
         if (r < 0.88) return R(2.6, 3.8); // brisk / power-walking
         return R(4.6, 6.0); // in a HURRY — dashing past you
       }
+      // ==================== HARLEM (Saturday) MANHOLE ALLIGATOR — the MODEL ====================
+      // makeAlligatorManhole() builds ONE group: the OPEN manhole (a dark bore with a
+      // concrete rim and murky water — NO lid, that's the tell) plus a HIGH-POLY
+      // alligator rising from it. The head is a PIVOT (userData.head) so the update
+      // case can rear it up out of the water, and the lower JAW is its own pivot
+      // (userData.jaw) so the two interlocking rows of TEETH snap open and shut —
+      // you can see every tooth chewing. All local: the pit's rim centre is the
+      // group origin, so positioning the group at (wx,wy,GZ) drops it on the road.
+      function makeAlligatorManhole() {
+        const g = new THREE.Group();
+        const hide = M(0x5c8f2e), // bright, clean gator green (not an olive turd)
+          pale = M(0xa9c86a),
+          dark = M(0x14170c),
+          rimM = M(0x3a3f45), // the cast-iron manhole rim
+          hole = M(0x05070a),
+          water = M(0x0d211a, { transparent: true, opacity: 0.92 });
+          const eyeM = M(0xf0c51f), // the big yellow Pitfall eyes
+          pupilM = M(0x0a0a0a),
+          tooth = M(0xf4f0e2); // bone-white teeth
+        // ---- the OPEN manhole (no cover) ----
+        // dark bore: a cylinder stood on end (axis -> Z/up after the X=90 tilt)
+        const bore = CY(0.72, 0.6, 0.9, hole, 24);
+        bore.rotation.x = Math.PI / 2;
+        bore.position.z = -0.35;
+        g.add(bore);
+        // the cast-iron rim: a torus that lies FLAT on the road. The torus hole already
+        // points along Z (up), so it needs NO rotation — the old X=90° tipped it on edge
+        // like a wheel, which is the "grey ring" that read as broken.
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.11, 10, 28), rimM);
+        rim.position.z = 0.015;
+        rim.castShadow = true;
+        g.add(rim);
+        // the murky water surface (a thin cylinder = a flat disc, axis up)
+        const waterDisc = CY(0.66, 0.66, 0.03, water, 24);
+        waterDisc.rotation.x = Math.PI / 2;
+        g.add(waterDisc);
+        // two faint ripple rings (a torus lies flat by default — no rotation)
+        [0.26, 0.44].forEach((rr) => {
+          const rip = new THREE.Mesh(
+            new THREE.TorusGeometry(rr, 0.01, 6, 24),
+            M(0x2f4f40, { transparent: true, opacity: 0.5 }),
+          );
+          rip.position.z = 0.012;
+          g.add(rip);
+        });
+        // ---- the HEAD ONLY (Pitfall style: two big eyes + chomping jaws + teeth) ----
+        // Local frame: +x = forward (snout), +z = up, +/-y = left/right. The head group
+        // is the pivot the update case raises out of the water and tips.
+        const head = new THREE.Group();
+        head.position.set(0, 0, 0.02); // base of the head, right at the waterline
+        g.add(head);
+        // the raised "brow" crest over the eyes — CENTERED (y=0) so the skull is even
+        const brow = BX(0.34, 0.3, 0.26, hide);
+        brow.position.set(-0.02, 0, 0.06);
+        head.add(brow);
+        // the upper jaw / snout: a clean elongated wedge pointing forward (+x), centered
+        const upper = BX(0.95, 0.32, 0.3, hide);
+        upper.position.set(0.34, 0, 0.05);
+        head.add(upper);
+        // a rounded nose tip
+        const nose = SPH(0.15, hide, 12, 10);
+        nose.scale.set(1.1, 0.95, 0.9);
+        nose.position.set(0.8, 0, 0.05);
+        head.add(nose);
+        // a pale stripe down the TOP-MIDDLE so the head reads as a head, not a blob (centered = even)
+        const stripe = BX(0.85, 0.05, 0.06, pale);
+        stripe.position.set(0.32, 0, 0.05);
+        head.add(stripe);
+        // nostrils at the very front
+        [-0.05, 0.05].forEach((ny) => {
+          const nst = SPH(0.028, dark, 8, 6);
+          nst.position.set(0.84, ny, 0.12);
+          head.add(nst);
+        });
+        // the two BIG eyes on TOP of the head (the tell — you always SEE the eyes)
+        [-1, 1].forEach((s) => {
+          const eye = SPH(0.085, eyeM, 16, 12);
+          eye.position.set(-0.02, s * 0.14, 0.29);
+          head.add(eye);
+          const pup = SPH(0.032, pupilM, 10, 8);
+          pup.scale.set(0.5, 0.5, 1.6); // a vertical reptile slit (tall in the up axis)
+          pup.position.set(0.04, s * 0.15, 0.3);
+          head.add(pup);
+        });
+        // the dark mouth interior (centered, so both jaws close evenly) — visible the moment the jaw swings open
+        const mouth = BX(0.56, 0.12, 0.24, M(0x4a1414));
+        mouth.position.set(0.34, 0, 0.03);
+        head.add(mouth);
+        // ---- the JAW pivot (lower jaw + teeth; the update case swings it) ----
+        // Hinge at the BACK of the snout, at the mouth line (z~0). The jaw body hangs
+        // BELOW the upper snout (lower z), so a positive Y-rotation (left/right hinge
+        // axis) drops the front and opens the mouth wide.
+        const jaw = new THREE.Group();
+        jaw.position.set(-0.06, 0, 0.0);
+        head.add(jaw);
+        const lower = BX(0.82, 0.2, 0.26, hide);
+        lower.position.set(0.4, 0, -0.12);
+        jaw.add(lower);
+        const noseL = SPH(0.12, hide, 12, 10);
+        noseL.scale.set(1.0, 0.8, 0.9);
+        noseL.position.set(0.76, 0, -0.12);
+        jaw.add(noseL);
+        // ---- the TEETH: a full row on BOTH cheeks, hanging around the MOUTH ----
+        // KEY FIX for the top-down camera: teeth point DOWN from the upper jaw and UP from
+        // the lower jaw (around the mouth line), NOT sideways. Sideways teeth only read on
+        // the one cheek that faces the camera; pointing them down/up keeps a full row
+        // visible on BOTH the left and right side of the head. Big + a gum ridge on each
+        // cheek, so both sides have teeth AND gums, matching.
+        // Upper teeth: a row on each cheek, hanging DOWN into the mouth. These are on the
+        // TOP of the head (the side with the eyes) — so they're the BIG row.
+        for (let i = 0; i < 9; i++) {
+          const x = 0.14 + i * 0.08;
+          [-1, 1].forEach((side) => {
+            const t = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), tooth);
+            t.position.set(x, side * 0.13, -0.02);
+            t.rotation.x = -Math.PI / 2; // tip points DOWN (-z)
+            head.add(t);
+          });
+        }
+        // Lower teeth: a row on each cheek, pointing UP into the mouth (moves with the jaw).
+        // These are on the BOTTOM — a bit SMALLER than the upper row.
+        for (let i = 0; i < 9; i++) {
+          const x = 0.16 + i * 0.08;
+          [-1, 1].forEach((side) => {
+            const t = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.17, 6), tooth);
+            t.position.set(x, side * 0.13, -0.08);
+            t.rotation.x = Math.PI / 2; // tip points UP (+z)
+            jaw.add(t);
+          });
+        }
+        // GUMS: a pale raised ridge on each cheek of the upper jaw (both sides match)
+        [-1, 1].forEach((side) => {
+          const gum = BX(0.62, 0.05, 0.06, pale);
+          gum.position.set(0.4, side * 0.13, -0.03);
+          head.add(gum);
+        });
+        // the LIP LINE: a thin dark seam where the jaws meet, on BOTH sides, so the head
+        // reads as evenly "lipped" no matter which way it's turned (visible open or shut)
+        [-1, 1].forEach((side) => {
+          const lip = BX(0.68, 0.02, 0.028, dark);
+          lip.position.set(0.4, side * 0.1, 0.0);
+          head.add(lip);
+        });
+        // ---- the NECK (keeps it reading as a real gator, not a floating head) ----
+        // A thick neck runs back from the head toward the water. It is a child of the
+        // head pivot so it stays attached as the head rears; only the head + neck are
+        // visible — no torso/tail poking onto the street. CENTERED (y=0) = symmetric.
+        const neck = BX(0.5, 0.34, 0.4, hide);
+        neck.position.set(-0.36, 0, -0.1);
+        head.add(neck);
+        g.userData.head = head;
+        g.userData.jaw = jaw;
+        return g;
+      }
       function addCreature(type, opts) {
         // Spawn NPCs away from the player (at least 20 units distance) so the worker starts alone
         const spawnOffset = Math.random() < 0.5 ? R(-58, -20) : R(20, 58);
@@ -21650,6 +21830,24 @@
             c.data = makeBlueJay();
             c.wingL = c.data.userData.wingL;
             c.wingR = c.data.userData.wingR;
+            break;
+          case "gator":
+            // The Harlem (Saturday) MANHOLE ALLIGATOR: one open, LIDLESS manhole in the
+            // street with a big alligator in it. It periodically rears up and CHOMPS at
+            // whoever is at the spot — the worker (a real whack) or a passing bike/moto/car
+            // tire (a comedic clack). See the "gator" case in updateCreatures for the
+            // state machine (idle -> rise -> hunt -> renose -> sink). The WHOLE model
+            // (pit + body + head + jaw) is c.data; the spawner pins c.wx/c.wy to a random
+            // street block (it's a fixed feature, like the bluejay's nest — it never moves).
+            c.sp = 0; // fixed in the hole — it just rears up, it doesn't roam
+            c.dir = 1;
+            c.state = "idle"; // idle | rise | hunt | renose | sink
+            c.stateT = 0; // seconds in the current state
+            c.cd = R(2.0, 4.0); // first strike a touch later (let the shift settle)
+            c.bob = R(0, 6.28); // the idle bob phase
+            c.data = makeAlligatorManhole();
+            c.headPiv = c.data.userData.head;
+            c.jawPiv = c.data.userData.jaw;
             break;
           case "tric":
             c.wy = R(1.2, 4.2);
@@ -23629,6 +23827,30 @@
             c.g.position.set(c.wx, c.wy, GZ);
             c.staysOnBlock = true; // his crew: pin to the block, never follow the camera
           });
+        }
+        // ===== The Harlem (Saturday) MANHOLE ALLIGATOR: one open, LIDLESS manhole in the
+        // street with a big alligator that periodically rears up out of the water and
+        // CHOMPS at whoever is at the spot — the sanitation worker (a real whack), or a
+        // passing bike / moto / car tire (a comedic clack). It's a fixed feature of ONE
+        // random active block for the whole shift (like the mack daddy's crew on Block 3).
+        // If its bites are what put the worker down, the write-up reads
+        // "Endangering a protected species." (see the "gator" case in updateCreatures.) =====
+        if (isHarlemLevel()) {
+          const gatorBlocks = LEVEL_BLOCKS.filter(
+            (b) => b.garbage === true && b.x >= 96 && b.x <= 384,
+          ); // the four active garbage blocks (Blocks 2-5)
+          if (gatorBlocks.length) {
+            const gb = gatorBlocks[(Math.random() * gatorBlocks.length) | 0];
+            const gator = addCreature("gator");
+            gator.wx = gb.x + R(12, BLOCK_W - 12); // a spot along the block
+            gator.wy = R(-7.0, -3.5); // out in the street (over the asphalt, in a lane)
+            gator.g.position.set(gator.wx, gator.wy, GZ);
+            console.log(
+              "  -> Harlem: the manhole alligator lurks at",
+              gator.wx.toFixed(1),
+              gator.wy.toFixed(1),
+            );
+          }
         }
         // Leashed dog: the doghouse sits on the front lawn, right in front of a house.
         // The dog barks and lunges at the worker but the chain limits how far it gets.
@@ -26720,6 +26942,41 @@
         "Damn bird!",
         "I almost lost an eye!",
       ]; // what the worker yells after a wing-bonk
+      // ==================== HARLEM (Saturday, day 6) — the MANHOLE ALLIGATOR ====================
+      // ONE open manhole (NO cover) on a random street block of Harlem. Periodically a
+      // big alligator rears up out of the water and CHOMPS: it snaps at whoever is at the
+      // spot — the sanitation worker (a real whack), or a passing bike / moto / car tire
+      // (a comedic "clack" that mostly just startles it). If its bites are what puts the
+      // worker down, the WRITTEN UP! stamp reads "Endangering a protected species."
+      const HP_HIT_GATOR = 12; // a solid alligator bite — a real whack, not a scratch
+      const GATOR_TERRITORY = 15; // the worker this close to the hole is in its lane (it strikes eagerly)
+      const GATOR_BITE_R = 3.0; // at the strike apex, the jaws connect with whoever is this close (worker or a tire)
+      const GATOR_RISE = 0.6; // the head rears NOSE-FIRST up out of the water (eyes come above the rim)
+      const GATOR_HUNT = 1.6; // eyes up: first SNAP the jaws, then sweep SIDE-TO-SIDE hunting
+      const GATOR_RENOSE = 0.45; // it lifts its nose back up, proud, before going under
+      const GATOR_SINK = 0.6; // it sinks back into the sewer and settles for the next round
+      const GATOR_CD_NEAR = [0.2, 0.7]; // it's STARVING — barely a breath, right back up to attack
+      const GATOR_CD_FAR = [0.5, 1.4]; // still ravenous; only slightly calmer when nobody's around
+      const GATOR_LINES = [
+        "GRRRRAAH!",
+        "This is MY manhole!",
+        "Get. Out. Of. My. Water!",
+        "MINE!",
+        "I am STARVING — give me MEAT!",
+        "MEAT and MONGO!!",
+      ]; // the gator's low snarl, bubbled over the hole (ravenous — it attacks the second you're near)
+      const GATOR_WORKER_LINES = [
+        "There's a GATOR in there!",
+        "I did NOT sign up for this!",
+        "That was a protected — OW!",
+        "Call the zoo! Call the ZOO!",
+      ]; // what the worker yells after a bite
+      const GATOR_TIRE_LINES = [
+        "POP!",
+        "Squeeeak!",
+        "Watch the tire!",
+        "Bitey!",
+      ]; // a comedic line as it snaps at a bike / moto / car tire
       // ==================== BED-STUY HIGH-SCHOOL FOOTBALL PLAYER (Sunday, day 7) ====================
       // ONE player, ONE block — he NEVER leaves it (the spawn sets his line of scrimmage
       // + hard block bounds). He PRACTICES his tackling on the sanitation worker: sets at
@@ -27431,6 +27688,8 @@
         carwasher: ["Failed to clean the route or car"],
         // --- the Staten Island blue jay: the nest is SACRED on New Dorp ---
         bluejay: ["Feathered Aggression Non-Compliance"],
+        // --- the Harlem (Saturday) alligator: it's a PROTECTED SPECIES, and it bit you ---
+        gator: ["Endangering a protected species"],
         // --- the Staten Island mafia guy: you failed to enter witness protection ---
         mafia: [
           "Failure to enter witness protection",
@@ -28860,6 +29119,7 @@
           const c = creatures[i];
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
           if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
+          if (c.type === "gator") continue; // the Harlem alligator is in its open manhole — no bump collision; its bite (worker whack / tire clack) is handled in its own AI case
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
           if (c.type === "bball") continue; // street-baller: non-solid — you dodge the ball he hurls at you (no bump collision)
@@ -34175,6 +34435,136 @@
                 }
               }
               c.g.position.z = GZ + (c.gz || 0);
+              break;
+            }
+            case "gator": {
+              // The Harlem (Saturday) MANHOLE ALLIGATOR: it lurks in its open (LIDLESS)
+              // manhole and periodically rears up NOSE-FIRST out of the water. With its
+              // eyes above the rim it CHOMPS and sways its head down / side-to-side looking
+              // for prey, lifts its nose up again, then sinks back into the sewer to wait.
+              // States: idle -> rise -> hunt -> renose -> sink. The bite is SELF-CONTAINED
+              // (like the bluejay's swoop): it whacks the worker (a real whack) or clacks a
+              // passing tire HERE — that's why collideCreatures skips the gator. It's a FIXED
+              // feature (c.sp=0): the generic loop syncs c.g to c.wx/c.wy (set at spawn), z=GZ.
+              c.stateT = (c.stateT || 0) + dt;
+              const head = c.headPiv,
+                jaw = c.jawPiv;
+              if (state === "play")
+                c.g.rotation.z = Math.atan2(p.wy - c.wy, p.wx - c.wx); // snout tracks the worker
+              const bob = Math.sin(performance.now() * 0.0015 + (c.bob || 0));
+              if (c.state === "idle") {
+                if (head) head.position.z = 0.14 + bob * 0.012; // head rests in the water, nose up
+                if (head) head.rotation.y = -0.4; // nose up so the chin CLEARS the street (no clip)
+                if (head) head.rotation.z = 0;
+                if (jaw) jaw.rotation.y = 0;
+                c.cd = (c.cd || 0) - dt; // the breather only ticks while it lurks
+                if (c.cd <= 0 && state === "play") {
+                  c.state = "rise"; // RISE: nose-first out of the water
+                  c.stateT = 0;
+                  SFX.playGatorGrowl();
+                  if (Math.abs(p.wx - c.wx) < GATOR_TERRITORY && Math.random() < 0.5)
+                    Voice.say(pick(GATOR_LINES), 2.2, 1.25, c.wx, c.wy, "neutral", "ped");
+                }
+              } else if (c.state === "rise") {
+                // NOSE-UP: the head rears straight up out of the water and its jaws swing WIDE
+                const k = Math.min(1, c.stateT / GATOR_RISE);
+                if (head) head.position.z = 0.14 + k * 0.84; // rears HIGH above the rim (chin clears street)
+                if (head) head.rotation.y = -0.4 - k * 0.85; // snout pitches UP (nose to the sky)
+                if (jaw) jaw.rotation.y = k * 0.55; // the jaws swing wide open (SEE the teeth)
+                if (k >= 1) {
+                  c.state = "hunt"; // EYES UP: now it chomps and hunts for prey
+                  c.stateT = 0;
+                }
+              } else if (c.state === "hunt") {
+                // EYES ABOVE GROUND: (1) SNAP the jaws shut a couple of times, then
+                // (2) sweep the head SIDE-TO-SIDE over the street, hunting the worker.
+                const zHold = 0.98; // hold HIGH so the chin RESTS on the street, never clips it
+                const SNAP = 0.6; // first 0.6s = jaw-snapping; after = side-to-side attack
+                if (head) head.position.z = zHold;
+                if (c.stateT < SNAP) {
+                  // SNAPPING: nose stays up, the jaws crack open and shut rapidly
+                  if (head) head.rotation.y = -1.25;
+                  if (head) head.rotation.z = Math.sin(c.stateT * 16) * 0.06; // a little shake while snapping
+                  if (jaw) jaw.rotation.y = (0.5 + 0.5 * Math.sin(c.stateT * 20)) * 0.6; // open/close chomp
+                } else {
+                  // SIDE-TO-SIDE ATTACK: sweep the head left/right over the worker
+                  const t2 = c.stateT - SNAP;
+                  if (head) head.rotation.y = -1.25 + Math.sin(t2 * 6) * 0.1; // nose up, slight bob
+                  if (head) head.rotation.z = Math.sin(t2 * 5) * 0.6; // the SIDE-TO-SIDE sweep
+                  if (jaw) jaw.rotation.y = 0.28 + (0.5 + 0.5 * Math.sin(t2 * 10)) * 0.3; // keeps snapping as it sweeps
+                }
+                if (c.stateT >= 0.14 && !c._gatorResolved) {
+                  c._gatorResolved = true; // resolve the bite ONCE, at the snap
+                  SFX.playGatorChomp();
+                  const dWorker = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+                  let tire = null,
+                    tireD = 1e9;
+                  if (state === "play") {
+                    for (let i = 0; i < creatures.length; i++) {
+                      const v = creatures[i];
+                      if (
+                        v !== c &&
+                        (v.type === "bike" || v.type === "moto" || v.type === "car") &&
+                        v.boxW !== undefined
+                      ) {
+                        const d = Math.hypot(v.wx - c.wx, v.wy - c.wy);
+                        if (d < tireD) {
+                          tireD = d;
+                          tire = v;
+                        }
+                      }
+                    }
+                  }
+                  if (state === "play" && dWorker < GATOR_BITE_R) {
+                    // IT GOT THE WORKER: a solid whack (real damage) + a stun.
+                    hurtNPC(HP_HIT_GATOR, "gator", true);
+                    doStun(0.7, "hit");
+                    Voice.say(pick(GATOR_WORKER_LINES), 2.6, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+                    Voice.say(pick(GATOR_LINES), 2.2, 1.3, c.wx, c.wy, "neutral", "ped");
+                    spawnWaterSplash(c.wx, c.wy);
+                  } else if (tire && tireD < GATOR_BITE_R + (tire.boxW || 1.2)) {
+                    // It snapped at a passing WHEEL — a comedic CLACK (no damage, it's a
+                    // protected-species gag), just a startled squeak + a slight wheel flinch.
+                    SFX.playGatorTireClack();
+                    Voice.say(pick(GATOR_TIRE_LINES), 2.0, 1.3, c.wx, c.wy, "neutral", "ped");
+                    if (tire.sp) tire.sp *= 0.82;
+                    spawnWaterSplash(c.wx, c.wy);
+                  }
+                }
+                if (c.stateT >= GATOR_HUNT) {
+                  c.state = "renose"; // lift the nose back up, proud
+                  c.stateT = 0;
+                }
+              } else if (c.state === "renose") {
+                // NOSE UP AGAIN: a proud lift before it goes back under
+                const k = Math.min(1, c.stateT / GATOR_RENOSE);
+                if (head) head.position.z = 0.98 + k * 0.06;
+                if (head) head.rotation.y = -1.25 - k * 0.25; // tilts the nose even higher
+                if (head) head.rotation.z = 0;
+                if (jaw) jaw.rotation.y = 0;
+                if (k >= 1) {
+                  c.state = "sink"; // now it sinks back into the sewer
+                  c.stateT = 0;
+                }
+              } else if (c.state === "sink") {
+                // SINK: the head sinks back down into the water, nose easing back to the rest pose
+                const k = Math.min(1, c.stateT / GATOR_SINK);
+                if (head) head.position.z = 0.14 + (1 - k) * 0.9; // from 1.04 back down to 0.14 (in the water)
+                if (head) head.rotation.y = -0.4 - (1 - k) * 1.1; // nose-up -> the resting tilt
+                if (head) head.rotation.z = 0;
+                if (jaw) jaw.rotation.y = 0;
+                if (k >= 1) {
+                  c.state = "idle"; // wait for the next round
+                  c._gatorResolved = false;
+                  if (head) head.position.z = 0.14;
+                  if (head) head.rotation.y = -0.4;
+                  if (jaw) jaw.rotation.y = 0;
+                  c.cd =
+                    state === "play" && Math.abs(p.wx - c.wx) < GATOR_TERRITORY
+                      ? R(GATOR_CD_NEAR[0], GATOR_CD_NEAR[1])
+                      : R(GATOR_CD_FAR[0], GATOR_CD_FAR[1]);
+                }
+              }
               break;
             }
             case "soccer": {
