@@ -3806,7 +3806,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.437</div>
+          <div id="app-version" class="menu-version">v1.0.438</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.437';
+      const APP_VERSION = '1.0.438';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5699,7 +5699,7 @@
           // "FINISH" text: drawn rotated 90° so it reads along the flag's LENGTH (Y axis / sidewalk width)
           ctx.save();
           ctx.translate(cv.width / 2, cv.height / 2);
-          ctx.rotate(-Math.PI / 2);
+          ctx.rotate(Math.PI / 2); // +90° (was -90° which rendered upside-down/backwards)
           ctx.font = "bold 110px Arial, Helvetica, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -5732,7 +5732,8 @@
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, POLE_H, 8), poleMat);
         pole.position.z = POLE_H / 2; // pole rises along Z (up)
         poleG.add(pole);
-        // Small checkered flag cloth (a thin plane at the top of the pole)
+        // Small checkered flag cloth — a multi-segment vertical plane extending from the pole
+        // The flag is vertical (tall in Z), extends horizontally in +X from the pole.
         const FLAG_W = 1.2, FLAG_H = 0.8;
         let flagMat;
         if (typeof document !== "undefined" && THREE.CanvasTexture) {
@@ -5752,37 +5753,60 @@
         } else {
           flagMat = new THREE.MeshLambertMaterial({ color: 0x888888, side: THREE.DoubleSide });
         }
-        const flagCloth = new THREE.Mesh(new THREE.PlaneGeometry(FLAG_W, FLAG_H), flagMat);
-        flagCloth.position.set(FLAG_W / 2 + 0.04, 0, POLE_H - FLAG_H / 2); // offset to the side of the pole, near the top
+        // Multi-segment cloth: 8 width segments x 6 height segments for the wave animation.
+        // Default PlaneGeometry lies in XY (width=X, height=Y, faces +Z).
+        // We translate so the pole edge is at x=0 (attached end), then rotate -90° around X
+        // so the flag's height spans Z (vertical) instead of Y — a proper vertical flag.
+        const flagGeo = new THREE.PlaneGeometry(FLAG_W, FLAG_H, 8, 6);
+        flagGeo.translate(FLAG_W / 2, 0, 0); // pole edge at x=0, free edge at x=FLAG_W
+        const flagCloth = new THREE.Mesh(flagGeo, flagMat);
+        flagCloth.rotation.x = -Math.PI / 2; // rotate so height (local Y) maps to world Z (vertical)
+        flagCloth.position.set(0.04, 0, POLE_H - FLAG_H / 2); // offset from pole, centered at top
         poleG.add(flagCloth);
-        poleG.userData.flagCloth = flagCloth; // for wave animation access
+        poleG.userData.flagCloth = flagCloth;
+        poleG.userData.flagGeo = flagGeo; // for vertex animation
+        poleG.userData.flagBase = flagGeo.attributes.position.array.slice(); // resting positions
         // Place at the curb-end of the stripe (near the road edge)
         poleG.position.set(ROUTE_FINISH_X, 0.7, 0.3); // curb side (y=0.7 near the curb line)
         poleG.castShadow = true;
         groundGroup.add(poleG);
         finishFlagPole = poleG;
       }
-      // ---- Finish flag wave animation: the flag cloth flaps when the worker is within 12u ----
+      // ---- Finish flag wave animation: vertex-level traveling wave (cloth simulation) ----
       function updateFinishFlag(dt) {
         if (!finishFlagPole) return;
         finishFlagT += dt;
-        const cloth = finishFlagPole.userData.flagCloth;
-        if (!cloth) return;
-        // Distance from the worker to the flag pole (in the route/lateral plane)
+        const geo = finishFlagPole.userData.flagGeo;
+        const base = finishFlagPole.userData.flagBase;
+        if (!geo || !base) return;
+        // Distance from the worker to the flag pole
         const dx = (p && p.wx ? p.wx : 999) - ROUTE_FINISH_X;
         const dy = (p && p.wy ? p.wy : 0) - 0.7;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const near = dist < 12; // wave when the worker is within 12 units
-        if (near) {
-          // Wavy flap: oscillate the flag's rotation.x (flap up/down) + slight twist (rotation.z)
-          const amp = 0.3 + (1 - dist / 12) * 0.3; // closer = bigger wave
-          cloth.rotation.x = Math.sin(finishFlagT * 8) * amp;
-          cloth.rotation.z = Math.sin(finishFlagT * 5.5 + 1.2) * amp * 0.4;
-        } else {
-          // Gentle idle sway (very subtle)
-          cloth.rotation.x = Math.sin(finishFlagT * 1.5) * 0.06;
-          cloth.rotation.z = Math.sin(finishFlagT * 1.1 + 0.7) * 0.04;
+        const near = dist < 12;
+        // Wave parameters: amplitude and speed scale with proximity
+        const amp = near ? (0.08 + (1 - dist / 12) * 0.12) : 0.02;
+        const speed = near ? 10 : 2.5;
+        const freq = near ? 7 : 3;
+        const t = finishFlagT * speed;
+        const positions = geo.attributes.position;
+        const count = positions.count;
+        for (let i = 0; i < count; i++) {
+          const bx = base[i * 3];     // local X: 0 (pole) to FLAG_W (free end)
+          const by = base[i * 3 + 1]; // local Y: -FLAG_H/2 to +FLAG_H/2 (becomes Z after rotation)
+          const byNorm = Math.abs(by); // 0 at center, FLAG_H/2 at top/bottom edges
+          // Envelope: zero at the pole (x=0), maximum at the free end (x=FLAG_W)
+          // Slightly stronger at top/bottom edges for a natural cloth look
+          const xNorm = bx / 1.2; // normalize to 0..1
+          const edge = 1.0 + (byNorm / 0.4) * 0.15; // slight extra at edges
+          // Traveling wave: two harmonics for a more natural ripple
+          const wave1 = Math.sin(xNorm * freq - t) * xNorm;
+          const wave2 = Math.sin(xNorm * freq * 1.7 - t * 1.3 + 0.8) * xNorm * 0.4;
+          const z = (wave1 + wave2) * amp * edge;
+          positions.setZ(i, z);
         }
+        positions.needsUpdate = true;
+        geo.computeVertexNormals();
       }
       // ---- Cross-street intersection builders (Paperboy! look) ----
       // A flat rounded-rectangle in the ground plane (local X = route, local Y = lateral).
