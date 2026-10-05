@@ -3805,7 +3805,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.410</div>
+          <div id="app-version" class="menu-version">v1.0.411</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.410';
+      const APP_VERSION = '1.0.411';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4086,13 +4086,13 @@
       const TILE = 144,
         NB = 18,
         BW = 8;
-      // ==================== FIXED LEVEL LAYOUT (8 blocks + 8 intersections) ====================
+      // ==================== FIXED LEVEL LAYOUT (7 blocks + 7 intersections) ====================
       // A real route: it BEGINS at an intersection, then a block of ~10 houses, then another
       // intersection, and so on. The level is FINITE — it no longer scrolls forever.
-      // Layout (left -> right along +X):  B1 I1 B2 I2 B3 I3 B4 I4 B5 I5 B6 I6 B7 I7 B8 I8
+      // Layout (left -> right along +X):  B1 I1 B2 I2 B3 I3 B4 I4 B5 I5 B6 I6 B7 I7
       //   * The shift STARTS at Intersection 1 / the entrance of Block 2.
-      //   * The shift ENDS when the worker reaches Intersection 7 (the last one before Block 8).
-      //   * Block 1 (behind the start) and Block 8 (past the finish) carry NO curb garbage.
+      //   * The shift ENDS when the worker reaches Intersection 6 (the last one before Block 7).
+      //   * Block 1 (behind the start) and Block 7 (past the finish) carry NO curb garbage.
       const HOUSES_PER_BLOCK = 10;
       const BLOCK_W = BW * HOUSES_PER_BLOCK; // 80 world units per block (10 houses x 8u)
       // ---- Maspeth (Queens) DENSER street layout (Queens only) ----
@@ -4118,7 +4118,7 @@
       const CROSS_H = 30; // cross-street LENGTH (across the road / Y) — runs from the far nose (y=-14) past the houses (y=+16), with room for the perpendicular crosswalks to sit clear of the main road on both sides
       const CROSS_CY = 1.0; // cross-street lateral centerline — spans y = -14 → +16 (still reaches the top-left corner, plus clearance below the road for the crosswalk)
       const CROSS_R = 3; // rounded radius — applied ONLY to the far "nose" (open side); the near side stays square so the road reaches the top-left corner
-      // 8 blocks, each 80u wide, separated by 16u intersections:
+      // 7 blocks, each 80u wide, separated by 16u intersections:
       const LEVEL_BLOCKS = [
         { x: 0, garbage: false }, // Block 1 — behind the start, NO garbage
         { x: 96, garbage: true }, // Block 2
@@ -4126,8 +4126,7 @@
         { x: 288, garbage: true }, // Block 4
         { x: 384, garbage: true }, // Block 5
         { x: 480, garbage: true }, // Block 6
-        { x: 576, garbage: true }, // Block 7
-        { x: 672, garbage: false }, // Block 8 — past the finish, NO garbage
+        { x: 576, garbage: false }, // Block 7 — past the finish, NO garbage
       ];
       // ==================== QUEENS CEMETERY (Maspeth, the 5th block) ====================
       // The 5th block of the Maspeth route is a CEMETERY — no houses, no corner
@@ -4153,12 +4152,12 @@
       const QUEENS_OAK_X = LEVEL_BLOCKS[QUEENS_OAK_BLOCK].x; // 192
       const QUEENS_OAK_CELL = 3; // the 4th cell of the block carries the trunk
       const ACORN_COUNT = 14; // acorns scattered all over the block's sidewalk
-      // 8 intersections (cross-streets), each starting 80u into its preceding segment:
-      const LEVEL_XS = [80, 176, 272, 368, 464, 560, 656, 752];
+      // 7 intersections (cross-streets), each starting 80u into its preceding segment:
+      const LEVEL_XS = [80, 176, 272, 368, 464, 560, 656];
       const ROUTE_START_X = 80; // barrier: worker can't walk back before Intersection 1
       const PLAYER_START_X = 88; // spawn in the middle of Intersection 1, facing Block 2
-      const ROUTE_FINISH_X = 656; // reaching Intersection 7 completes the route
-      const ROUTE_END_X = 768; // far edge of the route (Intersection 8)
+      const ROUTE_FINISH_X = 560; // reaching Intersection 6 completes the route
+      const ROUTE_END_X = 672; // far edge of the route (Intersection 7)
       const RUN_SPEED = 4; // SLOWED traffic floor (was 8.5) — also sets CAR_MIN_SP, so cars no longer "never crawl below the worker's walk pace"
       const PLAYER_SPEED = 8.5; // worker forward speed while W / UP / stick is held (no input = stands still) — eased back from 10 so the worker feels grounded, not flighty
       const LAT_SPEED = 6.5; // worker strafe speed (A/D / stick horizontal)
@@ -8311,14 +8310,18 @@
       }
 
       // Compute the NORMAL (non-overtime) basket corner layout: one basket on every
-      // corner of Intersections 1-6 (the active route), skipping the very first corner.
+      // corner of Intersections 1-5 (the active route), skipping the very first corner.
       // Isolated so BOTH placeLitterBasket and resetLitterBaskets can rebuild it —
       // the overtime round overwrites litterBasketHomes, so a fresh normal reset must
       // recompute these (or every day after overtime inherits the bonus layout).
       function computeNormalLitterBasketHomes() {
         const homes = [];
         const offsets = [-(CROSS_W / 2 + 1.5), CROSS_W / 2 + 1.5];
-        const activeIntersections = LEVEL_XS.slice(0, 6);
+        // The 7-block route has 5 active blocks (2-6); baskets belong only at the
+        // corners of the active route (Intersections 1-5). Intersection 6 (x=560) is
+        // the END of the last active block / the START of the buffer block, and
+        // Intersection 7 (x=656) is past the buffer — neither carries a basket.
+        const activeIntersections = LEVEL_XS.slice(0, 5);
         activeIntersections.forEach(function (xInt, i) {
           const cx = xInt + IW / 2;
           for (let o = 0; o < offsets.length; o++) {
@@ -14082,7 +14085,7 @@
       // A USPS collection box on EVERY 5TH STREET CORNER, counting from the FIRST
       // CORNER of Block 2 (near-side corner at world x=96). Near-side corners are
       // each block's west edge (houseIdx 0) and east edge (houseIdx 9):
-      // 96, 176, 192, 272, 288, 368, 384, 464, 480, 560, 576, 656, 672, 752.
+      // 96, 176, 192, 272, 288, 368, 384, 464, 480, 560, 576, 656.
       // Every 5th from x=96 -> boxes at x=96, x=368, x=576 (3 per level).
       // Returns 0 = no box, 1 = west corner (box 2.4u INTO the block),
       // 2 = east corner (box 2.4u back from the block's end edge).
@@ -22762,7 +22765,7 @@
           isUptown = false; // bold, loud sign palettes
         }
         let storeIdx = 0;
-        // Fixed route: 8 blocks (Blocks 1 & 8 carry no curb garbage). Standard levels:
+        // Fixed route: 7 blocks (Blocks 1 & 7 carry no curb garbage). Standard levels:
         // 10 houses per block (8u cells). Maspeth (Queens): 12 buildings per block — the
         // two corner cells keep the full 8u (store-ready) and the middle cells are 6.4u,
         // so the houses sit much closer together.
@@ -23657,7 +23660,7 @@
           }
         }
         // The Staten Island HOUSEWIVES (New Dorp, day 5): ONE PER EVEN-NUMBERED
-        // BLOCK (blocks 2, 4, 6, 8 — x 96, 288, 480, 672). Each STAYS ON HER BLOCK
+        // BLOCK (blocks 2, 4, 6 — x 96, 288, 480). Each STAYS ON HER BLOCK
         // (never crosses the street), wears a UNIQUE dress color, and shadows the
         // worker around 3-4 houses with OVERLY FRIENDLY (slightly too forward)
         // chatter: how you're doing, what a great job, how big and strong, do you
@@ -25959,15 +25962,6 @@
               b.wx,
               b.wy,
               b.g && b.g.position ? b.g.position.z : GZ + (b.lift || 0),
-            );
-            Voice.say(
-              b.voice,
-              1.0,
-              b.type === "cash" ? 1.1 : 1.3,
-              b.wx,
-              b.wy,
-              WORKER_GENDER,
-              "worker",
             );
             if (b.g.parent) b.g.parent.remove(b.g);
             disposeObj(b.g);
@@ -29504,7 +29498,7 @@
         p.wx += f * PLAYER_SPEED * (f < 0 ? 0.75 : 1) * immuneBoost * poopSlow * dt;
         p.wy = clamp(p.wy + lat * LAT_SPEED * immuneBoost * poopSlow * dt, -9.4, workerMaxY());
         // Route bounds: the shift is a FINITE route. Can't walk back before Intersection 1,
-        // and reaching Intersection 7 (the last one before Block 8) ends the route.
+        // and reaching Intersection 6 (the last one before Block 7) ends the route.
         if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
         if (BONUS && p.wx > BONUS_ROUTE_END_X) p.wx = BONUS_ROUTE_END_X; // 4-block street: can't walk past its end
         if (p.wx >= ROUTE_FINISH_X && state === "play" && !BONUS) {
@@ -29952,7 +29946,16 @@
         const target = carry === "none" ? 3.6 : 4.1;
         const backTarget = 1.5; // the back-up rest position: "just ahead of the worker"
         const DEAD = 0.8; // dead zone around the rest position: hold
-        const MAXSP = PLAYER_SPEED; // fast enough to keep up with a sprinting worker
+        // "RUN IT UP!" (Monster invincibility): while the worker is sprinting (p.immuneT > 0)
+        // the truck's TOP SPEED jumps INSTANTLY to a bit MORE than the worker's sprint
+        // pace (PLAYER_SPEED * 1.3 * 1.5), so it can close any gap and then hold even
+        // speed with him — instead of topping out at PLAYER_SPEED (8.5) and slowly
+        // dropping behind a worker moving at 11.05. The proportional creep below
+        // (gap * 2.0) still eases it in: it "builds up speed to catch up, then stays
+        // even." Outside the buff this reverts to the old PLAYER_SPEED cap, so normal
+        // walking pace is unchanged.
+        const RUN_IT_UP = p.immuneT > 0;
+        const MAXSP = RUN_IT_UP ? PLAYER_SPEED * RUN_IT_UP_SPEED_MULT * 1.5 : PLAYER_SPEED;
         // Two rest positions (hysteresis): in FOLLOW mode the rear rests at the forward
         // target (a clear approach corridor to the scoop); when the driver backs up he
         // enters CLOSE mode and rests JUST ahead of the worker (~1.5u — past the deepest
