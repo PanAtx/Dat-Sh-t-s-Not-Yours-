@@ -3806,7 +3806,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.435</div>
+          <div id="app-version" class="menu-version">v1.0.436</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.435';
+      const APP_VERSION = '1.0.436';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5670,22 +5670,24 @@
       }
       // ---- Route finish line: a black-and-white checker stripe across the sidewalk ----
       // One thin box at the far corner of the last serviceable block, spanning the
-      // near sidewalk (curb y=0.5 -> yard y=5.0). The top face carries the checker
-      // pattern (2 cols x 5 rows of 1-unit squares); the thin sides stay dark so the
-      // edge reads as a solid band. Guarded for Node (no document / no CanvasTexture).
+      // near sidewalk (curb y=0.5 -> yard y=5.0). The +Z (top) face carries the
+      // checker pattern (2 cols x 9 rows of 0.5-unit squares — a proper racing-flag
+      // check); the thin sides stay dark so the edge reads as a solid band.
+      // Guarded for Node (no document / no CanvasTexture).
       function buildFinishLine() {
         if (BONUS) return; // OVERTIME BASKETS street is shorter (ground ends ~x=390) — no route finish line there
-        const FIN_W = 4.5; // curb (y=0.5) to yard (y=5.0) — the whole walkable sidewalk
+        const FIN_W = 4.5; // curb (y=0.5) to yard (y=5.0) — the whole walkable sidewalk (Y axis)
         const FIN_CY = (0.5 + 5.0) / 2; // 2.75 — the sidewalk centerline
+        const FIN_T = 1.0; // stripe width along the route (X axis) — bold, unmistakable
         let topMat;
         if (typeof document !== "undefined" && THREE.CanvasTexture) {
           const cv = document.createElement("canvas");
-          cv.width = 256; // 2 checker columns
-          cv.height = 640; // 5 checker rows
+          cv.width = 256; // 2 checker columns (X axis)
+          cv.height = 1152; // 9 checker rows (Y axis) — 0.5-unit squares
           const ctx = cv.getContext("2d");
           const cw = cv.width / 2;
-          const ch = cv.height / 5;
-          for (let r = 0; r < 5; r++) {
+          const ch = cv.height / 9;
+          for (let r = 0; r < 9; r++) {
             for (let c = 0; c < 2; c++) {
               ctx.fillStyle = (r + c) % 2 === 0 ? "#ffffff" : "#000000";
               ctx.fillRect(c * cw, r * ch, cw, ch);
@@ -5698,11 +5700,11 @@
           topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
         }
         const edgeMat = new THREE.MeshLambertMaterial({ color: 0x101010 });
-        const FIN_T = 1.0; // stripe width along the route (X) — bold, unmistakable
-        // BoxGeometry face order: [+X, -X, +Y(top), -Y(bottom), +Z, -Z]. Top = checker,
-        // everything else dark so the thin sides/edges read as a solid finish band.
-        const mats = [edgeMat, edgeMat, topMat, edgeMat, edgeMat, edgeMat];
-        const fin = new THREE.Mesh(new THREE.BoxGeometry(FIN_W, FIN_T, 0.06), mats);
+        // BoxGeometry(width=X, height=Y, depth=Z): thin along route (X), wide across sidewalk (Y).
+        // The worker looks DOWN from above and sees the +Z face (index 4) — put the checker there.
+        // Face order: [+X, -X, +Y, -Y, +Z, -Z]
+        const mats = [edgeMat, edgeMat, edgeMat, edgeMat, topMat, edgeMat];
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(FIN_T, FIN_W, 0.06), mats);
         fin.position.set(ROUTE_FINISH_X, FIN_CY, 0.35);
         fin.receiveShadow = true;
         fin.castShadow = false;
