@@ -1,7 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-# Shell scripts must stay LF in the working tree. CRLF line endings corrupt
-# MSYS/Git-Bash parsing of scripts/precommit.sh (the pre-commit version hook),
-# which is exactly what made the version-detect fall through to the bump branch.
+# Shell scripts must stay LF in the working tree, or CRLF line endings corrupt
+# MSYS/Git-Bash parsing of the pre-commit hook (hooks/pre-commit).
 *.sh text eol=lf
+hooks/pre-commit text eol=lf
