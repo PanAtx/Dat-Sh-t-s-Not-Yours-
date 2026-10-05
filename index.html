@@ -3805,7 +3805,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.413</div>
+          <div id="app-version" class="menu-version">v1.0.414</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3971,7 +3971,6 @@
           >FINAL SCORE $<span id="finalscore">000000</span></div
         >
         <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
-        <div class="modal-ver">v1.0.1</div>
         <button id="btnRestart">RESTART SHIFT</button>
       </div></div
     >
@@ -4061,7 +4060,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.413';
+      const APP_VERSION = '1.0.414';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29946,6 +29945,28 @@
         const rightSide = p.wy > -4.5 + lw + 0.3; // on the near (sidewalk-edge) street side
         return inStreet && (leftSide || rightSide);
       }
+      // The truck's rear hazard lights, blinking the DSNY pattern: 1s BOTH outer lights
+      // (L1+L3), 1s the MIDDLE light (L2) — repeated forever, never all dark. Driven by
+      // performance.now() so it stays in sync no matter who calls it. Called from BOTH the
+      // normal follow loop (updateTruck) and the end-of-route cinematic (updateRouteEnd,
+      // where updateTruck's auto-follow AI is skipped). A DSNY rule: these lights NEVER
+      // stop blinking.
+      function blinkHazardLights() {
+        if (!truck || !truck.hazLights) return;
+        const hz = (performance.now() * 0.001) % 2;
+        const sideOn = hz < 1,
+          midOn = hz >= 1;
+        // A/B brightness: hold G to preview the OLD brighter glow
+        // (2.6/0.95), release for the current dimmer one (1.6/0.6).
+        const bright = keys["KeyG"];
+        for (let i = 0; i < truck.hazLights.length; i++) {
+          const L = truck.hazLights[i];
+          const on = L.phase === "mid" ? midOn : sideOn;
+          L.coreMat.emissiveIntensity = on ? (bright ? 2.6 : 1.6) : 0;
+          L.haloMat.opacity = on ? (bright ? 0.95 : 0.6) : 0;
+          L.halo.visible = on;
+        }
+      }
       function updateTruck(dt) {
         // The driver never drives away. Like a real collection route, the truck keeps
         // its REAR (the hopper) positioned right next to the worker, so the garbage
@@ -30041,25 +30062,9 @@
         truck.g.visible = true;
         // The truck is heavy and stays planted: it never bounces or shifts when trash is loaded.
         truck.g.position.set(truck.wx, -4.5, GZ);
-        // The rear hazard lights blink in the DSNY pattern: 1s BOTH outer
-        // lights (L1+L3), 1s the MIDDLE light (L2) — repeat forever. There is
-        // NEVER a moment when all three are dark.
-        // The glow is an emissive core + additive halo (built in buildTruck).
-        if (truck.hazLights) {
-          const hz = (performance.now() * 0.001) % 2;
-          const sideOn = hz < 1,
-            midOn = hz >= 1;
-          // A/B brightness: hold G to preview the OLD brighter glow
-          // (2.6/0.95), release for the current dimmer one (1.6/0.6).
-          const bright = keys["KeyG"];
-          for (let i = 0; i < truck.hazLights.length; i++) {
-            const L = truck.hazLights[i];
-            const on = L.phase === "mid" ? midOn : sideOn;
-            L.coreMat.emissiveIntensity = on ? (bright ? 2.6 : 1.6) : 0;
-            L.haloMat.opacity = on ? (bright ? 0.95 : 0.6) : 0;
-            L.halo.visible = on;
-          }
-        }
+        // The rear hazard lights blink the DSNY pattern (see blinkHazardLights).
+        // A DSNY rule: they never stop blinking — even during the end-of-route cinematic.
+        blinkHazardLights();
         if (truck.bladePush) truck.bladePush(0);
         // Hopper trash pile follows the truck and runs its shrink/fade cycle.
         updateHopperTrash(dt);
@@ -36725,6 +36730,14 @@
       function showDayStats() {
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         const s = dayStats || newDayStats();
+        // A fresh report is always fully opaque — clear any stale "WRITTEN UP!" dim
+        // (e.g. the player retried the shift while the previous stamp was still up).
+        const p0 = $("day-stats").querySelector(".panel");
+        if (p0) {
+          p0.style.transition = "";
+          p0.style.opacity = "1";
+        }
+        if (writeUpDimTimer) clearTimeout(writeUpDimTimer);
         $("day-stats-title").textContent = d.day + " \u00b7 " + d.borough;
         $("day-stats-loc").textContent =
           "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
@@ -36904,6 +36917,7 @@
         updateFootprints(dt);
         updateFlecks(dt); // brown dog-shit flecks: arcing, bouncing, fading
         updateHopperTrash(dt);
+        blinkHazardLights(); // DSNY rule: the truck's hazard lights keep blinking through the whole cinematic
         updateHUD();
         if (routeEnd.phase === "cheer") {
           // ---- Phase 1: fist pump. Two hops, right fist planted straight up, left arm
@@ -37137,10 +37151,31 @@
         const serviced = ds.bags.got + ds.cans.got + ds.baskets.got + ds.debris.got;
         return serviced / total;
       }
+      // Fade the SHIFT REPORT panel out while the route "WRITTEN UP!" stamp is being
+      // read, then fade it back in when the stamp is removed — so the red seal + offense
+      // line read clearly against the dark backdrop instead of over a full stats card.
+      let writeUpDimTimer = null;
+      function dimShiftReport() {
+        const panel =
+          typeof document !== "undefined" && document.querySelector("#day-stats .panel");
+        if (!panel) return;
+        // The .panel's entrance animation (panel-pop-in, fill-mode: both) pins opacity at
+        // 1 and would override a plain inline style — disable it first, then fade the menu.
+        panel.style.animation = "none";
+        panel.style.transition = "opacity 0.7s ease";
+        panel.style.opacity = "1";
+        void panel.offsetWidth; // flush so the transition has a real starting value
+        panel.style.opacity = "0.12"; // fade the report menu out (the dark backdrop stays)
+        clearTimeout(writeUpDimTimer);
+        writeUpDimTimer = setTimeout(function () {
+          panel.style.opacity = "1"; // fade the report menu back in
+        }, 5400); // just after the 5.2s stamp auto-removes
+      }
       function applyRouteWriteUp() {
         lastHitCause = "unclean"; // the offense the supervisor stamps under the seal
         const n = addWriteUp(); // +1 COMPLAINT ISSUED: HUD pips light up, the ink stamp slams, SFX
         showWriteUpText(n); // "WRITTEN UP! n/3" + the offense line, slams over the day-end report
+        dimShiftReport(); // fade the shift-report menu so the stamp reads, then fade it back
         if (n >= 3 && !(typeof CHEAT !== "undefined" && CHEAT.infinite)) {
           routeWriteupLock = true; // hold "next day" while the 3rd-strike stamp is being read
           setTimeout(function () {
