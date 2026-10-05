@@ -3806,7 +3806,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.436</div>
+          <div id="app-version" class="menu-version">v1.0.437</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.436';
+      const APP_VERSION = '1.0.437';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4816,6 +4816,9 @@
       const confettiParts = [];
       let confettiOn = false;
       const CONFETTI_COLORS = [0xff3b30, 0x34c759, 0x0a84ff, 0xffd60a, 0xffffff, 0xff9500];
+      // ---- Finish flag pole: a small checkered flag that waves when the worker approaches ----
+      let finishFlagPole = null; // THREE.Group (pole + flag cloth) added to groundGroup
+      let finishFlagT = 0; // elapsed time for the wave animation
       let dayStats = null; // { bags|cans|baskets|mongo|treasure|cash : {got,total} }
       let dayBonusGot = { mongo: 0, treasure: 0, cash: 0 };
       function newDayStats() {
@@ -5693,6 +5696,18 @@
               ctx.fillRect(c * cw, r * ch, cw, ch);
             }
           }
+          // "FINISH" text: drawn rotated 90° so it reads along the flag's LENGTH (Y axis / sidewalk width)
+          ctx.save();
+          ctx.translate(cv.width / 2, cv.height / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.font = "bold 110px Arial, Helvetica, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(0,0,0,0.65)";
+          ctx.fillText("FINISH", 2, 4); // drop shadow
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText("FINISH", 0, 0);
+          ctx.restore();
           const tex = new THREE.CanvasTexture(cv);
           tex.needsUpdate = true;
           topMat = new THREE.MeshLambertMaterial({ map: tex });
@@ -5709,6 +5724,65 @@
         fin.receiveShadow = true;
         fin.castShadow = false;
         groundGroup.add(fin);
+        // ---- Small checkered flag pole at the curb-side end of the stripe ----
+        // A thin pole with a small checker flag that waves when the worker approaches.
+        const poleG = new THREE.Group();
+        const poleMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+        const POLE_H = 2.8;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, POLE_H, 8), poleMat);
+        pole.position.z = POLE_H / 2; // pole rises along Z (up)
+        poleG.add(pole);
+        // Small checkered flag cloth (a thin plane at the top of the pole)
+        const FLAG_W = 1.2, FLAG_H = 0.8;
+        let flagMat;
+        if (typeof document !== "undefined" && THREE.CanvasTexture) {
+          const fc = document.createElement("canvas");
+          fc.width = 128; fc.height = 96;
+          const fctx = fc.getContext("2d");
+          const fsq = 16;
+          for (let fr = 0; fr < fc.height / fsq; fr++) {
+            for (let fc2 = 0; fc2 < fc.width / fsq; fc2++) {
+              fctx.fillStyle = (fr + fc2) % 2 === 0 ? "#ffffff" : "#000000";
+              fctx.fillRect(fc2 * fsq, fr * fsq, fsq, fsq);
+            }
+          }
+          const ftex = new THREE.CanvasTexture(fc);
+          ftex.needsUpdate = true;
+          flagMat = new THREE.MeshLambertMaterial({ map: ftex, side: THREE.DoubleSide });
+        } else {
+          flagMat = new THREE.MeshLambertMaterial({ color: 0x888888, side: THREE.DoubleSide });
+        }
+        const flagCloth = new THREE.Mesh(new THREE.PlaneGeometry(FLAG_W, FLAG_H), flagMat);
+        flagCloth.position.set(FLAG_W / 2 + 0.04, 0, POLE_H - FLAG_H / 2); // offset to the side of the pole, near the top
+        poleG.add(flagCloth);
+        poleG.userData.flagCloth = flagCloth; // for wave animation access
+        // Place at the curb-end of the stripe (near the road edge)
+        poleG.position.set(ROUTE_FINISH_X, 0.7, 0.3); // curb side (y=0.7 near the curb line)
+        poleG.castShadow = true;
+        groundGroup.add(poleG);
+        finishFlagPole = poleG;
+      }
+      // ---- Finish flag wave animation: the flag cloth flaps when the worker is within 12u ----
+      function updateFinishFlag(dt) {
+        if (!finishFlagPole) return;
+        finishFlagT += dt;
+        const cloth = finishFlagPole.userData.flagCloth;
+        if (!cloth) return;
+        // Distance from the worker to the flag pole (in the route/lateral plane)
+        const dx = (p && p.wx ? p.wx : 999) - ROUTE_FINISH_X;
+        const dy = (p && p.wy ? p.wy : 0) - 0.7;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const near = dist < 12; // wave when the worker is within 12 units
+        if (near) {
+          // Wavy flap: oscillate the flag's rotation.x (flap up/down) + slight twist (rotation.z)
+          const amp = 0.3 + (1 - dist / 12) * 0.3; // closer = bigger wave
+          cloth.rotation.x = Math.sin(finishFlagT * 8) * amp;
+          cloth.rotation.z = Math.sin(finishFlagT * 5.5 + 1.2) * amp * 0.4;
+        } else {
+          // Gentle idle sway (very subtle)
+          cloth.rotation.x = Math.sin(finishFlagT * 1.5) * 0.06;
+          cloth.rotation.z = Math.sin(finishFlagT * 1.1 + 0.7) * 0.04;
+        }
       }
       // ---- Cross-street intersection builders (Paperboy! look) ----
       // A flat rounded-rectangle in the ground plane (local X = route, local Y = lateral).
@@ -36934,6 +37008,9 @@
           walkT: 0,
           driveT: 0,
         };
+        // Celebration: confetti falls from above + a radial burst fires from the worker
+        startConfetti();
+        confettiCannon();
         Voice.say(
           "Route done! Clocking out — see ya tomorrow, city!",
           1,
@@ -39438,6 +39515,7 @@
           collideLandedCans();
           collideCreatures();
           updateConeProps(dt); // knockable traffic cones: bump detection + topple wobble
+          updateFinishFlag(dt); // finish flag pole: waves when the worker is near
           updateHUD();
           updateBulbGlow(performance.now() / 1000); // porch light flicker (uses real time so flicker is consistent)
           // ---- OVERTIME BASKETS: the round's end-of-turn resolution ----
@@ -39469,6 +39547,9 @@
           if (p.stunT > 0) p.stunT -= dt;
           updateGag(dt);
           updateRouteEnd(dt); // 'routeend': the level-complete cinematic (cheer -> walk -> board -> drive off)
+          updateConfetti(dt); // falling confetti (started in startRouteEnd)
+          updateCannon(dt); // radial confetti burst from the worker
+          updateFinishFlag(dt); // the flag keeps waving during the celebration
           updateBulbGlow(performance.now() / 1000);
         } else if (state === "bonusend") {
           // OVERTIME win/lose beat: keep the worker's pose + confetti + victory hop alive
