@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.415';
-var APP_VERSION = '1.0.415';
+var CACHE_NAME = 'dsnboy-shell-v1.0.417';
+var APP_VERSION = '1.0.417';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -85,9 +85,18 @@ self.addEventListener('install', function (e) {
     caches.open(CACHE_NAME).then(function (cache) {
       // Cache the shell. If a single entry 404s (e.g. a CDN blip) we still go
       // active - the runtime handler will fetch what's missing on demand.
+      // Cache the shell. Each entry is fetched with a hard timeout (fetchTimeout)
+      // instead of a bare cache.add(): a single stalled request (a hung CDN, a
+      // flaky 2.5MB logo, a wedged font) must NOT block the install forever - a
+      // hung fetch in a Promise.all never resolves, the SW never activates, and
+      // Android Chrome's "Installing..." prompt spins indefinitely. A URL that
+      // times out is simply skipped here; the runtime fetch handler retries it
+      // on demand, so the app still installs and works online.
       return Promise.all(SHELL.map(function (url) {
-        return cache.add(url).catch(function (err) {
-          console.warn('[SW] precache failed for ' + url + ':', err && err.message);
+        return fetchTimeout(url, 60000).then(function (res) {
+          if (res && res.ok) return cache.put(url, res);
+        }).catch(function (err) {
+          console.warn('[SW] precache skipped ' + url + ':', err && err.message);
         });
       }));
     }).then(function () { return self.skipWaiting(); })
