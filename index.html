@@ -3806,7 +3806,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.438</div>
+          <div id="app-version" class="menu-version">v1.0.439</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4061,7 +4061,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.438';
+      const APP_VERSION = '1.0.439';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5699,12 +5699,14 @@
           // "FINISH" text: drawn rotated 90° so it reads along the flag's LENGTH (Y axis / sidewalk width)
           ctx.save();
           ctx.translate(cv.width / 2, cv.height / 2);
-          ctx.rotate(Math.PI / 2); // +90° (was -90° which rendered upside-down/backwards)
+          ctx.rotate(Math.PI / 2);
           ctx.font = "bold 110px Arial, Helvetica, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillStyle = "rgba(0,0,0,0.65)";
-          ctx.fillText("FINISH", 2, 4); // drop shadow
+          ctx.lineWidth = 10; // thick black outline
+          ctx.strokeStyle = "#000000";
+          ctx.lineJoin = "round";
+          ctx.strokeText("FINISH", 0, 0);
           ctx.fillStyle = "#ffffff";
           ctx.fillText("FINISH", 0, 0);
           ctx.restore();
@@ -5730,7 +5732,8 @@
         const poleMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
         const POLE_H = 2.8;
         const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, POLE_H, 8), poleMat);
-        pole.position.z = POLE_H / 2; // pole rises along Z (up)
+        pole.rotation.x = Math.PI / 2; // CylinderGeometry defaults to Y-axis; rotate to Z (up)
+        pole.position.z = POLE_H / 2; // center at half height
         poleG.add(pole);
         // Small checkered flag cloth — a multi-segment vertical plane extending from the pole
         // The flag is vertical (tall in Z), extends horizontally in +X from the pole.
