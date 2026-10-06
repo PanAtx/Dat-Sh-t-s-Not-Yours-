@@ -3809,7 +3809,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.442</div>
+          <div id="app-version" class="menu-version">v1.0.443</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -3871,7 +3871,7 @@
             <div class="cr-sec">INSPIRATION &amp; DIRECTION</div>
             <div class="cr-row">
               <span class="cr-name">INSPIRATION</span>
-              <span class="cr-cred">Ed Logg and the Paperboy! Atari Arcade Game</span>
+              <span class="cr-cred">Paperboy by Atari Games</span>
             </div>
             <div class="cr-row">
               <span class="cr-name">DESIGN &amp; DIRECTION</span>
@@ -4064,7 +4064,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.442';
+      const APP_VERSION = '1.0.443';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6427,6 +6427,21 @@
           this.tone("square", 360, 130, 0.09, 0.22);
           this.noise(0.05, "bandpass", 1150, 0.4, 0.09);
           this.tone("sine", 95, 55, 0.14, 0.3, 0.02);
+        },
+        // --- Bed-Stuy (Sunday) ZOMBIE ARM: a wet, guttural GROAN as the dead arm lurches UP
+        // out of the open manhole (a "RAAAAGH" — a slow rising detuned saw + a low sine). ---
+        playZombieGroan() {
+          this.ensure();
+          this.tone("sawtooth", 68, 118, 0.45, 0.4);
+          this.tone("sine", 55, 40, 0.5, 0.45);
+          this.noise(0.35, "lowpass", 320, 0.18);
+        },
+        // --- the GRAB: the fingers clamp shut — a wet "thwack" (low sine) + a muffled flesh noise. ---
+        playZombieGrab() {
+          this.ensure();
+          this.tone("sine", 112, 55, 0.18, 0.5);
+          this.noise(0.14, "lowpass", 520, 0.4);
+          this.tone("sawtooth", 88, 60, 0.12, 0.3);
         },
         // --- DANGER ALARM (the "San Man Needs Food Badly" fire alarm) ---
         // A single metallic DING: the bell fundamental (C6) + a bright partial
@@ -14327,6 +14342,180 @@
         if (!b.trees) b.trees = [];
         b.trees.push({ wx: wx, wy: wy });
       }
+      // ==================== LURKING EYES in the OPEN (no-cover) manholes ====================
+      // The generic street manhole has its lid pried OFF (resting on the road) and an open dark
+      // bore — so it reads as "something is down there." A pair of amber eyes blinks open and
+      // closed deep in the bore (blink = scale.y, so it reads as lids closing). The eyes are
+      // collected in `manholeEyes` and blinked every frame by updateManholeEyes() (called from
+      // the main loop). Purely cosmetic — no collision, no damage.
+      // ---- shared "lurking eyes" blink system -------------------------------------------
+      // Any open manhole can register a set of eye meshes here, and updateManholeEyes()
+      // (called every frame from the main loop) blinks them — a quick vertical "lid close"
+      // (scale.y) that reads as a blink. It's the "something alive is down there" hint.
+      // It works for the generic street manholes, the Harlem (Saturday) gator's big eyes,
+      // and the Bed-Stuy (Sunday) tentacle's eyes, because the blink is scale.y relative to
+      // each mesh's OWN base scale (so the gator's slit-pupil eyes close as one in place).
+      let manholeEyes = []; // entries: { parts:[{m,baseY,pupilRot}], phase, model }
+      function registerBlinkEyes(meshes, phase, model) {
+        manholeEyes.push({
+          parts: meshes.map((m) => ({ m: m, baseY: m.scale.y, pupilRot: 0 })),
+          phase: phase != null ? phase : Math.random() * 6.28,
+          model: model || null,
+        });
+      }
+      // Attach a BLACK pupil INSIDE an eye group (a child on the eye's own local axis, so
+      // the blink's scale.y closes the pupil along with the iris). off = in-plane offset
+      // from the eye centre; pr = the pupil radius.
+      function attachEyePupil(eyeGroup, off, pr) {
+        const pupilMat = new THREE.MeshBasicMaterial({
+          color: 0x08090a,
+          transparent: true,
+          opacity: 0.95,
+        });
+        const pupil = new THREE.Mesh(new THREE.SphereGeometry(pr, 12, 10), pupilMat);
+        pupil.position.copy(off);
+        eyeGroup.add(pupil);
+        return pupil;
+      }
+      // ---- pupil-tracking target (the "eyes follow the worker" half) -----------------
+      // The pupil sits along the eye group's local +X (the neutral "straight" direction).
+      // We want it to point AT the worker in SCREEN space — the worldGroup-local 2D frame
+      // (the same frame p.wx/p.wy live in) — but CLAMPED so it never points to the TOP of
+      // the screen. When the worker is on top we return 0 (pupil at its neutral forward =
+      // "looking straight"). We read the eye's ACTUAL local +X axis (via its matrixWorld
+      // in worldGroup space), so this works even when an inner pivot (the gator's pitched
+      // head) has tilted the eye's plane.
+      const _eTmpMat = new THREE.Matrix4();
+      const _eTmpMat2 = new THREE.Matrix4();
+      const _eTmpV = new THREE.Vector3(); // worker pos in WORLD space
+      const _eTmpV2 = new THREE.Vector3(); // worker pos in EYE-local space (pupil target)
+      function eyeTargetRot(E, eye) {
+        if (!E.model) return 0;
+        if (typeof p === "undefined" || !p.wx) return 0;
+        if (typeof worldGroup === "undefined" || !worldGroup) return 0;
+        E.model.updateMatrixWorld(true); // fresh matrices (a creature's head may have just rotated)
+        // Express the eye's pose in the worldGroup-LOCAL frame. The worldGroup inverse
+        // goes on the LEFT (worldGroup^-1 * eye.matrixWorld), otherwise we end up mixing
+        // world and local coordinates and the target angle comes out wrong / frozen.
+        const wgi = _eTmpMat.identity().copy(worldGroup.matrixWorld).invert();
+        const el = _eTmpMat2.multiply(wgi, eye.matrixWorld);
+        const ex = el.elements[12],
+          ey = el.elements[13]; // eye position, worldGroup-local frame
+        const lx = el.elements[0],
+          ly = el.elements[1]; // the eye's rest +X axis in that same local frame
+        const curAng = Math.atan2(ly, lx); // pupil rest direction (what we rotate FROM)
+        // worker direction in the SAME worldGroup-local frame (p.wx/p.wy already live here)
+        const dx = p.wx - ex,
+          dy = p.wy - ey;
+        const dl = Math.hypot(dx, dy);
+        if (dl < 1e-6) return 0;
+        const nx = dx / dl,
+          ny = dy / dl;
+        // worldGroup is pre-rotated +45deg precisely so its local axes == the camera's
+        // screen axes: screen-right = local +X, screen-up = local +Y. So the pupil's
+        // "look direction" in this 2D frame is just (nx, ny). CLAMP the top: keep the
+        // horizontal (right/left) part and only allow looking DOWN (-Y). When the worker
+        // is on the top side, fall back to looking DOWN at the player/camera (local -Y).
+        const lookY = ny < 0 ? ny : 0;
+        let tx = nx,
+          ty = lookY;
+        if (Math.hypot(tx, ty) < 0.05) {
+          tx = 0;
+          ty = -1; // straight down toward the camera = "looking at the player"
+        }
+        return Math.atan2(ty, tx) - curAng; // rotation that swings the pupil to that spot
+      }
+      function addLurkingEyes(parentGroup) {
+        // The pair sits on the NEAR (bottom-of-screen) edge of the open bore, NOT the
+        // centre: the camera sits on world -Y, and worldGroup's +45° tilt maps
+        // screen-bottom to local (-1,-1)/sqrt(2). That puts the eyes on the closest,
+        // most visible part of the dark water AND clear of the tilted lid (which drapes
+        // over the far/centre) — so you actually SEE the blinking pair, not a glimmer.
+        // Each amber eye is now a GROUP (iris + a black pupil poking out its front) so
+        // updateManholeEyes() can BOTH blink it (scale.y) AND swing its pupil (rotation.z)
+        // to follow the sanitation worker — the worker-following pupils live HERE, not on
+        // the gator/tentacle creatures.
+        const eyeMat = new THREE.MeshBasicMaterial({
+          color: 0xffd23f,
+          transparent: true,
+          opacity: 0.98,
+        });
+        const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a }); // solid black pupil
+        const pair = new THREE.Group();
+        const down = { x: -0.7071, y: -0.7071 }; // screen-down (toward camera), local frame
+        const right = { x: 0.7071, y: -0.7071 }; // screen-right, local frame
+        const cx = down.x * 0.28,
+          cy = down.y * 0.28; // pair centre, near the bottom rim (bore radius = 0.55)
+        const sep = 0.12; // half-spacing between the two eyes
+        const mk = (ox, oy) => {
+          const eye = new THREE.Group();
+          const iris = new THREE.Mesh(new THREE.SphereGeometry(0.12, 14, 10), eyeMat);
+          eye.add(iris);
+          // The black pupil sits ON the iris surface (iris r=0.12) and pokes out along the
+          // eye group's +X, so the tracking rotation (about +Z) sweeps it to look at the
+          // worker. Child of the group -> the blink closes it with the iris.
+          const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), pupilMat);
+          pupil.position.set(0.08, 0, 0); // sits near the iris surface -> protrudes to ~0.17
+          eye.add(pupil);
+          eye.userData.pupil = pupil; // keep a handle so updateManholeEyes can reposition it
+          eye.position.set(ox, oy, 0.06); // just above the dark bore floor, facing the camera
+          pair.add(eye);
+          return eye;
+        };
+        const el = mk(cx - right.x * sep, cy - right.y * sep),
+          er = mk(cx + right.x * sep, cy + right.y * sep);
+        pair.position.set(0, 0, 0.02);
+        parentGroup.add(pair);
+        // Register with the manhole group as the tracking reference: these amber eyes
+        // blink AND swing their pupils to follow the worker.
+        registerBlinkEyes([el, er], null, parentGroup);
+      }
+      function updateManholeEyes() {
+        const at = (typeof performance !== "undefined" ? performance.now() : 0) * 0.001;
+        for (let i = 0; i < manholeEyes.length; i++) {
+          const E = manholeEyes[i];
+          // a slow, slightly irregular blink: wide open most of the time, a quick snap shut
+          const cyc = (at * 0.55 + E.phase) % 1;
+          let open = 1;
+          if (cyc > 0.88) {
+            const k = (cyc - 0.88) / 0.12; // 0..1 across the blink window
+            open = Math.max(0.06, 1 - Math.sin(k * Math.PI)); // ease shut, then open
+          }
+          const s = 0.14 + open * 0.86; // closed = a thin slit, open = round
+          for (let j = 0; j < E.parts.length; j++) {
+            E.parts[j].m.scale.y = E.parts[j].baseY * s;
+          }
+          // ---- pupil tracking: place each pupil toward the worker. ----
+          // Bulletproof frame handling: convert the worker's WORLD position into each
+          // eye's OWN local space (via its actual matrixWorld), then park the pupil at a
+          // fixed radius along that direction. No rest-angle assumption, works even if a
+          // parent (block/creature head) is rotated.
+          if (E.model && typeof p !== "undefined" && p.wx && typeof worldGroup !== "undefined" && worldGroup) {
+            E.model.updateMatrixWorld(true); // fresh eye.matrixWorld for each descendant
+            for (let j = 0; j < E.parts.length; j++) {
+              const part = E.parts[j];
+              const eye = part.m;
+              const pupil = eye.userData && eye.userData.pupil;
+              if (!pupil) continue;
+              // worker in WORLD space (worldGroup is static -> its matrixWorld is valid)
+              _eTmpV.set(p.wx, p.wy, 0).applyMatrix4(worldGroup.matrixWorld);
+              // -> the eye's local 2D frame
+              _eTmpMat.copy(eye.matrixWorld).invert();
+              _eTmpV2.copy(_eTmpV).applyMatrix4(_eTmpMat);
+              const dx = _eTmpV2.x,
+                dy = _eTmpV2.y;
+              const dl = Math.hypot(dx, dy);
+              if (dl < 1e-4) continue; // worker dead-centre: keep the pupil where it is
+              const RADIUS = 0.08; // park on the iris surface (iris r=0.12) so it always pokes out
+              const tx = (dx / dl) * RADIUS;
+              const ty = (dy / dl) * RADIUS;
+              const k = Math.min(1, 0.001 * 60 * 12); // frame-rate independent, snappy
+              pupil.position.x += (tx - pupil.position.x) * k;
+              pupil.position.y += (ty - pupil.position.y) * k;
+            }
+          }
+        }
+      }
       function addManhole(b, wx, wy) {
         const g = new THREE.Group();
         const hole = CY(0.55, 0.55, 0.05, M(0x0a0c0e), 14);
@@ -14337,6 +14526,7 @@
         lid.position.set(0.28, 0.12, 0.07);
         lid.rotation.x = Math.PI / 2 - 0.35; // pried open, still resting on the road
         g.add(lid);
+        addLurkingEyes(g); // a pair of blinking amber eyes deep in the open bore
         g.position.set(wx - b.worldX, wy, GZ);
         b.group.add(g);
         b.hazards.push({
@@ -21595,15 +21785,22 @@
           nst.position.set(0.84, ny, 0.12);
           head.add(nst);
         });
-        // the two BIG eyes on TOP of the head (the tell — you always SEE the eyes)
+        // the two BIG eyes on TOP of the head: a YELLOW eyeball with a narrow BLACK
+        // vertical SLIT pupil — a cat / reptile gaze (Pitfall gator style). (These are
+        // the gator's own face eyes; the worker-FOLLOWING pupils live on the AMBER
+        // manhole eyes via addLurkingEyes, NOT on the gator.)
         [-1, 1].forEach((s) => {
-          const eye = SPH(0.085, eyeM, 16, 12);
-          eye.position.set(-0.02, s * 0.14, 0.29);
-          head.add(eye);
-          const pup = SPH(0.032, pupilM, 10, 8);
-          pup.scale.set(0.5, 0.5, 1.6); // a vertical reptile slit (tall in the up axis)
-          pup.position.set(0.04, s * 0.15, 0.3);
-          head.add(pup);
+          const ex = -0.02, ey = s * 0.14; // left/right, high on the skull (z = up)
+          const e = SPH(0.085, eyeM, 16, 14); // yellow iris (eyeM = the big yellow)
+          e.position.set(ex, ey, 0.29);
+          head.add(e);
+          // the black slit pupil: a VERTICAL slit (tall in Z, narrow in Y, thin in X)
+          // on the FRONT face of the eyeball (+X = the gator's gaze direction). It sits
+          // at the eye's own height and pokes just past the front surface so it reads as
+          // a cat/reptile vertical slit facing forward, not a bar on top.
+          const slit = BX(0.05, 0.05, 0.17, pupilM);
+          slit.position.set(ex + 0.05, ey, 0.29);
+          head.add(slit);
         });
         // the dark mouth interior (centered, so both jaws close evenly) — visible the moment the jaw swings open
         const mouth = BX(0.56, 0.12, 0.24, M(0x4a1414));
@@ -21673,6 +21870,118 @@
         head.add(neck);
         g.userData.head = head;
         g.userData.jaw = jaw;
+        return g;
+      }
+      // ==================== BED-STUY (Sunday) MANHOLE TENTACLE — the MODEL ====================
+      // makeZombieManhole() builds ONE group: the open, LIDLESS manhole (a dark bore + a
+      // cast-iron rim + murky water) plus a GIANT PURPLE OCTOPUS TENTACLE reaching up out of
+      // the water. The tentacle is a HIGH-POLY chain of ~18 tapered, fleshy segments (thick
+      // base -> thin tip) with a row of SUCKERS along the belly and a SUCKER CLAW at the tip.
+      // It is re-laid EVERY FRAME in the update case as a fluid, traveling-wave spline (exactly
+      // like the Staten Island garden hose) so it WRITHES and WHIPS out toward the worker and
+      // CLAMPS with its claw. Local frame (same as the gator): +x = forward (toward the worker —
+      // the update case rotates g to face him), +z = up, +/-y = left/right.
+      function makeZombieManhole() {
+        const g = new THREE.Group();
+        const rimM = M(0x3a3f45), // cast-iron manhole rim
+          hole = M(0x05070a),
+          water = M(0x10231c, { transparent: true, opacity: 0.92 });
+        // ---- the OPEN manhole (no cover) — the same "lurking in the water" look as the gator's ----
+        const bore = CY(0.72, 0.6, 0.9, hole, 24);
+        bore.rotation.x = Math.PI / 2;
+        bore.position.z = -0.35;
+        g.add(bore);
+        const rim = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.11, 10, 28), rimM);
+        rim.position.z = 0.015;
+        rim.castShadow = true;
+        g.add(rim);
+        const waterDisc = CY(0.66, 0.66, 0.03, water, 24);
+        waterDisc.rotation.x = Math.PI / 2;
+        g.add(waterDisc);
+        [0.26, 0.44].forEach((rr) => {
+          const rip = new THREE.Mesh(
+            new THREE.TorusGeometry(rr, 0.01, 6, 24),
+            M(0x2f4f40, { transparent: true, opacity: 0.5 }),
+          );
+          rip.position.z = 0.012;
+          g.add(rip);
+        });
+        // two eyes on top of the water (the "life in the sewer" tell) — simple dark eyeballs.
+        // (These are the tentacle's own eyes. The worker-following pupils live on the AMBER
+        // manhole eyes via addLurkingEyes — NOT on the tentacle.)
+        [-1, 1].forEach((s) => {
+          const e = SPH(0.1, M(0x2a2f26), 12, 10);
+          e.position.set(0, s * 0.27, 0.05);
+          g.add(e);
+        });
+        // ---- the TENTACLES — TWO GIANT PURPLE octopus tentacles (so it reads as an
+        // octopus, not one purple elephant trunk) ----
+        // Each is a chain of unit-length tapered cylinders (18 radial segments = high
+        // poly). The update case re-lays them every frame along a fluid traveling-wave
+        // curve (the Staten Island garden-hose trick) so they WRITHE and ROLL, exposing
+        // the row of SUCKERS that lines each belly. A SUCKER CLAW ends each one.
+        const NSEG = 18; // body segments per tentacle
+        const R_BASE = 0.3, // radius where it leaves the water — THICK (giant)
+          R_TIP = 0.11; // radius at the tip — THIN
+        const body = M(0x7a34a6), // royal purple flesh
+          suck = M(0x35124a), // sucker cups (deep purple)
+          suckHi = M(0x9a54c9); // sucker highlights
+        // smooth taper base->tip with a subtle fleshy bulge (not a perfect cone)
+        const radiusAt = (t) =>
+          Math.max(
+            0.05,
+            (R_BASE + (R_TIP - R_BASE) * t) * (1 + 0.06 * Math.sin(t * 6.283 + 0.5)),
+          );
+        const NSUCK = 9; // cups per belly
+        // build ONE tentacle (body + rolling sucker row + claw) into the group
+        const buildTentacle = () => {
+          const segs = [];
+          for (let i = 0; i < NSEG; i++) {
+            const t0 = i / NSEG,
+              t1 = (i + 1) / NSEG;
+            // CY(r1,r2,h,m,s): r1 = +Y end, r2 = -Y end. +Y is oriented along the curve
+            // (t0->t1), so r1 = radius at t1 (thin/tip), r2 = radius at t0 (thick/base).
+            const seg = CY(radiusAt(t1), radiusAt(t0), 1, body, 18);
+            g.add(seg);
+            segs.push(seg);
+          }
+          const suckers = [];
+          for (let i = 0; i < NSUCK; i++) {
+            const s = SP(0.055, suck, 10);
+            s.userData.t = (i + 0.5) / NSUCK; // where along the tentacle (0 base -> 1 tip)
+            g.add(s);
+            suckers.push(s);
+          }
+          const claw = new THREE.Group();
+          claw.add(SPH(0.14, body, 16, 12)); // the fleshy end
+          for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2;
+            const cs = SP(0.045, suckHi, 8); // grip suckers
+            cs.position.set(Math.cos(a) * 0.12, Math.sin(a) * 0.12, -0.055);
+            claw.add(cs);
+          }
+          const cap = SP(0.05, suck, 8); // central sucker at the very tip
+          cap.position.set(0, 0, -0.11);
+          claw.add(cap);
+          g.add(claw);
+          return { segs, suckers, claw };
+        };
+        const tentacles = [buildTentacle(), buildTentacle()];
+        // ---- a few bubbles bobbing at the base (a living-sewer tell) ----
+        const bubbles = [];
+        for (let i = 0; i < 4; i++) {
+          const b = SP(
+            R(0.02, 0.045),
+            M(0x9fd8e8, { transparent: true, opacity: 0.5 }),
+            8,
+          );
+          b.userData.phase = R(0, 6.28);
+          g.add(b);
+          bubbles.push(b);
+        }
+        // expose the animated parts for the update case
+        g.userData.tentacles = tentacles;
+        g.userData.bubbles = bubbles;
         return g;
       }
       function addCreature(type, opts) {
@@ -21848,6 +22157,23 @@
             c.data = makeAlligatorManhole();
             c.headPiv = c.data.userData.head;
             c.jawPiv = c.data.userData.jaw;
+            break;
+          case "zombieArm":
+            // The Bed-Stuy (Sunday) MANHOLE ZOMBIE ARM: one open, LIDLESS manhole in the street
+            // with a dead zombie forearm + hand that lurches up out of the water and GRABS at the
+            // worker (a real whack). See the "zombieArm" case in updateCreatures for the state
+            // machine (idle -> reach -> grab -> retract). The WHOLE model (pit + arm + hand) is
+            // c.data; the spawner pins c.wx/c.wy to a random street block (a fixed feature — it
+            // never moves, like the gator). Its grab is self-contained, so collideCreatures skips it.
+            c.sp = 0; // fixed in the hole — it just reaches out, it doesn't roam
+            c.dir = 1;
+            c.state = "idle"; // idle | reach | grab | retract
+            c.stateT = 0; // seconds in the current state
+            c.cd = R(1.5, 3.5); // first lurch a touch later (let the shift settle)
+            c.bob = R(0, 6.28); // the idle bob phase
+            c.data = makeZombieManhole();
+            c.tentacles = c.data.userData.tentacles;
+            c.tentBubbles = c.data.userData.bubbles;
             break;
           case "tric":
             c.wy = R(1.2, 4.2);
@@ -23224,6 +23550,11 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
+        // fresh level: drop the previous shift's registered lurk-eyes (their meshes are
+        // disposed with the old blocks) so updateManholeEyes() never touches stale refs
+        // and the list doesn't grow across level rebuilds. The gator + tentacle eyes are
+        // registered again further down, as part of this same spawnWorld() run.
+        manholeEyes.length = 0;
 
         // OVERTIME BASKETS — a standalone all-store street (uses the Flatbush level data,
         // so all the Flatbush storefront branches below apply naturally), but EVERY cell
@@ -23849,6 +24180,27 @@
               "  -> Harlem: the manhole alligator lurks at",
               gator.wx.toFixed(1),
               gator.wy.toFixed(1),
+            );
+          }
+        }
+        // ===== The Bed-Stuy (Sunday) MANHOLE ZOMBIE ARM: one open, LIDLESS manhole in the street
+        // with a dead zombie forearm + hand that lurches up out of the water and GRABS the
+        // sanitation worker (a real whack). It's a fixed feature of ONE random active block for the
+        // whole shift (like the Harlem gator). If its grabs are what put the worker down, the
+        // write-up reads "Failure to avoid a biohazard." (see the "zombieArm" case in
+        // updateCreatures.) =====
+        if (isBedStuyLevel()) {
+          const zBlocks = LEVEL_BLOCKS.filter((b) => b.garbage === true); // the active garbage blocks
+          if (zBlocks.length) {
+            const zb = zBlocks[(Math.random() * zBlocks.length) | 0];
+            const za = addCreature("zombieArm");
+            za.wx = zb.x + R(12, BLOCK_W - 12); // a spot along the block
+            za.wy = R(-7.0, -3.5); // out in the street (over the asphalt, in a lane)
+            za.g.position.set(za.wx, za.wy, GZ);
+            console.log(
+              "  -> Bed-Stuy: the manhole zombie arm lurks at",
+              za.wx.toFixed(1),
+              za.wy.toFixed(1),
             );
           }
         }
@@ -26977,6 +27329,93 @@
         "Watch the tire!",
         "Bitey!",
       ]; // a comedic line as it snaps at a bike / moto / car tire
+      // ==================== BED-STUY (Sunday, day 7) — the MANHOLE ZOMBIE ARM ====================
+      // ONE open manhole (NO cover) on a random street block of Bed-Stuy. A dead ZOMBIE ARM +
+      // hand lurches up out of the water and SNAPS its fingers shut to GRAB the sanitation worker
+      // (a solid, dragging whack). If its grabs are what put the worker down, the WRITTEN UP!
+      // stamp reads "Failure to avoid a biohazard." (see the "zombieArm" case in updateCreatures.)
+      const HP_HIT_ZOMBIE = 11; // a solid, dragging zombie grab — a real whack
+      const ZOMBIE_TERRITORY = 12; // the worker this close to the hole gets its full attention
+      const ZOMBIE_GRAB_R = 2.4; // at the grab apex, the fingers close on whoever is this close
+      const ZOMBIE_REACH = 0.55; // the arm lurches UP and OUT of the water toward the worker
+      const ZOMBIE_GRAB = 0.4; // the fingers SNAP shut (the snatch)
+      const ZOMBIE_RETRACT = 0.55; // it sinks back into the sewer for the next round
+      const ZOMBIE_CD_NEAR = [0.6, 1.4]; // it's HUNGRY — a short breather, then right back up
+      const ZOMBIE_CD_FAR = [1.8, 3.2]; // a little calmer when nobody's around
+      const ZOMBIE_LINES = [
+        "Sluuuurp...",
+        "Gloop... gloop...",
+        "Blorp!",
+        "Glub... glub... glub...",
+        "Slurp... slurp...",
+        "Blrrrp... glub...",
+      ]; // the purple octopus's wet, incoherent slurps, bubbled over the hole
+      const ZOMBIE_WORKER_LINES = [
+        "A ZOMBIE arm in the manhole!!",
+        "I did NOT sign up for THIS!",
+        "That's a biohazard — OW!",
+        "It's trying to GRAB me!",
+      ]; // what the worker yells after a grab
+      // ==================== SHARED: manhole-predator FAIRNESS (alligator + zombie tentacle) ====================
+      // (1) NO CLIPPING THROUGH VEHICLES — the gator / tentacle must NOT attack out of the water
+      //     while a car / motorcycle / bike is on the hole or on the way out toward the worker.
+      //     While a vehicle is in the way they hold back (stay coiled) and only re-emerge +
+      //     strike once the path is clear.
+      // (2) NO SNEAK ATTACKS — they must be ON SCREEN (inside the ortho frustum around the
+      //     worker) and "primed" for a beat before their attack is allowed. That on-screen
+      //     dwell is the fairness "tell": you always get to SEE them before they come up.
+      const MANHOLE_PRESENCE = 1.6; // seconds on-screen (and unblocked) before a strike is allowed
+      const BLOCK_VEH_TYPES = { car: 1, moto: 1, ebike: 1, bike: 1, tric: 1, truck: 1 };
+      function isBlockVehicle(v) {
+        return !!(v && BLOCK_VEH_TYPES[v.type]);
+      }
+      // True if a vehicle is on the hole, or on the straight line from the hole out toward the
+      // worker within `reach` (the creature's strike range). Used to hold them back.
+      function creatureBlockedByVehicle(c, reach) {
+        if (state !== "play") return false;
+        reach = reach || 2.6;
+        const ax = p.wx - c.wx,
+          ay = p.wy - c.wy;
+        const segL2 = ax * ax + ay * ay || 1;
+        for (let i = 0; i < creatures.length; i++) {
+          const v = creatures[i];
+          if (!isBlockVehicle(v)) continue;
+          const rad = (v.boxW || 1.2) * 0.5 + 0.5; // vehicle half-width + a clearance margin
+          const dx = v.wx - c.wx,
+            dy = v.wy - c.wy;
+          if (Math.hypot(dx, dy) < rad) return true; // parked right on top of the hole
+          const t = (dx * ax + dy * ay) / segL2; // project the vehicle onto the hole -> worker ray
+          if (t < 0.08) continue; // only counts on the way OUT (not behind the hole)
+          const along = Math.hypot(ax, ay) * t;
+          if (along > reach + rad) continue; // beyond the creature's strike range
+          const px = c.wx + ax * t,
+            py = c.wy + ay * t;
+          if (Math.hypot(v.wx - px, v.wy - py) < rad) return true; // a vehicle on the reach path
+        }
+        return false;
+      }
+      // Is the creature on screen? The camera is ortho, centred on the worker; the visible
+      // half-diagonal (world units) is hypot(right, top). Keep a margin so the creature is
+      // clearly visible before it may strike.
+      function creatureOnScreen(c) {
+        const rw = camera && isFinite(camera.right) ? camera.right : 8;
+        const rt = camera && isFinite(camera.top) ? camera.top : 4.5;
+        const halfDiag = Math.hypot(rw, rt) || 8;
+        return Math.hypot(p.wx - c.wx, p.wy - c.wy) < halfDiag * 0.92;
+      }
+      // Advance / hold the on-screen "primed" timer for a manhole predator, and report whether
+      // its attack is allowed RIGHT NOW. The "tell" resets to 0 whenever the creature leaves
+      // the screen or a vehicle is blocking it — so it can never spring a surprise. Called at
+      // the top of each creature's update case with the frame dt.
+      function manholePredatorReady(c, dt) {
+        c._primed = c._primed || 0;
+        if (state === "play" && creatureOnScreen(c) && !creatureBlockedByVehicle(c, 2.6)) {
+          c._primed += dt;
+        } else {
+          c._primed = 0; // lost sight / a vehicle blocked it — the "tell" resets
+        }
+        return c._primed >= MANHOLE_PRESENCE;
+      }
       // ==================== BED-STUY HIGH-SCHOOL FOOTBALL PLAYER (Sunday, day 7) ====================
       // ONE player, ONE block — he NEVER leaves it (the spawn sets his line of scrimmage
       // + hard block bounds). He PRACTICES his tackling on the sanitation worker: sets at
@@ -27690,6 +28129,12 @@
         bluejay: ["Feathered Aggression Non-Compliance"],
         // --- the Harlem (Saturday) alligator: it's a PROTECTED SPECIES, and it bit you ---
         gator: ["Endangering a protected species"],
+        // --- the Bed-Stuy (Sunday) zombie arm: you failed to avoid a BIOHAZARD ---
+        zombieArm: [
+          "Failure to avoid a biohazard",
+          "Dead-tissue contact protocol was not followed",
+          "Failure to maintain distance from the contaminated asset",
+        ],
         // --- the Staten Island mafia guy: you failed to enter witness protection ---
         mafia: [
           "Failure to enter witness protection",
@@ -29120,6 +29565,7 @@
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
           if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
           if (c.type === "gator") continue; // the Harlem alligator is in its open manhole — no bump collision; its bite (worker whack / tire clack) is handled in its own AI case
+          if (c.type === "zombieArm") continue; // the Bed-Stuy zombie arm is in its open manhole — no bump collision; its grab (worker whack) is handled in its own AI case
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
           if (c.type === "bball") continue; // street-baller: non-solid — you dodge the ball he hurls at you (no bump collision)
@@ -34447,6 +34893,17 @@
               // passing tire HERE — that's why collideCreatures skips the gator. It's a FIXED
               // feature (c.sp=0): the generic loop syncs c.g to c.wx/c.wy (set at spawn), z=GZ.
               c.stateT = (c.stateT || 0) + dt;
+              // NO SNEAK ATTACKS / NO CLIPPING THROUGH VEHICLES: while a car/moto/bike is on the
+              // way out, pull back into the sewer until the path is clear. A strike can only
+              // START once it's been on-screen a beat AND unblocked (manholePredatorReady).
+              if (
+                creatureBlockedByVehicle(c, GATOR_BITE_R) &&
+                c.state !== "idle" &&
+                c.state !== "sink"
+              ) {
+                c.state = "sink";
+                c.stateT = 0;
+              }
               const head = c.headPiv,
                 jaw = c.jawPiv;
               if (state === "play")
@@ -34458,7 +34915,12 @@
                 if (head) head.rotation.z = 0;
                 if (jaw) jaw.rotation.y = 0;
                 c.cd = (c.cd || 0) - dt; // the breather only ticks while it lurks
-                if (c.cd <= 0 && state === "play") {
+                if (
+                  c.cd <= 0 &&
+                  state === "play" &&
+                  manholePredatorReady(c, dt) &&
+                  !creatureBlockedByVehicle(c, GATOR_BITE_R)
+                ) {
                   c.state = "rise"; // RISE: nose-first out of the water
                   c.stateT = 0;
                   SFX.playGatorGrowl();
@@ -34563,6 +35025,237 @@
                     state === "play" && Math.abs(p.wx - c.wx) < GATOR_TERRITORY
                       ? R(GATOR_CD_NEAR[0], GATOR_CD_NEAR[1])
                       : R(GATOR_CD_FAR[0], GATOR_CD_FAR[1]);
+                }
+              }
+              break;
+            }
+            case "zombieArm": {
+              // The Bed-Stuy (Sunday) MANHOLE TENTACLE: a GIANT PURPLE octopus tentacle lurks
+              // in an open (LIDLESS) manhole. It WHIPS UP and OUT of the water toward the
+              // worker, then CLAMPS its sucker claw to GRAB. If it connects it's a solid,
+              // dragging whack; if it comes up and finds nobody it just flails and slithers
+              // back under. Self-contained (like the gator): the grab is resolved HERE, so
+              // collideCreatures skips it. FIXED feature (c.sp=0): the generic loop syncs
+              // c.g to c.wx/c.wy (set at spawn), z=GZ. States: idle -> reach -> grab -> retract.
+              // The tentacle body is re-laid EVERY FRAME as a fluid, traveling-wave spline
+              // (the exact Staten Island garden-hose trick) so it writhes rather than pivots.
+              c.stateT = (c.stateT || 0) + dt;
+              // NO SNEAK ATTACKS / NO CLIPPING THROUGH VEHICLES: while a car/moto/bike is on the
+              // way out, sink back into the sewer until the path is clear (then re-emerge to grab).
+              if (
+                creatureBlockedByVehicle(c, ZOMBIE_GRAB_R) &&
+                (c.state === "reach" || c.state === "grab")
+              ) {
+                c.state = "retract";
+                c.stateT = 0;
+                c._zombieResolved = false;
+              }
+              if (state === "play")
+                c.g.rotation.z = Math.atan2(p.wy - c.wy, p.wx - c.wx); // the tentacle whips toward the worker
+              const dWorker = Math.hypot(p.wx - c.wx, p.wy - c.wy);
+              const now = performance.now();
+              const phase = now * 0.0028 + (c.bob || 0); // traveling-wave phase
+              // ext  = how far out it's reached (0 coiled in the hole -> 1 fully out at the worker)
+              // clawK = how far the claw is clamped shut (0 splayed open -> 1 clamped)
+              let ext = 0,
+                clawK = 0;
+              if (c.state === "idle") {
+                // lurking in the water: the tip peeks up and sways, mostly coiled
+                ext = 0.18 + 0.05 * Math.sin(now * 0.0016 + (c.bob || 0));
+                c.cd = (c.cd || 0) - dt; // the breather only ticks while it lurks
+                if (
+                  c.cd <= 0 &&
+                  state === "play" &&
+                  manholePredatorReady(c, dt) &&
+                  !creatureBlockedByVehicle(c, ZOMBIE_GRAB_R)
+                ) {
+                  c.state = "reach"; // REACH: it whips up and out toward the worker
+                  c.stateT = 0;
+                  SFX.playZombieGroan();
+                  if (Math.abs(p.wx - c.wx) < ZOMBIE_TERRITORY && Math.random() < 0.5)
+                    Voice.say(pick(ZOMBIE_LINES), 2.2, 1.25, c.wx, c.wy, "neutral", "ped");
+                }
+              } else if (c.state === "reach") {
+                // LURCH OUT: whips up and out toward the worker, claw SPLAYED WIDE
+                const k = Math.min(1, c.stateT / ZOMBIE_REACH);
+                ext = 1 - (1 - k) * (1 - k); // ease-out: a fast lunge, then settle
+                if (k >= 1) {
+                  c.state = "grab"; // THE GRAB: now it clamps
+                  c.stateT = 0;
+                }
+              } else if (c.state === "grab") {
+                // THE GRAB: held at full reach, the claw SNAPS shut — the moment it can catch him
+                ext = 1;
+                clawK = Math.min(1, c.stateT / ZOMBIE_GRAB);
+                if (!c._zombieResolved && c.stateT >= ZOMBIE_GRAB * 0.5) {
+                  c._zombieResolved = true;
+                  SFX.playZombieGrab();
+                  if (state === "play" && dWorker < ZOMBIE_GRAB_R) {
+                    // IT GOT THE WORKER: a solid, dragging grab (real damage) + a stun.
+                    hurtNPC(HP_HIT_ZOMBIE, "zombieArm", true);
+                    doStun(0.7, "hit");
+                    Voice.say(pick(ZOMBIE_WORKER_LINES), 2.6, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+                    Voice.say(pick(ZOMBIE_LINES), 2.2, 1.3, c.wx, c.wy, "neutral", "ped");
+                    spawnWaterSplash(c.wx, c.wy);
+                  } else {
+                    // came up to grab and found nobody — a flail in the air (a wet snatch)
+                    Voice.say(pick(ZOMBIE_LINES), 2.0, 1.3, c.wx, c.wy, "neutral", "ped");
+                    spawnWaterSplash(c.wx, c.wy);
+                  }
+                }
+                if (c.stateT >= ZOMBIE_GRAB) {
+                  c.state = "retract"; // now it slithers back into the sewer
+                  c.stateT = 0;
+                }
+              } else if (c.state === "retract") {
+                // SINK BACK: the tentacle slithers back into the water, the claw relaxes
+                const k = Math.min(1, c.stateT / ZOMBIE_RETRACT);
+                ext = 1 - k * k * (3 - 2 * k); // ease the tip back in
+                clawK = Math.max(0, 1 - k * 2);
+                if (k >= 1) {
+                  c.state = "idle"; // wait for the next round
+                  c._zombieResolved = false;
+                  c.cd =
+                    state === "play" && Math.abs(p.wx - c.wx) < ZOMBIE_TERRITORY
+                      ? R(ZOMBIE_CD_NEAR[0], ZOMBIE_CD_NEAR[1])
+                      : R(ZOMBIE_CD_FAR[0], ZOMBIE_CD_FAR[1]);
+                }
+              }
+              // ---- RE-LAY BOTH tentacles as FLUID traveling-wave splines (the Staten Island
+              //     hose). They SPLAY apart, WRITHE on de-synced waves, and ROLL so the sucker
+              //     row on each belly swings into view (no more single-trunk / elephant look). ----
+              // Local frame: +x toward the worker (c.g already faces him), +z up. Anchor in water.
+              const reach = Math.min(dWorker, 2.4); // cap the stretch
+              const tentArr = c.tentacles || [];
+              for (let ti = 0; ti < tentArr.length; ti++) {
+                const T = tentArr[ti];
+                const isFeel = ti === 1; // the 2nd tentacle FEELS for things on its own
+                const sgn = ti === 0 ? 1 : -1; // the two splay in OPPOSITE directions
+                const ph = phase + ti * 2.1; // de-sync the traveling wave per tentacle
+                // local extension + aim: the grabber (ti 0) uses the shared grab `ext` and
+                // aims at the worker (+x). The FEELER runs its own wander, sweeps a DIFFERENT
+                // direction as if searching, and periodically DIPS back into the sewer.
+                let extL = ext;
+                let aimAng = 0; // 0 = straight at the worker
+                let sway = 0.34 * Math.sin(now * 0.0011 + (c.bob || 0) + ti * 1.4);
+                if (isFeel) {
+                  const bob0 = c.bob || 0;
+                  const feel = 0.55 + 0.3 * Math.sin(now * 0.00045 + bob0); // gentle in/out wander
+                  const dip = 0.5 + 0.5 * Math.sin(now * 0.00021 + bob0 * 1.9); // slow re-enter cycle
+                  extL = (0.15 + 0.7 * feel) * (0.12 + 0.88 * dip * dip); // near 0 = coiled in the hole
+                  aimAng = 0.95 * Math.sin(now * 0.0005 + bob0) + 0.55 * Math.sin(now * 0.00023 + bob0 * 2.3); // a slow SEARCH sweep, NOT at the worker
+                  sway = 0.2 * Math.sin(now * 0.0009 + bob0);
+                }
+                const clawL = isFeel ? clawK * 0.25 : clawK; // the feeler barely clamps (it's probing)
+                const splay = 0.17 * sgn * (0.35 + extL); // lateral separation (grows as it whips)
+                const dirX = Math.cos(aimAng),
+                  dirY = Math.sin(aimAng); // the direction this tentacle reaches in the ground plane
+                const outDist = 0.4 + extL * Math.max(0.2, reach); // how far out it's extended
+                const ax = sgn * 0.05,
+                  ay = sgn * splay * 0.1,
+                  az = 0.05; // emerge from slightly different spots in the water
+                const hx = ax + dirX * outDist + sgn * splay; // out along its OWN aim
+                const hz = isFeel
+                  ? 0.06 + extL * 0.95 // the feeler SINKS into the water when it retracts
+                  : 0.3 + extL * 0.66; // the grabber always stays well above the surface
+                const hy = ay + dirY * outDist + sway + sgn * splay * 0.55; // out along its OWN aim
+                const amp = 0.07 + 0.34 * Math.sin(Math.min(1, extL * 1.1) * Math.PI) * extL + 0.05; // serpentine amp
+                const archH = 0.14 + 0.46 * extL; // how much the middle arches up
+                const W1 = 5.5 + ti * 1.3,
+                  W2 = 9.5 + ti * 1.7;
+                const md = Math.hypot(hx - ax, hy - ay) || 1;
+                const pdx = (hy - ay) / md,
+                  pdy = -(hx - ax) / md; // unit perpendicular in the x-y plane
+                const P = (t) => {
+                  const env = Math.sin(t * Math.PI); // taut at the anchor (0) and the tip (1)
+                  const w = Math.sin(t * W1 - ph) * 0.7 + Math.sin(t * W2 - ph * 1.7) * 0.3;
+                  return [
+                    ax + (hx - ax) * t + pdx * w * amp * env,
+                    ay + (hy - ay) * t + pdy * w * amp * env,
+                    az + (hz - az) * t + archH * env, // arch up
+                  ];
+                };
+                const bodyR = (t) =>
+                  Math.max(0.05, (0.3 + (0.11 - 0.3) * t) * (1 + 0.06 * Math.sin(t * 6.283 + 0.5)));
+                // body segments: midpoint + length + orientation along the curve
+                const N = T.segs.length;
+                for (let i = 0; i < N; i++) {
+                  const a = P(i / N),
+                    b = P((i + 1) / N);
+                  const seg = T.segs[i];
+                  seg.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+                  const dx = b[0] - a[0],
+                    dy = b[1] - a[1],
+                    dz = b[2] - a[2];
+                  const len = Math.hypot(dx, dy, dz) || 0.0001;
+                  seg.scale.y = len;
+                  seg.quaternion.setFromUnitVectors(HOS_UP, HOS_DIR.set(dx / len, dy / len, dz / len));
+                }
+                // suckers: a row that ROLLS around the belly so it visibly swings into view
+                const rollBase = ti * 1.5 + (c.bob || 0); // de-sync the roll per tentacle
+                for (let i = 0; i < T.suckers.length; i++) {
+                  const su = T.suckers[i];
+                  const t = Math.min(0.96, Math.max(0.04, su.userData.t));
+                  const q = P(t);
+                  const ta = P(Math.min(1, t + 0.02)),
+                    tb = P(Math.max(0, t - 0.02));
+                  let tx = ta[0] - tb[0],
+                    ty = ta[1] - tb[1],
+                    tz = ta[2] - tb[2];
+                  const tl = Math.hypot(tx, ty, tz) || 1;
+                  tx /= tl;
+                  ty /= tl;
+                  tz /= tl; // unit tangent
+                  // perpendicular basis around the tangent (p1 horizontal, p2 = tangent x p1)
+                  let p1x = -ty,
+                    p1y = tx,
+                    p1z = 0;
+                  const p1l = Math.hypot(p1x, p1y, p1z);
+                  if (p1l < 0.05) {
+                    p1x = 1;
+                    p1y = 0;
+                    p1z = 0;
+                  } else {
+                    p1x /= p1l;
+                    p1y /= p1l;
+                  }
+                  const p2x = ty * p1z - tz * p1y,
+                    p2y = tz * p1x - tx * p1z,
+                    p2z = tx * p1y - ty * p1x;
+                  const roll = rollBase + now * 0.0035 + t * 2.0; // slow, visible roll along the belly
+                  const rr = bodyR(t) * 0.94;
+                  su.position.set(
+                    q[0] + (p1x * Math.cos(roll) + p2x * Math.sin(roll)) * rr,
+                    q[1] + (p1y * Math.cos(roll) + p2y * Math.sin(roll)) * rr,
+                    q[2] + (p1z * Math.cos(roll) + p2z * Math.sin(roll)) * rr,
+                  );
+                }
+                // the claw: sits at the tip and CLAMPS (scale + twist) to GRAB
+                {
+                  const q = P(1),
+                    a = P(0.9);
+                  const dx = q[0] - a[0],
+                    dy = q[1] - a[1],
+                    dz = q[2] - a[2];
+                  const len = Math.hypot(dx, dy, dz) || 0.0001;
+                  T.claw.position.set(q[0], q[1], q[2]);
+                  T.claw.quaternion.setFromUnitVectors(HOS_UP, HOS_DIR.set(dx / len, dy / len, dz / len));
+                  const s = 1 - clawL * 0.45; // splayed (1) -> clamped (0.55); the feeler barely clamps
+                  T.claw.scale.set(s, s, s);
+                  T.claw.rotation.x = clawL * 0.5; // a little twist as it clamps
+                }
+              }
+              // bubbles bobbing at the base (a living-sewer tell)
+              const bubbles = c.tentBubbles;
+              if (bubbles) {
+                for (let i = 0; i < bubbles.length; i++) {
+                  const b = bubbles[i];
+                  const ph = now * 0.002 + (b.userData.phase || 0);
+                  b.position.set(
+                    Math.sin(ph) * 0.16,
+                    Math.cos(ph * 1.3) * 0.12,
+                    0.12 + 0.06 * Math.sin(ph * 0.9),
+                  );
                 }
               }
               break;
@@ -40412,6 +41105,7 @@
           updateDustParticles(dt);
           updateStarParticles(dt);
           updateBlocks(dt);
+          updateManholeEyes(); // blink the "lurking" eyes in the open (no-cover) manholes
           cleanupLandedCans();
           updateFootprints(dt);
           updateFlecks(dt); // brown dog-shit flecks: arcing, bouncing, fading
