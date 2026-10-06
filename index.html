@@ -3871,7 +3871,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.445</div>
+          <div id="app-version" class="menu-version">v1.0.446</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4099,7 +4099,6 @@
         <div class="tag" id="week-tag">ALL 7 DAYS CLEARED - TOP NOTCH!</div>
         <div class="score">WEEK TOTAL $<span id="week-score">000000</span></div>
         <div class="score">BEST SHIFT $<span id="week-hi">000000</span></div>
-        <div class="modal-ver">v1.0.1</div>
         <button id="btnWeekRestart">WORK ANOTHER WEEK</button>
       </div></div
     >
@@ -4126,7 +4125,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.445';
+      const APP_VERSION = '1.0.446';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4837,13 +4836,49 @@
       // every street hazard (people + vehicles) spawns each day, so Sunday is the busiest,
       // most dangerous shift of the week.
       const LEVEL_DAYS = [
-        { day: "MONDAY", borough: "MANHATTAN", area: "GRAMMERCY PARK" },
-        { day: "TUESDAY", borough: "THE BRONX", area: "MOTT HAVEN" },
-        { day: "WEDNESDAY", borough: "BROOKLYN", area: "FLATBUSH" },
-        { day: "THURSDAY", borough: "QUEENS", area: "MASPETH" },
-        { day: "FRIDAY", borough: "STATEN ISLAND", area: "NEW DORP" },
-        { day: "SATURDAY", borough: "MANHATTAN", area: "HARLEM" },
-        { day: "SUNDAY", borough: "BROOKLYN", area: "BED-STUY", special: "STORM DEBRIS SUNDAY! DOUBLE TIME!" },
+        {
+    day: "MONDAY",
+    borough: "MANHATTAN",
+    area: "GRAMMERCY PARK",
+    warning: "WATCH OUT FOR THE EDP!",
+  },
+        {
+    day: "TUESDAY",
+    borough: "THE BRONX",
+    area: "MOTT HAVEN",
+    warning: "DON'T PESTER THE DRUG PUSHERS!",
+  },
+        {
+    day: "WEDNESDAY",
+    borough: "BROOKLYN",
+    area: "FLATBUSH",
+    warning: "WATCH FOR CHILDREN!",
+  },
+        {
+    day: "THURSDAY",
+    borough: "QUEENS",
+    area: "MASPETH",
+    warning: "RUN THE GAUNTLET",
+  },
+        {
+    day: "FRIDAY",
+    borough: "STATEN ISLAND",
+    area: "NEW DORP",
+    warning: "SNITCHES GET STITCHES!",
+  },
+        {
+    day: "SATURDAY",
+    borough: "MANHATTAN",
+    area: "HARLEM",
+    warning: "CLOSE ENCOUNTERS OF THE HOMELESS KIND",
+  },
+        {
+    day: "SUNDAY",
+    borough: "BROOKLYN",
+    area: "BED-STUY",
+    special: "STORM DEBRIS SUNDAY! DOUBLE TIME!",
+    warning: "SACKS AND CRIME",
+  },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 days (Mon..Sun)
       const START_LEVEL = 1; // which day a fresh week begins on (1 = Monday, Manhattan) — the full Mon..Sun week, fine-tuned level by level
@@ -39095,9 +39130,16 @@
           );
         }
         // Special-day banner (Bed-Stuy "STORM DEBRIS SUNDAY! DOUBLE TIME!") — shown loud, hidden on other days.
+        // A plain per-day WARNING (e.g. Monday "WATCH OUT FOR THE EDP!") also uses this
+        // banner but does NOT touch the weather or the objective line (those key off d.special).
+        // When a day has BOTH a special and a warning (Sunday), they're joined on one banner line.
         const sp = $("day-intro-special");
-        if (d.special) {
-          sp.textContent = d.special;
+        const spParts = [];
+        if (d.special) spParts.push(d.special);
+        if (d.warning) spParts.push(d.warning);
+        const spText = spParts.join(" \u00b7 ");
+        if (spText) {
+          sp.textContent = spText;
           sp.classList.add("show");
         } else {
           sp.classList.remove("show");
