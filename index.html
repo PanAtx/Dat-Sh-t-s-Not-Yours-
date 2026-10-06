@@ -496,6 +496,46 @@
         65%  { transform: scale(0.95); }
         100% { transform: scale(1); }
       }
+      /* ===== MOBILE (phone, any orientation) — shrink + soften the overtime HUD so it stops
+         covering the playfield. Catches portrait phones (narrow width) AND landscape phones
+         (short height). The big countdown, the OVERTIME label, the top time bar, and the two
+         goal chips (BASKETS counter + STREET CASH counter) all get SMALLER and MORE
+         TRANSPARENT, so the gameplay behind them stays clearly visible on a phone. ===== */
+      @media (max-width: 600px), (max-height: 480px) {
+        #bonus-clock {
+          top: calc(50px + env(safe-area-inset-top, 0px));
+        }
+        #bonus-clock-label {
+          font-size: clamp(7px, 2.1vw, 10px);
+          letter-spacing: 2px;
+          margin-bottom: 0;
+          opacity: 0.85;
+        }
+        #bonus-clock-num {
+          font-size: clamp(30px, 11vw, 58px);
+          -webkit-text-stroke: 1.5px rgba(0, 0, 0, 0.5);
+          opacity: 0.85;
+        }
+        #bonus-clock-bar {
+          height: 6px;
+        }
+        #bonus-clock-fill {
+          border-radius: 0 0 4px 0;
+        }
+        #bonus-goal {
+          top: calc(118px + env(safe-area-inset-top, 0px));
+          left: calc(12px + env(safe-area-inset-left, 0px));
+          gap: 4px;
+        }
+        .bonus-goal-chip {
+          font-size: clamp(8px, 2.5vw, 11px);
+          letter-spacing: 0.5px;
+          padding: 4px 8px;
+          border-width: 1.5px;
+          background: rgba(4, 22, 12, 0.34);
+          opacity: 0.92;
+        }
+      }
       /* ---- pressure tiers (JS toggles these as the clock runs low) ---- */
       #bonus-clock.bc-warn #bonus-clock-num {
         color: #ffcf4d;
@@ -3831,7 +3871,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.444</div>
+          <div id="app-version" class="menu-version">v1.0.445</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4086,7 +4126,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.444';
+      const APP_VERSION = '1.0.445';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -14361,8 +14401,10 @@
         b.group.add(g);
         // Solid sidewalk obstacle: NPC walkers route around it (b.trees is the
         // avoidable-obstacle list). It is NOT a worker hazard — decorative like a tree.
+        // Tagged kind:"mailbox" so things that need a REAL tree (the blue jay's nest) can
+        // tell it apart — b.trees holds BOTH sidewalk trees and these collection boxes.
         if (!b.trees) b.trees = [];
-        b.trees.push({ wx: wx, wy: wy });
+        b.trees.push({ wx: wx, wy: wy, kind: "mailbox" });
       }
       // ==================== LURKING EYES in the OPEN (no-cover) manholes ====================
       // The generic street manhole has its lid pried OFF (resting on the road) and an open dark
@@ -24088,15 +24130,22 @@
         // Non-Compliance". She and the nest are world objects for the whole shift —
         // no recycling.
         if (isStatenIslandLevel()) {
-          // ONE random GARBAGE block that actually has a sidewalk tree to nest in
-          // (Staten Island trees live on the sidewalk — the lawn band is driveways)
+          // ONE random GARBAGE block that has a REAL sidewalk tree to nest in. b.trees
+          // holds BOTH sidewalk trees AND USPS collection boxes (mailboxes) — the blue jay
+          // must nest in an actual TREE, so drop any entry tagged kind:"mailbox" and only
+          // consider blocks that still have at least one real tree left.
           const bjBlocks = blocks.filter(
-            (b) => b.garbage && b.trees && b.trees.length > 0,
+            (b) =>
+              b.garbage &&
+              b.trees &&
+              b.trees.length > 0 &&
+              b.trees.some((t) => t.kind !== "mailbox"),
           );
           if (bjBlocks.length) {
             const bjBlock = bjBlocks[(Math.random() * bjBlocks.length) | 0];
+            const realTrees = bjBlock.trees.filter((t) => t.kind !== "mailbox");
             const bjTree =
-              bjBlock.trees[(Math.random() * bjBlock.trees.length) | 0];
+              realTrees[(Math.random() * realTrees.length) | 0];
             const NEST_Z = 3.0; // in the canopy (trunk 2.0 + canopy 0.7-1.1) — the family sits in the leaves
             const nestG = makeBlueJayNest();
             nestG.position.set(bjTree.wx, bjTree.wy, GZ + NEST_Z);
