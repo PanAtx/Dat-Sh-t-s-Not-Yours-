@@ -2968,6 +2968,28 @@
           0 0 16px rgba(110, 200, 255, 0.4),
           inset 0 0 10px rgba(150, 225, 255, 0.35);
       }
+      /* Desktop (mouse/trackpad + keyboard, i.e. a fine pointer with hover): the analog
+         joystick AND the ACT button are redundant there — the keyboard (WASD/arrows for
+         movement, Space/KeyE for the action) drives everything — so hide both. Keep them on
+         touch devices (phones + tablets report hover:none / pointer:coarse) where they're the
+         primary controls. Hiding via display:none keeps the elements in the DOM, so the
+         existing joystick/ACT JS (event listeners, .clientWidth) is unaffected on desktop. */
+      @media (hover: hover) and (pointer: fine) {
+        #joy,
+        #joy-stick,
+        #actbtn {
+          display: none !important;
+        }
+      }
+      /* Context-aware: if a PHYSICAL keyboard or gamepad is detected (on any device, e.g. a
+         tablet/phone with a keyboard or gamepad attached), the on-screen ACT button is
+         redundant — Space/KeyE or the gamepad's action button already drive the action — so
+         hide it. Complements the desktop rule above and only ever REMOVES the ACT button,
+         never the joystick, so touch movement always stays available. */
+      body.has-kb #actbtn,
+      body.has-pad #actbtn {
+        display: none !important;
+      }
       #actbtn {
         position: absolute;
         right: calc(max(90px, 9vw) + env(safe-area-inset-right, 0px));
@@ -3809,7 +3831,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.443</div>
+          <div id="app-version" class="menu-version">v1.0.444</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4064,7 +4086,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.443';
+      const APP_VERSION = '1.0.444';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -40001,6 +40023,38 @@
       [joy, actBtn].forEach((el) =>
         el.addEventListener("contextmenu", (e) => e.preventDefault()),
       );
+      // ---- Context-aware controls: if a PHYSICAL keyboard or gamepad is present, the
+      //      on-screen ACT button is redundant (Space/KeyE, or the gamepad's action button,
+      //      already drive the action), so tag <body> and let the CSS hide #actbtn on ANY
+      //      device. This complements the desktop media query and covers tablets/phones that
+      //      have a keyboard or gamepad attached. It only ever removes the ACT button, never
+      //      the joystick, so touch movement always stays available.
+      function markPhysicalInput(cls) {
+        if (document && document.body) document.body.classList.add(cls);
+      }
+      window.addEventListener("keydown", function () { markPhysicalInput("has-kb"); }, {
+        passive: true,
+        once: true,
+      });
+      window.addEventListener(
+        "gamepadconnected",
+        function () {
+          markPhysicalInput("has-pad");
+        },
+        { passive: true },
+      );
+      // A gamepad may already be connected before the page finished wiring up: poll once.
+      if (typeof navigator !== "undefined" && navigator.getGamepads) {
+        try {
+          const pads = navigator.getGamepads();
+          for (let gi = 0; gi < pads.length; gi++) {
+            if (pads[gi]) {
+              markPhysicalInput("has-pad");
+              break;
+            }
+          }
+        } catch (err) {}
+      }
       // The one movement vector for the whole game: combines the keyboard (digital),
       // the gamepad left stick (analog) and the touch joystick (analog) by taking the
       // input with the largest magnitude, in the route frame (f = forward, l = strafe).
