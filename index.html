@@ -3871,7 +3871,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.447</div>
+          <div id="app-version" class="menu-version">v1.0.448</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4125,7 +4125,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.447';
+      const APP_VERSION = '1.0.448';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4800,6 +4800,7 @@
         punchTarget: null, // the attacker being punched (the creature record)
         attackerT: 0, // punchback window: 10s after being hit by one of the 13 attack NPCs
         attackerCause: "", // the offense that armed the punchback window
+        kickT: 0, // rat kick: 0.3s leg-whip + lean (decays in updatePlayer); the rat's fling lives on the rat
         rainQuip: false, // per-day gate for the "Do you pick up in the rain?" Karen line
       };
       let carry = "none",
@@ -6293,7 +6294,17 @@
           this.noise(0.1, "bandpass", 1300, 0.28, 0.21); // 1st echo (a block away)
           this.tone("sine", 94, 40, 0.32, 0.26, 0.23); // the echo's boom
           this.noise(0.16, "lowpass", 620, 0.15, 0.42); // 2nd, fainter echo
-        },playPlopSound() {
+        },
+        // Rat SQUEAL: two fast, high squeaky chirps ("squeeeak!") - saw/square up-down
+        // pitch bends over a whiff of air. Procedural (Web Audio).
+        playSqueal() {
+          this.ensure();
+          this.tone("sawtooth", 950, 2600, 0.09, 0.42); // the rising squeak
+          this.tone("square", 3050, 1250, 0.1, 0.34, 0.07); // the falling squeak
+          this.tone("sawtooth", 1650, 3600, 0.13, 0.34, 0.15); // a higher second squeak
+          this.noise(0.07, "highpass", 4800, 0.14); // a touch of breath/air
+        },
+        playPlopSound() {
           this.ensure();
           this.tone("sine", 210, 52, 0.16, 0.8); // a quick low wet "plop"
           this.noise(0.09, "lowpass", 520, 0.35); // a soft wet splash
@@ -25740,6 +25751,7 @@
         p.punchT = 0; // fresh shift: no punchback jab in progress
         p.punchLandT = 0;
         p.punchTarget = null;
+        p.kickT = 0; // fresh shift: no rat kick in progress
         p.attackerT = 0;
         p.attackerCause = "";
         endRage(); // fresh shift: clear any stale BEAST MODE (restore the face, remove the halo + fist rig)
@@ -29490,12 +29502,72 @@
           "worker",
         );
       }
+      // ==================== KICK A RAT (the worker's other job) ====================
+      // When his hands are FREE and a rat is right in front of him, the Act button
+      // KICKS the rat: a squeal, a fling across the street, and it scrambles up and
+      // scurries off. (Hands full = Act is for dumping trash, so no kick.)
+      const RAT_KICK_RANGE = 2.6; // how close the rat must be to land in the worker's shins
+      const RAT_KICK_FLING = 8; // the launch speed (u/s) the rat gets flung at
+      function tryKickRat() {
+        if (state !== "play" || p.stunT > 0) return false;
+        if (carry !== "none") return false; // hands full -> Act dumps trash, no kick
+        let best = null,
+          bd = RAT_KICK_RANGE;
+        for (let i = 0; i < creatures.length; i++) {
+          const c = creatures[i];
+          if (c.type !== "rat") continue;
+          if (c.kickT > 0 || c.getUpT > 0) continue; // already flung / still getting up
+          const d = dist(c.wx, c.wy);
+          if (d < bd) {
+            bd = d;
+            best = c;
+          }
+        }
+        if (!best) return false; // no rat in range -> fall through to the normal Act
+        kickRat(best);
+        return true;
+      }
+      function kickRat(c) {
+        // direction of the kick: worker -> rat (the rat flies AWAY along this line)
+        const dx = c.wx - p.wx,
+          dy = c.wy - p.wy;
+        const d = Math.hypot(dx, dy) || 0.001;
+        const nx = dx / d,
+          ny = dy / d;
+        // the worker snaps to face the rat and whips a kick
+        p.facing = Math.atan2(dy, dx);
+        p.kickT = 0.3; // the leg-whip (decays in updatePlayer)
+        // the rat gets flung from the direction of the kick, arcing up and landing away
+        c.kickT = 0.55; // the airtime
+        c.kickDur = 0.55;
+        c.kickVx = nx * RAT_KICK_FLING;
+        c.kickVy = ny * RAT_KICK_FLING * 0.5; // mostly along the kick line, a little lateral
+        c.kickZ = 0;
+        c.flee = 0; // clear any stale flee so the fling owns the motion
+        c.dir = nx >= 0 ? 1 : -1; // scurry OFF in the direction it was flung
+        // SQUEAL + the worker's line
+        SFX.playSqueal();
+        Voice.say(
+          pick(["Take that rat!", "Yeet!"]),
+          1.1,
+          1.1,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+        );
+      }
       function tryInteract() {
         if (state !== "play" || p.stunT > 0) return;
         // PUNCHBACK PRIORITY: in the 10s window after an attack NPC hit us, the interact
         // key throws the counter-punch FIRST - it preempts the pickup/throw handling when
         // a punch went out (a whiff falls through to the normal handling).
         if (p.attackerT > 0 && tryPunchBack()) return;
+        // KICK A RAT: hands free + a rat right in front -> the worker YEETs it (squeal +
+        // fling). Hands FULL -> Act is for dumping trash, so a kick is only when free.
+        // (typeof guard: sandboxes that extract tryInteract alone never pull in
+        //  tryKickRat, so a bare call would throw there.)
+        if (carry === "none" && typeof tryKickRat === "function" && tryKickRat()) return;
         if (
           carry === "bag" ||
           carry === "canFull" ||
@@ -31472,6 +31544,20 @@
             worker.group.rotation.x = -0.35 * k; // lean into the punch
             wparts.armR.rotation.y = -1.9 * k; // the jab arm extended forward
             wparts.armL.rotation.y = 0.5 * k; // the rear arm pulled back
+          }
+        }
+        // RAT KICK (0.3s): the kicking leg whips FORWARD and the body leans into the
+        // YEET (p.kickT, set by kickRat). The rat's fling lives in its own AI case.
+        if (p.kickT > 0) {
+          p.kickT = Math.max(0, p.kickT - dt);
+          if (p.stunT <= 0) {
+            const k = p.kickT / 0.3; // 1 -> 0 over the kick
+            const swing = Math.sin((1 - k) * Math.PI); // 0 -> 1 -> 0 (wind-up + extension)
+            wparts.legR.rotation.y = -1.5 * swing; // the kicking leg whips forward
+            wparts.legL.rotation.y = 0.35 * swing; // the planted leg braces
+            wparts.armL.rotation.y = 0.55 * swing; // arms counter-swing for balance
+            wparts.armR.rotation.y = -0.35 * swing;
+            worker.group.rotation.x = -0.28 * swing; // lean into the kick
           }
         }
         // face the direction walked (z-axis = screen-plane rotation in isometric space)
@@ -34520,6 +34606,30 @@
               break;
             }
             case "rat": {
+              // KICKED: airborne, flung along the kick. Arcs up (c.kickZ) and tumbles,
+              // then lands -> "gets up" (c.getUpT) -> scurries off (c.flee).
+              if (c.kickT > 0) {
+                c.kickT = Math.max(0, c.kickT - dt);
+                c.wx += c.kickVx * dt;
+                c.wy += c.kickVy * dt;
+                const kt = 1 - c.kickT / (c.kickDur || 0.55); // 0 -> 1 over the fling
+                c.kickZ = Math.sin(kt * Math.PI) * 0.9; // hop up ~0.9u and back down
+                c.g.rotation.x = kt * Math.PI * 2; // a full tumble as it's flung
+                if (c.kickT <= 0) {
+                  c.kickZ = 0;
+                  c.g.rotation.x = 0;
+                  c.getUpT = 0.32; // a brief "get up" settle on the ground
+                  c.flee = 2.4; // then scurry off
+                }
+                c.g.position.z = GZ + (c.kickZ || 0);
+                break;
+              }
+              if (c.getUpT > 0) {
+                c.getUpT = Math.max(0, c.getUpT - dt);
+                c.g.rotation.x = Math.sin(c.getUpT * 26) * 0.18 * (c.getUpT / 0.32); // shake-off wobble
+                c.g.position.z = GZ;
+                break;
+              }
               const sprintRat = npcRoadRules(c, dt); // scurry out of the way of closing traffic
               if (c.flee > 0) {
                 c.flee -= dt;
@@ -34534,7 +34644,9 @@
                   c.cemRat ? CEM_BACK_Y - 0.6 : 2.2,
                 );
               }
+              c.g.rotation.x = 0; // settle any stale tumble back to level
               c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
+              c.g.position.z = GZ;
               if (tx > 58) {
                 c.wx = p.wx - 35;
                 c.dir = 1;
@@ -38592,7 +38704,8 @@
             c.type !== "raven" &&
             c.type !== "football" && // the Bed-Stuy football player sets his own z (dance hop)
             c.type !== "cop" && // the Bed-Stuy shooter sets his own z (walk bob / crouch)
-            c.type !== "robber" // the Bed-Stuy shooter sets his own z (walk bob / crouch)
+            c.type !== "robber" && // the Bed-Stuy shooter sets his own z (walk bob / crouch)
+            c.type !== "rat" // the kicked rat sets its own z (the fling hop)
           )
             c.g.position.z = GZ;
           // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
