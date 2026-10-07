@@ -58,6 +58,8 @@ console.log('[1] source wiring');
       ratCase.indexOf('c.g.position.z = GZ + (c.kickZ || 0)') >= 0,
     'rat case segment: ' + ratCase.slice(0, 120),
   );
+  check('kickRat pays +10 STREET CASH via awardPrankPoints(10, p.wx, p.wy) at the worker spot',
+    /function kickRat\(c\)[\s\S]{0,2000}?awardPrankPoints\(10, p\.wx, p\.wy\)/.test(src));
 }
 
 console.log('');
@@ -72,17 +74,19 @@ console.log('[2] tryKickRat / kickRat — the real functions in a sandbox');
     const carry = opts.carry !== undefined ? opts.carry : 'none';
     const state = opts.state !== undefined ? opts.state : 'play';
     const sfxLog = [],
-      voiceLog = [];
+      voiceLog = [],
+      cashLog = [];
     const dist = (x, y) => Math.hypot(x - p.wx, y - p.wy);
     const pick = (a) => a[0];
     const SFX = { playSqueal() { sfxLog.push('squeal'); } };
     const Voice = { say(t) { voiceLog.push(t); } };
     const WORKER_GENDER = 'male';
+    const awardPrankPoints = (n, wx, wy) => cashLog.push({ n, wx, wy });
     const fn = new Function(
-      'state', 'p', 'carry', 'creatures', 'dist', 'pick', 'SFX', 'Voice', 'WORKER_GENDER',
+      'state', 'p', 'carry', 'creatures', 'dist', 'pick', 'SFX', 'Voice', 'WORKER_GENDER', 'awardPrankPoints',
       'const RAT_KICK_RANGE = 2.6, RAT_KICK_FLING = 8;\n' + tryKickSrc + '\n' + kickSrc + '\nreturn { tryKickRat };',
     );
-    return { api: fn(state, p, carry, creatures, dist, pick, SFX, Voice, WORKER_GENDER), p, creatures, sfxLog, voiceLog };
+    return { api: fn(state, p, carry, creatures, dist, pick, SFX, Voice, WORKER_GENDER, awardPrankPoints), p, creatures, sfxLog, voiceLog, cashLog };
   }
 
   // (a) rat in range + free hands -> KICK
@@ -98,13 +102,16 @@ console.log('[2] tryKickRat / kickRat — the real functions in a sandbox');
     s.creatures[0].kickVx === 8 && s.creatures[0].kickVy === 0,
     JSON.stringify({ kickVx: s.creatures[0].kickVx, kickVy: s.creatures[0].kickVy }));
   check('the worker faces the rat (p.facing snapped)', Math.abs(s.p.facing - 0) < 1e-9, 'facing=' + s.p.facing);
+  check('a successful kick pays +10 STREET CASH at the worker spot (awardPrankPoints)',
+    s.cashLog.length === 1 && s.cashLog[0].n === 10 && s.cashLog[0].wx === s.p.wx && s.cashLog[0].wy === s.p.wy,
+    JSON.stringify({ cash: s.cashLog, p: { wx: s.p.wx, wy: s.p.wy } }));
 
   // (b) rat in range + hands FULL -> NO kick (Act is for dumping trash)
   s = mkScen({ carry: 'bag', rats: [{ type: 'rat', wx: 1.5, wy: 0 }] });
   const okB = s.api.tryKickRat();
-  check('rat in range + hands FULL -> NO kick (falls to the dump handling)',
-    okB === false && s.p.kickT === 0 && s.sfxLog.length === 0 && s.voiceLog.length === 0,
-    JSON.stringify({ ok: okB, kickT: s.p.kickT }));
+  check('rat in range + hands FULL -> NO kick, no street cash (falls to the dump handling)',
+    okB === false && s.p.kickT === 0 && s.sfxLog.length === 0 && s.voiceLog.length === 0 && s.cashLog.length === 0,
+    JSON.stringify({ ok: okB, kickT: s.p.kickT, cash: s.cashLog.length }));
 
   // (c) rat OUT of range -> no kick (falls through to the normal Act)
   s = mkScen({ rats: [{ type: 'rat', wx: 10, wy: 0 }] });
