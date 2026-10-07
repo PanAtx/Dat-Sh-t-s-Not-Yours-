@@ -3871,7 +3871,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.446</div>
+          <div id="app-version" class="menu-version">v1.0.447</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4125,7 +4125,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.446';
+      const APP_VERSION = '1.0.447';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6280,14 +6280,19 @@
           this.noise(0.32, "lowpass", 260, 0.9);
           this.tone("sine", 110, 52, 0.26, 0.7);
         },
-        // Bed-Stuy shootout: a real BANG - a sharp crack, a mid "report", a DEEP sine
-        // THUMP, and a long low rumble tail that rolls down the block (procedural).
+        // Bed-Stuy shootout: a real GUNSHOT (not a cork pop) — a loud, broadband CRACK,
+        // a deep sub BOOM, a low RUMBLE, and a decaying city-block ECHO so it reads as a
+        // shot in the street rather than a pop in a room. All procedural (Web Audio).
         playGunshot() {
           this.ensure();
-          this.noise(0.05, "highpass", 900, 1.0); // the sharp crack
-          this.tone("square", 320, 70, 0.12, 0.9); // the mid report
-          this.tone("sine", 110, 38, 0.4, 1.0); // the deep THUMP (the bang)
-          this.noise(0.5, "lowpass", 180, 0.55, 0.01); // the low rumble tail
+          this.noise(0.02, "highpass", 4200, 1.2); // the sharp top-end SNAP of the muzzle blast
+          this.noise(0.07, "highpass", 900, 0.7); // the broadband CRACK body (a real pop, not a thock)
+          this.tone("sine", 110, 38, 0.4, 1.0); // the deep sub THUMP (the boom)
+          this.noise(0.5, "lowpass", 180, 0.55, 0.01); // the low RUMBLE that rolls off
+          // CITY ECHO: two decaying off-block repeats = a shot in the street, not a room
+          this.noise(0.1, "bandpass", 1300, 0.28, 0.21); // 1st echo (a block away)
+          this.tone("sine", 94, 40, 0.32, 0.26, 0.23); // the echo's boom
+          this.noise(0.16, "lowpass", 620, 0.15, 0.42); // 2nd, fainter echo
         },playPlopSound() {
           this.ensure();
           this.tone("sine", 210, 52, 0.16, 0.8); // a quick low wet "plop"
@@ -6525,8 +6530,8 @@
           this.noise(0.05, "bandpass", 1150, 0.4, 0.09);
           this.tone("sine", 95, 55, 0.14, 0.3, 0.02);
         },
-        // --- Bed-Stuy (Sunday) ZOMBIE ARM: a wet, guttural GROAN as the dead arm lurches UP
-        // out of the open manhole (a "RAAAAGH" — a slow rising detuned saw + a low sine). ---
+        // --- Bed-Stuy (Sunday) MANHOLE TENTACLE: a wet, guttural GROAN as the purple tentacle
+        // whips UP out of the open manhole (a "RAAAAGH" — a slow rising detuned saw + a low sine). ---
         playZombieGroan() {
           this.ensure();
           this.tone("sawtooth", 68, 118, 0.45, 0.4);
@@ -19374,7 +19379,9 @@
           d.g.position.x = d.wx;
           d.g.position.y = d.wy;
           // The ONLY thing a bullet can clip is the sanitation worker in the lane.
-          if (state === "play" && !d.hit) {
+          // THE COP'S BULLETS CANNOT HURT THE WORKER - he's the player's ally here, so his
+          // tracers pass straight through (the robber's bullets still graze for damage).
+          if (state === "play" && !d.hit && c.gunTag !== "cop") {
             const bdx = d.wx - p.wx,
               bdy = d.wy - p.wy;
             if (bdx * bdx + bdy * bdy <= GUN_HURT_R * GUN_HURT_R) {
@@ -19436,9 +19443,73 @@
           dustParticles.push({ g: g, wx: wx, wy: wy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: 0.4 + R(0, 1.1), life: 0.8, decay: 0.9 + R(0, 0.5), rotSpeed: R(-8, 8) });
         }
       }
+      // ---- A REAL GUNFIGHT: pick the next cover fixture to duck to ----
+      // Both shooters keep ducking TO THE SIDE behind street fixtures (trees, USPS
+      // boxes, hydrants, curb cans). We pick the nearest fixture that is a real step
+      // away (not right on top of them) and NOT on the foe, biasing the score toward a
+      // SIDE move (a change in wy) so it reads as "hopping to the side for cover"
+      // rather than drifting in a straight line. Always returns the best available spot
+      // so the shooter keeps moving (worker-pace walk), never teleporting.
+      function gunNextCoverSpot(c) {
+        const foe = c.foe;
+        // Defensive: if the fixture generator isn't in scope (e.g. a minimal test
+        // harness), there is no cover to hunt - just hold position.
+        if (typeof bedStuyCoverSpots !== "function") return null;
+        // bedStuyCoverSpots keys on the block's ORIGIN x; c.blockMinX is origin + 6.
+        const spots = bedStuyCoverSpots(c.blockMinX - 6.0);
+        let best = null,
+          bestScore = Infinity;
+        for (let i = 0; i < spots.length; i++) {
+          const s = spots[i];
+          const dx = s.wx - c.wx,
+            dy = s.wy - c.wy;
+          const dist = Math.abs(dx) + Math.abs(dy) * 1.3; // side steps cost a little more
+          if (dist < 1.8) continue; // already right there - pick another
+          if (foe && Math.abs(s.wx - foe.wx) < GUN_CHASE_GAP) continue; // never pile onto the foe
+          const score = dist + Math.abs(dy) * 1.5; // prefer a real step AND a side move
+          if (score < bestScore) {
+            bestScore = score;
+            best = s;
+          }
+        }
+        return best;
+      }
+      // ---- A REAL GUNFIGHT: walk to the cover target at the worker's pace ----
+      // Moves a fixed worker-pace distance per frame (not an exponential lerp, so it is
+      // a real walk at ~PLAYER_SPEED, sometimes slower, sometimes faster via c.gunSp).
+      // On arrival it settles into "cover" (hiding). Never teleports.
+      function gunStepToward(c, dt) {
+        const dx = c.homeX - c.wx,
+          dy = c.homeY - c.wy;
+        const dist = Math.hypot(dx, dy);
+        const sp = (c.gunSp || 8.5) * dt;
+        if (dist <= 0.22 || dist <= sp) {
+          c.wx = c.homeX;
+          c.wy = c.homeY;
+          if (c.dstate !== "cover") c.dstate = "cover"; // settled -> hide
+          return true;
+        }
+        c.wx += (dx / dist) * sp;
+        c.wy += (dy / dist) * sp;
+        c.dstate = "run"; // moving (the walk cycle drives the legs)
+        return false;
+      }
       function gunfightAI(c, dt, p) {
         c.gunCd = c.gunCd > 0 ? c.gunCd - dt : 0;
         c.sayCd = c.sayCd > 0 ? c.sayCd - dt : 0;
+        // ===== WALK-CYCLE DISPLACEMENT =====
+        // How far he moved LAST frame (this frame's start minus last frame's start), so the
+        // leg/arm pump + body hop track REAL ground covered - never a float/slide. sf:
+        // 0 = settled behind cover (hiding), 1 = full stride. s = the current stride phase.
+        const _sx = c.wx, _sy = c.wy;
+        const pdx = _sx - (c._pwx === undefined ? _sx : c._pwx);
+        const pdy = _sy - (c._pwy === undefined ? _sy : c._pwy);
+        c._pwx = _sx; c._pwy = _sy; // remember THIS frame's start for next frame's delta
+        const pmv = Math.hypot(pdx, pdy);
+        const sf = Math.min(1, pmv / Math.max(dt, 1e-4) / 3.0); // 0 = settled, 1 = full stride
+        if (sf > 0.03) c.walkPhase = (c.walkPhase || 0) + pmv * 2.6; // stride frequency ∝ distance
+        const s = Math.sin(c.walkPhase || 0);
+        if (c.duckT > 0) c.duckT = Math.max(0, c.duckT - dt); // the quick crouch-dip fades out
         if (c.flashT > 0) {
           c.flashT -= dt;
           if (c.flashT <= 0 && c.flash) c.flash.visible = false;
@@ -19452,46 +19523,137 @@
         const myTurn = c.duel && c.duel.turn === c.gunTag;
         const engaged = state === "play" && Math.abs(p.wx - c.wx) < GUN_AGGRO_R; // the duel is quiet off-block
         if (c.mode === "aim") {
-          // WINDUP: the gun arm comes up over the cover, the chest turns into the shot.
+          // DUCK-TO-FIRE from a KNEELING BRACE: one knee down, the other leg bent, the
+          // torso STRAIGHT (no tip) and LOW. The gun arm comes up to the line - it reads
+          // as "firing from a braced crouch," not a forward lean / about-to-tip-over.
           c.aimT -= dt;
           if (c.parts) {
             const u = 1 - Math.max(0, c.aimT) / GUN_AIM_T;
-            c.parts.armR.rotation.y = -0.35 - 1.1 * u; // raise the pistol from the ready hand
+            // AIM: swing the gun arm OUT FORWARD to the line - the hand comes in front of
+            // the chest, roughly level (a real "holding it up to aim"), not dangling at the
+            // side. The gun is a CHILD of the arm, so extending the arm would swing the
+            // barrel up; we COUNTER-ROTATE the gun (c.gun) by the same angle so the barrel
+            // stays pointed straight forward (+X) at the target.
+            c.parts.armR.rotation.y = -0.35 - 1.0 * u; // -0.35 -> -1.35 (arm extended forward)
             c.parts.armR.rotation.z = 0.08;
-            c.parts.upper.rotation.y = 0.12 * u;
-            c.parts.armL.rotation.y = 0.5; // the balance arm
+            if (c.gun) c.gun.rotation.y = 0.35 + 1.0 * u; // counter: barrel stays forward at the target
+            // AIM TRACKING: the barrel EASES onto the line over the windup - it starts a touch
+            // HIGH (winding up) and settles down onto the target; a small LIVE term follows the
+            // worker's position each frame so the aim reads as reactive, not static.
+            if (c.gun) {
+              const aimLive = p && p.wy !== undefined ? p.wy - c.wy : 0; // the worker's lateral offset
+              c.gun.rotation.x = 0.16 * (1 - u) + Math.max(-0.05, Math.min(0.05, aimLive * 0.012));
+            }
+            c.parts.upper.rotation.y = 0; // torso STRAIGHT - no sideways tip
+            c.parts.upper.rotation.x = 0.05; // torso upright - no forward lean
+            // TWO-HANDED GRIP: the balance (off) arm comes FORWARD and across to support the
+            // gun - both hands out in front on the line, a braced two-handed aim, not one arm.
+            c.parts.armL.rotation.y = -0.7 - 0.5 * u; // -0.7 -> -1.2 (the off hand meets the gun out front)
+            c.parts.armL.rotation.x = -0.12 * u; // a slight inward tuck toward the muzzle
+            // KNEEL: a real brace - the legs FOLD FORWARD to the ground with a bent KNEE
+            // (thigh forward, shin back to the ground) instead of splaying one rigid plank
+            // out to the side (the old "split" / giraffe-at-a-watering-hole look).
+            c.parts.legL.rotation.x = 0.12; // support leg: a hint of tilt, the knee does the rest
+            c.parts.legL.rotation.y = 0.55; // thigh lifts forward (a lunge), foot planted ahead
+            if (c.parts.legL.userData && c.parts.legL.userData.knee) c.parts.legL.userData.knee.rotation.y = -0.95; // knee bent
+            c.parts.legR.rotation.x = -0.12; // down leg: knee down to the ground
+            c.parts.legR.rotation.y = 1.05; // thigh folds forward-down to the ground
+            if (c.parts.legR.userData && c.parts.legR.userData.knee) c.parts.legR.userData.knee.rotation.y = -1.15; // shin trails back along the ground
           }
+          // the BODY sits LOW in the kneeling brace (knees down)
+          if (c.g) c.g.position.z = GZ - 0.16;
           if (c.aimT <= 0) {
             fireGun(c);
             c.mode = "cover";
-            if (c.parts) c.parts.armR.rotation.y = -0.35;
+            c.recoilT = 0.12; // a quick RECOIL kick on the firing frame (eased out in the cover branch)
+            if (c.flash && c.flash.scale) c.flash.scale.set(1.8, 1.8, 1.8); // the muzzle flash punches bigger on the shot
+            if (c.parts) c.parts.armR.rotation.y = -0.5; // drop back to a FORWARD ready hold (gun still out front)
+            if (c.gun) c.gun.rotation.y = 0.5; // keep the barrel forward (not tilted up) in the ready position
           }
         } else {
-          // COVER: duck behind the fixture, a small idle shuffle, arms low.
+          // ===== WALK / HIDE / DUCK ANIMATION (the "they float & slide" fix) =====
+          // The cop/robber are REAL pedestrians now: they WALK (legs + off-arm pump,
+          // a body hop per stride) between cover spots, CROUCH (bent knees, torso low)
+          // when settled behind a fixture, and DUCK-to-FIRE on the aim windup. sf/s
+          // come from the displacement captured at the top of gunfightAI, so the leg
+          // swing is proportional to real ground covered - they never glide.
+          const bob = Math.sin(c.phase * 2.2);
+          const duckU = c.duckT > 0 && typeof GUN_DUCK_T !== "undefined" ? Math.max(0, 1 - c.duckT / GUN_DUCK_T) : 0; // 0 -> 1 dip
+          const crouch = 1 - sf; // settled -> full crouch (hiding); moving -> relaxed
           if (c.parts) {
-            const bob = Math.sin(c.phase * 2.2);
-            c.parts.upper.rotation.y = 0.18 + bob * 0.04; // lean toward the cover
-            c.parts.upper.rotation.x = 0.1 + Math.abs(bob) * 0.03; // crouch a touch
-            c.parts.armR.rotation.y = -0.35 + bob * 0.06; // the ready hand stays in FRONT (gun visible)
-            c.parts.armL.rotation.y = -0.3 + bob * 0.06;
+            if (sf > 0.08) {
+              // MOVING: a real alternating stride (legs swing OPPOSITE) + a light crouch bias
+              const amp = 0.4 + 0.3 * sf;
+              const bias = (1 - sf) * 0.2; // a touch of crouch while moving
+              c.parts.legL.rotation.x = -s * amp + bias;
+              c.parts.legR.rotation.x = s * amp + bias;
+              // a subtle KNEE pump so the stride reads as bent legs, not two rigid planks
+              // (the knee pivot only exists on the cop/robber - guarded for the mock/other parts)
+              const kp = 0.14 + 0.26 * Math.abs(s) * sf; // a light, stride-synced knee bend
+              if (c.parts.legL.userData && c.parts.legL.userData.knee) c.parts.legL.userData.knee.rotation.y = -kp;
+              if (c.parts.legR.userData && c.parts.legR.userData.knee) c.parts.legR.userData.knee.rotation.y = -kp;
+              // the OFF-ARM (non-gun) swings opposite the legs for balance; the GUN arm stays on target
+              c.parts.armL.rotation.y = -0.3 - s * 0.55;
+            } else {
+              // SETTLED behind cover: a KNEELING BRACE - the legs fold FORWARD with a bent
+              // KNEE (thigh forward, shin back to the ground), body low and STRAIGHT.
+              // "Hiding," not splayed out like a split.
+              c.parts.legL.rotation.x = 0.12; // the support leg (foot planted ahead)
+              c.parts.legL.rotation.y = 0.55;
+              c.parts.legR.rotation.x = -0.12; // the down leg (knee to the ground)
+              c.parts.legR.rotation.y = 1.05;
+              if (c.parts.legL.userData && c.parts.legL.userData.knee) c.parts.legL.userData.knee.rotation.y = -0.95;
+              if (c.parts.legR.userData && c.parts.legR.userData.knee) c.parts.legR.userData.knee.rotation.y = -1.15;
+              c.parts.armL.rotation.y = -0.2; // the off arm braced low
+            }
+            // TORSO: STRAIGHT while kneeling (hiding) - no forward lean, no sideways tip
+            // (that was the "about to tip over" look); a relaxed upright posture while moving.
+            const straight = crouch; // 1 = settled/kneeling, ~0 = moving
+            c.parts.upper.rotation.y = (1 - straight) * (0.14 + bob * 0.04) + duckU * 0.05;
+            c.parts.upper.rotation.x = (1 - straight) * (0.1 + Math.abs(bob) * 0.03) + straight * 0.05 + duckU * 0.12;
+            // the ready hand stays in FRONT of the body (no gun dangling behind the back);
+            // the gun is counter-rotated so it points forward at the target, not up at the sky
+            // RECOIL: after a shot, the gun arm KICKS BACK a touch and eases out over ~0.12s.
+            if (c.recoilT > 0) c.recoilT = Math.max(0, c.recoilT - dt);
+            const recoilAmt = c.recoilT > 0 ? c.recoilT / 0.12 : 0; // 1 (just fired) -> 0 (settled)
+            c.parts.armR.rotation.y = -0.5 + bob * 0.06 + recoilAmt * 0.4; // + the recoil pull-back
+            if (c.gun) c.gun.rotation.y = 0.5;
+            if (c.gun) c.gun.rotation.x = 0; // clear the aim-tracking tilt (barrel back level)
+            if (c.flash && c.flash.scale && c.flashT <= 0) c.flash.scale.set(1, 1, 1); // flash back to rest size
           }
-          // CHASE/RETREAT: the cop pushes forward up the block to apprehend, the
-          // robber backs away a hair faster so he stays ahead of him - both keep
-          // moving up the block, trading shots as they go.
-          if (c.gunTag === "cop") {
-            c.homeX = Math.min(
-              c.homeX + GUN_CHASE_SP * dt,
-              foe ? foe.wx - GUN_CHASE_GAP : c.homeX,
-              c.blockMaxX - GUN_EDGE_PAD,
-            );
-          } else {
-            c.homeX = Math.min(
-              Math.max(c.homeX + GUN_RETREAT_SP * dt, foe ? foe.wx + GUN_CHASE_GAP : c.homeX),
-              c.blockMaxX - GUN_EDGE_PAD,
-            );
+          // BODY HEIGHT: full standing + a small stride hop while moving; a LOW kneeling
+          // brace (knees down) when settled behind cover - the "lower to the ground" of the crouch.
+          if (c.g) c.g.position.z = GZ - crouch * 0.16 + Math.abs(Math.sin(c.walkPhase || 0)) * 0.07 * sf;
+          // ===== REAL COP/ROBBER CHASE (v3): no more drifting in a line. =====
+          // Turn token (c.duel.turn) decides WHO FIRES this exchange; MOVEMENT is
+          // continuous for both. A REAL gunfight: both shooters keep ducking TO THE
+          // SIDE behind street fixtures (trees, USPS boxes, hydrants, curb cans) at
+          // roughly the worker's walk pace - sometimes a touch slower, sometimes a
+          // touch faster. On their turn a settled shooter picks a NEW cover fixture to
+          // the side and walks there; every frame he heads toward it (the walk cycle
+          // drives the legs), hopping fixture to fixture. No straight-line drift and NO
+          // edge-teleport: they simply keep moving to the next spot to the side.
+          const copTag = c.gunTag === "cop";
+          if (myTurn && c.dstate !== "run") {
+            // SETTLED shooter on his turn: duck to a NEW cover fixture off to the side.
+            const spot = gunNextCoverSpot(c);
+            if (spot) {
+              c.homeX = clamp(spot.wx, c.blockMinX + 1.5, c.blockMaxX - 1.5);
+              c.homeY = clamp(spot.wy + R(0.2, 0.6), 0.9, 4.6); // step a bit toward the lane
+              c.coverX = spot.wx;
+              c.coverY = spot.wy;
+              c.coverKind = spot.kind; // the fixture he now hides behind (tree -> leaf puffs)
+              // Worker pace, wobbling: sometimes slower, sometimes faster (0.6x..1.4x).
+              c.gunSp = (typeof PLAYER_SPEED !== "undefined" ? PLAYER_SPEED : 8.5) * (0.6 + Math.random() * 0.8);
+              c.dstate = "run"; // moving to the new spot (the walk cycle drives the legs)
+              c.duckT = GUN_DUCK_T;
+            }
           }
-          c.wx += (c.homeX - c.wx) * Math.min(1, dt * 1.6); // ease toward the moving line
-          c.wy += (c.homeY - c.wy) * Math.min(1, dt * 2); // ease back to the cover linee
+          // Every frame (turn or off-turn) WALK toward the current cover target at the
+          // worker's pace - the continuous "chase": the cop keeps closing in, the crook
+          // keeps his lead, and both are always headed for the next fixture to the side.
+          gunStepToward(c, dt);
+          if (c.dstate !== "run") c.dstate = "cover"; // settled behind cover = hiding
           // Fire when it's OUR turn + off cooldown + the worker is in the area.
           if (myTurn && engaged && c.gunCd <= 0) {
             c.mode = "aim";
@@ -20203,6 +20365,37 @@
         d.g.userData.ball = ball;
         return d; // { g, legL, legR, armL, armR } with g.userData.parts
       }
+      // Give a makePerson leg a REAL KNEE. makePerson builds each leg as a single rigid
+      // box pivoted at the hip, so "rotating the leg to kneel" just splays one whole plank
+      // out to the ground - it reads as a split / a giraffe at a watering hole. Here we
+      // rebuild each hip pivot IN PLACE as: THIGH (hip->knee) + a KNEE pivot holding a
+      // SHIN (knee->ankle) + the SHOE. The hip pivot (d.legL / d.legR) keeps its name,
+      // position and rotation, so the existing walk/aim code and the _walkanim_chk.js
+      // harness keep working; the new knee is exposed at pv.userData.knee so the kneel
+      // can bend it. (We can't do this inside makePerson - 6+ other creatures rely on
+      // the old [0]=leg, [1]=shoe child layout.)
+      function addKnees(pivots, pantsHex, shoeHex) {
+        const pantsM = M(pantsHex),
+          shoeM = M(shoeHex);
+        pivots.forEach((pv) => {
+          while (pv.children.length) pv.remove(pv.children[0]); // drop the old leg + shoe boxes
+          const thigh = BX(0.13, 0.14, 0.3, pantsM);
+          thigh.position.set(0, 0, -0.15); // hip -> knee
+          pv.add(thigh);
+          const knee = new THREE.Group();
+          knee.position.set(0, 0, -0.3); // the knee, 0.30 below the hip
+          pv.add(knee);
+          const shin = BX(0.12, 0.13, 0.3, pantsM);
+          shin.position.set(0, 0, -0.15); // knee -> ankle
+          knee.add(shin);
+          const shoe = BX(0.22, 0.14, 0.12, shoeM);
+          shoe.position.set(0.05, 0, -0.3); // the foot just past the ankle
+          shoe.scale.y = 0.92; // break coplanarity with the shin (kills the shoe z-fight)
+          knee.add(shoe);
+          pv.userData = pv.userData || {};
+          pv.userData.knee = knee; // the AI bends this for a real kneel
+        });
+      }
       // ==================== BED-STUY SHOOTOUT: THE NYPD OFFICER (Sunday, day 7) ====================
       // A beat cop in a navy patrol uniform, a cap with a gold shield, a silver chest badge,
       // a utility belt with a shoulder radio, and a REVOLVER in his right hand. Built from
@@ -20251,32 +20444,62 @@
         const pouch = BX(0.06, 0.1, 0.05, M(0x3a2e1c));
         pouch.position.set(-0.1, 0.09, 0.26);
         parts.upper.add(pouch);
-        // ---- BLACK OXFORDS ----
-        [d.legL, d.legR].forEach((pv) => {
-          const shoe = pv.children[1];
-          if (shoe && shoe.material) shoe.material.color.set(0x101014);
-        });
-        // ---- THE REVOLVER in the RIGHT hand (the "shooter" arm). The hand sits at
-        // pivot-local (0, 0, -0.5); the grip rides the fist and the barrel runs out the +X
-        // (the officer faces +X, so this points him straight at his mark).
+        // ---- BLACK OXFORDS + REAL KNEES: rebuild the rigid legs so the kneel folds at the
+        // knee (thigh + shin) instead of splaying one whole leg out to the ground (a split). ----
+        addKnees([d.legL, d.legR], 0x1a2030, 0x101014);
+        // ---- THE REVOLVER in the RIGHT hand (the "shooter" arm). HIGH-POLY build: the
+        // hand sits at pivot-local (0, 0, -0.5); the grip rides the fist and the barrel
+        // runs out the +X (the officer faces +X, so this points him straight at his mark).
         const gun = new THREE.Group();
-        const grip = BX(0.05, 0.05, 0.1, darkM);
-        grip.position.set(0, -0.02, -0.48);
+        // grip: a slightly splayed, rounded fist-ride with a checkered panel
+        const grip = BX(0.055, 0.1, 0.12, darkM);
+        grip.position.set(-0.01, -0.04, -0.48);
+        grip.rotation.z = 0.28;
         gun.add(grip);
-        const barrel = BX(0.22, 0.045, 0.04, silverM);
-        barrel.position.set(0.14, 0, -0.46);
-        gun.add(barrel);
-        const cyl = CY(0.03, 0.03, 0.08, silverM, 8);
-        cyl.rotation.y = Math.PI / 2; // lay the cylinder's axis along +X
-        cyl.position.set(0.05, 0, -0.46);
+        const gripPanel = BX(0.062, 0.08, 0.1, M(0x3a2a1c)); // the wood-grain grip scale
+        gripPanel.position.set(0.006, -0.045, -0.48);
+        gripPanel.rotation.z = 0.28;
+        gun.add(gripPanel);
+        // frame: the receiver block under the cylinder
+        const frame = BX(0.17, 0.05, 0.06, darkM);
+        frame.position.set(0.06, 0, -0.46);
+        gun.add(frame);
+        // cylinder: the six-chamber drum (fluted) with a rounded front face
+        const cyl = CY(0.036, 0.036, 0.09, silverM, 12);
+        cyl.rotation.y = Math.PI / 2;
+        cyl.position.set(0.06, 0.004, -0.46);
         gun.add(cyl);
+        const cylFace = CY(0.036, 0.036, 0.012, MS(0x8f969f, { metalness: 0.9, roughness: 0.3 }), 12);
+        cylFace.rotation.y = Math.PI / 2;
+        cylFace.position.set(0.105, 0.004, -0.46);
+        gun.add(cylFace);
+        // barrel: the fluted tube running past the cylinder to the muzzle
+        const barrel = CY(0.02, 0.024, 0.14, silverM, 10);
+        barrel.rotation.z = Math.PI / 2;
+        barrel.position.set(0.19, 0.012, -0.46);
+        gun.add(barrel);
+        // underbarrel sight rail + the front sight blade
+        const rail = BX(0.12, 0.014, 0.014, darkM);
+        rail.position.set(0.2, -0.006, -0.46);
+        gun.add(rail);
+        const frontSight = BX(0.012, 0.03, 0.012, silverM);
+        frontSight.position.set(0.26, 0.034, -0.46);
+        gun.add(frontSight);
+        // hammer + trigger guard: the little detail silhouettes that read "revolver"
+        const hammer = BX(0.03, 0.04, 0.02, silverM);
+        hammer.position.set(-0.03, 0.028, -0.46);
+        hammer.rotation.z = 0.5;
+        gun.add(hammer);
+        const guard = BX(0.04, 0.01, 0.01, darkM);
+        guard.position.set(0.0, -0.045, -0.46);
+        gun.add(guard);
         // The MUZZLE FLASH: a golden cross at the muzzle tip, hidden until a shot.
         const flash = new THREE.Group();
-        const f1 = BX(0.02, 0.22, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
-        const f2 = BX(0.02, 0.02, 0.22, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
+        const f1 = BX(0.02, 0.24, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
+        const f2 = BX(0.02, 0.02, 0.24, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
         flash.add(f1);
         flash.add(f2);
-        flash.position.set(0.3, 0, -0.46);
+        flash.position.set(0.28, 0.012, -0.46);
         flash.visible = false;
         gun.add(flash);
         parts.armR.add(gun);
@@ -20351,28 +20574,54 @@
         sack.add(strap);
         sack.position.set(0.02, -0.1, -0.42);
         parts.armL.add(sack);
-        // ---- BLACK SNEAKERS ----
-        [d.legL, d.legR].forEach((pv) => {
-          const shoe = pv.children[1];
-          if (shoe && shoe.material) shoe.material.color.set(0x101014);
-        });
-        // ---- THE PISTOL in the RIGHT hand: a slim barrel out the +X + a muzzle flash ----
+        // ---- BLACK SNEAKERS + REAL KNEES (same fix as the cop: fold at the knee, not a split) ----
+        addKnees([d.legL, d.legR], 0x1a1a1e, 0x101014);
+        // ---- THE PISTOL in the RIGHT hand: a HIGH-POLY semi-auto (slide + serrations +
+        // grip + trigger guard + hammer pin), barrel out the +X so it points at the mark.
         const gun = new THREE.Group();
-        const grip = BX(0.05, 0.05, 0.1, darkM);
-        grip.position.set(0, -0.02, -0.48);
-        gun.add(grip);
-        const barrel = BX(0.24, 0.05, 0.045, silverM);
-        barrel.position.set(0.14, 0, -0.46);
-        gun.add(barrel);
-        const sight = BX(0.02, 0.035, 0.03, darkM);
-        sight.position.set(0.24, 0.045, -0.46);
-        gun.add(sight);
+        const robSteel = MS(0x3a3f47, { metalness: 0.9, roughness: 0.32 }); // dark blue-steel slide
+        const robDark = M(0x141418); // black grip / polymer
+        // frame block
+        const rframe = BX(0.16, 0.045, 0.05, robDark);
+        rframe.position.set(0.05, -0.006, -0.46);
+        gun.add(rframe);
+        // slide: the long upper rail that houses the barrel
+        const rslide = BX(0.24, 0.05, 0.06, robSteel);
+        rslide.position.set(0.11, 0.02, -0.46);
+        gun.add(rslide);
+        // the rear-sight serrations (a short darker band on the slide tail)
+        const serr = BX(0.05, 0.052, 0.062, MS(0x2a2e34, { metalness: 0.7, roughness: 0.5 }));
+        serr.position.set(0.0, 0.02, -0.46);
+        gun.add(serr);
+        // the recoil-spring tube peeking off the slide front
+        const spring = CY(0.016, 0.016, 0.05, robSteel, 8);
+        spring.rotation.z = Math.PI / 2;
+        spring.position.set(0.24, 0.02, -0.46);
+        gun.add(spring);
+        // grip: a slightly splayed rounded fist-ride
+        const rgrip = BX(0.06, 0.12, 0.11, robDark);
+        rgrip.position.set(-0.01, -0.06, -0.48);
+        rgrip.rotation.z = 0.32;
+        gun.add(rgrip);
+        // trigger + trigger guard
+        const rtrig = BX(0.012, 0.04, 0.012, robSteel);
+        rtrig.position.set(0.02, -0.02, -0.46);
+        gun.add(rtrig);
+        const rguard = BX(0.04, 0.01, 0.01, robDark);
+        rguard.position.set(0.0, -0.045, -0.46);
+        gun.add(rguard);
+        // the hammer pin at the rear of the slide
+        const rpin = CY(0.012, 0.012, 0.03, MS(0x8f969f, { metalness: 0.9, roughness: 0.3 }), 8);
+        rpin.rotation.x = Math.PI / 2;
+        rpin.position.set(-0.02, 0.03, -0.46);
+        gun.add(rpin);
+        // The MUZZLE FLASH: a golden cross at the muzzle tip, hidden until a shot.
         const flash = new THREE.Group();
-        const f1 = BX(0.02, 0.2, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
-        const f2 = BX(0.02, 0.02, 0.2, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
+        const f1 = BX(0.02, 0.24, 0.02, MS(0xffd24a, { metalness: 0.1, roughness: 0.6 }));
+        const f2 = BX(0.02, 0.02, 0.24, MS(0xffe98a, { metalness: 0.1, roughness: 0.6 }));
         flash.add(f1);
         flash.add(f2);
-        flash.position.set(0.3, 0, -0.46);
+        flash.position.set(0.28, 0.02, -0.46);
         flash.visible = false;
         gun.add(flash);
         parts.armR.add(gun);
@@ -22258,10 +22507,10 @@
             c.jawPiv = c.data.userData.jaw;
             break;
           case "zombieArm":
-            // The Bed-Stuy (Sunday) MANHOLE ZOMBIE ARM: one open, LIDLESS manhole in the street
-            // with a dead zombie forearm + hand that lurches up out of the water and GRABS at the
+            // The Bed-Stuy (Sunday) MANHOLE TENTACLE: one open, LIDLESS manhole in the street
+            // with a GIANT PURPLE octopus tentacle that whips up out of the water and GRABS at the
             // worker (a real whack). See the "zombieArm" case in updateCreatures for the state
-            // machine (idle -> reach -> grab -> retract). The WHOLE model (pit + arm + hand) is
+            // machine (idle -> reach -> grab -> retract). The WHOLE model (pit + tentacle + claw) is
             // c.data; the spawner pins c.wx/c.wy to a random street block (a fixed feature — it
             // never moves, like the gator). Its grab is self-contained, so collideCreatures skips it.
             c.sp = 0; // fixed in the hole — it just reaches out, it doesn't roam
@@ -22917,6 +23166,8 @@
             c.aimT = 0; // windup timer
             c.shots = []; // in-flight bullets owned by this shooter (see updateGunshots)
             c.flashT = 0; // muzzle-flash timer
+            c.duckT = 0; // the quick crouch-dip when a hunter lands on a NEW cover spot (see gunfightAI)
+            c.coverCd = R(0.3, 0.9); // seconds until this hunter re-hunts a new cover spot
             c.touchCd = 0; // minor touch-damage cooldown (collideCreatures)
             c.sayCd = R(0.6, 2.2); // idle taunt timer
             c.side = 0; // +1 = east side of the block (faces west), -1 = west (faces east)
@@ -24289,8 +24540,8 @@
             );
           }
         }
-        // ===== The Bed-Stuy (Sunday) MANHOLE ZOMBIE ARM: one open, LIDLESS manhole in the street
-        // with a dead zombie forearm + hand that lurches up out of the water and GRABS the
+        // ===== The Bed-Stuy (Sunday) MANHOLE TENTACLE: one open, LIDLESS manhole in the street
+        // with a GIANT PURPLE octopus tentacle that whips up out of the water and GRABS the
         // sanitation worker (a real whack). It's a fixed feature of ONE random active block for the
         // whole shift (like the Harlem gator). If its grabs are what put the worker down, the
         // write-up reads "Failure to avoid a biohazard." (see the "zombieArm" case in
@@ -24304,7 +24555,7 @@
             za.wy = R(-7.0, -3.5); // out in the street (over the asphalt, in a lane)
             za.g.position.set(za.wx, za.wy, GZ);
             console.log(
-              "  -> Bed-Stuy: the manhole zombie arm lurks at",
+              "  -> Bed-Stuy: the manhole tentacle lurks at",
               za.wx.toFixed(1),
               za.wy.toFixed(1),
             );
@@ -27435,12 +27686,12 @@
         "Watch the tire!",
         "Bitey!",
       ]; // a comedic line as it snaps at a bike / moto / car tire
-      // ==================== BED-STUY (Sunday, day 7) — the MANHOLE ZOMBIE ARM ====================
-      // ONE open manhole (NO cover) on a random street block of Bed-Stuy. A dead ZOMBIE ARM +
-      // hand lurches up out of the water and SNAPS its fingers shut to GRAB the sanitation worker
-      // (a solid, dragging whack). If its grabs are what put the worker down, the WRITTEN UP!
-      // stamp reads "Failure to avoid a biohazard." (see the "zombieArm" case in updateCreatures.)
-      const HP_HIT_ZOMBIE = 11; // a solid, dragging zombie grab — a real whack
+      // ==================== BED-STUY (Sunday, day 7) — the MANHOLE TENTACLE ====================
+      // ONE open manhole (NO cover) on a random street block of Bed-Stuy. A GIANT PURPLE
+      // octopus tentacle whips up out of the water and SNAPS its sucker claw shut to GRAB the
+      // sanitation worker (a solid, dragging whack). If its grabs are what put the worker down,
+      // the WRITTEN UP! stamp reads "Failure to avoid a biohazard." (see the "zombieArm" case in updateCreatures.)
+      const HP_HIT_ZOMBIE = 11; // a solid, dragging tentacle grab — a real whack
       const ZOMBIE_TERRITORY = 12; // the worker this close to the hole gets its full attention
       const ZOMBIE_GRAB_R = 2.4; // at the grab apex, the fingers close on whoever is this close
       const ZOMBIE_REACH = 0.55; // the arm lurches UP and OUT of the water toward the worker
@@ -27457,7 +27708,7 @@
         "Blrrrp... glub...",
       ]; // the purple octopus's wet, incoherent slurps, bubbled over the hole
       const ZOMBIE_WORKER_LINES = [
-        "A ZOMBIE arm in the manhole!!",
+        "A purple TENTACLE in the manhole!!",
         "I did NOT sign up for THIS!",
         "That's a biohazard — OW!",
         "It's trying to GRAB me!",
@@ -27633,20 +27884,32 @@
       const GUN_AGGRO_R = 34; // the duel only runs while the worker is this close (no off-screen ammo)
       const GUN_MIN_GAP = 8; // how far apart the two cover spots must be (some distance)
       const GUN_MAX_GAP = 26; // ...but not the whole block
-      const GUN_SHOT_SP = 26; // bullet speed (u/s)
+      const GUN_SHOT_SP = 52; // bullet speed (u/s) - fast tracer that snaps across the block
       const GUN_SHOT_Z = 1.32; // shoulder height (the raised gun hand)
       const GUN_SHOT_LIFE = 1.5; // despawn after this
       const GUN_MISS_MIN = 1.5; // the guaranteed-miss lateral offset (min) - the bullet passes wide
       const GUN_MISS_MAX = 3.0; // (max) of the foe
       const GUN_HURT_R = 0.85; // worker hit radius for a graze
       const GUN_STUN = 0.55; // a light stun on a graze
-      const GUN_AIM_T = 0.35; // the windup (arm up over the cover) before the shot
-      const GUN_TURN_CD_MIN = 1.1; // min time until the return shot
-      const GUN_TURN_CD_MAX = 2.0; // max time until the return shot
-      const GUN_CHASE_SP = 0.35; // the cop's slow push forward up the block (to apprehend)
-      const GUN_RETREAT_SP = 0.4; // the robber's back-away (a hair faster, so he stays ahead)
+      const GUN_AIM_T = 0.18; // the windup (arm up over the cover) before the shot - snappy, not a lazy raise
+      const GUN_TURN_CD_MIN = 0.65; // min time until the return shot
+      const GUN_TURN_CD_MAX = 1.25; // max time until the return shot
+      const GUN_CHASE_SP = 1.6; // (legacy) old drift speed - kept for reference
+      const GUN_RETREAT_SP = 1.8; // (legacy) old drift speed - kept for reference
       const GUN_CHASE_GAP = 6; // the spacing the robber keeps between himself and the cop
       const GUN_EDGE_PAD = 5; // how close to the block's east edge they get
+      const GUN_RUN_SP = 3.4; // how fast a shooter RUNS to his next cover spot (u/s) - a real sprint, not a drift
+      const GUN_RUN_STEP_MIN = 4; // the minimum forward step a shooter takes to his next spot (u)
+      // ============ FASTER / DUCKY SHOOTOUT ============ (v2 - the duel was TOO SLOW and the
+      // shooters just drifted in a line. Now they constantly RE-HUNT cover: each hunter picks a
+      // NEW spot ahead of them - a tree, a hydrant, a curb can, a mailbox, or (for the robber)
+      // even a passing pedestrian / animal as a living shield - and DUCKS into it. The cop
+      // chases the robber; the robber backs up a beat AHEAD and re-hunts. Both keep moving
+      // toward the east edge; the standoff stays tense.)
+      const GUN_HUNT_T = 0.85; // how often a hunter re-hunts a new cover spot (seconds) - fast, never static
+      const GUN_HUNT_AHEAD = 14; // how far ahead of the hunter to search for a new cover spot
+      const GUN_PEOPLE_OFF = 0.8; // lateral offset for a "people/animal" cover spot (duck beside them, not on top)
+      const GUN_DUCK_T = 0.18; // the quick crouch-dip animation when a hunter lands on a new spot
       const COP_SHOUT_LINES = [
         "Hands up!",
         "Put your weapon down!",
@@ -27854,6 +28117,7 @@
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (PUNCHBACK_CAUSES.indexOf(c.type) < 0) continue;
+          if (c.type === "cop") continue; // the worker CANNOT punch the cop (he's the ally)
           const d = dist(c.wx, c.wy);
           if (d < bestD) {
             bestD = d;
@@ -28235,7 +28499,7 @@
         bluejay: ["Feathered Aggression Non-Compliance"],
         // --- the Harlem (Saturday) alligator: it's a PROTECTED SPECIES, and it bit you ---
         gator: ["Endangering a protected species"],
-        // --- the Bed-Stuy (Sunday) zombie arm: you failed to avoid a BIOHAZARD ---
+        // --- the Bed-Stuy (Sunday) manhole tentacle: you failed to avoid a BIOHAZARD ---
         zombieArm: [
           "Failure to avoid a biohazard",
           "Dead-tissue contact protocol was not followed",
@@ -29671,7 +29935,7 @@
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
           if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
           if (c.type === "gator") continue; // the Harlem alligator is in its open manhole — no bump collision; its bite (worker whack / tire clack) is handled in its own AI case
-          if (c.type === "zombieArm") continue; // the Bed-Stuy zombie arm is in its open manhole — no bump collision; its grab (worker whack) is handled in its own AI case
+          if (c.type === "zombieArm") continue; // the Bed-Stuy manhole tentacle is in its open manhole — no bump collision; its grab (worker whack) is handled in its own AI case
           if (c.type === "leashdog") continue; // chained to its lawn; the worker's lane never reaches it
           if (c.type === "tric" && c.isDrivewayTric) continue; // driveway kid: its own AI handles the bump (lighter hit + "Stranger Danger!")
           if (c.type === "bball") continue; // street-baller: non-solid — you dodge the ball he hurls at you (no bump collision)
@@ -30152,9 +30416,14 @@
             if (c.touchCd <= 0) {
               c.touchCd = GUN_TOUCH_CD;
               Voice.say(pick(c.type === "cop" ? SHOOTOUT_TOUCH_COP_LINES : SHOOTOUT_TOUCH_ROBBER_LINES), 2.0, R(1.0, 1.2), c.wx, c.wy, c.gender, c.type);
-              Voice.say(pick(SHOOTOUT_TOUCH_WORKER_LINES), 2.0, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
-              doStun(0.25, "hit");
-              hurtNPC(HP_HIT_SHOOTOUT_TOUCH, c.type, true); // no generic "Ow!" - the shove line IS the hit
+              // THE COP'S SHOVE CANNOT HURT THE WORKER (he's the ally): no damage, no stun, no
+              // worker yelp. He still says "stand back" and stays SOLID (the push-out below).
+              // The ROBBER's shove still deals the minor damage.
+              if (c.type !== "cop") {
+                Voice.say(pick(SHOOTOUT_TOUCH_WORKER_LINES), 2.0, 0.95, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+                doStun(0.25, "hit");
+                hurtNPC(HP_HIT_SHOOTOUT_TOUCH, c.type, true); // no generic "Ow!" - the shove line IS the hit
+              }
             }
             const d = Math.sqrt(d2) || 0.001;
             const nx = -dx / d,
@@ -32448,6 +32717,103 @@
         }
         return stop;
       }
+      // ===== BED-STUY SHOOTOUT: NO ONE wants to be in the crossfire =====
+      // While the cop and the robber trade fire, any NPC person caught on the LINE
+      // OF FIRE between their muzzles panics and BOLTS out of the corridor — no
+      // bystander lingers in the crossfire. We project the walker onto the
+      // muzzle-to-muzzle segment: if they're between the two (t in (0,1)) and within
+      // CROSSFIRE_BAND of that line, they sprint away from the midpoint (reads as
+      // "getting out of the fire"), arms up, and spit one panicked line. Returns true
+      // if it took over the walker's movement this frame (caller skips the stroll);
+      // false otherwise (normal walking resumes and the panic cools off quickly).
+      function npcCrossfireFlee(c, dt, p) {
+        if (state !== "play") return false;
+        // Locate the active cop + robber pair (the Bed-Stuy duel). No pair -> no fire.
+        let cop = null,
+          robber = null;
+        for (let i = 0; i < creatures.length; i++) {
+          const o = creatures[i];
+          if (o === c) continue;
+          if (o.type === "cop") cop = o;
+          else if (o.type === "robber") robber = o;
+        }
+        if (!cop || !robber) return false;
+        // Project c onto the muzzle-to-muzzle segment (closest point + t-parameter).
+        const ax = cop.wx,
+          ay = cop.wy,
+          bx = robber.wx,
+          by = robber.wy;
+        const ex = bx - ax,
+          ey = by - ay;
+        const L2 = ex * ex + ey * ey;
+        if (L2 < 1e-4) return false; // the two are stacked -> no meaningful firing line
+        const px = c.wx - ax,
+          py = c.wy - ay;
+        const t = (px * ex + py * ey) / L2;
+        if (t <= 0 || t >= 1) return false; // not actually between the two
+        const cx = ax + ex * t,
+          cy = ay + ey * t; // closest point on the line
+        const ddx = c.wx - cx,
+          ddy = c.wy - cy;
+        const perp = Math.sqrt(ddx * ddx + ddy * ddy);
+        const CROSSFIRE_BAND = 3.2; // how close to the firing line counts as "in the fire"
+        if (perp > CROSSFIRE_BAND) {
+          c.crossfireHeat = Math.max(0, (c.crossfireHeat || 0) - dt * 2.5); // cool the panic off fast
+          return false; // off the line -> let the normal stroll resume
+        }
+        // IN THE CROSSFIRE: bolt off the ENDS of the line — AWAY from the midpoint of
+        // the two muzzles — so they run clear of BOTH shooters. If they're dead-center
+        // (the away vector is ~zero) they instead step off the firing lane (the outward
+        // perpendicular) with a random side, so they never just sit at the sidewalk's edge.
+        const midX = (ax + bx) / 2,
+          midY = (ay + by) / 2;
+        let fx = c.wx - midX,
+          fy = c.wy - midY;
+        let fl = Math.sqrt(fx * fx + fy * fy);
+        if (fl < 0.5) {
+          // near dead-center: escape off the lane (perpendicular to the muzzle line)
+          const L = Math.sqrt(L2);
+          let px = -ey / L,
+            py = ex / L;
+          if (px * (c.wx - cx) + py * (c.wy - cy) < 0) {
+            px = -px;
+            py = -py;
+          } // point AWAY from the line
+          fx = px + (Math.random() < 0.5 ? -0.6 : 0.6); // + a random side so they don't stick
+          fy = py;
+          fl = Math.sqrt(fx * fx + fy * fy);
+        }
+        fx /= fl;
+        fy /= fl;
+        const FLEE = 9; // panicked sprint (a touch faster than the worker's ~8.5)
+        c.wx += fx * FLEE * dt;
+        c.wy = clamp(c.wy + fy * FLEE * dt, 0.8, 4.4); // stay on the sidewalk band
+        c.crossfireHeat = 1; // fully panicked while in the fire
+        if (c.dir !== undefined) c.dir = fx >= 0 ? 1 : -1; // face the flight
+        if (c.g) c.g.rotation.z = fx >= 0 ? 0 : Math.PI;
+        animParts(c, FLEE * dt * 2.4); // legs pumping at sprint speed
+        if (c.parts) {
+          const flail = Math.sin((c.phase || 0) * 2.2) * 0.5;
+          c.parts.armL.rotation.y = 2.1 + flail; // arms UP, flailing in panic
+          c.parts.armR.rotation.y = -2.1 - flail;
+        }
+        // One panicked line per episode (cooldown) — and only when the worker is in
+        // earshot, so an off-screen crossfire doesn't scream.
+        c.crossfireSayCd = (c.crossfireSayCd || 0) - dt;
+        if (c.crossfireSayCd <= 0 && p && Math.abs(c.wx - p.wx) < 22) {
+          c.crossfireSayCd = R(3.5, 6);
+          Voice.say(
+            pick(["Oh my god!", "Get out of here!", "What the—!", "Ahhh! Duck!"]),
+            2.2,
+            R(1.0, 1.15),
+            c.wx,
+            c.wy,
+            c.gender,
+            "ped",
+          );
+        }
+        return true;
+      }
       function updateCreatures(dt) {
         if (acornSquirrelCd > 0) acornSquirrelCd -= dt; // the oak block's squirrel courier cooldown
         // ===== Maspeth ghost spawner (once per frame) =====
@@ -34038,6 +34404,24 @@
               const pedFloor = isBronxLevel() ? 0.75 : 0.8; // lower edge: never off the curb onto the road
               const sprintPed = npcRoadRules(c, dt, pedTop); // yield to closing traffic: steer aside or sprint
               const pedSp = Math.max(c.sp, sprintPed || 0);
+              // NO ONE wants to be in the crossfire: if this walker is caught on the
+              // firing line between the cop and the robber (Bed-Stuy shootout), they
+              // panic-bolt out of it. This owns the movement for the frame, so skip the
+              // stroll below. (Guarded, like the npcWalkAroundObstacles call: the
+              // walker-avoid test sandboxes this case without the helper defined.)
+              if (typeof npcCrossfireFlee === "function" && npcCrossfireFlee(c, dt, p)) {
+                // keep the pack populated: recycle a fleeing walker that wandered off-screen
+                if (tx > 55) {
+                  c.wx = p.wx - 38;
+                  c.wy = R(1, 4);
+                  c.dir = Math.random() < 0.5 ? -1 : 1;
+                } else if (tx < -58) {
+                  c.wx = p.wx + 42;
+                  c.wy = R(1, 4);
+                  c.dir = Math.random() < 0.5 ? -1 : 1;
+                }
+                break;
+              }
               if (c.dir === undefined) c.dir = 1; // BI-DIRECTIONAL: each walker cruises his own way (like the e-scooter riders)
               c.wx += c.dir * pedSp * dt;
               // NYC walkers route around the solid things on their lane (hydrants, trees,
@@ -38206,7 +38590,9 @@
             c.type !== "skater" &&
             c.type !== "jacker" &&
             c.type !== "raven" &&
-            c.type !== "football" // the Bed-Stuy football player sets his own z (dance hop)
+            c.type !== "football" && // the Bed-Stuy football player sets his own z (dance hop)
+            c.type !== "cop" && // the Bed-Stuy shooter sets his own z (walk bob / crouch)
+            c.type !== "robber" // the Bed-Stuy shooter sets his own z (walk bob / crouch)
           )
             c.g.position.z = GZ;
           // dog walk cycle: trotting leg swing (diagonal pairs) + subtle body bob
@@ -39061,7 +39447,9 @@
         joyPid = null;
       }
       function nextDay() {
-        complaints = 0; // advancing to a new level (or entering overtime) clears the write-up strike record
+        // NOTE: complaints (the write-up strike record) now CARRY OVER across level
+        // transitions — they reset only on a brand-new run (startGame / menu restart),
+        // so a supervisor's strikes persist if you replay a failed shift.
         // OVERTIME BASKETS: fires exactly ONCE, right after finishing level 3 (Wednesday)
         // and BEFORE the Thursday (level 4) shift. It keeps the worker on the Flatbush
         // (level 3) data for the world build, and advances to level 4 when it resolves.
@@ -39456,7 +39844,8 @@
         bonusHopStart = 0;
         BONUS = false; // back to normal world-building
         bonusDoneThisRun = true; // the bonus fires once per week
-        complaints = 0; // the Thursday shift is a new level: clear the write-up strike record
+        // NOTE: complaints (the write-up strike record) now CARRY OVER here too — the
+        // Thursday shift does NOT clear strikes; only a brand-new run resets them.
         level = BONUS_DAY_TRIGGER + 1; // advance to the Thursday (level 4) shift
         showDayIntro(); // builds the real Thursday street (spawns the Red Bull if we won)
       }

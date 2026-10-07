@@ -54,8 +54,8 @@ console.log('[1] level start: resetWorldState no longer refills health');
   const nd2 = extract('nextDay');
   const cab2 = extract('continueAfterBonus');
   check(
-    'complaints ARE reset at the new-level boundaries (startGame / nextDay / continueAfterBonus) — a fresh level = a clean strike record',
-    /complaints = 0;/.test(sg2) && /complaints = 0;/.test(nd2) && /complaints = 0;/.test(cab2),
+    'complaints RESET only on a brand-new run (startGame) — the write-up strike record PERSISTS across nextDay / continueAfterBonus level transitions (a replayed failed shift keeps its strikes)',
+    /complaints = 0;/.test(sg2) && !/complaints = 0;/.test(nd2) && !/complaints = 0;/.test(cab2),
   );
   check(
     'score / street cash / the power-up milestones CARRY OVER across days (no score = 0, bonusTally = 0 or milestone reset in resetWorldState)',

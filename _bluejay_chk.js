@@ -96,7 +96,36 @@ console.log('\n[2] wiring');
   const sfxSec = (() => {
     const i = src.indexOf('const SFX = {');
     if (i < 0) return '';
-    return src.slice(i, i + 12000);
+    // brace-count to the SFX object's REAL closing `}` (string/comment-aware) instead of a
+    // fixed char window — the object keeps growing (detailed gunshot, radio, trainer, ...)
+    // and a hard-coded 12000-char slice started clipping the bird methods.
+    let depth = 0,
+      j = i,
+      q = null;
+    for (; j < src.length; j++) {
+      const c = src[j];
+      if (q) {
+        if (c === '\\') j++;
+        else if (c === q) q = null;
+        continue;
+      }
+      if (c === '/' && src[j + 1] === '/') {
+        while (j < src.length && src[j] !== '\n') j++;
+        continue;
+      }
+      if (c === '/' && src[j + 1] === '*') {
+        while (j < src.length && !(src[j] === '*' && src[j + 1] === '/')) j++;
+        j++;
+        continue;
+      }
+      if (c === "'" || c === '"' || c === '`') q = c;
+      else if (c === '{') depth++;
+      else if (c === '}') {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    return src.slice(i, j + 1);
   })();
   check('SFX: playSquawk (double-scream) + playChirp (babies) + playSwoosh (swoop)',
     sfxSec.indexOf('playSquawk(loud)') >= 0 && sfxSec.indexOf('playChirp()') >= 0 && sfxSec.indexOf('playSwoosh()') >= 0);

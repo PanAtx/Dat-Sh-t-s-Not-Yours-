@@ -10,6 +10,7 @@ function ok(c, m) { if (c) { pass++; console.log("PASS - " + m); } else { fail++
 function vec(x, y, z) { return { x: x, y: y, z: z, set(a, b, c2) { this.x = a; this.y = b; this.z = c2; return this; } }; }
 function OBJ() { this.position = vec(0, 0, 0); this.rotation = vec(0, 0, 0); this.scale = vec(1, 1, 1); this.children = []; this.userData = {}; }
 OBJ.prototype.add = function (c) { this.children.push(c); return this; };
+OBJ.prototype.remove = function (c) { const i = this.children.indexOf(c); if (i >= 0) this.children.splice(i, 1); return c; };
 const THREE = { Group: OBJ, Object3D: OBJ };
 THREE.Mesh = function (g, m) { const o = new OBJ(); o.geometry = g; o.material = m; return o; };
 THREE.BoxGeometry = THREE.SphereGeometry = THREE.CircleGeometry = THREE.TorusGeometry = THREE.CylinderGeometry = THREE.PlaneGeometry = THREE.ConeGeometry = function () { return {}; };
@@ -37,7 +38,7 @@ function sliceBetween(src, startRe, endRe) {
   return e < 0 ? null : src.slice(s, s + e);
 }
 const mpSrc = sliceBetween(big, /function makePerson\(/, /function makeMafiaGuy\(\)/);
-const copSrc = sliceBetween(big, /function makeCopOfficer\(\)/, /function makeHooker\(\)/);
+const copSrc = sliceBetween(big, /function addKnees\(/, /function makeHooker\(\)/);
 ok(!!mpSrc && !!copSrc, "extracted makePerson + makeCopOfficer + makeMaskedRobber from index.html");
 let built = null, modelErr = null;
 try {
@@ -81,6 +82,9 @@ const C = {
   AGGRO: numConst("GUN_AGGRO_R"),
   CHASE: numConst("GUN_CHASE_SP"),
   RETREAT: numConst("GUN_RETREAT_SP"),
+  RUN_SP: numConst("GUN_RUN_SP"),
+  RUN_STEP: numConst("GUN_RUN_STEP_MIN"),
+  DUCK_T: numConst("GUN_DUCK_T"),
   SHOT_Z: numConst("GUN_SHOT_Z"),
   TURN_MIN: numConst("GUN_TURN_CD_MIN"),
   TURN_MAX: numConst("GUN_TURN_CD_MAX"),
@@ -114,6 +118,8 @@ const fireSrc = extractFn("fireGun");
 const shotsSrc = extractFn("updateGunshots");
 const aiSrc = extractFn("gunfightAI");
 ok(!!fireSrc && !!shotsSrc && !!aiSrc, "extracted fireGun + updateGunshots + gunfightAI from index.html");
+const spotSrc = extractFn("gunNextCoverSpot") + "\n" + extractFn("gunStepToward");
+ok(!!extractFn("gunNextCoverSpot") && !!extractFn("gunStepToward"), "extracted gunNextCoverSpot + gunStepToward from index.html");
 const scorchSrc = extractFn("addCoverScorch") + "\n" + extractFn("spawnLeafPuff");
 ok(!!scorchSrc, "extracted addCoverScorch + spawnLeafPuff from index.html");
 
@@ -134,14 +140,17 @@ const constsSrc =
   "const GUN_HURT_R=" + C.HURT_R + ";const GUN_STUN=0.55;const GUN_AIM_T=" + C.AIM_T + ";" +
   "const GUN_TURN_CD_MIN=" + C.TURN_MIN + ";const GUN_TURN_CD_MAX=" + C.TURN_MAX + ";" +
   "const GUN_CHASE_SP=" + C.CHASE + ";const GUN_RETREAT_SP=" + C.RETREAT + ";" +
+  "const GUN_RUN_SP=" + C.RUN_SP + ";const GUN_RUN_STEP_MIN=" + C.RUN_STEP + ";const GUN_DUCK_T=" + C.DUCK_T + ";" +
   "const GUN_CHASE_GAP=6;const GUN_EDGE_PAD=5;const GUN_AGGRO_R=" + C.AGGRO + ";" +
   "const HP_HIT_BULLET=" + C.HP_BULLET + ";" +
   "const COP_SHOUT_LINES=" + JSON.stringify(C.COP) + ";" +
   "const ROBBER_LINES=" + JSON.stringify(C.ROB) + ";" +
-  "const BULLET_HIT_LINES=" + JSON.stringify(C.BULLET) + ";";
+  "const BULLET_HIT_LINES=" + JSON.stringify(C.BULLET) + ";" +
+  "const PLAYER_SPEED=8.5;" +
+  "function bedStuyCoverSpots(blockX){ return [ {wx:92,wy:1.2,kind:'hydrant'},{wx:98,wy:3.4,kind:'tree'},{wx:104,wy:2.0,kind:'can'},{wx:110,wy:3.8,kind:'tree'},{wx:116,wy:1.6,kind:'hydrant'},{wx:122,wy:3.2,kind:'can'},{wx:128,wy:2.4,kind:'tree'} ]; }";
 const runner = new Function(
   "Voice", "pick", "R", "clamp", "hurtNPC", "doStun", "spawnDustEffect", "dropBloodSplatter", "workerMaxY", "WORKER_GENDER", "dynamicGroup", "BX", "MS", "M", "THREE", "dustParticles", "SFX", "GZ",
-  constsSrc + "\n" + fireSrc + "\n" + shotsSrc + "\n" + scorchSrc + "\n" + aiSrc + "\nreturn function(c, pp, dt, st){ state=st; p=pp; gunfightAI(c, dt, p); };",
+  constsSrc + "\n" + fireSrc + "\n" + shotsSrc + "\n" + scorchSrc + "\n" + spotSrc + "\n" + aiSrc + "\nreturn function(c, pp, dt, st){ state=st; p=pp; gunfightAI(c, dt, p); };",
 )(Voice, pick, R, clamp, (d, t, s) => aCalls.hurt.push({ d: d, t: t }), (t) => aCalls.stun++, () => aCalls.dust++, () => aCalls.blood++, () => 4.5, WORKER_GENDER, dynamicGroup, BX, MS, M, THREE, dustParticles, SFX, GZ);
 
 function shooter(tag, wx, wy, side) {
@@ -150,6 +159,7 @@ function shooter(tag, wx, wy, side) {
     coverX: wx, coverY: wy, blockMinX: wx - 30, blockMaxX: wx + 30,
     sp: 0, mode: "cover", gunCd: 0.5, aimT: 0, shots: [], flashT: 0, touchCd: 0,
     sayCd: 9, phase: 1, gender: "male", foe: null, duel: null,
+    duckT: 0, coverCd: 999,
     g: { position: vec(0, 0, 0), rotation: vec(0, 0, 0) }, parts: null,
     flash: { visible: false },
   };
@@ -189,26 +199,39 @@ ok(fireSrc.indexOf("GUN_MISS_MIN") >= 0 && fireSrc.indexOf("dir * miss") >= 0, "
 ok(fireSrc.indexOf('c.duel.turn = c.gunTag === "cop" ? "robber" : "cop"') >= 0, "fireGun hands the turn to the foe after every shot");
 ok(C.SHOT_Z === 1.32, "bullets leave at shoulder height (1.32) - the raised gun hand, not the chest");
 ok(fireSrc.indexOf("Math.cos(theta) * 0.55") >= 0, "fireGun spawns the tracer at the MUZZLE (0.55u in front of the body, facing the foe)");
-ok(aiSrc.indexOf("c.homeX + GUN_CHASE_SP * dt") >= 0, "CHASE: the cop pushes forward up the block to apprehend");
-ok(aiSrc.indexOf("c.homeX + GUN_RETREAT_SP * dt") >= 0 && aiSrc.indexOf("foe.wx + GUN_CHASE_GAP") >= 0, "RETREAT: the robber backs away and keeps his spacing ahead of the cop");
-ok(aiSrc.indexOf("-0.35 + bob * 0.06") >= 0, "the ready hand stays in FRONT of the body (no gun dangling behind the back)");
+ok(aiSrc.indexOf("gunNextCoverSpot(c)") >= 0 && spotSrc.indexOf("Math.abs(dy) * 1.5") >= 0, "COVER-HUNT: a settled shooter picks a NEW fixture and the score BIASES toward a SIDE move (dy) - so it reads as hopping to the side for cover, not drifting in a line");
+ok(aiSrc.indexOf("gunStepToward(c, dt)") >= 0 && aiSrc.indexOf("PLAYER_SPEED") >= 0 && spotSrc.indexOf("c.gunSp") >= 0, "WORKER-PACE: they walk to cover at the worker's pace (PLAYER_SPEED), wobbling via c.gunSp - sometimes slower, sometimes faster");
+ok(aiSrc.indexOf("Math.min(1, dt * 7)") < 0 && aiSrc.indexOf("foe.homeX =") < 0, "NO TELEPORT: the old fast exponential lerp (dt*7) and the edge-snap (foe.homeX=) are gone");
+ok(aiSrc.indexOf("-0.5 + bob * 0.06") >= 0 && aiSrc.indexOf("if (c.gun) c.gun.rotation.y = 0.5") >= 0, "the ready hand stays in FRONT of the body (no gun dangling behind the back) and the barrel points forward");
+ok(aiSrc.indexOf("-0.35 - 1.0 * u") >= 0 && aiSrc.indexOf("c.gun.rotation.y = 0.35 + 1.0 * u") >= 0, "when AIMING, the gun arm swings OUT FORWARD (hand in front of the chest) and the gun is counter-rotated so the barrel stays pointed at the target");
 
-// ---- A GRAZE: bullet touches the worker -> 18 HP, ONE hit per bullet, blames the shooter ----
+// ---- THE COP'S BULLETS CANNOT HURT THE WORKER: the tracer passes straight through ----
 aCalls.hurt.length = 0;
-shotCount = 0;
+Voice.calls.length = 0;
 copC.shots.push({ g: { position: { set() {} } }, wx: p.wx, wy: p.wy, vx: 26, vy: 0, life: 1.5, hit: false });
 runner(copC, p, 0.016, "play");
-ok(aCalls.hurt.length === 1 && aCalls.hurt[0].d === 18 && aCalls.hurt[0].t === "cop", "a graze deals the BIG 18 HP damage and blames the cop (the shooter)");
-runner(copC, p, 0.016, "play");
+ok(aCalls.hurt.length === 0, "the COP's bullet passes through the worker with NO damage (he can never hurt the worker)");
+ok(!Voice.calls.find((c) => c[6] === "worker" && C.BULLET.indexOf(c[0]) >= 0), "no worker graze yelp from a cop bullet (the worker isn't hit)");
+
+// ---- THE ROBBER'S BULLET STILL GRAZES: 18 HP, ONE hit per bullet, blames the robber ----
+aCalls.hurt.length = 0;
+Voice.calls.length = 0;
+robC.shots.push({ g: { position: { set() {} } }, wx: p.wx, wy: p.wy, vx: 26, vy: 0, life: 1.5, hit: false });
+runner(robC, p, 0.016, "play");
+ok(aCalls.hurt.length === 1 && aCalls.hurt[0].d === 18 && aCalls.hurt[0].t === "robber", "a ROBBER graze deals the BIG 18 HP damage and blames the robber (the shooter)");
+runner(robC, p, 0.016, "play");
 ok(aCalls.hurt.length === 1, "one graze per bullet (no per-frame drain)");
 let workerLine = Voice.calls.find((c) => c[6] === "worker" && C.BULLET.indexOf(c[0]) >= 0);
-ok(!!workerLine, "the worker yells a graze line (\"That bullet grazed me!\" / \"Ow! It hit my ear!\")");
+ok(!!workerLine, "the worker yells a graze line from a ROBBER bullet (\"That bullet grazed me!\" / \"Ow! It hit my ear!\")");
+ok(shotsSrc.indexOf("c.gunTag !== \"cop\"") >= 0, "structural: updateGunshots skips worker damage when the shooter is the cop (c.gunTag !== \"cop\")");
 
 
-// ---- CHASE/RETREAT: the cop advances, the robber stays AHEAD, both move up the block ----
-ok(robC.wx > copC.wx + 4, "after 35s the robber is still AHEAD of the cop (gap " + (robC.wx - copC.wx).toFixed(1) + "u)");
-ok(copC.wx > 101, "the cop advanced up the block (wx 100 -> " + copC.wx.toFixed(1) + ")");
-ok(robC.wx > 113, "the robber backed away up the block (wx 112 -> " + robC.wx.toFixed(1) + ")");
+// ---- REAL GUNFIGHT: both keep DYNAMICALLY moving to (side) cover at worker pace, on-block ----
+const copMoved = Math.abs(copC.wx - 100) > 0.5 || Math.abs(copC.wy - 1.5) > 0.5;
+const robMoved = Math.abs(robC.wx - 112) > 0.5 || Math.abs(robC.wy - 2.5) > 0.5;
+ok(copMoved, "the cop is DYNAMIC: he moved to a new (side) cover spot (now wx " + copC.wx.toFixed(1) + ", wy " + copC.wy.toFixed(1) + ")");
+ok(robMoved, "the robber is DYNAMIC: he moved to a new (side) cover spot (now wx " + robC.wx.toFixed(1) + ", wy " + robC.wy.toFixed(1) + ")");
+ok(copC.wx >= 70 && copC.wx <= 130 && robC.wx >= 82 && robC.wx <= 142, "both stayed on their block while re-hunting cover (no drift out, no teleport)");
 
 // ---- MUZZLE ORIGIN: the bullet leaves the raised hand, not the chest ----
 const cop3 = shooter("cop", 100, 1.5, -1);
@@ -301,6 +324,7 @@ const colSrc = colStart > 0 && colEnd > colStart ? html.slice(colStart, colEnd) 
 ok(!!colSrc, "collideCreatures: the cop/robber touch branch exists");
 ok(colSrc.indexOf("hurtNPC(HP_HIT_SHOOTOUT_TOUCH, c.type, true)") >= 0, "touch deals the MINOR 3 HP damage");
 ok(colSrc.indexOf("c.touchCd = GUN_TOUCH_CD;") >= 0, "touch damage is on a per-NPC cooldown (no frame drain)");
+ok(colSrc.indexOf("if (c.type !== \"cop\")") >= 0, "structural: the cop's touch is guarded (no worker damage) while the robber's shove still deals it");
 ok(colSrc.indexOf("SHOOTOUT_TOUCH_COP_LINES") >= 0 && colSrc.indexOf("SHOOTOUT_TOUCH_ROBBER_LINES") >= 0, "a \"stand back\" line comes from the shooter on touch");
 
 // ---- write-up + bubbles ----

@@ -177,6 +177,18 @@ console.log('[4] tryPunchBack — the real function in a harness');
   const dealerNear = { type: 'dealer', wx: 1.0, wy: 2 };
   const r3 = run(mkP(), [dealerNear, dealer]);
   check('two attackers in reach (1.0u + 1.5u): the NEAREST one gets punched', r3.ok === true && r3.p.punchTarget === dealerNear);
+
+  // ===== THE COP CANNOT BE PUNCHED (he's the ally) =====
+  const copNear = { type: 'cop', wx: 1.0, wy: 2 };
+  const r4 = run(mkP(), [copNear]);
+  check('a COP in reach (1.0u): NO punch - the worker CANNOT punch the cop (whiff)', r4.ok === false && r4.out.punch === 0 && r4.p.punchTarget === null);
+  // the robber, in the SAME spot, IS a valid target (only the cop is the ally)
+  const robNear = { type: 'robber', wx: 1.0, wy: 2 };
+  const r5 = run(mkP(), [robNear]);
+  check('a ROBBER in reach (1.0u): the worker CAN punch the robber (he stays hostile)', r5.ok === true && r5.p.punchTarget === robNear);
+  // cop + robber both in reach: the robber is punched, never the cop
+  const r6 = run(mkP(), [copNear, robNear]);
+  check('cop + robber both at 1.0u: the ROBBER is punched, NOT the cop', r6.ok === true && r6.p.punchTarget === robNear);
 }
 
 console.log('');
