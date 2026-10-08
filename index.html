@@ -1146,6 +1146,57 @@
           0 3px 8px rgba(0, 0, 0, 0.5),
           0 0 20px rgba(46, 224, 144, 0.5);
       }
+      /* MOBILE FEEDBACK: NEXT DAY is the one tap that kicks off a slow level rebuild,
+         and on a phone that rebuild can take long enough that the tap looks dead.
+         We drive a persistent .pressed class from the click handler (see below) so the
+         button stays visually "held down" + pulses while the new day loads. Placed AFTER
+         the :hover / :active rules above (equal specificity) so it wins while active. */
+      /* SLOW-TRANSITION FEEDBACK: every "advance" button (Start / Begin Day / Next Day /
+         Bonus Continue / Week Restart / game-over Restart) is the tap that kicks off a slow
+         street rebuild, so each gets the same held-down + pulsing state while it runs. The
+         .pressed class is driven from the click handlers (see beginAdvance below). */
+      #btnNextDay.pressed,
+      #btnBeginDay.pressed,
+      #btnBonusContinue.pressed,
+      #btnStart.pressed,
+      #btnRestart.pressed,
+      #btnRestart2.pressed,
+      #btnWeekRestart.pressed {
+        transform: translateY(5px);
+        filter: brightness(0.95) saturate(1.05);
+        box-shadow:
+          0 1px 0 #0e7a4f,
+          0 2px 6px rgba(0, 0, 0, 0.5),
+          0 0 20px rgba(46, 224, 144, 0.5);
+        animation: nextday-pressed-pulse 0.85s ease-in-out infinite;
+        will-change: transform;
+      }
+      @keyframes nextday-pressed-pulse {
+        0%,
+        100% {
+          box-shadow:
+            0 1px 0 #0e7a4f,
+            0 2px 6px rgba(0, 0, 0, 0.5),
+            0 0 14px rgba(46, 224, 144, 0.35);
+        }
+        50% {
+          box-shadow:
+            0 1px 0 #0e7a4f,
+            0 2px 6px rgba(0, 0, 0, 0.5),
+            0 0 34px rgba(46, 224, 144, 0.75);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #btnNextDay.pressed,
+        #btnBeginDay.pressed,
+        #btnBonusContinue.pressed,
+        #btnStart.pressed,
+        #btnRestart.pressed,
+        #btnRestart2.pressed,
+        #btnWeekRestart.pressed {
+          animation: none;
+        }
+      }
       /* ===== SETTINGS PAGE (gear button next to START SHIFT) =====
          The start screen stays clean (logo fully visible): all graphics / FPS /
          shadow / CRT options live on this overlay, opened by the small gear.
@@ -1914,6 +1965,91 @@
       }
       #btnRetry:hover {
         background: #ff7a7a;
+      }
+      /* ===== Level-transition loading overlay ("GETTING READY FOR DAY X") =====
+   Shown the instant an advance button (Start / Begin Day / Next Day / Bonus Continue /
+   Week Restart) is tapped, so the slow synchronous street rebuild reads as an intentional
+   "getting ready" beat instead of a frozen tap. Same family as the asset-loading screen
+   (#loading): dark, centered, green accent. Uses an INDETERMINATE shimmering bar (we don't
+   know how long the rebuild takes, so no fake percentage). Inherits the fixed/centered
+   layout from .modal; sits above the panels (#menu is z-index 20). */
+      #level-loading {
+        z-index: 32;
+        background: rgba(3, 7, 10, 0.94);
+      }
+      #level-loading .ll-panel {
+        width: min(92vw, 540px);
+        text-align: center;
+      }
+      .ll-day {
+        font-family: "Courier New", monospace;
+        font-size: clamp(20px, 5.5vw, 42px);
+        font-weight: 700;
+        letter-spacing: 4px;
+        color: #7dff9e;
+        text-shadow: 0 0 20px rgba(46, 224, 144, 0.55);
+      }
+      .ll-sub {
+        font-family: "Courier New", monospace;
+        font-size: clamp(11px, 2vw, 15px);
+        letter-spacing: 4px;
+        color: #bfe9ff;
+        margin-top: 4px;
+      }
+      .llbar-wrap {
+        width: 100%;
+        height: 20px;
+        border: 2px solid #2ee090;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.55);
+        margin: 18px auto 12px;
+        overflow: hidden;
+        box-shadow: 0 0 18px rgba(46, 224, 144, 0.5);
+      }
+      .llbar-fill {
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(
+          90deg,
+          #1a8f52,
+          #2ee090,
+          #7dff9e,
+          #2ee090,
+          #1a8f52
+        );
+        background-size: 200% 100%;
+        box-shadow: 0 0 14px rgba(46, 224, 144, 0.9);
+        animation: ll-slide 1.1s linear infinite;
+      }
+      @keyframes ll-slide {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
+      .ll-status {
+        font-family: "Courier New", monospace;
+        font-size: clamp(10px, 1.8vw, 13px);
+        color: #9fe8b8;
+        letter-spacing: 3px;
+        animation: ll-blink 1.2s ease-in-out infinite;
+      }
+      @keyframes ll-blink {
+        0%,
+        100% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .llbar-fill,
+        .ll-status {
+          animation: none;
+        }
       }
       /* ===== Per-asset status list on the "Getting Assets" screen =====
    A live checklist next to the progress bar: each gated asset shows its own
@@ -3863,6 +3999,19 @@
         <button id="btnRetry" class="hidden">RETRY</button>
       </div></div
     >
+    <!-- Level-transition loading overlay: covers the screen the instant an advance button
+         (Start / Begin Day / Next Day / Bonus Continue / Week Restart) is tapped, so the slow
+         synchronous street rebuild reads as a deliberate "GETTING READY FOR DAY X" beat. -->
+    <div id="level-loading" class="modal hidden"
+      ><div class="ll-panel">
+        <div class="ll-day" id="ll-day">GETTING READY</div>
+        <div class="ll-sub">BUILDING THE STREET</div>
+        <div class="llbar-wrap"
+          ><div class="llbar-fill" id="llbar-fill"></div
+        ></div>
+        <div class="ll-status" id="ll-status">LOADING&hellip;</div>
+      </div></div
+    >
     <div id="menu" class="modal hidden"
       ><div class="panel">
         <div class="menu-logo-wrap">
@@ -3871,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.449</div>
+          <div id="app-version" class="menu-version">v1.0.450</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4125,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.449';
+      const APP_VERSION = '1.0.450';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4588,6 +4737,16 @@
       // respawns at the top of the box when it hits the street.
       function updateWeatherRain(dt) {
         if (!weatherRain) return;
+        // The puddle sheen is pinned to the camera at the very bottom edge of the frame, so it
+        // stays clipped out during normal play (a subtle wet-street tint). The route-end and
+        // death cinematics zoom OUT (a wider ortho frustum) and pull those 3 squares fully into
+        // view as obvious grey rectangles, so hide them for those cinematics. They come back
+        // automatically the moment play resumes. (typeof guard: the test sandbox runs this
+        // function in isolation without a `state` in scope.)
+        if (typeof state !== "undefined") {
+          const hidePuddles = state === "routeend" || state === "dying";
+          for (let i = 0; i < weatherPuddles.length; i++) weatherPuddles[i].visible = !hidePuddles;
+        }
         // ---- THUNDER & LIGHTNING (rain only): every ~14-34s a flash lifts the whole
         // scene (ambient + sun surge), then a deep rumble rolls in a beat later.
         stormNext -= dt;
@@ -39137,6 +39296,7 @@
         }
         setTxt($("day-stats-score"), pad(dayScore));
         setTxt($("day-stats-week"), pad(weekScore));
+        $("btnNextDay").classList.remove("pressed"); // a fresh report always starts un-pressed
         $("btnNextDay").textContent = routeFailed
           ? "RETRY THE SHIFT \u21bb"
           : level < MAX_LEVEL
@@ -39605,6 +39765,8 @@
         vt.l = 0;
         vt.act = false;
         joyPid = null;
+        hideLevelLoading(); // slow-transition feedback: the week is done, reveal the panel
+        clearAdvancePressed();
       }
       function showDayIntro() {
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
@@ -39689,6 +39851,8 @@
         vt.f = 0;
         vt.l = 0;
         vt.act = false;
+        hideLevelLoading(); // slow-transition feedback: the street is built, reveal it
+        clearAdvancePressed();
       }
       function beginDay() {
         $("day-intro").classList.add("hidden");
@@ -39758,6 +39922,8 @@
         vt.f = 0;
         vt.l = 0;
         vt.act = false;
+        hideLevelLoading(); // slow-transition feedback: the overtime street is built, reveal it
+        clearAdvancePressed();
       }
       // OVERTIME street-cash counter (LEVEL-LOCAL): the money the worker banks DURING this
       // overtime round. It reads the global street-cash tally (bonusTally) minus the
@@ -40717,26 +40883,119 @@
         );
       }
       // ==================== END VIRTUAL PAD ====================
+      // ==================== SLOW-TRANSITION FEEDBACK ====================
+      // The street rebuild (showDayIntro / nextDay / showDayStats) is synchronous and can
+      // take a couple of seconds on low-end mobile GPUs. A bare tap + a frozen screen reads
+      // as a hang, so every "advance" button now: (1) marks itself .pressed the instant it's
+      // tapped, (2) shows the full-screen "GETTING READY FOR DAY X" overlay, then (3) runs
+      // the transition on the NEXT animation frame so the pressed state + overlay PAINT
+      // first. When the synchronous transition returns, if the overlay is STILL up the
+      // advance was blocked (a guard) or threw and no new screen was built, so we release
+      // it here. The screen-building functions (showDayIntro / showDayStats /
+      // showWeekComplete) also release it as their completion point, so a normal advance
+      // never lingers on the loading screen.
+      function _advanceDayName() {
+        try {
+          const d = LEVEL_DAYS[(level || 1) - 1];
+          return d && d.day ? d.day : "THE SHIFT";
+        } catch (e) {
+          return "THE SHIFT";
+        }
+      }
+      function _nextAdvanceDayName() {
+        try {
+          const n = Math.min((level || 1) + 1, MAX_LEVEL);
+          const d = LEVEL_DAYS[n - 1];
+          return d && d.day ? d.day : "THE NEXT DAY";
+        } catch (e) {
+          return "THE NEXT DAY";
+        }
+      }
+      function showLevelLoading(dayText) {
+        const el = $("level-loading");
+        if (!el) return;
+        const d = $("ll-day");
+        if (d) d.textContent = dayText || "GETTING READY";
+        el.classList.remove("hidden");
+      }
+      function hideLevelLoading() {
+        const el = $("level-loading");
+        if (el) el.classList.add("hidden");
+      }
+      function clearAdvancePressed() {
+        const ids = [
+          "btnStart",
+          "btnRestart",
+          "btnRestart2",
+          "btnBeginDay",
+          "btnNextDay",
+          "btnBonusContinue",
+          "btnWeekRestart",
+        ];
+        for (let i = 0; i < ids.length; i++) {
+          const b = $(ids[i]);
+          if (b) b.classList.remove("pressed");
+        }
+      }
+      // Begin a slow transition from an advance button: press it, show the overlay, then
+      // run `fn` on the next frame so the feedback paints before the rebuild blocks the
+      // main thread. `fn` runs synchronously; when it returns we release the feedback if a
+      // guard swallowed the advance (overlay still up = no new screen was built).
+      function beginAdvance(btnId, dayText, fn) {
+        const b = $(btnId);
+        if (b) b.classList.add("pressed");
+        showLevelLoading(dayText);
+        requestAnimationFrame(function () {
+          try {
+            fn();
+          } catch (e) {
+            console.error("advance transition failed", e);
+          }
+          const ov = $("level-loading");
+          if (ov && !ov.classList.contains("hidden")) {
+            hideLevelLoading();
+            clearAdvancePressed();
+          }
+        });
+      }
       $("btnStart").addEventListener("click", function () {
-        advanceGame();
+        beginAdvance("btnStart", "STARTING THE WEEK", advanceGame);
       }); // menu card -> begin a fresh week (Monday)
       $("btnRestart").addEventListener("click", function () {
-        startGame();
+        beginAdvance("btnRestart", "STARTING THE WEEK", startGame);
       }); // game over  -> restart the whole week
       $("btnRestart2").addEventListener("click", function () {
-        startGame();
+        beginAdvance("btnRestart2", "STARTING THE WEEK", startGame);
       }); // legacy route-complete button (unused now)
       $("btnBeginDay").addEventListener("click", function () {
-        advanceGame();
+        beginAdvance(
+          "btnBeginDay",
+          "GETTING READY FOR " + _advanceDayName(),
+          advanceGame,
+        );
       }); // day-intro card -> start the shift
       $("btnNextDay").addEventListener("click", function () {
-        advanceGame();
+        // MOBILE FEEDBACK: press the button + show the "GETTING READY FOR DAY X" overlay the
+        // instant it's tapped so a slow level rebuild doesn't look like a dead tap / hang.
+        // beginAdvance defers the (synchronous, sometimes slow) rebuild to the next frame so
+        // the pressed state + overlay paint first, then releases them once the next screen
+        // (day-intro / report / week-complete) is up — or immediately if a guard swallowed
+        // the advance (3rd-strike write-up lock / preloading).
+        beginAdvance(
+          "btnNextDay",
+          "GETTING READY FOR " + _nextAdvanceDayName(),
+          advanceGame,
+        );
       }); // day-end report -> next day / finish the week
       $("btnBonusContinue").addEventListener("click", function () {
-        continueAfterBonus(); // overtime result card -> Thursday (level 4)
-      }); // overtime result -> next day
+        beginAdvance(
+          "btnBonusContinue",
+          "GETTING READY FOR THURSDAY",
+          continueAfterBonus,
+        );
+      }); // overtime result -> Thursday (level 4)
       $("btnWeekRestart").addEventListener("click", function () {
-        startGame();
+        beginAdvance("btnWeekRestart", "STARTING THE WEEK", startGame);
       }); // week complete -> work another week
       // In-shift PAUSE control (bottom-center pad): PAUSE freezes the shift, RESUME
       // (on the pause overlay) brings it back. QUIT lives in the pause overlay.

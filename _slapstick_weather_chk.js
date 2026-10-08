@@ -77,10 +77,10 @@ function runWeather() {
     'let SUN_X0 = -25, SUN_Y0 = 28, SUN_Z0 = 58;\n' + // the classic defaults (declared above the weather block in index.html)
     grab('let _lanePrevWy = 0; // previous frame', 'let state = "menu",');
   const fn = new Function(
-    'THREE', 'scene', 'dirLight', 'ambientLight', 'R', 'camFollowX', 'p', 'camera',
-    src + '\nreturn { rollWeather, updateWeatherRain, getWeather: () => weather, getSUN: () => [SUN_X0, SUN_Y0, SUN_Z0], getRain: () => weatherRain, getAmb: () => ambientLight.intensity, getSunI: () => dirLight.intensity, getSky: () => scene.background.hex, getFog: () => [scene.fog.near, scene.fog.far], getTemp: () => weatherTemp, getForecast: () => updateWeatherHud(), getDayForecast: () => weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine, countSplashes: () => { let c = 0; for (let i = 0; i < weatherRain.splashN; i++) if (weatherRain.life[i] > 0) c++; return c; }, setStormNext: v => { stormNext = v; }, setGust: v => { gustT = v; }, setGustNext: v => { gustNext = v; }, getPapers: () => gustPapers.length, getPaperList: () => gustPapers, getPuddles: () => weatherPuddles, WEATHERS };'
+    'THREE', 'scene', 'dirLight', 'ambientLight', 'R', 'camFollowX', 'p', 'camera', 'state',
+    src + '\nreturn { rollWeather, updateWeatherRain, getWeather: () => weather, getSUN: () => [SUN_X0, SUN_Y0, SUN_Z0], getRain: () => weatherRain, getAmb: () => ambientLight.intensity, getSunI: () => dirLight.intensity, getSky: () => scene.background.hex, getFog: () => [scene.fog.near, scene.fog.far], getTemp: () => weatherTemp, getForecast: () => updateWeatherHud(), getDayForecast: () => weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine, countSplashes: () => { let c = 0; for (let i = 0; i < weatherRain.splashN; i++) if (weatherRain.life[i] > 0) c++; return c; }, setStormNext: v => { stormNext = v; }, setGust: v => { gustT = v; }, setGustNext: v => { gustNext = v; }, getPapers: () => gustPapers.length, getPaperList: () => gustPapers, getPuddles: () => weatherPuddles, getState: () => state, setState: v => { state = v; }, WEATHERS };'
   );
-  return fn(THREE, scene, dirLight, ambientLight, R, 42, { wx: 5, wy: 2.5 }, camera);
+  return fn(THREE, scene, dirLight, ambientLight, R, 42, { wx: 5, wy: 2.5 }, camera, 'play');
 }
 
 const wDusk = runWeather();
@@ -130,6 +130,28 @@ check('the gust whoosh is bandpassed noise + a low pressure dip, scaled by gust 
   const PUD = wp.getPuddles();
   check('rainy shift lays 3 glossy wet patches on the street (camera-parented)', PUD.length === 3 && PUD.every((g) => g.parent && g.parent.isCam === true && g.material.o.opacity === 0.45), String(PUD.length));
   check('the puddle sheen picks up the streaks\' blue (0x5d7d99)', /color: 0x5d7d99/.test(html));
+}
+{
+  // The puddle sheen is camera-locked at the bottom edge of the frame: fine as a subtle
+  // wet-street tint in play, but the route-end / death cinematics zoom OUT and would pull
+  // the 3 squares fully into view as obvious grey rectangles. So they must hide there and
+  // come back on play.
+  const wp = runWeather();
+  withRand(() => 0.5, () => wp.rollWeather({ special: true })); // Bed-Stuy special -> rain
+  const PUD = wp.getPuddles();
+  check('the sandbox exposes a controllable game state (defaults to play)', wp.getState() === 'play', wp.getState());
+  wp.setState('play');
+  wp.updateWeatherRain(0.016);
+  check('during play the puddle sheen stays visible', PUD.length === 3 && PUD.every((g) => g.visible === true), 'play vis=' + PUD.map((g) => g.visible).join(','));
+  wp.setState('routeend');
+  wp.updateWeatherRain(0.016);
+  check('the route-end cinematic HIDES the puddle sheen (no grey squares at the bottom)', PUD.every((g) => g.visible === false), 'routeend vis=' + PUD.map((g) => g.visible).join(','));
+  wp.setState('dying');
+  wp.updateWeatherRain(0.016);
+  check('the death cinematic HIDES the puddle sheen too', PUD.every((g) => g.visible === false), 'dying vis=' + PUD.map((g) => g.visible).join(','));
+  wp.setState('play');
+  wp.updateWeatherRain(0.016);
+  check('back in play the puddle sheen returns', PUD.every((g) => g.visible === true), 'play vis=' + PUD.map((g) => g.visible).join(','));
 }
 {
   const wg = runWeather();
