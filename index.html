@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.451</div>
+          <div id="app-version" class="menu-version">v1.0.452</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.451';
+      const APP_VERSION = '1.0.452';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9365,13 +9365,21 @@
           return g;
         }
         // Base plastic tone shifts a touch with the contents so special bags read differently.
+        // `plastic` carries glossy MeshStandardMaterial params (the sheen that makes a bag
+        // read as PLASTIC, not a matte leafy blob).
         let c1 = 0x23272e,
           c2 = 0x1b1f24,
-          glow = null;
+          glow = null,
+          plastic = null;
         if (type === "heavy") {
-          c1 = 0x14621f;
-          c2 = 0x0e4516;
-          glow = { emissive: 0x082410, emissiveIntensity: 0.4 };
+          // DEEP "bio-waste" green — darker + cooler than the leaf green of the curb trees,
+          // so a heavy bag parked next to a tree no longer reads as part of the crown. The
+          // glossy plastic sheen + the light twist-tie (added below) finish the "it's a bag"
+          // tell. Green is kept so it's still the at-a-glance "haul it to the truck" cue.
+          c1 = 0x0d3a1c;
+          c2 = 0x072411;
+          glow = { emissive: 0x06200f, emissiveIntensity: 0.5 };
+          plastic = { metalness: 0.2, roughness: 0.4 };
         } // DARK GREEN bag — the "haul it to the truck" tell
         else if (type === "maggot") {
           c1 = 0x33351f;
@@ -9382,8 +9390,11 @@
           c2 = 0x22221a;
         } // dull, stained
         const g = new THREE.Group();
-        const m = M(c1, glow),
-          m2 = M(c2, glow);
+        // Heavy bags use a glossy MeshStandardMaterial (plastic sheen); the rest stay
+        // Lambert. MS() is the game's standard-material helper (safe under the mocks).
+        const matOpts = Object.assign({}, glow, plastic);
+        const m = plastic ? MS(c1, matOpts) : M(c1, glow),
+          m2 = plastic ? MS(c2, matOpts) : M(c2, glow);
         const body = SP(0.4, m);
         body.scale.set(1.05, 0.9, 1.15);
         body.position.z = 0.4;
@@ -9402,6 +9413,13 @@
         // this is the one that has to be hauled to the truck. Size stays the usual full bag.
         if (type === "heavy") {
           g.scale.setScalar(1.28);
+          // A light-colored twist-tie cinches the neck. A tree has no knot, so this —
+          // with the glossy plastic sheen and the deeper green — is the "it's a bag, not
+          // the tree" tell when a heavy bag lands right beside a leafy crown.
+          const tie = CY(0.15, 0.15, 0.09, MS(0xcfc79a, { metalness: 0.1, roughness: 0.6 }));
+          tie.rotation.x = Math.PI / 2;
+          tie.position.z = 1.0;
+          g.add(tie);
         }
 
         // Extra grime / hazards, only on the special bags.
@@ -13596,19 +13614,49 @@
         // Trees don't cast shadows: their thin trunk is only ~5–8 texels wide in the
         // 2048² / ±28 frustum, so the contact shadow on the grass flickers badly as
         // the camera scrolls. Trees still receive light normally, so they don't float.
-        const trunk = CY(0.11, 0.2, 1.3, M(0x5a4632), 10);
-        trunk.rotation.x = Math.PI / 2;
-        trunk.position.z = 0.65;
+        //
+        // The old tree was two smooth green balls on a stick — a "green lollipop" — and a
+        // heavy green curb bag next to it read as the same blob, so players mistook the
+        // bag for the tree and walked past it. Now the tree is TALLER (a real tapered
+        // trunk, not a lollipop stick) with a FACETED, lumpy, asymmetric crown: a clear
+        // "tree" silhouette that a round plastic bag can no longer blend into.
+        const trunkH = 1.9 + Math.random() * 0.5; // ~1.9–2.4u trunk (old was a 1.3 stick)
+        const trunk = CY(0.08, 0.17, trunkH, M(0x5a4632), 8);
+        trunk.rotation.x = Math.PI / 2; // thin top, thick base, standing up along +Z
+        trunk.position.z = trunkH / 2;
         trunk.castShadow = false;
         g.add(trunk);
-        const c1 = SP(1.0, M(0x3f7a33), 8);
-        c1.position.z = 2.05;
-        c1.castShadow = false;
-        g.add(c1);
-        const c2 = SP(0.6, M(0x4c8a3c), 8);
-        c2.position.set(0.4, 0.3, 2.5);
-        c2.castShadow = false;
-        g.add(c2);
+        // Faceted crown: a lumpy, flat-faceted icosahedron (NOT a smooth lollipop ball)
+        // with per-tree size + green variation, seated on top of the trunk. The crown
+        // normals are recomputed so each face shades flat — r128's Lambert material has no
+        // flatShading flag, and PolyhedronGeometry's default normals are spherical (a
+        // smooth ball), which is exactly what made the old trees read as lollipops.
+        const size = 0.75 + Math.random() * 0.45;
+        const gv = 120 + ((Math.random() * 60) | 0); // 120–179 -> a spread of leaf greens
+        const leafM = new THREE.MeshLambertMaterial({
+          color: new THREE.Color(0.16, gv / 255, 0.14).getHex(),
+        });
+        const crownGeo = new THREE.IcosahedronGeometry(size, 1);
+        crownGeo.computeVertexNormals(); // per-face normals -> visible leaf facets
+        const crown = new THREE.Mesh(crownGeo, leafM);
+        crown.position.z = trunkH + size * 0.55;
+        crown.castShadow = false;
+        g.add(crown);
+        // Two offset leaf CLUMPS (faceted, not smooth balls) break the perfect-ball
+        // silhouette — an organic, lopsided crown.
+        const clump = (r) => {
+          const geo = new THREE.IcosahedronGeometry(r, 0);
+          geo.computeVertexNormals();
+          const c = new THREE.Mesh(geo, leafM);
+          c.castShadow = false;
+          return c;
+        };
+        const b1 = clump(size * 0.6);
+        b1.position.set(size * 0.5, size * 0.12, -size * 0.05);
+        crown.add(b1);
+        const b2 = clump(size * 0.5);
+        b2.position.set(-size * 0.45, -size * 0.08, size * 0.2);
+        crown.add(b2);
         return g;
       }
       // ==================== STATIC HAZARDS ====================
@@ -15379,28 +15427,61 @@
       }
       function makeSidewalkTree() {
         const tree = new THREE.Group();
-        // Tall trunk
+        // Tall trunk (the leash chain ties off to the trunk at z 1.5, so TRUNK_H must
+        // stay > 1.5; the blue jay nest sits in the canopy above it).
         const TRUNK_H = 2.0;
-        const trunk = CY(0.07, 0.09, TRUNK_H, M(0x4a3520), 8);
+        // Tapered trunk: CY radiusTop/radiusBottom run along local Y and rotation.x = -90°
+        // tips local +Y DOWN, so the FIRST radius is the root end (wide, flared into the
+        // sidewalk) and the second is the crown end (thin). A flat 0.07/0.09 stick read as
+        // a lollipop handle; a flared base reads as a real tree.
+        const trunk = CY(0.16, 0.07, TRUNK_H, M(0x4a3520), 8);
         trunk.rotation.x = -Math.PI / 2; // stand upright along +Z
         trunk.position.z = TRUNK_H / 2;
         tree.add(trunk);
-        // Round canopy (icosahedron) with random size/color variation, sitting on top of trunk
+        // Dirt tree-pit at the trunk foot: a flat dark ring on the sidewalk. It marks the
+        // spot as a PLANTED tree, so a green bag parked beside the trunk is clearly its own
+        // object instead of part of the tree.
+        const pit = CY(0.44, 0.48, 0.06, M(0x3a2c1c), 10);
+        pit.rotation.x = Math.PI / 2;
+        pit.position.z = 0.03;
+        pit.castShadow = false;
+        tree.add(pit);
+        // Canopy (icosahedron) with random size/color variation, sitting on top of trunk
         const size = 0.7 + Math.random() * 0.4;
         const g = 80 + ((Math.random() * 50) | 0);
         const leafM = new THREE.MeshLambertMaterial({
           color: new THREE.Color(0.15, g / 255, 0.15).getHex(),
         });
-        const canopy = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(size, 1),
-          leafM,
+        // Recompute the canopy normals so every face shades FLAT: PolyhedronGeometry's
+        // default normals are spherical, so the old canopy lit up as one smooth ball — a
+        // lollipop. Faceted panels read as clumps of leaves instead (r128's Lambert
+        // material has no flatShading flag, so the faceting is baked into the geometry).
+        const canopyGeo = new THREE.IcosahedronGeometry(size, 1);
+        canopyGeo.computeVertexNormals();
+        const canopy = new THREE.Mesh(canopyGeo, leafM);
+        // Lopsided + slightly egg-shaped crown (off-centre, taller than wide): the perfect
+        // sphere-on-a-stick silhouette was what made the trees read as lollipops.
+        canopy.position.set(
+          (Math.random() - 0.5) * size * 0.34,
+          (Math.random() - 0.5) * size * 0.3,
+          TRUNK_H + size * 0.6,
         );
-        canopy.position.z = TRUNK_H + size * 0.6;
+        canopy.scale.set(0.94, 1.0 + Math.random() * 0.18, 1.16);
         canopy.castShadow = true;
+        // Faceted leaf clumps break the ball silhouette: one lobe on each side.
+        const clump = (r) => {
+          const geo = new THREE.IcosahedronGeometry(r, 0);
+          geo.computeVertexNormals();
+          return new THREE.Mesh(geo, leafM);
+        };
         // Add a second smaller blob for irregularity
-        const blob = SP(size * 0.55, leafM);
+        const blob = clump(size * 0.55);
         blob.position.set(size * 0.4, 0, size * 0.2);
         canopy.add(blob);
+        // Third lobe on the opposite side: an uneven, overgrown silhouette.
+        const blob2 = clump(size * 0.46);
+        blob2.position.set(-size * 0.44, size * 0.2, -size * 0.12);
+        canopy.add(blob2);
         tree.add(canopy);
         return tree;
       }
@@ -23542,6 +23623,43 @@
         dynamicGroup.add(g);
         return can;
       }
+      // BAG vs TREE keep-out: a bag parked right at a tree trunk sits UNDER the crown and
+      // disappears into the leaves — players read the green HEAVY bag as part of the tree and
+      // walk past it without collecting it. After a tree is planted in a cell, shove that
+      // cell's curb bags radially clear of the trunk (and keep them inside the cell so they
+      // never spill into the cross-street gap).
+      function keepCurbBagsOffTree(
+        house,
+        treeWX,
+        treeWY,
+        x0,
+        x1,
+        keepR,
+        keepRightOfTrunk,
+      ) {
+        if (!house || !house.bags) return;
+        for (const bag of house.bags) {
+          if (!bag || bag.state !== "curb" || !bag.g) continue;
+          let dx = bag.wx - treeWX,
+            dy = bag.wy - treeWY;
+          let d = Math.sqrt(dx * dx + dy * dy);
+          if (d >= keepR) continue; // already clear of the crown
+          if (d < 0.05) {
+            dx = 1;
+            dy = 0;
+            d = 1;
+          } // sitting on the trunk: shove it along the walk
+          let nx = treeWX + (dx / d) * keepR,
+            ny = treeWY + (dy / d) * keepR;
+          // The Maspeth oak keeps its LEFT side free for the line of acorns — bags go right.
+          if (keepRightOfTrunk && nx < treeWX) nx = treeWX + keepR;
+          nx = Math.max(x0, Math.min(x1, nx));
+          ny = Math.max(0.5, Math.min(spawnMaxY(), ny));
+          bag.wx = nx;
+          bag.wy = ny;
+          bag.g.position.set(nx, ny, GZ);
+        }
+      }
       function makeBlockContents(b, baseX, houseIdx, storeOptions) {
         while (b.group.children.length) {
           const c = b.group.children.pop();
@@ -23878,6 +23996,17 @@
           b.group.add(t);
           if (!b.trees) b.trees = [];
           b.trees.push({ wx: baseX + tx, wy: ty });
+          // Curb bags that landed under this crown get shoved clear of the trunk (a green
+          // HEAVY bag hidden in the leaves reads as part of the tree and gets missed).
+          keepCurbBagsOffTree(
+            house,
+            baseX + tx,
+            ty,
+            baseX + 0.4,
+            baseX + cellW - 0.4,
+            isSidewalkTree ? 1.7 : 1.9,
+            false,
+          );
         }
         // Maspeth OAK BLOCK (the 3rd block, x=192 — never the cemetery): ONE big
         // oak (a sidewalk tree scaled up — its canopy overhangs the walk) +
@@ -23902,6 +24031,16 @@
             wx: baseX + oakX,
             wy: oakY,
           }); // solid: walkers + worker route around the trunk
+          // Bags stay clear of the big crown AND off the acorn line on the oak's left side.
+          keepCurbBagsOffTree(
+            house,
+            baseX + oakX,
+            oakY,
+            baseX + 0.4,
+            baseX + cellW - 0.4,
+            2.6,
+            true,
+          );
           // acorns on the LEFT SIDE of the tree, on the sidewalk (x 2..18 —
           // strictly left of the trunk's cell 3, block-local 20.8..27.2 — so the
           // player sees a clear line of them coming BEFORE the oak), kept clear
