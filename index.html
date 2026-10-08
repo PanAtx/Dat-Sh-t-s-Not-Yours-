@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.450</div>
+          <div id="app-version" class="menu-version">v1.0.451</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.450';
+      const APP_VERSION = '1.0.451';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5291,9 +5291,9 @@
         const d = new Date();
         if (camDateEl)
           camDateEl.textContent =
-            cam2(d.getDate()) +
-            "/" +
             cam2(d.getMonth() + 1) +
+            "/" +
+            cam2(d.getDate()) +
             "/" +
             d.getFullYear();
         if (camTimeEl)
@@ -25892,8 +25892,16 @@
         dayScore = 0; // per-day score for the day-end report (the HUD score keeps running)
         // health does NOT refill at the start of a level: the pain carries over —
         // only a street-cash healer power-up (or a write-up, if the shift continues) restores it.
-        dangerWarned = false; // fresh shift: re-arm the danger warning (a carried-over low health warns on the first hit)
-        dangerAlarmOff(); // fresh shift: clear any stale fire alarm (the continuous dings + red glow)
+        if (health > 0 && health <= DANGER_HP) {
+          // Carried-over low health: the fire alarm KEEPS flashing (continuous dings +
+          // red glow) because the worker is still in the danger zone. dangerWarned stays
+          // true (already warned) so we don't re-fire the banner/flash — we just keep the
+          // alarm lit. fireAlarmStart() is idempotent: it no-ops if already sounding.
+          dangerAlarmOn();
+        } else {
+          dangerWarned = false; // fresh shift: re-arm the danger warning (a carried-over low health warns on the first hit)
+          dangerAlarmOff(); // fresh shift: clear any stale fire alarm (the continuous dings + red glow)
+        }
         p.wx = PLAYER_START_X;
         p.wy = 2.5;
         camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; // the camera's follow state resets with the worker (no stale lag/velocity leaking into the new shift)
@@ -40945,17 +40953,25 @@
         const b = $(btnId);
         if (b) b.classList.add("pressed");
         showLevelLoading(dayText);
+        // DOUBLE rAF: the first frame lets the browser PAINT the "BUILDING THE STREET"
+        // overlay; only on the second frame do we run the (synchronous, sometimes ~2s on
+        // low-end mobile) rebuild. A single rAF is NOT enough — its callback runs BEFORE
+        // the paint of that frame, so the rebuild would block the main thread before the
+        // overlay is ever drawn and the tap would read as a frozen screen. The double rAF
+        // guarantees the loading screen is on screen BEFORE the main thread blocks.
         requestAnimationFrame(function () {
-          try {
-            fn();
-          } catch (e) {
-            console.error("advance transition failed", e);
-          }
-          const ov = $("level-loading");
-          if (ov && !ov.classList.contains("hidden")) {
-            hideLevelLoading();
-            clearAdvancePressed();
-          }
+          requestAnimationFrame(function () {
+            try {
+              fn();
+            } catch (e) {
+              console.error("advance transition failed", e);
+            }
+            const ov = $("level-loading");
+            if (ov && !ov.classList.contains("hidden")) {
+              hideLevelLoading();
+              clearAdvancePressed();
+            }
+          });
         });
       }
       $("btnStart").addEventListener("click", function () {
