@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.452</div>
+          <div id="app-version" class="menu-version">v1.0.453</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.452';
+      const APP_VERSION = '1.0.453';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -13657,6 +13657,11 @@
         const b2 = clump(size * 0.5);
         b2.position.set(-size * 0.45, -size * 0.08, size * 0.2);
         crown.add(b2);
+        // Line-of-sight footprint of this crown, measured from the tree's own base:
+        // centre height + the effective leaf radius. registerTreeCrown() turns it into a
+        // world-space ball so keepStreetItemsVisible() can tell when a bag / can / bonus /
+        // standing NPC sits in the blind spot this crown throws up-street.
+        g.userData.crown = { cz: trunkH + size * 0.55, cr: size * 1.15 };
         return g;
       }
       // ==================== STATIC HAZARDS ====================
@@ -15483,6 +15488,10 @@
         blob2.position.set(-size * 0.44, size * 0.2, -size * 0.12);
         canopy.add(blob2);
         tree.add(canopy);
+        // Sight-blocking footprint (see registerTreeCrown / keepStreetItemsVisible): the crown
+        // centre sits ~2.4-2.8u above the curb, so a spot a few units UP-LANE of this trunk is
+        // seen by the isometric camera straight through the leaves.
+        tree.userData.crown = { cz: canopy.position.z, cr: size * 1.15 };
         return tree;
       }
       function makeBronxApartment() {
@@ -23660,6 +23669,273 @@
           bag.g.position.set(nx, ny, GZ);
         }
       }
+      // ==================== TREE-CROWN LINE OF SIGHT (WHAT THE PLAYER CAN ACTUALLY SEE) ====================
+      // WHY A TREE HIDES SOMETHING: the camera is a fixed isometric eye — the follow arm holds it
+      // ARM_D units back toward the street and ARM_H units above the point it follows — so every
+      // sight line from a curb spot out to the screen runs PARALLEL to that arm. A crown is a
+      // solid ball of leaves ~2.4-3.1u above the curb, so it throws a diagonal BLIND SPOT
+      // on the FAR side of its own trunk: the arm is expressed in WORLD coordinates, and the
+      // whole level is turned 45deg into the route frame, so in the coordinates every street
+      // item is placed in, the arm runs back and left at (-17,-17). The blind wedge therefore
+      // runs up-lane AND along the block from the trunk: the blind spot of a crown sits roughly one
+      // to two lanes (6-11u) UP the block and a lane over (3.5u) along it, and anything planted
+      // there is looked at straight through the leaves. The band sits LOWest for the SHORT things — a 1u curb
+      // can is under a sidewalk crown from ~1.1u to ~3.5u out along the diagonal - up the lane AND
+      // along the block at once - and that is exactly the
+      // band the radial trunk keep-out in keepCurbBagsOffTree happily allows. That is how trash
+      // bags, storm debris boxes, litter baskets, curb cans, mongo / treasure / street cash and
+      // the standing characters (hooker, jacker, panhandler, polish, dealer) could end up planted
+      // where the player never sees them.
+      // treeCrowns[] is filled at every tree placement site during spawnWorld (registered from
+      // the tree's own base + the crown height/radius each tree builder records in
+      // userData.crown); keepStreetItemsVisible() then runs ONCE after the street is laid out and
+      // hops anything substantially blocked to the nearest spot that is in clear sight — same
+      // block, same walkable band, never in the trunk's dirt pit, never on top of another item,
+      // never deeper into the block than the spot it started on.
+      const treeCrowns = []; // { wx, wy, cz, cr } — crown centre (world) + radius of leaves it blocks with
+      function registerTreeCrown(treeMesh, treeWX, treeWY) {
+        const c = treeMesh && treeMesh.userData ? treeMesh.userData.crown : null;
+        if (!c) return;
+        const k = treeMesh.scale && treeMesh.scale.x ? treeMesh.scale.x : 1; // the Maspeth oak is planted at 1.65 scale
+        treeCrowns.push({ wx: treeWX, wy: treeWY, cz: c.cz * k, cr: c.cr * k });
+      }
+      // ---- THE AXIS, IN ROUTE COORDINATES ----
+      // The camera constants describe the arm in the WORLD frame (positionCamera orbits
+      // ARM_D along the world -Y axis, then the whole level is turned by c45 into that
+      // frame). Street items live in the ROUTE frame, where the same arm points down-left
+      // at (-17, -17): a world direction at angle a is the route direction at (a - 45deg).
+      // Get this wrong and the blind wedge lands 45deg off the crowns that actually cast it.
+      const SHADE_UX =
+        Math.SQRT1_2 * (Math.sin(CAM_ANGLE_OFFSET) - Math.cos(CAM_ANGLE_OFFSET));
+      const SHADE_UY =
+        -Math.SQRT1_2 * (Math.sin(CAM_ANGLE_OFFSET) + Math.cos(CAM_ANGLE_OFFSET));
+      const SHADE_UZ = ARM_H / ARM_D; // the arm rises this much per unit it runs along the lane
+      const SHADE_UN = Math.hypot(SHADE_UX, SHADE_UY, SHADE_UZ) || 1;
+      const SHX = SHADE_UX / SHADE_UN;
+      const SHY = SHADE_UY / SHADE_UN;
+      const SHZ = SHADE_UZ / SHADE_UN;
+      // Every spot is sampled on THREE sight lines - low, middle and high over its own base. One
+      // clipped sample is a shoulder glance you still notice; two or three means the thing is
+      // swallowed by the leaves.
+      const SHADE_SAMPLE_Z = [0.25, 0.55, 0.85];
+      const SHADE_CLEAR = 0.5; // a new spot must clear every crown ball by at least this much
+      const SHADE_REACH = 9.0; // a crown further off than this cannot shade the spot
+      const SHADE_RINGS = [0.5, 0.9, 1.4, 2.0, 2.7, 3.5]; // hop sizes tried, nearest one first
+      // The 12 hop directions, sorted street-ward first: the blind spot always lies UP-lane of the
+      // trunk that cast it, so the shortest honest fix is nearly always a step toward the curb.
+      const SHADE_ANGLES = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6).sort(
+        (a, b) => Math.sin(a) - Math.sin(b),
+      );
+      // Height above its own base for each kind of thing the pass may relocate - the sight lines
+      // that matter differ for a flat bag, a 1u can and a 1.75u standing person.
+      const SHADE_TOP = {
+        bag: 0.8,
+        stormbox: 0.95,
+        can: 1.05,
+        litterbasket: 1.25,
+        bonus: 0.8,
+        npc: 1.75,
+      };
+      const SHADE_SEP = 0.85; // two street items must not be stacked on each other
+      const SHADE_SEP_NPC = 1.15; // ...and a standing character must not stand in a bag
+      // How deep (units) the leaf ball cuts the sight lines rising from (wx, wy, footZ) over an
+      // object `topH` tall. 0 = this spot is in clear sight of the camera.
+      function crownShadeDepth(wx, wy, footZ, topH, margin) {
+        let worst = 0;
+        for (let i = 0; i < treeCrowns.length; i++) {
+          const c = treeCrowns[i];
+          const vx = c.wx - wx;
+          const vy = c.wy - wy;
+          if (vx > SHADE_REACH || vx < -SHADE_REACH || vy > c.cr + 1 || vy < -SHADE_REACH) continue;
+          let cuts = 0;
+          let deepest = 0;
+          for (let s = 0; s < SHADE_SAMPLE_Z.length; s++) {
+            const vz = c.cz - (footZ + topH * SHADE_SAMPLE_Z[s]);
+            const along = vx * SHX + vy * SHY + vz * SHZ; // distance to the crown ALONG the sight line
+            if (along <= 0) continue; // crown sits up-lane: behind the spot, never in the way
+            const d2 = vx * vx + vy * vy + vz * vz - along * along; // how far the leaf ball sits off that line
+            const rr = c.cr + margin;
+            if (d2 < rr * rr) {
+              cuts++;
+              const cut = rr - Math.sqrt(d2);
+              if (cut > deepest) deepest = cut;
+            }
+          }
+          if (cuts >= 2 && deepest > worst) worst = deepest;
+        }
+        return worst;
+      }
+      // The trunk + its dirt ring: a candidate spot can be clear of leaves and still be wedged
+      // into the pit, which reads just as badly as a hidden item.
+      function sitsOnTreePit(wx, wy) {
+        for (let i = 0; i < treeCrowns.length; i++) {
+          const c = treeCrowns[i];
+          const dx = c.wx - wx;
+          const dy = c.wy - wy;
+          const keep = Math.max(1.0, c.cr * 1.2);
+          if (dx * dx + dy * dy < keep * keep) return true;
+        }
+        return false;
+      }
+      function blockSpanning(wx) {
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (b && b.blockX != null && wx >= b.blockX && wx < b.blockX + BLOCK_W) return b;
+        }
+        return null;
+      }
+      // Commit a new spot. wx/wy is what the draw and the gameplay checks read, but the spots the
+      // AI walks BACK to (a thrown can's home, a litter basket's pad, an NPC's home) must move
+      // with it or the thing simply drifts back into the shade.
+      function putStreetSpot(o, kind, nx, ny, footZ) {
+        o.wx = nx;
+        o.wy = ny;
+        if (kind === "npc") {
+          if (o.homeX != null) {
+            o.homeX = nx;
+            o.homeY = ny;
+          }
+          if (o.tgtX != null) {
+            o.tgtX = nx;
+            o.tgtY = ny;
+          }
+        } else {
+          if (o.home) {
+            o.home.wx = nx;
+            o.home.wy = ny;
+          }
+          if (o.hx != null) {
+            o.hx = nx;
+            o.hy = ny;
+          }
+        }
+        o.g.position.set(nx, ny, footZ);
+      }
+      // Shortest hop out of the shade: rings nearest-first, directions street-ward first. A
+      // candidate must clear every crown, stay off the trunk pits, stay inside its own block and
+      // the walkable band, and not land on another street item. Where the block offers no fully
+      // clear spot (tree rows on both curbs of a short block) the LEAST blocked spot wins, so the
+      // item is still nudged as far out of the leaves as the street allows.
+      function hopOutOfTreeShade(o, kind, footZ, x0, x1, y0, y1, spots) {
+        const sep = kind === "npc" ? SHADE_SEP_NPC : SHADE_SEP;
+        let best = null;
+        let bestScore = Infinity;
+        for (let r = 0; r < SHADE_RINGS.length; r++) {
+          const rad = SHADE_RINGS[r];
+          for (let a = 0; a < SHADE_ANGLES.length; a++) {
+            const nx = o.wx + Math.cos(SHADE_ANGLES[a]) * rad;
+            const ny = o.wy + Math.sin(SHADE_ANGLES[a]) * rad;
+            if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue;
+            if (sitsOnTreePit(nx, ny)) continue;
+            const depth = crownShadeDepth(nx, ny, footZ, SHADE_TOP[kind], SHADE_CLEAR);
+            let crowded = false;
+            for (let i = 0; i < spots.length; i++) {
+              const s = spots[i];
+              if (s.o === o) continue;
+              const dx = s.x - nx;
+              const dy = s.y - ny;
+              if (dx * dx + dy * dy < sep * sep) {
+                crowded = true;
+                break;
+              }
+            }
+            if (depth <= 0 && !crowded) {
+              putStreetSpot(o, kind, nx, ny, footZ);
+              return true;
+            }
+            const score = depth + (crowded ? 2.5 : 0) + rad * 0.05;
+            if (score < bestScore) {
+              bestScore = score;
+              best = { x: nx, y: ny };
+            }
+          }
+        }
+        if (best) {
+          putStreetSpot(o, kind, best.x, best.y, footZ);
+          return true;
+        }
+        return false;
+      }
+      // The standing sidewalk characters that own a bare patch of sidewalk: they hold ONE spot for
+      // the whole level, so a spot buried in the leaves stays invisible all level (unlike a walking
+      // ped, who crosses the wedge anyway). Two corner regulars are deliberately NOT in this list:
+      // the dealer is bolted to his stoop (his stash table and lure are built around him) and the
+      // polish lady recycles ahead of the worker, so both keep the spot they were spawned on.
+      const STANDING_NPC_TYPES = { hooker: 1, jacker: 1, panhandler: 1 };
+      function keepStreetItemsVisible() {
+        if (!treeCrowns.length) return;
+        const items = [];
+        for (let i = 0; i < blocks.length; i++) {
+          const h = blocks[i].house;
+          if (!h) continue;
+          if (h.bags)
+            for (const bag of h.bags) {
+              if (!bag || bag.state !== "curb" || !bag.g) continue;
+              items.push({ o: bag, kind: bag.type === "stormbox" ? "stormbox" : "bag", foot: GZ });
+            }
+          if (h.can && h.can.state === "curb" && h.can.g) items.push({ o: h.can, kind: "can", foot: GZ });
+        }
+        for (const lb of litterBaskets) if (lb && lb.g) items.push({ o: lb, kind: "litterbasket", foot: GZ });
+        // Mongo / treasure / street cash. The cash a storm debris box hides is EXCLUDED - it has
+        // to stay under its box, and the box itself gets the move.
+        const boxes = [];
+        for (const it of items)
+          if (it.kind === "stormbox")
+            boxes.push({ o: it.o, x0: it.o.wx, y0: it.o.wy }); // where it stood before any hop
+        const sheltered = []; // cash hidden under a box - it rides with the box, never moves alone
+        for (const bo of bonuses) {
+          if (!bo || !bo.g || bo.float) continue; // the cemetery / Flatbush finds fly free of the trees
+          let underBox = null;
+          for (const bx of boxes)
+            if (Math.abs(bx.o.wx - bo.wx) < 1.4 && Math.abs(bx.o.wy - bo.wy) < 1.4) underBox = bx;
+          if (underBox) {
+            sheltered.push({ o: bo, box: underBox, x0: bo.wx, y0: bo.wy });
+            continue;
+          }
+          items.push({ o: bo, kind: "bonus", foot: GZ + (bo.lift || 0) });
+        }
+        for (const c of creatures) {
+          // Only the corner standers - walkers, birds and rats cross the wedge on their own.
+          if (!c || !STANDING_NPC_TYPES[c.type] || !c.g) continue;
+          items.push({ o: c, kind: "npc", foot: c.baseZ != null ? c.baseZ : GZ });
+        }
+        if (!items.length) return;
+        const spots = items.map((it) => ({ o: it.o, x: it.o.wx, y: it.o.wy }));
+        let moved = 0;
+        for (const it of items) {
+          const o = it.o;
+          if (crownShadeDepth(o.wx, o.wy, it.foot, SHADE_TOP[it.kind], 0) <= 0 && !sitsOnTreePit(o.wx, o.wy))
+            continue; // already in clear sight - leave today's placement alone
+          const bl = blockSpanning(o.wx);
+          let x0 = bl ? bl.blockX + 0.6 : o.wx - 3.4;
+          let x1 = bl ? bl.blockX + BLOCK_W - 0.6 : o.wx + 3.4;
+          if (o.blockMinX != null && o.blockMinX > x0) x0 = o.blockMinX; // a corner-pinned character
+          if (o.blockMaxX != null && o.blockMaxX < x1) x1 = o.blockMaxX; //  keeps its authored strip
+          const y0 = it.kind === "npc" ? 0.9 : 0.5; // 0.5 keeps every item out of the passing lane (y<=0.25)
+          const y1 = it.kind === "npc" ? Math.max(0.9, Math.max(spawnMaxY(), o.wy)) : spawnMaxY();
+          const near = spots.filter((s) => Math.abs(s.x - o.wx) < 5 && Math.abs(s.y - o.wy) < 5);
+          const mine = spots.find((s) => s.o === o);
+          if (hopOutOfTreeShade(o, it.kind, it.foot, x0, x1, y0, y1, near)) {
+            if (mine) {
+              mine.x = o.wx;
+              mine.y = o.wy;
+            }
+            moved++;
+          }
+        }
+        // The cash a storm debris box hides is a plain ground pickup at the box's foot. When the
+        // box hops out of the leaf shade the money rides the same step: the pair stays one find,
+        // and the cash is never left stranded in the shade the box was just moved out of.
+        for (const s of sheltered) {
+          const dx = s.box.o.wx - s.box.x0;
+          const dy = s.box.o.wy - s.box.y0;
+          if (!dx && !dy) continue;
+          s.o.wx = s.x0 + dx;
+          s.o.wy = s.y0 + dy;
+          s.o.g.position.set(s.o.wx, s.o.wy, GZ + (s.o.lift || 0));
+        }
+        if (moved) console.log(`  tree line of sight: ${moved} spot(s) moved out of the leaf shade`);
+      }
       function makeBlockContents(b, baseX, houseIdx, storeOptions) {
         while (b.group.children.length) {
           const c = b.group.children.pop();
@@ -24007,6 +24283,11 @@
             isSidewalkTree ? 1.7 : 1.9,
             false,
           );
+          // Same crown, the OTHER blind spot: the leaf ball also hides everything a few units
+          // UP-lane of this trunk from the isometric camera. Registered here so
+          // keepStreetItemsVisible() can move cans / bags / bonuses / standing NPCs out of it
+          // once the whole street (trees AND their loot) exists.
+          registerTreeCrown(t, baseX + tx, ty);
         }
         // Maspeth OAK BLOCK (the 3rd block, x=192 — never the cemetery): ONE big
         // oak (a sidewalk tree scaled up — its canopy overhangs the walk) +
@@ -24041,6 +24322,7 @@
             2.6,
             true,
           );
+          registerTreeCrown(oak, baseX + oakX, oakY); // the big oak casts the widest leaf shade on the block
           // acorns on the LEFT SIDE of the tree, on the sidewalk (x 2..18 —
           // strictly left of the trunk's cell 3, block-local 20.8..27.2 — so the
           // player sees a clear line of them coming BEFORE the oak), kept clear
@@ -24214,6 +24496,9 @@
         // and the list doesn't grow across level rebuilds. The gator + tentacle eyes are
         // registered again further down, as part of this same spawnWorld() run.
         manholeEyes.length = 0;
+        // Crowns are re-registered as this level's trees are planted, so the previous shift's
+        // canopies must be dropped or keepStreetItemsVisible() would dodge trees that are gone.
+        treeCrowns.length = 0;
 
         // OVERTIME BASKETS — a standalone all-store street (uses the Flatbush level data,
         // so all the Flatbush storefront branches below apply naturally), but EVERY cell
@@ -24271,6 +24556,7 @@
                 g.add(t);
                 if (!b.trees) b.trees = [];
                 b.trees.push({ wx: worldX + tx, wy: ty });
+                registerTreeCrown(t, worldX + tx, ty); // baskets + loot on this store street must clear these crowns
               }
             }
           }
@@ -24919,6 +25205,9 @@
               if (Math.random() < 0.5) {
                 ld.anchorObj = makeSidewalkTree();
                 ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ);
+                // A leash post that happens to be a tree shades the walk behind it too — register
+                // it so loot placed near this corner is checked against this crown.
+                registerTreeCrown(ld.anchorObj, ld.anchorX, ld.anchorY);
               } else {
                 ld.anchorObj = makePostMesh();
                 ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ + 0.05);
@@ -26105,6 +26394,12 @@
         buildGround(); // rebuild ground for the current level (Manhattan concrete vs other-boroughs grass)
         spawnWorld();
         resetLitterBaskets(); // place litter baskets in the newly spawned world
+        // FAIR LINES OF SIGHT — the whole street exists now (trees + their loot + the standing
+        // characters), so anything the isometric camera would view straight through a crown gets
+        // hopped out of that blind spot: trash bags, curb cans, storm debris boxes, litter
+        // baskets, mongo / treasure / street cash, and the hooker / jacker / panhandler / polish /
+        // dealer who hold one spot all day. See keepStreetItemsVisible() above.
+        keepStreetItemsVisible();
         computeDayTotals(); // count how many bags/cans/baskets/mongo/treasure/cash are out on today's street
         truck.wx = p.wx - 8;
         truck.hidden = 0;
@@ -42828,6 +43123,7 @@
       // (see buildModelTemplates -> rebuildTruckFromFbx). The procedural box truck is
       // never built, so it can never be what the player sees.
       spawnWorld();
+      keepStreetItemsVisible(); // the menu preview street uses the same fair-sight placement as the day
       updateHUD();
       radioMode(); // dock the NOW PLAYING bar while we're (still) on the start screen
       requestAnimationFrame(loop);
