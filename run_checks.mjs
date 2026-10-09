@@ -40,6 +40,8 @@ const suites = [
   ['pedestrians flee the cop/robber crossfire line (bed-stuy shootout)', 'node', '_crossfire_chk.js'],
   ['kick a rat (free-handed Act -> squeal + fling + scurry off)', 'node', '_kick_rat_chk.js'],
   ['Flatbush driveway tricycle kid is impossible to miss (route thirds + walk-edge apron + approach yell)', 'node', '_tric_route_chk.js'],
+  ['soccer + tee-ball kids route AROUND sidewalk trees/boxes (never stuck behind one)', 'node', '_soccer_avoid_chk.js'],
+  ['worker free-handed Act kicks the soccer ball (Golazo! + not-fair + $5)', 'node', '_soccer_kick_chk.js'],
 ];
 
 let allPass = true;

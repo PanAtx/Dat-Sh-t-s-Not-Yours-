@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.459</div>
+          <div id="app-version" class="menu-version">v1.0.460</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.459';
+      const APP_VERSION = '1.0.460';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -30270,6 +30270,98 @@
         // a clean kick pays +10 STREET CASH (the same prank pipeline as the cone/cat kicks)
         awardPrankPoints(10, p.wx, p.wy);
       }
+      // ==================== KICK THE SOCCER BALL (the worker joins the game) ====================
+      // Hands FREE and the Flatbush kids' soccer ball at his feet: the Act button
+      // BOOTS it like a pro — the ball sails down the block on the same kick physics
+      // the kids use (a shot the kids can chase and win back). The worker yells
+      // "Golazo!", the nearest kid screams "That's not fair!" (it was THEIR ball),
+      // and the boot pays +5 STREET CASH. Whoever was dribbling LOSES the ball and
+      // the kid nearest the landing spot sprints after it. A per-team cooldown keeps
+      // the cash honest, and a ball resting in the net during the victory hops can't
+      // be booted.
+      const SOCBALL_KICK_RANGE = 1.7; // the ball must be right at his feet (inside 1.0 the bonk owns it)
+      const SOCBALL_KICK_CD = 3.0; // per-team gap between worker boots (no cash spam)
+      function tryKickSoccerBall() {
+        if (state !== "play" || p.stunT > 0) return false;
+        if (carry !== "none") return false; // hands full -> Act dumps trash, no kicking
+        let bestT = null,
+          bd = SOCBALL_KICK_RANGE;
+        // the leader kid of each team owns c.ball — find the ball at his feet
+        for (let i = 0; i < creatures.length; i++) {
+          const c = creatures[i];
+          if (c.type !== "soccer" || !c.ball || !c.team) continue;
+          const T = c.team;
+          if (T.celebrateT > 0 || (T.kickBallCd || 0) > 0) continue;
+          const B = T.ball;
+          const d = Math.hypot(B.wx - p.wx, B.wy - p.wy);
+          if (d < bd && B.z < 0.9) {
+            // must be a ground ball — you don't volley a ball out of the sky
+            bd = d;
+            bestT = T;
+          }
+        }
+        if (!bestT) return false; // no ball at his feet -> Act falls through
+        kickSoccerBall(bestT);
+        return true;
+      }
+      function kickSoccerBall(T) {
+        const B = T.ball;
+        // direction of the boot: the ball flies AWAY from the worker down this line
+        const dx = B.wx - p.wx,
+          dy = B.wy - p.wy;
+        const d = Math.hypot(dx, dy) || 0.001;
+        p.facing = Math.atan2(dy, dx); // snap to face the ball and whip the kick
+        p.kickT = 0.3; // the same leg-whip as the rat kick (decays in updatePlayer)
+        // aim well down the block with the power of the kids' hardest goal shot,
+        // clamped to the kids' own patch so the ball never rockets into a house
+        const boot = R(7, 12);
+        B.tx = clamp(B.wx + (dx / d) * boot, T.minX - 1, T.maxX + 1);
+        B.ty = clamp(B.wy + (dy / d) * boot, 1.2, 4.6); // stays on their sidewalk
+        B.vz = SOCCER_SHOT_VZ; // the HARD lob — it sails like a striker's strike
+        T.owner = null; // whoever was dribbling isn't any more — it's a free ball
+        T.grabCd = 0.7; // a beat before the kids can win it back
+        T.kickBallCd = SOCBALL_KICK_CD;
+        // the kid nearest the LANDING point sprints after the boot; the kid nearest
+        // the worker is the one who screams about the injustice
+        let rec = null,
+          rd = 1e9,
+          shouter = null,
+          sd = 1e9;
+        for (const k of T.kids) {
+          const dk = Math.hypot(B.tx - k.wx, B.ty - k.wy);
+          if (dk < rd) {
+            rd = dk;
+            rec = k;
+          }
+          const dn = dist(k.wx, k.wy);
+          if (dn < sd) {
+            sd = dn;
+            shouter = k;
+          }
+        }
+        T.receiver = rec;
+        // the celebration and the protest — plus the boot pays STREET CASH (not score)
+        Voice.say(
+          "Golazo!",
+          1.4,
+          1.0,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
+        Voice.say(
+          "That's not fair!",
+          1.8,
+          1.3,
+          shouter.wx,
+          shouter.wy,
+          shouter.gender || "male",
+          "kid",
+        );
+        awardPrankPoints(5, p.wx, p.wy);
+      }
       function tryInteract() {
         if (state !== "play" || p.stunT > 0) return;
         // PUNCHBACK PRIORITY: in the 10s window after an attack NPC hit us, the interact
@@ -30281,6 +30373,15 @@
         // (typeof guard: sandboxes that extract tryInteract alone never pull in
         //  tryKickRat, so a bare call would throw there.)
         if (carry === "none" && typeof tryKickRat === "function" && tryKickRat()) return;
+        // KICK THE SOCCER BALL: hands free + the kids' ball at his feet -> a pro boot
+        // ("Golazo!" / "That's not fair!" / +5 STREET CASH). Same free-hands gate and
+        // typeof sandbox guard as the rat kick; steal it from a dribbler's feet too.
+        if (
+          carry === "none" &&
+          typeof tryKickSoccerBall === "function" &&
+          tryKickSoccerBall()
+        )
+          return;
         if (
           carry === "bag" ||
           carry === "canFull" ||
@@ -36605,15 +36706,20 @@
               // into the book-goal mouth = GOOOOAL! — victory hops, then the
               // nearest kid runs to the ball in the net and kicks it a small
               // distance toward the other goal (the kickoff). They're
-              // KIDS with endless energy: they NEVER stop and never sidestep a
-              // bottle, can or sidewalk tree — they run right through; other NPCs
-              // route around them (AVOID_TYPES.soccer).
+              // KIDS with endless energy: they NEVER stop for litter (a bottle or
+              // can — they run right through it), but they ARE smart enough to
+              // route AROUND solid sidewalk obstacles (a tree / collection box):
+              // a kid chasing the ball swings around the trunk, he never gets
+              // stuck behind it; other NPCs route around them
+              // (AVOID_TYPES.soccer).
               if (!c.team || c.team.leader !== c) break; // only the leader simulates its own team
               const T = c.team,
                 B = T.ball;
               c.ballCd = Math.max(0, (c.ballCd || 0) - dt); // ball-bonk cooldown (the leader owns c.ball)
               T.grabCd = Math.max(0, T.grabCd - dt);
               T.workerKickCd = Math.max(0, T.workerKickCd - dt);
+              // the worker's ball-boot cooldown (lazy: teams spawn without the field)
+              T.kickBallCd = Math.max(0, (T.kickBallCd || 0) - dt);
               for (const k of T.kids) k.kidCd = Math.max(0, (k.kidCd || 0) - dt);
               // is a point inside a book-goal mouth? (the stacks at y 1.9/4.1 frame it)
               const inMouth = (x, y) =>
@@ -36861,20 +36967,93 @@
                 T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt;
               }
               // --- the kids: owner dribbles, receiver SPRINTS, mates close in — nobody stops ---
-              // A kid's forward step is dead-stopped by a solid sidewalk obstacle
-              // (a USPS collection box / tree in b.trees) on his lane — nobody
-              // clips straight through a mailbox while chasing the ball.
-              const kidStepBlocked = (k, stepX) => {
-                const nx = k.wx + stepX;
+              // KIDS ARE SMART ON THEIR FEET: when a solid sidewalk obstacle (a USPS
+              // collection box / tree in b.trees — each a solid ~0.8x0.8 box) stands
+              // in a kid's lane he does NOT run into it and dead-stop: he commits to
+              // the side nearest his target, walks around the close edge and steers
+              // back on course, so a kid chasing the ball never gets stuck behind a
+              // tree. Steps resolve per-axis (a step blocked in x still slides along
+              // the box face in y), and a dodge somehow pinned for 2.5s flips to the
+              // far side and retries.
+              const KID_PAD = 0.8; // half-size of a solid sidewalk obstacle's box
+              const kidHits = (x, y) => {
                 for (let bi = 0; bi < blocks.length; bi++) {
                   const tr = blocks[bi].trees;
                   if (!tr) continue;
                   for (let j = 0; j < tr.length; j++)
-                    if (Math.abs(tr[j].wx - nx) < 0.8 && Math.abs(tr[j].wy - k.wy) < 0.8) return true;
+                    if (Math.abs(tr[j].wx - x) < KID_PAD && Math.abs(tr[j].wy - y) < KID_PAD) return tr[j];
                 }
-                return false;
+                return null;
+              };
+              // the first solid obstacle standing between the kid and (tx, ty)?
+              const kidPathHit = (k, tx, ty) => {
+                const dx = tx - k.wx,
+                  dy = ty - k.wy;
+                const d = Math.hypot(dx, dy);
+                if (d < 1e-4) return null;
+                const ux = dx / d,
+                  uy = dy / d;
+                const reach = Math.min(d + 0.6, 2.6); // look a pace ahead, not to the horizon
+                for (let s = 0.25; s <= reach; s += 0.25) {
+                  const o = kidHits(k.wx + ux * s, k.wy + uy * s);
+                  if (o) return o;
+                }
+                return null;
+              };
+              // One kid's stride toward (tx, ty) at spd (u/s) inside the walk band
+              // [loY, hiY], routed around whatever solid thing is in the way.
+              const kidNav = (k, tx, ty, spd, loY, hiY) => {
+                const step = spd * dt;
+                if (k.dodge) {
+                  // a dodge still stalled after 2.5s (wedged in a corner between two
+                  // boxes) gives up and retries from the OTHER side
+                  if ((k.dodgeT += dt) > 2.5) {
+                    k.dodge = null;
+                    k.forceSide = -k.dodgeSide;
+                  }
+                }
+                if (!k.dodge) {
+                  const o = kidPathHit(k, tx, ty);
+                  if (o) {
+                    const up = o.wy + KID_PAD + 0.3,
+                      dn = o.wy - KID_PAD - 0.3;
+                    if (k.forceSide != null) k.dodgeSide = k.forceSide;
+                    // the shorter way around, of the sides that fit in the walk band
+                    else if (up <= hiY && dn >= loY)
+                      k.dodgeSide = Math.abs(ty - up) <= Math.abs(ty - dn) ? 1 : -1;
+                    else if (up <= hiY) k.dodgeSide = 1;
+                    else if (dn >= loY) k.dodgeSide = -1;
+                    else k.dodgeSide = k.wy >= o.wy ? 1 : -1; // wall of boxes — crowd through anyway
+                    k.forceSide = null;
+                    k.dodge = o;
+                    k.dodgeT = 0;
+                  }
+                }
+                let gx = tx,
+                  gy = ty;
+                if (k.dodge) {
+                  const o = k.dodge;
+                  // the dodge is over once he's past the side AND the lane is clear
+                  if (Math.abs(k.wy - o.wy) > KID_PAD + 0.05 && !kidPathHit(k, tx, ty)) k.dodge = null;
+                  // the lane hugging the obstacle's close edge while he rounds it
+                  else gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                }
+                // per-axis steps: whatever blocks x never cancels y (face sliding)
+                const mx = clamp(gx - k.wx, -step, step),
+                  my = clamp(gy - k.wy, -step, step);
+                if (mx && !kidHits(k.wx + mx, k.wy)) k.wx += mx;
+                if (my && !kidHits(k.wx, k.wy + my)) k.wy += my;
               };
               for (const k of T.kids) {
+                // this kid's walk band up front, so a dodge routes inside it — the
+                // RECEIVER may chase the ball past it (a kid chasing a stray ball
+                // does not care about the paint)
+                let navLoY = 1.5,
+                  navHiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  navLoY = Math.min(navLoY, B.wy - 0.4, B.ty - 0.4);
+                  navHiY = Math.max(navHiY, B.wy + 0.4, B.ty + 0.4);
+                }
                 if (T.celebrateT > 0) {
                   // victory hops while the "GOOOOAL!" bubble lands
                   animParts(k, dt * 16);
@@ -36882,22 +37061,22 @@
                     k.parts.upper.position.z =
                       0.62 + Math.abs(Math.sin(k.phase)) * 0.24;
                 } else if (k === T.owner) {
-                  // dribble at full pace, the ball rolling just ahead of him
-                  if (!kidStepBlocked(k, k.dir * k.sp * 1.15 * dt)) k.wx += k.dir * k.sp * 1.15 * dt;
+                  // dribble at full pace, the ball rolling just ahead of him — and
+                  // stepping AROUND anything solid in the lane, never dead-stopping
+                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 1.15, navLoY, navHiY);
                 } else if (!T.owner && T.receiver === k && (!inMouth(B.wx, B.wy) || T.kickoffDir)) {
-                  // sprint the loose ball in x AND y — a kid chases it wherever it lies
+                  // sprint the loose ball in x AND y — a kid chases it wherever it
+                  // lies, swinging around whatever stands between him and the ball
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0 && !kidStepBlocked(k, k.dir * k.sp * 1.6 * dt))
-                    k.wx += k.dir * k.sp * 1.6 * dt;
-                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 3.0);
+                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0)
+                    kidNav(k, B.wx, B.wy, k.sp * 1.6, navLoY, navHiY);
                 } else if (!T.owner) {
                   // mate: jog in toward the action (positioning) — kids keep moving
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  if (!kidStepBlocked(k, k.dir * k.sp * 0.95 * dt)) k.wx += k.dir * k.sp * 0.95 * dt;
-                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 1.2);
+                  kidNav(k, B.wx, B.wy, k.sp * 0.95, navLoY, navHiY);
                 } else {
                   // mate of the owner: keep running, stay in the play
-                  if (!kidStepBlocked(k, k.dir * k.sp * 0.9 * dt)) k.wx += k.dir * k.sp * 0.9 * dt;
+                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.9, navLoY, navHiY);
                 }
                 // the walkable band — but the RECEIVER may chase the ball past it
                 // (a kid chasing a stray ball does not care about the paint)
@@ -36942,8 +37121,10 @@
               // HP_HIT_TEEBALL) and the worker yells "Stop That!". A LOST ball
               // (nobody catches it) is retrieved — the nearest kid sprints over,
               // picks it up, and the catch game resumes. They're KIDS with endless
-              // energy: they NEVER stop and never sidestep a bottle, can or sidewalk
-              // tree — they run right through; other NPCs route around them
+              // energy: they NEVER stop for litter (a bottle or can runs right
+              // through), but they ARE smart enough to route AROUND solid sidewalk
+              // obstacles — a kid chasing a lost ball swings around the tree
+              // instead of getting stuck behind it; other NPCs route around them
               // (AVOID_TYPES.teeball). The bump exchanges (kid contact + loose-ball
               // bonk) live in collideCreatures; the write-up reads "Dereliction of
               // Tee-Ball Duty".
@@ -37149,41 +37330,101 @@
                 T.ballG.userData.core.rotation.y += (svx / TEEBALL_R) * dt;
               }
               // --- the kids: owner + mates jog the block, the receiver SPRINTS ---
-              // A kid's forward step is dead-stopped by a solid sidewalk obstacle
-              // (a USPS collection box / tree in b.trees) on his lane — nobody
-              // clips straight through a mailbox while chasing the ball.
-              const kidStepBlocked = (k, stepX) => {
-                const nx = k.wx + stepX;
+              // Same smart feet as the soccer kids: a solid sidewalk obstacle (a
+              // USPS collection box / tree in b.trees) in the lane is rounded on
+              // its close side, never dead-stopped into — see the soccer case.
+              const KID_PAD = 0.8; // half-size of a solid sidewalk obstacle's box
+              const kidHits = (x, y) => {
                 for (let bi = 0; bi < blocks.length; bi++) {
                   const tr = blocks[bi].trees;
                   if (!tr) continue;
                   for (let j = 0; j < tr.length; j++)
-                    if (
-                      Math.abs(tr[j].wx - nx) < 0.8 &&
-                      Math.abs(tr[j].wy - k.wy) < 0.8
-                    )
-                      return true;
+                    if (Math.abs(tr[j].wx - x) < KID_PAD && Math.abs(tr[j].wy - y) < KID_PAD) return tr[j];
                 }
-                return false;
+                return null;
+              };
+              // the first solid obstacle standing between the kid and (tx, ty)?
+              const kidPathHit = (k, tx, ty) => {
+                const dx = tx - k.wx,
+                  dy = ty - k.wy;
+                const d = Math.hypot(dx, dy);
+                if (d < 1e-4) return null;
+                const ux = dx / d,
+                  uy = dy / d;
+                const reach = Math.min(d + 0.6, 2.6); // look a pace ahead, not to the horizon
+                for (let s = 0.25; s <= reach; s += 0.25) {
+                  const o = kidHits(k.wx + ux * s, k.wy + uy * s);
+                  if (o) return o;
+                }
+                return null;
+              };
+              // One kid's stride toward (tx, ty) at spd (u/s) inside the walk band
+              // [loY, hiY], routed around whatever solid thing is in the way.
+              const kidNav = (k, tx, ty, spd, loY, hiY) => {
+                const step = spd * dt;
+                if (k.dodge) {
+                  // a dodge still stalled after 2.5s (wedged in a corner between two
+                  // boxes) gives up and retries from the OTHER side
+                  if ((k.dodgeT += dt) > 2.5) {
+                    k.dodge = null;
+                    k.forceSide = -k.dodgeSide;
+                  }
+                }
+                if (!k.dodge) {
+                  const o = kidPathHit(k, tx, ty);
+                  if (o) {
+                    const up = o.wy + KID_PAD + 0.3,
+                      dn = o.wy - KID_PAD - 0.3;
+                    if (k.forceSide != null) k.dodgeSide = k.forceSide;
+                    // the shorter way around, of the sides that fit in the walk band
+                    else if (up <= hiY && dn >= loY)
+                      k.dodgeSide = Math.abs(ty - up) <= Math.abs(ty - dn) ? 1 : -1;
+                    else if (up <= hiY) k.dodgeSide = 1;
+                    else if (dn >= loY) k.dodgeSide = -1;
+                    else k.dodgeSide = k.wy >= o.wy ? 1 : -1; // wall of boxes — crowd through anyway
+                    k.forceSide = null;
+                    k.dodge = o;
+                    k.dodgeT = 0;
+                  }
+                }
+                let gx = tx,
+                  gy = ty;
+                if (k.dodge) {
+                  const o = k.dodge;
+                  // the dodge is over once he's past the side AND the lane is clear
+                  if (Math.abs(k.wy - o.wy) > KID_PAD + 0.05 && !kidPathHit(k, tx, ty)) k.dodge = null;
+                  // the lane hugging the obstacle's close edge while he rounds it
+                  else gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                }
+                // per-axis steps: whatever blocks x never cancels y (face sliding)
+                const mx = clamp(gx - k.wx, -step, step),
+                  my = clamp(gy - k.wy, -step, step);
+                if (mx && !kidHits(k.wx + mx, k.wy)) k.wx += mx;
+                if (my && !kidHits(k.wx, k.wy + my)) k.wy += my;
               };
               for (const k of T.kids) {
+                // this kid's walk band up front, so a dodge routes inside it — the
+                // RECEIVER may chase the ball past it (a kid chasing a stray ball
+                // does not care about the paint)
+                let navLoY = 1.5,
+                  navHiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  navLoY = Math.min(navLoY, B.wy - 0.4);
+                  navHiY = Math.max(navHiY, B.wy + 0.4);
+                }
                 if (k === T.owner) {
-                  // the owner jogs around the block, ball in hand
-                  if (!kidStepBlocked(k, k.dir * k.sp * 0.9 * dt))
-                    k.wx += k.dir * k.sp * 0.9 * dt;
+                  // the owner jogs around the block, ball in hand — around anything
+                  // solid in the lane, never dead-stopped by a tree
+                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.9, navLoY, navHiY);
                 } else if (!T.owner && T.receiver === k) {
-                  // LOST BALL: sprint for it in x AND y — a kid chases it wherever it lies
+                  // LOST BALL: sprint for it in x AND y — a kid chases it wherever it
+                  // lies, swinging around whatever stands between him and the ball
                   k.dir = B.wx >= k.wx ? 1 : -1;
-                  if (
-                    Math.hypot(B.wx - k.wx, B.wy - k.wy) > 0.8 &&
-                    !kidStepBlocked(k, k.dir * k.sp * 1.6 * dt)
-                  )
-                    k.wx += k.dir * k.sp * 1.6 * dt;
-                  k.wy += (B.wy - k.wy) * Math.min(1, dt * 3.0);
+                  if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 0.8)
+                    kidNav(k, B.wx, B.wy, k.sp * 1.6, navLoY, navHiY);
                 } else {
                   // mate: keep jogging, stay in the play
-                  if (!kidStepBlocked(k, k.dir * k.sp * 0.85 * dt))
-                    k.wx += k.dir * k.sp * 0.85 * dt;
+                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.85, navLoY, navHiY);
                 }
                 // the walkable band — but the RECEIVER may chase the ball past it
                 // (a kid chasing a stray ball does not care about the paint)
