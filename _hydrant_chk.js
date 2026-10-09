@@ -1,68 +1,178 @@
 // _hydrant_chk.js — verify the reworked NYC fire hydrant (black base, steel dome,
 // hex top valve) builds without throwing and actually uses the new material scheme.
-const fs = require('fs');
-const path = require('path');
-global.THREE = require(path.join(__dirname, '_three128.js'));
+const fs = require("fs");
+const path = require("path");
+global.THREE = require(path.join(__dirname, "_three128.js"));
 
-const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-function extract(name){
+const src = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
+function extract(name) {
   // brace-counted (works for indented source; the old line-startsAt version was stale)
-  const idx = src.indexOf('function ' + name + '(');
-  if (idx < 0) throw new Error(name + ' not found');
-  const brace = src.indexOf('{', idx);
-  let depth = 0, i = brace;
-  for (; i < src.length; i++){
-    if (src[i] === '{') depth++;
-    else if (src[i] === '}'){ depth--; if (depth === 0) break; }
+  const idx = src.indexOf("function " + name + "(");
+  if (idx < 0) throw new Error(name + " not found");
+  const brace = src.indexOf("{", idx);
+  let depth = 0,
+    i = brace;
+  for (; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) break;
+    }
   }
   return src.slice(idx, i + 1);
 }
 
-function M(c, opt){ return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {})); }
-function MS(c, opt){ return new THREE.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.95, roughness: 0.28 }, opt || {})); }
-function BX(w, h, d, m){ return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); }
-function CY(r1, r2, h, m, s){ return new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m); }
-function SP(r, m, s){ return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m); }
-function SPH(r, m, ws, hs){ return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m); }
+function M(c, opt) {
+  return new THREE.MeshLambertMaterial(Object.assign({ color: c }, opt || {}));
+}
+function MS(c, opt) {
+  return new THREE.MeshStandardMaterial(
+    Object.assign({ color: c, metalness: 0.95, roughness: 0.28 }, opt || {}),
+  );
+}
+function BX(w, h, d, m) {
+  return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+}
+function CY(r1, r2, h, m, s) {
+  return new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s || 10), m);
+}
+function SP(r, m, s) {
+  return new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 6), m);
+}
+function SPH(r, m, ws, hs) {
+  return new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m);
+}
 const GZ = 0.3;
 
-eval(extract('makeHydrantMesh'));
-eval(extract('addHydrant'));
+eval(extract("makeHydrantMesh"));
+eval(extract("addHydrant"));
 
 let ok = true;
-const check = (label, cond) => { console.log('  ' + (cond ? 'PASS' : 'FAIL') + '  ' + label); if (!cond) ok = false; };
+const check = (label, cond) => {
+  console.log("  " + (cond ? "PASS" : "FAIL") + "  " + label);
+  if (!cond) ok = false;
+};
 
 const added = [];
-const b = { worldX: 10, group: { add(x){ added.push(x); } }, hazards: [] };
-let threw = null, built = null;
-try { addHydrant(b, 12, 3); } catch (e){ threw = e; }
+const b = {
+  worldX: 10,
+  group: {
+    add(x) {
+      added.push(x);
+    },
+  },
+  hazards: [],
+};
+let threw = null,
+  built = null;
+try {
+  addHydrant(b, 12, 3);
+} catch (e) {
+  threw = e;
+}
 built = added[0] || null;
 
-check('addHydrant builds a Group without throwing' + (threw ? '  [' + threw.message + ']' : ''), !threw && built && Array.isArray(built.children));
-check('hydrant registers a hazard on the block', b.hazards.length === 1 && b.hazards[0].type === 'hit');
-check('hitting the hydrant cites the "hazard" write-up offense', src.indexOf('hurtNPC(HP_HIT_HAZARD, "hazard")') >= 0);
-check('hydrant rests ON the curb (GZ+0.05) and offset by worldX', built && Math.abs(built.position.z - (GZ + 0.05)) < 1e-6 && Math.abs(built.position.x - (12 - 10)) < 1e-6);
+check(
+  "addHydrant builds a Group without throwing" +
+    (threw ? "  [" + threw.message + "]" : ""),
+  !threw && built && Array.isArray(built.children),
+);
+check(
+  "hydrant registers a hazard on the block",
+  b.hazards.length === 1 && b.hazards[0].type === "hit",
+);
+check(
+  'hitting the hydrant cites the "hazard" write-up offense',
+  src.indexOf('hurtNPC(HP_HIT_HAZARD, "hazard")') >= 0,
+);
+check(
+  "hydrant stands ON THE WALK (deck height GZ, no curb lift) and offset by worldX",
+  built &&
+    Math.abs(built.position.z - GZ) < 1e-6 &&
+    Math.abs(built.position.x - (12 - 10)) < 1e-6,
+);
+{
+  // The hydrant must be placed clear of the raised curb strip (y 0.25..0.75): its
+  // centre sits the foot radius plus a bare band of concrete inside the walk.
+  const CU = parseFloat(src.match(/const CURB_INNER_Y = ([\d.]+)/)[1]);
+  const CC = parseFloat(src.match(/const CURB_CLEAR = ([\d.]+)/)[1]);
+  const FH = parseFloat(src.match(/const FOOT_R_HYDRANT = ([\d.]+)/)[1]);
+  check(
+    "the curb keep-out is hoisted (CURB_INNER_Y 0.75 / CURB_CLEAR / FOOT_R_HYDRANT 0.22)",
+    CU === 0.75 && CC > 0 && FH === 0.22,
+  );
+  check(
+    "the hydrant call site places it at curbClearY(FOOT_R_HYDRANT)",
+    /addHydrant\(b, hzX\(1\.5\),\s*curbClearY\(FOOT_R_HYDRANT\)\)/.test(src),
+  );
+  check(
+    "hydrant foot clears the curb face (" +
+      (CU + CC + FH).toFixed(2) +
+      " >= 0.75 + 0.22)",
+    CU + CC + FH >= CU + FH + 0.25,
+  );
+}
 
 // collect the distinct materials used across the whole model
 const mats = new Set();
-built && built.traverse(ch => { if (ch.material) mats.add(ch.material); });
-const has = (kind, hex) => [...mats].some(m => m.type === kind && m.color && m.color.getHex() === hex);
+built &&
+  built.traverse((ch) => {
+    if (ch.material) mats.add(ch.material);
+  });
+const has = (kind, hex) =>
+  [...mats].some((m) => m.type === kind && m.color && m.color.getHex() === hex);
 
-check('has a BLACK cast-iron body/base (Lambert 0x1d2125)', has('MeshLambertMaterial', 0x1d2125));
-check('has RAISED iron collars/fluting (Lambert 0x34393f)', has('MeshLambertMaterial', 0x34393f));
-check('has a DULL weathered dome (Lambert 0x9ba0a6)', has('MeshLambertMaterial', 0x9ba0a6));
-check('has WEATHERED caps/stem (Lambert 0x7e848a)', has('MeshLambertMaterial', 0x7e848a));
-check('the old red hydrant color (0xb5322a) is gone', !has('MeshLambertMaterial', 0xb5322a));
+check(
+  "has a BLACK cast-iron body/base (Lambert 0x1d2125)",
+  has("MeshLambertMaterial", 0x1d2125),
+);
+check(
+  "has RAISED iron collars/fluting (Lambert 0x34393f)",
+  has("MeshLambertMaterial", 0x34393f),
+);
+check(
+  "has a DULL weathered dome (Lambert 0x9ba0a6)",
+  has("MeshLambertMaterial", 0x9ba0a6),
+);
+check(
+  "has WEATHERED caps/stem (Lambert 0x7e848a)",
+  has("MeshLambertMaterial", 0x7e848a),
+);
+check(
+  "the old red hydrant color (0xb5322a) is gone",
+  !has("MeshLambertMaterial", 0xb5322a),
+);
 let fullSphere = false;
-built && built.traverse(ch => { const p = ch.geometry && ch.geometry.parameters; if (p && p.radius !== undefined && (p.thetaLength || Math.PI) >= Math.PI - 1e-6) fullSphere = true; });
-check('no full-sphere "bowling ball" left (every sphere is a partial hemisphere)', !fullSphere);
+built &&
+  built.traverse((ch) => {
+    const p = ch.geometry && ch.geometry.parameters;
+    if (
+      p &&
+      p.radius !== undefined &&
+      (p.thetaLength || Math.PI) >= Math.PI - 1e-6
+    )
+      fullSphere = true;
+  });
+check(
+  'no full-sphere "bowling ball" left (every sphere is a partial hemisphere)',
+  !fullSphere,
+);
 
 // count hex (6-segment) parts => the top valve + two center bolts should all be hex
 let hexCount = 0;
-built && built.traverse(ch => {
-  if (ch.geometry && ch.geometry.parameters && ch.geometry.parameters.radialSegments === 6) hexCount++;
-});
-check('hex parts present (valve stem + nut + 2 bolts = 4): got ' + hexCount, hexCount >= 4);
+built &&
+  built.traverse((ch) => {
+    if (
+      ch.geometry &&
+      ch.geometry.parameters &&
+      ch.geometry.parameters.radialSegments === 6
+    )
+      hexCount++;
+  });
+check(
+  "hex parts present (valve stem + nut + 2 bolts = 4): got " + hexCount,
+  hexCount >= 4,
+);
 
-console.log(ok ? 'HYDRANT ALL CHECKS PASS' : 'HYDRANT FAILURES');
+console.log(ok ? "HYDRANT ALL CHECKS PASS" : "HYDRANT FAILURES");
 process.exit(ok ? 0 : 1);

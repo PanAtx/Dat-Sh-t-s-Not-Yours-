@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.453</div>
+          <div id="app-version" class="menu-version">v1.0.454</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.453';
+      const APP_VERSION = '1.0.454';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4419,6 +4419,22 @@
       const CAR_MIN_SP = RUN_SPEED; // no slow traffic: cars never crawl below the worker's walk pace
       const TRUCK_SPEED = 0.8; // nominal crawl speed reported to traffic (the truck's actual follow speed is computed per-frame in updateTruck)
       const GZ = 0.3;
+      /* Curb-line keep-out for standing street fixtures — fire hydrants and sidewalk
+         trees. The raised curb strip is the band y 0.25..0.75 (its top 0.35 sits 0.05
+         above the walk); the walk proper begins at its inner face, y 0.75. A fixture
+         standing at wy owns wy +/- its footprint radius (the flared hydrant foot, the
+         dirt tree-pit), so the old 0.8 line planted both of them IN the curb — the foot
+         and the pit overhung the strip and read as sitting on it. Every fixture centre
+         goes at its radius plus CURB_CLEAR inside the walk (curbClearY()): hydrant
+         (foot r 0.22) at 1.32, sidewalk tree (pit r 0.52) at 1.62+, and the 1.65x
+         scaled block oak — whose pit scales with the mesh — at 1.89+. */
+      const CURB_INNER_Y = 0.75; // the walk-side face of the curb strip
+      const CURB_CLEAR = 0.35; // the bare band of concrete left between them
+      const FOOT_R_HYDRANT = 0.22; // the hydrant's widest ring (the cast-iron foot)
+      const FOOT_R_TREE = 0.52; // the sidewalk tree pit (r 0.48) + a hair
+      function curbClearY(footR) {
+        return CURB_INNER_Y + CURB_CLEAR + footR;
+      }
       const ISO_A = 26; // isometric camera arm length
       const CAM_Y = 2.0; // camera's locked lateral centerline (middle of the street strip) so the view never veers off the playfield
       // ---- SUBTLE LANE FOLLOW (the "3D feel") ----
@@ -14212,9 +14228,11 @@
       }
       function addHydrant(b, wx, wy) {
         const g = makeHydrantMesh();
-        // The near curb top sits 0.05 above the street (GZ 0.3 -> curb top 0.35). Rest the
-        // hydrant base ON the curb top so the raised curb never clips through the foot.
-        g.position.set(wx - b.worldX, wy, GZ + 0.05);
+        // Callers pass a y from curbClearY(FOOT_R_HYDRANT): the hydrant stands ON THE
+        // WALK, clear of the raised curb strip (y 0.25..0.75), so it rests on the
+        // sidewalk deck (GZ) — not on the 0.35 curb top it used to straddle, with its
+        // flared foot hanging over the curb edge.
+        g.position.set(wx - b.worldX, wy, GZ);
         b.group.add(g);
         b.hazards.push({
           wx: wx,
@@ -24219,7 +24237,8 @@
         const hr = Math.random();
         if (hr < 0.28 && !siClean) addBottles(b, hzX(1), R(1.5, 4.5));
         else if (hr < 0.46) addPothole(b, hzX(1.5), R(-8, -3));
-        else if (hr < 0.58) addHydrant(b, hzX(1.5), 0.8);
+        else if (hr < 0.58)
+          addHydrant(b, hzX(1.5), curbClearY(FOOT_R_HYDRANT)); // off the curb, on the walk
         else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));
         // loose food wrappers on the street next to the sidewalk (litter dressing)
         if (Math.random() < 0.65 && !siClean) addWrapper(b, hzX(1), R(-2.5, -0.7));
@@ -24254,8 +24273,9 @@
             houseIdx === QUEENS_OAK_CELL
           )
         ) {
-          // Manhattan, Flatbush, Bronx, Maspeth, Staten Island: trees are on the sidewalk near the curb.
-          // The other boroughs plant them out in the front-lawn grass.
+          // Manhattan, Flatbush, Bronx, Maspeth, Staten Island: trees on the sidewalk,
+          // planted set-back off the curb (see curbClearY). The other boroughs plant them
+          // out in the front-lawn grass.
           // Staten Island: sidewalk trees keep the lawn band clear — the concrete driveways
           // run the full lawn depth between every pair of houses, so a lawn tree would sit
           // right on top of one.
@@ -24267,7 +24287,11 @@
             isQueensBlock;
           const t = isSidewalkTree ? makeSidewalkTree() : makeTree();
           const tx = isQueensBlock ? R(0.7, cellW - 0.7) : R(1, 6),
-            ty = isSidewalkTree ? R(0.8, 1.8) : R(6, 7.5);
+            // Sidewalk trees sit OFF the curb: the pit radius is baked into the placement
+            // (curbClearY), so the 0.48u dirt pit never overhangs the 0.75 curb face.
+            ty = isSidewalkTree
+              ? curbClearY(FOOT_R_TREE) + R(0, 0.9)
+              : R(6, 7.5);
           t.position.set(tx, ty, 0);
           b.group.add(t);
           if (!b.trees) b.trees = [];
@@ -24304,7 +24328,9 @@
           const oak = makeSidewalkTree();
           oak.scale.setScalar(1.65); // the BIG tree of the block
           const oakX = R(0.8, cellW - 0.8),
-            oakY = R(0.9, 1.7);
+            // The oak is scaled 1.65x, so its tree pit is 1.65x too — scale the keep-out
+            // with it, otherwise the big pit sits right on the curb.
+            oakY = curbClearY(FOOT_R_TREE * 1.65) + R(0, 0.6);
           oak.position.set(oakX, oakY, 0);
           b.group.add(oak);
           if (!b.trees) b.trees = [];
@@ -24540,10 +24566,11 @@
               makeBlockContents(b, worldX, i, storeOptions);
               blocks.push(b);
               // Trees along the store street: THREE sidewalk trees per block (i = 2 / 5 / 8,
-              // worldX = blockX+16 / +40 / +64) — spread across each block, clear of the
-              // intersection baskets (which sit at the cross-streets, y=1.8) and the worker's
-              // street->basket approach. Registered in b.trees so each is a solid obstacle
-              // (worker push-out, walkers route around, ball bounces off).
+              // worldX = blockX+16 / +40 / +64) — spread across each block, kept OFF the
+              // curb (the pit radius is baked into the placement) and clear of the
+              // intersection baskets (which sit at the cross-streets, y=1.8) and the
+              // worker's street->basket approach. Registered in b.trees so each is a solid
+              // obstacle (worker push-out, walkers route around, ball bounces off).
               if (i === 2 || i === 5 || i === 8) {
                 const t = makeSidewalkTree();
                 // Near the curb but NOT in a dead-straight line: each tree jitters a little
@@ -24551,7 +24578,9 @@
                 // through a row of trunk-aligned trees. Keep them in the curb band (y 0.8..1.8)
                 // so they still read as sidewalk trees hugging the road edge.
                 const tx = R(0.5, 3.5); // a bit off the cell edge, random along the walk
-                const ty = R(0.8, 1.8); // near the curb, but each tree sits at a slightly different depth
+                // Off the curb: the pit radius is baked in (curbClearY) and each tree
+                // still sits at a slightly different depth across the walk.
+                const ty = curbClearY(FOOT_R_TREE) + R(0, 0.9);
                 t.position.set(tx, ty, 0);
                 g.add(t);
                 if (!b.trees) b.trees = [];
@@ -25196,13 +25225,19 @@
                 b.x + 10.0,
                 b.x + BLOCK_W - 10.0,
               );
-              ld.anchorY = R(0.85, 1.05); // right at the curb (the curb strip is y ~0.25..0.75), up against the walk
+              const ldTreeFixture = Math.random() < 0.5;
+              // The fixture sets the depth: a slim cast-iron post is curb furniture and
+              // stays right at the curb line, but a TREE carries a 0.48u dirt pit, so a
+              // tree anchor is placed at curbClearY — its pit never sits on the curb.
+              ld.anchorY = ldTreeFixture
+                ? curbClearY(FOOT_R_TREE) + R(0, 0.5)
+                : R(0.85, 1.05); // post: at the curb (the curb strip is y ~0.25..0.75)
               // Store sidewalk bounds for movement clamping in updateCreatures
               ld.blockMinX = b.x + 6.0;
               ld.blockMaxX = b.x + BLOCK_W - 6.0;
               // The leash is tied to a visible fixture: a sidewalk tree or a fence post
               // (hydrants stay reserved for the curb hazards in makeBlockContents).
-              if (Math.random() < 0.5) {
+              if (ldTreeFixture) {
                 ld.anchorObj = makeSidewalkTree();
                 ld.anchorObj.position.set(ld.anchorX, ld.anchorY, GZ);
                 // A leash post that happens to be a tree shades the walk behind it too — register
