@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.453</div>
+          <div id="app-version" class="menu-version">v1.0.454</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.453';
+      const APP_VERSION = '1.0.454';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5928,6 +5928,7 @@
         }
         // Paperboy-style cross-streets with crosswalks at every intersection
         buildIntersections();
+        buildCatchBasins();
         // ---- ROUTE FINISH LINE ----
         // A black-and-white CHECKER stripe laid across the near sidewalk at the far
         // corner of the LAST serviceable block — the spot the route already ends at
@@ -6327,6 +6328,130 @@
           groundGroup.add(g);
         }
       }
+      // ---- CATCH BASEINS: the street drains at the gutter low point of every corner ----
+      // Where the road gutter meets the cross-street gutter is where rain leaves a NYC corner, and
+      // that is where the cast-iron catch basin sits. Purely decorative: no hazard, no score, no
+      // gameplay. What it buys is a readable corner - the wet lanes in both gutters point at the
+      // mouth, so the low point of the corner is obvious from the route, and the worker reading the
+      // corner reads the drainage with it.
+      // THE THREE THINGS THAT MADE EARLIER ATTEMPTS READ AS STRAY GREY RECTANGLES. All three are
+      // geometry facts of THIS street (the numbers below are the ones buildIntersections uses),
+      // not taste:
+      // (1) EVERY SURFACE HERE PAINTS OVER THE SPACE UNDER IT. The main curb is a box topping at
+      //     0.35, the cross-street curb strips top at 0.365, the cross-street asphalt is a plane at
+      //     0.335 and the street asphalt tops at 0.325. A grate laid at 0.31-0.32 (as the first
+      //     version was) is painted over and only shows through where a covering box stops: strips
+      //     that appear in the intersection gap and vanish at the curb, a grate that reads as a
+      //     flat grey slab. So the mouth lies ON the cross-street plane, in the gutter lane:
+      //     GRATE_X inside the cross-street curb line (the side curb strips occupy offsets
+      //     4.5..5.0, GRATE_X 4.0 + half the mouth width clears them) and GRATE_BACK street-ward
+      //     of the main curb line, so nothing lies over it and it hangs over the sidewalk no more
+      //     than a real basin does.
+      // (2) A RECESS CANNOT BE CUT, ONLY DRAWN. Those planes cannot be punched; a sunken box is a
+      //     slab. So the grate uses the decal ladder this street already uses for crosswalks and
+      //     tyre marks: three flat plates, each smaller than the one under it - cast-iron bed, dark
+      //     opening, bars. It reads as an inset from the arm's eye while every face stays ABOVE the
+      //     plane it rides, so nothing z-fights; relief is 0.007 total and the top plate is 0.008
+      //     below the curb top, i.e. flush.
+      // (3) THE MOUTH FOLLOWS THE GUTTER IT DRAINS, laid along the gutter line and square to it,
+      //     with the wet lanes running down that lane into it - not diagonally across the corner
+      //     flare, where a square grate in the middle of the junction read as a dropped rectangle.
+      const STREET_DRAINS = []; // { wx, wy, r } - mouths the spawner must keep clear
+      const DRAIN_KEEP_R = 0.95; // nothing (bag/basket/bonus/character) stands on a mouth
+      function onDrain(wx, wy) {
+        for (const d of STREET_DRAINS) {
+          if (
+            Math.abs(wx - d.wx) <= DRAIN_KEEP_R &&
+            Math.abs(wy - d.wy) <= DRAIN_KEEP_R
+          )
+            return true;
+        }
+        return false;
+      }
+      const GRATE_L = 0.7; // mouth length, along the gutter
+      const GRATE_W = 0.36; // mouth width, across it
+      const GRATE_TH = 0.005; // plate thickness
+      const GRATE_BED = 0.3375; // bed centre: top 0.340, lying on the 0.335 cross-street plane
+      const GRATE_WET = 0.3385; // wet lane centre: top 0.341, same plane
+      const GRATE_X = 4.0; // cross-street curb line -> mouth: clear of the 4.5..5.0 curb strips
+      const GRATE_BACK = 0.4; // main curb line -> mouth: 0.4u street-ward, its outer edge on the gutter
+      const GUTTER = 0.25; // lane centre: 0.0 near / -9.0 far, the strip along the curb
+      function makeCatchBasin() {
+        const g = new THREE.Group();
+        const ironM = new THREE.MeshLambertMaterial({ color: 0x2b2f34 });
+        const voidM = new THREE.MeshLambertMaterial({ color: 0x07080a });
+        const plate = (w, h, z, mat) => {
+          const m = BX(w, h, GRATE_TH, mat);
+          m.position.z = z;
+          m.castShadow = false;
+          m.receiveShadow = true;
+          g.add(m);
+          return m;
+        };
+        // Bed on the asphalt, opening one plate up, bars one plate higher again: a stack that
+        // reads as a recess, with nothing under the plane that would paint over it.
+        plate(GRATE_L, GRATE_W, GRATE_BED, ironM);
+        plate(GRATE_L - 0.14, GRATE_W - 0.12, GRATE_BED + 0.001, voidM);
+        const bar = BX(GRATE_L - 0.16, 0.05, GRATE_TH, ironM);
+        for (const sy of [-0.14, -0.07, 0, 0.07, 0.14]) {
+          const b = bar.clone();
+          b.position.set(0, sy, GRATE_BED + 0.002);
+          b.castShadow = false;
+          b.receiveShadow = true;
+          g.add(b);
+        }
+        return g;
+      }
+      function buildCatchBasins() {
+        const wetM = new THREE.MeshLambertMaterial({
+          color: 0x4d9fc9,
+          transparent: true,
+          opacity: 0.42,
+        });
+        const halfW = CROSS_W / 2; // 4.5 - the cross-street curb line, each side of the gap
+        const tyN = 0.5 - 0.25; // near main-road curb line: buildIntersections' roadYMax - 0.25
+        const tyF = -9.5 + 0.25; // far main curb line: its roadYMin + 0.25; the route drains to it
+        const WET_MAIN = 2.2; // the cross-street gutter lane, along Y
+        const WET_CROSS = 2.6; // the main-road gutter lane, along X
+        const WET_GAP = 0.6; // clearance kept from the mouth
+        const WET_UP = WET_MAIN / 2 + WET_GAP + 1.5; // lifted clear of the intersection crosswalk
+        for (const xInt of LEVEL_XS) {
+          const cx = xInt + IW / 2;
+          for (const c of [
+            { sx: -1, sy: 1 },
+            { sx: 1, sy: 1 },
+            { sx: -1, sy: -1 },
+            { sx: 1, sy: -1 },
+          ]) {
+            const vx = cx + c.sx * halfW; // cross-street curb line
+            const laneY = (c.sy > 0 ? tyN : tyF) - c.sy * GUTTER; // gutter lane centre: 0.125 / -9.375
+            const mx = cx + c.sx * GRATE_X; // in the corner's side gutter, clear of the curb strip
+            const my = (c.sy > 0 ? tyN : tyF) - c.sy * GRATE_BACK; // 0.10 / -9.40 - at the curb base
+            const basin = makeCatchBasin();
+            basin.position.set(mx, my, 0); // the plates carry their own absolute street z
+            basin.rotation.z = Math.PI / 2; // long side along this gutter (the cross-street's Y)
+            groundGroup.add(basin);
+            STREET_DRAINS.push({ wx: mx, wy: my, r: DRAIN_KEEP_R });
+            // The water's two ways in, both riding the same plane as the mouth and each stopping
+            // short of it: one down the cross-street gutter the mouth sits in (lifted past the
+            // intersection crosswalk), one along the main-road gutter that turns this corner into
+            // it. Short lanes, on one plane, square to the flow - the long strips of the first
+            // version crossed the curb seam and the 0.035 step in surface height, which is what
+            // produced the rectangles near the end of the corner.
+            const laneMain = BX(0.22, WET_MAIN, GRATE_TH, wetM);
+            laneMain.position.set(mx, my + c.sy * WET_UP, GRATE_WET);
+            laneMain.castShadow = false;
+            laneMain.receiveShadow = false;
+            groundGroup.add(laneMain);
+            const laneCross = BX(WET_CROSS, 0.22, GRATE_TH, wetM);
+            laneCross.position.set(mx + c.sx * (WET_CROSS / 2 + WET_GAP), laneY, GRATE_WET);
+            laneCross.castShadow = false;
+            laneCross.receiveShadow = false;
+            groundGroup.add(laneCross);
+          }
+        }
+      }
+
             // iOS (esp. < 16.4 standalone apps) can leave position:fixed / inset:0 boxes sized to
       // the LAUNCH viewport after a rotation (stale initial containing block), so #game
       // ends up smaller than the screen and the player sees white bands around the canvas.
@@ -23827,6 +23952,7 @@
             const ny = o.wy + Math.sin(SHADE_ANGLES[a]) * rad;
             if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue;
             if (sitsOnTreePit(nx, ny)) continue;
+            if (onDrain(nx, ny)) continue; // never park anything on a catch-basin mouth
             const depth = crownShadeDepth(nx, ny, footZ, SHADE_TOP[kind], SHADE_CLEAR);
             let crowded = false;
             for (let i = 0; i < spots.length; i++) {
@@ -23904,7 +24030,11 @@
         let moved = 0;
         for (const it of items) {
           const o = it.o;
-          if (crownShadeDepth(o.wx, o.wy, it.foot, SHADE_TOP[it.kind], 0) <= 0 && !sitsOnTreePit(o.wx, o.wy))
+          if (
+            crownShadeDepth(o.wx, o.wy, it.foot, SHADE_TOP[it.kind], 0) <= 0 &&
+            !sitsOnTreePit(o.wx, o.wy) &&
+            !onDrain(o.wx, o.wy)
+          )
             continue; // already in clear sight - leave today's placement alone
           const bl = blockSpanning(o.wx);
           let x0 = bl ? bl.blockX + 0.6 : o.wx - 3.4;
