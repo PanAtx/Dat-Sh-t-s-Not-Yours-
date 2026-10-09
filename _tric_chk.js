@@ -162,6 +162,11 @@ const check = (n, c, info) => {
 // trick makeSoccerKid pulls with a 0.6-scale makePerson). So every number above is in the
 // model's LOCAL units; what the player sees is local * g.scale. A soccer kid stands
 // ~1.12u tall (makePerson 0.6) and the sidewalk adult worker ~1.86u.
+// He is scaled to a SOLID child, not a bobble-head: a seated toddler's crown is about two
+// thirds of his own standing height, and a real Big Wheel is a touch longer than the kid
+// riding it. The window below keeps him in "small kid on a ride-on" territory: big enough
+// to read as a real toddler at street camera distance, small enough that he can never
+// creep back to the adult-on-a-bicycle size he shipped at first.
 const SC = g.scale ? g.scale.x : 1;
 const halfX = (o) => (o.r !== undefined ? o.r : o.dim ? o.dim[0] / 2 : 0);
 const trikeLen =
@@ -169,23 +174,28 @@ const trikeLen =
     Math.min(...meshes.map((o) => o.position.x - halfX(o)))) *
   SC;
 check(
-  "the whole rig is SCALED DOWN on its root (0.55..0.75, kid scale)",
-  SC >= 0.55 && SC <= 0.75,
+  "the whole rig is SCALED DOWN on its root (0.7..0.88, solid-kid scale)",
+  SC >= 0.7 && SC <= 0.88,
   String(SC),
 );
 check(
-  "the rider's crown sits well BELOW a standing soccer kid (scaled top < 0.75u)",
-  riderTop * SC < 0.75,
+  "the rider's crown stays BELOW a standing soccer kid (scaled top < 0.9u)",
+  riderTop * SC < 0.9,
   (riderTop * SC).toFixed(3) + "u (soccer kid 1.12u tall)",
 );
 check(
-  "the trike itself is no longer than a soccer kid is tall (scaled length < 1.12u)",
-  trikeLen < 1.12,
+  "the crown still reads as a real seated toddler, not a toddler-sized doll (> 0.65u)",
+  riderTop * SC > 0.65,
+  (riderTop * SC).toFixed(3) + "u",
+);
+check(
+  "the trike is a hair longer than the kid is tall but never vehicle-sized (< 1.35u)",
+  trikeLen < 1.35,
   trikeLen.toFixed(2) + "u long",
 );
 check(
-  "but still a real ride, not a speck (scaled length > 0.6u)",
-  trikeLen > 0.6,
+  "and a real ride the player can spot across the driveway (> 1.0u)",
+  trikeLen > 1.0,
   trikeLen.toFixed(2) + "u long",
 );
 

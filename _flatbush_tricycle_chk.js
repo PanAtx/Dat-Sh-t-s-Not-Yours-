@@ -33,7 +33,10 @@ const DRIVETR_AGGRO_DIST = 6.5;
 const DRIVETR_AGGRO_DUR = 3.0;
 const DRIVETR_ATK_SP = 6.0;
 const DRIVETR_HOME_SP = 2.6;
-const DRIVETR_HIT_DIST = 1.3;
+// Mirrors index.html. The rig is root-scaled (TRIC_SCALE), so the bump range tracks the
+// size of the trike; this mirror has to move with it or the clamp/pin test below stops
+// testing what it thinks it tests.
+const DRIVETR_HIT_DIST = 1.15;
 const DRIVETR_HIT_CD = 1.6;
 const DRIVETR_BACKOFF_T = 4.0;
 const DRIVETR_LATERAL = 1.0;

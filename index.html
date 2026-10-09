@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.458</div>
+          <div id="app-version" class="menu-version">v1.0.459</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.458';
+      const APP_VERSION = '1.0.459';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -21952,10 +21952,13 @@
         // trike and its rider on the same scale as everyone else: the wheels' contact
         // patch IS the group origin (every wheel center sits at z = its own radius), so
         // scaling the root drops the whole trike straight back down onto the concrete
-        // instead of burying or floating it. At 0.65 the rider's crown tops out at 0.61u
-        // and the trike is 0.92u long — shorter than a soccer kid is tall, which is what
-        // a Big Wheel next to a standing child actually looks like.
-        const TRIC_SCALE = 0.65;
+        // instead of burying or floating it. 0.8 is the size that reads right on the block:
+        // the rider's crown tops out at 0.75u — roughly two thirds of a standing soccer kid,
+        // which is what a SEATED toddler measures against his own standing height — and the
+        // trike is 1.14u long, a hair longer than the kid is tall (a real Big Wheel is), and
+        // still a full head shorter than the adult worker at 1.86u, so he can never read as
+        // a grown man on a bike again.
+        const TRIC_SCALE = 0.8;
         g.scale.set(TRIC_SCALE, TRIC_SCALE, TRIC_SCALE);
         return g;
       }
@@ -25770,7 +25773,7 @@
             // PARKED ON THE DRIVEWAY APRON, right where the concrete meets the walk — NOT
             // back at the driveway gate. The doghouse spawner above parks its kennel anywhere
             // in wy 6.0..7.0 (the lawn frontage), and the old 4.3 had the kid sitting 3.4u
-            // behind the walk the worker actually rides: a 0.66u toddler that far back reads
+            // behind the walk the worker actually rides: a 0.75u toddler that far back reads
             // as scenery, and the leash + driveway-lane clamps (below in case "tric") meant a
             // run could never actually reach a worker hugging the curb — so a whole shift
             // could go by without the kid being seen. On the apron he is shoulder-to-shoulder
@@ -28287,10 +28290,11 @@
       const DRIVETR_AGGRO_DUR = 3.0; // seconds a kid stays aggro before returning home
       const DRIVETR_ATK_SP = 6.0; // the kid's chase speed while attacking (faster than a worker's walk)
       const DRIVETR_HOME_SP = 2.6; // the kid's trot speed when returning to / idle at home
-      // Contact distance for a bump. 1.05u, not the old 1.3u: the whole rig is now built
-      // at true child scale (see TRIC_SCALE in makeTricycle), so its nose reaches ~0.47
-      // instead of ~0.72 — at 1.3 the kid shoved a worker from nearly a metre of thin air.
-      const DRIVETR_HIT_DIST = 1.05; // contact distance at which the tricycle bumps the worker
+      // Contact distance for a bump. The whole rig is scaled on its root (TRIC_SCALE in
+      // makeTricycle), so this tracks that size: at 0.8 scale the nose reaches ~0.58u and the
+      // remaining ~0.57u is the worker's own body radius. Go much past this and the kid
+      // shoves a worker from a metre of thin air; go under it and he bumps into nothing.
+      const DRIVETR_HIT_DIST = 1.15; // contact distance at which the tricycle bumps the worker
       const DRIVETR_HIT_CD = 1.6; // per-kid cooldown between bumps (keeps the hits from spamming)
       const DRIVETR_BACKOFF_T = 4.0; // seconds the kid backs off to its home spot after a bump before it can re-lunge
       // ---- Flatbush soccer team (3 small kids + ONE shared ball, up and down ONE block) ----
