@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.455</div>
+          <div id="app-version" class="menu-version">v1.0.456</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.455';
+      const APP_VERSION = '1.0.456';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -21877,7 +21877,8 @@
           g.add(hubR);
         });
         // ===== SMALL CHILD RIDER (recumbent: back in the seat, legs forward to the
-        // pedals, arms forward to the grips — denim jacket, khaki pants, grey helmet) =====
+        // pedals, arms forward to the grips — denim jacket, khaki pants, bare head with
+        // skin + hair like every other character: NO helmet, NO hat) =====
         const denim = M(0x3f5c86),
           khaki = M(0xb59a66),
           skin = M(pick(SKIN_TONES)),
@@ -21887,14 +21888,11 @@
         torso.rotation.y = -0.22;
         g.add(torso); // hunched back in the seat
         // NORMAL-LOOKING KID HEAD — built the way every other character's head is
-        // built in this game (makePerson: a skin-tone box head with a hair cap on
-        // the crown), just at child scale, so the rider reads as a kid and not as
-        // a grey ball: SKIN (rolled from SKIN_TONES like every other person) on the
-        // face + ears, HAIR (rolled from HAIRS) on the crown, the forehead and the
-        // face left uncovered, and the grey safety helmet sitting ON the crown the
-        // way a real bike helmet does — it used to be a grey sphere that swallowed
-        // the whole head (0.69..0.93 around a 0.69..0.85 head) with a dark disc
-        // (r 0.12) sliced across it at eye height, which is why the head looked grey.
+        // built in this game (makePerson: a skin-tone box head + a hair box over the
+        // crown), just at child scale, and with NOTHING resting on top of it.
+        // SKIN (rolled from SKIN_TONES like every other person) on the face + ears,
+        // HAIR (rolled from HAIRS) on the crown — the same look as the soccer kids,
+        // the chalk girls and every pedestrian, so the kid reads as a kid.
         const head = BX(0.2, 0.2, 0.2, skin);
         head.position.set(-0.3, 0, 0.78);
         g.add(head);
@@ -21903,24 +21901,12 @@
           ear.position.set(-0.3, s * 0.11, 0.77);
           g.add(ear); // skin-tone ears: the head reads as a head from the side too
         });
-        // HAIR: a cap over the crown and the back of the skull + a short fringe at
-        // the hairline, so the hair color shows under the helmet's rim. The cap is
-        // centered 0.08 ABOVE the head center and pushed 0.02 back, so the face
-        // (the +X side) stays bare skin.
-        const hairCap = BX(0.21, 0.22, 0.11, hairCol);
-        hairCap.position.set(-0.32, 0, 0.86);
+        // HAIR — the same crown cap makePerson puts on every pedestrian: a box a hair
+        // wider than the skull (0.23 vs 0.2) whose bottom sits on the head's midline,
+        // so the crown, back and sides read as hair and the face stays bare skin.
+        const hairCap = BX(0.23, 0.23, 0.16, hairCol);
+        hairCap.position.set(-0.3, 0, 0.858); // z 0.778..0.938: the top of the kid
         g.add(hairCap);
-        const fringe = BX(0.05, 0.21, 0.07, hairCol);
-        fringe.position.set(-0.21, 0, 0.85);
-        g.add(fringe);
-        const helmet = SPH(0.115, M(0x5c6167));
-        helmet.scale.set(1.16, 1.16, 0.62); // flattened to a bowl, not a ball
-        helmet.position.set(-0.32, 0, 0.9); // z 0.829..0.971: rests ON the crown
-        g.add(helmet); // grey safety helmet
-        const hemBand = CY(0.115, 0.115, 0.03, M(0x454a50), 10);
-        hemBand.rotation.x = Math.PI / 2;
-        hemBand.position.set(-0.32, 0, 0.855);
-        g.add(hemBand); // the helmet's rim, at the hairline — clear of the face
         const kid = {};
         [-1, 1].forEach((s) => {
           // leg: hip pivot at the seat, thigh/shin stretched FORWARD (+X) to the blue pedal
