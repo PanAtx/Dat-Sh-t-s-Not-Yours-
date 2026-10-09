@@ -35,9 +35,10 @@ THREE.BoxGeometry = function (w, h, d) { this.w = w; this.h = h; this.d = d; };
 THREE.SphereGeometry = function (r) { this.r = r; };
 const pick = a => a[0];
 const SKIN_TONES = [0xd8a980];
+const HAIRS = [0x2a2118, 0x4a3220, 0x111111, 0x8a6a3a]; // the rider's hair tones (makeTricycle rolls from HAIRS)
 
-const g = new Function('THREE', 'M', 'MS', 'BX', 'CY', 'SPH', 'pick', 'SKIN_TONES',
-  code + '\n;return makeTricycle();')(THREE, M, MS, BX, CY, SPH, pick, SKIN_TONES);
+const g = new Function('THREE', 'M', 'MS', 'BX', 'CY', 'SPH', 'pick', 'SKIN_TONES', 'HAIRS',
+  code + '\n;return makeTricycle();')(THREE, M, MS, BX, CY, SPH, pick, SKIN_TONES, HAIRS);
 
 const all = [g];
 const flat = []; // { node, parentZ } — parent z-offset accumulated for world-space grounding
@@ -75,6 +76,21 @@ check('khaki pants (0xb59a66)', colors.has(0xb59a66));
 check('child rider is SMALL (top z < 1.0; adult head ~1.66)', riderTop < 1.0, String(riderTop));
 check('all parts grounded (z >= 0)', grounded);
 check('animParts present (legL/legR/armL/armR joint groups)', !!(parts && parts.legL && parts.legR && parts.armL && parts.armR), JSON.stringify(Object.keys(parts || {})));
+// ---- the RIDER'S HEAD reads like every other character's (the old build was a grey
+// helmet sphere that swallowed the head + a DARK disc sliced across the face = a "grey head") ----
+const cOf = o => ((o.mat || o.material) || {}).c;
+const headM = meshes.filter(o => cOf(o) === SKIN_TONES[0] && o.dim && Math.abs(o.dim[0] - 0.2) < 0.01 && o.position.x < 0);
+const hairM = meshes.filter(o => cOf(o) === HAIRS[0]);
+const helm = meshes.filter(o => cOf(o) === 0x5c6167)[0];
+const handsM = meshes.filter(o => cOf(o) === SKIN_TONES[0] && o.position.x > 0.1);
+check('kid has a SKIN-TONE box head (SKIN_TONES roll, the makePerson head build)', headM.length === 1, String(headM.length));
+check('kid has HAIR — a hair-tone cap on the crown (HAIRS roll)', hairM.length >= 2, String(hairM.length));
+check('helmet rests ON the crown (its base is above the head midline; does not swallow the head)',
+  !!helm && helm.position.z - helm.r * helm.scale.z > headM[0].position.z,
+  helm ? String(helm.position.z - helm.r * helm.scale.z) : 'no helmet');
+check('NOTHING dark crosses the face band (the old DARK ring at eye height is gone)',
+  !meshes.some(o => cOf(o) === 0x33383e && o.position.z > 0.7 && o.position.z < 0.84 && o.position.x < 0), '');
+check('kid has SKIN-TONE HANDS (2 fists, same skin roll as the face)', handsM.length === 2, String(handsM.length));
 
 console.log(pass ? '\nTRICYCLE REDSIGN PASSED (' + meshes.length + ' meshes)' : '\nTRICYCLE REDSIGN FAILED');
 process.exit(pass ? 0 : 1);
