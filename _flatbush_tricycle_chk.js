@@ -57,30 +57,33 @@ check("driveway branch breaks before the street logic", /if \(c\.isDrivewayTric\
 
 // Run the exact case body in a switch with the same free variables updateCreatures gives it.
 // A driveway tricycle (isDrivewayTric) breaks before touching the street logic, so only the
-// driveway deps (state / p / clamp / workerMaxY / hurtNPC / doStun / Voice / animParts +
-// constants) are exercised. animParts / Voice / hurtNPC / doStun are recorded stubs.
+// driveway deps (state / p / clamp / workerMaxY / hurtNPC / doStun / Voice / animTricPedal +
+// constants) are exercised. animTricPedal / Voice / hurtNPC / doStun are recorded stubs.
+// animTricPedal is the LEGS-ONLY gait: the rider's arms are never animated at all, so there
+// is no arm stub to record (_tric_route_chk.js runs the REAL gait and proves the arms stay put).
 function makeRunner(deps){
   const fn = new Function('c', 'dt', 'tx',
     'state', 'p', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER',
     'DRIVETR_CHAIN_R', 'DRIVETR_AGGRO_DIST', 'DRIVETR_AGGRO_DUR', 'DRIVETR_ATK_SP',
-    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'DRIVETR_BACKOFF_T', 'DRIVETR_LATERAL', 'HP_HIT_DRIVETRIC', 'animParts',
+    'DRIVETR_HOME_SP', 'DRIVETR_HIT_DIST', 'DRIVETR_HIT_CD', 'DRIVETR_BACKOFF_T', 'DRIVETR_LATERAL', 'HP_HIT_DRIVETRIC', 'animTricPedal',
     'switch (c.type){' + tricCase + '}');
   return function(c, dt){
     return fn(c, dt, c.wx - deps.p.wx, deps.state, deps.p, clamp, workerMaxY,
       deps.hurtNPC, deps.doStun, deps.Voice, WORKER_GENDER,
       DRIVETR_CHAIN_R, DRIVETR_AGGRO_DIST, DRIVETR_AGGRO_DUR, DRIVETR_ATK_SP,
       DRIVETR_HOME_SP, DRIVETR_HIT_DIST, DRIVETR_HIT_CD, DRIVETR_BACKOFF_T, DRIVETR_LATERAL, HP_HIT_DRIVETRIC,
-      deps.animParts || ((cc, dphase) => { cc.phase += dphase; }));
+      deps.animTricPedal || ((cc, dphase) => { cc.phase += dphase; }));
   };
 }
 // A driveway tricycle at a fixed driveway home (mirrors spawnWorld placement).
 function makeDrivewayTric(homeX, homeY){
   const g = { rotation: { z: -Math.PI / 2, x: 0 }, position: { set(){ } } };
+  const limb = () => ({ rotation: { x: 0, y: 0, z: 0 } }); // a limb pivot, as the gait sees it
   const c = {
     type: 'tric', isDrivewayTric: true, gender: 'male',
     homeX: homeX, homeY: homeY, wx: homeX, wy: homeY,
     state: 'idle', hitCd: 0, chainR: DRIVETR_CHAIN_R,
-    phase: 0, g: g, parts: { legL: {}, legR: {}, armL: {}, armR: {} },
+    phase: 0, g: g, parts: { legL: limb(), legR: limb(), armL: limb(), armR: limb() },
   };
   return c;
 }
@@ -212,7 +215,9 @@ function runApproach(){
   const deps = {
     state: 'play', p: { wx: 14, wy: 4.3, invuln: 0, immuneT: 0 },
     hurtNPC(){}, doStun(){}, Voice: { say(){} },
-    animParts: () => { pedalFrames++; },
+    // the LEGS-ONLY gait (the only limb animation the driveway branch runs). Counting its
+    // calls is how this test proves the kid stops cranking once a clamp pins him in place.
+    animTricPedal: () => { pedalFrames++; },
   };
   const run = makeRunner(deps);
   const c = makeDrivewayTric(10, 4.3);

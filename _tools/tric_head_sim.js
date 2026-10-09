@@ -145,6 +145,14 @@ const onGrip = hands.length === 2 && hands.every((h) =>
   grips.some((gr) => Math.abs(gr.w.y - h.w.y) < 0.09 && Math.abs(gr.w.z - h.w.z) < 0.09 && h.b.x0 <= gr.w.x + 0.03 && h.b.x1 >= gr.w.x - 0.03),
 );
 const riderTop = Math.max(...items.filter((i) => i.f.o.position.x < 0 && i.f.o.position.z > 0.4).map((i) => i.f.o.position.z));
+// THE KID-SCALE: makeTricycle shrinks the whole rig on its ROOT so the toddler on the
+// driveway matches the 0.6-scale soccer kids. Everything printed above is LOCAL model
+// space; multiply by rootScale for the size the player actually sees on the street (a
+// soccer kid stands ~1.12u, an adult worker ~1.86u).
+const rootScale = g.scale && g.scale.x ? g.scale.x : 1;
+const rigLen = (Math.max(...items.map((i) => i.b.x1)) - Math.min(...items.map((i) => i.b.x0))) * rootScale;
+const crown = Math.max(...items.map((i) => i.b.z1)) * rootScale;
+console.log("root scale", rootScale, "| ON THE STREET: crown", crown.toFixed(2) + "u", "| rig", rigLen.toFixed(2) + "u long (soccer kid ~1.12u tall)");
 console.log("head midline z", midZ.toFixed(3), "| face slab x", faceX0.toFixed(2) + ".." + H.x1.toFixed(2));
 console.log("anything on his head (hat/helmet)?", overFace ? "YES (bad)" : "NO (good) — the crown is his hair");
 console.log("wide objects slicing the face band:", faceBand.length, faceBand.map((i) => i.color.toString(16)).join(","));

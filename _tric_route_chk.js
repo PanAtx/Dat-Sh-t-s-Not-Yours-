@@ -188,6 +188,28 @@ for (; ci < src.length; ci++) {
   }
 }
 const tricCase = src.slice(caseStart, ci + 1);
+// ---- the REAL gait the AI animates the rider with, extracted the same way (NOT a stub) ----
+// Part 2 exists to prove the kid drives the trike with his LEGS while both fists stay welded
+// to the handlebar, so it has to run the game's own animation — a stub could hide an arm swing.
+function extractFn(name) {
+  const idx = src.indexOf("function " + name + "(");
+  if (idx < 0) throw new Error("function " + name + " not found in index.html");
+  let i = src.indexOf("{", idx),
+    depth = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}") {
+      depth--;
+      if (depth === 0) break;
+    }
+  }
+  return src.slice(idx, i + 1);
+}
+check("the trike rider has his OWN legs-only gait instead of the pedestrian walk cycle",
+  /function animTricPedal/.test(src));
+check("the driveway-trike AI animates the rider with animTricPedal and never with animParts",
+  /animTricPedal\(/.test(tricCase) && !/animParts\(/.test(tricCase));
+const animTricPedal = new Function("return " + extractFn("animTricPedal"))();
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const consts = {};
 for (const n of ["DRIVETR_CHAIN_R", "DRIVETR_AGGRO_DIST", "DRIVETR_AGGRO_DUR", "DRIVETR_ATK_SP",
@@ -196,24 +218,28 @@ for (const n of ["DRIVETR_CHAIN_R", "DRIVETR_AGGRO_DIST", "DRIVETR_AGGRO_DUR", "
 const makeRunner = (deps) => {
   const fn = new Function(
     "c", "dt", "tx", "state", "p", "clamp", "workerMaxY", "hurtNPC", "doStun", "Voice",
-    "WORKER_GENDER", ...Object.keys(consts), "animParts",
+    "WORKER_GENDER", ...Object.keys(consts), "animTricPedal", "animParts",
     "switch (c.type){" + tricCase + "}",
   );
   return (c, dt) =>
     fn(c, dt, c.wx - deps.p.wx, deps.state, deps.p, clamp, () => 8.0, deps.hurtNPC,
       deps.doStun, deps.Voice, "male", ...Object.values(consts),
+      // the game's real legs-only gait by default (a test may swap in a call-counting stub)
+      deps.animTricPedal || animTricPedal,
       (cc, dphase) => { cc.phase += dphase; });
 };
 const homeY = Number((spawnBlock.match(/dt\.homeY = ([-\d.]+);/) || [])[1]);
 check("the spawner parks the kid on the driveway apron at the walk edge",
   isFinite(homeY) && homeY > 0.8 && homeY <= 5.0 && DRIVETR_LATERAL + (homeY - 0.8) < DRIVETR_AGGRO_DIST,
   "homeY=" + homeY);
+// A limb pivot, as far as the animation cares about it: it just writes rotation.y.
+const limb = () => ({ rotation: { x: 0, y: 0, z: 0 } });
 function makeKid(x, y) {
   return {
     type: "tric", isDrivewayTric: true, gender: "male",
     homeX: x, homeY: y, wx: x, wy: y, state: "idle", hitCd: 0, chainR: DRIVETR_CHAIN_R,
     phase: 0, g: { rotation: { z: -Math.PI / 2, x: 0 }, position: { set() {} } },
-    parts: { legL: {}, legR: {}, armL: {}, armR: {} },
+    parts: { legL: limb(), legR: limb(), armL: limb(), armR: limb() },
   };
 }
 // A worker walks a straight lane past the driveway at a stroll, 24u of pavement.
@@ -231,9 +257,17 @@ function walkLane(laneY, homeX = 10) {
   const run = makeRunner(deps);
   const c = makeKid(homeX, homeY);
   let minWy = 99, toldBeforeHit = false, tellDist = Infinity;
+  // the rider's limb sweep, frame by frame: legs must WORK, arms must sit STILL
+  let maxArm = 0, maxLeg = 0;
   for (let f = 0; f < 60 * 8; f++) {
     const before = hits.length;
     run(c, 1 / 60);
+    maxArm = Math.max(
+      maxArm,
+      Math.abs(c.parts.armL.rotation.y),
+      Math.abs(c.parts.armR.rotation.y),
+    );
+    maxLeg = Math.max(maxLeg, Math.abs(c.parts.legL.rotation.y));
     deps.p.wx += 3.5 / 60; // the worker keeps walking down the sidewalk
     minWy = Math.min(minWy, c.wy);
     if (hits.length > before) {
@@ -245,12 +279,19 @@ function walkLane(laneY, homeX = 10) {
       }
     }
   }
-  return { voices, hits, c, minWy, toldBeforeHit, tellDist };
+  return { voices, hits, c, minWy, toldBeforeHit, tellDist, maxArm, maxLeg };
 }
 {
   const walk = walkLane(1.2); // the normal sidewalk lane
   check("a worker walking the SIDEWALK gets reached — the kid cannot be walked past",
     walk.hits.length > 0, "bumps=" + walk.hits.length);
+  // PEDALS, NOT WINDMILL: the kid steers with his hands welded to the grips and drives the
+  // trike with his legs. animParts (the pedestrian walk gait) also whips armL/armR around,
+  // which made the rider look like he was rowing the thing with his arms.
+  check("the rider WORKS THE PEDALS (his legs actually crank while he moves)",
+    walk.maxLeg > 0.15, "max leg sweep " + walk.maxLeg.toFixed(2) + " rad");
+  check("HIS HANDS STAY ON THE HANDLEBAR (armL/armR never move, not one frame)",
+    walk.maxArm === 0, "max arm sweep " + walk.maxArm.toFixed(4) + " rad");
   check("the kid YELLS BEFORE CONTACT (the approach tell)", walk.toldBeforeHit,
     "tell at ~" + (isFinite(walk.tellDist) ? walk.tellDist.toFixed(1) : "?") + "u out");
   check("the tell is a real WARNING (well outside bump range, inside aggro range)",

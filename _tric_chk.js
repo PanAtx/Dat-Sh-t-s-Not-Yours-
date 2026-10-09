@@ -157,6 +157,38 @@ const check = (n, c, info) => {
   if (!c) pass = false;
 };
 
+// ===== KID-SIZED (the complaint: "the soccer kids are small — he should be similar") =====
+// The rig is built at street scale and shrunk by ONE scale on the root group (the same
+// trick makeSoccerKid pulls with a 0.6-scale makePerson). So every number above is in the
+// model's LOCAL units; what the player sees is local * g.scale. A soccer kid stands
+// ~1.12u tall (makePerson 0.6) and the sidewalk adult worker ~1.86u.
+const SC = g.scale ? g.scale.x : 1;
+const halfX = (o) => (o.r !== undefined ? o.r : o.dim ? o.dim[0] / 2 : 0);
+const trikeLen =
+  (Math.max(...meshes.map((o) => o.position.x + halfX(o))) -
+    Math.min(...meshes.map((o) => o.position.x - halfX(o)))) *
+  SC;
+check(
+  "the whole rig is SCALED DOWN on its root (0.55..0.75, kid scale)",
+  SC >= 0.55 && SC <= 0.75,
+  String(SC),
+);
+check(
+  "the rider's crown sits well BELOW a standing soccer kid (scaled top < 0.75u)",
+  riderTop * SC < 0.75,
+  (riderTop * SC).toFixed(3) + "u (soccer kid 1.12u tall)",
+);
+check(
+  "the trike itself is no longer than a soccer kid is tall (scaled length < 1.12u)",
+  trikeLen < 1.12,
+  trikeLen.toFixed(2) + "u long",
+);
+check(
+  "but still a real ride, not a speck (scaled length > 0.6u)",
+  trikeLen > 0.6,
+  trikeLen.toFixed(2) + "u long",
+);
+
 check(
   "tricycle builds with full geometry",
   meshes.length >= 15,
