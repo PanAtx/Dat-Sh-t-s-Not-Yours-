@@ -39,6 +39,7 @@ const suites = [
   ['failed-route REPLAY (below 95% -> replay the SAME level, not the next day)', 'node', '_route_replay_chk.js'],
   ['pedestrians flee the cop/robber crossfire line (bed-stuy shootout)', 'node', '_crossfire_chk.js'],
   ['kick a rat (free-handed Act -> squeal + fling + scurry off)', 'node', '_kick_rat_chk.js'],
+  ['Flatbush driveway tricycle kid is impossible to miss (route thirds + walk-edge apron + approach yell)', 'node', '_tric_route_chk.js'],
 ];
 
 let allPass = true;

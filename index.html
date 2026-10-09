@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.456</div>
+          <div id="app-version" class="menu-version">v1.0.457</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.456';
+      const APP_VERSION = '1.0.457';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -25707,22 +25707,62 @@
         }
         // Flatbush (Brooklyn) driveway tricycles: THREE kid riders parked on the concrete
         // driveways that the doghouses did NOT take. They run AFTER the doghouse loop above
-        // (which splices 3 of the 8 driveway entries) so they consume the LEFTOVER driveways
-        // and can never share a driveway with a doghouse. A Flatbush block has 8 driveway
-        // entries (houses 0-8) and 3 doghouses, leaving 5 - plenty for the 3 tricycles.
+        // (which splices 3 driveway entries) so they consume the LEFTOVER driveways and can
+        // never share a driveway with a doghouse. A Flatbush block has 9 driveway entries
+        // (houses 0-8) across 6 blocks, so there is always room for the 3 tricycles.
+        // THE KID HAS TO BE SEEN (the "I played Wednesday twice and never saw him" bug): the
+        // old roll drew from EVERY leftover driveway in the level — including Block 1 (behind
+        // the start barrier) and Block 6 (past the finish line), 18 of the 54 driveways the
+        // worker NEVER walks past — and all three draws could land side by side. A whole shift
+        // could then go by with no kid in sight. Now only driveways ON THE SERVICED STRETCH
+        // (ROUTE_START_X .. ROUTE_FINISH_X) are candidates and the kids are dealt ONE PER
+        // THIRD of that stretch, so every single run passes a kid early, one mid-route and one
+        // near the finish.
         // Each kid lunges at the sanitation worker when they ride up the driveway, but the
         // leash clamp (chainR around their home spot + the wy<=0.8 street guard) keeps them
         // from ever crossing into the street. See the isDrivewayTric state machine in
         // updateCreatures (case 'tric') for the idle/attacking/returning logic.
         if (isFlatbushLevel()) {
+          // candidate driveways the worker actually walks past, ordered from the start down
+          const drvSeen = flatbushDriveways
+            .filter((dx) => dx > ROUTE_START_X && dx < ROUTE_FINISH_X)
+            .sort((a, b) => a - b);
           for (let t = 0; t < 3 && flatbushDriveways.length > 0; t++) {
-            const dti = (Math.random() * flatbushDriveways.length) | 0;
+            // kid t parks in third t of the serviced stretch (early / middle / late),
+            // which also guarantees the three kids are never bunched on one block
+            let dti = -1;
+            if (drvSeen.length > 0) {
+              // third t of the corridor: x in (start + t*span/3, start + (t+1)*span/3]
+              const bandSpan = (ROUTE_FINISH_X - ROUTE_START_X) / 3;
+              const bandLo = ROUTE_START_X + bandSpan * t;
+              const bandHi = bandLo + bandSpan;
+              const inBand = [];
+              for (let bi = 0; bi < drvSeen.length; bi++) {
+                if (drvSeen[bi] > bandLo && drvSeen[bi] <= bandHi) inBand.push(bi);
+              }
+              if (inBand.length > 0) {
+                const pickAt = inBand[(Math.random() * inBand.length) | 0];
+                dti = flatbushDriveways.indexOf(drvSeen[pickAt]);
+                drvSeen.splice(pickAt, 1); // no second kid on this driveway
+              }
+            }
+            // a future layout with no driveway in the corridor: fall back to any leftover
+            if (dti < 0) dti = (Math.random() * flatbushDriveways.length) | 0;
             const dtx = flatbushDriveways[dti];
             flatbushDriveways.splice(dti, 1);
             const dt = addCreature("tric");
             dt.isDrivewayTric = true;
             dt.homeX = dtx; // fixed home = driveway center (like the doghouse anchor)
-            dt.homeY = 4.3; // on the driveway slab, back from the street edge
+            // PARKED ON THE DRIVEWAY APRON, right where the concrete meets the walk — NOT
+            // back at the driveway gate. The doghouse spawner above parks its kennel anywhere
+            // in wy 6.0..7.0 (the lawn frontage), and the old 4.3 had the kid sitting 3.4u
+            // behind the walk the worker actually rides: a 0.66u toddler that far back reads
+            // as scenery, and the leash + driveway-lane clamps (below in case "tric") meant a
+            // run could never actually reach a worker hugging the curb — so a whole shift
+            // could go by without the kid being seen. On the apron he is shoulder-to-shoulder
+            // with the walk, and his charge still reaches the curb lane (0.8 + the 1.0 lane
+            // half-width + this is inside DRIVETR_AGGRO_DIST of wy 0.8).
+            dt.homeY = 3.2; // driveway apron at the sidewalk edge (never on the walk itself)
             dt.wx = dt.homeX;
             dt.wy = dt.homeY;
             dt.state = "idle";
@@ -37145,6 +37185,7 @@
               // only if the worker is still in aggro range).
               if (c.isDrivewayTric) {
                 c.hitCd = (c.hitCd || 0) - dt;
+                c.helloCd = (c.helloCd || 0) - dt; // the "here he comes" yell cooldown
                 const dtwX = p.wx - c.wx,
                   dtwY = p.wy - c.wy;
                 const dtw = Math.sqrt(dtwX * dtwX + dtwY * dtwY);
@@ -37154,8 +37195,25 @@
                   c.state !== "attacking" &&
                   c.backT <= 0 &&
                   dtw < DRIVETR_AGGRO_DIST
-                )
+                ) {
                   c.state = "attacking";
+                  // SPOTTED AT LAST: the kid yells the instant his run starts — a full
+                  // DRIVETR_AGGRO_DIST of driveway (~6.5u) before any contact — so a kid
+                  // parked 3u off the walk can never be walked past unheard. The 8s
+                  // cooldown keeps a worker loitering in range from hearing it on repeat.
+                  if (c.helloCd <= 0) {
+                    c.helloCd = 8;
+                    Voice.say(
+                      "Outta the way!",
+                      1.3,
+                      1.35,
+                      c.wx,
+                      c.wy,
+                      c.gender,
+                      "kid",
+                    );
+                  }
+                }
                 if (c.state === "attacking") {
                   if (dtw > c.chainR + 0.4)
                     c.state = "returning"; // worker out of leash reach
@@ -37263,7 +37321,15 @@
                     c.state === "attacking"
                       ? Math.atan2(dtwY, dtwX)
                       : -Math.PI / 2;
-                  c.g.rotation.x = 0;
+                  // A PARKED KID IS NEVER A STATUE: he rocks the trike side to side and
+                  // fidgets on the seat, so the eye picks him off the driveway from far down
+                  // the street (a perfectly still toddler reads as scenery and gets walked
+                  // past — half of the "where did he go" complaint).
+                  c.idleT = (c.idleT || 0) + dt;
+                  c.g.rotation.x =
+                    c.state === "idle"
+                      ? Math.sin(c.idleT * 2.4) * 0.07
+                      : 0;
                 }
                 // a driveway tricycle is a fixed fixture: it never recycles off-screen
                 break;
