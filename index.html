@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.460</div>
+          <div id="app-version" class="menu-version">v1.0.461</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.460';
+      const APP_VERSION = '1.0.461';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -4964,6 +4964,7 @@
         invuln: 0,
         startInvuln: true, // fresh-week grace: the worker is i-framed until he first moves (cleared on the first movement key in updatePlayer)
         immuneT: 0,
+        god: false, // TRAINER "Infinite Health": CAN'T BE HURT and nothing else — no Run It Up speed, no star sparkles, no auto-dump; bottles/cones/creatures still interact normally
         shake: 0,
         facing: 0,
         bloodSteps: 0,
@@ -7433,9 +7434,12 @@
         q.castShadow = true;
         return q;
       }
-      function CY(r1, r2, h, m, s) {
+      // CY takes an optional HEIGHT SEGMENT count (hs) as well as the radial one: a part that
+      // is going to be SPUN, bent or pleated needs rings up its height for those operations to
+      // have anything to work on — a 1-ring cylinder can only be dented at its two ends.
+      function CY(r1, r2, h, m, s, hs) {
         const q = new THREE.Mesh(
-          new THREE.CylinderGeometry(r1, r2, h, s || 10),
+          new THREE.CylinderGeometry(r1, r2, h, s || 10, hs || 1),
           m,
         );
         q.castShadow = true;
@@ -9202,10 +9206,12 @@
         const palette = [
           0x4b525c, 0x575f6a, 0x636b76, 0x6f7782, 0x7b838e, 0x878f9a,
         ];
-        const mat = M(palette[(Math.random() * palette.length) | 0], {
+        const tone = (Math.random() * palette.length) | 0;
+        const mat = M(palette[tone], {
           transparent: true,
           opacity: 1,
         });
+        let dark = null; // the tone the bag's knot is tied in, set in the BAG branch only
         const g = new THREE.Group();
         if (type === "stormbox") {
           // A plain GREY BOX (no debris) — reads as a box in the hopper, not a bag.
@@ -9225,12 +9231,33 @@
           const body = SP(0.4, mat);
           body.scale.set(1.1, 0.9, 1.2);
           g.add(body);
-          const neck = CY(0.14, 0.19, 0.22, mat);
-          neck.position.z = 0.44;
-          g.add(neck);
-          const knot = SP(0.13, mat, 6);
-          knot.position.z = 0.58;
-          g.add(knot);
+          // THE SAME knotted bag as the ones on the curb — the pleated cinch, the knot band
+          // and the pair of loose grab ears all come from tieTop(), the builder makeBag uses.
+          // This lump is BUILT ON ITS OWN CENTRE and is fatter and squatter than a curb bag, so
+          // its shoulders run out much lower (0.48) and the tie is told that. And it is told how
+          // FULL it is: nothing in the scoop is a fresh bag any more — the packer has already
+          // chewed the air out of it — so it keeps short ears hanging flat against the neck.
+          // That is what the look of compacted trash is, and it is also what keeps a pile of
+          // them inside the rear scoop instead of bristling out over the lip. The old stubby
+          // neck + blob that used to live here is exactly why the pile in the scoop looked like
+          // a different object.
+          // The tone the KNOT is tied in: the SAME grey ramp, dimmed to 55% of the bag's own
+          // brightness — never simply "the next swatch down", which stopped working on the
+          // darkest lumps and made the pinch read as part of the body.
+          const base = palette[tone],
+            dk = (s) => (((base >> s) & 255) * 0.55) & 255;
+          dark = M((dk(16) << 16) | (dk(8) << 8) | dk(0), {
+            transparent: true,
+            opacity: 1,
+          });
+          tieTop(g, {
+            s: 0.4,
+            top: 0.48,
+            mat: mat,
+            dark: dark,
+            full: R(0.05, 0.32), // chewed half-flat by the packer
+            ear: 0.55, // ...and what is left of its ears is crushed short
+          });
         }
         // Pile the bag INSIDE the open rear scoop (not on the roof): low base height,
         // spreading out and stacking a little higher with each deposit.
@@ -9247,6 +9274,7 @@
         hopperLumps.push({
           g: g,
           mat: mat,
+          mat2: dark, // the ear liners: they have to fade out with the bag
           baseScale: baseScale,
           baseX: localX,
           baseZ: localZ,
@@ -9316,6 +9344,7 @@
             L.g.position.z = L.baseZ * (0.5 + 0.5 * k); // sink toward the floor
             L.g.position.x = L.baseX + (1 - k) * 0.5; // slide forward into the compactor
             L.mat.opacity = k; // fade out
+            if (L.mat2) L.mat2.opacity = k; // the dark ear liners fade with their bag
           }
           if (Math.random() < 0.5)
             spawnHopperBurst(hopperAimX(), hopperWorldY(), 0.14); // continuous spew of dust & bits while it compacts
@@ -9323,6 +9352,616 @@
         }
       }
       // ==================== TRASH & BONUS ITEMS ====================
+      // A SURFACE OF REVOLUTION: `pts` are [radius, height] pairs spun about the primitive
+      // helpers' up axis (+Y, which a mesh then stands up to the game's +Z). Every other
+      // primitive here is SOLID, so anything with a hollow in it — a bag's gathered, dimpled
+      // crown — has to be lathed from a profile instead of faked with a squashed ball.
+      // Passing an arc (phi0/phiLen) turns the surface into an OPEN SHEET of film — a bag's
+      // excess flap is a slice of a surface of revolution, not a whole one.
+      function LA(pts, m, s, phi0, phiLen) {
+        const q = new THREE.Mesh(
+          new THREE.LatheGeometry(
+            pts.map((p) => new THREE.Vector2(p[0], p[1])),
+            s || 16,
+            phi0 || 0,
+            phiLen === undefined ? Math.PI * 2 : phiLen,
+          ),
+          m,
+        );
+        q.castShadow = true;
+        return q;
+      }
+      // THIN PLASTIC IS NEVER SMOOTH: it comes off the roll creased into soft folds. This
+      // pushes a lathe/cylinder's surface in and out AROUND its axis — pleats running along
+      // the axis, with a finer ripple travelling up it. Two rules make it safe to use on a
+      // tuned silhouette:
+      //   * the displacement is INWARD ONLY (k never exceeds 1), so a crinkled part can dent
+      //     but can never grow wider or taller than the space it was measured to fit;
+      //   * two shells crinkled with the same amp/folds/seed move together wherever they
+      //     meet, so a rim and its inner wall never tear apart at the seam.
+      //   amp   crease depth as a fraction of the radius
+      //   folds how many pleats around the circumference
+      //   seed  this part's own crease pattern, so no two bags crinkle alike
+      //   zAxis true when the part's axis is already the geometry's +Z (the bag body, which
+      //         is never rotated); false for the primitives stood up by the mesh
+      function crinkle(geo, amp, folds, seed, zAxis) {
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            c = zAxis ? pos.getY(i) : pos.getZ(i), // the component spinning around with x
+            along = zAxis ? pos.getZ(i) : pos.getY(i), // the one running along the folds
+            rr = x * x + c * c;
+          if (rr < 1e-8) continue; // never tear the seam that runs down the axis
+          const a = Math.atan2(c, x),
+            fold =
+              Math.sin(a * folds + seed) * 0.72 +
+              Math.sin(a * (folds * 2 - 1) - seed * 2.3) * 0.28,
+            ripple = Math.sin(along * 24 + seed * 3.1),
+            k =
+              1 -
+              amp *
+                (0.34 + 0.66 * (0.5 + 0.5 * fold)) *
+                (0.6 + 0.4 * (0.5 + 0.5 * ripple));
+          pos.setX(i, x * k);
+          if (zAxis) pos.setY(i, pos.getY(i) * k);
+          else pos.setZ(i, pos.getZ(i) * k);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals(); // the folds ARE the shading now
+      }
+      // BOTTOM-HEAVY — THE WAY GARBAGE ACTUALLY HANGS. A filled bag is a heavy wet sack: its
+      // mass sits LOW, the film splays where it is crushed against the pavement, and above
+      // the load it tapers hard in until the shoulders feed what is left of the film into the
+      // tie. The bag body is never rotated, so its height here is +Z.
+      // Every width value is <= 1 — slumping can only ever TAKE width away — and the slack it
+      // hands back is exactly the room `stuff` spends on the garbage inside. That is how a bag
+      // can be loaded, sagging and bulging, without ever outgrowing the silhouette its
+      // collider, its spawn fit and its curb spot were measured against.
+      function slump(geo) {
+        const pos = geo.attributes.position,
+          R = 0.4, // the sphere this body is cut from, and the widest radius it may reach
+          // THE SILHOUETTE ITSELF, as a fraction of R, from the pavement up to the tie: full
+          // and round down low, FULL at about a third of its height, then pulled in hard so
+          // the film funnels up into the neck instead of ending in the crown of a balloon.
+          // The peak deliberately stops SHORT of R (0.9) on purpose: that gap is the slack
+          // `stuff` spends on the garbage inside, which is the only reason a lumpy bag has a
+          // lumpy OUTLINE. Slumped to the full 0.4, every bump would clamp onto the envelope
+          // and the silhouette would come out the perfect circle of a round balloon.
+          A = (h) =>
+            h < 0.38
+              ? 0.78 + 0.12 * Math.sin((h / 0.38) * Math.PI * 0.5)
+              : Math.max(
+                  0.14,
+                  0.9 - 0.72 * Math.pow((h - 0.38) / 0.62, 1.5),
+                ),
+          zBase = -R + 0.8 * 0.05; // the crushed patch of film the bag actually stands on
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            y = pos.getY(i),
+            z = pos.getZ(i),
+            h = (z + R) / (2 * R), // 0 = on the ground, 1 = where the film runs out
+            rho = Math.hypot(x, y);
+          // The two vertices on the bag's own axis cannot be swung outward, so they only get
+          // the floor: the bottom one joins the flat it stands on, the top one stays under the
+          // neck. Without this the body would be pinched to a point at both ends.
+          if (rho < 1e-4) {
+            pos.setZ(i, Math.max(z, zBase));
+            continue;
+          }
+          // The lowest slice of film is folded UNDER: the bottom rows all land on one plane, so
+          // the bag rests on a wide crushed patch of itself instead of balancing on an egg.
+          const zz = z < zBase ? zBase : z,
+            k = Math.min(2.6, (A(h) * R) / rho);
+          pos.setX(i, x * k);
+          pos.setY(i, y * k);
+          pos.setZ(i, zz);
+        }
+        pos.needsUpdate = true;
+        return zBase; // so whatever loads the bag next can keep it OFF the floor
+      }
+      // WHAT IS INSIDE SHOWS THROUGH. Each bump is a piece of garbage pressing the film out,
+      // aimed at `az` (around the bag) / `el` (up from the equator) and spread over `rad`.
+      // A SOFT bump (wet paper, a pile of clothing) is a round gaussian mound. A HARD one (a
+      // can, the corner of a box) presses along its own axis with a flat top and abrupt
+      // shoulders, because that is what leaves the taut FACET and the sharp crease beside it
+      // that no soft mound makes. Displacement is spent out of the slump's slack and every
+      // vertex is then clamped back inside the cylinder this bag was measured against, so the
+      // bag bulges toward the outside of its own envelope but never through it.
+      // Returns the bumps with the surface radius they ended up at, so the caller can put a
+      // stretched-thin patch of film right where the light lands.
+      function stuff(geo, bumps, floor) {
+        const pos = geo.attributes.position,
+          RIM = 0.4; // the sphere this body was cut from: nothing may pass it
+        for (const b of bumps) {
+          const d = [
+              Math.cos(b.el) * Math.cos(b.az),
+              Math.cos(b.el) * Math.sin(b.az),
+              Math.sin(b.el),
+            ];
+          let hits = 0,
+            sum = 0;
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i),
+              y = pos.getY(i),
+              z = pos.getZ(i),
+              L = Math.hypot(x, y, z) || 1,
+              t = (x * d[0] + y * d[1] + z * d[2]) / L; // how squarely this point faces it
+            if (t <= 0) continue;
+            const q = (1 - t) / b.rad, // the angular distance from the bump's centre
+              f = b.hard
+                ? Math.max(0, 1 - Math.pow(q, 3.4)) // flat top, then a cliff
+                : Math.exp(-q * q * 1.7); // ...or a soft round mound
+            if (f <= 0.002) continue;
+            const push = b.amt * f,
+              nx = x / L,
+              ny = y / L,
+              nz = z / L;
+            let px = x + (b.hard ? d[0] * 0.8 * push + nx * 0.35 * push : nx * push),
+              py = y + (b.hard ? d[1] * 0.8 * push + ny * 0.35 * push : ny * push),
+              pz = z + (b.hard ? d[2] * 0.8 * push + nz * 0.35 * push : nz * push);
+            // ...and the floor it stands on stays flat: a load sitting that low only widens the
+            // crushed base, it cannot push the bag through the pavement.
+            if (floor !== undefined && pz < floor) pz = floor;
+            // The envelope is the VERTICAL CYLINDER the collider, the spawn fit and the curb
+            // spot are measured against: a bump may run the film up and down it, but never
+            // push it out through the side.
+            const rh = Math.hypot(px, py);
+            if (rh > RIM) {
+              px *= RIM / rh;
+              py *= RIM / rh;
+            }
+            pos.setX(i, px);
+            pos.setY(i, py);
+            pos.setZ(i, pz);
+            hits++;
+            sum += Math.min(Math.hypot(px, py), RIM);
+          }
+          b.r = hits ? sum / hits : RIM; // where the film now lies over this piece of garbage
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+        return bumps;
+      }
+      // THE PLEATS A TIE MAKES. Squeezing a bag shut doesn't wrinkle it, it ORGANISES it: the
+      // film is gathered into dense radial folds that are deepest right under the knot and
+      // radiate DOWN from there, softening as they run out into the body. A triangular wave
+      // instead of a sine is what gives a folded crease its sharp edge, and the depth is keyed
+      // to how near the cinch each ring is (these are the turned-up cylinders, so their +Y is
+      // the way up). Inward only, like every other crease on this bag.
+      function pleat(geo, folds, amp, seed) {
+        const pos = geo.attributes.position;
+        if (!pos || pos.count === 0) return; // a stub geometry in the checks has nothing to fold
+        geo.computeBoundingBox();
+        const bb = geo.boundingBox,
+          span = bb.max.y - bb.min.y || 1;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            y = pos.getY(i),
+            z = pos.getZ(i),
+            rr = x * x + z * z;
+          if (rr < 1e-8) continue; // the two points on the axis: nothing to fold
+          const a = Math.atan2(z, x),
+            tri = Math.abs((((a * folds + seed) / (Math.PI * 2)) % 1) * 2 - 1),
+            t = (y - bb.min.y) / span, // 0 at the bottom of the part, 1 at the cinch
+            k =
+              1 -
+              amp *
+                (0.26 + 0.74 * t * t) *
+                (0.3 + 0.7 * tri) *
+                (0.78 + 0.22 * Math.sin(y * 31 + seed * 2.7));
+          pos.setX(i, x * k);
+          pos.setZ(i, z * k);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      // CUT, NOT TORN NEAT. The top of the excess flap is where the bag was tied off and the
+      // tail knicked off with a knife, so its edge is ragged and uneven. A LatheGeometry lays
+      // its vertices out column after column (`segments` + 1 columns of `rows` profile
+      // points), so whatever stands above `floor` can be chopped back by a per-column amount:
+      // both walls of the folded film move together, which leaves the flap a closed sheet with
+      // a frayed, sawn-across edge instead of a neat rim.
+      function fray(geo, rows, floor, amount) {
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const y = pos.getY(i);
+          if (y <= floor) continue;
+          // Golden-ratio stepping across the columns: ANY handful of them spans shallow nick to
+          // deep nick. (The old per-column sine clustered for some seeds, and a "frayed" cut
+          // edge that came out at one height looked like a factory hem.)
+          const col = Math.floor(i / rows),
+            t = (col * 0.6180339887 + 0.13) % 1,
+            chop = 1 - amount * (0.15 + 0.85 * t);
+          pos.setY(i, floor + (y - floor) * chop);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      // FILM HOLDS ITSELF UP ONLY JUST ABOVE THE PINCH. This bends a lathed strip OVER as it
+      // rises: every cross-section turns about the hinge line through the strip's own root by
+      // an angle that starts near nothing AT the crimp — the knot has just gripped the film and
+      // it leaves that grip pointing more or less up — and grows fast as it climbs, so the loose
+      // end of a long ear hooks over the way a bent bag tie does instead of standing up like a
+      // trumpet or, worse, leaving the knot already splayed out flat the way a lampshade brim
+      // does. The bend is deliberately nearly LINEAR in height, and that is not laziness: a bend
+      // that accelerates toward the tip rotates the tall columns down onto the short ones and
+      // SMOOTHES AWAY the frayed cut edge, which is the one thing on this ear a player can read.
+      // The crimped root is only turned, never lifted — it stays exactly where the knot holds
+      // it — and because this is a rotation it preserves the film's length: curling costs no
+      // height it did not have. `k` is the angle in radians the very tip is thrown over by.
+      function curl(geo, k) {
+        const pos = geo.attributes.position;
+        if (!pos || pos.count === 0) return; // a stub geometry in the checks has nothing to bend
+        geo.computeBoundingBox();
+        const top = geo.boundingBox.max.y || 1;
+        for (let i = 0; i < pos.count; i++) {
+          const y = pos.getY(i),
+            th = k * (0.18 + 0.82 * Math.pow(y / top, 1.15)),
+            c = Math.cos(th),
+            s = Math.sin(th),
+            z = pos.getZ(i);
+          pos.setY(i, y * c - z * s);
+          pos.setZ(i, y * s + z * c);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      // SPUN, NOT JUST PINCHED. This turns every ring of a cylinder about its own axis by an
+      // angle that GROWS with height, so straight radial folds (the pleats a tie leaves) become
+      // a SPIRAL — the ridges wind around the part exactly the way the film winds when a bag is
+      // twisted shut. `turns` is how many full turns the spin makes over the part's height.
+      // Only rings are ROTATED, never lifted: the part keeps its own height, width and the
+      // height of every vertex above its root, so a twisted part can never outgrow the
+      // silhouette a bag was measured to fit.
+      function twist(geo, turns) {
+        const pos = geo.attributes.position;
+        if (!pos || pos.count === 0) return; // a stub geometry in the checks has nothing to spin
+        geo.computeBoundingBox();
+        const lo = geo.boundingBox.min.y,
+          span = geo.boundingBox.max.y - lo || 1;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            y = pos.getY(i),
+            z = pos.getZ(i),
+            th = turns * Math.PI * 2 * ((y - lo) / span),
+            c = Math.cos(th),
+            s = Math.sin(th);
+          pos.setX(i, x * c - z * s);
+          pos.setZ(i, x * s + z * c);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      // ==================== LOOSE FILM SWINGS ====================
+      // A bag's grab ears are the one part of it with nothing inside holding their shape, so
+      // they are the one part that KEEPS MOVING after the bag stops: they trail behind a run,
+      // snap when the bag is snatched off the curb, whip on the throw into the scoop, shiver
+      // while the packer chews the pile, and settle back to wherever they were leaning. Every
+      // tied bag registers itself here as it is built, and each frame the system reads how hard
+      // the BAG was just sped up, slowed down or turned and hangs the ears off that.
+      // Registering is what makes it universal: nothing that grabs a bag, stacks it, throws it,
+      // dumps it, rebuilds it or unloads its block has to remember to touch the film, and the
+      // same handful of lines covers a bag on the curb, in the worker's hand, in the air and in
+      // the hopper — they are all just a group moving through the world.
+      var EAR_SWAY = [];
+      const EAR_V = new THREE.Vector3(), // scratch: the bag's world position this frame
+        EAR_LV = new THREE.Vector3(), // ...its speed, in its own frame
+        EAR_LA = new THREE.Vector3(), // ...the shove it just got, in its own frame
+        EAR_Q = new THREE.Quaternion(),
+        EAR_K = 88, // how eagerly an ear springs back to the angle it was tied at
+        EAR_C = 7.4, // ...and how fast that wobble dies: film is light, but not a bell
+        EAR_PUSH = 0.014, // how far a shove lays an ear over (radians per unit of accel)
+        EAR_TRAIL = 0.055, // how far a run lays it flat BEHIND the bag (per unit of speed)
+        EAR_BREEZE = 0.05; // the wind off the street, which never quite stops
+      let EAR_T = 0; // seconds of sway time, so the breeze keeps blowing
+      function registerEars(g) {
+        if (!g.userData || !g.userData.ears) return; // a bag with no tie has nothing to swing
+        EAR_SWAY.push({
+          g: g,
+          gone: 0, // frames this bag has been out of the world for
+          x: 0,
+          y: 0,
+          z: 0, // where it was last frame
+          vx: 0,
+          vy: 0,
+          vz: 0, // its smoothed world speed
+          fresh: 1, // first frame: there is no previous sample to compare against
+        });
+      }
+      // An ear moved by something OTHER than the bag's own travel gets poked here. Registration
+      // already covers everything that happens TO a bag, so this is only for the shocks that
+      // arrive through the ground: the pop of the packer emptying the pile under a bag's ears.
+      function kickEars(g, amt) {
+        const ears = g && g.userData && g.userData.ears;
+        if (!ears) return;
+        for (let i = 0; i < ears.length; i++) {
+          ears[i].vx += R(-amt, amt);
+          ears[i].vy += R(-amt, amt);
+        }
+      }
+      function updateEarSway(dt) {
+        if (!EAR_SWAY.length) return;
+        const step = dt > 0 && dt < 0.05 ? dt : 1 / 60; // a hitched frame is not a gust
+        EAR_T += step;
+        for (let i = EAR_SWAY.length - 1; i >= 0; i--) {
+          const r = EAR_SWAY[i],
+            g = r.g,
+            ears = g.userData.ears;
+          // Out of the world for a few frames and the bag has stopped being one: disposed on
+          // landing in the scoop, unloaded with its block, or drained out of the hopper with the
+          // rest of the pile. (Two levels up, since it is the hopper's OWN group that gets
+          // detached when the truck is emptied.)
+          if (!g.parent || !g.parent.parent) {
+            if (++r.gone > 30) EAR_SWAY.splice(i, 1);
+            continue;
+          }
+          r.gone = 0;
+          g.getWorldPosition(EAR_V);
+          const dx = EAR_V.x - r.x,
+            dy = EAR_V.y - r.y,
+            dz = EAR_V.z - r.z;
+          r.x = EAR_V.x;
+          r.y = EAR_V.y;
+          r.z = EAR_V.z;
+          if (r.fresh) {
+            r.fresh = 0;
+            r.vx = r.vy = r.vz = 0;
+          } else if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 0.4) {
+            // That is not travel, that is a teleport: the bag has just been put into the
+            // worker's hand or set onto its flight path. Re-take the sample — reading the jump
+            // as one enormous shove would send the ears straight through the bag — and give the
+            // film the snap the snatch itself gives it, because a bag grabbed off a curb does
+            // not arrive in his hand with its ears already at rest.
+            r.vx = r.vy = r.vz = 0;
+            kickEars(g, 2.4);
+          } else {
+            // The bag's speed, smoothed over a few frames so one stutter of the engine is a
+            // wobble and not a whip — and then the CHANGE in it, which is the only thing film
+            // can feel: a bag travelling at a steady speed puts no wind at all in its ears.
+            const kv = Math.min(1, step * 26),
+              nx = r.vx + (dx / step - r.vx) * kv,
+              ny = r.vy + (dy / step - r.vy) * kv,
+              nz = r.vz + (dz / step - r.vz) * kv,
+              ax = (nx - r.vx) / step,
+              ay = (ny - r.vy) / step,
+              az = (nz - r.vz) / step;
+            r.vx = nx;
+            r.vy = ny;
+            r.vz = nz;
+            // Into the bag's own frame, so an ear is shoved whichever way its bag happens to
+            // face — every one is spun to a different heading when it is put on the curb.
+            EAR_Q.copy(g.getWorldQuaternion(EAR_Q)).invert();
+            EAR_LV.set(nx, ny, nz).applyQuaternion(EAR_Q);
+            EAR_LA.set(ax, ay, az).applyQuaternion(EAR_Q);
+            for (let j = 0; j < ears.length; j++) {
+              const e = ears[j],
+                // which way THIS ear sticks out of the bag, and which way is sideways round it
+                ox = Math.sin(e.az),
+                oy = -Math.cos(e.az),
+                tx = Math.cos(e.az),
+                ty = Math.sin(e.az),
+                // A bag shoved OUTWARD leaves its loose film behind, i.e. tipped back INWARD,
+                // which is why every term here is subtracted; running forward drags an ear flat
+                // behind him; and the street is never dead calm, which is what keeps a bag that
+                // has been set back down alive instead of frozen.
+                breeze =
+                  Math.sin(EAR_T * 1.7 + e.ph) +
+                  0.35 * Math.sin(EAR_T * 4.3 + e.ph * 2.1),
+                gx =
+                  (-(EAR_LA.x * ox + EAR_LA.y * oy) * EAR_PUSH -
+                    (EAR_LV.x * ox + EAR_LV.y * oy) * EAR_TRAIL +
+                    breeze * EAR_BREEZE) *
+                  e.w,
+                gy =
+                  ((EAR_LA.x * tx + EAR_LA.y * ty) * EAR_PUSH * 0.7 +
+                    (EAR_LV.x * tx + EAR_LV.y * ty) * EAR_TRAIL * 0.5 +
+                    Math.sin(EAR_T * 2.6 + e.ph * 1.7) * EAR_BREEZE * 0.6) *
+                  e.w;
+              // A damped spring towards there: limp film, but it IS tied at one end, so it comes
+              // back through and overshoots a time or two on the way to still.
+              e.vx += ((gx - e.sx) * EAR_K - e.vx * EAR_C) * step;
+              e.vy += ((gy - e.sy) * EAR_K - e.vy * EAR_C) * step;
+              e.sx += e.vx * step;
+              e.sy += e.vy * step;
+              e.sx = e.sx < -0.85 ? -0.85 : e.sx > 0.85 ? 0.85 : e.sx; // no folding through itself
+              e.sy = e.sy < -0.5 ? -0.5 : e.sy > 0.5 ? 0.5 : e.sy;
+              e.swing.rotation.x = e.sx;
+              e.swing.rotation.y = e.sy;
+            }
+          }
+        }
+      }
+      // THE TIED TOP — ONE knotted finish for every bag in the game, shared by the curb bags
+      // (makeBag) and the grey lumps piled in the truck's scoop (addHopperLump), so a bag in
+      // the hopper is unmistakably the SAME object it was on the curb. It is the three things a
+      // real tied bag is made of, in that order:
+      //   1. THE TWIST — the film above the shoulder is gathered IN and SPUN: pleated into
+      //      dense radial folds and then wound, so those folds become a spiral. What shows is a
+      //      short, thick, NARROW barrel of twisted film — a rope of it, a bottleneck. The wide
+      //      funnel that starts out fat at the shoulder and stays fat is what read as a
+      //      LAMPSHADE, so the funnel's fat end is pushed down INSIDE the body and the cinch
+      //      narrows hard and fast.
+      //   2. THE KNOT/BAND — one tight flattened band wrapped right at that narrow part, in the
+      //      darker tone, so the pinch reads as the densest, most shadowed place on the bag.
+      //   3. THE HANDLE FLAP — the loose EXCESS FILM that never made it inside the bag, coming
+      //      out of the top of the band as the garbageman's TWO grabs: crimped nearly SHUT
+      //      where the band grips them, narrow all the way up their length and opening out only
+      //      at the knicked cut edge, so the pair stands up (or flops over) as a crinkled little
+      //      tail a hand can hook into. Never one feather, never a plume.
+      // How FULL the bag is decides what the tail does: a bag packed hard throws two long strips
+      // that stand nearly straight up, while a half-empty one has nothing pressing the film
+      // tight, so its ears come out shorter and flop flat — the tell that reads across the
+      // street before the worker walks over. Every wall of it is crinkled like the thin film it
+      // is. Never a spike, fin, vase, dreidel, balloon, loop, bowl, ball, plume or lampshade.
+      //   o.s    the body radius (every literal below is written for 0.4 and scaled by it)
+      //   o.top  the height, in this bag's own units, where its body runs out and the tie
+      //          begins. A curb bag is built ON THE GROUND while a hopper lump is built on its
+      //          own centre, so the two cannot share one number.
+      //   o.mat  the plastic; o.dark the darker tone the knot itself is tied in
+      //   o.full how full this bag is (0..1, default 0.85) — the length of the ears, how far
+      //          they stand up and how hard they curl over all hang off it. See THE EARS.
+      //   o.ear  extra shrink applied to the ears alone: the packer flattens what it has
+      //          already chewed, and that is also what keeps a hopper pile inside the scoop
+      //   o.tie  also draw the light twist-tie under the knot (heavy-duty bags only)
+      function tieTop(g, o) {
+        const u = (o.s || 0.4) / 0.4, // size of this bag vs the 0.4 it is drawn for
+          // NOT `o.top || 0.77`: 0 is a legal height (a lump built on its own centre) and must
+          // never fall back to the curb bag's number.
+          top = o.top == null ? 0.77 : o.top,
+          mat = o.mat,
+          dark = o.dark || o.mat,
+          full = o.full == null ? 0.85 : Math.min(1, Math.max(0, o.full)),
+          zof = (v) => top + (v - 0.77) * u; // drawn height -> real height
+        const CRP = R(0, Math.PI * 2); // THIS bag's crease pattern: nothing on it is smooth
+        // 1. THE TWIST — THE BOTTLENECK. The film funnels IN to a narrow waist, and the fat end
+        // of that funnel is deliberately buried INSIDE the body: nothing fat is left standing
+        // out above the shoulder, because a shoulder-wide cone is a LAMPSHADE and the player
+        // reads it as one. What shows is only the short, steep, NARROW gather into the cinch.
+        const neck = CY(0.08 * u, 0.15 * u, 0.18 * u, mat, 16, 10);
+        neck.rotation.x = Math.PI / 2; // stand it up: the tapered end points +Z
+        neck.position.z = zof(0.73); // base r 0.15 INSIDE the body, waist r 0.08 standing out on top
+        pleat(neck.geometry, 12, 0.17, CRP); // dense folds, deepest right under the knot
+        twist(neck.geometry, 1.1); // ...and SPUN: the folds wind up into the cinch
+        crinkle(neck.geometry, 0.04, 6, CRP + 1.9); // ...over a fine overall crinkle
+        g.add(neck);
+        // THE SPUN ROPE: the short, thick barrel of twisted film the cinch leaves — the same
+        // folds carried straight on and wound HARD, 2.9 turns of spiral climbing around a
+        // narrow barrel. It keeps narrowing, and the knot band is wrapped right at its narrow
+        // end, so the twist reads as a rope with a band round it, not as a cone.
+        const snout = CY(0.055 * u, 0.065 * u, 0.08 * u, mat, 16, 10);
+        snout.rotation.x = Math.PI / 2;
+        snout.position.z = zof(0.86); // starts exactly at the neck's waist ring: no gap, no collar
+        pleat(snout.geometry, 12, 0.16, CRP); // the same folds, so they run on through
+        twist(snout.geometry, 2.9); // wound: the ridges spiral round the rope
+        crinkle(snout.geometry, 0.035, 6, CRP + 1.9);
+        g.add(snout);
+
+        // 2. THE KNOT/BAND — the twist gripped at its narrowest: a tight band of film wrapped
+        // round the spun rope, in the darker tone, so the pinch reads as the densest and most
+        // shadowed part of the bag. Its own ring (0.07) sits right on the rope's 0.058 there,
+        // and it is FLATTENED along the bag's axis on purpose: it is a twist, not a hoop
+        // standing off the neck.
+        const knot = new THREE.Mesh(
+          new THREE.TorusGeometry(0.04 * u, 0.025 * u, 5, 12),
+          dark,
+        );
+        knot.scale.set(1, 1, 0.55);
+        knot.position.z = zof(0.9);
+        knot.castShadow = true;
+        g.add(knot);
+        // THE EARS — the loose excess above the knot, the handful you hook two fingers under,
+        // and there is never only one strand of it. The pinch leaves TWO long strips standing
+        // out of the top of the knot, splaying apart like a pair of rabbit's ears: that grab is
+        // the most recognisable thing on a tied bag, and doubled and let out to its full length
+        // it is what makes the top read as a bag from across the street. Each ear is a SHEET of
+        // film spun over a NARROW arc — and it is a TAPER, not a lampshade: the knot crimps it
+        // nearly shut at its root, the strip stays narrow all the way up, and only at the very
+        // top does it open out into the web and the knicked-off cut edge, so the wide end points
+        // at the SKY, never at the bag. (An ear that was widest on the knot was an extension of
+        // the neck's cone and read as a lampshade over the bag.) The film folds back down inside
+        // itself, which leaves a closed thin bag of air with two faces and no raw edge anywhere.
+        //   HOW FULL THE BAG IS IS THE WHOLE TELL. Garbage packed hard is under pressure right
+        //   up into the cinch, so it throws two long ears that stand nearly straight up; a
+        //   half-empty sack has nothing pressing the film tight, so the same excess comes out
+        //   shorter, flops over against the neck and hangs by its own curl. Ears up = a real
+        //   haul; ears down = mostly air. Readable before the worker commits to walking over.
+        const ears = [],
+          az0 = R(0, Math.PI * 2), // where THIS bag's grab happens to point
+          shrink = o.ear == null ? 1 : o.ear;
+        for (let i = 0; i < 2; i++) {
+          const // The knot holds one tail a little shorter than the other — no sack ever ties
+            // two identical ones — but never so short that the pair stops reading as ONE
+            // handful of excess film.
+            L = (0.128 + 0.092 * full) * u * shrink * (i ? R(0.84, 0.95) : R(0.94, 1.06)),
+              arc = R(0.6, 0.78), // 34-45 degrees of a turn: a VERY WIDE strip, and the cap the
+              // checks allow — past 0.8 rad the sheet is a fan, not an ear
+              // A SHORT strip cannot be drooped much: the droop travels the whole strip, so on a
+              // stubby ear the wide cut edge swings DOWN below the knot grip and the ear reads as
+              // a skirt flaring at the bag, which is a lampshape. So the droop is capped hard on
+              // short ears and the cut edge stays the highest, farthest thing on the bag.
+              droop = (0.35 + 0.9 * (1 - full)) * (L < 0.24 * u ? 0.45 : 1),
+              PROF = [
+                [0.027 * u, 0], // the knot crimps this nearly SHUT: the tapered end goes INTO
+                // the knot, so the ear stops carrying on the neck's cone — and that continuity
+                // of a flared root with the knot was exactly what read as a lampshade
+                [0.07 * u, 0.22 * L], // ...and it opens FAST the way up, to two hands' width,
+                [0.13 * u, 0.5 * L], // ...wide band at the fold the spin left in it,
+                [0.16 * u, 0.62 * L], // ...opening out to the loose end, so the
+                [0.2 * u, L], // WIDEST point is the knicked cut edge: big end points UP
+                [0.15 * u, 0.9 * L], // the film folds back down inside itself — a SHALLOW wall,
+                [0.105 * u, 0.46 * L], // so on a hard lean its lowest point can never dip out
+                [0.065 * u, 0.1 * L], // past the root: the cut edge stays the farthest thing on
+                [0.027 * u, 0], // ...back at the root: two faces and no raw edge to catch on
+              ],
+              film = LA(PROF, mat, 7, -arc / 2, arc), // centred on azimuth 0 = leans straight out
+              // Loose film cannot hold itself up, so every ear tips OUT of the knot. A packed bag
+              // only needs pushing a little; a slack one has nothing holding itself up at all.
+              // The angle stays MODEST even at empty — a full-handed lean on a long strip sweeps
+              // the loose end clean out over the bag's shoulders, and a pair of those side by
+              // side is a wing, not an ear; the flop is finished off by the curl instead.
+              tilt = 0.055 * (1 + 5 * (1 - full)) * (i ? R(1.1, 1.45) : R(0.8, 1.1));
+          crinkle(film.geometry, 0.075, 3, CRP + i * 2.4, false); // film is never smooth
+          // The cut edge is knicked, but only NEAR THE EDGE: a fray that bit most of the way
+          // down the strip turned its ragged hem into a flounced skirt — read the whole ear as
+          // a lampshade. A shallow nick keeps the taper legible and the raggedness small.
+          fray(film.geometry, PROF.length, 0.72 * L, 0.45); // ...nor cut neat along the top
+          curl(film.geometry, droop); // ...and it hangs over as it rises
+          film.rotation.x = Math.PI / 2; // the lathe's +Y now stands up the bag's +Z
+          // Three frames to hang an ear in: the yaw turns it to wherever this bag's grab points
+          // (the pair sit roughly OPPOSITE each other, but never exactly, or they would read as
+          // a bow), the lean is the angle it flops out to and stays at, and the swing is the
+          // jiggle the film-sway system pushes into it every frame — which is why the jiggle
+          // gets a frame all its own instead of being added to the lean.
+          const yaw = new THREE.Group();
+          yaw.position.z = zof(0.88); // rooted ON the spun rope, inside the knot band
+          yaw.rotation.z = az0 + i * Math.PI + R(-0.5, 0.5);
+          const lean = new THREE.Group();
+          lean.rotation.x = tilt;
+          const swing = new THREE.Group();
+          swing.add(film);
+          lean.add(swing);
+          yaw.add(lean);
+          g.add(yaw);
+          // `az` is the direction this ear sticks out in the BAG's own frame, which is how the
+          // sway system knows which axis to hang its shove on; `w` is the whip — a longer ear is
+          // a longer lever on the same film, so it swings further and lags further behind — and
+          // `ph` puts each ear in the idle breeze at a place of its own.
+          ears.push({
+            swing: swing,
+            az: yaw.rotation.z,
+            w: 0.75 + L / (0.34 * u || 1),
+            ph: R(0, Math.PI * 2),
+            sx: 0,
+            sy: 0,
+            vx: R(-1.4, 1.4), // it has just been tied: the film is still settling
+            vy: R(-1.4, 1.4),
+          });
+        }
+        // (Assigned through a guard, not `g.userData.ears =`: the offline geometry harnesses
+        // eval this function against stub Groups that never got a userData.)
+        if (!g.userData) g.userData = {};
+        g.userData.ears = ears;
+        // Hand this bag to the film-sway system. Asked for conditionally because the geometry
+        // checks pull tieTop() out of this file and eval it on its own, with no per-frame loop
+        // and nobody to run it — those only ever want the shape.
+        if (typeof registerEars === "function") registerEars(g);
+
+        if (o.tie) {
+          // A HAIRLINE twist-tie stripe just UNDER the knot: its radii sit ~+0.006 off the
+          // gathered film's own taper at BOTH ends of the band (0.1092 at the bottom, 0.0741
+          // where the band runs up into the cinch), so it hugs the spun film instead of standing
+          // off it — a thin light cinch, never a ring or headband. A tree has no tie.
+          const tie = CY(
+            0.064 * u,
+            0.068 * u,
+            0.03 * u,
+            MS(0xcfc79a, { metalness: 0.1, roughness: 0.6 }),
+          );
+          tie.rotation.x = Math.PI / 2;
+          tie.position.z = zof(0.845); // hugging the rope just under the knot
+          g.add(tie);
+        }
+      }
       function makeBag(type) {
         // Procedural garbage bag (reverted from the FBX bag back to the original soft-bag look).
         // Each bag rolls a "type" that changes how it looks and how the worker reacts to it.
@@ -9380,63 +10019,120 @@
           }
           return g;
         }
-        // Base plastic tone shifts a touch with the contents so special bags read differently.
-        // `plastic` carries glossy MeshStandardMaterial params (the sheen that makes a bag
-        // read as PLASTIC, not a matte leafy blob).
+        // THE FILM ITSELF. Kitchen film is SEMI-GLOSS: it throws sharp, high-contrast white
+        // specular along the ridges where the load stretches it tight and goes almost black in
+        // the creases between the lumps. `roughness` is what buys that — low roughness keeps a
+        // highlight small and bright instead of smearing it across the bag — and every bag tone
+        // now runs through MS(), the game's standard-material helper (safe under the checks).
+        // Thick heavy-duty film is the deliberate exception: rougher, so its highlight is a
+        // wash and not a glint. `taut` is film stretched THIN over a can or a box corner.
         let c1 = 0x23272e,
           c2 = 0x1b1f24,
+          taut = 0x39414b,
           glow = null,
-          plastic = null;
+          plastic = { metalness: 0.02, roughness: 0.3 };
         if (type === "heavy") {
           // DEEP "bio-waste" green — darker + cooler than the leaf green of the curb trees,
-          // so a heavy bag parked next to a tree no longer reads as part of the crown. The
-          // glossy plastic sheen + the light twist-tie (added below) finish the "it's a bag"
-          // tell. Green is kept so it's still the at-a-glance "haul it to the truck" cue.
+          // so a heavy bag parked next to a tree no longer reads as part of the crown. Green
+          // is kept so it's still the at-a-glance "haul it to the truck" cue.
           c1 = 0x0d3a1c;
           c2 = 0x072411;
-          glow = { emissive: 0x06200f, emissiveIntensity: 0.5 };
-          plastic = { metalness: 0.2, roughness: 0.4 };
+          taut = 0x2f6b45;
+          glow = { emissive: 0x06200f, emissiveIntensity: 0.35 };
+          plastic = { metalness: 0.03, roughness: 0.62 }; // thick, dull contractor film
         } // DARK GREEN bag — the "haul it to the truck" tell
         else if (type === "maggot") {
           c1 = 0x33351f;
           c2 = 0x262814;
+          taut = 0x5a5d3b;
         } // sickly green-black, slimy
         else if (type === "piss") {
           c1 = 0x2b2b1f;
           c2 = 0x22221a;
+          taut = 0x504d34;
         } // dull, stained
         const g = new THREE.Group();
-        // Heavy bags use a glossy MeshStandardMaterial (plastic sheen); the rest stay
-        // Lambert. MS() is the game's standard-material helper (safe under the mocks).
         const matOpts = Object.assign({}, glow, plastic);
-        const m = plastic ? MS(c1, matOpts) : M(c1, glow),
-          m2 = plastic ? MS(c2, matOpts) : M(c2, glow);
-        const body = SP(0.4, m);
-        body.scale.set(1.05, 0.9, 1.15);
-        body.position.z = 0.4;
+        const m = MS(c1, matOpts),
+          m2 = MS(c2, matOpts),
+          mt = MS(taut, { metalness: 0.05, roughness: 0.12 }), // the sharpest glint on the bag
+          CSP = R(0, Math.PI * 2); // this bag's own crumple: no two hang alike
+        // THE BODY: loaded and BOTTOM-HEAVY. The weight sits low, the film splays where it is
+        // crushed against the pavement, the shoulders taper up into the tie, and what is inside
+        // pushes the outline out of true — soft mounds of paper and clothing, and one HARD
+        // corner (a can, the edge of a box) that leaves a taut flat facet instead of a curve.
+        const body = SP(0.4, m, 16); // finer than a bare sphere: creases and facets need vertices
+        const FLOOR = slump(body.geometry);
+        const AZ = R(0, Math.PI * 2), // this bag's own assortment of garbage
+          bumps = stuff(
+            body.geometry,
+            [
+              { az: AZ, el: -0.34, rad: 0.66, amt: 0.05, hard: 0 }, // soft, and low
+              { az: AZ + 2.2 + R(-0.3, 0.3), el: -0.02, rad: 0.52, amt: 0.034, hard: 0 },
+              { az: AZ - 1.9 + R(-0.35, 0.35), el: 0.12, rad: 0.24, amt: 0.04, hard: 1 },
+            ],
+            FLOOR,
+          );
+        crinkle(body.geometry, 0.05, 5, CSP, true); // and none of it hangs smooth
+        body.scale.set(1.02, 0.9, 1.0); // a shade wider than deep, 0.76 tall
+        body.position.z = 0.36; // rests on the pavement on its own crushed base
         g.add(body);
-        const lump = SP(0.26, m2);
-        lump.position.set(0.15, -0.12, 0.58);
+        // Stretched thin over the hard corner: a small FACETED patch of lighter, glossier film
+        // sits out on that ridge, which is where the sharp white specular lands — and it is a
+        // shade too pale to be opaque, which is how a black bag reads when something solid is
+        // holding it up. Parented to the body, so it rides the film wherever the load shifts.
+        for (const b of bumps) {
+          if (!b.hard) continue;
+          const cap = SPH(0.1, mt, 6, 4); // 6x4 segments: faceted, so it glints in pieces
+          cap.position.set(
+            Math.cos(b.el) * Math.cos(b.az) * (b.r - 0.086),
+            Math.cos(b.el) * Math.sin(b.az) * (b.r - 0.086),
+            Math.sin(b.el) * (b.r - 0.086),
+          );
+          cap.scale.set(1, 1, 0.7);
+          body.add(cap);
+        }
+        // One rounded mound of its own, hung LOW and off-centre: a bulge low down is weight, a
+        // bulge up high is a balloon, and no bag ever hangs symmetrical.
+        const lump = SP(0.26, m2, 10);
+        crinkle(lump.geometry, 0.075, 4, CSP + 2.1, true); // a bulge of loose stuff, not a ball
+        lump.scale.set(1.0, 0.9, 0.78);
+        lump.position.set(0.13, -0.12, 0.28);
         g.add(lump);
-        const neck = CY(0.14, 0.2, 0.22, m);
-        neck.position.z = 0.98;
-        g.add(neck);
-        const knot = SP(0.13, m2, 6);
-        knot.position.z = 1.12;
-        g.add(knot);
+
+        // THE TIED TOP — the spun bottleneck, the barrel of twisted film, the knot band and the
+        // pair of loose grab ears are drawn by tieTop(), the SAME builder the grey lumps in the
+        // truck's scoop use, so what gets compacted in the hopper is visibly the very bag it was
+        // on the curb. It starts where this body's shoulders run out (0.715).
+        //
+        // HOW FULL THIS BAG IS — the one thing about a bag you can read from across the street,
+        // because tieTop() spends it on the grab ears: packed solid, they stand up; half-empty,
+        // they flop. It is NOT a random roll, it follows what the bag is: the green heavy-duty
+        // ones are packed to the cinch (which is exactly why they have to be hauled to the
+        // truck), the rotten and the pissed-in ones are sloppy half-empties of wet nothing, and
+        // an ordinary bag is anything between.
+        const full =
+          type === "heavy"
+            ? 1
+            : type === "maggot" || type === "piss"
+              ? R(0.22, 0.55)
+              : R(0.55, 0.97);
+        tieTop(g, {
+          s: 0.4,
+          top: 0.715,
+          mat: m,
+          dark: m2,
+          full: full,
+          tie: type === "heavy",
+        });
 
         // Heavy bags are the GREEN ones — colored so the player reads them at a glance:
-        // this is the one that has to be hauled to the truck. Size stays the usual full bag.
-        if (type === "heavy") {
-          g.scale.setScalar(1.28);
-          // A light-colored twist-tie cinches the neck. A tree has no knot, so this —
-          // with the glossy plastic sheen and the deeper green — is the "it's a bag, not
-          // the tree" tell when a heavy bag lands right beside a leafy crown.
-          const tie = CY(0.15, 0.15, 0.09, MS(0xcfc79a, { metalness: 0.1, roughness: 0.6 }));
-          tie.rotation.x = Math.PI / 2;
-          tie.position.z = 1.0;
-          g.add(tie);
-        }
+        // this is the one that has to be hauled to the truck. It ties exactly like every
+        // other bag (the same pleated cinch, the same knot, the same pair of grab ears — it is
+        // just tied so the ears are standing at full height, because it IS packed solid); it is
+        // simply fuller (scaled up) and carries the light twist-tie under the knot — the "it's a
+        // bag, not a tree leaf" tell.
+        if (type === "heavy") g.scale.setScalar(1.28);
 
         // Extra grime / hazards, only on the special bags.
         if (type === "maggot") {
@@ -23783,13 +24479,24 @@
         can: 1.05,
         litterbasket: 1.25,
         bonus: 0.8,
-        npc: 1.75,
+        npc: 2.2, // hard hat + shouldered jackhammer: measure the standers at their FULL height
       };
       const SHADE_SEP = 0.85; // two street items must not be stacked on each other
       const SHADE_SEP_NPC = 1.15; // ...and a standing character must not stand in a bag
+      const SHADE_NPC_MARGIN = 0.15; // leaves that merely GRAZE a standing character's sight
+      // line already eat his torso off screen — judge the standers with this safety margin
       // How deep (units) the leaf ball cuts the sight lines rising from (wx, wy, footZ) over an
       // object `topH` tall. 0 = this spot is in clear sight of the camera.
-      function crownShadeDepth(wx, wy, footZ, topH, margin) {
+      // SHADE_TOP.npc = 2.2 measures a standing character at his FULL story: head, hard hat and
+      // a shouldered jackhammer reach ~1.9u, and the sample lines sit at 25/55/85% of topH —
+      // at 1.75 the top line died at 1.49u and a crown covering hat + shoulders read as "clear".
+      // needCuts: how many of the three sight lines must be clipped before the spot counts as
+      // blocked. The default 2 suits low things (a bag whose head-line grazes a leaf is still
+      // plainly visible). STANDING CHARACTERS pass 1: they hold one spot all day, and a person
+      // whose single upper sight line drowns in the crown shows the player only legs + a shadow
+      // ("I could only see the hooker's leg") — that is unfair, so one clipped line disqualifies.
+      function crownShadeDepth(wx, wy, footZ, topH, margin, needCuts) {
+        const needC = needCuts || 2;
         let worst = 0;
         for (let i = 0; i < treeCrowns.length; i++) {
           const c = treeCrowns[i];
@@ -23810,7 +24517,7 @@
               if (cut > deepest) deepest = cut;
             }
           }
-          if (cuts >= 2 && deepest > worst) worst = deepest;
+          if (cuts >= needC && deepest > worst) worst = deepest;
         }
         return worst;
       }
@@ -23867,6 +24574,7 @@
       // item is still nudged as far out of the leaves as the street allows.
       function hopOutOfTreeShade(o, kind, footZ, x0, x1, y0, y1, spots) {
         const sep = kind === "npc" ? SHADE_SEP_NPC : SHADE_SEP;
+        const needCuts = kind === "npc" ? 1 : 2; // standers: ONE clipped sight line is already unfair
         let best = null;
         let bestScore = Infinity;
         for (let r = 0; r < SHADE_RINGS.length; r++) {
@@ -23876,7 +24584,7 @@
             const ny = o.wy + Math.sin(SHADE_ANGLES[a]) * rad;
             if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue;
             if (sitsOnTreePit(nx, ny)) continue;
-            const depth = crownShadeDepth(nx, ny, footZ, SHADE_TOP[kind], SHADE_CLEAR);
+            const depth = crownShadeDepth(nx, ny, footZ, SHADE_TOP[kind], SHADE_CLEAR, needCuts);
             let crowded = false;
             for (let i = 0; i < spots.length; i++) {
               const s = spots[i];
@@ -23904,6 +24612,58 @@
           return true;
         }
         return false;
+      }
+      // GUARANTEED-CLEAR STAND — the hard promise for the corner regulars. The ring hop above
+      // searches only 3.5u around the spot and on a tree-heavy block it can run out of clear
+      // candidates and settle for the LEAST hidden one, which is how a jackhammer guy could
+      // still end up with the crown over his shoulders. This scans the ENTIRE block strip on a
+      // grid with the strict standing-character rule (one clipped sight line + grazing margin
+      // disqualify), and hands back the nearest fully clear square. Only where the block truly
+      // offers nothing (every grid point under some crown) does it fall back to the point farthest
+      // from any leaves — an absolute last resort that the block scan keeps vanishingly rare.
+      function scanClearStandingSpot(o, footZ, x0, x1, y0, y1, spots) {
+        let best = null,
+          bestD = Infinity;
+        let fallback = null,
+          fallbackClear = -Infinity;
+        for (let gx = Math.ceil(x0 * 2) / 2; gx <= x1; gx += 0.5) {
+          for (let gy = y0; gy <= y1; gy += 0.75) {
+            if (sitsOnTreePit(gx, gy)) continue;
+            let crowded = false;
+            for (let i = 0; i < spots.length; i++) {
+              const s = spots[i];
+              if (s.o === o) continue;
+              const dx = s.x - gx,
+                dy = s.y - gy;
+              if (dx * dx + dy * dy < SHADE_SEP_NPC * SHADE_SEP_NPC) {
+                crowded = true;
+                break;
+              }
+            }
+            if (crowded) continue;
+            if (crownShadeDepth(gx, gy, footZ, SHADE_TOP.npc, SHADE_NPC_MARGIN, 1) <= 0) {
+              const d = (gx - o.wx) * (gx - o.wx) + (gy - o.wy) * (gy - o.wy);
+              if (d < bestD) {
+                bestD = d;
+                best = { x: gx, y: gy };
+              }
+              continue;
+            }
+            let near = Infinity; // hidden candidate — keep the one farthest from ALL leaves
+            for (let i = 0; i < treeCrowns.length; i++) {
+              const c = treeCrowns[i];
+              const dx = c.wx - gx,
+                dy = c.wy - gy,
+                dd = Math.sqrt(dx * dx + dy * dy) - c.cr;
+              if (dd < near) near = dd;
+            }
+            if (near > fallbackClear) {
+              fallbackClear = near;
+              fallback = { x: gx, y: gy };
+            }
+          }
+        }
+        return best || fallback;
       }
       // The standing sidewalk characters that own a bare patch of sidewalk: they hold ONE spot for
       // the whole level, so a spot buried in the leaves stays invisible all level (unlike a walking
@@ -23953,7 +24713,17 @@
         let moved = 0;
         for (const it of items) {
           const o = it.o;
-          if (crownShadeDepth(o.wx, o.wy, it.foot, SHADE_TOP[it.kind], 0) <= 0 && !sitsOnTreePit(o.wx, o.wy))
+          if (
+            crownShadeDepth(
+              o.wx,
+              o.wy,
+              it.foot,
+              SHADE_TOP[it.kind],
+              it.kind === "npc" ? SHADE_NPC_MARGIN : 0,
+              it.kind === "npc" ? 1 : 2,
+            ) <= 0 &&
+            !sitsOnTreePit(o.wx, o.wy)
+          )
             continue; // already in clear sight - leave today's placement alone
           const bl = blockSpanning(o.wx);
           let x0 = bl ? bl.blockX + 0.6 : o.wx - 3.4;
@@ -23965,6 +24735,18 @@
           const near = spots.filter((s) => Math.abs(s.x - o.wx) < 5 && Math.abs(s.y - o.wy) < 5);
           const mine = spots.find((s) => s.o === o);
           if (hopOutOfTreeShade(o, it.kind, it.foot, x0, x1, y0, y1, near)) {
+            // THE HARD PROMISE FOR STANDERS: the ring hop can settle for the least-hidden
+            // candidate on a tree-choked block. If a standing character is STILL under any
+            // leaves (or wedged in a pit), force him to the nearest fully clear square the
+            // whole block has — no jackhammer guy keeps a spot with a crown over his shoulders.
+            if (
+              it.kind === "npc" &&
+              (crownShadeDepth(o.wx, o.wy, it.foot, SHADE_TOP.npc, SHADE_NPC_MARGIN * 0.5, 1) > 0 ||
+                sitsOnTreePit(o.wx, o.wy))
+            ) {
+              const clear = scanClearStandingSpot(o, it.foot, x0, x1, y0, y1, spots);
+              if (clear) putStreetSpot(o, "npc", clear.x, clear.y, it.foot);
+            }
             if (mine) {
               mine.x = o.wx;
               mine.y = o.wy;
@@ -28919,7 +29701,8 @@
         // the hopper gush (allowCinematic) is the one hit that lands during the route-end
         // "routeend" cinematic — every other hit is frozen while the worker is off limits.
         if (state !== "play" && !allowCinematic) return;
-        if (p.invuln > 0 || p.immuneT > 0) return; // i-frames / Monster immunity absorb the hit
+        if (p.invuln > 0 || p.immuneT > 0 || p.god)
+          return; // i-frames / Monster immunity / TRAINER Infinite Health absorb the hit
         health = Math.max(0, health - (amount || 0));
         lastHitCause = cause || "route"; // log the offense: the WRITTEN UP! stamp cites it when he comes to
         const f = $("flash");
@@ -30543,6 +31326,9 @@
       function doStun(dur, type) {
         if (p.stunT > 0) return;
         if (p.immuneT > 0) return; // Monster buff = true invincibility: no stumble / trip
+        // TRAINER Infinite Health: the HITS bounce off him (no recoil stagger) — but a
+        // harmless trip/stumble still lands, because god mode keeps the world alive.
+        if (p.god && type === "hit") return;
         p.stunT = dur;
         p.stunDur = dur;
         if (type === "hit") {
@@ -32295,10 +33081,17 @@
         }
         p.invuln = Math.max(0, p.invuln - dt);
         p.immuneT = Math.max(0, p.immuneT - dt);
-        // TRAINER: Invincibility / "Always Run It Up!" keep the worker in permanent
-        // Monster-buff immunity (the existing p.immuneT machinery absorbs damage, stuns and
-        // collisions, and applies the Run It Up speed boost + auto-dump).
-        if (typeof CHEAT !== "undefined" && (CHEAT.invincible || CHEAT.runitup))
+        // TRAINER: the two cheats are now DIFFERENT cheats.
+        //  "Always Run It Up!" keeps p.immuneT lit — the full Monster package: immunity +
+        //  speed boost + star sparkle + walk-through-everything + touch-to auto-dump.
+        //  "Infinite Health" is only p.god — he CAN'T BE HURT and that's ALL: hits are
+        //  absorbed (hurtNPC) and hit-staggers skipped (doStun "hit"), while movement
+        //  stays at the normal walk pace, there is NO sparkle/flash, NO auto-dump, and
+        //  the world stays fully interactive — he still kicks cones/bottles/balls, bumps
+        //  creatures and trips on hazards like anyone else. Recomputed every frame, so
+        //  flipping either toggle in the trainer takes effect instantly.
+        p.god = typeof CHEAT !== "undefined" && CHEAT.invincible === true;
+        if (typeof CHEAT !== "undefined" && CHEAT.runitup)
           p.immuneT = POWERUP_IMMUNE_DUR;
         p.attackerT = Math.max(0, p.attackerT - dt); // the 10s punchback window actually expires now
         p.shake = Math.max(0, p.shake - dt * 1.3);
@@ -42100,8 +42893,12 @@
       // row highlighted BLUE) and a scrolling marquee. Driven by keyboard / gamepad / the
       // on-screen joystick. Cheats:
       //   infinite   -> complaints never trigger the 3rd-strike suspension
-      //   invincible -> the worker can't be hurt (permanent Monster immunity)
-      //   runitup    -> "Always Run It Up!" (permanent Monster buff + speed + auto-dump)
+      //   invincible -> INFINITE HEALTH (trainer row "Infinite Health"): the worker CAN'T
+      //                BE HURT — and ONLY that: no speed boost, no star sparkle, no
+      //                auto-dump; cones/bottles/creatures still interact, hits just
+      //                bounce off (p.god, checked in hurtNPC/doStun)
+      //   runitup    -> "Always Run It Up!" (permanent Monster buff: immunity + speed +
+      //                sparkle + walk-through-everything + touch-to auto-dump)
       //   startLevel -> which day a fresh week begins on (1..7 = Mon..Sun)
       var CHEAT = { infinite: false, invincible: false, runitup: false, startLevel: 1 };
       var TRAINER_DAYS = [
@@ -42112,7 +42909,7 @@
         sel: 0,
         rows: [
           { key: "infinite", label: "Infinite Complaints", type: "bool" },
-          { key: "invincible", label: "Invincibility", type: "bool" },
+          { key: "invincible", label: "Infinite Health", type: "bool" },
           { key: "runitup", label: "Always Run It Up!", type: "bool" },
           { key: "level", label: "Starting Level", type: "day" },
           { key: "start", label: "Start Game", type: "action" },
@@ -42866,6 +43663,7 @@
           updateDroppedSlices(dt);
           tryWalkOverSlice(); // walk-over pickup: step on a slice, no ACT button
           updateFlyingBags(dt);
+          updateEarSway(dt); // loose grab ears lag behind every bag that moved this frame
           updateFlyingBaskets(dt);
           updateDustParticles(dt);
           updateStarParticles(dt);

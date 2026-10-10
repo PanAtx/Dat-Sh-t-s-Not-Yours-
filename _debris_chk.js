@@ -54,12 +54,22 @@ function makeG() {
     traverse(cb) { cb(this); this.children.forEach((ch) => ch.traverse && ch.traverse(cb)); },
   };
 }
+// crinkle() runs for real in these builders, so every mock geometry carries the position
+// attribute it walks; count 0 keeps the walk a no-op (this file checks PARTS and colours —
+// _tree_bag_chk.js is the one that audits the actual folded vertices).
+function posBufMock() {
+  return { count: 0, needsUpdate: false, getX() { return 0; }, getY() { return 0; }, getZ() { return 0; }, setX() {}, setY() {}, setZ() {} };
+}
+function geoStub(type, params) {
+  return { type: type, parameters: params || {}, attributes: { position: posBufMock() }, computeVertexNormals() {} };
+}
 function meshMock(kind, args, mat) {
   return {
     __isGroup: false,
     __kind: kind,
     __args: args || [],
     __mat: mat || null,
+    geometry: geoStub(kind === "sphere" ? "SphereGeometry" : kind === "cyl" ? "CylinderGeometry" : kind === "box" ? "BoxGeometry" : "Geometry"),
     parent: null,
     visible: true,
     children: [],
@@ -72,9 +82,25 @@ function meshMock(kind, args, mat) {
     traverse(cb) { cb(this); },
   };
 }
-const THREE = { Group: function () { return makeG(); }, Mesh: function () { return meshMock("mesh"); } };
+const THREE = {
+  Group: function () { return makeG(); },
+  TorusGeometry: function (r, t) {
+    return { type: "TorusGeometry", parameters: { radius: r, tube: t } };
+  },
+  // A surface of revolution: `points` are [radius, height] Vector2s spun about the axis.
+  LatheGeometry: function (points, segments) {
+    return geoStub("LatheGeometry", { points, segments });
+  },
+  Vector2: function (x, y) { this.x = x; this.y = y; },
+  Mesh: function (geo, mat) {
+    const m = meshMock("mesh", [], mat);
+    m.geometry = geo || geoStub("Geometry");
+    return m;
+  },
+};
 const BX = (w, h, d, m) => meshMock("box", [w, h, d], m);
 const SP = (r, m) => meshMock("sphere", [r], m);
+const SPH = (r, m) => meshMock("sphere", [r], m);
 const CY = (a, b, c, m) => meshMock("cyl", [a, b, c], m);
 const M = (c) => ({ c: c });
 const MS = (c) => ({ c: c });
@@ -96,12 +122,12 @@ const HOPPER_CYCLE_AT = 8;
 function hopperTopZ() { return 2.4; }
 
 // ---- build the real closure --------------------------------------------------------
-const fns = ["makeBag", "tossBag", "addHopperLump"].map((n) => extractFn(html, n)).join("\n");
+const fns = ["LA", "crinkle", "slump", "stuff", "pleat", "fray", "curl", "twist", "tieTop", "makeBag", "tossBag", "addHopperLump"].map((n) => extractFn(html, n)).join("\n");
 const api = new Function(
-  "THREE", "M", "MS", "BX", "SP", "CY", "R", "p", "dynamicGroup", "flyingBags", "SFX", "disposeObj",
+  "THREE", "M", "MS", "BX", "SP", "SPH", "CY", "R", "p", "dynamicGroup", "flyingBags", "SFX", "disposeObj",
   "hopperTrash", "worldGroup", "hopperLoad", "hopperLumps", "HOPPER_CYCLE_AT", "hopperTopZ",
   "var carry=\"none\", carried=null; var bagStack=[]; var haulCount = 0; const MAX_SMALL_BAGS=3;\n" + fns + "\nreturn { makeBag: makeBag, tossBag: tossBag, addHopperLump: addHopperLump };"
-)(THREE, M, MS, BX, SP, CY, R, p, dynamicGroup, flyingBags, SFX, disposeObj,
+)(THREE, M, MS, BX, SP, SPH, CY, R, p, dynamicGroup, flyingBags, SFX, disposeObj,
   hopperTrash, worldGroup, hopperLoad, hopperLumps, HOPPER_CYCLE_AT, hopperTopZ);
 
 // ---- 1) stormbox upright, debris on top (+Z) ---------------------------------------
@@ -144,6 +170,78 @@ check("woodpile: planks sit at MULTIPLE heights (a stack, not a single board)", 
   const zs = g.children.filter((c) => c.__kind === "box").map((c) => c.position.z);
   const distinct = new Set(zs.map((z) => Math.round(z * 100)));
   assert.ok(distinct.size >= 2, "expected planks at multiple heights, got " + zs.join(","));
+});
+
+// ---- 2b) the GREY HOPPER LUMP ties up like the curb bags ---------------------------
+// It used to be an old-style stubby neck + blob, which is why the pile in the truck's
+// scoop read as a different object from the bags the worker picks up. Both now share
+// tieTop(): the pleated cinch, ONE flattened knot band, and the TWO long grab ears that
+// come out of the top of the knot — squashed short here, because a lump in the truck's
+// scoop must not bristle film over the rim.
+const groups = (g) => g.children.filter((c) => c.__isGroup);
+const knotOf = (g) => g.children.filter((c) => c.geometry && c.geometry.type === "TorusGeometry");
+const flapOf = (g) => {
+  const out = [],
+    walk = (o) => {
+      out.push(o);
+      (o.children || []).forEach(walk);
+    };
+  walk(g);
+  return out.filter((c) => c.geometry && c.geometry.type === "LatheGeometry");
+};
+const lum = (c) => ((c >> 16) & 255) + ((c >> 8) & 255) + (c & 255);
+check("hopper lump: a deposited bag ties with the SAME cinch, knot and grab ears", () => {
+  hopperLumps.length = 0;
+  api.addHopperLump("normal");
+  const g = hopperLumps[hopperLumps.length - 1].g;
+  assert.strictEqual(g.children[0].__kind, "sphere", "the lump body comes first");
+  const neck = g.children.find((c) => c.__kind === "cyl" && c.__args[2] > 0.1);
+  assert.ok(!!neck, "the plastic is gathered into a cinched neck");
+  const knots = knotOf(g);
+  assert.strictEqual(knots.length, 1, "tied ONCE, with one knot band (got " + knots.length + ")");
+  const sh = flapOf(g);
+  assert.strictEqual(sh.length, 2, "the excess above the knot is TWO lathed strips (got " + sh.length + ")");
+  sh.forEach((m) => assert.ok(m.rotation.x !== 0, "the ears are stood up on the bag's axis"));
+  const grab = groups(g);
+  assert.strictEqual(grab.length, 2, "exactly two grab ears (got " + grab.length + ")");
+  grab.forEach((gr) => {
+    const lean = gr.children[0].rotation.x;
+    assert.ok(
+      Math.abs(lean) >= 0.02 && Math.abs(lean) <= 0.66,
+      "the ears flop — compacted film in a scoop stands up for nobody (got " + lean + ")",
+    );
+    assert.ok(gr.position.z > neck.position.z, "each ear comes out above the cinch");
+  });
+  assert.ok(
+    Math.abs(grab[0].rotation.z - grab[1].rotation.z) > 1.05,
+    "the ears split apart like the curb bags' do",
+  );
+});
+check("hopper lump: the knot is tied in a DARKER grey than the bag (the pinch reads dense)", () => {
+  hopperLumps.length = 0;
+  api.addHopperLump("normal");
+  const L = hopperLumps[hopperLumps.length - 1],
+    body = L.g.children[0],
+    knot = knotOf(L.g)[0];
+  assert.ok(
+    lum(knot.__mat.c) < lum(body.__mat.c),
+    "knot " + knot.__mat.c.toString(16) + " vs bag " + body.__mat.c.toString(16),
+  );
+  assert.strictEqual(L.mat2, knot.__mat, "the knot is registered so it fades with the pile");
+});
+check("hopper lump: stormbox / woodpile stay boxes & planks (nothing tied on debris)", () => {
+  ["stormbox", "woodpile"].forEach((t) => {
+    hopperLumps.length = 0;
+    api.addHopperLump(t);
+    const L = hopperLumps[hopperLumps.length - 1];
+    assert.strictEqual(L.mat2, null, t + " has nothing tied on it");
+    assert.strictEqual(groups(L.g).length, 0, t + " grows no grab");
+    assert.strictEqual(
+      knotOf(L.g).length + flapOf(L.g).length,
+      0,
+      t + " grows no knot and no flap",
+    );
+  });
 });
 
 // ---- 3) tossBag: the box flies in as-is (no swap) and is tagged with its type ------

@@ -21,17 +21,27 @@ function makeG(){
   const scl = { x:1, y:1, z:1, set(x,y,z){ this.x=x; this.y=y; this.z=z; }, setScalar(s){ this.x=this.y=this.z=s; } };
   return { parent:null, visible:true, children:[], position:pos, rotation:rot, scale:scl, add(c){ this.children.push(c); if(c) c.parent=this; }, remove(){} };
 }
-function meshMock(){
-  return { parent:null, visible:true,
+// crinkle() runs for real inside these builds, so every mock geometry carries the position
+// attribute it walks — with count 0 the walk is a no-op (these checks count PARTS; the
+// actual folds are audited by _tree_bag_chk.js against the real three.js build).
+function posBufMock(){
+  return { count: 0, needsUpdate: false, getX(){ return 0; }, getY(){ return 0; }, getZ(){ return 0; }, setX(){}, setY(){}, setZ(){} };
+}
+function geoMock(type, params){
+  return { type, parameters: params || {}, attributes: { position: posBufMock() }, computeVertexNormals(){} };
+}
+function meshMock(geo, mat){
+  return { parent:null, visible:true, geometry: geo || geoMock('Mesh'), material: mat || null,
     position:{ x:0,y:0,z:0, set(){} }, rotation:{ x:0,y:0,z:0, set(){} }, scale:{ x:1,y:1,z:1, set(){}, setScalar(){} },
     add(){}, remove(){} };
 }
-const THREE = { Group: function(){ return makeG(); }, Mesh: function(){ return meshMock(); }, ConeGeometry: function(){ return {}; } };
+const THREE = { Group: function(){ return makeG(); }, Mesh: function(g,m){ return meshMock(g, m); }, ConeGeometry: function(){ return geoMock('ConeGeometry'); }, TorusGeometry: function(){ return geoMock('TorusGeometry'); }, Vector2: function(x,y){ this.x=x; this.y=y; }, LatheGeometry: function(points, segments){ return geoMock('LatheGeometry', { points, segments }); } };
 const M  = (c)=>({ c:c });
 const MS = (c)=>({ c:c });
 const BX = ()=>meshMock();
 const CY = ()=>meshMock();
 const SP = ()=>meshMock();
+const SPH = ()=>meshMock();
 const R = (a,b)=>a + Math.random()*(b-a);
 // ---- game state / stubs (real values where they matter) ----------------------------
 const truck = { wx: 10, hopperOff: -4.3, hopperY: 0, hidden: 0 };
@@ -56,14 +66,14 @@ let bedStuy = false;
 const isBedStuyLevel = function(){ return bedStuy; };
 
 // ---- build the real logic closure --------------------------------------------------
-const fns = ['rollBagType','makeBag','speakBagType','pickUp','nearHopper','nearHopperHeavy','tossBag','tryInteract'].map(n=>extractFn(html,n)).join('\n');
+const fns = ['LA','crinkle','slump','stuff','pleat','fray','curl','twist','rollBagType','tieTop','makeBag','speakBagType','pickUp','nearHopper','nearHopperHeavy','tossBag','tryInteract'].map(n=>extractFn(html,n)).join('\n');
 const api = new Function(
-  'THREE','M','MS','BX','CY','SP','R','truck','p','dynamicGroup','worker','flyingBags','SFX','Voice','WORKER_GENDER','GZ','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','dist','state','blocks','creatures','litterBaskets','addScore','hopperDeposit','disposeObj','checkHouse','attachCarried','dumpCan','dumpLitterBasket','nearHopperLitter','isBedStuyLevel',
+  'THREE','M','MS','BX','CY','SP','SPH','R','truck','p','dynamicGroup','worker','flyingBags','SFX','Voice','WORKER_GENDER','GZ','LITTER_DUMP_RADIUS','HEAVY_DUMP_RADIUS','dist','state','blocks','creatures','litterBaskets','addScore','hopperDeposit','disposeObj','checkHouse','attachCarried','dumpCan','dumpLitterBasket','nearHopperLitter','isBedStuyLevel',
   'var carry="none", carried=null; const MAX_SMALL_BAGS=3; var bagStack=[]; var haulCount = 0; function attachStacked(it,slot){ worker.group.add(it.g); }\n' + fns + '\n' +
   'return { rollBagType, makeBag, speakBagType, pickUp, nearHopper, nearHopperHeavy, tryInteract, ' +
   'carry:()=>carry, carried:()=>carried, flying:()=>flyingBags, ' +
   'setCarried:function(c,i){ carry=c; carried=i; } };'
-)(THREE, M, MS, BX, CY, SP, R, truck, p, dynamicGroup, worker, flyingBags, SFX, Voice, WORKER_GENDER, GZ, LITTER_DUMP_RADIUS, 3.2, dist, state, blocks, creatures, litterBaskets, addScore, hopperDeposit, disposeObj, checkHouse, attachCarried, dumpCan, dumpLitterBasket, nearHopperLitter, isBedStuyLevel);
+)(THREE, M, MS, BX, CY, SP, SPH, R, truck, p, dynamicGroup, worker, flyingBags, SFX, Voice, WORKER_GENDER, GZ, LITTER_DUMP_RADIUS, 3.2, dist, state, blocks, creatures, litterBaskets, addScore, hopperDeposit, disposeObj, checkHouse, attachCarried, dumpCan, dumpLitterBasket, nearHopperLitter, isBedStuyLevel);
 // ---- 1) rollBagType: only valid types, sane rarity ordering ------------------------
 check('rollBagType -> only valid types, rarest-to-commonest ordering holds', ()=>{
   const valid = ['normal','heavy','maggot','piss','glass','needle'];
@@ -85,10 +95,43 @@ check('speakBagType normal -> silent (no comment)', ()=>{ calls.voices.length=0;
 check('speakBagType unknown/missing type -> silent', ()=>{ calls.voices.length=0; api.speakBagType({}); api.speakBagType(null); assert.strictEqual(calls.voices.length, 0); });
 
 // ---- 3) makeBag: every type builds a bag; heavy is bigger; specials add bits --------
-check('makeBag -> every type yields a bag with the base 4 parts', ()=>{
+check('makeBag -> every type builds a bag with the base 7 parts', ()=>{
   ['normal','heavy','maggot','piss','glass','needle'].forEach(t => {
     const g = api.makeBag(t);
-    assert.ok(g && g.children && g.children.length >= 4, t + ' should keep the body/lump/neck/knot (got ' + (g&&g.children&&g.children.length) + ')');
+    assert.ok(g && g.children && g.children.length >= 7, t + ' should keep the body/lump/neck/snout/knot/2 grabs (got ' + (g&&g.children&&g.children.length) + ')');
+  });
+});
+check('makeBag -> every type ends in TWO lathed GRAB EARS, never a bowl, a ball or loops', ()=>{
+  // The excess above the pinches into TWO long strips of film: lathes spun over a narrow arc,
+  // splayed apart. One flap was the old duster rag; the old bowl needed two whole lathed
+  // surfaces, and before that the top ended in a squashed ball and a pair of loops.
+  ['normal','heavy','maggot','piss','glass','needle'].forEach(t => {
+    const all = [], walk = (o) => { all.push(o); (o.children || []).forEach(walk); };
+    walk(api.makeBag(t));
+    const lathes = all.filter(c => c.geometry && c.geometry.type === 'LatheGeometry');
+    assert.strictEqual(lathes.length, 2, t + ' should grow exactly two grab ears (got ' + lathes.length + ')');
+    lathes.forEach((m) => assert.ok(m.rotation.x !== 0, t + ' ear must be stood up on its axis'));
+  });
+});
+check('makeBag -> the ears are rooted in the knot, splay apart and lean (never a fin or horn)', ()=>{
+  ['normal','heavy','maggot','piss','glass','needle'].forEach(t => {
+    const g = api.makeBag(t);
+    // azimuth group -> lean group -> swing group -> the ear film itself
+    const grabs = g.children.filter(c =>
+      Array.isArray(c.children) && c.children.length === 1 &&
+      Array.isArray(c.children[0].children) && c.children[0].children.length === 1);
+    assert.strictEqual(grabs.length, 2, t + ' should grow two grab ears (got ' + grabs.length + ')');
+    const leans = grabs.map(c => c.children[0].rotation.x);
+    leans.forEach((lean) => assert.ok(Math.abs(lean) >= 0.02 && Math.abs(lean) <= 0.66,
+      t + ' ear must hang loose in the wind, not saw through the air (got ' + lean + ')'));
+    assert.ok(grabs[0].position.z > 0.7 && grabs[1].position.z > 0.7, t + ' ears must come out of the knot');
+    assert.ok(Math.abs(grabs[0].rotation.z - grabs[1].rotation.z) > 1.05, t + ' ears must V-split apart');
+  });
+});
+check('makeBag -> the bag is tied ONCE: one knot band, no ear loops anywhere', ()=>{
+  ['normal','heavy','maggot','piss','glass','needle'].forEach(t => {
+    const knots = api.makeBag(t).children.filter(c => c.geometry && c.geometry.type === 'TorusGeometry');
+    assert.strictEqual(knots.length, 1, t + ' should be tied with exactly one knot band (got ' + knots.length + ')');
   });
 });
 check('makeBag heavy -> visibly scaled up (fuller)', ()=>{
@@ -96,12 +139,13 @@ check('makeBag heavy -> visibly scaled up (fuller)', ()=>{
   assert.strictEqual(n.scale.x, 1.0, 'normal bag should be unscaled');
   assert.ok(h.scale.x > 1.0, 'heavy bag should be scaled up (' + h.scale.x + ')');
 });
-check('makeBag specials -> carry extra hazard bits beyond the base 4', ()=>{
-  assert.strictEqual(api.makeBag('normal').children.length, 4);
-  assert.ok(api.makeBag('maggot').children.length > 4, 'maggot slime/worms');
-  assert.ok(api.makeBag('piss').children.length   > 4, 'piss puddle');
-  assert.ok(api.makeBag('glass').children.length  > 4, 'glass shards');
-  assert.ok(api.makeBag('needle').children.length > 4, 'needle');
+check('makeBag specials -> carry extra hazard bits beyond the base 7', ()=>{
+  assert.strictEqual(api.makeBag('normal').children.length, 7);
+  assert.strictEqual(api.makeBag('heavy').children.length, 8, 'heavy adds only the twist-tie');
+  assert.ok(api.makeBag('maggot').children.length > 7, 'maggot slime/worms');
+  assert.ok(api.makeBag('piss').children.length   > 7, 'piss puddle');
+  assert.ok(api.makeBag('glass').children.length  > 7, 'glass shards');
+  assert.ok(api.makeBag('needle').children.length > 7, 'needle');
 });
 
 // ---- 4) heavy-bag dump rule: tight zone + the "too heavy" line ---------------------
