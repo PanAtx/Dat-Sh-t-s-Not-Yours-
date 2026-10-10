@@ -26,10 +26,12 @@ function extractCase() {
 const teeballCase = extractCase();
 function makeTeam() {
   const mkKid = (wx) => ({ type: "teeball", wx: wx, wy: 3, dir: 1, sp: 4, kidCd: 0, ballCd: 0, phase: 0, parts: { upper: { position: { z: 0.62 } } }, g: { rotation: { z: 0 } } });
-  const kids = [mkKid(100), mkKid(120), mkKid(140)];
-  const ball = { wx: 120, wy: 3, z: 0.55, vz: 0, vx: 0, vy: 0, tx: 120, ty: 3, flying: false };
+  const FIELD = 18; // mirrors index.html TEEBALL_FIELD — the compact pitch at the block's middle
+  const midX = 120;
+  const kids = [mkKid(midX - FIELD / 3), mkKid(midX), mkKid(midX + FIELD / 3)];
+  const ball = { wx: kids[1].wx, wy: 3, z: 0.55, vz: 0, vx: 0, vy: 0, tx: kids[1].wx, ty: 3, flying: false };
   const ballG = { position: { x: 0, y: 0, z: 0, set() {} }, userData: { core: { rotation: { y: 0 } } } };
-  const team = { kids, leader: kids[0], ball, ballG, minX: 90, maxX: 150, midX: 120, owner: kids[1], receiver: null, lastThrower: null, throwT: 0.6, catchLockT: 0, workerThrowCd: 0 };
+  const team = { kids, leader: kids[0], ball, ballG, minX: midX - FIELD / 2, maxX: midX + FIELD / 2, midX, owner: kids[1], receiver: null, lastThrower: null, throwT: 0.6, catchLockT: 0, workerThrowCd: 0 };
   for (const k of kids) k.team = team;
   return team;
 }
@@ -39,7 +41,7 @@ const hits = [];
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const runCase = new Function(
   "c", "dt", "R", "GZ", "state", "p", "blocks",
-  "TEEBALL_WORKER_RANGE", "TEEBALL_WORKER_THROW_CD", "TEEBALL_PICKUP", "TEEBALL_R",
+  "TEEBALL_WORKER_RANGE", "TEEBALL_WORKER_THROW_CD", "TEEBALL_PICKUP", "TEEBALL_R", "TEEBALL_LOOSE",
   "hurtNPC", "doStun", "clamp", "Voice", "animParts", "WORKER_GENDER", "HP_HIT_TEEBALL",
   "switch (c.type) {" + teeballCase + "}"
 );
@@ -49,7 +51,7 @@ const p = { wx: T.kids[1].wx + 4, wy: 3 };
 let sawThrow = false;
 for (let t = 0; t < 300; t++) {
   const before = T.ball.flying;
-  runCase(T.leader, 0.016, R, 0.3, "play", p, [], 10, 3.5, 2.2, 0.16, (a, c2) => hits.push([a, c2]), () => {}, clamp, Voice, animParts, "male", 3);
+  runCase(T.leader, 0.016, R, 0.3, "play", p, [], 10, 3.5, 2.2, 0.2, 2, (a, c2) => hits.push([a, c2]), () => {}, clamp, Voice, animParts, "male", 3);
   if (T.ball.flying) sawThrow = true;
   if (sawThrow && t < 80)
     console.log(
@@ -77,7 +79,7 @@ p.wx = 999; // far away, pure catch play
 let frames = 0;
 while (frames < 6000) {
   try {
-    runCase(T.leader, 0.016, R, 0.3, "play", p, [], 10, 3.5, 2.2, 0.16, (a, c2) => hits.push([a, c2]), () => {}, clamp, Voice, animParts, "male", 3);
+    runCase(T.leader, 0.016, R, 0.3, "play", p, [], 10, 3.5, 2.2, 0.2, 2, (a, c2) => hits.push([a, c2]), () => {}, clamp, Voice, animParts, "male", 3);
   } catch (e) { console.log("THREW at frame", frames, e.message); break; }
   frames++;
   const badKid = T.kids.find((k) => k.wy > 5.0 || k.wy < 0.8);

@@ -1,7 +1,8 @@
 // _teeball_chk.js — verifies the Staten Island tee-ball CATCH trio:
 //   1) wiring: constants, makeTeeballKid + makeBaseball, the addCreature case
 //      (distinct shirts, no boxW), gender mix, AVOID_TYPES, the spawn (ONE random
-//      block, NEVER the car-wash Block 2 or the chalk-scene Block 3, 3 kids + ONE
+//      ACTIVE block the worker services — NEVER the start/finish buffer, NEVER
+//      the car-wash Block 2 or the chalk-scene Block 3, 3 kids + ONE
 //      shared baseball), the collideCreatures bumps, and the write-up.
 //   2) the REAL case "teeball" body from updateCreatures, SIMULATED with the real
 //      team state: the trio really plays catch (owner tosses, mate catches, owner
@@ -27,7 +28,9 @@ const TEEBALL_LINES = ["Don't touch me!", "You smell!", "I'm gonna get my Dad!"]
 const TEEBALL_WORKER_RANGE = 10;
 const TEEBALL_PICKUP = 2.2;
 const TEEBALL_WORKER_THROW_CD = 3.5;
-const TEEBALL_R = 0.16;
+const TEEBALL_R = 0.2; // the ball is in the soccer ball's size class so it reads on screen
+const TEEBALL_FIELD = 18; // the trio's compact pitch at the block's middle
+const TEEBALL_LOOSE = 2; // the fence line: how far a loose ball may leave the pitch
 const R = (a, b) => a + Math.random() * (b - a);
 
 console.log("[1] constants");
@@ -44,7 +47,9 @@ check(
   src.indexOf("const TEEBALL_WORKER_RANGE = 10;") >= 0 &&
     src.indexOf("TEEBALL_PICKUP = 2.2;") >= 0 &&
     src.indexOf("const TEEBALL_WORKER_THROW_CD = 3.5;") >= 0 &&
-    src.indexOf("const TEEBALL_R = 0.16;") >= 0
+    src.indexOf("const TEEBALL_R = 0.2;") >= 0 &&
+    src.indexOf("const TEEBALL_FIELD = 18;") >= 0 &&
+    src.indexOf("const TEEBALL_LOOSE = 2;") >= 0
 );
 check(
   "team state is declared (teeballShirtQueue + teeballTeam)",
@@ -57,8 +62,8 @@ check(
   /function makeTeeballKid\(shirt\)[\s\S]*?shirt: shirt \|\| pick\(SHIRTS\)[\s\S]*?kp\.g\.scale\.set\(0\.6, 0\.6, 0\.6\)/.test(src)
 );
 check(
-  "makeBaseball is a cream sphere + RED STITCH arcs (torus arcs) with the same core-spin pattern as the soccer ball",
-  /function makeBaseball\(\)[\s\S]*?TorusGeometry\([^\n]*Math\.PI \* 0\.95[\s\S]*?g\.userData\.core = core/.test(src)
+  "makeBaseball is a cream sphere + ONE closed FIGURE-EIGHT seam loop (the two leather panels' shared border: sine-wave latitude at the real 70 deg tilt, centripetal so the tips stay rounded, drawn as a closed tube) + slanted cross-stitch dashes, same core-spin pattern as the soccer ball",
+  /function makeBaseball\(\)[\s\S]*?SEAM_TILT \* Math\.sin\(lng\)[\s\S]*?new THREE\.CatmullRomCurve3\(pts, true, "centripetal"\)[\s\S]*?new THREE\.TubeGeometry\(curve, 150, 0\.013, 5, true\)[\s\S]*?const slant = 0\.42[\s\S]*?g\.userData\.core = core/.test(src) && src.slice(src.indexOf("function makeBaseball() {"), src.indexOf("// Seed scatter pile pigeons")).indexOf("TorusGeometry") < 0
 );
 const addSrc = src.slice(src.indexOf("function addCreature("), src.indexOf("function updateCreatures("));
 check(
@@ -84,17 +89,72 @@ check(
   /AVOID_TYPES = \{[\s\S]*?teeball: 1/.test(src)
 );
 
-console.log("[3] the Staten Island spawn: ONE trio on ONE random block, never Block 2 or Block 3");
+console.log("[3] the Staten Island spawn: ONE trio on ONE random ACTIVE block, on a COMPACT pitch at the block's middle, never Block 2 or Block 3");
 const spawnSrc = (function () {
   const i = src.indexOf("The Staten Island TEE-BALL CATCH KIDS (New Dorp, day 5)");
   if (i < 0) return "";
-  return src.slice(i, i + 4800);
+  return src.slice(i, i + 6000); // the write-up comment + the whole spawn block
 })();
 check("spawn is Staten-Island-gated", spawnSrc.indexOf("if (isStatenIslandLevel()) {") >= 0);
 check(
-  "random block EXCLUDING Block 2 (car wash, index 1) and Block 3 (chalk scene, index 2)",
-  spawnSrc.indexOf("LEVEL_BLOCKS.filter((b, i) => i !== 1 && i !== 2)") >= 0 &&
-    spawnSrc.indexOf("tbCands[(Math.random() * tbCands.length) | 0]") >= 0
+  "block pick EXCLUDES Block 2 (car wash, index 1) and Block 3 (chalk scene, index 2)",
+  spawnSrc.indexOf("ACTIVE_BLOCK_IDX.filter((i) => i !== 1 && i !== 2)") >= 0 &&
+    spawnSrc.indexOf("LEVEL_BLOCKS[tbCands[(Math.random() * tbCands.length) | 0]]") >= 0
+);
+check(
+  "the trio ALWAYS lands on an ACTIVE block the worker services (never the start/finish buffer, so the kids are always in route)",
+  (function () {
+    const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
+    if (!m) return false;
+    const blocks = eval("[" + m[1] + "]");
+    const cands = blocks.map((b, i) => (b.garbage ? i : -1)).filter((i) => i >= 0).filter((i) => i !== 1 && i !== 2);
+    return cands.length >= 1 && cands.every((i) => blocks[i].garbage === true) && cands.indexOf(1) < 0 && cands.indexOf(2) < 0;
+  })(),
+  "candidates: " + (function () {
+    const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
+    if (!m) return "LEVEL_BLOCKS not found";
+    const blocks = eval("[" + m[1] + "]");
+    return blocks.filter((b, i) => b.garbage && i !== 1 && i !== 2).map((b) => "x" + b.x).join(",");
+  })()
+);
+// The level layout + route bounds parsed out of index.html, for the placement checks.
+const LAYOUT = (function () {
+  const numOf = (re) => Number((src.match(re) || [])[1]);
+  const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
+  const blocks = m ? eval("[" + m[1] + "]") : [];
+  return {
+    blocks,
+    BLOCK_W: Number((src.match(/\bBW\s*=\s*(\d+)/) || [])[1]) * numOf(/const HOUSES_PER_BLOCK\s*=\s*(\d+);/),
+    START: numOf(/const ROUTE_START_X\s*=\s*(\d+);/),
+    FINISH: numOf(/const ROUTE_FINISH_X\s*=\s*(\d+);/),
+    MARGIN: numOf(/const TEEBALL_MARGIN\s*=\s*(\d+);/),
+    cands: blocks.map((b, i) => (b.garbage ? i : -1)).filter((i) => i >= 0).filter((i) => i !== 1 && i !== 2),
+  };
+})();
+// The car-wash block (index 1) and the chalk crime-scene block (index 2) are off-limits.
+const idxIsBlocked = (b) => LAYOUT.blocks.indexOf(b) === 1 || LAYOUT.blocks.indexOf(b) === 2;
+check(
+  "EVERY candidate block sits fully inside the worker's route, so the worker ALWAYS walks PAST the trio",
+  LAYOUT.cands.length >= 1 &&
+    LAYOUT.cands.every(
+      (i) => LAYOUT.blocks[i].x + LAYOUT.MARGIN >= LAYOUT.START && LAYOUT.blocks[i].x + LAYOUT.BLOCK_W - LAYOUT.MARGIN <= LAYOUT.FINISH
+    ),
+  "route x" + LAYOUT.START + "..x" + LAYOUT.FINISH + ", BLOCK_W=" + LAYOUT.BLOCK_W + ", candidates " + LAYOUT.cands.map((i) => "x" + LAYOUT.blocks[i].x).join(",")
+);
+check(
+  "10000 simulated block picks ALL land fully in-route (never the start/finish buffer, never Block 2/3)",
+  (function () {
+    const seen = {};
+    for (let t = 0; t < 10000; t++) {
+      const b = LAYOUT.blocks[LAYOUT.cands[(Math.random() * LAYOUT.cands.length) | 0]];
+      if (!b || !b.garbage) return false; // never a start/finish buffer
+      if (idxIsBlocked(b)) return false; // never the car-wash / chalk-scene block
+      if (b.x + LAYOUT.MARGIN < LAYOUT.START || b.x + LAYOUT.BLOCK_W - LAYOUT.MARGIN > LAYOUT.FINISH) return false;
+      seen[b.x] = true;
+    }
+    return Object.keys(seen).length === LAYOUT.cands.length; // every in-route block gets its turn
+  })(),
+  "candidates: " + LAYOUT.cands.map((i) => "x" + LAYOUT.blocks[i].x).join(",")
 );
 check(
   "3 kids with 3 DISTINCT shirt colors",
@@ -107,8 +167,37 @@ check(
   spawnSrc.indexOf("tMinX + ((tMaxX - tMinX) * (ti + 0.5)) / 3") >= 0 && spawnSrc.indexOf("tk.wy = R(1.6, 4.2)") >= 0
 );
 check(
-  "the team patrols the WHOLE block (minX/maxX = block edge ± TEEBALL_MARGIN)",
-  spawnSrc.indexOf("tMinX = tbBlock.x + TEEBALL_MARGIN") >= 0 && spawnSrc.indexOf("tMaxX = tbBlock.x + BLOCK_W - TEEBALL_MARGIN") >= 0
+  "the trio plays on a COMPACT pitch at the block's middle (all 3 kids + the ball fit in the camera frame)",
+  spawnSrc.indexOf("tbMid = clamp(tbBlock.x + BLOCK_W / 2, tbBlock.x + TEEBALL_MARGIN + TEEBALL_FIELD / 2, tbBlock.x + BLOCK_W - TEEBALL_MARGIN - TEEBALL_FIELD / 2)") >= 0 &&
+    spawnSrc.indexOf("tMinX = tbMid - TEEBALL_FIELD / 2") >= 0 &&
+    spawnSrc.indexOf("tMaxX = tbMid + TEEBALL_FIELD / 2") >= 0
+);
+check(
+  "the pitch is narrow enough to stay on screen (kids ~6u apart, field inside the cross-streets of EVERY candidate block)",
+  (function () {
+    const numOf = (re) => Number((src.match(re) || [])[1]);
+    const FIELD = numOf(/const TEEBALL_FIELD\s*=\s*(\d+);/);
+    const LOOSE = numOf(/const TEEBALL_LOOSE\s*=\s*(\d+);/);
+    const MARGIN = numOf(/const TEEBALL_MARGIN\s*=\s*(\d+);/);
+    const BLOCK_W = LAYOUT.BLOCK_W;
+    const CAM_SCREEN_W = 2 * 4.5 * 1.78; // the camera's screen width in world units (frustum half-height s = 4.5, 16:9, zoom 1.0)
+    // The camera looks down the 45° ISO diagonal, so a trio spread along x projects at 1/√2 of its
+    // true length: an 18u field fills 12.7u of screen — all 3 kids, the ball and every toss in frame.
+    if (!(FIELD > 0) || FIELD / Math.SQRT2 > CAM_SCREEN_W) return false; // the whole pitch fits one camera frame
+    if ((FIELD + 2 * LOOSE) / Math.SQRT2 > CAM_SCREEN_W) return false; // + the loose-ball chase stays in frame
+    for (const i of LAYOUT.cands) {
+      const bx = LAYOUT.blocks[i].x;
+      const mid = Math.min(Math.max(bx + BLOCK_W / 2, bx + MARGIN + FIELD / 2), bx + BLOCK_W - MARGIN - FIELD / 2);
+      if (mid - FIELD / 2 < bx + MARGIN || mid + FIELD / 2 > bx + BLOCK_W - MARGIN) return false;
+      if (FIELD / 3 > 8) return false; // kids 6-8u apart — a real catch game, in frame
+    }
+    return LAYOUT.cands.length >= 1;
+  })(),
+  "field=" + Number((src.match(/const TEEBALL_FIELD\s*=\s*(\d+);/) || [])[1]) + "u, camera frame width ~16u, candidates " + LAYOUT.cands.map((i) => "x" + LAYOUT.blocks[i].x).join(",")
+);
+check(
+  "the baseball is BIG enough to be SEEN on screen (radius 0.2, in the same size class as the 0.22 soccer ball)",
+  src.indexOf("const TEEBALL_R = 0.2;") >= 0 && /function makeBaseball\(\)\s*{\s*const g = new THREE\.Group\(\);\s*const R = 0\.2;/.test(src)
 );
 check(
   "ONE shared baseball, attached to the LEADER, added to the world exactly ONCE",
@@ -204,6 +293,10 @@ check(
   teeballCase.indexOf("B.vz = Math.abs(B.vz) * 0.4") >= 0 && teeballCase.indexOf("B.flying = false;") >= 0
 );
 check(
+  "a SETTLED ball stops DEAD (vx + vy zeroed with vz — the loose ball never slides out of the camera's view forever)",
+  /B\.vz = 0;\s*B\.vx = 0;\s*B\.vy = 0;/.test(teeballCase)
+);
+check(
   "no off-screen recycling (a fixed fixture of the block)",
   teeballCase.indexOf("break; // a fixed fixture: never recycles off-screen") >= 0
 );
@@ -257,8 +350,10 @@ function makeTeam() {
     parts: { upper: { position: { z: 0.62 } } },
     g: { rotation: { z: 0 } },
   });
-  const kids = [mkKid(100), mkKid(120), mkKid(140)];
-  const ball = { wx: 120, wy: 3, z: 0.55, vz: 0, vx: 0, vy: 0, tx: 120, ty: 3, flying: false };
+  // The COMPACT pitch the game spawns (TEEBALL_FIELD wide, kids ~6u apart at the block's middle)
+  const midX = 120;
+  const kids = [mkKid(midX - TEEBALL_FIELD / 3), mkKid(midX), mkKid(midX + TEEBALL_FIELD / 3)];
+  const ball = { wx: kids[1].wx, wy: 3, z: 0.55, vz: 0, vx: 0, vy: 0, tx: kids[1].wx, ty: 3, flying: false };
   const ballG = {
     position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
     userData: { core: { rotation: { y: 0 } } },
@@ -268,9 +363,9 @@ function makeTeam() {
     leader: kids[0],
     ball: ball,
     ballG: ballG,
-    minX: 90,
-    maxX: 150,
-    midX: 120,
+    minX: midX - TEEBALL_FIELD / 2,
+    maxX: midX + TEEBALL_FIELD / 2,
+    midX: midX,
     owner: kids[1],
     receiver: null,
     lastThrower: null,
@@ -298,20 +393,23 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const WORKER_GENDER = "male"; // the worker's voice gender (mirrors the game)
 const runCase = new Function(
   "c", "dt", "R", "GZ", "state", "p", "blocks",
-  "TEEBALL_WORKER_RANGE", "TEEBALL_WORKER_THROW_CD", "TEEBALL_PICKUP", "TEEBALL_R",
+  "TEEBALL_WORKER_RANGE", "TEEBALL_WORKER_THROW_CD", "TEEBALL_PICKUP", "TEEBALL_R", "TEEBALL_LOOSE",
   "hurtNPC", "doStun", "clamp", "Voice", "animParts", "WORKER_GENDER", "HP_HIT_TEEBALL",
   "switch (c.type) {" + teeballCase + "}"
 );
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker throws yet)
 const step = () =>
-  runCase(T.leader, 0.016, R, 0.3, "play", p, [], TEEBALL_WORKER_RANGE, TEEBALL_WORKER_THROW_CD, TEEBALL_PICKUP, TEEBALL_R, hurtNPC, doStun, clamp, Voice, animParts, WORKER_GENDER, HP_HIT_TEEBALL);
+  runCase(T.leader, 0.016, R, 0.3, "play", p, [], TEEBALL_WORKER_RANGE, TEEBALL_WORKER_THROW_CD, TEEBALL_PICKUP, TEEBALL_R, TEEBALL_LOOSE, hurtNPC, doStun, clamp, Voice, animParts, WORKER_GENDER, HP_HIT_TEEBALL);
 
 // ---- (a) warm sim: the trio really PLAYS CATCH (owner swaps, no NaNs) ----
 let simOk = true,
   simDetail = "",
   ownerChanges = 0,
-  sawReceiver = false;
+  sawReceiver = false,
+  maxSpread = 0,
+  maxBallDev = 0,
+  throwFrames = 0;
 let lastOwner = T.owner;
 try {
   for (let t = 0; t < 6000; t++) {
@@ -322,7 +420,7 @@ try {
         simDetail = "kid position not finite at t=" + t + " wx=" + k.wx + " wy=" + k.wy;
       }
       if (k === T.receiver) {
-        if (k.wx < T.minX - 2.0 || k.wx > T.maxX + 2.0) {
+        if (k.wx < T.minX - (TEEBALL_LOOSE + 0.5) || k.wx > T.maxX + (TEEBALL_LOOSE + 0.5)) {
           simOk = false;
           simDetail = "receiver out of reach band at t=" + t + " wx=" + k.wx.toFixed(2);
         }
@@ -340,6 +438,11 @@ try {
       simOk = false;
       simDetail = "ball not finite at t=" + t;
     }
+    // the trio's screen spread + how far the ball strays from the pitch (visibility)
+    const spread = Math.max(...T.kids.map((k) => k.wx)) - Math.min(...T.kids.map((k) => k.wx));
+    if (spread > maxSpread) maxSpread = spread;
+    maxBallDev = Math.max(maxBallDev, Math.abs(B.wx - T.midX), Math.abs(B.wy - 3));
+    if (B.flying) throwFrames++;
     if (T.owner !== lastOwner) ownerChanges++;
     lastOwner = T.owner;
     if (T.receiver) sawReceiver = true;
@@ -352,6 +455,24 @@ check("warm sim: 6000 frames of catch play without NaNs or out-of-band kids", si
 check("warm sim: ownership SWAPS between kids (real catch: they throw to each other)", ownerChanges >= 5, "ownerChanges=" + ownerChanges);
 check("warm sim: a loose ball gets RETRIEVED (the receiver flow ran) and play resumed", sawReceiver && (T.owner !== null || T.receiver !== null), "sawReceiver=" + sawReceiver);
 check("warm sim: worker far away => NO damage, no worker lines", hits.length === 0 && voiceCalls.every((v) => v.speaker !== "worker"));
+check(
+  "all 3 kids stay inside ONE camera frame on the compact pitch (spread + the loose-ball chase fits the screen)",
+  maxSpread <= TEEBALL_FIELD + 2 * TEEBALL_LOOSE + 1e-9,
+  "maxSpread=" + maxSpread.toFixed(2) + "u (pitch " + TEEBALL_FIELD + "u + " + TEEBALL_LOOSE + "u fence on each side; the camera sees ~22.6u of street at the 45° iso angle)"
+);
+check(
+  "THE FENCE: the ball is clamped to the pitch (x within the fence, y on the sidewalk), so a loose ball is always in view",
+  teeballCase.indexOf("B.wx < T.minX - TEEBALL_LOOSE || B.wx > T.maxX + TEEBALL_LOOSE") >= 0 &&
+    teeballCase.indexOf("B.wx = clamp(B.wx, T.minX - TEEBALL_LOOSE, T.maxX + TEEBALL_LOOSE);") >= 0 &&
+    teeballCase.indexOf("B.wy = clamp(B.wy, 2.0, 4.0);") >= 0 &&
+    teeballCase.indexOf("B.vx *= -0.35;") >= 0
+);
+check(
+  "the ball never strays off the pitch, so every catch stays in the worker's view",
+  maxBallDev <= TEEBALL_FIELD / 2 + TEEBALL_LOOSE + 0.5,
+  "maxBallDev=" + maxBallDev.toFixed(2) + "u from the pitch centre (pitch half-width " + TEEBALL_FIELD / 2 + "u + " + TEEBALL_LOOSE + "u fence)"
+);
+check("the trio really PLAYS (throws keep firing in the warm sim, not just walking)", throwFrames > 200, "throwFrames=" + throwFrames);
 // ---- (b) the worker enters range: the ball is thrown AT him + he says "Stop That!" ----
 T = makeTeam();
 p.wx = T.kids[1].wx + 4; // within TEEBALL_WORKER_RANGE of the owner

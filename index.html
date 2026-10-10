@@ -4020,7 +4020,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.461</div>
+          <div id="app-version" class="menu-version">v1.0.462</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4274,7 +4274,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.461';
+      const APP_VERSION = '1.0.462';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -18419,30 +18419,98 @@
         kp.remote = remote;
         return kp;
       }
-      // A little REAL baseball, resting radius 0.16 (centre at 0.16 above the
-      // ground so it sits ON the sidewalk). Cream sphere with the classic RED
-      // STITCH SEAMS: two curved red arcs (torus arcs) on opposite sides — the
-      // same outer-group/core pattern as the soccer ball so the roll spin is
-      // about the ball's CENTRE (the outer group is the ground contact point).
+      // A little REAL baseball, resting radius 0.2 (centre at 0.2 above the
+      // ground so it sits ON the sidewalk) — sized to read on screen next to a
+      // kid (the soccer ball is 0.22; a 0.16 ball was a dot nobody could see).
+      // Cream sphere with REAL baseball
+      // STITCHING: ONE closed FIGURE-EIGHT seam loop that winds all the way
+      // around the ball — the latitude rides a sine wave on the azimuth
+      // (lat = 1.45*sin(azimuth)), so the seam bulges over the top, wraps tight
+      // around the pole, runs down the side, wraps around the bottom pole and
+      // comes back to where it started. The polar view of this loop is the
+      // classic "8" seam pattern of a real ball (two lobes pinched at the eye
+      // tips), NOT a spiral and NOT a band round the middle. The loop carries
+      // its own row of short red CROSS-STITCH DASHES laid across the seam at a
+      // slant — the true stitched look up close. Same outer-group/core pattern
+      // as the soccer ball so the roll spin is about the ball's CENTRE (the
+      // outer group is the ground contact point).
       function makeBaseball() {
         const g = new THREE.Group();
-        const R = 0.16;
+        const R = 0.2;
         const core = new THREE.Group();
         core.position.z = R; // the ball CENTER sits R above the contact point
         const ball = SPH(R, M(0xf6f2e6));
         ball.castShadow = true;
         core.add(ball);
         const seamM = M(0xc0392b); // the red stitches
-        for (const tilt of [0.55, -0.55]) {
-          // one red seam arc, tilted about Z so the two arcs read as the twin
-          // stitching curves of a baseball (each hugs the surface at R)
-          const seam = new THREE.Mesh(
-            new THREE.TorusGeometry(R * 0.995, 0.011, 5, 20, Math.PI * 0.95),
-            seamM,
+        const SEAM_R = R * 1.004; // hug the sphere skin, just above it
+        // TWO leather panels wrap the ball; their shared border is the ONLY seam: one closed,
+        // smooth figure-eight loop (the spherical sine curve lat = TILT * sin(az)). It winds the
+        // globe with 2-fold symmetry and crosses the equator exactly twice, so the panel on one
+        // side of it is EXACTLY half the surface — the seam separates the ball into two equal
+        // shapes, exactly like the real leather pieces. TILT is how far the loop climbs toward
+        // each pole; the real ball's tilt is ~70 deg. At 70 deg the eye tips stop at radius 0.34*R,
+        // 0.072u apart: the 8 closes with ROUNDED tips that NEVER touch each other and NEVER
+        // pinch into a point. At the old 83 deg tilt the tips reached only 0.14*R, so the loop
+        // collapsed into a near-point.
+        const SEAM_TILT = 1.2217; // 70 deg: how far the seam climbs toward each pole
+        // THE seam: a closed figure-eight loop around the ball
+        function seamCurve() {
+          const pts = [];
+          const STEPS = 128; // dense enough for the tips to read as ROUNDED, not as corners
+          for (let i = 0; i < STEPS; i++) {
+            const lng = (i / STEPS) * Math.PI * 2;
+            const lat = SEAM_TILT * Math.sin(lng); // a smooth sine — never a corner
+            const rr = Math.cos(lat) * SEAM_R;
+            pts.push(
+              new THREE.Vector3(
+                rr * Math.cos(lng),
+                rr * Math.sin(lng),
+                Math.sin(lat) * SEAM_R,
+              ),
+            );
+          }
+          // CENTRIPETAL: the curve can never overshoot a control point, so the eye tips stay
+          // rounded and the loop never pinches into a point on its own
+          return new THREE.CatmullRomCurve3(pts, true, "centripetal");
+        }
+        const curve = seamCurve();
+        // the seam itself: a thin red tube tracing the closed 8 loop
+        const seam = new THREE.Mesh(
+          new THREE.TubeGeometry(curve, 150, 0.013, 5, true),
+          seamM,
+        );
+        seam.castShadow = true;
+        core.add(seam);
+        // the cross-stitch dashes: short stitches laid ACROSS the seam, slanted. The spacing is
+        // the loop length / DASHES (0.054u at 24 stitches) and each dash is 0.032 long, so EVERY
+        // pair of neighbours is left with a clear ~0.022u gap — stitches never touch each other.
+        const dashGeo = new THREE.BoxGeometry(0.032, 0.009, 0.0075); // scaled with the 0.2 ball
+        const DASHES = 24; // 24 visible stitches around the loop (a real ball runs 108 pairs)
+        for (let dI = 0; dI < DASHES; dI++) {
+          const t = dI / DASHES;
+          const p = curve.getPointAt(t);
+          const nrm = p.clone().normalize(); // out of the ball's surface
+          const tan = curve.getTangentAt(t).normalize(); // along the seam
+          const across = new THREE.Vector3()
+            .crossVectors(tan, nrm)
+            .normalize(); // across the seam
+          const slant = 0.42; // a real stitch runs at a slight angle, not square
+          const dir = across
+            .clone()
+            .multiplyScalar(Math.cos(slant))
+            .add(tan.clone().multiplyScalar(Math.sin(slant)))
+            .normalize();
+          const dash = new THREE.Mesh(dashGeo, seamM);
+          dash.position.copy(p).multiplyScalar(1.011);
+          dash.quaternion.setFromRotationMatrix(
+            new THREE.Matrix4().makeBasis(
+              dir,
+              nrm,
+              new THREE.Vector3().crossVectors(dir, nrm).normalize(),
+            ),
           );
-          seam.rotation.z = tilt;
-          seam.rotation.x = Math.PI / 2; // the torus is built in XY; stand it up so the arc runs OVER the top
-          core.add(seam);
+          core.add(dash);
         }
         g.add(core);
         g.userData.core = core; // the update loop spins THIS (the ball's centre)
@@ -25767,7 +25835,9 @@
         // The Staten Island TEE-BALL CATCH KIDS (New Dorp, day 5): THREE small kids in
         // DIFFERENT colored shirts, really playing CATCH with ONE baseball on ONE
         // random block — a block that is NOT the car-wash block (Block 2) and NOT the
-        // chalk crime-scene block (Block 3). They throw the ball back and forth to
+        // chalk crime-scene block (Block 3), and ALWAYS an ACTIVE block the worker
+        // services, so the trio is never parked behind the start or past the finish
+        // where nobody can see them. They throw the ball back and forth to
         // each other; when the worker gets close (TEEBALL_WORKER_RANGE) a kid hurls
         // it right AT him (a ball hit = HP_HIT_TEEBALL + "Stop That!" from the
         // worker) and bumping a kid hurts the WORKER ("Don't touch me!" / "You
@@ -25778,12 +25848,20 @@
         // (AVOID_TYPES.teeball). The leader kid's tick simulates the whole team
         // (c.team); the write-up reads "Dereliction of Tee-Ball Duty".
         if (isStatenIslandLevel()) {
-          // random block, EXCLUDING Block 2 (the car wash, index 1) and Block 3
-          // (the chalk crime scene, index 2) — the kids keep their own street
-          const tbCands = LEVEL_BLOCKS.filter((b, i) => i !== 1 && i !== 2);
-          const tbBlock = tbCands[(Math.random() * tbCands.length) | 0];
-          const tMinX = tbBlock.x + TEEBALL_MARGIN; // play the WHOLE block, edge to edge
-          const tMaxX = tbBlock.x + BLOCK_W - TEEBALL_MARGIN;
+          // A GUARANTEED in-route block: ACTIVE_BLOCK_IDX is the list of blocks the
+          // worker actually services (the start buffer Block 1 and the finish buffer
+          // Block 6 can NEVER be picked, no matter how long the route is), minus
+          // Block 2 (the car wash, index 1) and Block 3 (the chalk scene, index 2)
+          // — the kids keep their own street.
+          const tbCands = ACTIVE_BLOCK_IDX.filter((i) => i !== 1 && i !== 2);
+          const tbBlock = LEVEL_BLOCKS[tbCands[(Math.random() * tbCands.length) | 0]];
+          // The pitch sits at the block's MIDDLE and is only TEEBALL_FIELD wide, so all THREE
+          // kids + the ball stay inside the camera's frame (a full-block spread showed the worker
+          // only 2 kids and every toss flew off-screen). The field is clamped inside the block's
+          // cross-streets by TEEBALL_MARGIN.
+          const tbMid = clamp(tbBlock.x + BLOCK_W / 2, tbBlock.x + TEEBALL_MARGIN + TEEBALL_FIELD / 2, tbBlock.x + BLOCK_W - TEEBALL_MARGIN - TEEBALL_FIELD / 2);
+          const tMinX = tbMid - TEEBALL_FIELD / 2; // kids ~6u apart — a real, visible catch game
+          const tMaxX = tbMid + TEEBALL_FIELD / 2;
           // three DISTINCT shirt colors — they're a little GROUP playing together
           const tShirts = [];
           while (tShirts.length < 3) {
@@ -29112,7 +29190,16 @@
       const TEEBALL_WORKER_RANGE = 10; // this close, the kid throws the ball AT the worker
       const TEEBALL_PICKUP = 2.2; // a loose ball this close to a kid gets caught / picked up (a kid is still jogging, so the window must be forgiving)
       const TEEBALL_WORKER_THROW_CD = 3.5; // min gap between throws aimed at the worker (no spam)
-      const TEEBALL_R = 0.16; // the baseball's radius — spin rate = ground speed / R (no-slip rolling)
+      const TEEBALL_R = 0.2; // the baseball's radius — spin rate = ground speed / R (no-slip rolling).
+      // Sized like the soccer ball (0.22) so the ball is ACTUALLY SEEN on screen: at 540p the
+      // orthographic camera maps ~60 px per world unit, so 0.4 diameter ≈ 24 px.
+      const TEEBALL_FIELD = 18; // the trio's PLAY FIELD — a compact pitch at the block's MIDDLE.
+      // The camera sees only ~16 world units, so a trio spread across a full 80u block puts the
+      // kids a screen apart (the worker only ever sees 2 of them) and every catch toss sails out
+      // of view. Kids ~6u apart stay in frame together with the ball and every throw.
+      const TEEBALL_LOOSE = 2; // how far a loose ball may leave the pitch — the fence line. A toss
+      // that would sail further hits the fence and drops inside, so the chasing kid never runs out
+      // of the camera's frame (and never into the road).
       const TEEBALL_MARGIN = 5; // keep the catch game a hair inside the block's cross-streets
       // ---- Staten Island RC MONSTER TRUCK (a kid on the sidewalk drives a Gravedigger-
       // style mini monster truck with a tall antenna; it zips the front lawns / sidewalk /
@@ -38003,6 +38090,11 @@
                   B.vz = Math.abs(B.vz) * 0.4; // damped bounce on the sidewalk
                   if (B.vz < 0.4) {
                     B.vz = 0;
+                    B.vx = 0;
+                    B.vy = 0; // GROUND FRICTION: a settled ball stops DEAD. Zeroing only vz
+                    // left the horizontal velocity alive, so ballMoving stayed true and the
+                    // loose ball slid across the street forever — dragging the chasing kid
+                    // (and the whole trio) right out of the camera's view.
                     B.flying = false; // settled — it's a loose ball now
                   }
                 }
@@ -38046,7 +38138,7 @@
                     const bx = B.wx - o.wx,
                       by = B.wy - o.wy;
                     const d = Math.hypot(bx, by);
-                    const min = 0.66; // ball 0.16 + box solid reach ~0.5
+                    const min = 0.7; // ball 0.2 + box solid reach ~0.5
                     if (d >= min || d < 1e-4) continue;
                     B.wx = o.wx + (bx / d) * min;
                     B.wy = o.wy + (by / d) * min;
@@ -38058,6 +38150,20 @@
                       B.vy -= 1.55 * vn * ny;
                     }
                   }
+                }
+                // === THE PITCH (the fence line) ===: the ball stays ON the pitch. A toss that
+                // would sail past the field's edge hits the fence and drops inside, and the ball
+                // never rolls into the asphalt — so a loose ball is ALWAYS retrievable inside the
+                // camera's frame and the chasing kid never runs off into the road.
+                const fenceX = B.wx < T.minX - TEEBALL_LOOSE || B.wx > T.maxX + TEEBALL_LOOSE;
+                const fenceY = B.wy < 2.0 || B.wy > 4.0;
+                if (fenceX) {
+                  B.wx = clamp(B.wx, T.minX - TEEBALL_LOOSE, T.maxX + TEEBALL_LOOSE);
+                  B.vx *= -0.35; // it knocks the fence and drops short
+                }
+                if (fenceY) {
+                  B.wy = clamp(B.wy, 2.0, 4.0); // the sidewalk band — no ball in the road
+                  B.vy *= -0.35;
                 }
               }
               // --- CATCH / pickup: a low ball within reach of a kid = new owner ---
