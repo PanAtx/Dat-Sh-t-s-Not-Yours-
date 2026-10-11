@@ -636,16 +636,16 @@ const s5Haz = [];
 for (const r of S2_BLOCKS) for (const h of r.hazards) s5Haz.push(h);
 const kindCount = (t) => s5Haz.filter((h) => h.type === t).length;
 const s5Arms = kindCount('ghostarm'), s5Stones = kindCount('ghoststone');
-check('EVERY active block gets its grave yard: arms ' + s5Arms + ', headstones ' + s5Stones +
+check('THE GRAVE YARD IS GONE off the haunted shift: arms ' + s5Arms + ', headstones ' + s5Stones +
   ', skull piles ' + kindCount('skullpile') + ', bare hands ' + kindCount('ghosthand'),
-  s5Arms >= 12 && s5Stones >= 12 && kindCount('skullpile') >= 8 && kindCount('ghosthand') >= 5);
-check('the flood block is a YARD: grave candles, open coffins and an iron gate too',
-  kindCount('candle') >= 5 && kindCount('coffin') >= 5 && kindCount('irongate') >= 1);
-check('every exorcisable prop carries its MESH on the hazard record (the shovel needs it)',
-  s5Haz.length > 0 && s5Haz.every((h) => !!h.g && SHOVELABLE_HAZARDS[h.type] === 1));
+  s5Arms === 0 && s5Stones === 0 && kindCount('skullpile') === 0 && kindCount('ghosthand') === 0);
+check('the flood block is no yard either: no grave candles, no open coffins, no iron gates',
+  kindCount('candle') === 0 && kindCount('coffin') === 0 && kindCount('irongate') === 0);
+check('and the seeded street carries NO prop hazards at all (nothing to bump into)',
+  s5Haz.length === 0);
 check('the hazards hang off the world block records (the ones the worker collides with)',
   S2_IDX.every((i) =>
-    S2_BLOCKS.some((r) => r.blockX === S2_LAYOUT[i].x && (r.hazards || []).length >= 10)
+    S2_BLOCKS.some((r) => r.blockX === S2_LAYOUT[i].x && (r.hazards || []).length === 0)
   ));
 check('...and NOT on the LEVEL_BLOCKS route knob (that array has no hazards at all)',
   S2_LAYOUT.every((b) => b.hazards === undefined));
@@ -664,12 +664,10 @@ check('the roster cap bounds the horde (' + H.nightHorrorLive() + ' live, cap ' 
   H.nightHorrorLive() <= HORROR_ROSTER_CAP);
 const bandOfX = (x) => (x >= 380 ? 'flood' : x >= 280 ? 'b3' : x >= 180 ? 'b2' : x >= 80 ? 'b1' : 'off');
 const ghostIn = (b) => allSpawned.filter((c) => c.type === 'ghost' && bandOfX(c.wx) === b).length;
-check('THE SPIRITS are thin scenery, not a wall: ' + count('ghost') + ' ghosts on slots inside the blocks',
-  count('ghost') >= 9 && count('ghost') <= NIGHT_GHOST_CAP);
-check('every block has its ghost columns, and the graveyard block carries the heaviest share',
-  ghostIn('b1') >= 2 && ghostIn('b2') >= 2 &&
-  ghostIn('b3') >= 2 && ghostIn('flood') >= HORROR_QUOTA_FLOOD.ghost &&
-  ghostIn('flood') > ghostIn('b2'));
+check('THE SPIRITS ARE OFF THE LEVEL: ' + count('ghost') + ' ghosts seeded on the whole route (cap ' + NIGHT_GHOST_CAP + ')',
+  count('ghost') === 0 && NIGHT_GHOST_CAP === 0);
+check('no band of the route has a single ghost column (the slot grid stands the family down)',
+  ghostIn('b1') === 0 && ghostIn('b2') === 0 && ghostIn('b3') === 0 && ghostIn('flood') === 0);
 check('no spirit is parked off the route',
   allSpawned.filter((c) => c.type === 'ghost').every((c) => c.wx >= 90 && c.wx <= 474));
 check('the night spawner adds the EXTRA manhole tentacles (' + count('zombieArm') + '; Sunday\'s own still spawns — the block is Bed-Stuy)',
@@ -711,11 +709,10 @@ check('the block he STARTS in has its full 9 ghouls (plus the whole roster behin
   keyAt([96, 176], 'ghoul') >= HORROR_QUOTA.ghoul, 'ghouls=' + keyAt([96, 176], 'ghoul'));
 check('no active block is quiet: ghouls stand in EVERY band the route walks through',
   S2_IDX.every((i) => keyAt([S2_LAYOUT[i].x, S2_LAYOUT[i].x + 80], 'ghoul') >= 1));
-check('the spirits are on their slots too (the street, the curb line AND the walk) — THIN: ' +
+check('the LIVE HAUNT never refills a spirit either: ' +
   creatures.filter((c) => c.type === 'ghost').length + ' ghosts, cap ' + NIGHT_GHOST_CAP,
-  creatures.filter((c) => c.type === 'ghost').length >= 9 &&
-    creatures.filter((c) => c.type === 'ghost').length <= NIGHT_GHOST_CAP + 3 &&
-    [1, 0, -1].every((z) => creatures.filter((c) => c.type === 'ghost' && c.zone === z).length >= 2));
+  creatures.filter((c) => c.type === 'ghost').length === 0 &&
+    [1, 0, -1].every((z) => creatures.filter((c) => c.type === 'ghost' && c.zone === z).length === 0));
 // --- shovel 1 spook every 1.2s and walk the route: the horde must NOT run out ---
 let banishEvery = 72, frame = 0, minHere = 999, spawnBehind = 0, peakLive = 0, peakScreen = 0;
 let floodGhoulsAtEnd = 0, surgeAnnounced = false, surgeFired = false, waveTier = 0, behindSample = '-', scanned = 0;
@@ -1273,11 +1270,20 @@ check('the frenzy still SCORES (loud in points, silent in text)',
   scored.filter(s => s.n === SHOVEL_POINTS).length >= 30);
 s7Reset();
 console.log('\n[13] LESS SPIRIT CLUTTER, AND THE PACK WALKS THE WHOLE WIDTH OF THE BLOCK');
-check('the NON-ATTACKING spirits are cut way down: cap ' + NIGHT_GHOST_CAP +
-  ' on the whole route (was 45), quota ' + HORROR_QUOTA.ghost + ' a block, flood ' +
-  HORROR_QUOTA_FLOOD.ghost + ', ' + NIGHT_GHOST_SLOTS + ' slots, ' + NIGHT_GHOST_FILL + ' per fill',
-  NIGHT_GHOST_CAP <= 16 && HORROR_QUOTA.ghost <= 4 && HORROR_QUOTA_FLOOD.ghost <= 8 &&
-    NIGHT_GHOST_SLOTS <= 27 && NIGHT_GHOST_FILL <= 3);
+check('THE NON-ATTACKING SPIRITS ARE REMOVED: cap ' + NIGHT_GHOST_CAP + ', quota ' +
+  HORROR_QUOTA.ghost + ', flood ' + HORROR_QUOTA_FLOOD.ghost + ', wave ceiling ' + HORROR_QUOTA_CEIL.ghost +
+  ', ' + NIGHT_GHOST_FILL + ' per fill — and the grave yard with them (props ' +
+  Object.keys(NIGHT_PROP_QUOTA).map((k) => NIGHT_PROP_QUOTA[k]).join('/') + ' / ' +
+  Object.keys(NIGHT_PROP_QUOTA_FLOOD).map((k) => NIGHT_PROP_QUOTA_FLOOD[k]).join('/') + ')',
+  NIGHT_GHOST_CAP === 0 && HORROR_QUOTA.ghost === 0 && HORROR_QUOTA_FLOOD.ghost === 0 &&
+    HORROR_QUOTA_CEIL.ghost === 0 && NIGHT_GHOST_FILL === 0 &&
+    Object.keys(NIGHT_PROP_QUOTA).every((k) => NIGHT_PROP_QUOTA[k] === 0) &&
+    Object.keys(NIGHT_PROP_QUOTA_FLOOD).every((k) => NIGHT_PROP_QUOTA_FLOOD[k] === 0) &&
+    /if \(NIGHT_GHOST_CAP <= 0\) return null;/.test(srcFn('spawnNightGhost')));
+check('...while the SHOVEL KIT and the exorcisable kinds stay intact (the cemetery keeps them,\n  the spooks still get digged out, and hand-placed props behave exactly as before)',
+  SHOVELABLE_HAZARDS.ghoststone === 1 && SHOVELABLE_HAZARDS.ghostarm === 1 &&
+    SHOVELABLE_HAZARDS.skullpile === 1 && SHOVELABLE_HAZARDS.irongate === 1 &&
+    HORROR_PROP_NAMES.ghoststone === 'HEADSTONE' && NIGHT_GHOST_SLOTS > 0);
 check('the ATTACKERS keep their density (9 ghouls a block, flood 14) — the fight is the crowd',
   HORROR_QUOTA.ghoul >= 9 && HORROR_QUOTA_FLOOD.ghoul >= 14 && NIGHT_GHOUL_MIN >= 7);
 check('the road (y ' + HORROR_STREET_Y + ') and the front lawn (y ' + HORROR_LAWN_Y +
@@ -1315,8 +1321,8 @@ for (let i = 0; i < 60 * 60; i++) {
 }
 check('after a 60s walk the pack stands in the ROAD, on the CURB, on the WALK and on the LAWN',
   inStreet === 1 && inCurb === 1 && inWalk === 1 && inLawn === 1);
-check('the spirits never crowd the screen: peak ' + peakGhosts + ' on the route (cap ' + NIGHT_GHOST_CAP + ')',
-  peakGhosts <= NIGHT_GHOST_CAP + 4);
+check('the 60s walk never meets a spirit: peak ' + peakGhosts + ' ghosts on the route',
+  peakGhosts === 0);
 check('the Maspeth ghost numbers are UNTOUCHED (75 slots, cap 45, its own grid)',
   html.includes('const GHOST_SLOTS = 75') && html.includes('const GHOST_CAP = 45'));
 s7Reset();
