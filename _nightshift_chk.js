@@ -125,7 +125,7 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const GZ = 0.3, CURB_LIFT = 0.05;
 const ROUTE_START_X = 0, ROUTE_FINISH_X = 500, ROUTE_END_X = 520, PLAYER_START_X = 6;
-const SHOVEL_POINTS = 250, HORROR_SPOOK_TARGET = 14, GARGOYLE_VALUE = 5000;
+const SHOVEL_POINTS = srcNum('SHOVEL_POINTS'), HORROR_SPOOK_TARGET = 14, GARGOYLE_VALUE = 5000;
 const HORROR_SEE_R = 13, HORROR_TOUCH_CD = 1.5, SHOVEL_REACH = 3.4;
 const SHOVEL_SWING_DUR = 0.3, SHOVEL_COOLDOWN = 0.42, HORROR_FLY_DUR = 0.85;
 const GARGOYLE_CAMP_X_OFF = 9;
@@ -1265,6 +1265,52 @@ check('the spirits never crowd the screen: peak ' + peakGhosts + ' on the route 
   peakGhosts <= NIGHT_GHOST_CAP + 4);
 check('the Maspeth ghost numbers are UNTOUCHED (75 slots, cap 45, its own grid)',
   html.includes('const GHOST_SLOTS = 75') && html.includes('const GHOST_CAP = 45'));
+s7Reset();
+
+console.log('\n[14] THE PAY SCALE: banishments are small change, so POWER-UPS stay a grind');
+const MONSTER_SCORE_STEP = srcNum('MONSTER_SCORE_STEP');
+const POWERUP_CASH_STEP = srcNum('POWERUP_CASH_STEP');
+check('a banishment pays ' + SHOVEL_POINTS + ' (was 250), grave furniture ' + SHOVEL_PROP_POINTS +
+  ' (was 150), a Shovel Triad ' + TRIAD_POINTS + ' (was 2500)',
+  SHOVEL_POINTS <= 25 && SHOVEL_PROP_POINTS <= 10 && TRIAD_POINTS <= 250 &&
+    SHOVEL_POINTS >= 10 && SHOVEL_POINTS * 10 === 250 && TRIAD_POINTS === SHOVEL_POINTS * 10);
+check('the night\'s par (' + HORROR_SPOOK_TARGET + ' spooks) is ' + (HORROR_SPOOK_TARGET * SHOVEL_POINTS) +
+  ' CASH — the shovel alone cannot buy a Red Bull',
+  HORROR_SPOOK_TARGET * SHOVEL_POINTS < MONSTER_SCORE_STEP / 10);
+check('a Red Bull (Run It Up) costs ' + MONSTER_SCORE_STEP + ' SCORE = ' +
+  Math.round(MONSTER_SCORE_STEP / SHOVEL_POINTS) + ' banishments: NOT free, NOT impossible',
+  MONSTER_SCORE_STEP / SHOVEL_POINTS >= 400 && MONSTER_SCORE_STEP / SHOVEL_POINTS <= 3000);
+check('a street-cash healer drops every ' + POWERUP_CASH_STEP + ' = ' +
+  Math.round(POWERUP_CASH_STEP / SHOVEL_POINTS) + ' banishments (the milestones are UNTOUCHED)',
+  POWERUP_CASH_STEP >= 3000 && POWERUP_CASH_STEP <= 8000 &&
+    POWERUP_CASH_STEP / SHOVEL_POINTS >= 100);
+check('a CLEANSED FLOOD BLOCK (the ' + HORROR_QUOTA_FLOOD.ghoul + ' ghouls + the reaper) pays ' +
+  ((HORROR_QUOTA_FLOOD.ghoul + 2) * SHOVEL_POINTS) + ' — a fraction of one milestone',
+  (HORROR_QUOTA_FLOOD.ghoul + 2) * SHOVEL_POINTS < MONSTER_SCORE_STEP / 5);
+// >>> TEMP: the test build starts on MIDNIGHT (flip START_LEVEL back to 1 for release) <<<
+check('TEMP TEST BUILD: the week starts on the MIDNIGHT level (flagged, one line to flip back)',
+  /const START_LEVEL = NIGHT_LEVEL;/.test(html) && /TEMP TEST BUILD/.test(html));
+// --- SIM: a full haunted route of banishments = how much score, really? ---
+s7Reset();
+onScreen = true;
+p.wx = 100; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
+scored.length = 0;
+let kills = 0;
+for (let i = 0; i < 60 * 90; i++) {
+  p.wx = Math.min(452, p.wx + 3.2 / 60);
+  H.updateNightHaunt(1 / 60);
+  for (let k = creatures.length - 1; k >= 0; k--) {
+    const c = creatures[k];
+    if (!c.hooked) continue;
+    H.shovelFlight(c, 1 / 60);
+    if (c.hookLanded) { creatures.splice(k, 1); kills++; }
+  }
+  if (i % 26 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.tryShovelSwing(); }
+}
+const loot = scored.reduce((a, s) => a + s.n, 0);
+check('90s of hard shovelling: ' + kills + ' banishments = ' + loot + ' CASH — ' +
+  (loot / MONSTER_SCORE_STEP * 100).toFixed(1) + '% of ONE Red Bull milestone',
+  kills >= 40 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS);
 s7Reset();
 
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));

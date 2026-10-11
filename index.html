@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.464</div>
+          <div id="app-version" class="menu-version">v1.0.465</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.464';
+      const APP_VERSION = '1.0.465';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5197,7 +5197,10 @@
       // starts treating Sunday as haunted.
       const NIGHT_LEVEL = LEVEL_DAYS.findIndex(function (d) { return !!d.night; }) + 1;
 
-      const START_LEVEL = 1; // which day a fresh week begins on (1 = Monday, Manhattan) — the full Mon..Sun week, fine-tuned level by level
+      // >>> TEMP TEST BUILD: the game STARTS ON THE MIDNIGHT (haunted) LEVEL so the night
+      // >>> shift can be playtested without walking the whole week. Set this back to 1
+      // >>> (Monday) for the release build — everything else is untouched.
+      const START_LEVEL = NIGHT_LEVEL; // which day a fresh week begins on — TEMP: 8 = MIDNIGHT
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -24962,7 +24965,10 @@
       const SHOVEL_REACH = 3.4; // how far the swing lands, measured from the worker
       const SHOVEL_SWING_DUR = 0.3; // the swipe itself (p.shovelT, animated in updatePlayer)
       const SHOVEL_COOLDOWN = 0.42; // ...and how soon he can swing again
-      const SHOVEL_POINTS = 250; // per spook packed into the hopper (the Bed-Stuy board pays 2x)
+      const SHOVEL_POINTS = 25; // per spook packed into the hopper — a BANISHMENT IS SMALL CHANGE
+      // now (was 250): the horde is worth hundreds of kills, and shovel money must not buy the
+      // week's power-ups by itself. The Red Bull milestone is 30,000 SCORE and the healer
+      // milestone 5,000 STREET CASH, so 25 a spook keeps the haunted street a real grind.
       const HORROR_FLY_DUR = 0.85; // the arc from the shovel to the hopper scoop
       const HORROR_SEE_R = 13; // a spook notices the worker this close (and ONLY while on screen)
       const HORROR_SPOOK_TARGET = 14; // the shift-report par for one haunted night
@@ -25002,11 +25008,11 @@
       const CONS_ARC_TARGETS = 3;
       const CONS_ARC_COS = Math.cos(1.15); // ±66° off the facing for the consecrated arc
       const TRIAD_WINDOW = 4;
-      const TRIAD_POINTS = 2500;
+      const TRIAD_POINTS = 250; // three banishments inside the window: a 10x kicker, nothing more
       const FLINCH_R = 3.0;
       const FLINCH_T = 0.6;
       const FLINCH_SP = 0.45; // a flinching spook moves at 55% speed
-      const SHOVEL_PROP_POINTS = 150; // grave furniture packed into the eco-pail
+      const SHOVEL_PROP_POINTS = 10; // grave furniture packed into the eco-pail (small change too)
       const SHOCKWAVE_R = 6.8; // a consecrated landing shakes the street (a spook scatters)
       // The graveyard furniture a shovel can dig out and bin. On Maspeth these are the solid
       // walls of the cemetery; on THIS level they exorcise.
