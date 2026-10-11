@@ -46,6 +46,8 @@ const suites = [
   ['standing NPCs never spawned in leaf shade + flush heavy-bag twist-tie', 'node', '_npc_sight_chk.js'],
   ['guaranteed-clear stand: no hooker/jacker/panhandler keeps a spot under a crown', 'node', '_npc_clear_chk.js'],
   ['THE NIGHT SHIFT (the haunted level after Sunday: emptied street, shovel, ecoplasm hopper, gargoyle heist)', 'node', '_nightshift_chk.js'],
+  ['MIDNIGHT BOOT (the playtest build starts on the haunted shift with NO trainer menu)', 'node', '_midnight_boot_chk.js'],
+  ['THE MIDNIGHT LOOK (moonlit darkness, street lamps, lit windows, retro-reflective hi-vis)', 'node', '_midnight_look_chk.js'],
 ];
 
 let allPass = true;

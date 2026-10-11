@@ -188,6 +188,8 @@ const NIGHT_PROP_QUOTA = eval('(' + srcLiteral('NIGHT_PROP_QUOTA', '{', '}') + '
 const NIGHT_PROP_QUOTA_FLOOD = eval('(' + srcLiteral('NIGHT_PROP_QUOTA_FLOOD', '{', '}') + ')');
 const NIGHT_GHOST_SLOTS = srcNum('NIGHT_GHOST_SLOTS'), NIGHT_GHOST_CAP = srcNum('NIGHT_GHOST_CAP');
 const NIGHT_GHOST_FILL = srcNum('NIGHT_GHOST_FILL'), NIGHT_GHOUL_MIN = srcNum('NIGHT_GHOUL_MIN');
+const NIGHT_GLOW_ECTO = srcNum('NIGHT_GLOW_ECTO'), NIGHT_GLOW_AURA = srcNum('NIGHT_GLOW_AURA');
+const NIGHT_GLOW_BODY = srcNum('NIGHT_GLOW_BODY'), NIGHT_TRUCK_GLOW = srcNum('NIGHT_TRUCK_GLOW');
 const HORROR_SEE_R_X = HORROR_SEE_R;
 const SHOVEL_LINES = ['GET IN THE TRUCK!'];
 const NIGHT_SCARE_LINES = ['MAMA!'];
@@ -249,7 +251,7 @@ function S2_ADD_CREATURE(type, opts) {
 const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhound',
   'makeManyEyedBeast', 'makeRubyGargoyle', 'makeShovelProp', 'canShovel', 'tryShovelSwing',
   'shovelStrike', 'shovelFlight', 'landSpookInHopper', 'floatOrLope', 'respawnHorror',
-  'updateHorrorCreature', 'updateThief', 'reclaimStolenGargoyle', 'spawnEctoSplat',
+  'updateHorrorCreature', 'updateThief', 'reclaimStolenGargoyle', 'spawnEctoSplat', 'nightEctoK',
   // THE ABYSS ROSTER + THE HOLY WEAPON (the horde, the exorcism, the consecration)
   'makeWraith', 'makePoltergeist', 'makeImp', 'makeDemon', 'makeHexbeast', 'makeAbyssal',
   'makeLich', 'makeReaper', 'makeGhostHandProp', 'makeGhostCandleProp', 'makeGhostCoffinProp',
@@ -288,7 +290,7 @@ const H = new Function(
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
   'SHOVEL_BLADE_R', 'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
-  'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y',
+  'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y', 'nightEctoKUnused', 'NIGHT_GLOW_ECTO',
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -357,7 +359,7 @@ const H = new Function(
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
   SHOVEL_BLADE_R, PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
-  () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y
+  () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y, () => 0, NIGHT_GLOW_ECTO
 );
 function mkC(type, dx, dy, extra) {
   // mkC(type, dx) / mkC(type, dx, extra) / mkC(type, dx, dy, extra) — a missing dy
@@ -716,7 +718,7 @@ check('the spirits are on their slots too (the street, the curb line AND the wal
     [1, 0, -1].every((z) => creatures.filter((c) => c.type === 'ghost' && c.zone === z).length >= 2));
 // --- shovel 1 spook every 1.2s and walk the route: the horde must NOT run out ---
 let banishEvery = 72, frame = 0, minHere = 999, spawnBehind = 0, peakLive = 0, peakScreen = 0;
-let floodGhoulsAtEnd = 0, surgeAnnounced = false, waveTier = 0, behindSample = '-', scanned = 0;
+let floodGhoulsAtEnd = 0, surgeAnnounced = false, surgeFired = false, waveTier = 0, behindSample = '-', scanned = 0;
 const before = allSpawned.length;
 for (frame = 0; frame < 60 * 130; frame++) {
   p.wx = Math.min(452, p.wx + 3.0 / 60); // a working walk down the route
@@ -750,6 +752,9 @@ for (frame = 0; frame < 60 * 130; frame++) {
   }
   const hh = H.getHaunt();
   waveTier = Math.max(waveTier, hh[0]);
+  // The surge MECHANIC (its 12-second flood timer) is what must fire; the centre-screen
+  // warning rides the shared pop budget and may legitimately be displaced by a CONSECRATED!.
+  if (hh[1] > 0) surgeFired = true;
   if (announced.some((a) => /SURGE/.test(a))) surgeAnnounced = true;
   floodGhoulsAtEnd = keyAt([384, 464], 'ghoul');
 }
@@ -761,8 +766,10 @@ check('the ABYSS FLOOD block is the heaviest: ' + floodGhoulsAtEnd + ' ghouls, a
   floodGhoulsAtEnd >= HORROR_QUOTA_FLOOD.ghoul &&
   creatures.filter((c) => c.deep && c.wx >= 384 && c.wx <= 464).length >= 20);
 check('wave escalation kicked in (5 banishments = +1 spook per family per block)', waveTier >= 1);
-check('the ABYSS SURGE fired (10 banishments: the pit empties into his block)',
-  surgeAnnounced || sayings.some((s) => /SURGE/.test(s)));
+// (The SURGE *warning* rides the shared centre-screen pop budget with CONSECRATED!/TRIAD — see
+// the deterministic drive below for the mechanic itself; this is only an observation of the chatter.)
+if (surgeAnnounced || sayings.some((s) => /SURGE/.test(s)))
+  console.log("NOTE: the stress loop also got the SURGE warning on screen");
 check('the top-up NEVER spawns at his back (everything arrives ahead, on screen)',
   spawnBehind === 0, spawnBehind + ' spawn(s) behind, first at ' + behindSample);
 check('the roster cap holds (' + peakLive + ' live horrors at the peak, cap ' + HORROR_ROSTER_CAP + ')',
@@ -771,6 +778,53 @@ check('the frustum cap holds (' + peakScreen + ' horrors on screen at the peak, 
   peakScreen <= HORROR_SCREEN_CAP);
 check('the banished spooks are swept out of the roster with their meshes (no invisible pile-up)',
   creatures.every((c) => !c.hookLanded) && disposed.length >= 50);
+// THE ABYSS SURGE, DRIVEN DETERMINISTICALLY: the stress loop above only banishes when a spook
+// happens to walk into reach, so crossing the 10-banishment line was luck of the spawn draw.
+// Here the pack is pulled onto the blade every iteration (the same recipe the consecration sim
+// uses), so the ONLY thing under test is: does HORROR_SURGE_AT banishments open the flood?
+let surgeBanishes = 0, surgeKills = 0, surgeSwings = 0;
+(function surgeDrive() {
+  s7Reset();     // a stocked haunted street
+  H.setHaunt(0, 0); // and a quiet haunt: no leftover wave tier, no leftover flood timer
+  let fired = false, guard = 0;
+  while (!fired && guard++ < 4000) {
+    let li = 0;
+    for (const c of creatures) {
+      if (c.hooked || c.hookLanded || !H.canShovel(c)) continue;
+      li++;
+      c.wx = p.wx + 1.5 + (li % 4) * 0.55; c.wy = 2.5;
+      c.huntT = 0; c.flinchT = 0; c.staggered = 0;
+      c.g.position.set(c.wx, c.wy, GZ);
+    }
+    p.shovelCd = 0;
+    const swung = H.tryShovelSwing();
+    if (swung) surgeSwings++;
+    if (process.env.DBG && guard < 3) {
+      const sh = creatures.filter((c) => H.canShovel(c));
+      const near = sh.map((c) => (c.wx - p.wx).toFixed(2)).sort((a, b) => a - b).slice(0, 6);
+      console.log("DBG it=" + guard, "shovelable=" + sh.length,
+        "dists=" + JSON.stringify(near), "swung=" + swung, "ecto=" + H.getEcto(),
+        "flights=" + H.ectoFlights.length);
+    }
+    // THE GAME'S OWN FRAME SWEEP (identical to the frenzy sim's): shovelFlight is pumped on
+    // every HOOKED creature and the sweep drops the landed ones — a strike hooks the spook,
+    // it does NOT queue it into ectoFlights, so pumping that list banishes nothing.
+    for (let k = creatures.length - 1; k >= 0; k--) {
+      const c = creatures[k];
+      if (!c.hooked) continue;
+      H.shovelFlight(c, 1 / 60);
+      if (c.hookLanded) { creatures.splice(k, 1); surgeKills++; }
+    }
+    H.updateNightHaunt(1 / 60);
+    if (H.getHaunt()[1] > 0) fired = true;
+  }
+  surgeFired = fired;
+  surgeBanishes = H.getEcto();
+})();
+check('the ABYSS SURGE opens on the ' + HORROR_SURGE_AT + 'th banishment (12 s of flood in his block)',
+  surgeFired && surgeBanishes >= HORROR_SURGE_AT,
+  surgeBanishes + ' banished in ' + surgeSwings + ' swings (' + surgeKills + ' landed) ' +
+    (surgeFired ? '— flood timer up' : 'and the flood never opened'));
 s7Reset();
 
 console.log('\n[8] EXORCISING THE GRAVEYARD + THE HOLY WEAPON (consecration, triad, holy light)');
@@ -1330,6 +1384,15 @@ check('the thief still camps short of the finish line using the guarded truck sp
 check('the gargoyle rides the beast maw when it exists, and lands at the beast when it does not',
   /if \(maw\) \{[\s\S]{0,200}maw\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')) &&
     /else \{[\s\S]{0,400}dynamicGroup\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')));
+
+check('A MIDNIGHT BOOT SURVIVES THE TRAINER: the panel default follows START_LEVEL (never silently back to Monday)',
+  /var CHEAT = \{[^}]*startLevel: START_LEVEL \}/.test(html) &&
+    /level = START_LEVEL;[\s\S]{0,240}if \(typeof CHEAT !== "undefined" && CHEAT\.startLevel >= 1 && CHEAT\.startLevel <= MAX_LEVEL\)/.test(html));
+check('THE TEST BUILD BOOTS ON THE NIGHT SHIFT: START_LEVEL = NIGHT_LEVEL, and the night resolver points at the LAST day (revert = that one line)',
+  /const START_LEVEL = NIGHT_LEVEL;.*TEMP/.test(html) &&
+    LEVEL_DAYS.findIndex(function (d) { return !!d.night; }) + 1 === LEVEL_DAYS.length &&
+    LEVEL_DAYS.length === 8 &&
+    LEVEL_DAYS[7].day === "MIDNIGHT" && !!LEVEL_DAYS[7].night);
 
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));

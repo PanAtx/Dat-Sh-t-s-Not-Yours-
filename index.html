@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.466</div>
+          <div id="app-version" class="menu-version">v1.0.467</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.466';
+      const APP_VERSION = '1.0.467';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5002,18 +5002,998 @@
       // rolling through a graveyard at 3 AM. Ambient stays high enough to still see the
       // hi-vis vest and the hopper glow (a horror level you can't read isn't fun).
       function applyNightPalette() {
-        if (ambientLight) ambientLight.intensity = 0.62; // moonlight bouncing off the wet brick
+        if (ambientLight) ambientLight.intensity = NIGHT_AMB; // a deep blue floor, never black
         if (dirLight) {
-          dirLight.intensity = 0.3;
-          dirLight.color.setHex(0x93a8ea); // cold blue "moon", not sunlight
+          dirLight.intensity = NIGHT_MOON_I;
+          dirLight.color.setHex(NIGHT_MOON_C); // cold moonlight, not sunlight
         }
+        // The moon IS the sun line on this level, so positionCamera's per-frame light aim
+        // (snapped + SUN_*) casts MOONWARD shadows off the same bearing as the sky disc.
+        SUN_X0 = NIGHT_MOON_X;
+        SUN_Y0 = NIGHT_MOON_Y;
+        SUN_Z0 = NIGHT_MOON_Z;
         if (scene) {
-          scene.background.setHex(0x070a12);
-          scene.fog.color.setHex(0x0b1322);
-          scene.fog.near = 20; // the block dissolves into fog ~2 houses out
-          scene.fog.far = 92;
+          scene.background.setHex(NIGHT_SKY);
+          scene.fog.color.setHex(NIGHT_FOG_C);
+          scene.fog.near = NIGHT_FOG_NEAR; // the block dissolves into fog ~2 houses out
+          scene.fog.far = NIGHT_FOG_FAR;
         }
       }
+
+      /* ==================== THE MIDNIGHT LOOK (the haunted shift's own sky) ==============
+       Midnight has no sun. It gets ONE cold moon (the only directional, and it re-aims the
+       per-frame sun line so the shadows fall moonward), a near-black sky, a deep ground fog,
+       sodium STREET LAMPS standing ON THE SIDEWALK beside the curb, heads out over the road,
+       pool laid flat on the asphalt, a share of the brownstone windows burning yellow, and a
+       worker in his own fluorescent yellow whose striping comes back WHITE off a lamp.
+       Everything is level-8 only: the pooled lamps carry zero intensity and the sheen gain is
+       zero on the seven weekdays, so Mon..Sun render exactly as they always have. */
+      const NIGHT_SKY = 0x03060f;        // the sky: near-black navy
+      const NIGHT_FOG_C = 0x070d1c;      // the ground fog, one step brighter than the sky
+      const NIGHT_FOG_NEAR = 13;         // the block dissolves into fog ~1.5 houses out
+      const NIGHT_FOG_FAR = 68;
+      const NIGHT_AMB = 0.15;            // THE DARK: midnight is NIGHT. The floor is deliberately
+                                         // low so that everything which GLOWS  ghoul auras,
+                                         // ecoplasm, the truck's lamps, the street lamps  reads as
+                                         // a light source. What is not lit, is black.
+      const NIGHT_MOON_C = 0x9db4e8;     // cold moonlight: the only directional on this level
+      const NIGHT_MOON_I = 0.3;          // a thin cold moon: enough to read the street by, NOT
+                                         // enough to flatten the dark the level is built in
+      const NIGHT_MOON_X = -30;          // the moon's bearing -> SUN_X0/Y0/Z0 (positionCamera)
+      const NIGHT_MOON_Y = 26;
+      const NIGHT_MOON_Z = 52;
+      const NIGHT_LAMP_EVERY = 3;        // one street lamp every 3rd house cell
+      const NIGHT_LAMP_CELL = 1;         // ...offset to the middle cell of the triplet
+      const NIGHT_LAMP_FOOT = 0.24;      // the lamp's footprint radius (its base shoe)
+      const NIGHT_LAMP_Y = 1.34;         // the lamp line: ON THE SIDEWALK, next to the curb and NOT
+                                         // on it — and the game's OWN keep-out puts it there:
+                                         // curbClearY(NIGHT_LAMP_FOOT) = 0.75 (walk-side face of the
+                                         // curb strip) + 0.35 (bare concrete) + 0.24, the exact rule
+                                         // the hydrants and the sidewalk trees use. FALLBACK value:
+                                         // buildNightLamps calls curbClearY() when it is available.
+      const NIGHT_WALK_TOP = 0.35;       // the walk slab stands 0.35 proud of the asphalt, so a lamp
+                                         // planted on the sidewalk rides UP on the slab with it
+      const NIGHT_LAMP_H = 5.5;          // pole height (taller than the worker, like the real ones)
+      const NIGHT_LAMP_ARM = 2.1;        // how far the gooseneck reaches: PAST the curb strip, so the
+                                         // head hangs over the LANE the worker dumps into
+      const NIGHT_LAMP_TIP = 0.17;       // the neck curves down-and-out: the head droops that much
+      const NIGHT_LAMP_R = 14;           // a lamp's reach (route units)
+      const NIGHT_LAMP_LAMPS = 3;        // the 3 lamps nearest the worker carry a real light ...
+      const NIGHT_LAMP_POOL = 4;         // ...and the 4th pooled slot is the TRUCK's worklight, so
+                                         // the truck lights the street it is parked on (in the dark
+                                         // of this level that is the brightest thing on the road)
+      const NIGHT_LAMP_C = 0xffe4bd;     // the sodium bulb, kept NEAR-WHITE: the old saturated amber
+                                         // 0xffcf8f at 1.6 (plus an amber sheen probe) is exactly
+                                         // what painted the fluorescent YELLOW shirt red
+      const NIGHT_LAMP_I = 1.9;          // the pooled sodium point light: in a world this dark a
+                                         // lamp must PUNCH, not suggest
+      const NIGHT_LAMP_LENS_I = 5.6;     // the sodium window in the head, blazing
+      const NIGHT_LAMP_HALO_OP = 0.95;   // the bulb halo sprite
+      const NIGHT_LAMP_HALO_W = 3.6;
+      const NIGHT_SHAFT_OP = 0.16;       // THE SHAFT: the cone of light hanging off the head. In a
+      const NIGHT_SHAFT_R = 3.1;         // dark world a street lamp has to show the light itself,
+      const NIGHT_SHAFT_H = 5.05;        // not only the patch of asphalt it lands on.
+      const NIGHT_SHAFT_SINK = 0.02;     // the shaft's fat foot almost touches the pool
+      const NIGHT_SHAFT_DRIFT = 0.12;    // ...and leans out over the road with the head
+      const NIGHT_TRUCK_I = 1.35;        // the truck's own lamp: it lights the block around the scoop
+      const NIGHT_TRUCK_R = 13;
+      const NIGHT_TRUCK_GLOW = 2.2;      // the truck's lenses at midnight (a multiplier on the built look)
+      const NIGHT_TRUCK_PROBE = 1.5;     // ...and the sheen kick its worklight throws at the striping
+      const NIGHT_GLOW_AURA = 2.35;      // the ghouls' rim-aura: at midnight the aura IS the light
+      const NIGHT_GLOW_BODY = 2.05;      // the spectral bodies + every creature's emissive
+      const NIGHT_GLOW_ECTO = 2.3;       // ecoplasm: brighter goo, bigger globules
+      const NIGHT_GLOW_PULSE = 0.18;     // how hard the glow breathes
+      const NIGHT_GLOW_SCAN = 0.35;      // seconds between glow-registry rescans
+      const NIGHT_POOL_W = 14;           // the warm pool laid FLAT ON THE ROAD under a lamp
+      const NIGHT_POOL_H = 8.5;          // (this plane's own x/y ARE the street's along/across axes)
+      const NIGHT_POOL_Y = -3.5;         // centred in the lane the worker dumps into: the light is
+                                         // ON THE STREET, not on the sidewalk he walks
+      const NIGHT_POOL_Z = -0.23;        // the POOL stays down on the asphalt under the lamp head (the
+                                         // mast that lights it stands 0.35 higher, on the walk slab)
+      const NIGHT_POOL_OP = 0.52;
+      const NIGHT_LAMP_FLOOR = 0.62;     // a sodium lamp on the block never goes fully dark: the flicker
+                                         // dips and breathes, it never extinctions
+      const NIGHT_TRUCK_FLOOR = 0.7;     // ...same rule for the truck's worklight
+      const NIGHT_LAMP_NEAR = 9;         // a lamp this close to the worker shines on him at FULL
+                                         // force: his striping BLAZES white under the light
+      const NIGHT_LAMP_BOOST = 3.0;      // ...that much sheen return at zero range (1 = no boost)
+      const NIGHT_WIN_SHARE = 4;         // of ten: 4 windows in 10 burn warm, the rest stay dark
+      const NIGHT_WIN_C = 0xffb44a;
+      const NIGHT_WIN_I = 2.6;
+      const NIGHT_WIN_GLOW = 1.75;      // of the windows that burn, this much brighter at midnight
+      const NIGHT_RETRO_GAIN = 1.0;      // the white striping: a hard retro kick, STRIPING ONLY
+      const NIGHT_RETRO_MAX = 0.9;       // ...CLAMPED, and the clamp sits HIGH: standing under a lamp
+                                         // the striping must read BRIGHT WHITE — and never a tint
+      const NIGHT_RETRO_BAND = 0.22;     // a stripe edge-on to the camera keeps this fraction of a
+                                         // face-on flash (the rBand term below)
+      const NIGHT_HIVIS_GLOW = 0.62;     // fluorescent sheeting glows in the dark, so the shirt
+                                         // keeps its own DSNY yellow at midnight
+      const RETRO_N = 5;                 // sheen probes = the moon + the 3 pooled lamps + the truck
+      let nightLamps = [];               // {wx, wy, head, lens, glow, pool, phase, speed}
+      let nightWindows = [];             // the lit window meshes (they flicker)
+      let nightLampLights = null;        // the pooled PointLights (built once, live in the scene)
+      let nightSkyRig = null;            // moon + stars (parented to the camera)
+      const retroMats = [];             // the materials carrying the sheen injection
+      const RETRO_U = { pos: null, col: null, rad: null }; // the probe arrays, shared by every
+      // patched material: ONE feed per frame (updateNightLamps), one GAIN per material
+      const NIGHT_SCRATCH =
+        typeof THREE !== "undefined" && THREE.Color ? new THREE.Color() : null; // probe packing
+
+      // --- pure pieces (the check suite drives these directly, no THREE needed) --------
+      // A window PANE, by shape: a skin-thick slab with a window-sized face. House/store
+      // glass is (0.6..0.9)x(0.04..0.07)x(0.78..0.9); the frames (0.11 thick), the doors
+      // (1.7 tall) and every piece of furniture fall out of this signature.
+      function nightPaneSpec(w, h, d) {
+        const s = [w, h, d].slice().sort((a, b) => a - b);
+        return s[0] <= 0.09 && s[1] >= 0.5 && s[1] <= 0.95 && s[2] >= 0.66 && s[2] <= 1.05;
+      }
+      // Which lamps light the worker right now: the NIGHT_LAMP_POOL nearest to him.
+      function pickNearestLamps(list, wx, wy, n) {
+        const scored = [];
+        for (let i = 0; i < list.length; i++)
+          scored.push([Math.hypot(list[i].wx - wx, list[i].wy - wy), i]);
+        scored.sort((a, b) => a[0] - b[0]);
+        const out = [];
+        for (let i = 0; i < n; i++) out.push(scored.length > i ? scored[i][1] : -1);
+        return out;
+      }
+      // The sheen is armed on the haunted shift ONLY (0 keeps the weekday look untouched).
+      function retroGainFor(onNight) {
+        return onNight ? 1 : 0;
+      }
+      // A sodium lamp is never steady: a slow breathe, a live filament jitter, rare deep dips.
+      function nightLampFlicker(t, phase, speed) {
+        let f = 0.84 + 0.11 * Math.sin(t * 1.7 * speed + phase);
+        f += Math.sin(t * 23.7 * speed + phase * 3.1) * 0.03;
+        if (Math.random() < 0.01) f -= 0.4; // the ballast stumbles
+        return Math.max(0.4, Math.min(1.08, f));
+      }
+      // --- soft radial textures (canvas; a no-DOM harness gets null and skips them) -----
+      function nightRadialTex(stops) {
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const c = document.createElement("canvas");
+        c.width = 128;
+        c.height = 128;
+        const ctx = c.getContext("2d");
+        const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+        for (let i = 0; i < stops.length; i++) g.addColorStop(stops[i][0], stops[i][1]);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+      }
+      // The moon: a crisp disc with mare shading inside a cold halo, so it reads as a light
+      // SOURCE in the sky and not as a glowing blob.
+      function nightMoonTex() {
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const c = document.createElement("canvas");
+        c.width = 128;
+        c.height = 128;
+        const ctx = c.getContext("2d");
+        const halo = ctx.createRadialGradient(64, 64, 18, 64, 64, 64);
+        halo.addColorStop(0, "rgba(200,220,255,0.55)");
+        halo.addColorStop(0.45, "rgba(150,175,225,0.2)");
+        halo.addColorStop(1, "rgba(90,110,170,0)");
+        ctx.fillStyle = halo;
+        ctx.fillRect(0, 0, 128, 128);
+        const disc = ctx.createRadialGradient(52, 50, 2, 64, 64, 30);
+        disc.addColorStop(0, "rgba(255,255,255,1)");
+        disc.addColorStop(0.7, "rgba(226,235,252,1)");
+        disc.addColorStop(1, "rgba(186,200,232,0.92)");
+        ctx.fillStyle = disc;
+        ctx.beginPath();
+        ctx.arc(64, 64, 29, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(148,166,205,0.34)"; // mare: the moon has a face, not a bulb
+        [[56, 58, 8], [74, 72, 5], [70, 48, 3.5], [60, 74, 4]].forEach((m) => {
+          ctx.beginPath();
+          ctx.arc(m[0], m[1], m[2], 0, Math.PI * 2);
+          ctx.fill();
+        });
+        return new THREE.CanvasTexture(c);
+      }
+
+      // --- THE MOON + STARS: parented to the camera, exactly like the rain rig. The moon
+      // is fog-immune and DEPTH-TESTED, so the brownstone rooflines clip it (it sits in the
+      // sky behind the block, not as a sticker over the level).
+      function ensureNightSkyRig() {
+        if (nightSkyRig || typeof THREE === "undefined" || typeof camera === "undefined" || !camera)
+          return;
+        const g = new THREE.Group();
+        const tex = nightMoonTex();
+        if (tex && THREE.Sprite) {
+          const moon = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: tex,
+              color: 0xdfeaff,
+              transparent: true,
+              opacity: 0.95,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              fog: false, // the moon sits ABOVE the fog - fogging it out is what makes a
+              // night sky read as a grey wall
+            }),
+          );
+          moon.scale.set(2.4, 2.4, 1); // a moon in a wide shot, not a second sun
+          moon.position.set(-5.3, 3.1, -95); // screen upper-left, low in the sky, behind the block
+          moon.frustumCulled = false;
+          g.add(moon);
+        }
+        if (THREE.Points && THREE.PointsMaterial && THREE.BufferGeometry && THREE.BufferAttribute) {
+          const N = 150;
+          const pos = new Float32Array(N * 3);
+          for (let i = 0; i < N; i++) {
+            pos[i * 3] = R(-11, 11);
+            pos[i * 3 + 1] = R(-0.6, 7.2); // the sky band, above the rooflines
+            pos[i * 3 + 2] = -98 + R(-2, 2);
+          }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+          const stars = new THREE.Points(
+            geo,
+            new THREE.PointsMaterial({
+              color: 0xcfe0ff,
+              size: 1.7,
+              sizeAttenuation: false, // the retro buffer is low-res: stars stay 1-2 px
+              transparent: true,
+              opacity: 0.72,
+              fog: false,
+              depthWrite: false,
+            }),
+          );
+          stars.frustumCulled = false;
+          stars.renderOrder = -20; // drawn FIRST: everything else occludes them
+          g.add(stars);
+        }
+        if (!g.children.length) return;
+        g.frustumCulled = false;
+        camera.add(g);
+        nightSkyRig = g;
+      }
+      function clearNightSkyRig() {
+        if (!nightSkyRig) return;
+        const g = nightSkyRig;
+        if (g.parent) g.parent.remove(g);
+        for (let i = 0; i < g.children.length; i++) {
+          const o = g.children[i];
+          if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+          if (o.material) {
+            if (o.material.map && o.material.map.dispose) o.material.map.dispose();
+            if (o.material.dispose) o.material.dispose();
+          }
+        }
+        nightSkyRig = null;
+      }
+
+      // --- THE STREET LAMPS: iron pole + gooseneck + a sodium head, its halo, and a warm
+      // pool laid on the pavement. Meshes live IN THE BLOCK GROUP, so the world teardown
+      // disposes them with the rest of the street for free. THE WORLD'S AXES IN THIS GAME:
+      // x = along the street, y = ACROSS it (+y = the walk and the houses, -y = the road),
+      // z = height -> every part of the head assembly reaches out on -y, so a lamp lights the
+      // STREET below it and NOT the sidewalk the worker is walking.
+      function makeStreetLamp() {
+        const g = new THREE.Group();
+        const iron = M(0x2b3038); // dark painted iron, the classic DSNY-era street light
+        const pole = CY(0.07, 0.11, NIGHT_LAMP_H, iron, 8);
+        pole.rotation.x = Math.PI / 2; // the cylinder axis is Y; the world's up axis is Z
+        pole.position.z = NIGHT_LAMP_H / 2 + 0.02;
+        g.add(pole);
+        const shoe = CY(0.19, 0.24, 0.26, iron, 8);
+        shoe.rotation.x = Math.PI / 2;
+        shoe.position.z = 0.13;
+        g.add(shoe);
+        // Gooseneck, head, lens and core all reach out on -y: OFF THE CURB, over the road. The
+        // neck is tipped down-and-out and everything hung on it droops with it, so the sodium
+        // window faces the asphalt the worker works in.
+        const arm = CY(0.055, 0.055, NIGHT_LAMP_ARM, iron, 8);
+        arm.position.set(0, -NIGHT_LAMP_ARM / 2, NIGHT_LAMP_H - 0.06); // LEANS OUT OVER THE ROAD
+        arm.rotation.x = NIGHT_LAMP_TIP; // the neck curves down toward the pavement it lights
+        g.add(arm);
+        const head = BX(0.46, 0.92, 0.26, iron);
+        head.position.set(0, -NIGHT_LAMP_ARM, NIGHT_LAMP_H - 0.18);
+        head.rotation.x = NIGHT_LAMP_TIP + 0.16; // a hood over the road
+        g.add(head);
+        const lens = BX(
+          0.4,
+          0.84,
+          0.07,
+          new THREE.MeshLambertMaterial({
+            color: 0xfff6ea,
+            emissive: NIGHT_LAMP_C,
+            emissiveIntensity: NIGHT_LAMP_LENS_I,
+          }),
+        );
+        lens.position.set(0, -NIGHT_LAMP_ARM - 0.1, NIGHT_LAMP_H - 0.34); // faces DOWN at the road
+        lens.rotation.x = NIGHT_LAMP_TIP + 0.16;
+        lens.castShadow = false;
+        g.add(lens);
+        const bulb = SP(
+          0.11,
+          new THREE.MeshBasicMaterial({ color: 0xfff8ee, fog: false }),
+          8,
+        );
+        bulb.castShadow = false;
+        bulb.position.set(0, -NIGHT_LAMP_ARM - 0.1, NIGHT_LAMP_H - 0.38);
+        g.add(bulb); // the pooled PointLight rides this mesh's world position
+        let glow = null;
+        const glowTex = nightRadialTex([
+          [0, "rgba(255,252,235,0.95)"],
+          [0.28, "rgba(255,225,160,0.5)"],
+          [0.62, "rgba(255,200,110,0.16)"],
+          [1, "rgba(255,190,90,0)"],
+        ]);
+        if (glowTex && THREE.Sprite) {
+          glow = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: glowTex,
+              color: 0xffdca0,
+              blending: THREE.AdditiveBlending,
+              transparent: true,
+              opacity: NIGHT_LAMP_HALO_OP,
+              depthWrite: false,
+            }),
+          );
+          glow.scale.set(NIGHT_LAMP_HALO_W, NIGHT_LAMP_HALO_W, 1);
+          glow.position.set(0, -NIGHT_LAMP_ARM - 0.1, NIGHT_LAMP_H - 0.36); // hangs over the road
+          g.add(glow);
+        }
+        let pool = null;
+        const poolTex = nightRadialTex([
+          [0, "rgba(255,240,205,0.95)"],
+          [0.35, "rgba(255,214,140,0.42)"],
+          [0.7, "rgba(220,170,95,0.12)"],
+          [1, "rgba(200,150,80,0)"],
+        ]);
+        if (poolTex && THREE.PlaneGeometry) {
+          pool = new THREE.Mesh(
+            new THREE.PlaneGeometry(NIGHT_POOL_W, NIGHT_POOL_H),
+            new THREE.MeshBasicMaterial({
+              map: poolTex,
+              color: NIGHT_LAMP_C,
+              transparent: true,
+              opacity: NIGHT_POOL_OP,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            }),
+          );
+          // Flat on the asphalt, centred in the lane: the plane needs NO rotation (its own local
+          // x/y ARE the street's along/across axes) and its centre sits at world y = NIGHT_POOL_Y,
+          // out in the ROAD under the leaning head.
+          pool.position.set(0, NIGHT_POOL_Y - NIGHT_LAMP_Y, NIGHT_POOL_Z); // 0.12 above the asphalt
+          pool.castShadow = false;
+          g.add(pool);
+        }
+        let shaft = null;
+        if (THREE.CylinderGeometry) {
+          shaft = new THREE.Mesh(
+            new THREE.CylinderGeometry(
+              0.13,
+              NIGHT_SHAFT_R,
+              NIGHT_SHAFT_H,
+              12,
+              1,
+              true, // openEnded: a column of light, not a solid
+            ),
+            new THREE.MeshBasicMaterial({
+              color: NIGHT_LAMP_C,
+              transparent: true,
+              opacity: NIGHT_SHAFT_OP,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+              fog: false,
+            }),
+          );
+          shaft.rotation.x = Math.PI / 2; // the cylinder axis is Y; the world's up axis is Z
+          // hung on the bulb and dropped onto the pool, leaning out over the road with the head
+          shaft.position.set(
+            0,
+            -NIGHT_LAMP_ARM + NIGHT_SHAFT_DRIFT,
+            NIGHT_LAMP_H - 0.34 - (NIGHT_SHAFT_H / 2 - NIGHT_SHAFT_SINK)
+          );
+          shaft.castShadow = false;
+          g.add(shaft);
+        }
+        return { g: g, bulb: bulb, lens: lens, glow: glow, pool: pool, shaft: shaft };
+      }
+
+      // Street lamps for the haunted block ONLY. One every NIGHT_LAMP_EVERY cells, staggered
+      // along the cell, on the curb line - and registered as a SOLID b.trees obstacle (the
+      // mailbox precedent), so the worker walks AROUND a pole instead of through it.
+      function buildNightLamps() {
+        nightLamps.length = 0;
+        if (typeof isNightShift !== "function" || !isNightShift()) return 0;
+        if (typeof blocks === "undefined" || !blocks) return 0;
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (!b || !b.group || b.blockX == null || b.worldX == null) continue;
+          const cell = Math.round((b.worldX - b.blockX) / BW);
+          if (cell % NIGHT_LAMP_EVERY !== NIGHT_LAMP_CELL) continue;
+          const jx = R(1.6, 6.4); // stagger: a row of lamps must never march in lockstep
+          const lamp = makeStreetLamp();
+          // ON THE SIDEWALK, NOT ON THE CURB — and the shipped keep-out rule decides where that
+          // is: curbClearY() is the same rule that plants the hydrants and the sidewalk trees, so
+          // the lamps stand in that same line on the walk. The base rides the WALK SLAB (raised
+          // 0.35 over the asphalt); the head is what reaches out over the road.
+          const lampY =
+            typeof curbClearY === "function" ? curbClearY(NIGHT_LAMP_FOOT) : NIGHT_LAMP_Y;
+          lamp.g.position.set(jx, lampY, GZ + NIGHT_WALK_TOP);
+          b.group.add(lamp.g);
+          const wx = b.worldX + jx;
+          if (!b.trees) b.trees = [];
+          b.trees.push({ wx: wx, wy: lampY, kind: "lamp" });
+          nightLamps.push({
+            wx: wx,
+            wy: lampY,
+            g: lamp.g,
+            bulb: lamp.bulb,
+            lens: lamp.lens,
+            glow: lamp.glow,
+            pool: lamp.pool,
+            shaft: lamp.shaft,
+            phase: Math.random() * 6.283,
+            speed: 0.6 + Math.random() * 1.3,
+          });
+        }
+        ensureNightLampLights();
+        return nightLamps.length;
+      }
+      // THE POOLED LAMP LIGHTS: three real PointLights that live in the scene permanently
+      // (zero intensity on the weekdays, so a level transition NEVER re-compiles the world's
+      // shaders). Each frame they snap onto the lamps nearest the worker: the patch of street
+      // he is standing under is lit, everything past it is moonlight and fog.
+      function ensureNightLampLights() {
+        if (nightLampLights) return nightLampLights;
+        if (typeof THREE === "undefined" || !THREE.PointLight) return null;
+        if (typeof scene === "undefined" || !scene || !scene.add) return null;
+        nightLampLights = [];
+        for (let i = 0; i < NIGHT_LAMP_POOL; i++) {
+          const L = new THREE.PointLight(NIGHT_LAMP_C, 0, NIGHT_LAMP_R * 2, 1);
+          L.castShadow = false;
+          L.position.set(0, 0, 1e4); // parked clear of the world until a night shift needs it
+          scene.add(L);
+          nightLampLights.push(L);
+        }
+        return nightLampLights;
+      }
+      // THE WINDOWS: a share of them burn warm yellow against the fog, the rest stay dead.
+      // Deterministic per cell, so replaying the shift lights the SAME windows.
+      function applyNightWindows() {
+        nightWindows.length = 0;
+        if (typeof blocks === "undefined" || !blocks) return 0;
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          const hg = b && b.g;
+          if (!hg || !hg.traverse) continue;
+          let n = 0;
+          hg.traverse(function (o) {
+            if (!o.isMesh || !o.material || !o.material.emissive) return;
+            if (o.material.emissive.getHex() === 0) return; // glass GLOWS; frames, trim and
+            // doors are plain lambert and stay exactly as the builders made them
+            const gm = o.geometry;
+            if (!gm || gm.type !== "BoxGeometry" || !gm.parameters) return;
+            if (!nightPaneSpec(gm.parameters.width, gm.parameters.height, gm.parameters.depth))
+              return;
+            if (o.position.y > -1) return; // the glass lives on the STREET-facing wall
+            n++;
+            o.userData.nightWindow = 1;
+            const cell = Math.round((b.worldX - b.blockX) / BW);
+            if ((cell * 7 + n * 13) % 10 >= NIGHT_WIN_SHARE) return; // this one stays dark
+            const m = o.material.clone();
+            m.color.setHex(0xffe3b4);
+            m.emissive.setHex(NIGHT_WIN_C);
+            m.emissiveIntensity = NIGHT_WIN_I;
+            o.material = m;
+            o.userData.winLit = 1;
+            o.userData.winBase = NIGHT_WIN_I;
+            o.userData.winPhase = Math.random() * 6.283;
+            o.userData.winSpeed = 0.4 + Math.random() * 1.2;
+            nightWindows.push(o);
+          });
+        }
+        return nightWindows.length;
+      }
+      /* THE DARK-NIGHT GLOW: with the palette this dark the level speaks in LIGHT  the ghouls'
+       aura, the ecoplasm flying out of the scoop, the truck's lamps, the street lamps. This pass
+       multiplies the glow of exactly those materials while the haunted shift runs, and hands every
+       one of them back EXACTLY as built the moment the shift is a weekday: seven normal shifts,
+       pixel-for-pixel unchanged. Each material's built values are captured once, so the restore is
+       loss-free, and the roster is rescanned on a short cadence so a freshly spawned ghoul glows. */
+      let nightGlowMats = [];
+      let nightGlowT = -1e9;
+
+      // Ectoplasm is BORN glowing: on the haunted shift every splat, every geyser out of the
+      // tailgate and every puddle comes out brighter and fatter. A spawn-time multiplier, so there
+      // is nothing to restore and no per-frame cost.
+      function nightEctoK() {
+        return typeof isNightShift === "function" && isNightShift() ? NIGHT_GLOW_ECTO : 1;
+      }
+
+      // Remember what a material was when it was built, and what it is allowed to become.
+      function registerNightGlowMat(m, gain) {
+        if (!m || typeof m !== "object" || !m.userData) return;
+        const uni =
+          m.uniforms && m.uniforms.uIntensity && typeof m.uniforms.uIntensity.value === "number";
+        const ei = typeof m.emissiveIntensity === "number";
+        const op = m.transparent === true && typeof m.opacity === "number";
+        const ec = !!(m.emissive && m.emissive.getHex && m.emissive.setRGB);
+        if (!uni && !ei && !op && !ec) return; // nothing on this material can glow
+        if (m.userData.nightGlowBase === undefined)
+          m.userData.nightGlowBase = {
+            ui: uni ? m.uniforms.uIntensity.value : null,
+            ei: ei ? m.emissiveIntensity : null,
+            op: op ? m.opacity : null,
+            er: ec ? m.emissive.r : null,
+            eg: ec ? m.emissive.g : null,
+            eb: ec ? m.emissive.b : null,
+          };
+        m.userData.nightGlowGain = gain || NIGHT_GLOW_BODY;
+        nightGlowMats.push(m);
+      }
+      /* THE TRUCK'S OWN LIGHTS AT MIDNIGHT: a worklight over the scoop, a beacon over the cab,
+       two headlight shafts and the pool of sodium they throw on the road. Built as CHILDREN of
+       the truck, so the rig rides every position the truck takes (it never detaches when the
+       truck creeps up the route) and dies with the truck. THE TRUCK GROUP'S LOCAL FRAME
+       (verified against the loaded model and the hazard-lens placements): +x is the FRONT, y is
+       lateral, z is up, and local z = 0 is the asphalt the truck stands on. */
+      let nightTruckRig = null;
+      let nightTruckLights = null;
+      function nightTruckRadial() {
+        return nightRadialTex([
+          [0, "rgba(255,246,224,0.92)"],
+          [0.32, "rgba(255,226,170,0.4)"],
+          [0.68, "rgba(226,182,112,0.11)"],
+          [1, "rgba(210,162,92,0)"],
+        ]);
+      }
+      function clearNightTruckRig() {
+        if (nightTruckRig) {
+          if (nightTruckRig.parent) nightTruckRig.parent.remove(nightTruckRig);
+          if (typeof disposeObj === "function") disposeObj(nightTruckRig);
+          nightTruckRig = null;
+        }
+        if (nightTruckLights) {
+          for (let i = 0; i < nightTruckLights.length; i++) {
+            const L = nightTruckLights[i];
+            if (!L) continue;
+            L.intensity = 0;
+            if (L.parent) L.parent.remove(L);
+          }
+          nightTruckLights = null;
+        }
+      }
+      // Who can glow: every creature mesh (auras, eyes, spectral bodies), the two shared spectral
+      // materials, the windows that are burning, and everything the truck shines.
+      function scanNightGlow() {
+        nightGlowMats.length = 0;
+        const auraShared = typeof GHOST_AURA_MAT !== "undefined" ? GHOST_AURA_MAT : null;
+        registerNightGlowMat(auraShared, NIGHT_GLOW_AURA);
+        registerNightGlowMat(
+          typeof GHOST_OBJECT_MAT !== "undefined" ? GHOST_OBJECT_MAT : null,
+          NIGHT_GLOW_BODY,
+        );
+        const list = typeof creatureList !== "undefined" && creatureList ? creatureList : [];
+        for (let i = 0; i < list.length; i++) {
+          const c = list[i];
+          const root = c && (c.g || c.mesh || c.obj || c.group);
+          if (!root || !root.traverse) continue;
+          root.traverse(function (o) {
+            if (!o || !o.isMesh || !o.material) return;
+            const ms = Array.isArray(o.material) ? o.material : [o.material];
+            for (let k = 0; k < ms.length; k++)
+              registerNightGlowMat(ms[k], ms[k] === auraShared ? NIGHT_GLOW_AURA : NIGHT_GLOW_BODY);
+          });
+        }
+        const t = typeof truck !== "undefined" ? truck : null;
+        if (t && t.hazLights)
+          for (let i = 0; i < t.hazLights.length; i++) {
+            registerNightGlowMat(t.hazLights[i] && t.hazLights[i].coreMat, NIGHT_TRUCK_GLOW);
+            registerNightGlowMat(t.hazLights[i] && t.hazLights[i].haloMat, NIGHT_TRUCK_GLOW);
+          }
+        if (t && t.g && t.g.traverse)
+          t.g.traverse(function (o) {
+            if (o && o.isMesh && o.material && o.material.name === "Lights")
+              registerNightGlowMat(o.material, NIGHT_TRUCK_GLOW);
+          });
+      }
+      // The pass. on=false writes every material back to its captured value, so a weekday is
+      // byte-for-byte the built look.
+      function applyNightGlow(on, t) {
+        if (nightGlowT < -1e8 || t - nightGlowT >= NIGHT_GLOW_SCAN) {
+          nightGlowT = t;
+          scanNightGlow();
+        }
+        for (let i = 0; i < nightGlowMats.length; i++) {
+          const m = nightGlowMats[i];
+          const b = m && m.userData ? m.userData.nightGlowBase : null;
+          if (!b) continue;
+          // a slow per-material breathe: a glow is ALIVE, not a light switch
+          const pulse = on ? 1 + NIGHT_GLOW_PULSE * Math.sin(t * 2.1 + i * 1.7) : 1;
+          const k = on ? (m.userData.nightGlowGain || 1) * pulse : 1;
+          if (b.ui !== null) m.uniforms.uIntensity.value = b.ui * k;
+          if (b.ei !== null) m.emissiveIntensity = b.ei * k;
+          if (b.op !== null) m.opacity = Math.min(1, b.op * (on ? 1 + (k - 1) * 0.55 : 1));
+          if (b.er !== null && on)
+            // the emissive COLOUR burns hotter too: the hazard blink writes the lens intensities
+            // every frame, so the colour is where a lamp is made to blaze in the dark without
+            // fighting the blink
+            m.emissive.setRGB(Math.min(1, b.er * k), Math.min(1, b.eg * k), Math.min(1, b.eb * k));
+          else if (b.er !== null) m.emissive.setRGB(b.er, b.eg, b.eb);
+        }
+      }
+      // Every frame: keep the rig built (the truck model arrives async), breathe its lamps, and
+      // drive its two PointLights onto their meshes. Off the haunted shift every light is zero, so
+      // a weekday gets nothing from this rig at all.
+      function nightTruckRigUpdate(tsec, on) {
+        if (!nightTruckRig) armNightTruckRig();
+        const parts = nightTruckRig && nightTruckRig.userData ? nightTruckRig.userData.parts : null;
+        if (!parts) {
+          if (nightTruckLights)
+            for (let i = 0; i < nightTruckLights.length; i++) nightTruckLights[i].intensity = 0;
+          return false;
+        }
+        const f = Math.max(NIGHT_TRUCK_FLOOR, nightLampFlicker(tsec, 1.9, 0.9));
+        const k = on ? f : 0;
+        if (parts.pool && parts.pool.material) parts.pool.material.opacity = 0.52 * k;
+        for (let i = 0; i < parts.beams.length; i++)
+          if (parts.beams[i] && parts.beams[i].material) parts.beams[i].material.opacity = 0.13 * k;
+        if (parts.work.halo && parts.work.halo.material)
+          parts.work.halo.material.opacity = 0.55 * k;
+        if (parts.beacon.halo && parts.beacon.halo.material)
+          parts.beacon.halo.material.opacity = 0.42 * k;
+        const aim = (mesh, L, base, rad) => {
+          if (!L) return;
+          if (k > 0 && mesh && mesh.getWorldPosition) {
+            mesh.getWorldPosition(L.position);
+            L.intensity = base * k;
+            L.distance = rad * 2;
+          } else L.intensity = 0;
+        };
+        try {
+          aim(parts.work.core, parts.workLight, NIGHT_TRUCK_I, NIGHT_TRUCK_R);
+          aim(parts.beacon.core, parts.headLight, NIGHT_TRUCK_I * 0.8, NIGHT_TRUCK_R * 1.15);
+        } catch (e) {
+          /* a no-DOM harness has no world transforms: the rig stays dark and the level runs */
+        }
+        return true;
+      }
+      function armNightTruckRig() {
+        const t = typeof truck !== "undefined" ? truck : null;
+        if (!t || !t.g || !t.g.add) return false;
+        if (typeof THREE === "undefined" || !THREE.MeshBasicMaterial) return false;
+        if (nightTruckRig && nightTruckRig.parent === t.g) return true;
+        clearNightTruckRig();
+        const g = new THREE.Group();
+        g.name = "dsnyNightTruckRig";
+        const front = t.boxL ? t.boxL / 2 : (t.cabOff ? (t.cabOff - 1.6) / 2 : 5.1);
+        const rear = t.hopperOff != null ? t.hopperOff : -4.3;
+        const glowMk = (op) => new THREE.MeshBasicMaterial({
+          color: 0xffe9c4, transparent: true, opacity: op,
+          blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+        });
+        const tex = nightTruckRadial();
+        let pool = null;
+        if (tex && THREE.PlaneGeometry) {
+          pool = new THREE.Mesh(
+            new THREE.PlaneGeometry(NIGHT_TRUCK_R * 1.5, NIGHT_TRUCK_R * 0.95),
+            new THREE.MeshBasicMaterial({
+              map: tex, color: 0xffe4bd, transparent: true, opacity: 0.52,
+              blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+            }),
+          );
+          // flat on the asphalt, laid out IN FRONT of the bumpers (local +x is the front)
+          pool.position.set(front + NIGHT_TRUCK_R * 0.55, 0, 0.14);
+          pool.castShadow = false;
+          g.add(pool);
+        }
+        const beams = [];
+        for (let i = 0; i < 2; i++) {
+          const bm = new THREE.Mesh(new THREE.PlaneGeometry(NIGHT_TRUCK_R, 2.6), glowMk(0.13));
+          bm.position.set(front + NIGHT_TRUCK_R * 0.5, i ? 1.35 : -1.35, 1.15);
+          bm.castShadow = false;
+          g.add(bm);
+          beams.push(bm);
+        }
+        const mkLamp = (x, y, z, r, op) => {
+          const core = new THREE.Mesh(
+            new THREE.SphereGeometry(r, 8, 8),
+            new THREE.MeshBasicMaterial({ color: 0xfff6e2, fog: false }),
+          );
+          core.castShadow = false;
+          core.position.set(x, y, z);
+          g.add(core);
+          let halo = null;
+          if (tex && THREE.PlaneGeometry) {
+            halo = new THREE.Mesh(new THREE.PlaneGeometry(r * 9, r * 9), glowMk(op));
+            halo.position.set(x, y, z + 0.08);
+            halo.castShadow = false;
+            g.add(halo);
+          }
+          return { core: core, halo: halo };
+        };
+        const work = mkLamp(rear - 0.9, 0, 4.4, 0.2, 0.55); // the worklight over the scoop
+        const beacon = mkLamp(front - 1.1, 0, 5.1, 0.15, 0.42); // the amber beacon on the cab
+        nightTruckLights = [];
+        const lampOf = (mesh) => {
+          if (typeof scene === "undefined" || !scene || !scene.add || !THREE.PointLight) return null;
+          const L = new THREE.PointLight(0xffd9a8, 0, NIGHT_TRUCK_R * 2, 1);
+          L.castShadow = false;
+          L.position.set(0, 0, 1e4);
+          scene.add(L);
+          nightTruckLights.push(L);
+          return L;
+        };
+        const workLight = lampOf(work.core);
+        const headLight = lampOf(beacon.core);
+        t.g.add(g);
+        nightTruckRig = g;
+        nightTruckRig.userData.parts = {
+          pool: pool, beams: beams, work: work, beacon: beacon,
+          workLight: workLight, headLight: headLight,
+        };
+        return true;
+      }
+      // THE ONE ENTRY POINT — run from resetWorldState AFTER spawnWorld has built the street.
+      function armMidnightLook() {
+        const on = typeof isNightShift === "function" && isNightShift();
+        clearNightSkyRig();
+        clearNightTruckRig(); // the rig lives on the truck: a fresh world means a fresh rig
+        nightGlowT = -1e9; // re-capture on this world; nothing carries over from the last one
+        applyNightGlow(false, 0); // the outgoing level gets its built glow values right back
+        nightWindows.length = 0;
+        nightLamps.length = 0;
+        if (nightLampLights)
+          for (let i = 0; i < nightLampLights.length; i++) nightLampLights[i].intensity = 0;
+        for (let i = 0; i < retroMats.length; i++) retroMats[i].userData.retroGain.value = 0;
+        applyNightHiVis(on); // on: glows its own yellow; off: exactly the built shirt
+        if (!on) return false;
+        applyNightPalette(); // the menu backdrop IS the haunted block: it has to be night too
+        applyNightWindows();
+        buildNightLamps();
+        ensureNightSkyRig();
+        // the truck may still be loading when the level arms; nightTruckRigUpdate keeps
+        // retrying, so this is only the fast path
+        try {
+          armNightTruckRig();
+        } catch (e) {
+          /* the rig is a visual extra: a failure here must never break the shift */
+        }
+        return true;
+      }
+
+      /* THE HI-VIS SHEETING (the real physics): retroreflective striping throws the light
+       straight back toward its SOURCE, so a stripe blazes white ONLY when it is square-on to
+       BOTH the lamp and the viewer - exactly the "it flashes when the light hits it from the
+       right angle" look the vests have in headlights. Done in VIEW space (the shader gives us
+       normalMatrix + modelViewMatrix for free, and an orthographic camera's view axis is a
+       constant), driven by RETRO_N probes = the moon + the 3 pooled lamps.
+       Night only: uRetGain is 0.0 on the seven weekdays, so the injected term adds precisely
+       nothing to a normal shift. */
+      const RETRO_VERT_PARS = "\nvarying vec3 vRetP;\nvarying vec3 vRetN;\n";
+      const RETRO_VERT_BODY =
+        "\nvRetP = ( modelViewMatrix * vec4( transformed, 1.0 ) ).xyz;\n" +
+        "vRetN = normalize( normalMatrix * objectNormal );\n";
+      const RETRO_FRAG_PARS =
+        "\n#define RETRO_LIGHTS 5\n" + // must stay in lockstep with RETRO_N above
+        "varying vec3 vRetP;\nvarying vec3 vRetN;\n" +
+        "uniform vec3 uRetPos[RETRO_LIGHTS];\n" +
+        "uniform vec3 uRetCol[RETRO_LIGHTS];\n" +
+        "uniform float uRetR[RETRO_LIGHTS];\n" +
+        "uniform float uRetGain;\n";
+      const RETRO_FRAG_BODY =
+        "\n{\n" +
+        "  vec3 rN = normalize( vRetN );\n" +
+        "  vec3 rV = vec3( 0.0, 0.0, 1.0 );\n" + // ortho: every view ray IS the view axis
+        "  vec3 rSheen = vec3( 0.0 );\n" +
+        "  for ( int ri = 0; ri < RETRO_LIGHTS; ri ++ ) {\n" +
+        "    vec3 rLp = ( viewMatrix * vec4( uRetPos[ri], 1.0 ) ).xyz;\n" +
+        "    vec3 rD = rLp - vRetP;\n" +
+        "    float rDist = length( rD );\n" +
+        "    vec3 rDir = rD / max( rDist, 0.001 );\n" +
+        "    float rFall = clamp( 1.0 - rDist / uRetR[ri], 0.0, 1.0 );\n" +
+        "    float rNL = max( dot( rN, rDir ), 0.0 );\n" +
+        "    float rNV = max( dot( rN, rV ), 0.0 );\n" +
+        // The curve is tuned for the job the player can SEE: standing under a lamp the striping has
+        // to BLAZE. The lamp side stays the physical square-on product (cubed); the eye side becomes
+        // a BAND — a stripe edge-on to the camera keeps NIGHT_RETRO_BAND of the face-on flash. The
+        // old pow(N·L · N·L · N·V, 4) fell off the face of the earth off-axis and left the stripes
+        // near-dark everywhere except dead-square-on the bulb.
+        "    float rBand = 1.0 - " + NIGHT_RETRO_BAND.toFixed(3) + " * ( 1.0 - rNV );\n" +
+        "    rSheen += uRetCol[ri] * pow( rNL * rNL, 3.0 ) * rBand * rFall * rFall;\n" +
+        "  }\n" +
+        // Sheetin' is SILVER: what it throws back is the light's BRIGHTNESS, not its hue. Collapse
+        // to luminance (the probes arrive grey already) and CLAMP - an unclamped amber+blue stack
+        // on a white stripe reads violet; this reads WHITE.
+        "  float rLum = dot( rSheen, vec3( 0.299, 0.587, 0.114 ) );\n" +
+        "  vec3 rKick = vec3( min( rLum, " + NIGHT_RETRO_MAX.toFixed(3) + " ) );\n" +
+        "  gl_FragColor.rgb = min( gl_FragColor.rgb + rKick * uRetGain, vec3( 1.0 ) );\n" +
+        "}\n";
+      function retroUniforms() {
+        if (RETRO_U.pos) return RETRO_U;
+        if (typeof THREE === "undefined" || !THREE.Vector3) return null;
+        const pos = [], col = [];
+        for (let i = 0; i < RETRO_N; i++) {
+          pos.push(new THREE.Vector3(0, 0, 1e4));
+          col.push(new THREE.Vector3(0, 0, 0));
+        }
+        RETRO_U.pos = { value: pos };
+        RETRO_U.col = { value: col };
+        RETRO_U.rad = { value: [1e5, 1e5, 1e5, 1e5, 1e5] };
+        return RETRO_U;
+      }
+      // Every probe is packed as GREY luminance for the same reason: the sheen is a brightness
+      // return, so a saturated amber bulb or a cold blue moon fed in raw tints the stripe it hits.
+      function retroProbeColor(target, hex, strength) {
+        if (NIGHT_SCRATCH) {
+          NIGHT_SCRATCH.setHex(hex);
+          const lum =
+            0.299 * NIGHT_SCRATCH.r + 0.587 * NIGHT_SCRATCH.g + 0.114 * NIGHT_SCRATCH.b;
+          target.set(lum, lum, lum);
+        } else {
+          target.set(hex, hex, hex);
+        }
+        target.multiplyScalar(strength);
+      }
+      function patchRetroSheen(mat, gainBase, key) {
+        if (!mat || mat.userData.retroPatched) return false;
+        const U = retroUniforms();
+        if (!U) return false;
+        mat.userData.retroPatched = true;
+        mat.userData.retroGainBase = gainBase;
+        mat.userData.retroGain = { value: 0 };
+        retroMats.push(mat);
+        mat.onBeforeCompile = function (sh) {
+          sh.uniforms.uRetPos = U.pos;
+          sh.uniforms.uRetCol = U.col;
+          sh.uniforms.uRetR = U.rad;
+          sh.uniforms.uRetGain = mat.userData.retroGain;
+          sh.vertexShader = sh.vertexShader
+            .replace("#include <common>", "#include <common>" + RETRO_VERT_PARS)
+            .replace("#include <begin_vertex>", "#include <begin_vertex>" + RETRO_VERT_BODY);
+          sh.fragmentShader = sh.fragmentShader
+            .replace("#include <common>", "#include <common>" + RETRO_FRAG_PARS)
+            .replace("#include <dithering_fragment>", "#include <dithering_fragment>" + RETRO_FRAG_BODY);
+        };
+        mat.customProgramCacheKey = function () {
+          return key;
+        };
+        mat.needsUpdate = true;
+        return true;
+      }
+
+      // The worker's OWN material (buildWorker exposes them): the kick goes on the WHITE STRIPING
+      // ALONE. The shirt is fluorescent cloth, not sheeting - a kick stacked on it only paints it
+      // the colour of whichever lamp is overhead, and THAT is how a yellow shirt turned red. The
+      // shirt keeps its own yellow and gets the simple, physically-correct treatment below.
+      function armNightRetro() {
+        if (typeof wparts === "undefined" || !wparts || !wparts.stripeMat) return false;
+        if (wparts.stripeMat.userData.retroPatched) return true;
+        patchRetroSheen(wparts.stripeMat, NIGHT_RETRO_GAIN, "dsnyRetroSheetingStripe");
+        return true;
+      }
+
+      // HI-VIS AT NIGHT, the simple half of it: fluorescent safety sheeting glows in the dark, so
+      // the shirt keeps its OWN DSNY yellow on the haunted shift, and the white striping stays a
+      // plain white that only the striping kick lights up. On a weekday the emissive goes back to
+      // exactly what buildWorker made - the seven normal shifts stay pixel-for-pixel unchanged.
+      function applyNightHiVis(on) {
+        if (
+          typeof wparts === "undefined" ||
+          !wparts ||
+          !wparts.hiVisMat ||
+          !wparts.hiVisMat.emissive ||
+          !wparts.hiVisMat.emissive.setHex
+        )
+          return false;
+        const m = wparts.hiVisMat;
+        if (m.userData.hivisBase == null) m.userData.hivisBase = m.emissive.getHex();
+        if (on) {
+          m.emissive.setHex(m.color && m.color.getHex ? m.color.getHex() : 0xd8f010); // ITS yellow
+          m.emissiveIntensity = NIGHT_HIVIS_GLOW;
+        } else {
+          m.emissive.setHex(m.userData.hivisBase); // the plain shirt, exactly as built
+          m.emissiveIntensity = 1;
+        }
+        return true;
+      }
+      // EVERY FRAME (all four loop branches): pool the lamp lights onto the worker, flicker
+      // the lamps and the lit windows, and feed the sheen probes — the moon plus whichever
+      // lamps are overhead right now. On a weekday every lamp light carries 0 and the sheen
+      // gain goes to 0, so the seven normal shifts are pixel-for-pixel what they were.
+      function updateNightLamps(t, dt) {
+        const on = typeof isNightShift === "function" && isNightShift();
+        armNightRetro();
+        applyNightHiVis(on); // the shirt stays hi-vis YELLOW at midnight
+        applyNightGlow(on, t); // auras / eyes / bodies / windows / the truck burn in the dark
+        nightTruckRigUpdate(t, on); // the rig rides the truck: beams, beacon, worklight, lights
+        const U = retroUniforms();
+        if (nightLampLights) {
+          const idx =
+            on && nightLamps.length
+              ? pickNearestLamps(nightLamps, p.wx, p.wy, NIGHT_LAMP_LAMPS)
+              : [];
+          for (let k = 0; k < nightLampLights.length; k++) {
+            const L = nightLampLights[k];
+            if (k >= NIGHT_LAMP_LAMPS) {
+              // THE TRUCK'S SLOT: the worklight over the scoop, so the striping flashes in the
+              // truck's own lights while he is loading it. It feeds off the rig's light, so a
+              // weekday  and a headless harness with no truck  parks it clear with zero.
+              const tr =
+                nightTruckLights && nightTruckLights[0] ? nightTruckLights[0] : null;
+              if (on && tr && tr.intensity > 0 && tr.position && tr.position.z < 1e3) {
+                const ft = nightLampFlicker(t, 1.9, 0.9);
+                L.position.copy(tr.position);
+                L.position.z += 1.4;
+                L.intensity = NIGHT_LAMP_I * ft;
+                if (U) {
+                  U.pos.value[1 + k].copy(L.position);
+                  retroProbeColor(U.col.value[1 + k], NIGHT_LAMP_C, ft * NIGHT_TRUCK_PROBE);
+                  U.rad.value[1 + k] = NIGHT_TRUCK_R;
+                }
+              } else {
+                L.intensity = 0;
+                if (U) {
+                  U.pos.value[1 + k].set(0, 0, 1e4);
+                  U.col.value[1 + k].set(0, 0, 0);
+                  U.rad.value[1 + k] = 1e5;
+                }
+              }
+              continue;
+            }
+            const rec = idx.length && idx[k] >= 0 ? nightLamps[idx[k]] : null;
+            if (!rec || !rec.bulb || !rec.bulb.getWorldPosition) {
+              L.intensity = 0;
+              if (U) {
+                U.pos.value[1 + k].set(0, 0, 1e4);
+                U.col.value[1 + k].set(0, 0, 0);
+                U.rad.value[1 + k] = 1e5;
+              }
+              continue;
+            }
+            const f = Math.max(NIGHT_LAMP_FLOOR, nightLampFlicker(t, rec.phase, rec.speed));
+            rec.bulb.getWorldPosition(L.position);
+            L.intensity = NIGHT_LAMP_I * f;
+            // HOW DIRECTLY THE WORKER IS STANDING UNDER THIS LAMP. The lamp base and the worker's
+            // walk are both on the sidewalk slab, so the route's own x/y distance is the honest
+            // measure: 1 = right under the bulb, 0 = beyond NIGHT_LAMP_NEAR, where the sheeting
+            // only catches the moon.
+            const dw = Math.hypot(rec.wx - p.wx, rec.wy - p.wy);
+            const near = Math.max(0, 1 - dw / NIGHT_LAMP_NEAR);
+            const boost = 1 + (NIGHT_LAMP_BOOST - 1) * near * near;
+            if (rec.lens && rec.lens.material)
+              rec.lens.material.emissiveIntensity = NIGHT_LAMP_LENS_I * f;
+            if (rec.glow && rec.glow.material) rec.glow.material.opacity = NIGHT_LAMP_HALO_OP * f;
+            if (rec.shaft && rec.shaft.material) rec.shaft.material.opacity = NIGHT_SHAFT_OP * f;
+            if (rec.pool && rec.pool.material) rec.pool.material.opacity = NIGHT_POOL_OP * f;
+            if (U) {
+              U.pos.value[1 + k].copy(L.position);
+              retroProbeColor(U.col.value[1 + k], NIGHT_LAMP_C, f * boost); // GREY in -> BLAZING white
+              U.rad.value[1 + k] = NIGHT_LAMP_R;
+            }
+          }
+        }
+        if (U && dirLight && dirLight.position) {
+          // probe 0 = the moon: cold, and effectively at infinity (no distance falloff)
+          U.pos.value[0].set(dirLight.position.x, dirLight.position.y, dirLight.position.z);
+          const hex =
+            dirLight.color && dirLight.color.getHex ? dirLight.color.getHex() : NIGHT_MOON_C;
+          retroProbeColor(U.col.value[0], hex, dirLight.intensity || 0); // the moon, in grey
+          U.rad.value[0] = 1e5;
+        }
+        for (let i = 0; i < nightWindows.length; i++) {
+          const o = nightWindows[i];
+          if (!o.material) continue;
+          const base = (o.userData.winBase || NIGHT_WIN_I) * (on ? NIGHT_WIN_GLOW : 1);
+          let f =
+            0.9 +
+            0.1 * Math.sin(t * (o.userData.winSpeed || 1) + (o.userData.winPhase || 0));
+          if (Math.random() < 0.006) f *= 0.25; // some of them burn on old wiring
+          o.material.emissiveIntensity = base * f;
+        }
+        const g8 = retroGainFor(on);
+        for (let i = 0; i < retroMats.length; i++)
+          retroMats[i].userData.retroGain.value = g8 * retroMats[i].userData.retroGainBase;
+      }
+
       const JACKER_FACE_SE = -Math.PI / 2; // the CONSTRUCTION WORKER (the jackhammer guy, the 'jacker' NPC)
       // ALWAYS faces SOUTHEAST (screen down-and-right, toward the street) on every level,
       // so the camera never sees his back.
@@ -7977,6 +8957,10 @@
           armR: armR,
           skinMat: skin,
           hat: hat,
+          // THE MIDNIGHT LOOK needs these two to arm the retroreflective sheen (see
+          // armNightRetro): the white striping + the fluorescent shirt, in his own kit.
+          stripeMat: stripe,
+          hiVisMat: hiVis,
         };
       }
       // ==================== 3D ASSET PIPELINE (DSNY truck / can / bag) ====================
@@ -25951,6 +26935,9 @@
           nightSurgeTier = surgeTier;
           nightSurgeT = HORROR_SURGE_DUR;
           nightSurgeSpawned = 0;
+          // The warning shares the ONE centre-screen slot (the pop budget) — the surge itself
+          // always lands (timer, wail, shake, flood), and the worker's shouted line rides the
+          // bubble budget, so a heartbeat-clash with a CONSECRATED! never means silence.
           if (nightPopOk()) announcePower("ABYSS SURGE!", "pop-power");
           if (nightSayOk())
             Voice.say(
@@ -26015,11 +27002,12 @@
       // thing lands in the scoop. Rides the dust pipeline, glowing on its own.
       function spawnEctoSplat(wx, wy, scale) {
         scale = scale == null ? 1 : scale;
+        const ek = nightEctoK(); // midnight: the goo is a LIGHT source, so it comes out bigger
         const n = Math.round(11 * scale);
         for (let i = 0; i < n; i++) {
           const ang = R(0, Math.PI * 2);
           const rad = R(0.5, 2.0) * scale;
-          const s = R(0.03, 0.075) * scale;
+          const s = R(0.03, 0.075) * scale * ek;
           const g = new THREE.Group();
           g.add(
             new THREE.Mesh(
@@ -26027,7 +27015,7 @@
               new THREE.MeshLambertMaterial({
                 color: pick([0x3ff0d2, 0x2ee6b0, 0x66fff0, 0x49d8f0]),
                 emissive: 0x18c9a8,
-                emissiveIntensity: 1.1,
+                emissiveIntensity: 1.1 * ek,
                 transparent: true,
                 opacity: 0.95,
               }),
@@ -26054,11 +27042,12 @@
       // The compactor's gut-flash: a geyser of luminous goo out of the scoop mouth.
       function spawnEctoBurst(wx, wy, intensity) {
         intensity = intensity == null ? 1 : intensity;
+        const ek = nightEctoK();
         const n = Math.max(4, Math.round(20 * intensity));
         for (let i = 0; i < n; i++) {
           const ang = R(-Math.PI, Math.PI);
           const rad = (0.7 + Math.random() * 2.0) * (0.55 + intensity * 0.55);
-          const s = 0.025 + Math.random() * 0.05;
+          const s = (0.025 + Math.random() * 0.05) * ek;
           const g = new THREE.Group();
           g.add(
             new THREE.Mesh(
@@ -26066,7 +27055,7 @@
               new THREE.MeshLambertMaterial({
                 color: pick([0x3ff0d2, 0x27e0c0, 0x66fff0, 0x49d8f0, 0x9dfff2]),
                 emissive: 0x1ad8b4,
-                emissiveIntensity: 1.25,
+                emissiveIntensity: 1.25 * ek,
                 transparent: true,
                 opacity: 0.95,
               }),
@@ -26093,16 +27082,17 @@
       // THE SPILL: after a cycle the scoop leaks. Glowing puddles down the tailgate
       // that LINGER — hopperResidue dries out on a timer, ecoplasm takes its time.
       function spillEcoPlasm() {
+        const ek = nightEctoK();
         const wx = hopperAimX(),
           wy = hopperWorldY();
         spawnEctoBurst(wx, wy, 1.0);
         for (let i = 0; i < 4; i++) {
           const g = new THREE.Mesh(
-            new THREE.CircleGeometry(R(0.5, 1.15), 12),
+            new THREE.CircleGeometry(R(0.5, 1.15) * ek, 12),
             new THREE.MeshBasicMaterial({
               color: 0x2fe8c4,
               transparent: true,
-              opacity: 0.5,
+              opacity: 0.5 * ek,
               fog: false,
               depthWrite: false,
             }),
@@ -30890,6 +31880,10 @@
         }
         worker.group.position.set(p.wx, p.wy, GZ);
         if (weather === "dusk") applyDuskLamps(); // golden hour: the fresh street's porch bulbs all glow
+        // THE MIDNIGHT LOOK (moon + street lamps + lit windows + the hi-vis sheen) runs on
+        // the FRESH street: spawnWorld built the block above, and the menu backdrop IS the
+        // haunted block on the test build, so the night look has to be armed for it too.
+        armMidnightLook();
       }
       // ==================== GAMEPLAY ACTIONS ====================
       // STORM DEBRIS SUNDAY = "DOUBLE TIME": every point collected on Bed-Stuy (Sunday)
@@ -46834,7 +47828,7 @@
       //                sparkle + walk-through-everything + touch-to auto-dump)
       //   startLevel -> which shift a fresh week begins on (1..7 = Mon..Sun, 8 = the
       //                NIGHT SHIFT — the level AFTER Sunday, which has no weekday)
-      var CHEAT = { infinite: false, invincible: false, runitup: false, startLevel: 1 };
+      var CHEAT = { infinite: false, invincible: false, runitup: false, startLevel: START_LEVEL }; // the panel default FOLLOWS the configured week start (START_LEVEL): a temporary START_LEVEL flip — like booting straight into the NIGHT SHIFT — must never be silently overridden back to Monday
       var TRAINER_DAYS = [
         "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
         // THE NIGHT SHIFT (level 8): warped to straight from the warez scene, past the
@@ -47616,7 +48610,8 @@
           updateConeProps(dt); // knockable traffic cones: bump detection + topple wobble
           updateFinishFlag(dt); // finish flag pole: waves when the worker is near
           updateHUD();
-          updateBulbGlow(performance.now() / 1000); // porch light flicker (uses real time so flicker is consistent)
+          updateBulbGlow(performance.now() / 1000);
+          updateNightLamps(performance.now() / 1000, dt); // midnight lamps, lit windows + the hi-vis sheen // porch light flicker (uses real time so flicker is consistent)
           // ---- OVERTIME BASKETS: the round's end-of-turn resolution ----
           // Win: service EVERY basket before the clock runs out. Lose: the clock hits 0.
           // A basket is DONE the instant it is emptied into the hopper ("dumped") — the
@@ -47650,14 +48645,17 @@
           updateCannon(dt); // radial confetti burst from the worker
           updateFinishFlag(dt); // the flag keeps waving during the celebration
           updateBulbGlow(performance.now() / 1000);
+          updateNightLamps(performance.now() / 1000, dt); // midnight lamps, lit windows + the hi-vis sheen
         } else if (state === "bonusend") {
           // OVERTIME win/lose beat: keep the worker's pose + confetti + victory hop alive
           // (the play sim is frozen, so this is the only thing animating during the interlude).
           updateBonusInterlude(dt);
           updateBulbGlow(performance.now() / 1000);
+          updateNightLamps(performance.now() / 1000, dt); // midnight lamps, lit windows + the hi-vis sheen
         } else {
           updateDying(dt); // 'dying': play out the worker's down sequence (spin -> fall -> LODI hold)
           updateBulbGlow(performance.now() / 1000);
+          updateNightLamps(performance.now() / 1000, dt); // midnight lamps, lit windows + the hi-vis sheen
         }
         positionCamera(dt);
         renderer.render(scene, camera);
