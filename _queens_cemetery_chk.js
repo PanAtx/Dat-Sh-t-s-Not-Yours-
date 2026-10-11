@@ -431,7 +431,7 @@ const ghostCaseSrc = (() => {
 check('updateCreatures has case "ghost" (the wander AI)', ghostCaseSrc.length > 0);
 check(
   'ghost AI: roams its OWN slot (column across the block, its own street/curb/sidewalk zone band), exists ONLY on the cemetery block (never the graveyard, never a neighbor block)',
-  ghostCaseSrc.indexOf('ghostSlotX(c.slot)') >= 0 &&
+  ghostCaseSrc.indexOf('ghostSlotX(c.slot, c.bx)') >= 0 &&
     ghostCaseSrc.indexOf('BLOCK_W / GHOST_SLOTS / 2') >= 0 &&
     ghostCaseSrc.indexOf('c.zone < 0 ? -9.2 : c.zone === 0 ? -0.5 : 0.8') >= 0 &&
     ghostCaseSrc.indexOf('QUEENS_CEMETERY_X - 120') < 0 &&
@@ -458,7 +458,7 @@ check(
 );
 check(
   'ghostCd ticks down per frame (so a ghost can scare again after the cooldown)',
-  src.slice(ucStart, ucStart + 4000).indexOf('if (c.ghostCd > 0) c.ghostCd -= dt') >= 0
+  src.slice(ucStart, ucStart + 9000).indexOf('if (c.ghostCd > 0) c.ghostCd -= dt') >= 0
 );
 check(
   'cemetery rats scurry the graveyard grass (cemRat band, behind the fence)',
@@ -470,8 +470,8 @@ check(
     src.indexOf('c.dir = c.wx < cMid ? -1 : 1') < 0
 );
 check(
-  'bodega cat pool INCLUDES the cemetery block (cats roam the block too)',
-  src.indexOf('const active = [1, 2, 3, 4, 5];') >= 0 &&
+  'bodega cat pool INCLUDES the cemetery block (cats roam the route blocks, the cemetery among them)',
+  src.indexOf('const active = ACTIVE_BLOCK_IDX.slice();') >= 0 &&
     src.indexOf('i !== QUEENS_CEMETERY_BLOCK') < 0
 );
 
@@ -513,7 +513,7 @@ check(
 );
 check(
   'ghost collision radius 1.0 (a floating touch has a little reach)',
-  src.slice(ccStart, ccStart + 8000).indexOf('c.type === "ghost") rad = 1.0') >= 0
+  src.slice(ccStart, ccStart + 14000).indexOf('c.type === "ghost") rad = 1.0') >= 0
 );
 check('HP_HIT_GHOST is the DANGEROUS ghost damage (6, heavier than a hazard, lighter than a vehicle)', /const HP_HIT_GHOST = 6;/.test(src));
 check(
@@ -586,8 +586,8 @@ check(
 );
 check('cemetery cell: NO house/store/stairs (guarded by !isCemCell)', mbSec.indexOf('if (!isCemCell) {') >= 0);
 check(
-  'cemetery cell: NO curb garbage/mongo (b.garbage && !b.cemetery)',
-  mbSec.indexOf('if (b.garbage && !b.cemetery) {') >= 0
+  'cemetery cell: NO curb garbage/mongo (b.garbage && !b.cemetery, and nothing at all on the night shift)',
+  mbSec.indexOf('if (b.garbage && !b.cemetery && !isNightShift()) {') >= 0
 );
 check(
   "the `house` bag/can record is hoisted ABOVE the !isCemCell scope (the curb-trash block OUTSIDE that scope references it - a TDZ/ReferenceError would crash spawnWorld on every garbage block)",
@@ -595,7 +595,7 @@ check(
     const iHoist = mbSec.indexOf('let house = null;');
     const iCem = mbSec.indexOf('if (!isCemCell) {');
     const iClose = mbSec.indexOf('// end !isCemCell');
-    const iTrash = mbSec.indexOf('if (b.garbage && !b.cemetery) {');
+    const iTrash = mbSec.indexOf('if (b.garbage && !b.cemetery && !isNightShift()) {');
     return (
       iHoist > -1 && iHoist < iCem && iCem < iClose && iTrash > iClose &&
       mbSec.indexOf('const house = {') === -1 &&
@@ -614,7 +614,7 @@ check(
     );
     const ti = src.slice(
       src.indexOf('function tryInteract()'),
-      src.indexOf('function tryInteract()') + 3000
+      src.indexOf('function tryInteract()') + 5000
     );
     return (
       fb.indexOf('if (!h) continue') >= 0 &&
@@ -634,8 +634,8 @@ check(
   })()
 );
 check(
-  'cemetery cell: sidewalk trees line the curb (the !b.cemetery tree suppression is REMOVED)',
-  mbSec.indexOf('!b.cemetery &&') === -1
+  'cemetery cell: sidewalk trees line the curb (no tree suppression keyed on !b.cemetery remains)',
+  mbSec.indexOf('if (!b.cemetery &&') === -1
 );
 check(
   'corner-store spawn skips the cemetery block (QUEENS_STORE_CORNERS gate)',
@@ -652,7 +652,7 @@ check(
 
 // ================= 10. SPAWNWORLD RESIDENTS =================
 const swIdx = src.indexOf('function spawnWorld(');
-const swSec = src.slice(swIdx, swIdx + 60000);
+const swSec = src.slice(swIdx, swIdx + 70000);
 check(
   'spawnWorld: NO pre-spawned ghosts — the pack is built LIVE by the spawner (gated on workerOnCemeteryBlock) so the worker never faces a wall at the entrance',
   swSec.indexOf('spawnCemeteryGhost()') < 0 &&
@@ -727,7 +727,7 @@ check(
 );
 check(
   'ghost AI: each ghost drifts ONLY inside its own slot column + its own zone band (street / curb / sidewalk ghosts each stay in their own band)',
-  /c\.tx = ghostSlotX\(c\.slot\) \+ R\(-0\.45, 0\.45\)/.test(src) &&
+  /c\.tx = ghostSlotX\(c\.slot,( c\.bx)?\) \+ R\(-0\.45, 0\.45\)/.test(src) &&
     /c\.ty = c\.zone < 0 \? R\(-8\.8, -0\.5\) : c\.zone === 0 \? R\(-0\.5, 0\.8\) : R\(0\.8, 4\.7\)/.test(src) &&
     /c\.wy = clamp\(c\.wy, c\.zone < 0 \? -9\.2 : c\.zone === 0 \? -0\.5 : 0\.8, c\.zone < 0 \? -0\.5 : c\.zone === 0 \? 0\.8 : CEM_FENCE_Y - 0\.5\)/.test(src)
 );
@@ -906,6 +906,7 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
     'ghostSlotX',
     'GHOST_SLOTS',
     'GHOST_SLOT_CURSOR',
+    'nightSayOk', // the night chatter gate: Maspeth is NOT the night shift, so it always passes
     'switch (c.type) {\n' + ghostCaseSrc + '\n}',
   );
   let aiOk = true,
@@ -915,7 +916,7 @@ console.log('[functional] ghost AI (the real case body, run in a harness)');
       for (let k = 0; k < ghosts.length; k++) {
         const c = ghosts[k];
         const tx = c.wx - p.wx;
-        stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_FENCE_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx, ghostSlotX, GHOST_SLOTS, GHOST_SLOT_CURSOR);
+        stepFn(c, 0.1, p, R, clamp, animParts, Voice, CEM_FENCE_Y, QUEENS_CEMETERY_X, BLOCK_W, GZ, GHOST_LINES, pick, 'play', tx, ghostSlotX, GHOST_SLOTS, GHOST_SLOT_CURSOR, () => true);
         // each ghost must stay on its OWN slot column (inside the block) AND in its
         // OWN zone band: street y -9.2..-0.5, curb y -0.5..0.8, sidewalk y 0.8..fence-0.5
         const colW = BLOCK_W / GHOST_SLOTS;

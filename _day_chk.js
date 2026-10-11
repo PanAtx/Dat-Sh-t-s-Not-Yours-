@@ -1,4 +1,6 @@
-// _day_chk.js — validate the 7-day (Mon–Sun) level system in index.html
+// _day_chk.js — validate the level system in index.html: the seven weekday shifts
+// (Mon–Sun) PLUS the eighth level that comes after Sunday and belongs to no day at all
+// ("MIDNIGHT" — the NIGHT SHIFT).
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
@@ -22,13 +24,17 @@ function extractLiteral(name, open, close){
 let pass = 0, fail = 0;
 function check(n, cond){ if (cond){ pass++; console.log('  ok   ' + n); } else { fail++; console.error('  FAIL ' + n); } }
 
-// ---------- 1) 7 levels, Monday..Sunday, each with a borough ----------
+// ---------- 1) the week: 7 weekdays + THE NIGHT SHIFT after Sunday ----------
 const LEVEL_DAYS = eval(extractLiteral('LEVEL_DAYS', '[', ']'));
-check('exactly 7 levels (one per day)', LEVEL_DAYS.length === 7);
+check('exactly 8 levels (Mon..Sun + the night shift after Sunday)', LEVEL_DAYS.length === 8);
 const EXPECT = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
 check('level 1 = MONDAY, level 7 = SUNDAY', LEVEL_DAYS[0].day === 'MONDAY' && LEVEL_DAYS[6].day === 'SUNDAY');
-check('days are Monday..Sunday in order', LEVEL_DAYS.map(d => d.day).join(',') === EXPECT.join(','));
+check('the first 7 levels are Monday..Sunday in order', LEVEL_DAYS.slice(0, 7).map(d => d.day).join(',') === EXPECT.join(','));
 check('every level has a borough + area', LEVEL_DAYS.every(d => d.borough && d.area));
+// level 8: the haunted shift AFTER Sunday — a Brooklyn/Bed-Stuy night with NO weekday name
+const NIGHT = LEVEL_DAYS[7];
+check('level 8 = MIDNIGHT, flagged night:true, and it is a Bed-Stuy street', NIGHT.day === 'MIDNIGHT' && NIGHT.night === true && NIGHT.borough === 'BROOKLYN' && NIGHT.area === 'BED-STUY');
+check('only level 8 is flagged night:true (Sunday stays an ordinary storm shift)', LEVEL_DAYS.filter(d => d.night).length === 1 && LEVEL_DAYS[6].night === undefined);
 
 // ---------- 2) NPC difficulty ramps up every level (sparse Monday, busier each day) ----------
 const BASE_NPC_COUNTS = eval('(' + extractLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
@@ -98,32 +104,38 @@ check('statRow applies bonus styling', statRow('MONGO',1,2,true).indexOf('bonus'
 
 // ---------- 6) showDayStats renders all six breakdown rows ----------
 const els = {};
-const fakeEl = id => ({ id, textContent:'', innerHTML:'', classList:{add(){},remove(){}} });
+const fakeEl = id => ({ id, textContent:'', innerHTML:'', style:{ setProperty(){} }, querySelector: () => fakeEl(id + '-panel'), querySelectorAll: () => [], classList:{ add(){}, remove(){}, toggle(){} } });
 const $ = id => (els[id] || (els[id] = fakeEl(id)));
 const setTxt = (el, v) => { if (el) el.textContent = v; };
 const pad = n => String(Math.max(0, Math.floor(n))).padStart(6, '0');
-const dayStatsMock = { bags:{got:15,total:20}, cans:{got:10,total:12}, baskets:{got:14,total:14}, mongo:{got:3,total:5}, treasure:{got:4,total:6}, cash:{got:2,total:4} };
-const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats',
-  extractFn('showDayStats') + '\n; return showDayStats;')($, LEVEL_DAYS, lv, LEVEL_DAYS.length, dayStatsMock, 1234, 9999, pad, setTxt, statRow, newDayStats);
+const dayStatsMock = { bags:{got:15,total:20}, cans:{got:10,total:12}, baskets:{got:14,total:14}, mongo:{got:3,total:5}, treasure:{got:4,total:6}, cash:{got:2,total:4}, spooks:{got:9,total:14} };
+const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats','routeFailed','clearTimeout','writeUpDimTimer','clearAdvancePressed',
+  extractFn('showDayStats') + '\n; return showDayStats;')($, LEVEL_DAYS, lv, LEVEL_DAYS.length, dayStatsMock, 1234, 9999, pad, setTxt, statRow, newDayStats, false, () => 0, 0, () => {});
 makeShowDayStats(3)();
 check('showDayStats titles the day (WEDNESDAY)', els['day-stats-title'].textContent.indexOf('WEDNESDAY') >= 0);
 const grid = els['day-stats-grid'].innerHTML;
 check('showDayStats renders all 6 breakdown rows', ['GARBAGE BAGS','GARBAGE CANS','LITTER BASKETS','MONGO HAULED','TREASURES','STREET CASH'].every(l => grid.indexOf(l) >= 0));
 check('showDayStats shows bags "15 / 20"', grid.indexOf('15') >= 0 && grid.indexOf('/ 20') >= 0);
 check('showDayStats flags a perfect run (baskets 14/14)', grid.indexOf('perfect') >= 0);
+check('showDayStats shows the SPOOKS SHOBELED row when a spook tally exists', grid.indexOf('SPOOKS SHOBELED') >= 0 && grid.indexOf('/ 14') >= 0);
 check('showDayStats sets day + week score', els['day-stats-score'].textContent.indexOf('1234') >= 0 && els['day-stats-week'].textContent.indexOf('9999') >= 0);
 check('mid-week -> "NEXT DAY" button', els['btnNextDay'].textContent.indexOf('NEXT DAY') >= 0);
 makeShowDayStats(7)();
-check('Sunday (last) -> "FINISH WEEK" button', els['btnNextDay'].textContent.indexOf('FINISH WEEK') >= 0);
+check('Sunday is NO LONGER the last shift -> "NEXT DAY" (the night shift follows it)', els['btnNextDay'].textContent.indexOf('NEXT DAY') >= 0);
+els['day-stats-title'].textContent = '';
+makeShowDayStats(8)();
+check('the last title reads MIDNIGHT (the shift after Sunday)', els['day-stats-title'].textContent.indexOf('MIDNIGHT') >= 0);
+check('the night shift (last) -> "FINISH WEEK" button', els['btnNextDay'].textContent.indexOf('FINISH WEEK') >= 0);
 
 // ---------- 7) advanceGame routes by state ----------
 const calls = [];
 const stubs = { beginDay(){ calls.push('beginDay'); }, nextDay(){ calls.push('nextDay'); }, showWeekComplete(){ calls.push('weekComplete'); }, startGame(){ calls.push('startGame'); } };
-const mkAdv = (stateNow, lv) => new Function('state','level','MAX_LEVEL','beginDay','nextDay','showWeekComplete','startGame','_preloading','routeWriteupLock',
-  extractFn('advanceGame') + '\n; return advanceGame;')(stateNow, lv, 7, stubs.beginDay, stubs.nextDay, stubs.showWeekComplete, stubs.startGame, false, false);
+const mkAdv = (stateNow, lv, failed) => new Function('state','routeFailed','level','MAX_LEVEL','beginDay','nextDay','showWeekComplete','startGame','showDayIntro','_preloading','routeWriteupLock',
+  extractFn('advanceGame') + '\n; return advanceGame;')(stateNow, !!failed, lv, LEVEL_DAYS.length, stubs.beginDay, stubs.nextDay, stubs.showWeekComplete, stubs.startGame, () => calls.push('showDayIntro'), false, false);
 check('advanceGame: intro -> begin the day', (calls.length = 0, mkAdv('intro', 3)(), calls.length === 1 && calls[0] === 'beginDay'));
 check('advanceGame: dayend (mid-week) -> next day', (calls.length = 0, mkAdv('dayend', 3)(), calls.length === 1 && calls[0] === 'nextDay'));
-check('advanceGame: dayend (Sunday) -> week complete', (calls.length = 0, mkAdv('dayend', 7)(), calls.length === 1 && calls[0] === 'weekComplete'));
+check('advanceGame: dayend (Sunday) -> still advances (the night shift is next)', (calls.length = 0, mkAdv('dayend', 7)(), calls.length === 1 && calls[0] === 'nextDay'));
+check('advanceGame: dayend (the night shift = last) -> week complete', (calls.length = 0, mkAdv('dayend', 8)(), calls.length === 1 && calls[0] === 'weekComplete'));
 check('advanceGame: menu -> start a fresh week', (calls.length = 0, mkAdv('menu', 1)(), calls.length === 1 && calls[0] === 'startGame'));
 check('advanceGame: game over -> start a fresh week', (calls.length = 0, mkAdv('over', 1)(), calls.length === 1 && calls[0] === 'startGame'));
 check('advanceGame: never restarts mid-shift', (calls.length = 0, mkAdv('play', 3)(), calls.length === 0));
