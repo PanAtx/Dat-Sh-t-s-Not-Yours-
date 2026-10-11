@@ -181,6 +181,7 @@ const HORROR_HUNTERS_MAX = srcNum('HORROR_HUNTERS_MAX'), SHOVEL_GUARD = srcNum('
 const SHOVEL_BUTT = srcNum('SHOVEL_BUTT'), SHOVEL_BLADE_R = srcNum('SHOVEL_BLADE_R');
 const NIGHT_SAY_GAP = srcNum('NIGHT_SAY_GAP'), NIGHT_BUBBLE_GAP = srcNum('NIGHT_BUBBLE_GAP');
 const NIGHT_POP_GAP = srcNum('NIGHT_POP_GAP');
+const HORROR_STREET_Y = srcNum('HORROR_STREET_Y'), HORROR_LAWN_Y = srcNum('HORROR_LAWN_Y');
 const PARRY_LINES = eval('(' + srcLiteral('PARRY_LINES', '[', ']') + ')');
 const TRIAD_LINES = ['TRIAD!'], CONS_LINES = ['HOLY!'];
 const NIGHT_PROP_QUOTA = eval('(' + srcLiteral('NIGHT_PROP_QUOTA', '{', '}') + ')');
@@ -259,7 +260,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'spawnNightGhost', 'bandOf', 'updateNightHaunt', 'nightPlaceProp',
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
   'shovelToolReach', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
-  'nightSayOk', 'nightBubbleOk', 'nightPopOk'].map(srcFn).join('\n');
+  'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY'].map(srcFn).join('\n');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -287,6 +288,7 @@ const H = new Function(
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
   'SHOVEL_BLADE_R', 'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
+  'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y',
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -354,7 +356,8 @@ const H = new Function(
   S2_ADD_CREATURE, () => mkObj('arm'), () => mkObj('stone'), () => mkObj('skulls'),
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
-  SHOVEL_BLADE_R, PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP
+  SHOVEL_BLADE_R, PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
+  () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y
 );
 function mkC(type, dx, dy, extra) {
   // mkC(type, dx) / mkC(type, dx, extra) / mkC(type, dx, dy, extra) — a missing dy
@@ -659,11 +662,12 @@ check('the roster cap bounds the horde (' + H.nightHorrorLive() + ' live, cap ' 
   H.nightHorrorLive() <= HORROR_ROSTER_CAP);
 const bandOfX = (x) => (x >= 380 ? 'flood' : x >= 280 ? 'b3' : x >= 180 ? 'b2' : x >= 80 ? 'b1' : 'off');
 const ghostIn = (b) => allSpawned.filter((c) => c.type === 'ghost' && bandOfX(c.wx) === b).length;
-check('THE SPIRITS are out in force as well: ' + count('ghost') + ' ghosts on slots inside the blocks',
-  count('ghost') >= NIGHT_GHOST_CAP && count('ghost') <= NIGHT_GHOST_CAP + HORROR_QUOTA_FLOOD.ghost);
-check('every block has its ghost columns, and the flood block gets the extra 18',
-  ghostIn('b1') >= HORROR_QUOTA.ghost && ghostIn('b2') >= HORROR_QUOTA.ghost &&
-  ghostIn('b3') >= HORROR_QUOTA.ghost && ghostIn('flood') >= HORROR_QUOTA_FLOOD.ghost);
+check('THE SPIRITS are thin scenery, not a wall: ' + count('ghost') + ' ghosts on slots inside the blocks',
+  count('ghost') >= 9 && count('ghost') <= NIGHT_GHOST_CAP);
+check('every block has its ghost columns, and the graveyard block carries the heaviest share',
+  ghostIn('b1') >= 2 && ghostIn('b2') >= 2 &&
+  ghostIn('b3') >= 2 && ghostIn('flood') >= HORROR_QUOTA_FLOOD.ghost &&
+  ghostIn('flood') > ghostIn('b2'));
 check('no spirit is parked off the route',
   allSpawned.filter((c) => c.type === 'ghost').every((c) => c.wx >= 90 && c.wx <= 474));
 check('the night spawner adds the EXTRA manhole tentacles (' + count('zombieArm') + '; Sunday\'s own still spawns — the block is Bed-Stuy)',
@@ -705,9 +709,11 @@ check('the block he STARTS in has its full 9 ghouls (plus the whole roster behin
   keyAt([96, 176], 'ghoul') >= HORROR_QUOTA.ghoul, 'ghouls=' + keyAt([96, 176], 'ghoul'));
 check('no active block is quiet: ghouls stand in EVERY band the route walks through',
   S2_IDX.every((i) => keyAt([S2_LAYOUT[i].x, S2_LAYOUT[i].x + 80], 'ghoul') >= 1));
-check('the spirits are on their slots too (the street, the curb line AND the walk)',
-  creatures.filter((c) => c.type === 'ghost').length >= NIGHT_GHOST_CAP &&
-  [1, 0, -1].every((z) => creatures.filter((c) => c.type === 'ghost' && c.zone === z).length > 4));
+check('the spirits are on their slots too (the street, the curb line AND the walk) — THIN: ' +
+  creatures.filter((c) => c.type === 'ghost').length + ' ghosts, cap ' + NIGHT_GHOST_CAP,
+  creatures.filter((c) => c.type === 'ghost').length >= 9 &&
+    creatures.filter((c) => c.type === 'ghost').length <= NIGHT_GHOST_CAP + 3 &&
+    [1, 0, -1].every((z) => creatures.filter((c) => c.type === 'ghost' && c.zone === z).length >= 2));
 // --- shovel 1 spook every 1.2s and walk the route: the horde must NOT run out ---
 let banishEvery = 72, frame = 0, minHere = 999, spawnBehind = 0, peakLive = 0, peakScreen = 0;
 let floodGhoulsAtEnd = 0, surgeAnnounced = false, waveTier = 0, behindSample = '-', scanned = 0;
@@ -1212,6 +1218,55 @@ check('the Holy Weapon power moments route their pops AND lines through the budg
 check('the frenzy still SCORES (loud in points, silent in text)',
   scored.filter(s => s.n === SHOVEL_POINTS).length >= 30);
 s7Reset();
+console.log('\n[13] LESS SPIRIT CLUTTER, AND THE PACK WALKS THE WHOLE WIDTH OF THE BLOCK');
+check('the NON-ATTACKING spirits are cut way down: cap ' + NIGHT_GHOST_CAP +
+  ' on the whole route (was 45), quota ' + HORROR_QUOTA.ghost + ' a block, flood ' +
+  HORROR_QUOTA_FLOOD.ghost + ', ' + NIGHT_GHOST_SLOTS + ' slots, ' + NIGHT_GHOST_FILL + ' per fill',
+  NIGHT_GHOST_CAP <= 16 && HORROR_QUOTA.ghost <= 4 && HORROR_QUOTA_FLOOD.ghost <= 8 &&
+    NIGHT_GHOST_SLOTS <= 27 && NIGHT_GHOST_FILL <= 3);
+check('the ATTACKERS keep their density (9 ghouls a block, flood 14) — the fight is the crowd',
+  HORROR_QUOTA.ghoul >= 9 && HORROR_QUOTA_FLOOD.ghoul >= 14 && NIGHT_GHOUL_MIN >= 7);
+check('the road (y ' + HORROR_STREET_Y + ') and the front lawn (y ' + HORROR_LAWN_Y +
+  ') are both open to the pack',
+  HORROR_STREET_Y <= -8 && HORROR_LAWN_Y >= 7 &&
+    /c\.wy = clamp\(c\.wy, HORROR_STREET_Y, horrorMaxY\(\)\);/.test(srcFn('updateHorrorCreature')));
+check('no crawler lane floor left (the old 0.7 = sidewalk-only clamp is GONE)',
+  !/clamp\(c\.wy, 0\.7,/.test(srcFn('updateHorrorCreature')));
+check('spawn, respawn, wander, blink, shockwave and the grace shove all use the open lanes',
+  [srcFn('nightSpawnHorror'), srcFn('respawnHorror'), srcFn('updateHorrorCreature'),
+    srcFn('shovelShockwave'), srcFn('shoveSpookOff')]
+    .every((s) => s.includes('HORROR_STREET_Y') && s.includes('horrorMaxY')));
+check('the spirit zones stay on the Maspeth bands (street / curb / sidewalk slots intact)',
+  /gh\.zone = slot % 3 === 0 \? -1 : slot % 3 === 1 \? 0 : 1;/.test(srcFn('spawnNightGhost')));
+// --- SIM: the live horde over 60s: the pack must be standing in the road AND on the lawn ---
+s7Reset();
+onScreen = true;
+p.wx = 100; p.wy = 2.5;
+let inStreet = 0, inCurb = 0, inWalk = 0, inLawn = 0, peakGhosts = 0;
+for (let i = 0; i < 60 * 60; i++) {
+  p.wx = Math.min(452, p.wx + 3.0 / 60);
+  H.updateNightHaunt(1 / 60);
+  for (const c of creatures) {
+    if (c.hooked || c.hookLanded) continue;
+    H.updateHorrorCreature(c, 1 / 60);
+  }
+  for (const c of creatures) {
+    if (!HORROR_ALL[c.type] || c.hooked || c.hookLanded) continue;
+    if (c.wy < -1.0) inStreet = Math.max(inStreet, 1);
+    if (c.wy >= -1.0 && c.wy < 0.8) inCurb = Math.max(inCurb, 1);
+    if (c.wy >= 0.8 && c.wy <= 4.8) inWalk = Math.max(inWalk, 1);
+    if (c.wy > 4.8) inLawn = Math.max(inLawn, 1);
+  }
+  peakGhosts = Math.max(peakGhosts, creatures.filter((c) => c.type === 'ghost' && !c.hooked && !c.hookLanded).length);
+}
+check('after a 60s walk the pack stands in the ROAD, on the CURB, on the WALK and on the LAWN',
+  inStreet === 1 && inCurb === 1 && inWalk === 1 && inLawn === 1);
+check('the spirits never crowd the screen: peak ' + peakGhosts + ' on the route (cap ' + NIGHT_GHOST_CAP + ')',
+  peakGhosts <= NIGHT_GHOST_CAP + 4);
+check('the Maspeth ghost numbers are UNTOUCHED (75 slots, cap 45, its own grid)',
+  html.includes('const GHOST_SLOTS = 75') && html.includes('const GHOST_CAP = 45'));
+s7Reset();
+
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);

@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.463</div>
+          <div id="app-version" class="menu-version">v1.0.464</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.463';
+      const APP_VERSION = '1.0.464';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5187,7 +5187,7 @@
     area: "BED-STUY",
     night: true,
     special: "THE NIGHT SHIFT! NO SUCH DAY! · THE GHOUL HORDE",
-    warning: "9 GHOULS TO A BLOCK — SHOVEL 'EM IN THE TRUCK!",
+    warning: "9 GHOULS TO A BLOCK — LAWN, WALK, CURB AN' ROAD! SHOVEL 'EM IN!",
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -24974,14 +24974,14 @@
       // against the spooks standing in that band — Maspeth cemetery density, with a Holy Weapon.
       const HORROR_QUOTA = {
         ghoul: 9, hound: 3, specter: 4, banshee: 2, imp: 3, wraith: 2,
-        poltergeist: 2, demon: 1, hexbeast: 2, abyssal: 1, lich: 1, reaper: 0, ghost: 9,
+        poltergeist: 2, demon: 1, hexbeast: 2, abyssal: 1, lich: 1, reaper: 0, ghost: 3,
       };
       // The ABYSS FLOOD (the LAST active block): the horde comes for him wholesale.
       const HORROR_QUOTA_FLOOD = {
         ghoul: 14, hound: 5, specter: 3, banshee: 3, imp: 5, wraith: 3,
-        poltergeist: 3, demon: 3, hexbeast: 4, abyssal: 2, lich: 2, reaper: 2, ghost: 18,
+        poltergeist: 3, demon: 3, hexbeast: 4, abyssal: 2, lich: 2, reaper: 2, ghost: 6,
       };
-      const HORROR_QUOTA_CEIL = { ghoul: 20, hound: 8, specter: 8, imp: 8, ghost: 18 };
+      const HORROR_QUOTA_CEIL = { ghoul: 20, hound: 8, specter: 8, imp: 8, ghost: 8 };
       const HORROR_ROSTER_CAP = 110; // live horrors on the whole route (the cull behind frees room)
       const HORROR_SCREEN_CAP = 38; // ...and at most this many inside the frustum
       const NIGHT_FILL_TICK = 0.42; // the haunt tops up at most every 0.42s...
@@ -25035,11 +25035,22 @@
       const NIGHT_PROP_QUOTA_FLOOD = {
         headstone: 5, skull: 4, arm: 5, hand: 3, candle: 2, coffin: 2, gate: 1,
       };
-      // The ghost slot grid — Maspeth's own mechanism, ported to the haunted route.
-      const NIGHT_GHOST_SLOTS = 51; // per active block: slot % 3 = street / curb / sidewalk
-      const NIGHT_GHOST_CAP = 45; // the route stays CROWDED (Maspeth's number)
-      const NIGHT_GHOST_FILL = 4; // filled ≤4 ghosts per tick as columns scroll into view
+      // The ghost slot grid — Maspeth's own mechanism, ported to the haunted route. THESE ARE
+      // THE NON-ATTACKING SPIRITS: pretty, but they are not the fight, so the night keeps them
+      // THIN (a haunt you can see through, not a wall of ghosts). The attackers (ghouls and
+      // the rest of the roster) keep their full per-block quotas.
+      const NIGHT_GHOST_SLOTS = 21; // per active block: slot % 3 = street / curb / sidewalk
+      const NIGHT_GHOST_CAP = 13; // the whole route, spirits total (was Maspeth's 45)
+      const NIGHT_GHOST_FILL = 2; // topped up 2 at a time as columns scroll into view
       const NIGHT_GHOUL_MIN = 7; // a block band never drops under this many ghouls
+      // THE PACK OWNS THE WHOLE WIDTH OF THE STREET: the attackers walk the front lawn, the
+      // sidewalk, the curb AND the road (the night's geometry has no living pedestrians to
+      // keep the road for), so a ghoul can come at him from the porch or from the centre line.
+      const HORROR_STREET_Y = -8.6; // the road (the parked-car lane) is theirs
+      const HORROR_LAWN_Y = 7.4; // ...and so is the front lawn / stoop line
+      function horrorMaxY() {
+        return Math.max(creatureMaxY(), HORROR_LAWN_Y);
+      }
       // The shovelable roster. The manhole TENTACLE (zombieArm) is shoverable too; the
       // many-eyed thief (eyestalker) is NOT — you cannot shovel what won't stop running.
       // THE ABYSS ROSTER: eight families plus the Maspeth dead (HERE the ghosts are
@@ -25346,7 +25357,7 @@
           ky = c.wy - p.wy,
           kd = Math.hypot(kx, ky) || 1;
         c.wx = clamp(c.wx + (kx / kd) * by, ROUTE_START_X - 6, ROUTE_END_X);
-        c.wy = clamp(c.wy + (ky / kd) * by * 0.7, -8.9, creatureMaxY());
+        c.wy = clamp(c.wy + (ky / kd) * by * 0.7, HORROR_STREET_Y, horrorMaxY());
         if (c.g) c.g.position.set(c.wx, c.wy, c.g.position.z);
       }
       // THE PARRY: a spook that runs into the swinging tool is banished with NO damage to
@@ -25595,7 +25606,8 @@
         if (hi < lo) return null;
         const c = addCreature(type, variant ? { v: variant } : null);
         c.wx = clamp(lo + Math.random() * Math.max(1, hi - lo), band.x0 + 4, band.x1 - 4);
-        c.wy = c.floaty ? R(-8.4, 4.4) : R(0.9, creatureMaxY() - 0.2);
+        // THE WHOLE WIDTH OF THE BLOCK IS THEIRS: lawn, walk, curb and road alike.
+        c.wy = R(HORROR_STREET_Y + 0.4, horrorMaxY() - 0.4);
         c.g.position.set(c.wx, c.wy, c.floaty ? GZ + 0.5 : GZ);
         c.fade = 0;
         c.band = band.i;
@@ -25719,7 +25731,7 @@
           if (d > SHOCKWAVE_R) continue;
           const push = (1 - d / SHOCKWAVE_R) * 2.6;
           c.wx = clamp(c.wx + (dx / d) * push, ROUTE_START_X - 6, ROUTE_END_X);
-          c.wy = clamp(c.wy + (dy / d) * push * 0.7, -8.9, creatureMaxY());
+          c.wy = clamp(c.wy + (dy / d) * push * 0.7, HORROR_STREET_Y, horrorMaxY());
           c.flinchT = FLINCH_T * 1.8;
           c.huntT = 0; // the charge is BROKEN — it has to look at him again to start it
           if (c.g) c.g.position.set(c.wx, c.wy, c.g.position.z);
@@ -26163,7 +26175,7 @@
               const step = Math.min(dW - 1.4, R(3.0, 5.0));
               spawnEctoSplat(c.wx, c.wy, 0.45); // it leaves a wet mark where it WAS
               c.wx = clamp(c.wx + (dx / dW) * step, ROUTE_START_X - 6, ROUTE_END_X);
-              c.wy = clamp(c.wy + (dy / dW) * step * 0.85, -8.9, creatureMaxY());
+              c.wy = clamp(c.wy + (dy / dW) * step * 0.85, HORROR_STREET_Y, horrorMaxY());
               c.fade = 0; // ...and it fades back IN at the spot it landed in
               spawnEctoSplat(c.wx, c.wy, 0.6);
             }
@@ -26174,7 +26186,7 @@
           if (c.wanderT <= 0) {
             c.wanderT = R(3, 7);
             c.tx = clamp(p.wx + R(-28, 30), ROUTE_START_X - 4, ROUTE_END_X);
-            c.ty = c.floaty ? R(-8.4, 4.4) : R(0.9, creatureMaxY() - 0.2);
+            c.ty = R(HORROR_STREET_Y + 0.5, horrorMaxY() - 0.4); // lawn, walk, curb, road
           }
           const gx = c.tx - c.wx,
             gy = c.ty - c.wy;
@@ -26186,11 +26198,9 @@
           }
           if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
         }
-        // ---- LANES: floaters own the whole road; crawlers own the walk ----
+        // ---- LANES: the pack owns the whole width — road, curb, sidewalk AND front lawn ----
         c.wx = clamp(c.wx, ROUTE_START_X - 6, ROUTE_END_X);
-        c.wy = c.floaty
-          ? clamp(c.wy, -8.9, creatureMaxY())
-          : clamp(c.wy, 0.7, creatureMaxY());
+        c.wy = clamp(c.wy, HORROR_STREET_Y, horrorMaxY());
         // ---- BODY: the float, the glow, the lope ----
         if (c.g) floatOrLope(c, dt, hunting);
         // ---- RECYCLE: whatever falls far behind (or drifts out in front) re-takes
@@ -26294,7 +26304,7 @@
           lo,
           hi,
         );
-        c.wy = c.floaty ? R(-8.4, 4.4) : R(0.9, creatureMaxY() - 0.2);
+        c.wy = R(HORROR_STREET_Y + 0.4, horrorMaxY() - 0.4); // any lane: road, curb, walk, lawn
         c.tx = c.wx;
         c.ty = c.wy;
         c.wanderT = 0;
@@ -26599,13 +26609,16 @@
             }
           }
         }
-        // THE SPIRITS: Maspeth's crowding on the night slot grid, spread evenly over the
-        // bands, plus the flood block's extra 18 (the graveyard at the end of the route).
-        for (let g = 0; g < NIGHT_GHOST_CAP; g++)
+        // THE SPIRITS: a THIN haunt on the night slot grid (the non-attacking ghosts are
+        // scenery, not the fight), spread over the bands with the graveyard block getting the
+        // heaviest share — all of it INSIDE the route cap, so the screen stays readable.
+        const spiritTotal = NIGHT_GHOST_CAP;
+        const floodExtra = Math.min(HORROR_QUOTA_FLOOD.ghost, Math.floor(spiritTotal / 3));
+        for (let g = 0; g < spiritTotal - floodExtra; g++)
           spawnNightGhost(bands[g % bands.length]);
         const floodBand = nightFloodBand();
         if (floodBand)
-          for (let g = 0; g < HORROR_QUOTA_FLOOD.ghost; g++) spawnNightGhost(floodBand);
+          for (let g = 0; g < floodExtra; g++) spawnNightGhost(floodBand);
         // THREE tentacles: the Bed-Stuy spawner already sunk one into a manhole; tonight the
         // sewer is wide open, so the flood block gets an extra one. All of them are shoverable.
         const zBlocks = LEVEL_BLOCKS.filter(function (b) {
