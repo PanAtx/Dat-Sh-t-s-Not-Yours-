@@ -1,6 +1,9 @@
 // Name-resolution audit for the night kit: every identifier a listed function references
 // must be declared inside it (param/local), be a top-level declaration in the script, or be
 // a known global. Unresolved names = runtime ReferenceError when that path runs.
+// COLD-BOOT audit too: any `truck.` dereference in the night kit (which runs inside
+// spawnWorld, BEFORE the async truck FBX exists on a boot straight into the level) is a
+// crash waiting to happen — it must go through a guard (truckXSafe / truck && ...).
 const fs = require("fs");
 const html = fs.readFileSync("index.html", "utf8");
 function extractFunction(name) {
@@ -78,3 +81,26 @@ for (const n of NAMES) {
 }
 if (bad.length === 0) console.log("night-kit name resolution: CLEAN (every reference resolves)");
 else bad.slice(0, 80).forEach((b) => console.log("!! " + b));
+
+// --- COLD BOOT: no unguarded `truck.` inside functions that run during spawnWorld ---
+const SPAWN_TIME = [
+  "spawnNightShift", "nightPlaceProp", "spawnNightGhost", "nightSpawnHorror",
+  "spawnStolenGargoyle", "spawnGhostTreasure", "spawnWorld",
+];
+const truckBugs = [];
+for (const n of SPAWN_TIME) {
+  const body = extractFunction(n);
+  if (!body) continue;
+  const re = /(^|[^?\w$.])(truck)\s*\.\s*([A-Za-z_$][\w$]*)/g;
+  let t;
+  while ((t = re.exec(body))) {
+    const at = t.index;
+    const before = body.slice(Math.max(0, at - 60), at);
+    const guarded = /truck\s*&&/.test(before) || /truckXSafe/.test(body.slice(0, at)) ||
+      /truck\s*\.wx\s*(===|!=)/.test(body.slice(at, at + 60));
+    if (!guarded) truckBugs.push(`${n}: unguarded truck.${t[3]}`);
+  }
+}
+if (truckBugs.length === 0)
+  console.log("cold-boot truck access: CLEAN (spawn-time night code never dereferences a null truck)");
+else truckBugs.forEach((b) => console.log("!! " + b));

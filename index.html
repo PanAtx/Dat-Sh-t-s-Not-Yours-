@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.465</div>
+          <div id="app-version" class="menu-version">v1.0.466</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.465';
+      const APP_VERSION = '1.0.466';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9348,8 +9348,15 @@
       const HOPPER_CYCLE_AT = 5,
         HOPPER_CYCLE_DUR = 0.75,
         HOPPER_CYCLE_BONUS = 200;
+      // COLD-BOOT SAFETY NET: the truck is an FBX that loads ASYNC, so on a fresh week that
+      // starts on a level (the temp MIDNIGHT test build boots straight into the haunted
+      // street) these helpers can be asked for the hopper BEFORE `truck` exists. They answer
+      // with the canonical hopper geometry around the route's start — never a crash.
+      function truckXSafe() {
+        return truck && typeof truck.wx === "number" ? truck.wx : PLAYER_START_X - 8;
+      }
       function hopperWorldX() {
-        return truck.wx + (truck.hopperOff != null ? truck.hopperOff : -4.3);
+        return truckXSafe() + (truck && truck.hopperOff != null ? truck.hopperOff : -4.3);
       }
       // Where the FLYING BAG + BURST land: the MIDDLE of the visible rear scoop
       // (measured bucket centre, truck.hopperAimOff). The formed PILE rests a bit
@@ -9357,27 +9364,31 @@
       // (hopperOff) — those are separate systems.
       function hopperAimX() {
         return (
-          truck.wx +
-          (truck.hopperAimOff != null ? truck.hopperAimOff : truck.hopperOff != null
-            ? truck.hopperOff
-            : -4.3)
+          truckXSafe() +
+          (truck && truck.hopperAimOff != null
+            ? truck.hopperAimOff
+            : truck && truck.hopperOff != null
+              ? truck.hopperOff
+              : -4.3)
         );
       }
       // The PILE (bags that form in the hopper) rests a bit FURTHER BACK than the bag
       // landing — fully inside the open scoop so it reads as planted in the hopper.
       function hopperPileX() {
         return (
-          truck.wx +
-          (truck.hopperPileOff != null ? truck.hopperPileOff : truck.hopperAimOff != null
-            ? truck.hopperAimOff
-            : -4.3)
+          truckXSafe() +
+          (truck && truck.hopperPileOff != null
+            ? truck.hopperPileOff
+            : truck && truck.hopperAimOff != null
+              ? truck.hopperAimOff
+              : -4.3)
         );
       }
       function hopperWorldY() {
-        return -4.5 + (truck.hopperY != null ? truck.hopperY : 0);
+        return -4.5 + (truck && truck.hopperY != null ? truck.hopperY : 0);
       }
       function hopperTopZ() {
-        return truck.hopperZ != null ? truck.hopperZ : 2.4;
+        return truck && truck.hopperZ != null ? truck.hopperZ : 2.4;
       }
       function addHopperLump(type) {
         if (!hopperTrash) {
@@ -26471,17 +26482,28 @@
       function spawnStolenGargoyle() {
         const beast = addCreature("eyestalker");
         const gg = makeRubyGargoyle();
-        const maw = beast.g.userData.beast.maw;
-        maw.add(gg); // it rides in the mouth: the whole level is about prying it loose
-        gg.position.set(0.18, 0, -0.08);
-        gg.rotation.set(0, 0.35, 1.25); // nose-down, wings dragging
+        // COLD BOOT (a fresh week that STARTS on the night level): the truck's FBX loads
+        // async, so `truck` can still be null here — the night must never dereference it.
+        const truckX = truck && typeof truck.wx === "number" ? truck.wx : PLAYER_START_X - 8;
         beast.thief = true;
         // It corners a few paces SHORT OF THE FINISH LINE (not past it): the worker must be
         // able to walk into it and pry the prize loose on foot.
-        beast.campX = Math.max(truck.wx + 40, ROUTE_FINISH_X - GARGOYLE_CAMP_X_OFF);
-        beast.wx = truck.wx + 1.8;
+        beast.campX = Math.max(truckX + 40, ROUTE_FINISH_X - GARGOYLE_CAMP_X_OFF);
+        beast.wx = truckX + 1.8;
         beast.wy = 1.1; // it came up the CURB side and lifted it off the side bin
         beast.g.position.set(beast.wx, beast.wy, GZ);
+        const maw = beast.g && beast.g.userData.beast ? beast.g.userData.beast.maw : null;
+        if (maw) {
+          maw.add(gg); // it rides in the mouth: the whole level is about prying it loose
+          gg.position.set(0.18, 0, -0.08);
+          gg.rotation.set(0, 0.35, 1.25); // nose-down, wings dragging
+        } else {
+          // No maw rig yet (a model still streaming): carry the prize at the beast's own
+          // mouth spot in the world, so it exists and stays grabbable regardless of load order.
+          gg.position.set(beast.wx + 0.2, beast.wy - 0.1, GZ + 0.7);
+          gg.rotation.set(0, 0.35, 1.25);
+          dynamicGroup.add(gg);
+        }
         stolenGargoyle = { g: gg, val: GARGOYLE_VALUE };
       }
 

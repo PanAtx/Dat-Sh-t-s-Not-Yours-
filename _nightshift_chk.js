@@ -1313,6 +1313,24 @@ check('90s of hard shovelling: ' + kills + ' banishments = ' + loot + ' CASH —
   kills >= 40 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS);
 s7Reset();
 
+check('COLD BOOT (the MIDNIGHT test start): the night never touches a null truck',
+  /const truckX = truck && typeof truck\.wx === "number"/.test(srcFn('spawnStolenGargoyle')) &&
+    srcFn('spawnStolenGargoyle').includes('beast.g.userData.beast ?') &&
+    !/truck\.wx \+ 40/.test(srcFn('spawnStolenGargoyle')) &&
+    !/beast\.wx = truck\./.test(srcFn('spawnStolenGargoyle')));
+check('the hopper geometry answers with SAFE coordinates when the truck has not loaded',
+  srcFn('hopperWorldX').includes('truckXSafe()') &&
+    srcFn('hopperAimX').includes('truckXSafe()') &&
+    srcFn('hopperPileX').includes('truckXSafe()') &&
+    srcFn('hopperWorldY').includes('truck &&') &&
+    srcFn('hopperTopZ').includes('truck &&'));
+check('the thief still camps short of the finish line using the guarded truck spot',
+  /beast\.campX = Math\.max\(truckX \+ 40, ROUTE_FINISH_X - GARGOYLE_CAMP_X_OFF\)/.test(srcFn('spawnStolenGargoyle')) &&
+    /beast\.wx = truckX \+ 1\.8/.test(srcFn('spawnStolenGargoyle')));
+check('the gargoyle rides the beast maw when it exists, and lands at the beast when it does not',
+  /if \(maw\) \{[\s\S]{0,200}maw\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')) &&
+    /else \{[\s\S]{0,400}dynamicGroup\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')));
+
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);
