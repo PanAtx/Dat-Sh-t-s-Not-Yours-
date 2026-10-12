@@ -510,10 +510,31 @@ check('the truck lenses and halos burn hotter at midnight',
   mockTruck.hazLights[0].coreMat.emissiveIntensity > wasHaz && mockTruck.hazLights[0].haloMat.opacity > wasHalo &&
     mockTruck.hazLights[0].coreMat.emissive.r >= 1 - 1e-9);
 api.applyNightGlow(false, 2.0);
-check('...and on a weekday EVERY glow value is handed back exactly as built',
-  glowEye.emissiveIntensity === wasEye && glowAura.uniforms.uIntensity.value === wasAura &&
-    glowBody.emissiveIntensity === wasBody && glowShell.opacity === wasShell &&
-    mockTruck.hazLights[0].coreMat.emissiveIntensity === wasHaz && mockTruck.hazLights[0].haloMat.opacity === wasHalo);
+check(
+  '...and on a weekday every NON-blinking glow value is handed back exactly as built',
+  glowEye.emissiveIntensity === wasEye &&
+    glowAura.uniforms.uIntensity.value === wasAura &&
+    glowBody.emissiveIntensity === wasBody &&
+    glowShell.opacity === wasShell,
+);
+// THE HAZARD LENSES ARE DRIVER-OWNED ON EVERY ROUTE: blinkHazardLights writes their emissive
+// intensity / halo opacity every frame (they are BUILT DARK and lit by the 2-second DSNY clock).
+// A captured baseline pasted over them on a weekday is exactly what froze the amber row dark, so
+// the flash read only on the Midnight shift. The harness stands in for the driver: write a
+// mid-blink lit value, run the WEEKDAY pass, and demand the lens is still lit.
+const litHaz = mockTruck.hazLights[0];
+litHaz.coreMat.emissiveIntensity = 1.6;
+litHaz.haloMat.opacity = 0.6;
+api.applyNightGlow(false, 3.0);
+check(
+  'a WEEKDAY LEAVES THE DRIVER-OWNED HAZARD LENS LIT — the DSNY flash survives the glow pass on Monday-Sunday (the v1.0.479 freeze)',
+  mockTruck.hazLights[0].coreMat.emissiveIntensity === 1.6 && mockTruck.hazLights[0].haloMat.opacity === 0.6,
+);
+check(
+  'at midnight that same lens is AMPLIFIED to the live blink, never pinned to a frozen value',
+  (api.applyNightGlow(true, 4.0), mockTruck.hazLights[0].coreMat.emissiveIntensity > 1.6),
+);
+
 check('ecoplasm is born glowing on the haunted shift (' + NIGHT_GLOW_ECTO + 'x) and plain on a weekday',
   api.nightEctoK() === NIGHT_GLOW_ECTO && (api.setNight(false), api.nightEctoK() === 1) && (api.setNight(true), true));
 check('...and it is born SMALL on the haunted shift (' + NIGHT_ECTO_SIZE + 'x): the GLOW is not the SIZE',

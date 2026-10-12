@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.479</div>
+          <div id="app-version" class="menu-version">v1.0.480</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4337,7 +4337,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.479';
+      const APP_VERSION = '1.0.480';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5632,7 +5632,17 @@
           const m = nightGlowMats[i];
           const b = m && m.userData ? m.userData.nightGlowBase : null;
           if (!b) continue;
+          // A DSNY BLINKING lamp is owned by ITS DRIVER ON EVERY ROUTE. blinkHazardLights writes
+          // the hazard lens emissive/opacity each frame (the lenses are BUILT DARK and lit by the
+          // 2-second clock), so the "base" captured for these materials is simply whichever frame
+          // the scan happened to catch — pasting it on a weekday froze the amber row dark, which
+          // is why the rear hazard flash only read on the Midnight shift. Off-shift a blinking
+          // material is handed back to its driver untouched; a weekday stays byte-for-byte the
+          // built look for every NON-blinking glow.
+          if (m.userData && m.userData.nightBlink === true && !on) continue;
+
           // a slow per-material breathe: a glow is ALIVE, not a light switch
+
           const pulse = on ? 1 + NIGHT_GLOW_PULSE * Math.sin(t * 2.1 + i * 1.7) : 1;
           const k = on ? (m.userData.nightGlowGain || 1) * pulse : 1;
           const blink = m.userData.nightBlink === true; // its driver writes it every frame
