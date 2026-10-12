@@ -48,6 +48,9 @@ const NIGHT_LAMP_LENS_I = srcNum('NIGHT_LAMP_LENS_I'), NIGHT_LAMP_HALO_OP = srcN
 const NIGHT_SHAFT_OP = srcNum('NIGHT_SHAFT_OP'), NIGHT_WIN_GLOW = srcNum('NIGHT_WIN_GLOW');
 const NIGHT_GLOW_ECTO = srcNum('NIGHT_GLOW_ECTO'), NIGHT_GLOW_AURA = srcNum('NIGHT_GLOW_AURA');
 const NIGHT_GLOW_BODY = srcNum('NIGHT_GLOW_BODY'), NIGHT_TRUCK_GLOW = srcNum('NIGHT_TRUCK_GLOW');
+const NIGHT_ECTO_SIZE = srcNum('NIGHT_ECTO_SIZE');
+const NIGHT_TRACK_M = html.match(/const NIGHT_MUSIC_TRACK = "([^"]+)";/);
+const NIGHT_TRACK = NIGHT_TRACK_M ? NIGHT_TRACK_M[1] : '';
 const GZv = 0.3, BWv = 8;
 
 console.log('[1] THE SKY: the sun is OFF the haunted shift and a moon takes its place');
@@ -234,6 +237,7 @@ const wparts = {
 };
 // the harness runs the REAL functions, so the constants block it splices in must include the
 // NIGHT_SCRATCH colour the probe packer uses (it sits right after RETRO_U in the shipped file)
+const radioLocks = [];
 const NS_AT = html.indexOf('const NIGHT_SCRATCH =');
 const CONSTS = html.slice(
   html.indexOf('const NIGHT_SKY'),
@@ -248,10 +252,11 @@ const FUNCS = ['applyNightPalette', 'nightPaneSpec', 'pickNearestLamps', 'retroG
   'nightRadialTex', 'nightMoonTex', 'ensureNightSkyRig', 'clearNightSkyRig', 'makeStreetLamp',
   'buildNightLamps', 'ensureNightLampLights', 'applyNightWindows', 'armMidnightLook', 'retroUniforms',
   'patchRetroSheen', 'armNightRetro', 'applyNightHiVis', 'retroProbeColor', 'updateNightLamps',
-  'nightEctoK', 'registerNightGlowMat', 'scanNightGlow', 'applyNightGlow', 'nightTruckRadial',
+  'nightEctoK', 'nightEctoSize', 'applyMidnightMusic', 'registerNightGlowMat', 'scanNightGlow',
+  'applyNightGlow', 'nightTruckRadial',
   'armNightTruckRig', 'clearNightTruckRig', 'nightTruckRigUpdate'].map(srcFn).join('\n');
 const api = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'R', 'GZ', 'BW', 'blocks', 'scene', 'camera',
-  'dirLight', 'ambientLight', 'p', 'wparts', 'document',
+  'dirLight', 'ambientLight', 'p', 'wparts', 'document', 'SFX',
   CONSTS + SHADER_CONSTS +
   // (the rig variables themselves — nightLamps / nightWindows / nightLampLights / nightSkyRig /
   // retroMats / RETRO_U — are ALREADY in CONSTS, straight out of the shipped file)
@@ -269,8 +274,9 @@ const api = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'R', 'GZ', 'BW', 'block
   ' setTruck: (v) => { truck = v; }, setCreatures: (v) => { creatureList = v; },' +
   ' getGlowMats: () => nightGlowMats, getTruckRig: () => nightTruckRig,' +
   ' getTruckLights: () => nightTruckLights, applyNightGlow, scanNightGlow, nightEctoK,' +
-  ' armNightTruckRig, clearNightTruckRig, nightTruckRigUpdate };')(
-  THREE, M, BX, CY, SP, R, GZv, BWv, blocks, scene, camera, dirLight, ambientLight, p, wparts, documentMock);
+  ' armNightTruckRig, clearNightTruckRig, nightTruckRigUpdate, nightEctoSize, applyMidnightMusic };')(
+  THREE, M, BX, CY, SP, R, GZv, BWv, blocks, scene, camera, dirLight, ambientLight, p, wparts,
+  documentMock, { radioSticky: (n) => { radioLocks.push(n); return true; } });
 
 // ---- the palette, on the real lights ---------------------------------------------------
 api.applyNightPalette();
@@ -486,6 +492,9 @@ check('...and on a weekday EVERY glow value is handed back exactly as built',
     mockTruck.hazLights[0].coreMat.emissiveIntensity === wasHaz && mockTruck.hazLights[0].haloMat.opacity === wasHalo);
 check('ecoplasm is born glowing on the haunted shift (' + NIGHT_GLOW_ECTO + 'x) and plain on a weekday',
   api.nightEctoK() === NIGHT_GLOW_ECTO && (api.setNight(false), api.nightEctoK() === 1) && (api.setNight(true), true));
+check('...and it is born SMALL on the haunted shift (' + NIGHT_ECTO_SIZE + 'x): the GLOW is not the SIZE',
+  NIGHT_ECTO_SIZE > 0 && NIGHT_ECTO_SIZE < 1 && api.nightEctoSize() === NIGHT_ECTO_SIZE &&
+  (api.setNight(false), api.nightEctoSize() === 1) && (api.setNight(true), true));
 api.armNightTruckRig();
 check('the truck gets its OWN midnight rig (beams, beacon, worklight) riding on the truck group',
   !!api.getTruckRig() && api.getTruckRig().parent === mockTruck.g &&
@@ -547,6 +556,29 @@ check('the night shift still ROLLS THE STORM (3 AM lightning is part of the look
 check('the midnight start is still wired (level 8 on a plain START)',
   /const START_LEVEL = NIGHT_LEVEL;/.test(html));
 
+check('a shovel splat scales SIZE by the size dial and GLOW by the glow dial (bright, thin, settles)',
+  srcFn('spawnEctoSplat').includes('const es = nightEctoSize()') &&
+  srcFn('spawnEctoSplat').includes('Math.round(11 * scale * es)') &&
+  srcFn('spawnEctoSplat').includes('R(0.5, 2.0) * scale * es') &&
+  srcFn('spawnEctoSplat').includes('R(0.03, 0.075) * scale * es') &&
+  srcFn('spawnEctoSplat').includes('R(0.9, 2.6) * es') &&
+  srcFn('spawnEctoSplat').includes('emissiveIntensity: 1.1 * ek'));
+check('the scoop geyser keeps its count and its throw at midnight; only its drops shrink',
+  srcFn('spawnEctoBurst').includes('const es = nightEctoSize()') &&
+  srcFn('spawnEctoBurst').includes('Math.round(20 * intensity)') &&
+  srcFn('spawnEctoBurst').includes('* (0.55 + intensity * 0.55)') &&
+  srcFn('spawnEctoBurst').includes('(0.025 + Math.random() * 0.05) * es') &&
+  srcFn('spawnEctoBurst').includes('emissiveIntensity: 1.25 * ek'));
+api.setNight(true);
+api.armMidnightLook();
+check('arming the haunted shift LOCKS THE STATION onto "' + NIGHT_TRACK + '"',
+  NIGHT_TRACK === 'Midnight Menagerie.mp3' &&
+  radioLocks[radioLocks.length - 1] === 'Midnight Menagerie.mp3');
+api.setNight(false);
+api.armMidnightLook();
+check('arming a weekday street hands the station back to the shuffled rotation (null)',
+  radioLocks[radioLocks.length - 1] === null);
+api.setNight(true);
 console.log('\n' + pass + ' midnight-look checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);

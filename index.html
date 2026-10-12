@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.468</div>
+          <div id="app-version" class="menu-version">v1.0.469</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.468';
+      const APP_VERSION = '1.0.469';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5081,9 +5081,11 @@
       const NIGHT_TRUCK_PROBE = 1.5;     // ...and the sheen kick its worklight throws at the striping
       const NIGHT_GLOW_AURA = 2.35;      // the ghouls' rim-aura: at midnight the aura IS the light
       const NIGHT_GLOW_BODY = 2.05;      // the spectral bodies + every creature's emissive
-      const NIGHT_GLOW_ECTO = 2.3;       // ecoplasm: brighter goo, bigger globules
+      const NIGHT_GLOW_ECTO = 2.3;       // ecoplasm GLOW: brighter goo at midnight
+      const NIGHT_ECTO_SIZE = 0.45;      // ...and SUBTLE goo: the globules come out SMALLER
       const NIGHT_GLOW_PULSE = 0.18;     // how hard the glow breathes
       const NIGHT_GLOW_SCAN = 0.35;      // seconds between glow-registry rescans
+      const NIGHT_MUSIC_TRACK = "Midnight Menagerie.mp3"; // the haunted shift's theme, on loop
       const NIGHT_POOL_W = 14;           // the warm pool laid FLAT ON THE ROAD under a lamp
       const NIGHT_POOL_H = 8.5;          // (this plane's own x/y ARE the street's along/across axes)
       const NIGHT_POOL_Y = -3.5;         // centred in the lane the worker dumps into: the light is
@@ -5507,6 +5509,12 @@
       function nightEctoK() {
         return typeof isNightShift === "function" && isNightShift() ? NIGHT_GLOW_ECTO : 1;
       }
+      // THE SIZE DIAL IS NOT THE GLOW DIAL. Midnight ecoplasm has to read as a LIGHT source —
+      // a wet green glow in the dark — while the splash itself stays a SPOT: big soft blobs on
+      // a night street look like firework flashes and swallow the ghoul they just hit.
+      function nightEctoSize() {
+        return typeof isNightShift === "function" && isNightShift() ? NIGHT_ECTO_SIZE : 1;
+      }
 
       // Remember what a material was when it was built, and what it is allowed to become.
       function registerNightGlowMat(m, gain) {
@@ -5732,9 +5740,18 @@
         };
         return true;
       }
+      // THE HAUNTED SOUNDTRACK: the night shift rides on ONE song, looped — "Midnight
+      // Menagerie". The station is locked going in and handed back to the shuffled rotation
+      // the moment any weekday shift arms, so the menu and the seven days never hear it.
+      function applyMidnightMusic(on) {
+        if (typeof SFX === "undefined" || !SFX || typeof SFX.radioSticky !== "function")
+          return false;
+        return SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACK : null);
+      }
       // THE ONE ENTRY POINT — run from resetWorldState AFTER spawnWorld has built the street.
       function armMidnightLook() {
         const on = typeof isNightShift === "function" && isNightShift();
+        applyMidnightMusic(on); // the music FOLLOWS the shift, night and weekday alike
         clearNightSkyRig();
         clearNightTruckRig(); // the rig lives on the truck: a fresh world means a fresh rig
         nightGlowT = -1e9; // re-capture on this world; nothing carries over from the last one
@@ -6069,6 +6086,13 @@
       let ectoCount = 0;
       let shovelGroup = null;
       let shovelTwist = 0; // the swing's lean into the hit: worker.group.rotation.z = facing - this
+      let shovelStride = 0; // ...the amplitude the BODY runs on (step-through + weight shift)
+      let shovelLean = 0; // ...how far his chest tips over the blade (worker.group.rotation.x)
+      // >= 0 while a swing is running. Named shovelArm, NOT shovelStrike: that name is the
+      // banishment FUNCTION itself, and a let beside a same-named function in one scope is
+      // a SyntaxError that takes the whole page down.
+      let shovelArm = -1;
+      let pendingStrike = null; // what the press CAUGHT, delivered at the peak of the arc
       let stolenGargoyle = null; // { g, val } while the beast is still carrying it
       // THE HOLY WEAPON's own state (night shift): shovelCharge counts banishments toward
       // the next CONSECRATED swing (CONS_CHARGE_AT fills it, one swing spends it);
@@ -7523,6 +7547,7 @@
         radioList: [],
         radioBag: [],
         radioTimer: null,
+        radioSticky: null, // the MIDNIGHT lock: one track, on repeat (null = the normal rotation)
         radioStarting: false,
         radioMuted: false,
         radioGen: 0,
@@ -8140,6 +8165,12 @@
         },
         async radioNext() {
           if (!this.radioEl || !this.radioList.length) return;
+          // THE MIDNIGHT LOCK: on the haunted shift the station plays ONE track and loops it,
+          // so the shuffled bag collapses to that song — every "next" is the same song again.
+          if (this.radioSticky) {
+            if (this.radioList.indexOf(this.radioSticky) >= 0) this.radioBag = [this.radioSticky];
+            else this.radioSticky = null; // not on this station: fall back to the whole rotation
+          }
           if (!this.radioBag.length) {
             this.radioBag = this.radioList.slice();
             for (let i = this.radioBag.length - 1; i > 0; i--) {
@@ -8199,7 +8230,12 @@
           const el = (this.radioEl = new Audio());
           el.volume = this.radioMuted ? 0 : 0.9; // honor a mute set before the station came on air
           el.muted = this.radioMuted; // iOS: the muted property is the reliable mute path
-          el.addEventListener("ended", () => this._radioSchedule(2000)); // song finished → 2s of air → next song
+          // Locked (the night shift): the song comes straight back after a short breath.
+          el.addEventListener("ended", () =>
+            this._radioSchedule(
+              this.radioSticky ? 700 : 2000,
+            ),
+          ); // song finished → 2s of air → next song
           el.addEventListener("error", () => {
             // A revoked blob URL (previous track) can still fire an error event AFTER
             // the new src is already set. Guard: only treat as a real failure if this
@@ -8209,6 +8245,19 @@
             this._radioSchedule(300);
           }); // bad/missing file → skip it right away
           this.radioNext();
+        },
+        radioSticky(name) {
+          // Force the station onto ONE track, on loop, or hand it back to the shuffled rotation.
+          // armMidnightMusic() fires this on every shift: on for the haunted one, off for the
+          // seven weekdays (so "Midnight Menagerie" is only ever HEARD ON MIDNIGHT).
+          const on = name || null;
+          if (this.radioSticky === on) return false; // same lock as last shift: change nothing
+          this.radioSticky = on;
+          this.radioBag = []; // fresh bag: the very next advance obeys the lock
+          this._radioCancel(); // drop any pending "advance" aimed at the old playlist
+          if (!this.radioEl || !this.radioList.length) return on !== null; // not on air: radioStart honours it
+          this.radioNext(); // straight onto the locked song (or back into the rotation)
+          return true;
         },
         radioSkip() {
           // SKIP button: jump to the next song right now (no 2-second gap)
@@ -25856,15 +25905,17 @@
         const shaft = lay(CY(0.033, 0.033, 1.02, wood, 8), 0.51, 0); // butt at 0 -> 1.02
         const buttKnob = lay(CY(0.052, 0.048, 0.13, grip, 8), 0.045, 0); // the stop his rear fist plants against
         const frontGrip = lay(CY(0.043, 0.043, 0.22, grip, 8), 0.44, 0); // the taped place his forward hand fists
-        const socket = lay(CY(0.048, 0.038, 0.16, steel, 8), 1.08, -0.02); // the forged collar the head enters
-        const neck = BX(0.18, 0.08, 0.06, steel); // ...and the neck that carries it into the blade
-        neck.position.set(1.21, 0, -0.05);
-        const blade = BX(0.34, 0.3, 0.045, steel); // the square point: wide, flat, worn bright at the edge
-        blade.position.set(1.39, 0, -0.07);
-        const tip = BX(0.1, 0.26, 0.035, edge); // the bright cutting edge at the very end
-        tip.position.set(1.58, 0, -0.08);
+        const socket = lay(CY(0.058, 0.046, 0.18, steel, 8), 1.08, -0.02); // the forged collar the head enters
+        const neck = BX(0.22, 0.2, 0.075, steel); // ...and the neck that carries it into the blade
+        neck.position.set(1.23, 0, -0.05);
+        // THE POINT ITSELF: a real DSNY square-point — a full 0.52u across the shoulders and
+        // 0.46u out past the neck, thick enough to read as a blade at the game's camera zoom.
+        const blade = BX(0.46, 0.52, 0.055, steel); // wide, flat, worn bright at the edge
+        blade.position.set(1.46, 0, -0.075);
+        const tip = BX(0.12, 0.5, 0.042, edge); // the bright cutting edge at the very end
+        tip.position.set(1.68, 0, -0.085);
         g.add(shaft, buttKnob, frontGrip, socket, neck, blade, tip);
-        g.userData.handleLen = 1.63; // butt (its own origin) to the tip of the point
+        g.userData.handleLen = 1.74; // butt (its own origin) to the tip of the point
         // THE HOLY WEAPON: the head's own materials are published so a CONSECRATED blade can
         // light up (shovelHolyGlow in updatePlayer drives the emissive on the point).
         g.userData.bladeMat = steel;
@@ -25940,7 +25991,9 @@
       const HORROR_HUNTERS_MAX = 6;
       const SHOVEL_GUARD = 0.45;
       const SHOVEL_BUTT = 0.55; // the handle runs BACK past his rear fist — the wood is a weapon
-      const SHOVEL_BLADE_R = 0.9; // ...and the head sweeps this far PAST the end of the reach
+      const SHOVEL_BLADE_R = 1.25; // ...and the head sweeps this far PAST the end of the reach
+      // (it tracks the wide square-point in makeShovelProp: what the player SEES sweep is what
+      // the swing actually catches, so a ghoul standing next to the blade is ON the swing)
       // THE SCREEN STAYS HIS, NOT THE Ghouls'. A banishment pays in points, splats, the
       // hopper jingle and the HUD meter — NO centre-screen text: the big pop is reserved for
       // POWER-UPS (and the two Holy Weapon moments that ARE a power-up: CONSECRATED and the
@@ -25958,8 +26011,11 @@
         "IN THE HOPPER YOU GO!",
       ];
       const SHOVEL_REACH = 3.4; // how far the swing lands, measured from the worker
-      const SHOVEL_SWING_DUR = 0.3; // the swipe itself (p.shovelT, animated in updatePlayer)
-      const SHOVEL_COOLDOWN = 0.42; // ...and how soon he can swing again
+      const SHOVEL_SWING_DUR = 0.46; // the swing itself (p.shovelT, animated in updatePlayer):
+      // a bat swing has a wind-up, a strike and a follow-through, so it is a beat LONGER than
+      // the old snap — and the parry window grows with it, so he is never less safe.
+      const SHOVEL_COOLDOWN = 0.3; // ...and how soon he can swing again (the swing runs 0.46,
+      // so this counts from the END of it: a rhythm, not a mash-fest)
       const SHOVEL_POINTS = 25; // per spook packed into the hopper — a BANISHMENT IS SMALL CHANGE
       // now (was 250): the horde is worth hundreds of kills, and shovel money must not buy the
       // week's power-ups by itself. The Red Bull milestone is 30,000 SCORE and the healer
@@ -26239,7 +26295,41 @@
       const SHOVEL_HOLD = {
         idle: { r: [1.15, -0.35], l: [-0.5, -0.9], lean: 0, twist: 0 },
         swing: { r: [1.2, -0.22], l: [-0.35, -1.25], lean: 0.24, twist: 0.55 },
+        // THE SWING IS A CURVE, NOT A LERP — amplitude runs 0 (the carry) up past 1 (the
+        // strike) to max (the follow-through, shovel over the leading shoulder), walked
+        // FORWARD by the play loop, so one press is one roundhouse:
+        //  COIL   the rear arm loads the butt back over the trailing shoulder and the
+        //         whole body coils the OTHER way (twist NEGATIVE: he winds himself up);
+        //  LAUNCH the rear arm punches out, the forward hand slides DOWN the shaft, the
+        //         hands spread, and the body starts to turn into the sweep;
+        //  STRIKE both arms drive the head THROUGH the spot with the tool ACROSS his
+        //         chest (the shaft axis flips from ahead to behind), 1.16 rad of body
+        //         rotation into the hit, chest over the blade, both hands on the wood;
+        //  FOLLOW the tool finishes above his leading shoulder, the body rotates clean
+        //         through (1.5 rad), the shovel laying itself down.
+        // Every key keeps BOTH fists in front of his chest from waist to shoulder height
+        // and each is a true arm-length out of its shoulder (the rig's limits for a 0.52u
+        // arm), so the tool never leaves his hands and no arm passes through his head.
+        keys: [
+          { k: 0.0, r: [1.15, -0.35], l: [-0.5, -0.9], lean: 0.0, twist: 0.0 },
+          { k: 0.3, r: [0.85, -0.22], l: [-0.62, -1.42], lean: -0.1, twist: -0.42 },
+          { k: 0.6, r: [1.26, -0.3], l: [-0.4, -1.3], lean: 0.2, twist: 0.36 },
+          { k: 1.0, r: [0.62, -1.06], l: [-0.16, -0.86], lean: 0.3, twist: 1.16 },
+          { k: 1.22, r: [0.95, -0.45], l: [0.2, -0.95], lean: 0.1, twist: 1.5 },
+        ],
+        max: 1.22,
       };
+      // k is the swing's clock (0 = the press, 1 = SHOVEL_SWING_DUR later): LOADED 0.1s
+      // in, AT the strike pose when the hit resolves, the follow-through is the last
+      // thing the player sees, and the whole thing settles back into the carry.
+      function shovelSwingArc(k) {
+        if (k <= 0 || k >= 1) return 0;
+        if (k < 0.18) return (k / 0.18) * 0.34; // COIL
+        if (k < 0.46) return 0.34 + ((k - 0.18) / 0.28) * 0.66; // WHIP into STRIKE
+        if (k < 0.72) return 1 + ((k - 0.46) / 0.26) * 0.22; // through into FOLLOW
+        const t = (k - 0.72) / 0.28; // RECOVER
+        return 1.22 * (1 - t * t * (3 - 2 * t));
+      }
       // Hold it with BOTH hands. His two fists are computed from the arm poses, and the
       // handle is then laid on the line through them with the butt a hand and a half
       // behind the rear knuckles and the head running on past the forward one. Because the
@@ -26249,15 +26339,31 @@
       // rotates (-z) over the blade.
       function poseShovel(sw) {
         if (!shovelGroup || !wparts || !wparts.armR || !wparts.armL) return null;
-        const A = SHOVEL_HOLD.idle,
-          B = SHOVEL_HOLD.swing,
-          k = sw || 0,
-          rxe = A.r[0] + (B.r[0] - A.r[0]) * k,
-          rye = A.r[1] + (B.r[1] - A.r[1]) * k,
-          lxe = A.l[0] + (B.l[0] - A.l[0]) * k,
-          lye = A.l[1] + (B.l[1] - A.l[1]) * k;
-        wparts.armR.rotation.set(rxe, rye, 0); // his RIGHT arm: the REAR hand on the butt
-        wparts.armL.rotation.set(lxe, lye, 0); // his LEFT arm: the FORWARD hand down the shaft
+        // Sample the curve with a smoothstep between keys, so the tool ACCELERATES through
+        // the strike instead of travelling at the flat speed a lerp gives it; clamped to
+        // [0, max], so the tail of a swing can never over-run the curve.
+        const K = SHOVEL_HOLD.keys,
+          nK = K.length - 1,
+          k = clamp(sw || 0, 0, SHOVEL_HOLD.max);
+        let i = 0;
+        while (i < nK && k > K[i + 1].k) i++;
+        const A = K[i],
+          B = K[i + 1] || A,
+          span = B.k - A.k;
+        let t = span > 1e-9 ? (k - A.k) / span : 1;
+        t = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+        const rxe = A.r[0] + (B.r[0] - A.r[0]) * t,
+          rye = A.r[1] + (B.r[1] - A.r[1]) * t,
+          lxe = A.l[0] + (B.l[0] - A.l[0]) * t,
+          lye = A.l[1] + (B.l[1] - A.l[1]) * t;
+        // A bat is gripped, not palm-held: the rear forearm rolls OVER the top of the
+        // handle as the swing loads and rolls off it in the follow-through. A few degrees
+        // of wrist roll, and the FISTS are untouched — rotating an arm about the axis it
+        // points along only spins the glove around that axis (shovelFist ignores z), so the
+        // tool is still laid on exactly the same two knuckles it always was.
+        const torque = clamp((A.twist + (B.twist - A.twist) * t) * 0.14, -0.2, 0.2);
+        wparts.armR.rotation.set(rxe, rye, torque); // his RIGHT arm: the REAR hand on the butt
+        wparts.armL.rotation.set(lxe, lye, torque * 0.6); // his LEFT arm: the FORWARD hand
         const rf = shovelFist(-1, rxe, rye),
           lf = shovelFist(1, lxe, lye),
           dx = lf.x - rf.x,
@@ -26272,8 +26378,8 @@
           rf.z - (dz / dm) * 0.14,
         );
         return {
-          lean: A.lean + (B.lean - A.lean) * k,
-          twist: A.twist + (B.twist - A.twist) * k,
+          lean: A.lean + (B.lean - A.lean) * t,
+          twist: A.twist + (B.twist - A.twist) * t,
         };
       }
       // Hand him the shovel (or take it back). It rides the worker ROOT, not an arm — one
@@ -26286,6 +26392,10 @@
           if (shovelGroup && shovelGroup.parent) shovelGroup.parent.remove(shovelGroup);
           shovelGroup = null;
           shovelTwist = 0;
+          shovelStride = 0;
+          shovelLean = 0;
+          shovelArm = -1;
+          pendingStrike = null; // a swing mid-arc dies with the tool: nothing is owed
           return;
         }
         if (!wparts || !wparts.armR || !wparts.armL) return;
@@ -26371,7 +26481,7 @@
       function shovelParry(c) {
         shovelStrike(c);
         shovelFlinch();
-        spawnEctoSplat(c.wx, c.wy, 0.55);
+        spawnEctoSplat(c.wx, c.wy, 0.34); // a thin wet mark, glowing
         p.shake = Math.max(p.shake || 0, 0.4);
         if (typeof SFX.playSwoosh === "function") SFX.playSwoosh();
         if (nightSayOk())
@@ -26426,20 +26536,40 @@
           : hits.length
             ? [hits[0]]
             : [];
+        shovelArm = 0; // the swing is running; shovelDeliverStrike() lands the catch mid-arc
+        pendingStrike = null;
         if (targets.length) {
+          // The press picks up what the tool CAUGHT — the facing, the targets, the charge —
+          // and the banishment itself fires when the blade comes through (see above).
           p.facing = Math.atan2(targets[0].c.wy - p.wy, targets[0].c.wx - p.wx);
-          for (let i = 0; i < targets.length; i++) shovelStrike(targets[i].c);
-          shovelFlinch(); // every spook near the blade recoils from it
-          if (charged) shovelShockwave();
+          pendingStrike = { spooks: targets.slice(), charged: charged };
         } else if (prop) {
           p.facing = Math.atan2(prop.hz.wy - p.wy, prop.hz.wx - p.wx);
-          shovelHazardStrike(prop.b, prop.hz); // the headstone goes IN THE TRUCK
-          if (charged) shovelShockwave();
+          pendingStrike = { b: prop.b, hz: prop.hz, charged: charged };
         } else {
           SFX.playSwoosh(); // a miss: the shovel still whistles through the fog
           shovelFlinch(); // ...and the holy light still makes them flinch
+          shovelArm = -1; // nothing to deliver
+          if (charged) shovelShockwave(); // the consecrated arc still goes out
         }
         return true;
+      }
+      // THE FRAME THE SWING LANDS. The press decided WHAT the tool caught (the reach math,
+      // the facing, the guard window, the swoosh of a clean miss, so a button is never
+      // dead); the banishment fires HERE — on the strike frame of the arc, out over the
+      // shoulder where the blade actually IS. You see the shovel go through the ghoul as
+      // the ghoul goes into the truck.
+      function shovelDeliverStrike() {
+        const pend = pendingStrike;
+        pendingStrike = null;
+        if (!pend) return;
+        if (pend.spooks) {
+          for (let i = 0; i < pend.spooks.length; i++) shovelStrike(pend.spooks[i].c);
+          shovelFlinch(); // every spook near the blade recoils from it
+        } else {
+          shovelHazardStrike(pend.b, pend.hz); // the headstone goes IN THE TRUCK
+        }
+        if (pend.charged) shovelShockwave(); // the consecrated arc goes with the blow
       }
       // THE STRIKE: it's on the shovel. The creature stops being an AI and becomes a
       // projectile — it rides an arc into the rear hopper (shovelFlight).
@@ -26459,7 +26589,7 @@
         SFX.playSwoosh();
         SFX.playSquelch();
         p.shake = Math.max(p.shake || 0, 0.4);
-        spawnEctoSplat(c.wx, c.wy, 0.9);
+        spawnEctoSplat(c.wx, c.wy, 0.5); // the hit splash: light, not volume
         // NO TEXT PER BANISHMENT: the swing's feedback is the swoosh, the splat, the points
         // bubble and the HUD meter. The worker only gets the occasional word (the budget), so
         // a swing-frenzy never buries the screen in bubbles — the spook's "last word" is
@@ -26668,7 +26798,7 @@
         hopperDeposit("ecto");
         addScore(points, true);
         SFX.playHopperJingle();
-        spawnEctoSplat(hopperAimX(), hopperWorldY(), 1.2);
+        spawnEctoSplat(hopperAimX(), hopperWorldY(), 0.7);
         // the charge toward the next consecrated swing
         shovelCharge++;
         if (shovelCharge >= CONS_CHARGE_AT) {
@@ -26815,7 +26945,7 @@
         SFX.playSwoosh();
         SFX.playSquelch();
         p.shake = Math.max(p.shake || 0, 0.55);
-        spawnEctoSplat(hz.wx, hz.wy, 1.15);
+        spawnEctoSplat(hz.wx, hz.wy, 0.65);
         if (nightSayOk())
           Voice.say(
             pick(HORROR_PROP_LINES),
@@ -27009,12 +27139,13 @@
       // thing lands in the scoop. Rides the dust pipeline, glowing on its own.
       function spawnEctoSplat(wx, wy, scale) {
         scale = scale == null ? 1 : scale;
-        const ek = nightEctoK(); // midnight: the goo is a LIGHT source, so it comes out bigger
-        const n = Math.round(11 * scale);
+        const ek = nightEctoK(); // midnight: the goo is a LIGHT source, so it burns bright
+        const es = nightEctoSize(); // ...and it lands SUBTLE: a splash of light, not green blobs
+        const n = Math.max(4, Math.round(11 * scale * es));
         for (let i = 0; i < n; i++) {
           const ang = R(0, Math.PI * 2);
-          const rad = R(0.5, 2.0) * scale;
-          const s = R(0.03, 0.075) * scale * ek;
+          const rad = R(0.5, 2.0) * scale * es;
+          const s = R(0.03, 0.075) * scale * es;
           const g = new THREE.Group();
           g.add(
             new THREE.Mesh(
@@ -27037,7 +27168,7 @@
             bz: GZ + 0.62,
             vx: Math.cos(ang) * rad * 0.55,
             vy: Math.sin(ang) * rad * 0.55,
-            vz: R(0.9, 2.6),
+            vz: R(0.9, 2.6) * es, // ...so it settles where it landed instead of spraying
             life: life,
             maxLife: life,
             decay: 1.3,
@@ -27050,11 +27181,12 @@
       function spawnEctoBurst(wx, wy, intensity) {
         intensity = intensity == null ? 1 : intensity;
         const ek = nightEctoK();
+        const es = nightEctoSize(); // the geyser keeps its COUNT and its throw; just smaller drops
         const n = Math.max(4, Math.round(20 * intensity));
         for (let i = 0; i < n; i++) {
           const ang = R(-Math.PI, Math.PI);
           const rad = (0.7 + Math.random() * 2.0) * (0.55 + intensity * 0.55);
-          const s = (0.025 + Math.random() * 0.05) * ek;
+          const s = (0.025 + Math.random() * 0.05) * es;
           const g = new THREE.Group();
           g.add(
             new THREE.Mesh(
@@ -27187,11 +27319,11 @@
             if (c.blinkT <= 0) {
               c.blinkT = R(1.3, 2.4);
               const step = Math.min(dW - 1.4, R(3.0, 5.0));
-              spawnEctoSplat(c.wx, c.wy, 0.45); // it leaves a wet mark where it WAS
+              spawnEctoSplat(c.wx, c.wy, 0.3); // it leaves a wet mark where it WAS
               c.wx = clamp(c.wx + (dx / dW) * step, ROUTE_START_X - 6, ROUTE_END_X);
               c.wy = clamp(c.wy + (dy / dW) * step * 0.85, HORROR_STREET_Y, horrorMaxY());
               c.fade = 0; // ...and it fades back IN at the spot it landed in
-              spawnEctoSplat(c.wx, c.wy, 0.6);
+              spawnEctoSplat(c.wx, c.wy, 0.36);
             }
           }
         } else {
@@ -31782,6 +31914,16 @@
         shovelCharged = false;
         shovelTriadT = 0;
         shovelTriadCount = 0;
+        // A swing that was mid-arc when the day ended dies with the old street: the tool,
+        // the body's swing state, and the catch the press queued are all wiped, so a fresh
+        // shift never shovels last week's ghoul into this week's hopper.
+        p.shovelT = 0;
+        p.shovelCd = 0;
+        shovelArm = -1;
+        pendingStrike = null;
+        shovelTwist = 0;
+        shovelStride = 0;
+        shovelLean = 0;
         nightHauntT = 0;
         nightSayT = 0; // a fresh shift: the TEXT BUDGET starts empty (screen starts clean)
         nightBubbleT = 0;
@@ -36515,7 +36657,7 @@
             hurtNPC(HORROR_HITS[cause] || HP_HIT_SPECTER, cause);
             doStun(HORROR_STUN_T, "scare"); // a FIFTH of a second: a stutter-step, never a pin
             p.nightHitT = NIGHT_HIT_GRACE; // THE GRACE WINDOW STARTS HERE
-            spawnEctoSplat(c.wx, c.wy, 0.55); // a splash of the stuff it's made of
+            spawnEctoSplat(c.wx, c.wy, 0.34); // a splash of the stuff it's made of
             // THE BUDGET: a scare yelp is a rare thing on the night shift — with a horde out
             // there, unbounded yelps + spook replies would bury the screen in bubbles.
             if (nightSayOk()) {
@@ -37860,6 +38002,19 @@
           wparts.armL.rotation.y = -s * 0.8;
           wparts.armR.rotation.y = s * 0.8;
         }
+        // THE BODY DOES THE WORK. A shovel swing is not a wrist flick: his front leg
+        // plants in the direction he is throwing the head, his back leg pushes off, his
+        // weight goes down into the sweep and his chest tips over the blade. It runs off
+        // the very same amplitude the arms are posed on (set at the end of the previous
+        // frame), so arms and legs are always in the same part of the swing.
+        if (shovelGroup && shovelStride > 0) {
+          wparts.legL.rotation.y += 0.42 * shovelStride; // front leg plants, into the throw
+          wparts.legR.rotation.y -= 0.3 * shovelStride; // back leg pushes off behind it
+          wparts.legL.rotation.x += 0.2 * shovelStride; // weight drops down into the sweep
+          wparts.legR.rotation.x -= 0.16 * shovelStride;
+          if (p.stunT <= 0 && shovelLean > 0)
+            worker.group.rotation.x = -shovelLean; // chest over the blade, on the hit
+        }
         // Dog-shit slip: a TINY visual stagger (no stun, no damage) — his foot catches
         // the pile, so the body tips back and the arms flail a little, decaying over
         // 0.45s (p.slipT, set by the poop trigger). A real stun pose owns the body if
@@ -37916,16 +38071,35 @@
           let sw = 0;
           if (p.shovelT > 0) {
             p.shovelT = Math.max(0, p.shovelT - dt);
-            const k = p.shovelT / SHOVEL_SWING_DUR; // 1 -> 0 over the swipe
-            sw = Math.sin((1 - k) * Math.PI); // 0 -> 1 -> 0: coil back, then a hard two-handed chop
-            wparts.legL.rotation.y += 0.3 * sw; // ...and he steps into it
+            // The clock runs FORWARD (0 at the press, 1 at SHOVEL_SWING_DUR) and the arc
+            // maps it to coil -> strike -> follow-through -> recover: the tool comes AROUND
+            // him like a bat, and it finishes over his leading shoulder.
+            const k = 1 - p.shovelT / SHOVEL_SWING_DUR;
+            const swPrev = shovelSwingArc(Math.max(0, k - dt / SHOVEL_SWING_DUR));
+            sw = shovelSwingArc(k);
+            // THE HEAD COMES THROUGH at the top of the arc, so THIS is the frame the
+            // banishment lands: the blade is at the strike pose, both fists on the wood,
+            // his chest over it, the whole body wound into the blow.
+            if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06) {
+              shovelArm = -1;
+              shovelDeliverStrike();
+            }
+          } else if (shovelArm >= 0) {
+            // the swing ran out from under us (a long frame, a tab-out): the catch lands
+            shovelArm = -1;
+            shovelDeliverStrike();
           }
+          shovelStride = sw > 1 ? 1 : sw; // the body runs the same amplitude, capped at 1
           const hold = poseShovel(sw);
           if (hold) {
-            shovelTwist = hold.twist;
-            if (hold.lean > 0 && p.stunT <= 0) worker.group.rotation.x = -hold.lean;
+            shovelTwist = shovelStride > 0.66 ? -hold.twist : hold.twist;
+            shovelLean = hold.lean;
           }
-        } else shovelTwist = 0;
+        } else {
+          shovelTwist = 0;
+          shovelStride = 0;
+          shovelLean = 0;
+        }
         shovelHolyGlow(dt); // the blade: plain DSNY steel, or burning gold when consecrated
         // face the direction walked (z-axis = screen-plane rotation in isometric space),
         // whipped past it mid-swing so the shovel comes around with the whole body

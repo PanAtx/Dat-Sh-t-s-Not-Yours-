@@ -127,7 +127,8 @@ const GZ = 0.3, CURB_LIFT = 0.05;
 const ROUTE_START_X = 0, ROUTE_FINISH_X = 500, ROUTE_END_X = 520, PLAYER_START_X = 6;
 const SHOVEL_POINTS = srcNum('SHOVEL_POINTS'), HORROR_SPOOK_TARGET = 14, GARGOYLE_VALUE = 5000;
 const HORROR_SEE_R = 13, HORROR_TOUCH_CD = 1.5, SHOVEL_REACH = 3.4;
-const SHOVEL_SWING_DUR = 0.3, SHOVEL_COOLDOWN = 0.42, HORROR_FLY_DUR = 0.85;
+const SHOVEL_SWING_DUR = srcNum('SHOVEL_SWING_DUR'), SHOVEL_COOLDOWN = srcNum('SHOVEL_COOLDOWN');
+const HORROR_FLY_DUR = 0.85;
 const GARGOYLE_CAMP_X_OFF = 9;
 const HP_HIT_SPECTER = 8, HP_HIT_BANSHEE = 9, HP_HIT_GHOUL = 10, HP_HIT_HOUND = 11;
 const HORROR_TYPES = {
@@ -189,6 +190,7 @@ const NIGHT_PROP_QUOTA_FLOOD = eval('(' + srcLiteral('NIGHT_PROP_QUOTA_FLOOD', '
 const NIGHT_GHOST_SLOTS = srcNum('NIGHT_GHOST_SLOTS'), NIGHT_GHOST_CAP = srcNum('NIGHT_GHOST_CAP');
 const NIGHT_GHOST_FILL = srcNum('NIGHT_GHOST_FILL'), NIGHT_GHOUL_MIN = srcNum('NIGHT_GHOUL_MIN');
 const NIGHT_GLOW_ECTO = srcNum('NIGHT_GLOW_ECTO'), NIGHT_GLOW_AURA = srcNum('NIGHT_GLOW_AURA');
+const NIGHT_ECTO_SIZE = srcNum('NIGHT_ECTO_SIZE');
 const NIGHT_GLOW_BODY = srcNum('NIGHT_GLOW_BODY'), NIGHT_TRUCK_GLOW = srcNum('NIGHT_TRUCK_GLOW');
 const HORROR_SEE_R_X = HORROR_SEE_R;
 const SHOVEL_LINES = ['GET IN THE TRUCK!'];
@@ -252,6 +254,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'makeManyEyedBeast', 'makeRubyGargoyle', 'makeShovelProp', 'canShovel', 'tryShovelSwing',
   'shovelStrike', 'shovelFlight', 'landSpookInHopper', 'floatOrLope', 'respawnHorror',
   'updateHorrorCreature', 'updateThief', 'reclaimStolenGargoyle', 'spawnEctoSplat', 'nightEctoK',
+  'nightEctoSize', 'shovelDeliverStrike',
   // THE ABYSS ROSTER + THE HOLY WEAPON (the horde, the exorcism, the consecration)
   'makeWraith', 'makePoltergeist', 'makeImp', 'makeDemon', 'makeHexbeast', 'makeAbyssal',
   'makeLich', 'makeReaper', 'makeGhostHandProp', 'makeGhostCandleProp', 'makeGhostCoffinProp',
@@ -290,15 +293,19 @@ const H = new Function(
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
   'SHOVEL_BLADE_R', 'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
-  'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y', 'nightEctoKUnused', 'NIGHT_GLOW_ECTO',
+  'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y', 'nightEctoKUnused', 'nightEctoSize',
+  'NIGHT_GLOW_ECTO', 'NIGHT_ECTO_SIZE',
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
   '\nlet ectoFlights = [], nightHauntT = 0, nightGhoulTier = 0, nightSurgeT = 0,' +
   ' nightSurgeSpawned = 0, nightSurgeTier = 0, nightGhostCursor = 0;' +
   '\nlet nightSayT = 0, nightBubbleT = 0, nightPopT = 0;' +
+  '\nlet shovelArm = -1, pendingStrike = null;' +
+  '\nfunction swingNow() { const r = tryShovelSwing(); shovelDeliverStrike(); return r; }' +
   '\nreturn { makeSpecter, makeGhoul, makeHellhound, makeManyEyedBeast, makeRubyGargoyle,' +
-  ' makeShovelProp, canShovel, tryShovelSwing, shovelFlight, landSpookInHopper,' +
+  ' makeShovelProp, canShovel, tryShovelSwing, shovelDeliverStrike, swing: swingNow,' +
+  ' shovelFlight, landSpookInHopper,' +
   ' updateHorrorCreature, updateThief, reclaimStolenGargoyle, spawnEctoSplat,' +
   ' makeWraith, makePoltergeist, makeImp, makeDemon, makeHexbeast, makeAbyssal, makeLich,' +
   ' makeReaper, makeGhostHandProp, makeGhostCandleProp, makeGhostCoffinProp, makeIronGateProp,' +
@@ -359,7 +366,8 @@ const H = new Function(
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
   SHOVEL_BLADE_R, PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
-  () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y, () => 0, NIGHT_GLOW_ECTO
+  () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y, () => 0, () => NIGHT_ECTO_SIZE, NIGHT_GLOW_ECTO,
+  NIGHT_ECTO_SIZE
 );
 function mkC(type, dx, dy, extra) {
   // mkC(type, dx) / mkC(type, dx, extra) / mkC(type, dx, dy, extra) — a missing dy
@@ -402,16 +410,16 @@ const nearGhoul = mkC('ghoul', 2, { causeKey: 'ghoul' });
 creatures.length = 0; creatures.push(farHound, nearGhoul);
 log.length = 0;
 check('ACT on the night shift SWINGS THE SHOVEL and packs the NEAREST reachable spook',
-  H.tryShovelSwing() === true && nearGhoul.hooked === true && farHound.hooked === undefined);
+  H.swing() === true && nearGhoul.hooked === true && farHound.hooked === undefined);
 check('the swing turns him to face what he just hit', Math.abs(p.facing) < 1e-9);
 check('the swing + its cooldown are armed (no mash-fest)', p.shovelT > 0 && p.shovelCd > 0);
 p.shovelCd = 0; creatures.length = 0; creatures.push(mkC('ghoul', 9)); log.length = 0;
 check('a whiff still swings (a live swoosh — the button never feels dead)',
-  H.tryShovelSwing() === true && log.indexOf('swoosh') >= 0);
+  H.swing() === true && log.indexOf('swoosh') >= 0);
 p.shovelCd = 0.3; creatures.length = 0; creatures.push(mkC('ghoul', 1));
-check('he cannot swing again inside the cooldown', H.tryShovelSwing() === false);
+check('he cannot swing again inside the cooldown', H.swing() === false);
 p.shovelCd = 0; nightOn = false;
-check('on the seven weekday shifts ACT is NOT a shovel', H.tryShovelSwing() === false);
+check('on the seven weekday shifts ACT is NOT a shovel', H.swing() === false);
 nightOn = true;
 const thiefC = mkC('eyestalker', 1, { thief: true });
 check('the many-eyed THIEF cannot be shoveled — it has to be run down', H.canShovel(thiefC) === false);
@@ -420,7 +428,7 @@ check('a spook already riding the shovel-toss is never struck twice', H.canShove
 const tentacle = mkC('zombieArm', 1, { state: 'grab', cd: 0 });
 creatures.length = 0; creatures.push(tentacle); p.shovelCd = 0;
 check('the manhole TENTACLE is shoverable too, and its armed grab is cancelled',
-  H.canShovel(tentacle) === true && H.tryShovelSwing() === true && tentacle.hooked === true && tentacle.state === 'retract');
+  H.canShovel(tentacle) === true && H.swing() === true && tentacle.hooked === true && tentacle.state === 'retract');
 
 // --- the toss into the hopper, and what lands ---
 deposited.length = 0; scored.length = 0; announced.length = 0;
@@ -568,10 +576,10 @@ check('the hidden trainer can warp straight to the night shift',
   /TRAINER_DAYS = \[[\s\S]{0,400}"MIDNIGHT"/.test(html));
 check('the shovel is only ever in his hand on this one level', html.includes('equipShovel(nightShift);'));
 check('the handle is re-laid across BOTH fists every frame of the play loop',
-  /if \(shovelGroup\) \{[\s\S]{0,700}poseShovel\(sw\);/.test(html));
+  /if \(shovelGroup\) \{[\s\S]{0,1600}poseShovel\(sw\);/.test(html));
 check('and the swing whips his whole body past his facing (then hands it back)',
   html.includes('worker.group.rotation.z = p.facing - shovelTwist;') &&
-  html.includes('} else shovelTwist = 0;'));
+  /shovelTwist = 0;[\r\n]+\s*shovelStride = 0;[\r\n]+\s*shovelLean = 0;/.test(html));
 check('a banshee always screams like one (the female voice)', html.includes('if (variant === "banshee") c.gender = "female";'));
 check('the wail and the eco-pop are real sounds on the SFX rig',
   /playBansheeWail\(\) \{/.test(html) && /playEctoPop\(\) \{/.test(html));
@@ -794,7 +802,7 @@ let surgeBanishes = 0, surgeKills = 0, surgeSwings = 0;
       c.g.position.set(c.wx, c.wy, GZ);
     }
     p.shovelCd = 0;
-    const swung = H.tryShovelSwing();
+    const swung = H.swing();
     if (swung) surgeSwings++;
     if (process.env.DBG && guard < 3) {
       const sh = creatures.filter((c) => H.canShovel(c));
@@ -847,7 +855,7 @@ p.shovelCd = 0;
 announced.length = 0; deposited.length = 0; scored.length = 0;
 const sayBefore = sayings.length;
 check('an ordinary swing takes the NEAREST spook, not the whole street', (() => {
-  const ok = H.tryShovelSwing() === true;
+  const ok = H.swing() === true;
   const hooked = creatures.filter((c) => c.hooked);
   return ok && hooked.length === 1 && hooked[0] === mob3[0] &&
     H.isCharged() === false && H.getCharge() === 0;
@@ -935,7 +943,7 @@ for (let i = 0; i < 5; i++) {
 // the fifth one sits past the consecrated reach (5.2) but inside the shockwave (6.8)
 p.shovelCd = 0;
 announced.length = 0; deposited.length = 0; scored.length = 0;
-H.tryShovelSwing();
+H.swing();
 check('a CONSECRATED swing banishes THREE spooks out of the arc in one stroke, and spends the charge',
   creatures.filter((c) => c.hooked).length === CONS_ARC_TARGETS && H.isCharged() === false,
   'hooked=' + creatures.filter((c) => c.hooked).length + ' charged=' + H.isCharged() +
@@ -1002,8 +1010,9 @@ S6.equipShovel(true);
 const held = S6.getShovel();
 check('the shovel is handed to him on the worker ROOT — TWO arms hold it, not one',
   !!held && held.parent === S6_ROOT && S6_ROOT.children.indexOf(held) >= 0);
-check('both arms are posed onto it (and left flat: no wrist roll to sell the grip)',
-  S6_ARMR.rotation.z === 0 && S6_ARML.rotation.z === 0 &&
+check('both arms are posed onto it (a bat grip rolls the WRISTS; the fists stay on the wood)',
+  S6_ARMR.rotation.z >= -0.21 && S6_ARMR.rotation.z <= 0.21 &&
+  S6_ARML.rotation.z >= -0.21 && S6_ARML.rotation.z <= 0.21 &&
   S6_ARMR.rotation.y < 0 && S6_ARML.rotation.y < 0 &&
   S6_ARMR.rotation.x !== S6_ARML.rotation.x);
 // A fist is only believable where a 0.52-long arm can actually put it, and the handle is
@@ -1012,6 +1021,7 @@ const fistOK = (side, rot) => {
   const f = S6.shovelFist(side, rot.x, rot.y);
   return { f, d: Math.hypot(f.x, f.y - side * 0.29, f.z - 1.38) };
 };
+const TL = shovel.userData.handleLen; // butt to the tip of the point, as the tool was built
 const onHold = (sw) => {
   const out = S6.poseShovel(sw);
   const r = fistOK(-1, S6_ARMR.rotation), l = fistOK(1, S6_ARML.rotation);
@@ -1027,7 +1037,7 @@ const onHold = (sw) => {
     r, l, tr: t(r.f), tl: t(l.f), lean: out.lean, twist: out.twist,
     gap: Math.hypot(l.f.x - r.f.x, l.f.y - r.f.y, l.f.z - r.f.z),
     offR: off(r.f), offL: off(l.f), rot: [dxy.x, dxy.y], dir: [ax, ay, az],
-    tip: { x: o.x + ax * 1.63, y: o.y + ay * 1.63, z: o.z + az * 1.63 },
+    tip: { x: o.x + ax * TL, y: o.y + ay * TL, z: o.z + az * TL },
   };
 };
 for (const k of [0, 0.5, 1]) {
@@ -1151,7 +1161,7 @@ const woodGhoul = mkC('ghoul', SHOVEL_REACH + SHOVEL_BLADE_R - 0.25); // out at 
 const outGhoul = mkC('ghoul', SHOVEL_REACH + SHOVEL_BLADE_R + 0.8); // past the tool entirely
 creatures.length = 0; creatures.push(outGhoul, woodGhoul);
 check('the swing hits with ANY PART of the shovel — the head\'s own sweep beyond the shaft, the wood included',
-  (() => { const ok = H.tryShovelSwing() === true; return ok && woodGhoul.hooked === true && outGhoul.hooked === undefined; })(),
+  (() => { const ok = H.swing() === true; return ok && woodGhoul.hooked === true && outGhoul.hooked === undefined; })(),
   'wood=' + woodGhoul.hooked + ' out=' + outGhoul.hooked);
 check('a ghoul standing ON him (every contact radius, up to the reaper\'s 1.5) is INSIDE the tool',
   SHOVEL_BUTT + SHOVEL_BLADE_R + 0.15 >= 1.5 && SHOVEL_BUTT > 0);
@@ -1175,11 +1185,11 @@ creatures.length = 0;
 const stunGhoul = mkC('ghoul', 1.8);
 creatures.push(stunGhoul);
 check('out of a ghoul stagger a swing fires AT ONCE and clears the stun',
-  H.tryShovelSwing() === true && p.stunT === 0 && stunGhoul.hooked === true);
+  H.swing() === true && p.stunT === 0 && stunGhoul.hooked === true);
 p.shovelCd = 0; p.stunT = 0.9; p.stunDur = 0.9;
 creatures.length = 0; creatures.push(mkC('ghoul', 1.8));
 check('a 0.9s knockdown (the day-level kind) still locks the swing out',
-  H.tryShovelSwing() === false && p.stunT === 0.9);
+  H.swing() === false && p.stunT === 0.9);
 let worstDps = 0, worstFam = '';
 for (const fam of Object.keys(HORROR_HITS)) {
   const dps = HORROR_HITS[fam] / NIGHT_HIT_GRACE;
@@ -1248,7 +1258,7 @@ for (let i = 0; i < 60 * 45; i++) {
   }
   if (i % 26 === 0) { // he swings as fast as the cooldown allows
     p.shovelCd = 0; p.shovelGuardT = 0;
-    if (H.tryShovelSwing() === true) swings++;
+    if (H.swing() === true) swings++;
   }
 }
 const lines = sayings.length - sayMark, bubblesMade = bubbles.length - bubMark, pops = announced.length - popMark;
@@ -1365,7 +1375,7 @@ for (let i = 0; i < 60 * 90; i++) {
     H.shovelFlight(c, 1 / 60);
     if (c.hookLanded) { creatures.splice(k, 1); kills++; }
   }
-  if (i % 26 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.tryShovelSwing(); }
+  if (i % 26 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.swing(); }
 }
 const loot = scored.reduce((a, s) => a + s.n, 0);
 check('90s of hard shovelling: ' + kills + ' banishments = ' + loot + ' CASH — ' +
@@ -1400,6 +1410,78 @@ check('THE TEST BUILD BOOTS ON THE NIGHT SHIFT: START_LEVEL = NIGHT_LEVEL, and t
     LEVEL_DAYS.length === 8 &&
     LEVEL_DAYS[7].day === "MIDNIGHT" && !!LEVEL_DAYS[7].night);
 
+console.log('\n[10] THE SWING IS A SWING: an arc, a big point, subtle goo, spooky music');
+const HOLD10 = eval('(' + srcLiteral('SHOVEL_HOLD', '{', '}') + ')');
+const KEYS10 = HOLD10.keys;
+const arc10 = new Function('SHOVEL_HOLD', srcFn('shovelSwingArc') + '\nreturn shovelSwingArc;')(HOLD10);
+check('the swing is KEYFRAMED (coil -> launch -> strike -> follow-through), not a two-pose lerp',
+  Array.isArray(KEYS10) && KEYS10.length >= 5 && KEYS10[0].k === 0 && KEYS10[0].twist === 0 &&
+  KEYS10.some((q) => q.twist < -0.3) && Math.max.apply(null, KEYS10.map((q) => q.twist)) >= 1.4 &&
+  HOLD10.max > 1.1, 'twists ' + KEYS10.map((q) => q.twist).join('/'));
+let rise10 = true, fall10 = true, top10 = 0, last10 = 0;
+for (let k = 0; k <= 1.0001; k += 0.01) {
+  const a10 = arc10(k);
+  top10 = Math.max(top10, a10);
+  if (k > 0.02 && k < 0.72 && a10 < last10 - 1e-9) rise10 = false;
+  if (k > 0.74 && a10 > last10 + 1e-9) fall10 = false;
+  last10 = a10;
+}
+check('one press plays ONE way through the whole swing (no bounce) and winds PAST the strike',
+  arc10(0) === 0 && arc10(1) === 0 && rise10 && fall10 && top10 >= HOLD10.max - 1e-9 && top10 > 1.1,
+  'peak amplitude ' + top10.toFixed(2) + ' of max ' + HOLD10.max);
+check('the arc has a wind-up, a strike and a follow-through IN TIME (coil, hit, lay it over)',
+  arc10(0.1) >= 0.15 && arc10(0.46) >= 1 - 1e-9 && arc10(0.72) >= HOLD10.max - 1e-9 &&
+  arc10(0.2) < arc10(0.4) && arc10(0.85) < arc10(0.72));
+check('the tool is driven BY THE HANDS the swing poses (re-laid on both fists every frame)',
+  html.includes('shovelGroup.rotation.set(e.x, e.y, 0);') &&
+  srcFn('poseShovel').includes('const K = SHOVEL_HOLD.keys') &&
+  srcFn('poseShovel').includes('torque * 0.6'));
+check('the swing is long enough to read as a swing and its guard covers the whole arc',
+  SHOVEL_SWING_DUR >= 0.4 && SHOVEL_COOLDOWN >= 0.25 && SHOVEL_COOLDOWN <= SHOVEL_SWING_DUR &&
+  html.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;'),
+  SHOVEL_SWING_DUR + 's swing / ' + SHOVEL_COOLDOWN + 's cooldown / ' + SHOVEL_GUARD + 's guard tail');
+check('the WHOLE BODY is in the swing (front leg plants, back leg pushes, weight down, lean)',
+  html.includes('0.42 * shovelStride') && html.includes('wparts.legR.rotation.y -= 0.3 * shovelStride') &&
+  html.includes('0.2 * shovelStride') && html.includes('worker.group.rotation.x = -shovelLean') &&
+  html.includes('shovelTwist = shovelStride > 0.66 ? -hold.twist : hold.twist'));
+check('the catch is QUEUED by the press and LANDED at the top of the arc, never on the thumb',
+  html.includes('shovelArm = 0;') && html.includes('pendingStrike = { spooks: targets.slice()') &&
+  html.includes('if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06)') &&
+  html.includes('function shovelDeliverStrike() {') &&
+  srcFn('shovelDeliverStrike').includes('shovelStrike(pend.spooks[i].c)'));
+const SH15 = srcFn('makeShovelProp');
+const BD15 = SH15.match(/const blade = BX\(([0-9.]+), ([0-9.]+), ([0-9.]+), steel\)/);
+const TP15 = SH15.match(/const tip = BX\(([0-9.]+), ([0-9.]+), ([0-9.]+), edge\)/);
+const NK15 = SH15.match(/const neck = BX\(([0-9.]+), ([0-9.]+), ([0-9.]+), steel\)/);
+check('THE POINT IS BIG AND WIDE: ' + BD15[1] + 'u long x ' + BD15[2] + 'u across (was 0.34 x 0.3)',
+  Number(BD15[1]) >= 0.44 && Number(BD15[2]) >= 0.5 && Number(TP15[2]) >= 0.48 &&
+  Number(NK15[1]) >= 0.2 && shovel.userData.handleLen >= 1.7 && shovel.userData.handleLen <= 1.85 &&
+  SHOVEL_BLADE_R >= 1.2,
+  'handle ' + shovel.userData.handleLen + 'u / tip ' + TP15[2] + 'u wide / sweep ' + SHOVEL_BLADE_R + 'u');
+const SC15 = [];
+String(html).replace(/spawnEctoSplat\((.{0,60}?),\s*([0-9.]+)\)/g, (m0, m1, s1) => { SC15.push(Number(s1)); return m0; });
+check('ecoplasm is SUBTLE: every splat is a thin wet mark (' + SC15.join('/') + ', none over 0.75)',
+  SC15.length >= 7 && SC15.every((v) => v > 0 && v <= 0.75) && NIGHT_ECTO_SIZE < 1);
+check('midnight goo keeps the GLOW and gives up the VOLUME (the dials are separate)',
+  srcFn('spawnEctoSplat').includes('const es = nightEctoSize()') &&
+  srcFn('spawnEctoSplat').includes('* scale * es') &&
+  srcFn('spawnEctoSplat').includes('emissiveIntensity: 1.1 * ek') &&
+  srcFn('spawnEctoBurst').includes('* es;') &&
+  NIGHT_ECTO_SIZE < 1 && NIGHT_GLOW_ECTO > 1);
+check('MIDNIGHT MENAGERIE is the haunted shift\'s theme (named in the game, on the shelf)',
+  html.includes('const NIGHT_MUSIC_TRACK = "Midnight Menagerie.mp3";') &&
+  JSON.parse(fs.readFileSync('music/manifest.json', 'utf8')).includes('Midnight Menagerie.mp3') &&
+  fs.existsSync('music/Midnight Menagerie.mp3'));
+check('the station can LOCK onto one track and LOOP it (bag collapses, gap closes, release works)',
+  html.includes('radioSticky(name) {') &&
+  html.includes('this.radioBag = [this.radioSticky];') &&
+  html.includes('this.radioSticky ? 700 : 2000') &&
+  html.includes('if (this.radioSticky === on) return false;') &&
+  html.includes('radioSticky: null,'));
+check('music follows the SHIFT (every armed street re-locks or releases), never a button',
+  srcFn('armMidnightLook').includes('applyMidnightMusic(on);') &&
+  srcFn('applyMidnightMusic').includes('SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACK : null)') &&
+  srcFn('applyMidnightMusic').includes('typeof SFX.radioSticky !== "function"'));
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);

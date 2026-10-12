@@ -3,6 +3,7 @@
 // MAX_LEVEL / the CHEAT default / the startGame level resolution / the trainer panel label)
 // and replays exactly the lines the game runs on a normal title-screen START.
 const fs = require('fs');
+const path = require('path');
 const html = fs.readFileSync('index.html', 'utf8');
 let pass = 0, fail = 0;
 function check(name, cond, extra) {
@@ -67,6 +68,20 @@ check('the day card / stats / HUD all resolve to level 8 through LEVEL_DAYS (no 
   /const d = LEVEL_DAYS\[Math\.min\(level, MAX_LEVEL\) - 1\]/.test(html) &&
     /level < MAX_LEVEL[\s\S]{0,80}nextDay\(\)/.test(html));
 
+// THEME17 — the haunted shift arrives with its OWN theme, on loop, and the release is real
+check('MIDNIGHT MENAGERIE is the night shift\'s theme and the file is on the shelf',
+  /const NIGHT_MUSIC_TRACK = "Midnight Menagerie\.mp3";/.test(html) &&
+  fs.existsSync(path.join(__dirname, 'music', 'Midnight Menagerie.mp3')) &&
+  JSON.parse(fs.readFileSync(path.join(__dirname, 'music', 'manifest.json'), 'utf8'))
+    .includes('Midnight Menagerie.mp3'));
+check('the station LOCKS onto the one track and LOOPS it (700ms, not the 2s daytime gap)',
+  /radioSticky: null,/.test(html) && /radioSticky\(name\) \{/.test(html) &&
+  /this\.radioBag = \[this\.radioSticky\];/.test(html) &&
+  /this\.radioSticky \? 700 : 2000/.test(html));
+check('the night entry point arms the theme (and a weekday hands the rotation back)',
+  /function applyMidnightMusic\(on\)/.test(html) &&
+  /applyMidnightMusic\(on\);/.test(html) &&
+  /SFX\.radioSticky\(!!on \? NIGHT_MUSIC_TRACK : null\)/.test(html));
 console.log('\n' + pass + ' midnight-boot checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) process.exit(1);
 console.log('>>> PLAYTEST ENTRY: press START on the title card — the first shift is ' + dayOf(L1) + '.');
