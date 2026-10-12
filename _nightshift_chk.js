@@ -1440,12 +1440,13 @@ check('the swing is long enough to read as a swing and its guard covers the whol
   SHOVEL_SWING_DUR >= 0.4 && SHOVEL_COOLDOWN >= 0.25 && SHOVEL_COOLDOWN <= SHOVEL_SWING_DUR &&
   html.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;'),
   SHOVEL_SWING_DUR + 's swing / ' + SHOVEL_COOLDOWN + 's cooldown / ' + SHOVEL_GUARD + 's guard tail');
-check('the WHOLE BODY is in the swing (front foot FORWARD, back foot trailing, weight sinks, lean) and the stride is NEVER a leg yaw',
-  html.includes('wparts.legL.rotation.x += 0.34 * shovelStride') && html.includes('wparts.legR.rotation.x -= 0.3 * shovelStride') &&
-  html.includes('worker.group.position.z -= 0.07 * shovelStride') && html.includes('worker.group.rotation.x = -shovelLean') &&
+check('the WHOLE BODY is in the swing: the stride rides the GAIT axis (leg rotation.y = fore/aft in this rig), the weight moves FORWARD (local +x) onto the planted foot, the chest tips over the blade',
+  html.includes('lead.rotation.y += 0.46 * swS') && html.includes('trail.rotation.y -= 0.34 * swS') &&
+  html.includes('wparts.group.position.x += 0.06 * swS') && html.includes('worker.group.rotation.x = -shovelLean') &&
   html.includes('shovelTwist = shovelStride > 0.66 ? -hold.twist : hold.twist'));
-check('the swing NEVER yaws a leg at the hip: in this rig a leg rotation.y throws the foot out to the side and the worker does the SPLIT',
-  !/rotation\.y [+]?= [^\n]*shovelStride/.test(html));
+check('the swing NEVER tips a leg sideways: in this rig the feet are separated along local Y, so leg rotation.x throws the feet OUT TO THE SIDES (the split) and the swing stays on the stride axis',
+  !/wparts\.leg[LR]\.rotation\.x/.test((html.match(/THE BODY DOES THE WORK[\s\S]{0,1800}?Dog-shit slip/) || [''])[0]) &&
+  !/worker\.group\.position\.z [-+]?= [^\n]*shovelStride/.test(html));
 check('the catch is QUEUED by the press and LANDED at the top of the arc, never on the thumb',
   html.includes('shovelArm = 0;') && html.includes('pendingStrike = { spooks: targets.slice()') &&
   html.includes('if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06)') &&

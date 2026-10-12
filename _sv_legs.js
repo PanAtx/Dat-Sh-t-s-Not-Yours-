@@ -1,63 +1,64 @@
-// _sv_legs.js — LEG AUDIT, computed from the SHIPPED rig math (no THREE dependency).
-// The worker's leg pivot is mkLeg(side): pv.position (0, side*0.13, 0.78) with the boot at
-// local (0.06, 0, -0.7). In this rig local +Y is the worker's facing and local +Z is up, so:
-//   rotation.x = PITCH  -> the foot travels FORE/AFTER (a stride: what a bat swing does)
-//   rotation.y = YAW    -> the foot travels SIDEWAYS (a strut: what a walk cycle does)
-// The shipped swing used to lay its step-through on rotation.y in OPPOSITE directions on the
-// two legs, on top of a gait that already strides wide, while the torso twisted 67 degrees the
-// other way. Result: both feet flung OUT to his sides. A SPLIT. This measures the feet through
-// the real Euler composition (XYZ: Rz facing, then Ry yaw, then Rx pitch, then the body lean)
-// for three mid-swing frames, so the split is counted and can never quietly come back.
+// _sv_legs.js — LEG AUDIT on the rig's REAL axes (no THREE dependency).
+// buildWorker hangs the legs at pivots (0, side*0.13, 0.78): the feet are separated along the
+// worker's LOCAL Y, so local Y is his SIDEWAYS and local X is his FORWARD (the shirt is 0.26
+// deep along x and 0.52 wide along y; the arm pivots sit at (0, +/-0.29, 1.38); worker.group
+// spins about z to face where he walks). In a rig built that way:
+//     leg.rotation.y -> rotates the leg about the SIDEWAYS axis -> the foot travels FORE/AFTER
+//                       (the STRIDE axis; the walk cycle drives it on every level:
+//                        legL.rotation.y = s, legR.rotation.y = -s, amp up to 0.7 rad)
+//     leg.rotation.x -> rotates the leg about the FORWARD axis -> the foot travels SIDEWAYS
+//                       (a SPLIT when the two legs go opposite ways)
+// The audit measures the mid-swing stance in the BODY frame. The strike frame also turns the
+// body 66 degrees about z (the bat turn) and tips it about x (chest over the blade); that
+// spins the whole stance with him, so it is not measured as a leg problem here.
 const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 const DUR = +html.match(/const SHOVEL_SWING_DUR = ([0-9.]+);/)[1];
-const SWING_L = html.match(/wparts\.legL\.rotation\.x \+= ([0-9.]+) \* shovelStride/);
-const SWING_R = html.match(/wparts\.legR\.rotation\.x -= ([0-9.]+) \* shovelStride/);
-if (!SWING_L || !SWING_R) throw new Error('no fore/aft stride in the shipped swing');
-const P_L = +SWING_L[1], P_R = +SWING_R[1];
-const OLD_Y_L = 0.42, OLD_Y_R = 0.3; // the yaw the swing used to add on the legs (the split)
-const OLD_P_L = 0.2, OLD_P_R = 0.16; // ...and the pitch it added at the same time
-const S = 0.63, LIFT = 0.18; // the walk cycle at its widest mid-stride frame (yaw, pitch lift)
-const TWIST = 1.16, LEAN = 0.3; // the strike frame's body rotation and chest tip
-function boot(side, yaw, pitch, facing) {
-  // The leg GROUP sits at its pivot in the body (fixed); the group's rotation swings the
-  // meshes hung under it — the leg box at (0,0,-0.36) and the boot at (0.06, 0, -0.7).
+const STRIDE_LEAD = html.match(/lead\.rotation\.y \+= ([0-9.]+) \* swS/);
+const STRIDE_TRAIL = html.match(/trail\.rotation\.y -= ([0-9.]+) \* swS/);
+const WEIGHT_X = html.match(/wparts\.group\.position\.x \+= ([0-9.]+) \* swS/);
+if (!STRIDE_LEAD || !STRIDE_TRAIL || !WEIGHT_X)
+  throw new Error('the swing does not stride on the gait axis with a forward weight shift');
+const A_LEAD = +STRIDE_LEAD[1], A_TRAIL = +STRIDE_TRAIL[1], A_SHIFT = +WEIGHT_X[1];
+const OLD_X_L = 0.34, OLD_X_R = 0.3; // the sideways-tip stride that made the split
+const S = 0.7; // the walk at its biggest stride (the amp cap)
+function boot(side, yRot) {
+  // The leg group spins about its pivot; the BOOT hangs at (0.06, 0, -0.7) under it. A rotation
+  // about Y carries the foot through the FORE/AFTER (x) and vertical (z) plane.
   const piv = { x: 0, y: side * 0.13, z: 0.78 };
   const off = { x: 0.06, y: 0, z: -0.7 };
-  // Intrinsic XYZ: Ry(yaw) first, then Rx(pitch) — exactly how THREE composes the leg group.
-  const a = { x: off.x * Math.cos(yaw) + off.z * Math.sin(yaw), y: off.y, z: -off.x * Math.sin(yaw) + off.z * Math.cos(yaw) };
-  const b = { x: a.x, y: a.y * Math.cos(pitch) - a.z * Math.sin(pitch), z: a.y * Math.sin(pitch) + a.z * Math.cos(pitch) };
-  const pt = { x: piv.x + b.x, y: piv.y + b.y, z: piv.z + b.z }; // boot in the body frame
-  const f = { x: pt.x * Math.cos(facing) - pt.y * Math.sin(facing), y: pt.x * Math.sin(facing) + pt.y * Math.cos(facing), z: pt.z };
-  const l = { x: f.x, y: f.y * Math.cos(-LEAN) - f.z * Math.sin(-LEAN), z: f.y * Math.sin(-LEAN) + f.z * Math.cos(-LEAN) };
-  return l;
+  const fx = off.x * Math.cos(yRot) + off.z * Math.sin(yRot);
+  const fz = -off.x * Math.sin(yRot) + off.z * Math.cos(yRot);
+  return { x: piv.x + fx, y: piv.y, z: piv.z + fz };
 }
-
-// The stance is measured in the BODY's frame: local x is his sideways, local y is fore/aft.
-// The torso twist spins the whole body toward the ghoul, so world-axis comparisons across a
-// twisted frame and an untwisted walk frame compare apples with oranges — the split is about
-// how his feet sit ON HIM.
-function frame(yawL, yawR, pitchL, pitchR) {
-  return [boot(1, yawL, pitchL, 0), boot(-1, yawR, pitchR, 0)];
+function bootTip(side, xRot) {
+  // ...and a rotation about X carries it through the SIDEWAYS (y) and vertical plane.
+  const piv = { x: 0, y: side * 0.13, z: 0.78 };
+  const off = { x: 0.06, y: 0, z: -0.7 };
+  return { x: piv.x + off.x, y: piv.y + (off.y * Math.cos(xRot) - off.z * Math.sin(xRot)), z: piv.z + (off.y * Math.sin(xRot) + off.z * Math.cos(xRot)) };
 }
-function describe(tag, f) {
-  const dx = Math.abs(f[0].x - f[1].x), dy = Math.abs(f[0].y - f[1].y);
-  console.log(tag.padEnd(18) + 'sideways ' + dx.toFixed(2) + 'u   fore/aft ' + dy.toFixed(2) + 'u');
-  return { dx, dy };
+function measure(tag, f, shift) {
+  const spread = Math.abs(f[0].y - f[1].y);
+  const stride = Math.abs(f[0].x - f[1].x) + (shift || 0);
+  console.log(tag.padEnd(14) + 'leg spread (sideways) ' + spread.toFixed(3) + 'u   stride fore/aft ' + stride.toFixed(2) + 'u');
+  return { spread, stride };
 }
-console.log('stride pitch on the legs  L +' + (P_L * 180 / Math.PI).toFixed(1) + 'deg  R -' + (P_R * 180 / Math.PI).toFixed(1) + 'deg');
-const walk = describe('WALK FRAME', frame(S, -S, LIFT, -LIFT));
-const old = describe('OLD SWING', frame(S + OLD_Y_L, -S - OLD_Y_R, LIFT + OLD_P_L, -LIFT - OLD_P_R));
-const now = describe('NEW SWING', frame(S, -S, LIFT + P_L, -LIFT - P_R));
+console.log('swing stride   lead +' + (A_LEAD * 180 / Math.PI).toFixed(1) + 'deg  trail -' + (A_TRAIL * 180 / Math.PI).toFixed(1) + 'deg   weight +' + A_SHIFT + 'u forward');
+const walk = measure('WALK', [boot(1, S), boot(-1, -S)], 0);
+const swing = measure('STRIDE', [boot(1, S + A_LEAD), boot(-1, -S - A_TRAIL)], A_SHIFT);
+const tips = measure('TIP (old)', [bootTip(1, OLD_X_L), bootTip(-1, -OLD_X_R)], 0);
+const flat = measure('STAND', [boot(1, 0), boot(-1, 0)], 0);
 let bad = 0;
-if (/rotation\.y [+]?= [^\n]*shovelStride/.test(html)) { console.log('FAIL: the swing still yaws a leg at the hip'); bad++; }
-if (!/worker\.group\.position\.z -= [0-9.]+ \* shovelStride/.test(html)) { console.log('FAIL: no weight sink'); bad++; }
-if (!/worker\.group\.rotation\.x = -shovelLean/.test(html)) { console.log('FAIL: no lean'); bad++; }
-if (old.dx - walk.dx < 0.3) { console.log('FAIL: the old swing does not reproduce the split (it widened the stance by only ' + (old.dx - walk.dx).toFixed(2) + 'u)'); bad++; }
-if (Math.abs(now.dx - walk.dx) > 0.05) { console.log('FAIL: the new swing moves the feet sideways by ' + (now.dx - walk.dx).toFixed(3) + 'u — a stride never does that'); bad++; }
-if (now.dy - walk.dy < 0.3) { console.log('FAIL: the new stride opens fore/aft by only ' + (now.dy - walk.dy).toFixed(2) + 'u'); bad++; }
-console.log('old split adds  +' + (old.dx - walk.dx).toFixed(2) + 'u sideways / +' + (old.dy - walk.dy).toFixed(2) + 'u fore-aft  (a ' + (((old.dx - walk.dx) / walk.dx) * 100).toFixed(0) + '% wider stance on a frame already at its widest gait)');
-console.log('new stride adds ' + (now.dx - walk.dx).toFixed(2) + 'u sideways / +' + (now.dy - walk.dy).toFixed(2) + 'u fore-aft  (the stance width never changes; he lunges where he threw)');
-console.log('swing ' + DUR + 's, body twisted ' + (TWIST * 180 / Math.PI).toFixed(0) + 'deg, chest tipped ' + (LEAN * 180 / Math.PI).toFixed(0) + 'deg over the blade, weight sunk ' + html.match(/worker\.group\.position\.z -= ([0-9.]+) \* shovelStride/)[1] + 'u into the plant');
-console.log(bad ? 'LEG AUDIT: ' + bad + ' PROBLEM(S)' : 'LEG AUDIT: OK - the split is measured out of the swing; the stride opens in the direction he threw the head');
-
+if (/wparts\.leg[LR]\.rotation\.x/.test((html.match(/THE BODY DOES THE WORK[\s\S]{0,1800}?Dog-shit slip/) || [''])[0])) {
+  console.log('FAIL: the swing tips a leg sideways (leg rotation.x) - that is the SPLIT axis'); bad++;
+}
+if (!/lead\.rotation\.y \+=/.test(html) || !/trail\.rotation\.y -=/.test(html)) { console.log('FAIL: the swing has no fore/aft stride'); bad++; }
+if (!/wparts\.group\.position\.x \+=/.test(html)) { console.log('FAIL: the weight does not shift forward'); bad++; }
+if (/worker\.group\.position\.z [-+]?= [^\n]*shovelStride/.test(html)) { console.log('FAIL: the swing rewrites the ground height'); bad++; }
+if (Math.abs(swing.spread - walk.spread) > 1e-9) { console.log('FAIL: the swing changes the leg spread by ' + (swing.spread - walk.spread).toFixed(4) + 'u'); bad++; }
+if (swing.stride - walk.stride < 0.4) { console.log('FAIL: the swing opens the stride by only ' + (swing.stride - walk.stride).toFixed(2) + 'u'); bad++; }
+if (tips.spread - flat.spread < 0.15) { console.log('FAIL: the tip axis does not reproduce the split'); bad++; }
+console.log('old tip axis at the same amplitudes: leg spread ' + flat.spread.toFixed(3) + 'u -> ' + tips.spread.toFixed(3) + 'u (+' + (((tips.spread - flat.spread) / flat.spread) * 100).toFixed(1) + '% sideways = the split the player saw)');
+console.log('new stride: spread ' + walk.spread.toFixed(3) + 'u -> ' + swing.spread.toFixed(3) + 'u (' + (swing.spread - walk.spread === 0 ? 'unchanged' : 'MOVED') + '), fore/aft ' + walk.stride.toFixed(2) + 'u -> ' + swing.stride.toFixed(2) + 'u');
+console.log('swing ' + DUR + 's; the body still turns 66deg into the throw and tips 17deg over the blade');
+console.log(bad ? 'LEG AUDIT: ' + bad + ' PROBLEM(S)' : 'LEG AUDIT: OK - the swing strides on the stride axis, the legs never tip sideways, the spread never changes');

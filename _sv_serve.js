@@ -24,9 +24,9 @@ const MARKS = [
   'function shovelSwingArc(k)',
   '{ k: 1.22, r: [0.95, -0.45], l: [0.2, -0.95], lean: 0.1, twist: 1.5 }',
   'function shovelDeliverStrike()',
-  'wparts.legL.rotation.x += 0.34 * shovelStride;',
-  'wparts.legR.rotation.x -= 0.3 * shovelStride;',
-  'worker.group.position.z -= 0.07 * shovelStride;',
+  'lead.rotation.y += 0.46 * swS;',
+  'trail.rotation.y -= 0.34 * swS;',
+  'wparts.group.position.x += 0.06 * swS;',
   'manifest.json',
 ];
 server.listen(8124, async () => {
