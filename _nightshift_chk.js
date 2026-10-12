@@ -400,8 +400,8 @@ check('the many-eyed beast has SEVEN eye stalks, SIX legs and a maw to steal wit
 const gargoyle = H.makeRubyGargoyle();
 check('the Ruby-Plated Gargoyle glows from its own ruby emissive + has 2 wings to flap',
   !!gargoyle.userData.ruby && gargoyle.userData.ruby.emissiveIntensity > 0 && gargoyle.userData.wings.length === 2);
-check('the DSNY shovel is a real tool: butt knob, wood, taped grip, socket, neck, square point and bright edge',
-  H.makeShovelProp().children.length === 7);
+check('the DSNY shovel is a real street shovel: D-grip rig, SHORT WOOD handle, dipped grip, ferrule, socket, neck, wide round scoop pan, bright flat edge and the scoop rig',
+  H.makeShovelProp().children.length === 9);
 
 // --- ACT swings the shovel (and only on this level) ---
 p.wx = 100; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 9;

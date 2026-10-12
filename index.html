@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.473</div>
+          <div id="app-version" class="menu-version">v1.0.479</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4175,6 +4175,10 @@
             </div>
             <div class="cr-row">
               <span class="cr-name">GARBAGE TRUCK</span>
+              <span class="cr-cred"><a href="https://www.meshy.ai" target="_blank" rel="noopener noreferrer">meshy.ai</a></span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">COAL SHOVEL</span>
               <span class="cr-cred"><a href="https://www.meshy.ai" target="_blank" rel="noopener noreferrer">meshy.ai</a></span>
             </div>
             <div class="cr-row">
@@ -4333,7 +4337,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.473';
+      const APP_VERSION = '1.0.479';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9309,6 +9313,7 @@
       // key. To bust a different asset later, add/raise its value here.
       const _modelCacheVersions = {
         "nyc_truck-compressed.glb": 2, // v2: 31.4MB->5.3MB re-compress (Draco); KHR_texture_transform + EXT_texture_webp preserved
+        "shovel.glb": 1, // v1: meshy.ai coal shovel — load AS-IS, its 5125-packed-u32 indices are what the bundled GLTFLoader.js reads as Uint32 (see _shovel_loader_debug.js; "fixing" the field to 5123 makes it soup)
       };
       function _modelCacheKey(url) {
         const v = _modelCacheVersions[url];
@@ -9616,6 +9621,80 @@
           );
         });
       }
+      // ==================== GLTF SHOVEL PIPELINE (shovel.glb, the meshy.ai model) ====================
+      // shovel.glb native space (measured via _tools/_shovel_fix_glb.mjs + audited through the
+      // game's OWN loader in _tools/_shovel_loader_debug.js): 59,184 textured triangles,
+      // LENGTH along +Y (-0.952..+0.951, head at +Y), width on X (~0.285 half — the D-loop is
+      // the widest part), thickness on Z (~0.046). LOAD IT AS-IS: its index accessor says
+      // componentType 5125 packed with UNSIGNED_INT data — the 1.0-style constants the game's
+      // bundled GLTFLoader.js uses (5125 -> Uint32Array, verified line 1407) read that
+      // correctly. Re-typing the field to the 2.0-spec 5123 makes THIS loader read u16
+      // instead and renders a degenerate soup — don't "fix" it (learned the hard way).
+      // The tool frame wants +X = length from the butt, Y = across, Z = up: a -90 turn
+      // about Z swaps the axes, the scale lands the 1.90u body on the rig's 1.84u tool (the
+      // number poseShovel and the shovel kit tests read), and the nudge puts the butt at the
+      // tool origin, so poseShovel() lays the handle on the very same two knuckles the grip
+      // tests demand. The procedural makeShovelProp() stays as the fallback for any frame
+      // before the model lands (the swing rig never notices the difference).
+      const SHOVEL_GLB_SCALE = 1.84 / 1.903;
+      let SHOVEL_TPL = null; // { template, mats } - cloned into the worker's hands
+      async function loadShovelGltf() {
+        if (SHOVEL_TPL) return Promise.resolve(true);
+        if (typeof THREE.GLTFLoader === "undefined")
+          return Promise.reject(new Error("GLTFLoader not available"));
+        const res = await getModelUrl("shovel.glb"); // offline cache: serve from cache, else download + store
+        return new Promise((resolve, reject) => {
+          makeGltfLoader().load(
+            res.url,
+            (gltf) => {
+              try {
+                const model = gltf.scene;
+                const mats = [];
+                model.traverse((o) => {
+                  if (!o.isMesh) return;
+                  o.castShadow = true;
+                  const ms = Array.isArray(o.material) ? o.material : [o.material];
+                  ms.forEach((m) => {
+                    if (m && mats.indexOf(m) < 0) mats.push(m);
+                  });
+                });
+                model.rotation.z = Math.PI / 2; // NATIVE -Y is the WIDE SCOOP HEAD (0.57u pan, front lip at -0.95), +Y is the D-GRIP: tool_x = -model_y => grip at the butt (rear fist IN the D), scoop at the tip
+                model.scale.setScalar(SHOVEL_GLB_SCALE);
+                model.position.set(0.952 * SHOVEL_GLB_SCALE, 0, -0.045); // butt at the tool origin, head at 1.84u out
+                const wrap = new THREE.Group();
+                wrap.add(model);
+                SHOVEL_TPL = { template: wrap, mats: mats };
+                if (shovelGroup && shovelGroup.parent) {
+                  // mid-shift hot-swap: he is carrying the tool right now — rebuild it from the model
+                  shovelGroup.parent.remove(shovelGroup);
+                  shovelGroup = null;
+                  equipShovel(true);
+                }
+                if (res.url.indexOf("blob:") === 0) {
+                  try {
+                    URL.revokeObjectURL(res.url);
+                  } catch (e) {}
+                }
+                resolve(true);
+              } catch (e) {
+                console.error("[GLTF] shovel template build failed:", e);
+                reject(e);
+              }
+            },
+            undefined,
+            (err) => {
+              if (res.url.indexOf("blob:") === 0) {
+                try {
+                  URL.revokeObjectURL(res.url);
+                } catch (e) {}
+              }
+              console.error("[GLTF] shovel.glb load failed:", err);
+              reject(err);
+            },
+          );
+        });
+      }
+
       // ==================== GLTF 3D TRAFFIC CAR PIPELINE (car.glb) ====================
       // car.glb native space (verified against its accessor bounds): the car is built
       // LENGTHWISE along Y (front bumper/headlights at Y≈-2.39, rear at Y≈+2.27), width
@@ -25971,40 +26050,137 @@
         g.userData.wings = wings;
         return g;
       }
-      // THE SHOVEL — the DSNY square-point that is the night shift's ONLY weapon.
+      // THE SHOVEL — the DSNY short-handle scoop (coal/street shovel) that is the night
+      // shift's ONLY weapon.
       // Built along its OWN +X axis with the ORIGIN AT THE BUTT, because a shovel is a
-      // TWO-HANDED tool: the rear fist caps the butt, the forward hand fists on the taped
-      // grip down the handle, and the shaft runs on out into the socket and the head.
-      // Frame note: three.js cylinders are born along their LOCAL Y while this world is
-      // Z-up with +X = the worker's facing, so every tube here is turned onto the shaft
-      // axis with rotation.z = -PI/2 — turning one about Y instead leaves it sticking
-      // straight out to the side (the "handle beside him, head floating in front" bug
-      // poseShovel() below replaces).
+      // TWO-HANDED tool: the rear fist plants in the D-loop, the forward hand fists on
+      // the dipped grip, and the shaft runs on out into the collar and the head.
+      // HI-poly build (the look, swept from shovel.glb's MEASURED profile: thin D-loop,
+      // thick dipped rubber grip, slim shank, near-square rounded head): high-segment
+      // tube sweeps, turned lathe profiles, and a dense 30x34 parametric-surface pan
+      // whose walls curl UP off the stamped floor — the deep scoop the model lacks.
+      // The straight lines below stay as the hidden STRUCTURAL CORE whose numbers the
+      // grip/hit tests read; the sweeps are guarded on THREE.TubeGeometry/LatheGeometry
+      // (headless stub rigs skip them and see the identical coaxial skeleton) and ride
+      // in NESTED sub-groups, so no sweep ever joins the straight-line filters.
       function makeShovelProp() {
         const g = new THREE.Group();
-        const wood = M(0x9b6b32),
-          grip = M(0x23262b),
-          steel = M(0xb9c2cc),
-          edge = M(0xe3eaf2);
+        const wood = M(0xc9a46a), // the bare-WOOD shaft and D-grip crossbar
+          grip = M(0x23262b), // the dipped black mid-shaft grip
+          steel = M(0x1e2126), // the BLACK stamped scoop, DSNY street-shovel style
+          edge = M(0xdfe6ee); // ...and its bright, worn, FLAT cutting lip
         const lay = function (m, x, z) {
           m.rotation.z = -Math.PI / 2; // lie the tube along +X, the shaft axis
           m.position.set(x, 0, z);
           return m;
         };
-        const shaft = lay(CY(0.033, 0.033, 1.02, wood, 8), 0.51, 0); // butt at 0 -> 1.02
-        const buttKnob = lay(CY(0.052, 0.048, 0.13, grip, 8), 0.045, 0); // the stop his rear fist plants against
-        const frontGrip = lay(CY(0.043, 0.043, 0.22, grip, 8), 0.44, 0); // the taped place his forward hand fists
-        const socket = lay(CY(0.058, 0.046, 0.18, steel, 8), 1.08, -0.02); // the forged collar the head enters
-        const neck = BX(0.22, 0.2, 0.075, steel); // ...and the neck that carries it into the blade
-        neck.position.set(1.23, 0, -0.05);
-        // THE POINT ITSELF: a real DSNY square-point — a full 0.52u across the shoulders and
-        // 0.46u out past the neck, thick enough to read as a blade at the game's camera zoom.
-        const blade = BX(0.46, 0.52, 0.055, steel); // wide, flat, worn bright at the edge
-        blade.position.set(1.46, 0, -0.075);
-        const tip = BX(0.12, 0.5, 0.042, edge); // the bright cutting edge at the very end
-        tip.position.set(1.68, 0, -0.085);
-        g.add(shaft, buttKnob, frontGrip, socket, neck, blade, tip);
-        g.userData.handleLen = 1.74; // butt (its own origin) to the tip of the point
+        const across = function (m, x, y, z) {
+          m.rotation.x = Math.PI / 2; // lie the tube along Y, ACROSS the shaft (nested rigs only)
+          m.position.set(x, y, z);
+          return m;
+        };
+        const sstep = function (a, b, v) {
+          const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
+          return t * t * (3 - 2 * t);
+        };
+        const hi = !!(THREE.TubeGeometry && THREE.LatheGeometry && THREE.CatmullRomCurve3 && THREE.BufferGeometry && THREE.Float32BufferAttribute);
+        const rig = new THREE.Group(); // high-poly handle body (nested)
+        const scoop = new THREE.Group(); // high-poly pan body (nested)
+        // --- high-poly handle (nested in rig): swept D-loop, wood crossbar, shaft
+        // sweep, lathe-turned dipped bulb, shank collar — the model's silhouette ---
+        if (hi) {
+          steel.side = THREE.DoubleSide; // the pan is a thin shell — light both faces
+          const V = function (x, y, z) {
+            return new THREE.Vector3(x, y, z);
+          };
+          const tube = function (pts, r, mat) {
+            const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 72, r, 12, false), mat);
+            m.castShadow = true;
+            return m;
+          };
+          const lathe = function (radii, len, mat) {
+            const pts = [];
+            for (let k = 0; k < radii.length; k++) pts.push(new THREE.Vector2(radii[k], (k / (radii.length - 1)) * len));
+            const m = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), mat);
+            m.rotation.z = -Math.PI / 2; // the lathe axis onto +X
+            m.castShadow = true;
+            return m;
+          };
+          rig.add(tube([V(0.31, 0.105, -0.01), V(0.1, 0.112, -0.01), V(0.022, 0.078, -0.01), V(0.022, -0.078, -0.01), V(0.1, -0.112, -0.01), V(0.31, -0.105, -0.01)], 0.023, steel)); // the D-LOOP
+          const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.2, 16), wood);
+          bar.position.set(0.062, 0, -0.01);
+          bar.castShadow = true;
+          rig.add(bar); // the wood crossbar his rear palm rides
+          rig.add(tube([V(0.3, 0, -0.01), V(0.66, 0, -0.008), V(1.02, 0, -0.018), V(1.2, 0, -0.034)], 0.039, wood)); // the WOOD SHAFT
+          const dip = lathe([0.04, 0.062, 0.092, 0.116, 0.126, 0.124, 0.108, 0.078, 0.05, 0.04], 0.3, grip);
+          dip.position.set(0.33, 0, -0.01);
+          rig.add(dip); // the DIPPED RUBBER BULB, turned like the real one
+          const collar = lathe([0.043, 0.056, 0.061, 0.058, 0.049, 0.043], 0.16, steel);
+          collar.position.set(1.14, 0, -0.035);
+          rig.add(collar); // the shank collar running handle into head
+          const W = function (u) {
+            return 0.095 + 0.183 * sstep(0.04, 0.55, u); // rampened rounded shoulders
+          };
+          const floorZ = function (u) {
+            return -0.03 - 0.09 * sstep(0.55, 1.02, u) + 0.062 * (1 - sstep(0, 0.17, u));
+          }; // the floor dives to the flat bottom, rounds up at the shoulder
+          const surf = function (fn, u0, u1, vAbs, nu, nv, mat) {
+            const P = [], I = [];
+            for (let iu = 0; iu <= nu; iu++) {
+              const u = u0 + (u1 - u0) * (iu / nu);
+              for (let iv = 0; iv <= nv; iv++) {
+                const p = fn(u, -vAbs + 2 * vAbs * (iv / nv));
+                P.push(p[0], p[1], p[2]);
+              }
+            }
+            const rowN = nv + 1;
+            for (let iu = 0; iu < nu; iu++) {
+              for (let iv = 0; iv < nv; iv++) {
+                const a = iu * rowN + iv;
+                I.push(a, a + rowN, a + 1, a + 1, a + rowN, a + rowN + 1);
+              }
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+            geo.setIndex(I);
+            geo.computeVertexNormals();
+            const m = new THREE.Mesh(geo, mat);
+            m.castShadow = true;
+            return m;
+          };
+          scoop.add(surf(function (u, v) {
+            const w = W(u), fz = floorZ(u), av = Math.abs(v);
+            const x = 1.245 + 0.6 * u;
+            if (av <= 0.55) {
+              const q = av / 0.55;
+              return [x, (w * v) / 0.55, fz + 0.028 * q * q]; // the dished FLOOR: centre low, edges up
+            }
+            const s = (av - 0.55) / 0.61, th = 1.6 * s; // the walls curling UP off the floor
+            return [x, w * (1 + 0.12 * Math.sin(th)), fz + 0.028 + 0.27 * (1 - Math.cos(th))]; // rims rolled
+          }, 0, 1, 1.16, 30, 34, steel)); // the deep-scoop PAN, one smooth stamped shell
+          scoop.add(surf(function (u, v) {
+            return [1.245 + 0.6 * u, ((W(u) * v) / 0.55) * 0.94, floorZ(u) + 0.006];
+          }, 0.9, 1.02, 0.55, 12, 14, edge)); // the ONLY flat part: the bright cutting bottom
+          scoop.add(tube([V(1.36, 0, floorZ(0.22) + 0.06), V(1.52, 0, floorZ(0.48) + 0.055), V(1.7, 0, floorZ(0.78) + 0.05)], 0.03, steel)); // the domed crown
+        }
+        // --- the structural core: the straight-line kit every grip/hit test reads;
+        // the high-poly body above wraps it, in the stub rigs only this exists ---
+        const shaft = lay(CY(0.034, 0.034, 0.78, wood, 8), 0.65, 0); // handle spine: 0.26 -> 1.04
+        const frontGrip = lay(CY(0.045, 0.045, 0.24, grip, 8), 0.46, 0); // the gripped place (under the lathe bulb)
+        const ferrule = lay(CY(0.048, 0.044, 0.12, steel, 8), 1.0, 0); // the crimp at handle->shank
+        const socket = lay(CY(0.052, 0.046, 0.18, steel, 8), 1.19, -0.03); // the forged collar the head enters
+        const neck = BX(0.22, 0.16, 0.07, steel); // ...the NARROW shank (measured off shovel.glb)
+        neck.position.set(1.26, 0, -0.05);
+        // THE SCOOP HEAD, proportioned off shovel.glb: a NEAR-SQUARE pan that RAMPENS
+        // out of the shank, ROUND all the way around, NO edges except the flat bright
+        // bottom — and deliberately DEEPENED over the model: the pan walls stand ~0.30u
+        // above the stamped floor, so it reads as a DEEP SCOOP, not a flat pan.
+        const blade = BX(0.44, 0.5, 0.05, steel); // the stamped FLOOR of the deep pan, set LOW in the walls
+        blade.position.set(1.48, 0, -0.085);
+        const tip = BX(0.12, 0.5, 0.035, edge); // the ONLY flat part: the bright cutting bottom
+        tip.position.set(1.785, 0, -0.115);
+        g.add(rig, shaft, frontGrip, ferrule, socket, neck, blade, tip, scoop);
+        g.userData.handleLen = 1.84; // butt (its own origin) to the flat cutting bottom
         // THE HOLY WEAPON: the head's own materials are published so a CONSECRATED blade can
         // light up (shovelHolyGlow in updatePlayer drives the emissive on the point).
         g.userData.bladeMat = steel;
@@ -26081,7 +26257,7 @@
       const SHOVEL_GUARD = 0.45;
       const SHOVEL_BUTT = 0.55; // the handle runs BACK past his rear fist — the wood is a weapon
       const SHOVEL_BLADE_R = 1.25; // ...and the head sweeps this far PAST the end of the reach
-      // (it tracks the wide square-point in makeShovelProp: what the player SEES sweep is what
+      // (it tracks the wide scoop head in makeShovelProp: what the player SEES sweep is what
       // the swing actually catches, so a ghoul standing next to the blade is ON the swing)
       // THE SCREEN STAYS HIS, NOT THE Ghouls'. A banishment pays in points, splats, the
       // hopper jingle and the HUD meter — NO centre-screen text: the big pop is reserved for
@@ -26374,15 +26550,19 @@
       // in toward that side, y = raise it out of hanging straight down; -y = forward). The
       // fists they produce are what matter and they were solved for against the rig: an
       // arm is 0.52 long off a shoulder at z 1.38, so a fist that reaches FURTHER forward
-      // can never also sit LOWER — which is exactly why the handle is held roughly LEVEL
-      // and the chop comes from the body (lean + twist) instead of from the wrists.
-      //   idle  — the at-the-walk carry: the rear fist caps the butt against his belly,
-      //           the forward hand grips out in front, the point noses down over the curb
-      //           (the head ends ~1.7u ahead of him at knee height: unmistakable).
+      // can never also sit LOWER — which is exactly why the carry angles the shaft DOWN
+      // from a HIGH rear fist (real coal-shovel drag: rear hand up by the belly pushing
+      // over the shoulder, forward hand low on the dipped grip) and the chop comes from
+      // the body (lean + twist) instead of from the wrists.
+      //   idle  — the at-the-walk carry: THE BLADE ON THE GROUND, the point riding the
+      //           asphalt a hand's width ahead of the forward fist, the deep scoop open
+      //           DOWN-and-back toward the worker (walls hanging off the floor, dish
+      //           facing the street — a DSNY man shoveling snow reads exactly this way).
+      //           ~0.62 slope per unit: the tip ends at street level, unmistakable.
       //   swing — both arms punched out straight ahead and the hands SPREAD apart along
       //           the handle (0.25u -> 0.39u) as the whole tool is thrust at the spook.
       const SHOVEL_HOLD = {
-        idle: { r: [1.15, -0.35], l: [-0.5, -0.9], lean: 0, twist: 0 },
+        idle: { r: [1.15, -0.35], l: [0, -0.78], lean: 0, twist: 0 },
         swing: { r: [1.2, -0.22], l: [-0.35, -1.25], lean: 0.24, twist: 0.55 },
         // THE SWING IS A CURVE, NOT A LERP — amplitude runs 0 (the carry) up past 1 (the
         // strike) to max (the follow-through, shovel over the leading shoulder), walked
@@ -26400,7 +26580,7 @@
         // and each is a true arm-length out of its shoulder (the rig's limits for a 0.52u
         // arm), so the tool never leaves his hands and no arm passes through his head.
         keys: [
-          { k: 0.0, r: [1.15, -0.35], l: [-0.5, -0.9], lean: 0.0, twist: 0.0 },
+          { k: 0.0, r: [1.15, -0.35], l: [0, -0.78], lean: 0.0, twist: 0.0 },
           { k: 0.3, r: [0.85, -0.22], l: [-0.62, -1.42], lean: -0.1, twist: -0.42 },
           { k: 0.6, r: [1.26, -0.3], l: [-0.4, -1.3], lean: 0.2, twist: 0.36 },
           { k: 1.0, r: [0.62, -1.06], l: [-0.16, -0.86], lean: 0.3, twist: 1.16 },
@@ -26493,7 +26673,14 @@
           return;
         }
         if (shovelGroup && shovelGroup.parent) shovelGroup.parent.remove(shovelGroup);
-        shovelGroup = makeShovelProp();
+        const shovelTpl = typeof SHOVEL_TPL !== "undefined" ? SHOVEL_TPL : null;
+        shovelGroup = shovelTpl ? shovelTpl.template.clone(true) : makeShovelProp();
+        if (shovelTpl) {
+          shovelGroup.userData.handleLen = 1.84; // same tool length the grip/hit math reads
+          shovelGroup.userData.bladeMat = shovelTpl.mats[0] || null;
+          shovelGroup.userData.edgeMat = shovelTpl.mats[0] || null;
+          shovelGroup.userData.holy = 0;
+        }
         worker.group.add(shovelGroup); // both arms, one prop
         poseShovel(0); // fists ON the handle from the very first frame
       }
@@ -38158,7 +38345,7 @@
           }
         }
         // THE SHOVEL SWING (0.3s, THE NIGHT SHIFT only): a TWO-HANDED slash — both fists
-        // drive the DSNY square-point through the fog, exactly like a man taking a bite
+        // drive the DSNY scoop through the fog, exactly like a man taking a bite
         // out of a frozen pile. poseShovel() re-solves his arms and re-lays the handle
         // across both knuckles every frame, so the tool cannot leave his hands at any
         // point of the swing; the body leans over it and twists into it. What it hit was
@@ -49365,8 +49552,15 @@
           console.warn("[GLTF] garbage can model unavailable, using fallback:", e);
           return false;
         });
+        // The night-shift shovel has a procedural fallback (makeShovelProp), so a failed
+        // shovel-fixed.glb load degrades the tool's look instead of blocking the game.
+        const shovelJob = loadShovelGltf().catch((e) => {
+          console.warn("[GLTF] shovel model unavailable, using procedural fallback:", e);
+          return false;
+        });
         const gltfJobs = [
           canJob,
+          shovelJob,
           loadCarGltf(),
           loadLitterbasketGltf(),
           loadMonsterGltf(),
