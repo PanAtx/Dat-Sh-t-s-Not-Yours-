@@ -40,26 +40,42 @@ check('inline script(s) parse (' + scripts.length + ')', synOk);
 const buildSrc = src.slice(src.indexOf('function buildTruck()'), src.indexOf('function updateHopperTrash('));
 check('the hazard lights are built (hazLights array)', buildSrc.indexOf('const hazLights = []') >= 0);
 check('each light = emissive orange core lens + additive-blended halo (the glow)', buildSrc.indexOf('emissive: 0xff6a00') >= 0 && buildSrc.indexOf('THREE.AdditiveBlending') >= 0 && buildSrc.indexOf('new THREE.CircleGeometry(s.haloR, 20)') >= 0);
-check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: \'mid\'') >= 0 && (buildSrc.match(/phase: 'side'/g) || []).length === 2);
+check('ONE MIDDLE light + two SIDE lights (the 3-circle pattern)', buildSrc.indexOf('phase: "mid"') >= 0 && (buildSrc.match(/phase: "side"/g) || []).length === 2);
 // the player-confirmed hand-placed positions (dialed in with the U/I/J/K/N/M
 // nudge keys) must be the exact hardcoded positions; each lens/halo is
 // oriented along the rear normal (-0.989, -0.133, 0.063) and lifted off it
-check('light 1 sits at the player placement (x=-4.918, y=-0.299, z=3.979)', buildSrc.indexOf("{ x: -4.918, y: -0.299, z: 3.979, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
-check('light 2 (middle) sits at the player placement (x=-4.918, y=-0.619, z=4.019)', buildSrc.indexOf("{ x: -4.918, y: -0.619, z: 4.019, r: 0.105, haloR: 0.22, phase: 'mid' }") >= 0);
-check('light 3 sits at the player placement (x=-4.918, y=-0.959, z=4.079)', buildSrc.indexOf("{ x: -4.918, y: -0.959, z: 4.079, r: 0.105, haloR: 0.22, phase: 'side' }") >= 0);
+check('the lens row sits on the REAR face at ~79% of the truck height (native x -5.401, z 3.655), in a lateral row', buildSrc.indexOf('{ x: -5.401, y: -0.371, z: 3.655, r: 0.105, haloR: 0.22, phase: "side" }') >= 0);
+check('the MIDDLE lens of the row (the one the beacon rides)', buildSrc.indexOf('{ x: -5.401, y: -0.051, z: 3.655, r: 0.105, haloR: 0.22, phase: "mid" }') >= 0);
+check('the third lens of the row', buildSrc.indexOf('{ x: -5.401, y: 0.269, z: 3.655, r: 0.105, haloR: 0.22, phase: "side" }') >= 0);
 check('lenses/halos are oriented along the rear-face normal and lifted off it', buildSrc.indexOf('setFromUnitVectors') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.03)') >= 0 && buildSrc.indexOf('addScaledVector(hazN, 0.02)') >= 0);
 check('the truck object exposes hazLights for the blink driver', buildSrc.indexOf('hazLights: hazLights,') >= 0);
+check('ONE clock drives every hazard lamp: the lenses blink off hazardClock() and the Midnight rig beacon reads the same helper (they blink IN BEAT)',
+  (() => {
+    const drv = src.slice(src.indexOf('function blinkHazardLights() {'));
+    const rig = src.slice(src.indexOf('function nightTruckRigUpdate('));
+    return drv.includes('const hc = hazardClock();') && rig.includes('hazardClock().midOn');
+  })());
+check('THE FLASH IS BACK ON THE REAR of the midnight truck: a visible amber beacon bulb + radial halo on the lens row, blinking with the middle lens',
+  src.indexOf('mkLamp(-5.341, -0.051, 3.655, 0.14, 0.5, true)') >= 0 &&
+    src.indexOf('parts.beacon.halo.material.opacity = 0.5 * k * flash;') >= 0 &&
+    src.indexOf('parts.beacon.core.material.opacity = k * (flash ? 1 : 0.38);') >= 0 &&
+    src.indexOf('NIGHT_TRUCK_I * 0.8 * flash') >= 0);
+check('the beacon rides the SAME lens row (no cab-roof lamp anywhere in the rig - nothing lights the truck from the top)',
+  (() => {
+    const rigBuild = src.slice(src.indexOf('function armNightTruckRig('), src.indexOf('function applyMidnightMusic('));
+    return rigBuild.indexOf('front - 1.1') < 0 && rigBuild.indexOf('beams') < 0 && rigBuild.indexOf('const beacon = mkLamp(-5.341') >= 0;
+  })());
 
 // ---- (2) updateTruck drives the blink on a 2-second clock ----
-const upSrc = src.slice(src.indexOf('function updateTruck(dt)'), src.indexOf('// ==================== CREATURE AI'));
-check('the blink cycle runs on a 2-second clock (% 2)', upSrc.indexOf('(performance.now() * 0.001) % 2') >= 0);
-check('phase windows: 1s sides, then 1s middle — repeat, never all dark', upSrc.indexOf('const sideOn = hz < 1') >= 0 && upSrc.indexOf('midOn = hz >= 1;') >= 0);
+const upSrc = src.slice(src.indexOf('function hazardClock('), src.indexOf('// ==================== CREATURE AI'));
+check('the blink cycle runs on a 2-second clock (% 2), on ONE wall clock every hazard lamp shares', upSrc.indexOf('const hz = (performance.now() * 0.001) % 2;') >= 0);
+check('phase windows: 1s sides, then 1s middle - repeat, never all dark', upSrc.indexOf('sideOn: hz < 1, midOn: hz >= 1') >= 0);
 check('core glow + halo pulse with the phase (emissiveIntensity / opacity)', upSrc.indexOf('L.coreMat.emissiveIntensity = on ? (bright ? 2.6 : 1.6) : 0') >= 0 && upSrc.indexOf('L.haloMat.opacity = on ? (bright ? 0.95 : 0.6) : 0') >= 0);
 check('A/B brightness: holding G previews the old brighter glow (2.6/0.95), release = 1.6/0.6', upSrc.indexOf('const bright = keys["KeyG"]') >= 0);
 check('the halo is hidden while its light is dark (no ghost glow)', upSrc.indexOf('L.halo.visible = on;') >= 0);
 
 // ---- (3) execute the REAL blink block for 4 full cycles ----
-const iHZ = upSrc.indexOf('if (truck.hazLights) {');
+const iHZ = upSrc.indexOf('function blinkHazardLights() {');
 if (iHZ < 0) {
   check('the REAL blink block is found in updateTruck', false);
 } else {
@@ -72,8 +88,8 @@ if (iHZ < 0) {
       if (d === 0) break;
     }
   }
-  const hazBlock = upSrc.slice(iHZ, k + 1);
-  const runBlink = new Function('performance', 'truck', 'keys', hazBlock);
+  const hazBlock = upSrc.slice(upSrc.indexOf('function hazardClock('), k + 1);
+  const runBlink = new Function('performance', 'truck', 'keys', hazBlock + '\nblinkHazardLights();');
   const hazLights = [
     { phase: 'side', coreMat: { emissiveIntensity: -1 }, haloMat: { opacity: -1 }, halo: { visible: true } },
     { phase: 'mid', coreMat: { emissiveIntensity: -1 }, haloMat: { opacity: -1 }, halo: { visible: true } },

@@ -8,6 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const THREE = require(path.join(__dirname, 'three_r128.min.js'));
+// THE HAZARD CLOCK IS THE WALL CLOCK (the same one the truck's lenses blink on), so the
+// harness owns it: setNow(t) puts the whole game on second t of the 2-second DSNY pattern.
+let FAKE_NOW = 0;
+Object.defineProperty(globalThis, "performance", { value: { now: () => FAKE_NOW * 1000 }, configurable: true, writable: true });
+const setNow = (t) => { FAKE_NOW = t; };
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 let pass = 0, fail = 0;
 const failures = [];
@@ -253,8 +258,8 @@ const FUNCS = ['applyNightPalette', 'nightPaneSpec', 'pickNearestLamps', 'retroG
   'buildNightLamps', 'ensureNightLampLights', 'applyNightWindows', 'armMidnightLook', 'retroUniforms',
   'patchRetroSheen', 'armNightRetro', 'applyNightHiVis', 'retroProbeColor', 'updateNightLamps',
   'nightEctoK', 'nightEctoSize', 'applyMidnightMusic', 'registerNightGlowMat', 'scanNightGlow',
-  'applyNightGlow', 'nightTruckRadial',
-  'armNightTruckRig', 'clearNightTruckRig', 'nightTruckRigUpdate'].map(srcFn).join('\n');
+  'applyNightGlow', 'nightTruckRadial', 'hazardClock',
+  'armNightTruckRig', 'clearNightTruckRig', 'nightTruckRigUpdate', 'blinkHazardLights'].map(srcFn).join('\n');
 const api = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'R', 'GZ', 'BW', 'blocks', 'scene', 'camera',
   'dirLight', 'ambientLight', 'p', 'wparts', 'document', 'SFX',
   CONSTS + SHADER_CONSTS +
@@ -496,18 +501,36 @@ check('...and it is born SMALL on the haunted shift (' + NIGHT_ECTO_SIZE + 'x): 
   NIGHT_ECTO_SIZE > 0 && NIGHT_ECTO_SIZE < 1 && api.nightEctoSize() === NIGHT_ECTO_SIZE &&
   (api.setNight(false), api.nightEctoSize() === 1) && (api.setNight(true), true));
 api.armNightTruckRig();
-check('the truck gets its OWN midnight rig riding on the truck group (a road pool + two light anchors)',
+check('the truck gets its OWN midnight rig riding on the truck group (road pool + invisible worklight anchor + the REAR HAZARD BEACON)',
   !!api.getTruckRig() && api.getTruckRig().parent === mockTruck.g &&
-    api.getTruckRig().children.length === 3 && api.getTruckLights().length === 2);
+    api.getTruckRig().children.length === 4 && api.getTruckLights().length === 2);
 const rigPlanes = api.getTruckRig().children.filter((c) => c.geometry.type === 'PlaneGeometry').length;
-const rigVisible = api.getTruckRig().children.filter((c) => c.visible !== false).length;
-check('the rig SHOWS exactly one thing: the pool on the road IN FRONT of the bumpers (' + rigPlanes + ' plane, ' + rigVisible + ' visible part)',
-  rigPlanes === 1 && rigVisible === 1 && api.getTruckRig().children.some((c) => c.visible !== false));
-check('the truck has NO lamp of its own on top: both rig lamps are INVISIBLE light anchors (the model is the only lamp on the truck - the amber hazard lenses on the REAR)',
-  !!api.getTruckRig().userData.parts.work && api.getTruckRig().userData.parts.work.core.visible === false &&
-    api.getTruckRig().userData.parts.beacon.core.visible === false);
-check('NO light cards on the truck rig: not one additive quad with no radial map is standing in the air over the hopper',
-  api.getTruckRig().children.filter((c) => c.geometry.type === 'PlaneGeometry' && !c.material.map).length === 0);
+check('the rig has exactly two flat things and both are RADIAL (the road pool + the beacon halo): zero untextured quads = zero square lights',
+  rigPlanes === 2 &&
+    api.getTruckRig().children.filter((c) => c.geometry.type === 'PlaneGeometry' && !c.material.map).length === 0);
+const beacon = api.getTruckRig().userData.parts.beacon;
+check('THE FLASHING HAZARD LIGHT IS BACK ON THE REAR: a visible amber bulb + halo riding the model hazard-lens row, not on the cab and not on the roof',
+  !!beacon && !!beacon.core && !!beacon.halo && beacon.core.visible !== false &&
+    beacon.core.position.x < -5 && beacon.core.position.x > -5.5 &&
+    Math.abs(beacon.core.position.z - 3.655) < 0.02 && beacon.core.material.color.getHex() === 0xffb03a);
+check('the rig lamp on the hopper is only an INVISIBLE light anchor, and nothing on the truck glows above the scoop',
+  api.getTruckRig().userData.parts.work.core.visible === false &&
+    api.getTruckRig().children.every((c) => c.position.z <= 4.4) &&
+    !api.getTruckRig().children.some((c) => c.position.x > 0 && c.position.z > 3.5));
+setNow(0.5); api.nightTruckRigUpdate(0.5, true); // the OUTER-lens second of the DSNY hazard clock
+check('the beacon DIMS TO AN EMBER on the outer-lens second (a faint amber bulb; halo and its light cut out; the worklight keeps lighting the street)',
+  api.getTruckRig().userData.parts.beacon.core.material.color.getHex() === 0x2a1c0c &&
+    api.getTruckRig().userData.parts.beacon.core.material.opacity > 0 &&
+    api.getTruckRig().userData.parts.beacon.core.material.opacity < 0.5 &&
+    api.getTruckRig().userData.parts.beacon.halo.material.opacity === 0 &&
+    api.getTruckLights()[1].intensity === 0 &&
+    api.getTruckLights()[0].intensity > 0);
+setNow(1.5); api.nightTruckRigUpdate(1.5, true); // the MIDDLE-lens second
+check('the beacon BLAZES on the middle-lens second: bulb lit hot, halo glowing, its light pulsing',
+  api.getTruckRig().userData.parts.beacon.core.material.color.getHex() === 0xffc256 &&
+    api.getTruckRig().userData.parts.beacon.core.material.opacity > 0 &&
+    api.getTruckRig().userData.parts.beacon.halo.material.opacity > 0 &&
+    api.getTruckLights()[1].intensity > 0);
 api.nightTruckRigUpdate(1.0, true);
 check('the truck lights the street it parks on: both rig lights burn on the haunted shift',
   api.getTruckLights().every((L) => L.intensity > 0 && L.distance > 0));

@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.471</div>
+          <div id="app-version" class="menu-version">v1.0.472</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.471';
+      const APP_VERSION = '1.0.472';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5594,6 +5594,12 @@
         const t = typeof truck !== "undefined" ? truck : null;
         if (t && t.hazLights)
           for (let i = 0; i < t.hazLights.length; i++) {
+            // A BLINKING lamp is amplified, never overwritten: the night pass must not paste a
+            // captured baseline over the DSNY pattern blinkHazardLights writes every frame.
+            if (t.hazLights[i] && t.hazLights[i].coreMat && t.hazLights[i].coreMat.userData)
+              t.hazLights[i].coreMat.userData.nightBlink = true;
+            if (t.hazLights[i] && t.hazLights[i].haloMat && t.hazLights[i].haloMat.userData)
+              t.hazLights[i].haloMat.userData.nightBlink = true;
             registerNightGlowMat(t.hazLights[i] && t.hazLights[i].coreMat, NIGHT_TRUCK_GLOW);
             registerNightGlowMat(t.hazLights[i] && t.hazLights[i].haloMat, NIGHT_TRUCK_GLOW);
           }
@@ -5617,9 +5623,13 @@
           // a slow per-material breathe: a glow is ALIVE, not a light switch
           const pulse = on ? 1 + NIGHT_GLOW_PULSE * Math.sin(t * 2.1 + i * 1.7) : 1;
           const k = on ? (m.userData.nightGlowGain || 1) * pulse : 1;
+          const blink = m.userData.nightBlink === true; // its driver writes it every frame
           if (b.ui !== null) m.uniforms.uIntensity.value = b.ui * k;
-          if (b.ei !== null) m.emissiveIntensity = b.ei * k;
-          if (b.op !== null) m.opacity = Math.min(1, b.op * (on ? 1 + (k - 1) * 0.55 : 1));
+          if (b.ei !== null) m.emissiveIntensity = blink ? (on ? m.emissiveIntensity * k : b.ei) : b.ei * k;
+          if (b.op !== null)
+            m.opacity = blink
+              ? Math.min(1, (on ? m.opacity * (1 + (k - 1) * 0.55) : b.op))
+              : Math.min(1, b.op * (on ? 1 + (k - 1) * 0.55 : 1));
           if (b.er !== null && on)
             // the emissive COLOUR burns hotter too: the hazard blink writes the lens intensities
             // every frame, so the colour is where a lamp is made to blaze in the dark without
@@ -5642,8 +5652,29 @@
         const f = Math.max(NIGHT_TRUCK_FLOOR, nightLampFlicker(tsec, 1.9, 0.9));
         const k = on ? f : 0;
         if (parts.pool && parts.pool.material) parts.pool.material.opacity = 0.52 * k;
-        // (the dead beams are gone: a lamp on this rig is a core plus its own soft halo)
-        // (no halos on this rig: the truck's own rear hazard lenses carry the visible glow)
+        // THE REAR HAZARD FLASH, back where it belongs: the beacon blinks on the SAME 2-second
+        // DSNY clock the three lenses run (outer pair, then middle), riding the MIDDLE lens, and
+        // its radial halo turns to face the player so the glow is round. Off the haunted shift k
+        // is zero, so a weekday gets nothing from the rig at all.
+        // DSNY hazard lamps are NEVER all dark: on the outer-lens second the middle lamp is a
+        // faint EMBER (a dim amber bulb), not a disappeared bulb. The bulb fades to 38% between
+        // flashes and blazes at 100% on the beat; its halo and its PointLight (the glow thrown
+        // across the street) cut out completely on the off-beat — which is what makes a hazard
+        // lamp read as FLASHING.
+        const flash = hazardClock().midOn ? 1 : 0; // the SAME wall clock the lenses blink on
+        if (parts.beacon.core) {
+          if (parts.beacon.core.material && parts.beacon.core.material.color &&
+              parts.beacon.core.material.color.setHex)
+            parts.beacon.core.material.color.setHex(flash > 0 ? 0xffc256 : 0x2a1c0c); // an ember between flashes
+          if (parts.beacon.core.material) parts.beacon.core.material.opacity = k * (flash ? 1 : 0.38);
+        }
+
+
+        if (parts.beacon.halo) {
+          if (parts.beacon.halo.material) parts.beacon.halo.material.opacity = 0.5 * k * flash;
+          if (parts.beacon.halo.userData.billboard && typeof camera !== "undefined" && camera && camera.quaternion)
+            parts.beacon.halo.quaternion.copy(camera.quaternion);
+        }
         const aim = (mesh, L, base, rad) => {
           if (!L) return;
           if (k > 0 && mesh && mesh.getWorldPosition) {
@@ -5654,7 +5685,7 @@
         };
         try {
           aim(parts.work.core, parts.workLight, NIGHT_TRUCK_I, NIGHT_TRUCK_R);
-          aim(parts.beacon.core, parts.headLight, NIGHT_TRUCK_I * 0.8, NIGHT_TRUCK_R * 1.15);
+          aim(parts.beacon.core, parts.headLight, NIGHT_TRUCK_I * 0.8 * flash, NIGHT_TRUCK_R * 1.15);
         } catch (e) {
           /* a no-DOM harness has no world transforms: the rig stays dark and the level runs */
         }
@@ -5696,22 +5727,52 @@
         // is NOT a lamp body and it is NOT drawable — the truck's own lenses (the rear hazard
         // lights the model carries) are the only lights on top of this truck, and an additive
         // quad standing at a lamp position is a white SQUARE, not a glow.
-        const mkLamp = (x, y, z) => {
+        const mkLamp = (x, y, z, r, op, amber) => {
           const core = new THREE.Mesh(
-            new THREE.SphereGeometry(0.05, 6, 6),
-            new THREE.MeshBasicMaterial({ color: 0xffd9a8, fog: false }),
+            new THREE.SphereGeometry(r, 10, 10),
+            // An amber lamp bulb is TRANSPARENT so the flash can dim it to an ember at night;
+            // the sodium worklight anchor stays plain (it draws nothing).
+            new THREE.MeshBasicMaterial({
+              color: amber ? 0xffb03a : 0xffd9a8,
+              fog: false,
+              transparent: !!amber,
+              opacity: 1,
+            }),
           );
           core.castShadow = false;
-          core.visible = false; // an anchor for the PointLight; nothing on the truck is lit up
           core.position.set(x, y, z);
           g.add(core);
-          return { core: core, halo: null };
+          let halo = null;
+          if (op > 0 && tex && THREE.PlaneGeometry) {
+            // A RADIAL halo centred on the bulb and billboarded to the camera: 0.7u of soft
+            // sodium-amber glow around the lens cluster. Soft-edged and round — the truck keeps
+            // NO flat square of light anywhere on it.
+            halo = new THREE.Mesh(
+              new THREE.PlaneGeometry(r * 5, r * 5),
+              new THREE.MeshBasicMaterial({
+                map: tex,
+                color: amber ? 0xffa22a : 0xffe4bd,
+                transparent: true,
+                opacity: op,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                fog: false,
+              }),
+            );
+            halo.position.copy(core.position); // the glow IS the lamp
+            halo.castShadow = false;
+            halo.userData.billboard = true;
+            g.add(halo);
+          }
+          return { core: core, halo: halo };
         };
-        // Both anchors sit at the REAR, where the truck's real lamps are: over the hopper /
-        // scoop face. Nothing is anchored on the cab roof, because nothing on this truck emits
-        // light from the top.
-        const work = mkLamp(rear - 0.9, 0, 4.4); // over the scoop, at the rear of the box
-        const beacon = mkLamp(rear - 1.6, 0, 3.1); // behind the hazard lenses on the tail
+        // Both lamps sit at the REAR, where the truck's real lamps are. The worklight stays an
+        // INVISIBLE anchor over the hopper — a sodium lamp whose only job is to LIGHT the street.
+        // The beacon is the truck's VISIBLE flash: a bulb on the hazard-lens row, proud of the
+        // rear face. Nothing sits on the cab roof; nothing on this truck lights from the top.
+        const work = mkLamp(rear - 0.9, 0, 4.4, 0.05, 0, false);
+        work.core.visible = false; // an anchor for the PointLight; the hopper lamp is invisible
+        const beacon = mkLamp(-5.341, -0.051, 3.655, 0.14, 0.5, true); // the hazard-lens row
         nightTruckLights = [];
         const lampOf = (mesh) => {
           if (typeof scene === "undefined" || !scene || !scene.add || !THREE.PointLight) return null;
@@ -38204,11 +38265,18 @@
       // normal follow loop (updateTruck) and the end-of-route cinematic (updateRouteEnd,
       // where updateTruck's auto-follow AI is skipped). A DSNY rule: these lights NEVER
       // stop blinking.
+      // THE DSNY HAZARD CLOCK: a 2-second cycle — the OUTER lenses for the first second, the
+      // MIDDLE lens for the second, never all dark. One helper drives every hazard lamp on the
+      // truck, so the model's three lenses and the Midnight rig's rear beacon blink IN BEAT.
+      function hazardClock() {
+        const hz = (performance.now() * 0.001) % 2;
+        return { hz: hz, sideOn: hz < 1, midOn: hz >= 1 };
+      }
       function blinkHazardLights() {
         if (!truck || !truck.hazLights) return;
-        const hz = (performance.now() * 0.001) % 2;
-        const sideOn = hz < 1,
-          midOn = hz >= 1;
+        const hc = hazardClock();
+        const sideOn = hc.sideOn,
+          midOn = hc.midOn;
         // A/B brightness: hold G to preview the OLD brighter glow
         // (2.6/0.95), release for the current dimmer one (1.6/0.6).
         const bright = keys["KeyG"];
