@@ -1,7 +1,7 @@
 // _tools/_shovel_glb_probe.mjs — decodes shovel.glb POSITIONs and prints a profile:
 // for bins along the length axis: half-width (max |x|), z-spread, vertex count.
 import fs from "fs";
-const b = fs.readFileSync("shovel.glb");
+const b = fs.readFileSync("shovel.glb"); // ARCHIVED (10/2026): shovel.glb deleted — re-extract with: git show HEAD:shovel.glb
 const js = JSON.parse(b.slice(20, 20 + 2304).toString("utf8"));
 const acc = js.accessors[0]; // POSITION
 const bv = js.bufferViews[acc.bufferView];

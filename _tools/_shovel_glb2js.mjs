@@ -7,7 +7,7 @@
 // makeShovelProp() in index.html now reproduces as high-poly swept geometry.
 import fs from "fs";
 
-const b = fs.readFileSync("shovel.glb");
+const b = fs.readFileSync("shovel.glb"); // ARCHIVED (10/2026): shovel.glb deleted — re-extract with: git show HEAD:shovel.glb
 const jsonLen = b.readUInt32LE(12);
 const js = JSON.parse(b.slice(20, 20 + jsonLen).toString("utf8"));
 const binStart = 12 + 8 + jsonLen;

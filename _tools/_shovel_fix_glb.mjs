@@ -6,7 +6,9 @@
 // _shovel_loader_debug.js: area sum 1.053, median tri 2.66e-6). "Repairing" the
 // field to 5123 makes THIS loader read u16 and renders a degenerate soup — exactly
 // the garbling seen in-game; the script is kept only as documentation + a raw-data
-// inspector. The game loads shovel.glb as-is.
+// inspector. ARCHIVED (10/2026): shovel.glb is DELETED — the game loads the Draco twin
+// shovelcompressed.glb, whose no-soup caveat is gone (standard 2.0 accessors). This
+// raw-JSON inspector documents the original; re-extract it with: git show HEAD:shovel.glb
 import fs from "fs";
 const b = fs.readFileSync("shovel.glb");
 const jsonLen = b.readUInt32LE(12);

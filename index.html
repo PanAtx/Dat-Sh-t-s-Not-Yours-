@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.480</div>
+          <div id="app-version" class="menu-version">v1.0.481</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4337,7 +4337,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.480';
+      const APP_VERSION = '1.0.481';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6265,8 +6265,11 @@
     borough: "BROOKLYN",
     area: "BED-STUY",
     night: true,
-    special: "THE NIGHT SHIFT! NO SUCH DAY! · THE GHOUL HORDE",
-    warning: "9 GHOULS TO A BLOCK — LAWN, WALK, CURB AN' ROAD! SHOVEL 'EM IN!",
+    // Card copy stays SHORT on purpose: this card must fit a phone screen, so the
+    // banner is one punchy line and the objective two — the flavor lives in the
+    // worker's spoken NIGHT_START_LINES, not on the panel.
+    special: "THE NIGHT SHIFT!",
+    warning: "SHOVEL 'EM IN!",
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -9323,7 +9326,7 @@
       // key. To bust a different asset later, add/raise its value here.
       const _modelCacheVersions = {
         "nyc_truck-compressed.glb": 2, // v2: 31.4MB->5.3MB re-compress (Draco); KHR_texture_transform + EXT_texture_webp preserved
-        "shovel.glb": 1, // v1: meshy.ai coal shovel — load AS-IS, its 5125-packed-u32 indices are what the bundled GLTFLoader.js reads as Uint32 (see _shovel_loader_debug.js; "fixing" the field to 5123 makes it soup)
+        "shovelcompressed.glb": 1, // v1: meshy.ai coal shovel Draco re-compress (19.4MB -> 0.87MB; KHR_draco_mesh_compression + EXT_texture_webp, decimated 59,184->29,592 tris) — same native extents as the DELETED shovel.glb, verified by _shovel_compressed_probe.mjs
       };
       function _modelCacheKey(url) {
         const v = _modelCacheVersions[url];
@@ -9631,15 +9634,18 @@
           );
         });
       }
-      // ==================== GLTF SHOVEL PIPELINE (shovel.glb, the meshy.ai model) ====================
-      // shovel.glb native space (measured via _tools/_shovel_fix_glb.mjs + audited through the
-      // game's OWN loader in _tools/_shovel_loader_debug.js): 59,184 textured triangles,
-      // LENGTH along +Y (-0.952..+0.951, head at +Y), width on X (~0.285 half — the D-loop is
-      // the widest part), thickness on Z (~0.046). LOAD IT AS-IS: its index accessor says
-      // componentType 5125 packed with UNSIGNED_INT data — the 1.0-style constants the game's
-      // bundled GLTFLoader.js uses (5125 -> Uint32Array, verified line 1407) read that
-      // correctly. Re-typing the field to the 2.0-spec 5123 makes THIS loader read u16
-      // instead and renders a degenerate soup — don't "fix" it (learned the hard way).
+      // ==================== GLTF SHOVEL PIPELINE (shovelcompressed.glb, the meshy.ai model) ====================
+      // shovelcompressed.glb = the Draco re-compress of the original meshy.ai shovel.glb
+      // (node _compress_glb.mjs; KHR_draco_mesh_compression + EXT_texture_webp, decimated
+      // 59,184 -> 29,592 textured triangles). It keeps the EXACT native extents — verified
+      // by _shovel_compressed_probe.mjs against the original: LENGTH along Y (-0.952..
+      // +0.951, 1.903u — the wide scoop head at -Y, the D-grip at +Y), width on X (~0.285
+      // half, the D-loop is the widest part); the twin carries deeper scoop-pan walls in Z
+      // than the paper-thin original (decorative only — the tool length maths is identical).
+      // It decodes through the game's OWN makeGltfLoader (local ./draco/ decoder +
+      // EXT_texture_webp), the same offline-safe path as the truck/can models. The original
+      // shovel.glb (with its 5125-packed-u32 index quirk) is DELETED — standard 2.0
+      // accessors + Draco now, so the old "load AS-IS / never fix the field" caveat is moot.
       // The tool frame wants +X = length from the butt, Y = across, Z = up: a -90 turn
       // about Z swaps the axes, the scale lands the 1.90u body on the rig's 1.84u tool (the
       // number poseShovel and the shovel kit tests read), and the nudge puts the butt at the
@@ -9652,7 +9658,7 @@
         if (SHOVEL_TPL) return Promise.resolve(true);
         if (typeof THREE.GLTFLoader === "undefined")
           return Promise.reject(new Error("GLTFLoader not available"));
-        const res = await getModelUrl("shovel.glb"); // offline cache: serve from cache, else download + store
+        const res = await getModelUrl("shovelcompressed.glb"); // offline cache: serve from cache, else download + store
         return new Promise((resolve, reject) => {
           makeGltfLoader().load(
             res.url,
@@ -9698,7 +9704,7 @@
                   URL.revokeObjectURL(res.url);
                 } catch (e) {}
               }
-              console.error("[GLTF] shovel.glb load failed:", err);
+              console.error("[GLTF] shovelcompressed.glb load failed:", err);
               reject(err);
             },
           );
@@ -26065,7 +26071,8 @@
       // Built along its OWN +X axis with the ORIGIN AT THE BUTT, because a shovel is a
       // TWO-HANDED tool: the rear fist plants in the D-loop, the forward hand fists on
       // the dipped grip, and the shaft runs on out into the collar and the head.
-      // HI-poly build (the look, swept from shovel.glb's MEASURED profile: thin D-loop,
+      // HI-poly build (the look, swept from the shovel model's MEASURED profile — the
+      // extents shovelcompressed.glb preserves: thin D-loop,
       // thick dipped rubber grip, slim shank, near-square rounded head): high-segment
       // tube sweeps, turned lathe profiles, and a dense 30x34 parametric-surface pan
       // whose walls curl UP off the stamped floor — the deep scoop the model lacks.
@@ -26179,9 +26186,9 @@
         const frontGrip = lay(CY(0.045, 0.045, 0.24, grip, 8), 0.46, 0); // the gripped place (under the lathe bulb)
         const ferrule = lay(CY(0.048, 0.044, 0.12, steel, 8), 1.0, 0); // the crimp at handle->shank
         const socket = lay(CY(0.052, 0.046, 0.18, steel, 8), 1.19, -0.03); // the forged collar the head enters
-        const neck = BX(0.22, 0.16, 0.07, steel); // ...the NARROW shank (measured off shovel.glb)
+        const neck = BX(0.22, 0.16, 0.07, steel); // ...the NARROW shank (measured off the shovel model)
         neck.position.set(1.26, 0, -0.05);
-        // THE SCOOP HEAD, proportioned off shovel.glb: a NEAR-SQUARE pan that RAMPENS
+        // THE SCOOP HEAD, proportioned off the shovel model: a NEAR-SQUARE pan that RAMPENS
         // out of the shank, ROUND all the way around, NO edges except the flat bright
         // bottom — and deliberately DEEPENED over the model: the pan walls stand ~0.30u
         // above the stamped floor, so it reads as a DEEP SCOOP, not a flat pan.
@@ -46851,7 +46858,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "SHOVEL EVERY SPOOK INTO THE HOPPER &middot; FIVE LOADS = A CYCLE<br/>DON'T GET TOUCHED &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b> BACK AT THE END<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED"
+            ? "SHOVEL THE SPOOKS INTO THE HOPPER<br/>GRAB THE <b>GARGOYLE</b> AT THE END &middot; 3 WRITE-UPS = SUSPENDED"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";
@@ -49563,7 +49570,7 @@
           return false;
         });
         // The night-shift shovel has a procedural fallback (makeShovelProp), so a failed
-        // shovel-fixed.glb load degrades the tool's look instead of blocking the game.
+        // shovelcompressed.glb load degrades the tool's look instead of blocking the game.
         const shovelJob = loadShovelGltf().catch((e) => {
           console.warn("[GLTF] shovel model unavailable, using procedural fallback:", e);
           return false;
