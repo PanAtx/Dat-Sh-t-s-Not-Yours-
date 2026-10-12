@@ -496,12 +496,16 @@ check('...and it is born SMALL on the haunted shift (' + NIGHT_ECTO_SIZE + 'x): 
   NIGHT_ECTO_SIZE > 0 && NIGHT_ECTO_SIZE < 1 && api.nightEctoSize() === NIGHT_ECTO_SIZE &&
   (api.setNight(false), api.nightEctoSize() === 1) && (api.setNight(true), true));
 api.armNightTruckRig();
-check('the truck gets its OWN midnight rig (beams, beacon, worklight) riding on the truck group',
+check('the truck gets its OWN midnight rig (road pool, worklight, beacon) riding on the truck group',
   !!api.getTruckRig() && api.getTruckRig().parent === mockTruck.g &&
-    api.getTruckRig().children.length >= 6 && api.getTruckLights().length === 2);
+    api.getTruckRig().children.length >= 5 && api.getTruckRig().children.length <= 6 &&
+    api.getTruckLights().length === 2);
 const rigPlanes = api.getTruckRig().children.filter((c) => c.geometry.type === 'PlaneGeometry').length;
-check('the rig throws a pool on the road IN FRONT of the bumpers plus shafts and lamp halos (' + rigPlanes + ' planes)',
-  rigPlanes >= 5);
+check('the rig throws a pool on the road IN FRONT of the bumpers plus the SOFT lamp halos (' + rigPlanes + ' planes)',
+  rigPlanes >= 3 && rigPlanes <= 4);
+const rigCards = api.getTruckRig().userData.parts.beams;
+check('NO beams in the rig: a lamp on this rig is core + halo, and a bare additive quad standing in the air over the hopper is exactly the flat square of light the player reported',
+  rigCards === undefined && api.getTruckRig().children.length === 5);
 api.nightTruckRigUpdate(1.0, true);
 check('the truck lights the street it parks on: both rig lights burn on the haunted shift',
   api.getTruckLights().every((L) => L.intensity > 0 && L.distance > 0));

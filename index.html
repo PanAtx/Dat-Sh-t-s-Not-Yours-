@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.469</div>
+          <div id="app-version" class="menu-version">v1.0.470</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.469';
+      const APP_VERSION = '1.0.470';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5642,8 +5642,7 @@
         const f = Math.max(NIGHT_TRUCK_FLOOR, nightLampFlicker(tsec, 1.9, 0.9));
         const k = on ? f : 0;
         if (parts.pool && parts.pool.material) parts.pool.material.opacity = 0.52 * k;
-        for (let i = 0; i < parts.beams.length; i++)
-          if (parts.beams[i] && parts.beams[i].material) parts.beams[i].material.opacity = 0.13 * k;
+        // (the dead beams are gone: a lamp on this rig is a core plus its own soft halo)
         if (parts.work.halo && parts.work.halo.material)
           parts.work.halo.material.opacity = 0.55 * k;
         if (parts.beacon.halo && parts.beacon.halo.material)
@@ -5693,14 +5692,9 @@
           pool.castShadow = false;
           g.add(pool);
         }
-        const beams = [];
-        for (let i = 0; i < 2; i++) {
-          const bm = new THREE.Mesh(new THREE.PlaneGeometry(NIGHT_TRUCK_R, 2.6), glowMk(0.13));
-          bm.position.set(front + NIGHT_TRUCK_R * 0.5, i ? 1.35 : -1.35, 1.15);
-          bm.castShadow = false;
-          g.add(bm);
-          beams.push(bm);
-        }
+        // NO light rectangles in this rig: a flat additive quad standing in the air over the
+        // hopper reads as a glowing CARD, not as light. A lamp on the truck is a core + a soft
+        // radial halo (mkLamp), and that is the whole vocabulary of the rig.
         const mkLamp = (x, y, z, r, op) => {
           const core = new THREE.Mesh(
             new THREE.SphereGeometry(r, 8, 8),
@@ -5735,7 +5729,7 @@
         t.g.add(g);
         nightTruckRig = g;
         nightTruckRig.userData.parts = {
-          pool: pool, beams: beams, work: work, beacon: beacon,
+          pool: pool, work: work, beacon: beacon,
           workLight: workLight, headLight: headLight,
         };
         return true;
@@ -38002,18 +37996,22 @@
           wparts.armL.rotation.y = -s * 0.8;
           wparts.armR.rotation.y = s * 0.8;
         }
-        // THE BODY DOES THE WORK. A shovel swing is not a wrist flick: his front leg
-        // plants in the direction he is throwing the head, his back leg pushes off, his
-        // weight goes down into the sweep and his chest tips over the blade. It runs off
-        // the very same amplitude the arms are posed on (set at the end of the previous
-        // frame), so arms and legs are always in the same part of the swing.
+        // THE BODY DOES THE WORK, and it works in the SAGITTAL plane. A shovel swing is not
+        // a wrist flick: his front leg REACHES FORWARD into the throw, his back leg trails
+        // behind it with the toe pushed off the ground, his hips sink into the plant and his
+        // chest tips over the blade. Everything the swing adds to the legs is therefore a
+        // FORE/AFTER tilt (rotation.x) and NEVER a sideways yaw (rotation.y) — in this rig a
+        // leg's rotation.y swings the foot out to his side, so a swing built on it reads as a
+        // SPLIT with the legs thrown 26 degrees apart, not a stride. The walk cycle keeps its
+        // own strut on the yaw axis (that is a gait, and it is alternated per leg); the swing
+        // leaves it alone. Runs off the same amplitude the arms are posed on (set the previous
+        // frame), so arms, legs and the tool are always in the same part of the swing.
         if (shovelGroup && shovelStride > 0) {
-          wparts.legL.rotation.y += 0.42 * shovelStride; // front leg plants, into the throw
-          wparts.legR.rotation.y -= 0.3 * shovelStride; // back leg pushes off behind it
-          wparts.legL.rotation.x += 0.2 * shovelStride; // weight drops down into the sweep
-          wparts.legR.rotation.x -= 0.16 * shovelStride;
+          wparts.legL.rotation.x += 0.34 * shovelStride; // front leg: foot forward, heel down
+          wparts.legR.rotation.x -= 0.3 * shovelStride; // back leg: trails, toe on the asphalt
           if (p.stunT <= 0 && shovelLean > 0)
             worker.group.rotation.x = -shovelLean; // chest over the blade, on the hit
+          worker.group.position.z -= 0.07 * shovelStride; // ...and the weight sinks with it
         }
         // Dog-shit slip: a TINY visual stagger (no stun, no damage) — his foot catches
         // the pile, so the body tips back and the arms flail a little, decaying over
