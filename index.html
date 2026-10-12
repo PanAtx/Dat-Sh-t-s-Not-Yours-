@@ -4079,7 +4079,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.472</div>
+          <div id="app-version" class="menu-version">v1.0.473</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4333,7 +4333,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.472';
+      const APP_VERSION = '1.0.473';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5086,6 +5086,14 @@
       const NIGHT_GLOW_PULSE = 0.18;     // how hard the glow breathes
       const NIGHT_GLOW_SCAN = 0.35;      // seconds between glow-registry rescans
       const NIGHT_MUSIC_TRACK = "Midnight Menagerie.mp3"; // the haunted shift's theme, on loop
+      // THE MIDNIGHT-ONLY SET: the haunted shift rotates through its own four songs, and NO other
+      // level ever plays them — radioNext() locks them out of the weekday bag by construction.
+      const NIGHT_MUSIC_TRACKS = [
+        NIGHT_MUSIC_TRACK, // Midnight Menagerie
+        "Dead-End Sweep.mp3",
+        "Midnight Route.mp3",
+        "Midnight Sanitation Strike.mp3",
+      ];
       const NIGHT_POOL_W = 14;           // the warm pool laid FLAT ON THE ROAD under a lamp
       const NIGHT_POOL_H = 8.5;          // (this plane's own x/y ARE the street's along/across axes)
       const NIGHT_POOL_Y = -3.5;         // centred in the lane the worker dumps into: the light is
@@ -5799,7 +5807,7 @@
       function applyMidnightMusic(on) {
         if (typeof SFX === "undefined" || !SFX || typeof SFX.radioSticky !== "function")
           return false;
-        return SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACK : null);
+        return SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACKS : null);
       }
       // THE ONE ENTRY POINT — run from resetWorldState AFTER spawnWorld has built the street.
       function armMidnightLook() {
@@ -7600,7 +7608,10 @@
         radioList: [],
         radioBag: [],
         radioTimer: null,
-        radioSticky: null, // the MIDNIGHT lock: one track, on repeat (null = the normal rotation)
+        radioLock: null, // THE MIDNIGHT LOCK STATE: the locked set of tracks (null = normal rotation).
+        // It is deliberately NOT named radioSticky: that name is the SETTER METHOD below, and an
+        // object literal lets one key overwrite the other (which is what silently killed the lock).
+        radioLockPool: null, // the locked tracks actually present on this station
         radioStarting: false,
         radioMuted: false,
         radioGen: 0,
@@ -8106,6 +8117,13 @@
           }
           return found;
         },
+        _radioIsMidnightOnly(n) {
+          // A track that belongs to the haunted shift ONLY.
+          if (typeof NIGHT_MUSIC_TRACKS !== "undefined" && NIGHT_MUSIC_TRACKS && NIGHT_MUSIC_TRACKS.length)
+            return NIGHT_MUSIC_TRACKS.indexOf(n) >= 0;
+          if (typeof NIGHT_MUSIC_TRACK !== "undefined" && NIGHT_MUSIC_TRACK) return n === NIGHT_MUSIC_TRACK;
+          return false;
+        },
         _radioSchedule(delay) {
           // single pending "advance" slot: replaces any earlier one
           if (this.radioTimer) clearTimeout(this.radioTimer);
@@ -8218,14 +8236,20 @@
         },
         async radioNext() {
           if (!this.radioEl || !this.radioList.length) return;
-          // THE MIDNIGHT LOCK: on the haunted shift the station plays ONE track and loops it,
-          // so the shuffled bag collapses to that song — every "next" is the same song again.
-          if (this.radioSticky) {
-            if (this.radioList.indexOf(this.radioSticky) >= 0) this.radioBag = [this.radioSticky];
-            else this.radioSticky = null; // not on this station: fall back to the whole rotation
+          // THE MIDNIGHT LOCK: the haunted shift airs ITS OWN SET only (Midnight Menagerie plus
+          // the three midnight-only songs) as a shuffled bag of that set — every night song once
+          // per pass, and never a weekday song. Off the lock the bag is the rotation MINUS the
+          // night set, so the menu and the seven days can never hear a midnight song.
+          if (Array.isArray(this.radioLock) && this.radioLock.length) {
+            const pool = this.radioList.filter((n) => this.radioLock.indexOf(n) >= 0);
+            if (pool.length) this.radioLockPool = pool;
+            else this.radioLock = null; // none of the set on this station: back to the rotation
           }
           if (!this.radioBag.length) {
-            this.radioBag = this.radioList.slice();
+            this.radioBag =
+              Array.isArray(this.radioLock) && this.radioLockPool && this.radioLockPool.length
+                ? this.radioLockPool.slice()
+                : this.radioList.filter((n) => !this._radioIsMidnightOnly(n));
             for (let i = this.radioBag.length - 1; i > 0; i--) {
               const j = (Math.random() * (i + 1)) | 0;
               const t = this.radioBag[i];
@@ -8286,7 +8310,7 @@
           // Locked (the night shift): the song comes straight back after a short breath.
           el.addEventListener("ended", () =>
             this._radioSchedule(
-              this.radioSticky ? 700 : 2000,
+              this.radioLock ? 700 : 2000,
             ),
           ); // song finished → 2s of air → next song
           el.addEventListener("error", () => {
@@ -8300,12 +8324,24 @@
           this.radioNext();
         },
         radioSticky(name) {
-          // Force the station onto ONE track, on loop, or hand it back to the shuffled rotation.
-          // armMidnightMusic() fires this on every shift: on for the haunted one, off for the
-          // seven weekdays (so "Midnight Menagerie" is only ever HEARD ON MIDNIGHT).
-          const on = name || null;
-          if (this.radioSticky === on) return false; // same lock as last shift: change nothing
-          this.radioSticky = on;
+          // Force the station onto a LOCKED SET — one track name, or the haunted shift's array of
+          // midnight-only songs — or hand it back to the shuffled weekday rotation.
+          // armMidnightMusic() fires this on every shift: the night set on for the haunted one,
+          // null for the menu and the seven days, so the midnight songs are ONLY ever HEARD ON
+          // MIDNIGHT and every night song rotates inside its own bag.
+          const on = Array.isArray(name)
+            ? name.length
+              ? name.slice()
+              : null
+            : name
+              ? [name]
+              : null;
+          const same =
+            (this.radioLock === null && on === null) ||
+            (!!this.radioLock && !!on && this.radioLock.join("|") === on.join("|"));
+          if (same) return false; // same lock as last shift: change nothing
+          this.radioLock = on;
+          this.radioLockPool = on ? on.slice() : null; // the songs radioNext() draws from
           this.radioBag = []; // fresh bag: the very next advance obeys the lock
           this._radioCancel(); // drop any pending "advance" aimed at the old playlist
           if (!this.radioEl || !this.radioList.length) return on !== null; // not on air: radioStart honours it

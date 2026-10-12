@@ -49,6 +49,7 @@ const suites = [
   ['MIDNIGHT BOOT (the playtest build starts on the haunted shift with NO trainer menu)', 'node', '_midnight_boot_chk.js'],
   ['THE MIDNIGHT LOOK (moonlit darkness, street lamps, lit windows, retro-reflective hi-vis)', 'node', '_midnight_look_chk.js'],
   ['hazard lights (the rear DSNY blink: 1s outer pair / 1s middle, and the midnight beacon in beat)', 'node', '_hazlights_chk.js'],
+  ['radio station e2e (the weekday rotation excludes the midnight-only set; the night shift rotates its own four songs; offline cache)', 'node', '_radio_e2e.js'],
 ];
 
 let allPass = true;

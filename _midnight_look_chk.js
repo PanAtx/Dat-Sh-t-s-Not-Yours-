@@ -14,6 +14,25 @@ let FAKE_NOW = 0;
 Object.defineProperty(globalThis, "performance", { value: { now: () => FAKE_NOW * 1000 }, configurable: true, writable: true });
 const setNow = (t) => { FAKE_NOW = t; };
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+// THE MIDNIGHT-ONLY SET + the shelf, read out of the shipped files (never hardcoded here)
+const NIGHT_BLOCK = (html.match(/const NIGHT_MUSIC_TRACKS = (\[[\s\S]*?\]);/) || [])[1] || '[]';
+const NIGHT_THEME = (html.match(/const NIGHT_MUSIC_TRACK = "([^"]+)"/) || [])[1] || '';
+const NIGHT_TRACKS = new Function('const NIGHT_MUSIC_TRACK = ' + JSON.stringify(NIGHT_THEME) + '; return ' + NIGHT_BLOCK + ';')();
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(__dirname, 'music', 'manifest.json'), 'utf8'));
+const musicManifest = MANIFEST;
+const nightSrc = (name) => {
+  // an OBJECT METHOD (name(...) {) or a plain function name(...)
+  let i = html.indexOf('function ' + name + '(');
+  if (i < 0) {
+    const m = html.match(new RegExp("[\\r\\n\\t ]" + name + "\\s*\\([^)]*\\)\\s*\\{"));
+    if (!m) return '';
+    i = html.indexOf(name, m.index);
+  }
+  if (i < 0) return '';
+  let j = html.indexOf('{', i), d = 0;
+  for (; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) { j++; break; } } }
+  return html.slice(i, j);
+};
 let pass = 0, fail = 0;
 const failures = [];
 function check(name, cond, extra) {
@@ -500,7 +519,7 @@ check('ecoplasm is born glowing on the haunted shift (' + NIGHT_GLOW_ECTO + 'x) 
 check('...and it is born SMALL on the haunted shift (' + NIGHT_ECTO_SIZE + 'x): the GLOW is not the SIZE',
   NIGHT_ECTO_SIZE > 0 && NIGHT_ECTO_SIZE < 1 && api.nightEctoSize() === NIGHT_ECTO_SIZE &&
   (api.setNight(false), api.nightEctoSize() === 1) && (api.setNight(true), true));
-api.armNightTruckRig();
+api.armNightTruckRig(); // (the wall clock was installed at the top of this harness: setNow(sec))
 check('the truck gets its OWN midnight rig riding on the truck group (road pool + invisible worklight anchor + the REAR HAZARD BEACON)',
   !!api.getTruckRig() && api.getTruckRig().parent === mockTruck.g &&
     api.getTruckRig().children.length === 4 && api.getTruckLights().length === 2);
@@ -600,9 +619,19 @@ check('the scoop geyser keeps its count and its throw at midnight; only its drop
   srcFn('spawnEctoBurst').includes('emissiveIntensity: 1.25 * ek'));
 api.setNight(true);
 api.armMidnightLook();
-check('arming the haunted shift LOCKS THE STATION onto "' + NIGHT_TRACK + '"',
+const nightLock = radioLocks[radioLocks.length - 1];
+check('arming the haunted shift LOCKS THE STATION ONTO ITS OWN SET (the theme + the 3 midnight-only songs)',
   NIGHT_TRACK === 'Midnight Menagerie.mp3' &&
-  radioLocks[radioLocks.length - 1] === 'Midnight Menagerie.mp3');
+    Array.isArray(nightLock) &&
+    JSON.stringify(nightLock) === JSON.stringify(NIGHT_TRACKS));
+check('the midnight set is exactly the four haunted songs and every one is on the shelf (file + manifest)',
+  NIGHT_TRACKS.length === 4 && NIGHT_TRACKS[0] === 'Midnight Menagerie.mp3' &&
+    ['Dead-End Sweep.mp3', 'Midnight Route.mp3', 'Midnight Sanitation Strike.mp3'].every((n) => NIGHT_TRACKS.includes(n)) &&
+    NIGHT_TRACKS.every((n) => fs.existsSync(path.join(__dirname, 'music', n))) &&
+    NIGHT_TRACKS.every((n) => MANIFEST.includes(n)));
+check('the WEEKDAY rotation is locked out of the midnight set (the shipped bag filter excludes them)',
+  nightSrc('radioNext').includes('this.radioList.filter((n) => !this._radioIsMidnightOnly(n))') &&
+    nightSrc('_radioIsMidnightOnly').includes('NIGHT_MUSIC_TRACKS.indexOf(n) >= 0'));
 api.setNight(false);
 api.armMidnightLook();
 check('arming a weekday street hands the station back to the shuffled rotation (null)',

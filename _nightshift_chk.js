@@ -1475,16 +1475,27 @@ check('MIDNIGHT MENAGERIE is the haunted shift\'s theme (named in the game, on t
   html.includes('const NIGHT_MUSIC_TRACK = "Midnight Menagerie.mp3";') &&
   JSON.parse(fs.readFileSync('music/manifest.json', 'utf8')).includes('Midnight Menagerie.mp3') &&
   fs.existsSync('music/Midnight Menagerie.mp3'));
-check('the station can LOCK onto one track and LOOP it (bag collapses, gap closes, release works)',
+check('the station LOCKS ONTO THE MIDNIGHT SET and rotates it (locked pool bag, night gap, release, no state/setter collision)',
   html.includes('radioSticky(name) {') &&
-  html.includes('this.radioBag = [this.radioSticky];') &&
-  html.includes('this.radioSticky ? 700 : 2000') &&
-  html.includes('if (this.radioSticky === on) return false;') &&
-  html.includes('radioSticky: null,'));
+  html.includes('const on = Array.isArray(name)') &&
+  html.includes('this.radioLockPool = pool;') &&
+  html.includes('this.radioLockPool.slice()') &&
+  html.includes('this.radioLock ? 700 : 2000') &&
+  html.includes('this.radioLock = on;') &&
+  html.includes('radioLock: null,') &&
+  !html.includes('this.radioSticky')); // the lock STATE (radioLock) can never overwrite the setter
 check('music follows the SHIFT (every armed street re-locks or releases), never a button',
   srcFn('armMidnightLook').includes('applyMidnightMusic(on);') &&
-  srcFn('applyMidnightMusic').includes('SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACK : null)') &&
+  srcFn('applyMidnightMusic').includes('SFX.radioSticky(!!on ? NIGHT_MUSIC_TRACKS : null)') &&
   srcFn('applyMidnightMusic').includes('typeof SFX.radioSticky !== "function"'));
+check('the four MIDNIGHT-ONLY songs are the haunted shift\'s own, on the shelf, and locked out of every weekday bag',
+  /const NIGHT_MUSIC_TRACKS = \[\s*NIGHT_MUSIC_TRACK,[\s\S]{0,200}?"Dead-End Sweep\.mp3"[\s\S]{0,80}?"Midnight Route\.mp3"[\s\S]{0,80}?"Midnight Sanitation Strike\.mp3"/.test(html) &&
+    ['Midnight Menagerie.mp3', 'Dead-End Sweep.mp3', 'Midnight Route.mp3', 'Midnight Sanitation Strike.mp3'].every(
+      (n) => fs.existsSync('music/' + n) &&
+        JSON.parse(fs.readFileSync('music/manifest.json', 'utf8')).includes(n),
+    ) &&
+    html.includes('this.radioList.filter((n) => !this._radioIsMidnightOnly(n))') &&
+    html.includes('NIGHT_MUSIC_TRACKS.indexOf(n) >= 0'));
 console.log('\n' + pass + ' night-shift checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);

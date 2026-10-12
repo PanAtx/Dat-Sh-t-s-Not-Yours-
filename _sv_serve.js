@@ -17,6 +17,11 @@ const MARKS = [
   'const NIGHT_ECTO_SIZE = 0.45;',
   'function nightEctoSize()',
   'const NIGHT_MUSIC_TRACK = "Midnight Menagerie.mp3";',
+  'const NIGHT_MUSIC_TRACKS = [',
+  '"Dead-End Sweep.mp3",',
+  '"Midnight Route.mp3",',
+  '"Midnight Sanitation Strike.mp3",',
+  'radioLock: null,',
   'radioSticky(name) {',
   'function applyMidnightMusic(on)',
   'const blade = BX(0.46, 0.52, 0.055, steel)',
@@ -40,9 +45,13 @@ server.listen(8124, async () => {
   }
   console.log('served bytes', html.length, 'markers', ok + '/' + MARKS.length);
   const man = await (await fetch('http://localhost:8124/music/manifest.json')).json();
-  console.log('manifest served:', man.length, 'tracks, includes theme =', man.includes('Midnight Menagerie.mp3'));
-  const mp3 = await fetch('http://localhost:8124/music/' + encodeURIComponent('Midnight Menagerie.mp3'));
-  console.log('the theme file serves with status', mp3.status, 'and', (Number(mp3.headers.get('content-length')) / 1e6).toFixed(2) + 'MB');
+  const NIGHT4 = ['Midnight Menagerie.mp3', 'Dead-End Sweep.mp3', 'Midnight Route.mp3', 'Midnight Sanitation Strike.mp3'];
+  console.log('manifest served:', man.length, 'tracks, every midnight song listed =', NIGHT4.every((n) => man.includes(n)));
+  for (const n of NIGHT4) {
+    const f = await fetch('http://localhost:8124/music/' + encodeURIComponent(n));
+    console.log('  serves', f.status, (Number(f.headers.get('content-length')) / 1e6).toFixed(2) + 'MB', n);
+  }
+
   server.close();
   console.log(ok === MARKS.length ? 'SERVE CHECK: ALL MARKED' : 'SERVE CHECK: MISSING MARKERS');
 });

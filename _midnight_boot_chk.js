@@ -74,14 +74,21 @@ check('MIDNIGHT MENAGERIE is the night shift\'s theme and the file is on the she
   fs.existsSync(path.join(__dirname, 'music', 'Midnight Menagerie.mp3')) &&
   JSON.parse(fs.readFileSync(path.join(__dirname, 'music', 'manifest.json'), 'utf8'))
     .includes('Midnight Menagerie.mp3'));
-check('the station LOCKS onto the one track and LOOPS it (700ms, not the 2s daytime gap)',
-  /radioSticky: null,/.test(html) && /radioSticky\(name\) \{/.test(html) &&
-  /this\.radioBag = \[this\.radioSticky\];/.test(html) &&
-  /this\.radioSticky \? 700 : 2000/.test(html));
-check('the night entry point arms the theme (and a weekday hands the rotation back)',
+check('the station LOCKS ONTO THE MIDNIGHT SET and rotates it (a locked-pool bag, the short 700ms night gap, and no state/setter key collision)',
+  /radioLock: null,/.test(html) && /radioLockPool: null,/.test(html) && /radioSticky\(name\) \{/.test(html) &&
+  /this\.radioLockPool = pool;/.test(html) &&
+  /this\.radioLockPool\.slice\(\)/.test(html) &&
+  /this\.radioLock \? 700 : 2000/.test(html) &&
+  !/this\.radioSticky/.test(html)); // the lock STATE is radioLock; radioSticky is only the setter
+check('the night shift owns FOUR songs (the theme + the three new midnight-only tracks), all on the shelf',
+  /const NIGHT_MUSIC_TRACKS = \[/.test(html) &&
+  ['Midnight Menagerie.mp3', 'Dead-End Sweep.mp3', 'Midnight Route.mp3', 'Midnight Sanitation Strike.mp3'].every(
+    (n) => fs.existsSync(path.join(__dirname, 'music', n)) &&
+    JSON.parse(fs.readFileSync(path.join(__dirname, 'music', 'manifest.json'), 'utf8')).includes(n)));
+check('the night entry point arms the MIDNIGHT SET (and a weekday hands the rotation back)',
   /function applyMidnightMusic\(on\)/.test(html) &&
   /applyMidnightMusic\(on\);/.test(html) &&
-  /SFX\.radioSticky\(!!on \? NIGHT_MUSIC_TRACK : null\)/.test(html));
+  /SFX\.radioSticky\(!!on \? NIGHT_MUSIC_TRACKS : null\)/.test(html));
 console.log('\n' + pass + ' midnight-boot checks passed' + (fail ? ' — ' + fail + ' FAILED' : ' — all OK'));
 if (fail) process.exit(1);
 console.log('>>> PLAYTEST ENTRY: press START on the title card — the first shift is ' + dayOf(L1) + '.');
