@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.482</div>
+          <div id="app-version" class="menu-version">v1.0.483</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.482';
+      const APP_VERSION = '1.0.483';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -10707,11 +10707,14 @@
           ? truck.wx
           : playerSpawnX() - routeDir() * 8;
       }
-      // The hopper's offsets are measured from the model centre toward its REAR. The model
-      // is built nosed toward +X, and the truck is PARKED Nosed DOWNHILL on the night
-      // (routeDir() === -1), so every rear offset mirrors with it.
+      // The hopper's offsets are measured from the model centre toward its REAR. The rig is
+      // PARKED THE NORMAL WAY on the haunted street (it is NOT rotated — see truckMeshYaw),
+      // so on EVERY level these are the canonical weekday geometry: the open scoop, the ramp,
+      // the pile and the dump zone all live on the model's -X side. On Midnight the rig sits
+      // UPSLOPE of the worker and that -X side faces him, so the scoop sits between the
+      // worker and the truck and the camera looks straight down into it.
       function hopperWorldX() {
-        return truckXSafe() + (truck && truck.hopperOff != null ? truck.hopperOff : -4.3) * routeDir();
+        return truckXSafe() + (truck && truck.hopperOff != null ? truck.hopperOff : -4.3);
       }
       // Where the FLYING BAG + BURST land: the MIDDLE of the visible rear scoop
       // (measured bucket centre, truck.hopperAimOff). The formed PILE rests a bit
@@ -10724,8 +10727,7 @@
             ? truck.hopperAimOff
             : truck && truck.hopperOff != null
               ? truck.hopperOff
-              : -4.3) *
-            routeDir()
+              : -4.3)
         );
       }
       // The PILE (bags that form in the hopper) rests a bit FURTHER BACK than the bag
@@ -10737,8 +10739,7 @@
             ? truck.hopperPileOff
             : truck && truck.hopperAimOff != null
               ? truck.hopperAimOff
-              : -4.3) *
-            routeDir()
+              : -4.3)
         );
       }
       function hopperWorldY() {
@@ -19232,13 +19233,24 @@
         return wx - routeDir() * 8;
       }
       function truckSpawnFacing() {
-        return isNightShift() ? Math.PI : 0; // the rig is nosed DOWNHILL
+        return 0; // the rig is PARKED THE NORMAL WAY on the night too — it just DRIVES
+        // THE STREET IN REVERSE (see truckMeshYaw): cab and hood still toward +X.
       }
       function truckMeshYaw() {
-        // The truck models are built nosed toward +X. On the mirrored street the rig runs
-        // nosed downhill, so its mesh turns 180deg (its hopper offsets mirror with it —
-        // see hopperWorldX / hopperAimX / hopperPileX).
-        return isNightShift() ? Math.PI : 0;
+        // The truck models are built nosed toward +X, and the rig keeps that EXACT facing on
+        // EVERY level — Midnight included. It is NOT rotated on the haunted shift: the worker
+        // clocks in at the top of the dead-end street with the rig UPSLOPE OF HIM (behind),
+        // nosed up the hill, and the driver BACKS IT DOWN THE STREET after him. So its REAR
+        // (the open hopper, the ramp, the pile, the dump zone — every rear offset lives on
+        // the -X side of the model) faces downhill: it rides between the worker and the
+        // truck, the worker's throws fly INTO the scoop in his face, and the camera — which
+        // trails him from upslope — looks straight down the open hopper.
+        // That is the whole reason the rig reverses: flipping the mesh would point the open
+        // hopper AWAY from the worker and hide the ghouls going in.
+        // NOTHING here is mirrored any more: every hopper/ramp/boarding offset stays the
+        // canonical weekday geometry (see hopperWorldX / hopperAimX / hopperPileX), and the
+        // route axis (routeDir()) only decides which way the truck TRAVELS.
+        return 0;
       }
       // The route progress bar's 0..1 (and the cinematic's "how far into the level").
       // By day it measures the walk from the start barrier UP to the finish line. The
@@ -39769,12 +39781,16 @@
         //   hopper within the dead zone      -> stop dead and let the worker load;
         //   hopper ahead of the worker's spot -> back up to reposition instead of
         //     rolling off ahead of him.
-        // RT = the axis the route RUNS on. By day the rig FOLLOWS the worker's forward (+X);
-        // on MIDNIGHT it BACKS DOWNHILL, ahead of the worker, so every gap below is measured
-        // ALONG the walking axis (a *RT on the error) and every drive is applied along it (a
-        // *RT on the speed). Day is RT = 1, which is the shipped math, character for character.
+        // RT = the axis the route RUNS ON: by day the rig FOLLOWS the worker's forward (+X);
+        // on MIDNIGHT the worker walks the dead-end street the OTHER way (-X) and the rig,
+        // parked the NORMAL way upslope of him with its scoop facing DOWN the street at him,
+        // follows by REVERSING. The gaps below are measured from the worker toward the rig
+        // along the walking axis (target = 3.6 by day, -3.6 on the mirrored street, where the
+        // rig rides behind him and the hopper sits BETWEEN us), the errors ride *RT, and the
+        // drive is applied along the axis (*RT). Day is RT = 1 — the shipped math, character
+        // for character.
         const RT = routeDir();
-        const hopperOff = (truck.hopperOff != null ? truck.hopperOff : -4.3) * RT;
+        const hopperOff = truck.hopperOff != null ? truck.hopperOff : -4.3;
         const rearX = truck.wx + hopperOff; // where the truck's rear (hopper) is
         // Gap between the worker and the truck's rear. Going FORWARD it has to be WIDE
         // ENOUGH that the worker can walk FORWARD and around the hopper's corner to the
@@ -39787,8 +39803,8 @@
         // ahead of the worker (~1.5u — past the deepest carrying approach, 1.15u, so he
         // can load immediately). Backing all the way out to the forward target felt like
         // the driver stopping far too far away.
-        const target = (carry === "none" ? 3.6 : 4.1) * RT;
-        const backTarget = 1.5 * RT; // the back-up rest position: "just ahead of the worker"
+        const target = carry === "none" ? 3.6 : 4.1;
+        const backTarget = 1.5; // the back-up rest position: "JUST AHEAD of the worker"
         const DEAD = 0.8; // dead zone around the rest position: hold
         // "RUN IT UP!" (Monster invincibility): while the worker is sprinting (p.immuneT > 0)
         // the truck's TOP SPEED jumps INSTANTLY to a bit MORE than the worker's sprint
@@ -39808,17 +39824,18 @@
         if (truck._mode == null) truck._mode = "follow";
         let sp = 0;
         if (truck._mode === "close") {
-          // Close rest: rear just ahead of the worker.
-          const backErr = (rearX - (p.wx + backTarget)) * RT;
+          // Close rest: rear just ahead of the worker (on THIS axis: ahead = the side he is
+          // walking toward, so on the mirrored street it is the -X side, toward the graves).
+          const backErr = rearX - (p.wx + backTarget);
           if (backErr > DEAD) {
-            // Rear drifted ahead of the worker -> back up (-x)... but ONLY when the
-            // worker is out in the street, to the left or right of the truck. Never on
+            // Rear drifted ahead of the worker -> back up (down the walking axis)... but ONLY
+            // when the worker is out in the street, to the left or right of the truck. Never on
             // the sidewalk, never with the worker directly in the truck's own lane
             // (directly behind it). Proportional easing: eases in without blasting.
             if (canBackUp()) sp = -Math.min(MAXSP, (backErr - DEAD) * 2.0);
           } else if (backErr < -DEAD) {
-            // Worker pulled ahead -> drive forward (+x). This puts the truck back in
-            // FOLLOW mode: the forward target (3.6/4.1u) takes over, so the rear
+            // Worker pulled ahead -> drive forward (up the walking axis). This puts the truck
+            // back in FOLLOW mode: the forward target (3.6/4.1u) takes over, so the rear
             // restores the FULL approach corridor to the scoop — after a back-up the
             // driver must not keep the tight "just ahead" gap, or the worker has to
             // walk behind the truck to dump.
@@ -39827,18 +39844,21 @@
           }
         } else {
           // Follow rest: rear at the forward target.
-          const fwdErr = (rearX - (p.wx + target)) * RT;
+          const fwdErr = rearX - (p.wx + target);
           if (fwdErr < -DEAD) {
-            // Hopper is behind the worker -> drive forward (+x). Always permitted,
-            // no matter where the worker is (sidewalk, street, anywhere). Proportional
-            // easing: the creep speed scales with the gap and is capped, so the truck
-            // eases in without blasting past its hopper position.
+            // Hopper is behind the worker -> creep up the walking axis. Always permitted,
+            // no matter where the worker is (sidewalk, street, anywhere; and on Midnight
+            // "up the walking axis" is UP the street, toward the rig's own nose: the rig
+            // takes the gap back in FORWARD, exactly as a crew re-settles behind a tailgate).
+            // Proportional easing: the creep speed scales with the gap and is capped, so the
+            // truck eases in without blasting past its hopper position.
             sp = Math.min(MAXSP, (-fwdErr - DEAD) * 2.0);
           } else if (fwdErr > DEAD && canBackUp()) {
-            // Hopper is ahead of the worker -> the driver backs up (-x) to re-position,
-            // easing in the same proportional way... but ONLY when the worker is out in
-            // the street, to the left or right of the truck. Never on the sidewalk, never
-            // with the worker directly in the truck's own lane (directly behind it).
+            // Hopper is ahead of the worker -> the driver backs up (down the walking axis, so
+            // on MIDNIGHT that is DOWN THE STREET after him) to re-position, easing in the
+            // same proportional way... but ONLY when the worker is out in the street, to the
+            // left or right of the truck. Never on the sidewalk, never with the worker
+            // directly in the truck's own lane (directly behind it).
             sp = -Math.min(MAXSP, (fwdErr - DEAD) * 2.0);
             truck._mode = "close"; // heading to the "just ahead" rest position
           }
@@ -39852,7 +39872,7 @@
           truck.wx = p.wx + target - hopperOff;
           truck._mode = "follow";
         } else {
-          truck.wx += sp * dt * RT;
+          truck.wx += sp * dt;
         }
         // Truck physical bounding box: used for vehicle collision avoidance (set per-model in buildTruck)
         if (truck.boxL == null) truck.boxL = 4.0;
@@ -47671,25 +47691,27 @@
         // mid-route), the direct line is clear of the body and we skip the rear waypoint.
         const boxW = (truck && truck.boxW) || 2.25;
         const boxL = (truck && truck.boxL) || 4.0;
-        // MIDNIGHT runs the drive-off on the MIRRORED axis: the rig is nosed downhill, the
-        // cab sits at the -X end of the body, the hopper at +X, and the truck leaves the
-        // frame toward -X. RT is that axis (1 on every weekday, -1 on the dead-end street).
+        // MIDNIGHT runs the drive-off on the MIRRORED axis only in TRAVEL: the rig keeps its
+        // normal facing (cab and hood toward +X, the open hopper toward -X, the ramp and the
+        // boarding spot at the -X end — the SAME geometry as every weekday), and it leaves a
+        // dead-end street the way it came: REVERSED, downhill, out of the -X edge of frame.
+        // RT is that travel axis (1 on every weekday, -1 on the dead-end street).
         const RT = routeDir();
         // The cab-door stop point is model-specific: the GLB truck carries a measured
         // cabDoorOff (door ~1.0u behind the front face). Trucks without it (procedural
-        // fallback) keep the legacy cabOff*0.55 stop point.
+        // fallback) keep the legacy cabOff*0.55 stop point. The cab is ALWAYS the +X end of
+        // the model, on every level — the rig is never rotated.
         const cabX =
           truck.wx +
-          ((truck && truck.cabDoorOff != null
+          (truck && truck.cabDoorOff != null
             ? truck.cabDoorOff
-            : ((truck && truck.cabOff) || 6) * 0.55) *
-            RT);
+            : ((truck && truck.cabOff) || 6) * 0.55);
         const side = p.wy >= -4.5 ? 1 : -1;
         const doorY = -4.5 + side * (boxW + 0.8); // 0.8u OUTSIDE the side panel (same street side)
         const pts = [{ x: cabX, y: doorY }]; // final: the cab door
-        if ((p.wx - cabX) * RT < -1.0) {
+        if ((cabX - p.wx) * RT > 1.0) {
           // first: clear behind the hopper (on the side the route came from)
-          pts.unshift({ x: truck.wx - RT * (boxL + 0.8), y: doorY });
+          pts.unshift({ x: truck.wx + boxL + 0.8, y: doorY });
         }
         routeEnd = {
           t: 0,
@@ -47940,18 +47962,17 @@
         // boarding spot, and positionCamera() is locked to the worker, so the playfield
         // holds perfectly still while the truck (worker aboard) rolls out of frame.
         const RT = routeDir(); // the drive-off axis (1 by day, -1 down the dead-end street)
-        truck.wx += RE_DRIVE_SP * RT * dt;
+        truck.wx += RE_DRIVE_SP * RT * dt; // MIDNIGHT: nose points up-hill, so this is REVERSE
         // updateTruck() is NOT running during the cinematic (its auto-follow AI would yank
         // the truck back to the worker), so we must sync the truck's MESH to its logic
         // position ourselves — otherwise the model stays parked while truck.wx moves.
         if (truck.g) {
           truck.g.visible = true;
           truck.g.position.set(truck.wx, -4.5, GZ);
-          truck.g.rotation.z = truckMeshYaw(); // nosed DOWNHILL on the mirrored street
+          truck.g.rotation.z = truckMeshYaw(); // the SAME facing as every other level
         }
         routeEnd.driveT += dt;
-        const hopperOff =
-          (truck.hopperOff != null ? truck.hopperOff : -4.3) * routeDir();
+        const hopperOff = truck.hopperOff != null ? truck.hopperOff : -4.3;
         const halfW =
           camera && isFinite(camera.right) ? Math.abs(camera.right) : 8;
         // screen-x of the truck's REAR relative to the camera's live center (world x = c45*(x - y)):
@@ -49440,8 +49461,13 @@
         // with its OWN slower time constant (CAM_X_SMOOTH < CAM_ZOOM_SMOOTH) so
         // the slide lags the rise a beat, like a camera dolly. dt = 0 (menu /
         // pause) freezes it exactly like the other smoothers.
+        // On the mirrored street (MIDNIGHT, routeDir() === -1) the rig's open hopper sits
+        // UPSLOPE of the worker, so the dolly slides the OPPOSITE way — the lift rides the
+        // route axis and the scoop always hangs over the side the ghouls are flying from.
         camXSmooth +=
-          ((typeof truck !== "undefined" && truck ? CAM_X_LIFT * zt : 0) -
+          ((typeof truck !== "undefined" && truck
+            ? CAM_X_LIFT * zt * routeDir()
+            : 0) -
             camXSmooth) *
           (1 - Math.exp(-CAM_X_SMOOTH * (dt || 0)));
         const camXOff = camXSmooth;
