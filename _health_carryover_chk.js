@@ -65,7 +65,9 @@ console.log('[1] level start: resetWorldState no longer refills health');
       !/healerNextAt = POWERUP_CASH_STEP;/.test(rws),
   );
   const i1 = rws.indexOf('dayScore = 0;');
-  const i2 = rws.indexOf('p.wx = PLAYER_START_X');
+  // the worker re-anchor is now the route's own spawn (playerSpawnX(): PLAYER_START_X on
+  // every weekday, the top of the MIDNIGHT dead end on the haunted shift)
+  const i2 = Math.max(rws.indexOf('p.wx = playerSpawnX()'), rws.indexOf('p.wx = PLAYER_START_X'));
   const slice = i1 >= 0 && i2 > i1 ? rws.slice(i1, i2) : '';
   check(
     'between the dayScore reset and the worker re-anchor there is NO health assignment',

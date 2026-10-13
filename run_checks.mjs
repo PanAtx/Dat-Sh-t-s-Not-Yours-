@@ -45,7 +45,7 @@ const suites = [
   ['trainer Infinite Health = can\'t-be-hurt ONLY (no speed/sparkle; Run It Up keeps its own package)', 'node', '_cheat_god_chk.js'],
   ['standing NPCs never spawned in leaf shade + flush heavy-bag twist-tie', 'node', '_npc_sight_chk.js'],
   ['guaranteed-clear stand: no hooker/jacker/panhandler keeps a spot under a crown', 'node', '_npc_clear_chk.js'],
-  ['THE NIGHT SHIFT (the haunted level after Sunday: emptied street, shovel, ecoplasm hopper, gargoyle heist)', 'node', '_nightshift_chk.js'],
+  ['THE NIGHT SHIFT (the haunted level after Sunday: emptied street, shovel, ecoplasm hopper, the DEAD-END CEMETERY and the TENTACLE BEAST)', 'node', '_nightshift_chk.js'],
   ['MIDNIGHT BOOT (the playtest build starts on the haunted shift with NO trainer menu)', 'node', '_midnight_boot_chk.js'],
   ['THE MIDNIGHT LOOK (moonlit darkness, street lamps, lit windows, retro-reflective hi-vis)', 'node', '_midnight_look_chk.js'],
   ['hazard lights (the rear DSNY blink: 1s outer pair / 1s middle, and the midnight beacon in beat)', 'node', '_hazlights_chk.js'],
