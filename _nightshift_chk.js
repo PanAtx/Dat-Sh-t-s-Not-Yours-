@@ -142,25 +142,34 @@ const HP_HIT_SPECTER = 8, HP_HIT_BANSHEE = 9, HP_HIT_GHOUL = 10, HP_HIT_HOUND = 
 const HORROR_TYPES = {
   specter: 1, ghoul: 1, hound: 1, banshee: 1, imp: 1, wraith: 1, poltergeist: 1, demon: 1,
   hexbeast: 1, abyssal: 1, lich: 1, reaper: 1, ghost: 1,
+  // THE BLOCK PACKS (shovelable, exactly like the shipped roster)
+  gremlin: 1, goblin: 1, devil: 1, fangspider: 1, eyecrawler: 1, skeleton: 1, pitfiend: 1,
 };
 // THE ABYSS ROSTER (the families the night shift now haunts every block with)
 const HORROR_ALL = {
   specter: 1, banshee: 1, ghoul: 1, hound: 1, imp: 1, wraith: 1, poltergeist: 1,
   demon: 1, hexbeast: 1, abyssal: 1, lich: 1, reaper: 1,
+  // THE BLOCK PACKS (the per-block horrors of the dead-end street)
+  gremlin: 1, goblin: 1, devil: 1, fangspider: 1, eyecrawler: 1, skeleton: 1, pitfiend: 1,
 };
 const HORROR_HITS = {
   specter: 8, banshee: 9, ghoul: 10, hound: 11, imp: 6, wraith: 9, poltergeist: 8,
   demon: 14, hexbeast: 9, abyssal: 12, lich: 12, reaper: 16, ghost: 10,
+  gremlin: 7, goblin: 11, devil: 15, fangspider: 10, eyecrawler: 9, skeleton: 12, pitfiend: 13,
 };
 const HORROR_NAMES = {
   specter: 'SPECTER', banshee: 'BANSHEE', ghoul: 'GHOUL', hound: 'HELLHOUND', imp: 'IMP',
   wraith: 'WRAITH', poltergeist: 'POLTERGEIST', demon: 'DEMON', hexbeast: 'HEXBEAST',
   abyssal: 'ABYSSAL', lich: 'LICH', reaper: 'REAPER', ghost: 'GHOST', zombieArm: 'TEN-TACLE',
+  gremlin: 'GREMLIN', goblin: 'GOBLIN', devil: 'DEVIL', fangspider: 'FANGSPIDER',
+  eyecrawler: 'EYECRAWLER', skeleton: 'SKELETON', pitfiend: 'PITFIEND',
 };
 const SPOOK_LINES = {
   specter: ['BOO'], banshee: ['WOOO'], ghoul: ['Sooo'], hound: ['GRR'], imp: ['HEH'],
   wraith: ['COLD'], poltergeist: ['BAGS'], demon: ['MIDNIGHT'], hexbeast: ['CLICK'],
   abyssal: ['PIT'], lich: ['LICH'], reaper: ['SCYTHE'], ghost: ['US'], thief: ['MINE'],
+  gremlin: ['CHEWED'], goblin: ['LOOT'], devil: ['PITCHFORK'], fangspider: ['SKITTER'],
+  eyecrawler: ['NINE'], skeleton: ['CLATTER'], pitfiend: ['BRINE'],
 };
 // THE HOLY WEAPON + the exorcisable grave yard (the numbers the game runs on)
 const HORROR_QUOTA = eval('(' + srcLiteral('HORROR_QUOTA', '{', '}') + ')');
@@ -170,6 +179,23 @@ const SHOVELABLE_HAZARDS = eval('(' + srcLiteral('SHOVELABLE_HAZARDS', '{', '}')
 const HORROR_PROP_NAMES = eval('(' + srcLiteral('HORROR_PROP_NAMES', '{', '}') + ')');
 const HORROR_PROP_LINES = ['HEADSTONE IN THE TRUCK!'];
 const HORROR_FILL_ORDER = eval('(' + srcLiteral('HORROR_FILL_ORDER', '[', ']') + ')');
+// THE BLOCK PACKS (Midnight: every block of the dead-end street haunts with its own set).
+// Extracted from the game exactly as it is built, and wired to the haunt harness's own
+// nightQuota() as soon as it exists — so the harness fills bands with the SAME code the
+// game runs (see the nightQuotaForPacks hookup right after H is constructed).
+const NIGHT_BLOCKS = eval('(' + srcLiteral('NIGHT_BLOCKS', '[', ']') + ')');
+const IW = srcNum('IW');
+const nightBlockPack = new Function('NIGHT_BLOCKS', 'BLOCK_W', 'IW',
+  srcFn('nightBlockPack') + '\nreturn nightBlockPack;')(NIGHT_BLOCKS, 80, IW);
+const nightBlockFamilies = new Function('nightBlockPack', 'HORROR_ALL',
+  srcFn('nightBlockFamilies') + '\nreturn nightBlockFamilies;')(nightBlockPack, HORROR_ALL);
+let nightQuotaForPacks = () => 0;
+const nightBlockQuota = new Function('nightBlockPack', 'nightQuota', 'HORROR_QUOTA_CEIL',
+  srcFn('nightBlockQuota') + '\nreturn nightBlockQuota;')(
+  nightBlockPack, (t, flood) => nightQuotaForPacks(t, flood),
+  eval('(' + srcLiteral('HORROR_QUOTA_CEIL', '{', '}') + ')'));
+const nightBlockOrder = new Function('nightBlockFamilies', 'HORROR_FILL_ORDER',
+  srcFn('nightBlockOrder') + '\nreturn nightBlockOrder;')(nightBlockFamilies, HORROR_FILL_ORDER);
 const HORROR_ROSTER_CAP = srcNum('HORROR_ROSTER_CAP'), HORROR_SCREEN_CAP = srcNum('HORROR_SCREEN_CAP');
 const NIGHT_FILL_TICK = srcNum('NIGHT_FILL_TICK'), NIGHT_FILL_BURST = srcNum('NIGHT_FILL_BURST');
 const HORROR_WAVE_AT = srcNum('HORROR_WAVE_AT'), HORROR_SURGE_AT = srcNum('HORROR_SURGE_AT');
@@ -323,7 +349,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'killBossFireball', 'updateBossFireballs', 'bossWhipStrike', 'bossShovelTargetable',
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
   'bossLandedInHopper', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
-  'updateNightBoss', 'updateNightBossFight'].map(srcFn).join('\n');
+  'updateNightBoss', 'updateNightBossFight',
+  // THE BLOCK PACKS (Midnight: a per-block signature horror set)
+  'nightBlockPack', 'nightBlockFamilies', 'nightBlockQuota', 'nightBlockOrder'].map(srcFn).join('\n');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -363,6 +391,8 @@ const H = new Function(
   'BOSS_SUCTION_T', 'BOSS_SHOTS', 'BOSS_SHOTS_RAGE', 'BOSS_WHIP_CD', 'BOSS_FIRE_CD',
   'HOPPER_CYCLE_AT', 'HOPPER_CYCLE_DUR', 'BOSS_LINES', 'BOSS_FIRE_LINES', 'BOSS_HIT_LINES',
   'BOSS_DYING_LINES', 'BOSS_WIN_LINES',
+  // THE BLOCK PACKS: the pack table + the block pitch its lookup runs on
+  'NIGHT_BLOCKS', 'IW',
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -479,8 +509,12 @@ const H = new Function(
   BOSS_HP_BODY, BOSS_HP_WHIP, BOSS_HP_FIRE, BOSS_WHIP_TELEGRAPH, BOSS_WHIP_STRIKE,
   BOSS_WHIP_R, BOSS_WHIP_ARC, BOSS_FIRE_SP, BOSS_FIRE_R, BOSS_FIRE_LIFE, BOSS_SUCTION_T,
   BOSS_SHOTS, BOSS_SHOTS_RAGE, BOSS_WHIP_CD, BOSS_FIRE_CD, HOPPER_CYCLE_AT, HOPPER_CYCLE_DUR,
-  BOSS_LINES, BOSS_FIRE_LINES, BOSS_HIT_LINES, BOSS_DYING_LINES, BOSS_WIN_LINES
+  BOSS_LINES, BOSS_FIRE_LINES, BOSS_HIT_LINES, BOSS_DYING_LINES, BOSS_WIN_LINES,
+  // THE BLOCK PACKS: the pack table + the block pitch its lookup runs on
+  NIGHT_BLOCKS, IW
 );
+// The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
+nightQuotaForPacks = H.nightQuota;
 function mkC(type, dx, dy, extra) {
   // mkC(type, dx) / mkC(type, dx, extra) / mkC(type, dx, dy, extra) — a missing dy
   // means "same lane as the worker", NEVER NaN (a NaN lane poisons every distance test).
@@ -727,7 +761,9 @@ const S5 = new Function(
   'nightBands', 'nightWorldBlock', 'nightFloodBand', 'nightPlaceProp', 'nightHorrorLive',
   'nightSpawnHorror', 'spawnNightGhost', 'HORROR_QUOTA', 'HORROR_QUOTA_FLOOD',
   'HORROR_ROSTER_CAP', 'NIGHT_GHOST_CAP', 'NIGHT_PROP_QUOTA', 'NIGHT_PROP_QUOTA_FLOOD',
-  'addCreature', 'HORROR_FILL_ORDER',
+  'addCreature', 'HORROR_FILL_ORDER', 'HORROR_ALL',
+  // THE BLOCK PACKS: the per-block signature sets the dead-end street fills from
+  'nightBlockPack', 'nightBlockFamilies', 'nightBlockQuota', 'nightBlockOrder', 'NIGHT_BLOCKS', 'IW',
   // THE MIDNIGHT DEAD END: the spawner's night-route anchors + the FINAL BOSS's entry
   // points (the beast itself is exercised for real in section [9]; here the spawner just
   // has to prove it lays the boss down and walls the street off).
@@ -748,7 +784,8 @@ const S5 = new Function(
   () => mkObj('garg'), H.nightBands, H.nightWorldBlock, H.nightFloodBand, H.nightPlaceProp,
   H.nightHorrorLive, H.nightSpawnHorror, H.spawnNightGhost, HORROR_QUOTA, HORROR_QUOTA_FLOOD,
   HORROR_ROSTER_CAP, NIGHT_GHOST_CAP, NIGHT_PROP_QUOTA, NIGHT_PROP_QUOTA_FLOOD, S2_ADD_CREATURE,
-  HORROR_FILL_ORDER,
+  HORROR_FILL_ORDER, HORROR_ALL,
+  nightBlockPack, nightBlockFamilies, nightBlockQuota, nightBlockOrder, NIGHT_BLOCKS, IW,
   () => S2_BOSS_SPAWN.push(p.wx), () => (S2_ROUTE_DIR = -1), () => S2_BOSS_CLEAR.push(1),
   () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => mkObj('tentboss')
 );
