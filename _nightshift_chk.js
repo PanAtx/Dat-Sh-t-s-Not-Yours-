@@ -3503,6 +3503,72 @@ check('...and on the phones it lands on the CHIP\\u2019S mobile slot (146px, the
     /NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss\.awake && nightBoss\.hp > 0/.test(srcFn('updateHUD')));
 })();
 
+console.log('\n[24] THE SCREEN QUIET LAW: the centre text is the PICKUP, and the red POW! is the WORKER\u2019S OWN PAIN');
+const NIGHT_CENTRE_POPS = eval('(' + srcLiteral('NIGHT_CENTRE_POPS', '[', ']') + ')');
+const POP_LIST = 'POWER UP! | RUN IT UP!';
+check('THE CENTRE SCREEN ON MIDNIGHT IS THE PICKUP\u2019S \u2014 the only two words allowed are "POWER UP!" and "RUN IT UP!"',
+  Array.isArray(NIGHT_CENTRE_POPS) && NIGHT_CENTRE_POPS.slice().sort().join(' | ') === POP_LIST.split(' | ').sort().join(' | '),
+  JSON.stringify(NIGHT_CENTRE_POPS));
+check('THE GATE SITS INSIDE announcePower ITSELF, and it ONLY bites on the night',
+  /typeof isNightShift === "function" &&\s*isNightShift\(\) &&\s*NIGHT_CENTRE_POPS\.indexOf\(text\) < 0\s*\)\s*\n?\s*return;/.test(srcFn('announcePower')));
+(() => {
+  const popWith = (night, text) => {
+    let appended = 0;
+    const el = () => ({
+      style: {}, className: '', textContent: '', parentNode: null,
+      set className(v) { this.c = v; }, set textContent(v) { this.t = v; },
+    });
+    const D = {
+      querySelectorAll: () => [],
+      createElement: el,
+      body: {
+        appendChild(c) { appended++; c.parentNode = this; },
+        removeChild(c) { if (c) c.parentNode = null; },
+      },
+    };
+    new Function('document', 'setTimeout', 'isNightShift', 'NIGHT_CENTRE_POPS', 'text',
+      srcFn('announcePower') + '\n;announcePower(text, "pop-power");')(
+      D, (f) => (typeof f === 'function' ? f() : 0), () => night, NIGHT_CENTRE_POPS, text);
+    return appended;
+  };
+  const shout = ['CONSECRATED!', 'SHOVEL TRIAD!', 'ABYSS SURGE!', 'THE BEAST IS UP!',
+    'THE TENTACLE BEAST!', 'THE BEAST IS ANGRY!', 'THE BEAST IS IN THE TRUCK!',
+    'RUBY-PLATED GARGOYLE! TAKE IT!', 'MIDNIGHT CLEARED!', 'THE FOG GANG IS CLEAR \u2014 THE WARD FALLS!'];
+  check('ON MIDNIGHT the battle\u2019s big words are GONE from the centre of the screen (points, sound and meters still land): ' +
+    shout.map((t) => t.split('!')[0] + '\u2192' + popWith(true, t)).join(' \u00b7 '),
+    shout.every((t) => popWith(true, t) === 0),
+    shout.map((t) => popWith(true, t)).join('/'));
+  check('...and the two PICKUPS still flood the centre of the night screen',
+    popWith(true, 'POWER UP!') === 1 && popWith(true, 'RUN IT UP!') === 1,
+    popWith(true, 'POWER UP!') + '/' + popWith(true, 'RUN IT UP!'));
+  check('THE WEEKDAYS keep the big text for everything (the same shouts, day shift)',
+    shout.every((t) => popWith(false, t) === 1));
+})();
+check('THE WARD DROP\u2019S SHOUT IS A SHORT WORKER LINE NOW (it fits on the screen): ' + NIGHT_GATE_OPEN_LINES.join(' / '),
+  NIGHT_GATE_OPEN_LINES.slice().sort().join(' | ') === ['THE BLOCK IS CLEAR!', 'THE WARD IS DOWN!', 'THE LIGHT BROKE!', 'ON TO THE NEXT BLOCK!', 'THE LAST ONE \u2014 SHOVELED!'].sort().join(' | ') &&
+    NIGHT_GATE_OPEN_LINES.every((l) => l.length <= 26),
+  NIGHT_GATE_OPEN_LINES.map((l) => l.length).join('/'));
+check('THE BUBBLE WRAPS: a long line breaks onto more lines INSIDE the bubble instead of running off the screen',
+  /\.bubble \{[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;[\s\S]*?max-width: min\(62vw, 330px\);[\s\S]*?text-align: center;/.test(
+    html.slice(html.indexOf('.bubble {'), html.indexOf('@keyframes bubblePop'))));
+check('THE RED JAGGED POW! BURST IS THE WORKER\u2019S PAIN MARK ALONE \u2014 ward talk, consecration, triad, scurry and scares wear plain bubbles',
+  !/"burst"/.test(srcFn('nightGateSay')) && !/"burst"/.test(srcFn('shovelBanish')) &&
+    !/pick\(NIGHT_SCURRY_LINES\),[\s\S]{0,150}"burst"/.test(html) &&
+    !/pick\(NIGHT_SCARE_LINES\),[\s\S]{0,150}"burst"/.test(html) &&
+    !/ALL GHOSTS[\s\S]{0,200}"burst"/.test(html));
+check('THE PUNCHBACK KEEPS ITS "POW!" AT THE FIST \u2014 as a plain worker line, never in the red burst skin',
+  !/spawnBubble\("POW!",\s*fx,\s*fy,\s*"worker",\s*"burst"\)/.test(html) &&
+    /Voice\.say\("POW!", 1\.1, 1\.2, fx, fy, WORKER_GENDER, "worker"\)/.test(html));
+check('...while the hits the worker ACTUALLY TAKES keep their red burst (bullet graze, shootout shove, gator, zombie arm)',
+  /Voice\.say\(pick\(BULLET_HIT_LINES\)[\s\S]{0,140}"burst"/.test(html) &&
+    /Voice\.say\(pick\(SHOOTOUT_TOUCH_WORKER_LINES\)[\s\S]{0,190}"burst"/.test(html) &&
+    /Voice\.say\(pick\(GATOR_WORKER_LINES\)[\s\S]{0,140}"burst"/.test(html) &&
+    /Voice\.say\(pick\(ZOMBIE_WORKER_LINES\)[\s\S]{0,140}"burst"/.test(html));
+check('the burst SKIN, the OW! auto-burst rule and the BEAST MODE marker are untouched',
+  /\.bubble\.bub-burst \{/.test(html) && /style === "burst" \|\|/.test(html) &&
+    /speaker === "worker" && \/\^ow\/i\.test\(String\(text\)\.trim\(\)\)/.test(html) &&
+    /spawnBubble\("BEAST MODE!", p\.wx, p\.wy, "worker", "burst"\)/.test(html));
+
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 
 

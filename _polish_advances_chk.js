@@ -91,7 +91,8 @@ console.log('[1] damage constant + source wiring');
       return REASONS.polishboy && REASONS.polishboy.length >= 1;
     })()
   );
-  const cc = src.slice(src.indexOf('function collideCreatures()'), src.indexOf('function collideCreatures()') + 36000);
+  const ccStart = src.indexOf('function collideCreatures()');
+  const cc = src.slice(ccStart, src.indexOf('function ', ccStart + 100) > ccStart + 60000 ? ccStart + 90000 : Math.max(src.indexOf('function ', ccStart + 100), ccStart + 60000));
   const bi = cc.indexOf('polishLadies.find((e) => e.pw === c)');
   const bump = bi >= 0 ? cc.slice(bi, bi + 900) : '';
   check(
@@ -440,6 +441,7 @@ console.log('[4] the punchback - the REAL hurtNPC / landPunch in a harness');
     'Voice',
     'disposeObj',
     'spawnBonus',
+    'WORKER_GENDER',
     lp + '\nlandPunch(c);'
   );
   fnL(
@@ -450,13 +452,14 @@ console.log('[4] the punchback - the REAL hurtNPC / landPunch in a harness');
     (a) => a[0],
     { say: (t) => outL.said.push(t) },
     () => outL.disposed++,
-    (x, y) => (outL.bonus = [x, y])
+    (x, y) => (outL.bonus = [x, y]),
+    'male'
   );
   check(
-    'a landed punchback on the brother: the "POW!" burst + his squeal + the 5s scare-off (flee at ~7 u/s, away from the worker) + the bonus mark at his feet',
-    outL.bubbles.length === 1 &&
-      outL.bubbles[0].t === 'POW!' &&
-      outL.said.length === 1 &&
+    'a landed punchback on the brother: the "POW!" (plain worker line — no red burst, that skin is for hits the worker takes) + his squeal + the 5s scare-off (flee at ~7 u/s, away from the worker) + the bonus mark at his feet',
+    outL.bubbles.length === 0 &&
+      outL.said[0] === 'POW!' &&
+      outL.said.length === 2 &&
       c.scareT === 5 &&
       c.dir === 1 &&
       outL.bonus &&

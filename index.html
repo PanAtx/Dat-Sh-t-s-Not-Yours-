@@ -2849,7 +2849,13 @@
         letter-spacing: 1px;
         text-transform: uppercase;
         color: #14141a;
-        white-space: nowrap;
+        /* Long lines WRAP onto more lines inside the bubble (the old nowrap cut
+           "THE BLOCK IS CLEAR — THE WARD IS DOWN!" straight through the edge of
+           the screen); short lines stay on one line exactly as before. */
+        white-space: normal;
+        overflow-wrap: anywhere;
+        max-width: min(62vw, 330px);
+        text-align: center;
         box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.3);
         animation: bubblePop 0.25s cubic-bezier(0.2, 1.5, 0.4, 1) forwards;
       }
@@ -4302,7 +4308,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.496</div>
+          <div id="app-version" class="menu-version">v1.0.497</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4560,7 +4566,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.496';
+      const APP_VERSION = '1.0.497';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28620,6 +28626,14 @@
       // street the Holy Weapon's own power moments (CONSECRATED / SHOVEL TRIAD) and the ABYSS
       // SURGE warning share ONE slot at most every NIGHT_POP_GAP seconds; the pay itself
       // (points, ecoplasm, the jingle, the HUD meter) ALWAYS lands.
+      //
+      // ON MIDNIGHT THE centre-screen text IS THE PICKUP'S — the only words that may flood
+      // the middle of the screen are "POWER UP!" and "RUN IT UP!", the two things you just
+      // grabbed off the street. Every other shout (CONSECRATED!, SHOVEL TRIAD!, ABYSS SURGE!,
+      // the beast's own billboards, a ward falling) is silenced here; each of them already
+      // pays its points, plays its sound and lights its HUD meter, and its words ride the
+      // worker's own speech bubble. Weekdays keep the big text for all of them.
+      const NIGHT_CENTRE_POPS = ["POWER UP!", "RUN IT UP!"];
       function nightPopOk() {
         if (typeof isNightShift !== "function" || !isNightShift()) return true;
         if (nightPopT > 0) return false;
@@ -29034,10 +29048,11 @@
         "THE HOPPER WANTS EVERYTHING ON THIS BLOCK!",
       ];
       const NIGHT_GATE_OPEN_LINES = [
-        "THE BLOCK IS CLEAR — THE WARD IS DOWN!",
-        "THE LIGHT BROKE! ON TO THE NEXT BLOCK!",
-        "THAT'S THE LAST OF THEM — THE STREET'S OPEN!",
-        "WARD'S GONE. NEXT BLOCK, HERE I COME!",
+        "THE BLOCK IS CLEAR!",
+        "THE WARD IS DOWN!",
+        "THE LIGHT BROKE!",
+        "ON TO THE NEXT BLOCK!",
+        "THE LAST ONE — SHOVELED!",
       ];
       const nightGates = {}; // band.i -> this block's ward ledger
       function nightGateOn() {
@@ -29254,7 +29269,6 @@
               p.wy,
               WORKER_GENDER,
               "worker",
-              "burst",
             );
           return true;
         }
@@ -29278,13 +29292,12 @@
             p.wy,
             WORKER_GENDER,
             "worker",
-            "burst",
           );
         return true;
       }
       function nightGateSay(line) {
         if (nightSayOk())
-          Voice.say(line, 2.3, 1.05, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+          Voice.say(line, 2.3, 1.05, p.wx, p.wy, WORKER_GENDER, "worker");
       }
 
       function nightGateYieldOf(ref) {
@@ -29295,7 +29308,7 @@
       function nightGateOpenLedger(led) {
         led.open = true;
         led.fade = NIGHT_GATE_FADE;
-        announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power");
+        announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power"); // (swallowed on Midnight: no big text; the worker's short bubble carries it)
         nightGateSay(pick(NIGHT_GATE_OPEN_LINES));
         if (typeof SFX.playBansheeWail === "function") SFX.playBansheeWail();
         spawnEctoBurst(led.x, 0, 1.5);
@@ -29674,7 +29687,6 @@
               p.wy,
               WORKER_GENDER,
               "worker",
-              "burst",
             );
         }
         // the TRIAD combo: THREE banishments inside TRIAD_WINDOW seconds pays a bonus
@@ -29695,7 +29707,6 @@
               p.wy,
               WORKER_GENDER,
               "worker",
-              "burst",
             );
           spawnEctoBurst(p.wx, p.wy, 1.1);
           if (typeof SFX.playEctoPop === "function") SFX.playEctoPop();
@@ -30933,7 +30944,6 @@
             p.wy,
             WORKER_GENDER,
             "worker",
-            "burst",
           );
         return true;
       }
@@ -38417,7 +38427,9 @@
         if (!c || creatures.indexOf(c) < 0) return; // whiff - the target is gone
         const fx = (p.wx + c.wx) / 2,
           fy = (p.wy + c.wy) / 2; // the fist meets the NPC halfway
-        spawnBubble("POW!", fx, fy, "worker", "burst"); // the red jagged burst at the fist
+        // The red jagged POW! burst is the WORKER'S OWN pain mark. The punchback keeps
+        // its "POW!" at the fist — as a plain worker bubble, never in the red burst skin.
+        Voice.say("POW!", 1.1, 1.2, fx, fy, WORKER_GENDER, "worker");
         Voice.say(
           pick(["Eeek!", "Oof!", "Hey! That's not nice!"]),
           1.3,
@@ -39087,6 +39099,16 @@
       // (the same mechanism showPopup uses for MONGO!/STREET CASH!) with dedicated
       // power-up animation classes pop-power / pop-power-run.
       function announcePower(text, cls) {
+        // ON MIDNIGHT the centre screen belongs to the pickups alone: "POWER UP!" and
+        // "RUN IT UP!". Every other big word — CONSECRATED!, SHOVEL TRIAD!, ABYSS SURGE!,
+        // a ward falling, the beast's own billboards — is swallowed here (its points,
+        // sound and HUD meter still land, and its words ride the worker's speech bubble).
+        if (
+          typeof isNightShift === "function" &&
+          isNightShift() &&
+          NIGHT_CENTRE_POPS.indexOf(text) < 0
+        )
+          return;
         document.querySelectorAll(".popup").forEach(function (n) {
           n.remove();
         }); // never let two stack
@@ -40854,7 +40876,6 @@
                 p.wy,
                 WORKER_GENDER,
                 "worker",
-                "burst",
               );
               Voice.say(
                 pick(SPOOK_LINES[cause] || SPOOK_LINES[c.type] || SPOOK_LINES.specter),
@@ -41198,7 +41219,6 @@
                 p.wy,
                 WORKER_GENDER,
                 "worker",
-                "burst",
               );
               doStun(onStreet ? 0.8 : 0.55, "scare"); // he freezes for a second, white-knuckling the broom
               hurtNPC(HP_HIT_GHOST + HP_GHOST_STREET, "ghost"); // the FULL 10 HP, on the walk AND the street

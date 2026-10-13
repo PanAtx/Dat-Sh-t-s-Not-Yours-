@@ -206,6 +206,7 @@ console.log('[5] landPunch — the smash frame in a harness');
       'Voice',
       'disposeObj',
       'spawnBonus',
+      'WORKER_GENDER',
       lp + '\nlandPunch(c);'
     );
     fn(
@@ -214,9 +215,15 @@ console.log('[5] landPunch — the smash frame in a harness');
       c,
       (t, x, y, s, st) => out.bubbles.push({ t: t, x: x, y: y, s: s, st: st }),
       (a) => a[0],
-      { say: (t) => out.said.push(t) },
+      {
+        say: (t, life, pitch, bx, by) => {
+          out.said.push(t);
+          (out.coords = out.coords || []).push([bx, by]);
+        },
+      },
       (o) => out.disposed++,
-      (x, y) => (out.bonus = [x, y])
+      (x, y) => (out.bonus = [x, y]),
+      'male'
     );
     return out;
   }
@@ -233,10 +240,14 @@ console.log('[5] landPunch — the smash frame in a harness');
   gun.parent.remove = () => (gun.parent._n = (gun.parent._n || 0) + 1);
   const out = run(p, [c], c);
   check(
-    'the red jagged "POW!" burst at the fist (worker burst style, halfway between the two)',
-    out.bubbles.length === 1 && out.bubbles[0].t === 'POW!' && out.bubbles[0].st === 'burst' && out.bubbles[0].x === 9 && out.bubbles[0].y === 2.5
+    'the "POW!" at the fist (a plain worker line — the red POW burst skin is reserved for hits the WORKER takes; halfway between the two)',
+    out.bubbles.length === 0 &&
+      out.said[0] === 'POW!' &&
+      out.coords &&
+      out.coords[0][0] === 9 &&
+      out.coords[0][1] === 2.5
   );
-  check("the NPC's squeal (a voice line)", out.said.length === 1);
+  check("the NPC's squeal (a voice line)", out.said.length === 2 && out.said[1] !== 'POW!');
   check('disarmed: the held item removed from the scene + disposed + c.gun cleared', (gun.parent._n || 0) === 1 && out.disposed === 1 && c.gun === null);
   check(
     'the 5s scare-off armed (c.scareT = 5) + bolting AWAY from the worker (dir = +1, the NPC is on +x)',
