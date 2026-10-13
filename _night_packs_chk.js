@@ -539,7 +539,9 @@ const STRIPPED = (() => {
 })();
 (() => {
   const lines = STRIPPED.split('\n');
-  const want = ['makeGrubsquat', 'makeRatking', 'makeLanternfang', 'makeGoulra', 'makeFangspider', 'makeEyecrawler', 'makePitfiend', 'makeWraith', 'makeSpecter', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockQuota', 'nightBlockFamilies', 'nightBlockOrder', 'horrorWorkLimits', 'horrorRespawnX', 'nightSpawnHorror', 'addCreature', 'updateHorrorCreature', 'spawnNightShift', 'advanceGame'];
+  const want = ['makeGrubsquat', 'makeRatking', 'makeLanternfang', 'makeGoulra', 'makeFangspider', 'makeEyecrawler', 'makePitfiend', 'makeWraith', 'makeSpecter', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockQuota', 'nightBlockFamilies', 'nightBlockOrder', 'horrorWorkLimits', 'horrorRespawnX', 'nightSpawnHorror', 'addCreature', 'updateHorrorCreature', 'spawnNightShift', 'advanceGame',
+    // THE SPECTRAL BLOCK WARDS (the same nesting tripwire covers the gate system)
+    'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateSurgeAdd', 'nightGateBaseLoad', 'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive', 'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateHolds', 'nightGateFloorX', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger', 'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText', 'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount', 'nightBlockBandXs', 'shovelBanish', 'landSpookInHopper', 'updateNightHaunt', 'updatePlayer'];
   const depthOf = {};
   let depth = 0;
   for (let k = 0; k < lines.length; k++) {

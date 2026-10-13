@@ -530,6 +530,41 @@
         border-color: #b6fff2;
         box-shadow: 0 0 20px rgba(58, 240, 210, 0.95);
       }
+      /* ===== THE MIDNIGHT BLOCK WARD chip ==========================================
+         THE WARDS: tonight's dead-end street is cleared BLOCK BY BLOCK — a block's
+         spectral curtain only falls when its whole horde is in the hopper. This pill
+         names the block whose ward is up in front of him and how many of ITS animals
+         are left to shovel; updateHUD() keeps it on the night shift only. */
+      #gate-goal {
+        position: fixed;
+        top: calc(186px + env(safe-area-inset-top, 0px));
+        left: calc(20px + env(safe-area-inset-left, 0px));
+        z-index: 12;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #gate-goal.hidden {
+        display: none;
+      }
+      #gate-goal .bonus-goal-chip {
+        color: #e6dcff;
+        background: rgba(14, 6, 28, 0.66);
+        border-color: rgba(158, 106, 255, 0.78);
+        box-shadow: 0 0 16px rgba(96, 220, 200, 0.34);
+      }
+      #gate-goal .bonus-goal-chip::before {
+        background: rgba(158, 106, 255, 0.24);
+      }
+      #gate-goal .bonus-goal-chip.goal-met {
+        color: #04211c;
+        background: #3af0d2;
+        border-color: #b6fff2;
+        box-shadow: 0 0 20px rgba(58, 240, 210, 0.95);
+      }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
          violet-glowing instead of the usual borough amber. */
       #day-intro.night .day {
@@ -681,6 +716,11 @@
         }
         #ecto-goal {
           top: calc(118px + env(safe-area-inset-top, 0px));
+          left: calc(12px + env(safe-area-inset-left, 0px));
+          gap: 4px;
+        }
+        #gate-goal {
+          top: calc(146px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
@@ -4073,6 +4113,15 @@
     <div id="ecto-goal" class="hidden">
       <div id="ecto-chip" class="bonus-goal-chip"><span id="ecto-count-text">SPOOKS 0 / 14</span></div>
     </div>
+    <!-- THE MIDNIGHT BLOCK WARD (one block, one horde, one wall): the block tonight whose
+         spectral curtain is standing in front of the worker, and how many of THAT block's
+         own animals are left to shovel. The ward falls — and the street opens — only when
+         its whole load is in the hopper. Night shift only, like the spook pill above. -->
+    <div id="gate-goal" class="hidden">
+      <div id="gate-chip" class="bonus-goal-chip">
+        <span id="gate-chip-text">THE FOG GANG · 22 LEFT · WARD UP</span>
+      </div>
+    </div>
     <!-- THE MIDNIGHT FINAL BOSS (the cemetery at the end of the dead-end street): the
          beast's OWN health bar. Hidden on every other level and hidden the moment the
          street is clear; it slams in the instant the tentacle beast rises out of the yard.
@@ -4196,7 +4245,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.489</div>
+          <div id="app-version" class="menu-version">v1.0.490</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4503,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.489';
+      const APP_VERSION = '1.0.490';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28593,7 +28642,7 @@
           if (c.g.parent) c.g.parent.remove(c.g);
           if (typeof disposeObj === "function") disposeObj(c.g); // banished: it is GONE
         }
-        shovelBanish(SHOVEL_POINTS, HORROR_NAMES[horrorKey(c)] || "SPOOK");
+        shovelBanish(SHOVEL_POINTS, HORROR_NAMES[horrorKey(c)] || "SPOOK", c);
         // NO CENTRE-SCREEN TEXT PER BANISHMENT (that is what power-ups get). The pay is the
         // jingle, the ecoplasm splat, the score bubble and the HUD meter — the player keeps
         // his view of the horde.
@@ -28763,14 +28812,357 @@
         const ceil = HORROR_QUOTA_CEIL[type];
         return ceil != null ? Math.min(ceil, q) : q;
       }
+      // ============ THE SPECTRAL BLOCK WARD (one block, one horde, one wall) ==========
+      // Tonight's dead-end street is walked BLOCK BY BLOCK. Each block carries a SET LOAD
+      // of its own animals — the size of its own pack table, counted out at clock-in (the
+      // flood block's load grows by HORROR_SURGE_LOAD with every surge, capped) — and a
+      // SPECTRAL WARD: a curtain of grave-light stretched across the WHOLE width of the
+      // street at the low end of the block. He CANNOT walk through it. It drops the moment
+      // the block has yielded its whole load into the hopper and nothing of its pack is
+      // left standing — fading out over NIGHT_GATE_FADE seconds, lifting off the asphalt
+      // as it goes. Weekdays never see a ward: nightGateOn() is the only door into every
+      // rule below, and every call site is inside an isNightShift() path.
+      const NIGHT_BLOCK_GATES = true; // the ward over each block of tonight's street
+      const NIGHT_GATE_INSET = 2; // the curtain stands this far INSIDE the block's low end
+      const NIGHT_GATE_ROOM = 2.5; // the block's animals are born this far ahead of it
+      const NIGHT_GATE_WORK = 0.35; // ...and they may work down to this close off the light
+      const NIGHT_GATE_STOP = 0.34; // his center stops this far off the light (FENCE_STOP kin)
+      const NIGHT_GATE_REACH = 1.6; // ~140ms at top speed: the overshoot the clamp catches
+      const NIGHT_GATE_FADE = 1.15; // s the curtain takes to dissolve
+      const NIGHT_GATE_LIFT = 1.35; // u/s it rises as it fades
+      const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
+      const HORROR_SURGE_LOAD_TIERS = 3; // ...and it stops stacking after this many surges
+      const NIGHT_GATE_LINES = [
+        "THE WARD WON'T LET ME THROUGH!",
+        "GOT TO CLEAR THIS WHOLE BLOCK FIRST!",
+        "THE WALL ON THIS BLOCK IS STILL UP!",
+        "NOTHING PAST THIS LIGHT TILL THE BLOCK IS EMPTY!",
+        "THE HOPPER WANTS EVERYTHING ON THIS BLOCK!",
+      ];
+      const NIGHT_GATE_OPEN_LINES = [
+        "THE BLOCK IS CLEAR — THE WARD IS DOWN!",
+        "THE LIGHT BROKE! ON TO THE NEXT BLOCK!",
+        "THAT'S THE LAST OF THEM — THE STREET'S OPEN!",
+        "WARD'S GONE. NEXT BLOCK, HERE I COME!",
+      ];
+      const nightGates = {}; // band.i -> this block's ward ledger
+      function nightGateOn() {
+        return NIGHT_BLOCK_GATES && typeof isNightShift === "function" && isNightShift();
+      }
+      function nightBlockName(band) {
+        const e = nightBlockPack(band);
+        return e && e.name ? e.name : "THIS BLOCK";
+      }
+      function nightGateX(band) {
+        if (!band) return 0;
+        // the flood block's ward stands at the GRAVES, not at the block edge: it is the
+        // ward between the Grave Watch and the cross-street that wakes the beast.
+        if (band.flood) return Math.max(band.x0 + NIGHT_GATE_INSET, NIGHT_BOSS_TRIGGER_X + 6);
+        return band.x0 + NIGHT_GATE_INSET;
+      }
+      function nightGateSurgeAdd(band) {
+        if (!band || !band.flood) return 0; // only the pit block takes on surges
+        return Math.min(nightSurgeTier, HORROR_SURGE_LOAD_TIERS) * HORROR_SURGE_LOAD;
+      }
+      function nightGateBaseLoad(band) {
+        // THE SET NUMBER OF CREATURES ON THIS BLOCK: its own pack table, family by family
+        let n = 0;
+        const fams = nightBlockFamilies(band);
+        for (let i = 0; i < fams.length; i++) n += nightBlockQuota(fams[i], band);
+        return n;
+      }
+
+      function nightGateLedger(band) {
+        if (!nightGateOn() || !band) return null;
+        let led = nightGates[band.i];
+        if (!led) {
+          led = {
+            i: band.i,
+            x: nightGateX(band),
+            name: nightBlockName(band),
+            load: nightGateBaseLoad(band), // LOCKED at clock-in — the block's whole horde
+            yield: 0, // spooks of THIS block sent into the hopper
+            open: false, // every ward starts UP: he works the blocks one at a time
+            fade: 0,
+            t: 0,
+            g: null,
+          };
+          nightGates[band.i] = led;
+        }
+        return led;
+      }
+      function nightGateLedgerOf(ref) {
+        // accepts a band, the c.home { x0, x1, i } a spook carries, OR a bare band index
+        if (!ref) return null;
+        if (typeof ref === "number") return nightGates[ref] || null;
+        return ref.i != null ? nightGates[ref.i] : nightGateLedger(ref);
+      }
+      function nightGateBandOf(i) {
+        const bands = nightBands();
+        for (let k = 0; k < bands.length; k++) if (bands[k].i === i) return bands[k];
+        return null;
+      }
+      function nightGateLoad(band) {
+        const led = nightGateLedger(band);
+        if (!led) return 0;
+        return led.load + nightGateSurgeAdd(led.band || band);
+      }
+      function nightGateLive(band) {
+        // the block's own animals still standing (the flying ones count until they LAND)
+        let n = 0;
+        for (let i = 0; i < creatures.length; i++) {
+          const c = creatures[i];
+          if (!c || !c.home || c.home.i !== band.i) continue;
+          if (c.hookLanded) continue;
+          if (!HORROR_ALL[horrorKey(c)]) continue;
+          n++;
+        }
+        return n;
+      }
+      function nightGateLeft(band) {
+        const led = nightGateLedger(band);
+        if (!led) return 0;
+        return Math.max(0, nightGateLoad(band) - led.yield);
+      }
+      function nightGateRoom(band) {
+        // HOW MANY of this block's horde the haunt may put on the street right now
+        return Math.max(0, nightGateLeft(band) - nightGateLive(band));
+      }
+      function nightGateClosedAt(band) {
+        const led = nightGateLedger(band);
+        return !!led && !led.open;
+      }
+      function nightGateHolds(c) {
+        // THE WARD HOLDS ITS OWN ANIMALS: a block spook whose curtain is still up is NOT
+        // culled for falling behind — behind it is the block he is not allowed to walk back
+        // into, so the animal stays on its beat and works the wall with him.
+        const led = nightGateLedgerOf(c && c.home);
+        return !!led && !led.open;
+      }
+      function nightGateFloorX(band) {
+        // the lowest x a ward-bound animal may be born at: at the curtain, never below it
+        const led = nightGateLedger(band);
+        return led && !led.open ? led.x + NIGHT_GATE_ROOM : band.x0 + 4;
+      }
+      function nightGateFrontLedger() {
+        // the ward he is walking INTO: the closed curtain with the HIGHEST x at or below
+        // him — the first wall he hits going down the dead-end street.
+        if (!nightGateOn()) return null;
+        let best = null;
+        const keys = Object.keys(nightGates);
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          if (!led || led.open || led.x > p.wx) continue;
+          if (!best || led.x > best.x) best = led;
+        }
+        return best;
+      }
+      function nightGateSay(line) {
+        if (nightSayOk())
+          Voice.say(line, 2.3, 1.05, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+      }
+
+      function nightGateYieldOf(ref) {
+        // one of this block's animals just landed in the hopper (SHOVEL-SCORED)
+        const led = nightGateLedgerOf(ref);
+        if (led) led.yield++;
+      }
+      function nightGateOpenLedger(led) {
+        led.open = true;
+        led.fade = NIGHT_GATE_FADE;
+        announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power");
+        nightGateSay(pick(NIGHT_GATE_OPEN_LINES));
+        if (typeof SFX.playBansheeWail === "function") SFX.playBansheeWail();
+        spawnEctoBurst(led.x, 0, 1.5);
+        p.shake = Math.max(p.shake || 0, 0.55);
+      }
+      function nightGateCheck(dt) {
+        if (!nightGateOn()) return 0;
+        const bands = nightBands();
+        let opened = 0;
+        for (let i = 0; i < bands.length; i++) {
+          const band = bands[i];
+          const led = nightGateLedger(band);
+          if (!led || led.open) continue;
+          if (nightGateLive(band) > 0) continue; // its animals are still on the street
+          if (led.yield < nightGateLoad(band)) continue; // its load is not in the hopper
+          // THE BLOCK IS EMPTY AND ITS LOAD IS IN THE HOPPER: the ward comes down. It is
+          // HIS block's ward — the curtain at the low edge of the beat he is standing in —
+          // so breaking it is what lets him walk down into the next block's wave.
+          nightGateOpenLedger(led);
+          opened++;
+        }
+        return opened;
+      }
+      function nightGateAnimate(dt) {
+        if (!nightGateOn()) return;
+        const keys = Object.keys(nightGates);
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          const g = led.g;
+          if (!g || !g.userData.ward) continue;
+          led.t += dt;
+          const ward = g.userData.ward;
+          if (led.open) {
+            if (led.fade <= 0) {
+              g.visible = false;
+              continue;
+            }
+            led.fade = Math.max(0, led.fade - dt);
+            const kk = led.fade / NIGHT_GATE_FADE;
+            for (let m = 0; m < ward.mats.length; m++)
+              ward.mats[m].opacity = ward.base[m] * kk * 0.9;
+            g.position.z += dt * NIGHT_GATE_LIFT; // the curtain LIFTS off the asphalt
+            if (led.fade <= 0) g.visible = false;
+            continue;
+          }
+          const pulse =
+            0.88 + Math.sin(led.t * 1.9 + ward.phase) * 0.11 + Math.sin(led.t * 7.3) * 0.03;
+          for (let m = 0; m < ward.mats.length; m++)
+            ward.mats[m].opacity = ward.base[m] * pulse;
+        }
+      }
+      function nightGateProgress() {
+        // the ward he is working against, and how much of that block is left to shovel
+        const led = nightGateFrontLedger();
+        if (!led)
+          return { name: "THE GRAVES", load: 0, done: 0, live: 0, left: 0, frac: 1, open: true, x: 0 };
+        const band = nightGateBandOf(led.i) || { i: led.i, x0: led.x - NIGHT_GATE_INSET, x1: led.x };
+        const load = nightGateLoad(band);
+        return {
+          led: led,
+          name: led.name,
+          load: load,
+          live: nightGateLive(band),
+          done: led.yield,
+          left: Math.max(0, load - led.yield),
+          frac: load > 0 ? Math.min(1, led.yield / load) : 1,
+          open: false,
+          x: led.x,
+        };
+      }
+      function nightGateHudText() {
+        if (!nightGateOn()) return "";
+        const pr = nightGateProgress();
+        if (pr.open) return "ALL WARDS DOWN — THE GRAVES ARE OPEN";
+        return pr.name + " · " + pr.left + " LEFT (" + pr.done + "/" + pr.load + ") · WARD UP";
+      }
+
+      function makeSpectralWard() {
+        // A CURTAIN OF GRAVE-LIGHT: pale ecoplasm green, translucent, drawn across the
+        // FULL width of the street (road, curb, walk and lawn), a bright core wisp down
+        // its middle, lantern beads burning along its top edge and two rails of light
+        // binding it. Z-up world: the curtain is tall in Z and thin in X.
+        const g = new THREE.Group();
+        const ward = { mats: [], base: [], phase: R(0, Math.PI * 2) };
+        const add = (m, base) => {
+          ward.mats.push(m);
+          ward.base.push(base);
+          m.opacity = base;
+        };
+        const H = 3.4, WID = 0.9, OP = 0.34;
+        for (let k = 0; k < 12; k++) {
+          const m = new THREE.MeshBasicMaterial({
+            color: k % 3 === 1 ? 0x9cffe8 : 0x46e8c8,
+            transparent: true,
+            fog: false,
+            depthWrite: false,
+          });
+          const panel = BX(0.2, WID, H, m);
+          panel.position.set(0, -8.5 + k * 1.45, GZ + H / 2);
+          add(m, OP);
+          g.add(panel);
+        }
+        const coreM = new THREE.MeshBasicMaterial({
+          color: 0xd8fff6,
+          transparent: true,
+          fog: false,
+          depthWrite: false,
+        });
+        const core = CY(0.36, 0.36, 17.2, coreM, 8, 1);
+        core.position.set(0.16, 0, GZ + H * 0.62);
+        core.rotation.x = Math.PI / 2;
+        add(coreM, 0.2);
+        g.add(core);
+        for (let r = 0; r < 2; r++) {
+          const rm = new THREE.MeshBasicMaterial({
+            color: 0x6ff5d8,
+            transparent: true,
+            fog: false,
+            depthWrite: false,
+          });
+          const rail = BX(0.14, 17.4, 0.16, rm);
+          rail.position.set(0, 0, GZ + (r ? H * 0.82 : 0.42));
+          add(rm, 0.42);
+          g.add(rail);
+        }
+        for (let k = 0; k < 12; k++) {
+          const bm = new THREE.MeshBasicMaterial({
+            color: 0xe8fffb,
+            transparent: true,
+            fog: false,
+            depthWrite: false,
+          });
+          const bead = SP(0.13, bm, 7, 6);
+          bead.position.set(0, -8.4 + k * 1.45, GZ + H + 0.24);
+          add(bm, 0.66);
+          g.add(bead);
+        }
+        const glow = new THREE.PointLight(0x36f2cf, 0.55, 9);
+        glow.position.set(0.4, 0, GZ + H * 0.55);
+        g.add(glow);
+        g.userData.ward = ward;
+        return g;
+      }
+
+      function nightGateClear() {
+        const keys = Object.keys(nightGates);
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          if (led && led.g) {
+            if (led.g.parent) led.g.parent.remove(led.g);
+            if (typeof disposeObj === "function") disposeObj(led.g);
+          }
+          delete nightGates[keys[k]];
+        }
+      }
+      function buildNightGates(bands) {
+        // one curtain per block, each standing at its own low edge
+        nightGateClear();
+        if (!nightGateOn()) return 0;
+        for (let k = 0; k < bands.length; k++) {
+          const band = bands[k];
+          const led = nightGateLedger(band);
+          if (!led) continue;
+          const g = makeSpectralWard();
+          g.position.set(led.x, 0, GZ);
+          g.visible = !led.open;
+          dynamicGroup.add(g);
+          led.g = g;
+        }
+        return bands.length;
+      }
+      function nightGateCount() {
+        const keys = Object.keys(nightGates);
+        let n = 0;
+        for (let k = 0; k < keys.length; k++) if (!nightGates[keys[k]].open) n++;
+        return n;
+      }
       function nightBlockBandXs(band) {
-        // the band bounds widened by the block slack — the box a block spook may work in
+        // the band bounds widened by the block slack — the box a block spook may work in.
+        // Behind a CLOSED WARD the box stops AT THE CURTAIN: a block animal haunts its own
+        // block, and it never stands where the worker cannot follow it.
         const out = {
           lo: band.x0 - NIGHT_PACK_SLACK,
           hi: band.x1 + NIGHT_PACK_SLACK,
         };
+        const led = nightGateLedgerOf(band);
+        if (led && !led.open) out.lo = Math.max(out.lo, led.x + NIGHT_GATE_WORK);
         return out;
       }
+
+
+
       // The order the haunt fills a band in: THIS BLOCK's own horrors, heaviest family
       // first, and the surge hits HIS band with more of the SAME block's pack (the block
       // pit opens — it does not import another block's animals).
@@ -28847,13 +29239,28 @@
           !nightBlockOwns(variant || type, band)
         )
           return null;
+        // THE WARD BUDGET (Midnight): a block owns a SET LOAD of animals. Once its whole
+        // load has been shoveled in, the haunt puts NOTHING else on that block — that is
+        // what lets a block be FINISHED, and what drops its spectral ward.
+        if (nightGateOn() && nightGateRoom(band) <= 0) return null;
         const w = horrorAheadWindow(band); // by day: the band AHEAD of him up the street;
         // on the dead-end shift: the band ahead of him DOWN the street, out of its bottom end
-        const lo = w.lo,
-          hi = w.hi;
+        // Behind a CLOSED WARD the block's animals are born BETWEEN THE CURTAIN AND THE
+        // WORKER — the strip is pinned to the light so he can always finish the block he
+        // is standing in — and never below a wall he cannot cross, and never at his back.
+        const wLed = nightGateLedger(band);
+        const wardPin = !!wLed && !wLed.open && p.wx > wLed.x;
+        const floorX = nightGateFloorX(band);
+        const lo = Math.max(w.lo, floorX);
+        const hi = wardPin ? Math.max(lo, Math.min(w.hi, band.x1 - 4)) : Math.min(w.hi, band.x1 - 4);
         if (hi < lo) return null;
+        // The fair-fight spacing: by day and in an open band a spook is born at least 7u
+        // down the street of the worker. Behind a CLOSED WARD the block's last animals come
+        // out of the fog AT THE CURTAIN — they are born in front of him, at the wall he is
+        // pressed against, which is exactly where he has to finish the block.
+        if (routeDir() < 0 && lo > p.wx - (wardPin ? 1.4 : 7)) return null;
         const c = addCreature(type, variant ? { v: variant } : null);
-        c.wx = clamp(lo + Math.random() * Math.max(1, hi - lo), band.x0 + 4, band.x1 - 4);
+        c.wx = clamp(lo + Math.random() * Math.max(1, hi - lo), floorX, band.x1 - 4);
         // THE WHOLE WIDTH OF THE BLOCK IS THEIRS: lawn, walk, curb and road alike.
         c.wy = R(HORROR_STREET_Y + 0.4, horrorMaxY() - 0.4);
         c.g.position.set(c.wx, c.wy, c.floaty ? GZ + 0.5 : GZ);
@@ -28909,8 +29316,11 @@
         "CONSECRATED! TAKE THREE OF YOU!",
         "THIS SHOVEL'S BEEN BLESSED!",
       ];
-      function shovelBanish(points, label) {
+      function shovelBanish(points, label, spook) {
         ectoCount++;
+        // THE BLOCK WARD runs on this count: the banished animal is credited to the block
+        // it was born on, and the block's ward falls when its whole load is in the hopper.
+        if (spook) nightGateYieldOf(spook.home || spook.band);
         if (dayStats && dayStats.spooks) dayStats.spooks.got++;
         hopperDeposit("ecto");
         addScore(points, true);
@@ -29215,7 +29625,7 @@
           if (!c || c.hooked || c.hookLanded) continue;
           const key = horrorKey(c);
           if (!HORROR_ALL[key] && key !== "ghost") continue;
-          if (horrorFellBehind(c.wx)) cullHorror(c);
+          if (horrorFellBehind(c.wx) && !nightGateHolds(c)) cullHorror(c);
         }
         // 2) WAVE ESCALATION: every HORROR_WAVE_AT banishments the per-block quotas climb
         //    (up to their ceilings) — the abyss answers the shovel by sending MORE.
@@ -29263,6 +29673,11 @@
         }
         const bands = nightBands();
         if (!bands.length) return;
+        // 3b) THE WARD (Midnight): every frame, test each block against what he has shoved
+        //     in and animate the curtains — the ward MUST fall the instant its block is
+        //     clear, not on the fill tick.
+        nightGateCheck(dt);
+        nightGateAnimate(dt);
         // 4) THE FILL: the band he is IN and the band he is WALKING INTO are kept at quota.
         //    Spawns happen AHEAD of him only, and only inside what he can see — a spook never
         //    spawns at his back. Rate-limited: NIGHT_FILL_TICK, NIGHT_FILL_BURST per tick.
@@ -29290,7 +29705,20 @@
             const type = order[oi];
             if (nightHorrorLive() >= HORROR_ROSTER_CAP) break;
             if (nightHorrorOnScreen() >= HORROR_SCREEN_CAP) break;
-            const want = nightBlockQuota(type, band);
+            let want = nightBlockQuota(type, band);
+            if (want <= 0) continue;
+            // THE WARD BUDGET (Midnight): a block runs a SET LOAD, and the room left is
+            // (its load − what he has shoveled in) − what is standing. At zero the block
+            // is done, its ward is about to fall, and the haunt stops feeding it for good.
+            // The room is shared OUT BY FAMILY, so the refills keep the block's OWN MIX:
+            // a Grave Watch block does not end up as nothing but reapers.
+            if (nightGateOn()) {
+              const led = nightGateLedger(band);
+              const room = nightGateRoom(band);
+              const load = led ? Math.max(1, nightGateLoad(band)) : 1;
+              const per = nightBlockQuota(type, band);
+              want = Math.max(1, Math.min(per, Math.ceil((per * room) / load)));
+            }
             if (want <= 0) continue;
             if (nightBandLive(band, type) >= want) continue;
             if (!nightSpawnHorror(
@@ -30731,6 +31159,10 @@
         nightPopT = 0;
         const bands = nightBands();
         if (!bands.length) return;
+        // THE WARDS: one spectral curtain per block at its own low end, and every block's
+        // LOAD locked from its own pack table at clock-in (tier 0 — the quotas he must
+        // shovel out of each block of tonight's street are FIXED when he clocks in).
+        buildNightGates(bands);
         for (let k = 0; k < bands.length; k++) {
           const band = bands[k];
           const b = nightWorldBlock(band);
@@ -35100,6 +35532,7 @@
         p.shovelGuardT = 0; // a fresh shift: the blade is down, and no hit grace is running
         p.nightHitT = 0;
         ectoCount = 0;
+        nightGateClear(); // a fresh shift: the wards come down with the old street
         // THE HOLY WEAPON resets with the shift (no carry-over consecration, no combo), and
         // so does the LIVE HAUNT (quota tier, surge state, ghost slot cursor) plus anything
         // that was mid-air into the hopper (the meshes go with the world teardown below).
@@ -41001,6 +41434,26 @@
           return;
         } // fist pump, cab hop-in, truck rolls out (OVERTIME: the finish line is not the end —
         // the round ends by servicing every basket or running the clock out)
+        // === THE SPECTRAL WARD (Midnight): one block, one horde, one wall ===========
+        // He works the dead-end street BLOCK BY BLOCK. Down a block, shovel out its entire
+        // load, and its ward falls. A closed curtain is a SOLID WALL — the same recipe as
+        // the cemetery's iron fence above: his center stops a body-width off the light, no
+        // clipping through, and the world shudders once while he says what the wall is
+        // doing. This clamp runs BEFORE the cross-street's boss trigger, so a block he has
+        // not emptied can never wake the beast at the graves. Weekdays: never enters.
+        if (isNightShift() && NIGHT_BLOCK_GATES && state === "play" && !bossFightOn) {
+          p.gateT = Math.max(0, (p.gateT || 0) - dt);
+          const ward = nightGateFrontLedger();
+          if (ward && p.wx < ward.x + NIGHT_GATE_REACH && p.wx > ward.x - 4) {
+            p.wx = ward.x + NIGHT_GATE_STOP; // hard stop, right on the light
+            if (p.gateT <= 0) {
+              p.gateT = 2.2; // one line per ~2s of pressing at the curtain
+              p.shake = Math.max(p.shake || 0, 0.42);
+              nightGateSay(pick(NIGHT_GATE_LINES));
+              spawnEctoBurst(ward.x, p.wy, 0.6); // the light flares where he hits it
+            }
+          }
+        }
         if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X) {
           // THE CROSS-STREET: walking into the cemetery's mouth is the boss's trigger. This
           // level has NO finish line, NO stripe and NO timer — going DOWN the dead-end street
@@ -49064,6 +49517,27 @@
                       ? "  • " + shovelCharge + "/" + CONS_CHARGE_AT
                       : ""),
             );
+          }
+        }
+        // THE MIDNIGHT BLOCK WARDS: the pill under the spook counter names the block
+        // standing in front of him behind a curtain of grave-light, how many of ITS own
+        // animals are left to shovel, and fills as he empties the block. The night's
+        // street opens block by block — all four wards down is the road to the graves.
+        const gatePanel = $("gate-goal");
+        if (gatePanel) {
+          const showGate =
+            isNightShift() &&
+            NIGHT_BLOCK_GATES &&
+            (state === "play" || state === "routeend");
+          gatePanel.classList.toggle("hidden", !showGate);
+          if (showGate) {
+            const gpr = nightGateProgress();
+            const gchip = $("gate-chip");
+            if (gchip) {
+              gchip.classList.toggle("goal-met", gpr.open);
+              gchip.style.setProperty("--prog", (gpr.frac * 100).toFixed(1) + "%");
+            }
+            setTxt($("gate-chip-text"), nightGateHudText());
           }
         }
         const pips = $("pips").children;

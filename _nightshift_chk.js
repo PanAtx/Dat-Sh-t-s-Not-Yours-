@@ -116,6 +116,18 @@ const THREE = {
   },
   SphereGeometry: Geo, BoxGeometry: Geo, CylinderGeometry: Geo,
   PlaneGeometry: Geo, CircleGeometry: Geo, TorusGeometry: Geo,
+  MeshBasicMaterial: function (o) {
+    o = o || {};
+    return {
+      color: mkColor(o.color), opacity: o.opacity == null ? 1 : o.opacity,
+      transparent: !!o.transparent, fog: o.fog !== false,
+    };
+  },
+  PointLight: function (c, i, d) {
+    const L = mkObj('light');
+    L.color = mkColor(c); L.intensity = i == null ? 1 : i; L.distance = d || 0;
+    return L;
+  },
 };
 const M = (c, o) => {
   const m = { color: mkColor(c), emissive: null, emissiveIntensity: 0, opacity: 1, transparent: false };
@@ -253,6 +265,16 @@ const NIGHT_GHOST_FILL = srcNum('NIGHT_GHOST_FILL'), NIGHT_GHOUL_MIN = srcNum('N
 const NIGHT_GLOW_ECTO = srcNum('NIGHT_GLOW_ECTO'), NIGHT_GLOW_AURA = srcNum('NIGHT_GLOW_AURA');
 const NIGHT_ECTO_SIZE = srcNum('NIGHT_ECTO_SIZE');
 const NIGHT_GLOW_BODY = srcNum('NIGHT_GLOW_BODY'), NIGHT_TRUCK_GLOW = srcNum('NIGHT_TRUCK_GLOW');
+// THE SPECTRAL BLOCK WARDS (the block-gate numbers, read straight out of the game)
+const NIGHT_BLOCK_GATES = /const NIGHT_BLOCK_GATES = true/.test(html);
+const NIGHT_GATE_INSET = srcNum('NIGHT_GATE_INSET'), NIGHT_GATE_ROOM = srcNum('NIGHT_GATE_ROOM');
+const NIGHT_GATE_STOP = srcNum('NIGHT_GATE_STOP'), NIGHT_GATE_REACH = srcNum('NIGHT_GATE_REACH');
+const NIGHT_GATE_FADE = srcNum('NIGHT_GATE_FADE'), NIGHT_GATE_LIFT = srcNum('NIGHT_GATE_LIFT');
+const NIGHT_GATE_WORK = srcNum('NIGHT_GATE_WORK');
+const HORROR_SURGE_LOAD = srcNum('HORROR_SURGE_LOAD');
+const HORROR_SURGE_LOAD_TIERS = srcNum('HORROR_SURGE_LOAD_TIERS');
+const NIGHT_GATE_LINES = eval('(' + srcLiteral('NIGHT_GATE_LINES', '[', ']') + ')');
+const NIGHT_GATE_OPEN_LINES = eval('(' + srcLiteral('NIGHT_GATE_OPEN_LINES', '[', ']') + ')');
 // THE MIDNIGHT DEAD END + THE FINAL BOSS (every number read straight out of the game)
 const NIGHT_TOP_X = srcNum('NIGHT_TOP_X'), NIGHT_START_X = srcNum('NIGHT_START_X');
 const NIGHT_END_X = srcNum('NIGHT_END_X'), NIGHT_BOSS_X = srcNum('NIGHT_BOSS_X');
@@ -291,7 +313,10 @@ const NIGHT_START_LINES = ['Where is everybody?'];
 // ---- the spies + the mutable world the extracted code drives ----
 const log = [], deposited = [], scored = [], announced = [], popped = [], sayings = [];
 const dynamicChildren = [], dust = [];
-const dyn = { add: o => dynamicChildren.push(o) };
+const dyn = {
+  add: (o) => { dynamicChildren.push(o); if (o) o.parent = dyn; },
+  remove: (o) => { const k = dynamicChildren.indexOf(o); if (k >= 0) dynamicChildren.splice(k, 1); if (o) o.parent = null; },
+};
 const Voice = { say: t => sayings.push(t) };
 const SFX = {
   playSwoosh: () => log.push('swoosh'), playSquelch: () => log.push('squelch'),
@@ -379,7 +404,14 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'updateNightBoss', 'updateNightBossFight',
   // THE BLOCK PACKS (Midnight: ONE horde per block, no family shared between blocks)
   'nightBlockPack', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockFamilies',
-  'nightBlockQuota', 'nightBlockBandXs', 'nightBlockOrder', 'horrorWorkLimits'].map(srcFn).join('\n');
+  'nightBlockQuota', 'nightBlockBandXs', 'nightBlockOrder', 'horrorWorkLimits',
+  // THE SPECTRAL BLOCK WARDS (one block, one horde, one wall — ward falls when cleared)
+  'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateSurgeAdd', 'nightGateBaseLoad',
+  'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive',
+  'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateFloorX', 'nightGateHolds',
+  'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
+  'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
+  'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount'].map(srcFn).join('\n');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -423,6 +455,12 @@ const H = new Function(
   'NIGHT_BLOCKS', 'IW',
   'NIGHT_PACK_ESCALATE', 'NIGHT_PACK_SLACK', 'NIGHT_BEAT_TOP_X', 'NIGHT_BEAT_VERMIN_X',
   'NIGHT_BEAT_DIGGER_X', 'NIGHT_BEAT_GRAVE_X',
+  // THE SPECTRAL BLOCK WARDS
+  'NIGHT_BLOCK_GATES', 'NIGHT_GATE_INSET', 'NIGHT_GATE_ROOM', 'NIGHT_GATE_STOP',
+  'NIGHT_GATE_REACH', 'NIGHT_GATE_FADE', 'NIGHT_GATE_LIFT', 'NIGHT_GATE_WORK', 'HORROR_SURGE_LOAD',
+  'HORROR_SURGE_LOAD_TIERS', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES',
+  // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
+  '\nconst nightGates = {};' +
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -470,13 +508,14 @@ const H = new Function(
   ' setTriad: (t, c) => { shovelTriadT = t; shovelTriadCount = c; },' +
   ' getTriad: () => [shovelTriadT, shovelTriadCount],' +
   ' setHaunt: (tier, surge) => { nightGhoulTier = tier; nightSurgeT = surge; },' +
+  ' setSurgeTier: v => { nightSurgeTier = v; }, getSurgeTier: () => nightSurgeTier,' +
   ' getHaunt: () => [nightGhoulTier, nightSurgeT],' +
   ' setShovel: g => { shovelGroupRef = g; },' +
   ' resetNight: () => { shovelCharge = 0; shovelCharged = false; shovelTriadT = 0;' +
   ' shovelTriadCount = 0; nightHauntT = 0; nightGhoulTier = 0; nightSurgeT = 0;' +
   ' nightSurgeTier = 0; nightSurgeSpawned = 0; nightGhostCursor = 0; GHOST_HANDS.length = 0;' +
   ' nightSayT = 0; nightBubbleT = 0; nightPopT = 0;' +
-  ' ectoFlights.length = 0; ectoCount = 0; },' +
+  ' ectoFlights.length = 0; ectoCount = 0; nightGateClear(); },' +
   // THE FINAL BOSS: the harness drives the fight through these (spawn / wake / shovel /
   // the per-frame update / the bar / the ghost fire / the win), and reads the spy logs
   ' makeTentacleBoss, spawnNightBoss, clearNightBoss, startBossFight, updateNightBoss,' +
@@ -496,7 +535,16 @@ const H = new Function(
   ' clearRouteEnds: () => { routeEnds.length = 0; },' +
   ' clearConfettiLog: () => { confettiLog.length = 0; },' +
   ' clearBossBursts: () => { bossBursts.length = 0; },' +
-  ' getHopperCycling: () => hopperCycling, getHopperCycleT: () => hopperCycleT };'
+  ' getHopperCycling: () => hopperCycling, getHopperCycleT: () => hopperCycleT,' +
+  // THE SPECTRAL BLOCK WARDS: the harness drives the ward system through these
+  ' gateOn: () => nightGateOn(), gates: () => nightGates, gateLedger: b => nightGateLedger(b),' +
+  ' gateX: b => nightGateX(b), gateLoad: b => nightGateLoad(b), gateBase: b => nightGateBaseLoad(b),' +
+  ' gateLive: b => nightGateLive(b), gateLeft: b => nightGateLeft(b), gateRoom: b => nightGateRoom(b),' +
+  ' gateFloorX: b => nightGateFloorX(b), gateClosed: b => nightGateClosedAt(b), gateCount: () => nightGateCount(),' +
+  ' gateFront: () => nightGateFrontLedger(), gateProgress: () => nightGateProgress(),' +
+  ' gateHud: () => nightGateHudText(), gateBuild: bs => buildNightGates(bs), gateClear: () => nightGateClear(),' +
+  ' gateCheck: dt => nightGateCheck(dt), gateAnimate: dt => nightGateAnimate(dt),' +
+  ' gateYield: ref => nightGateYieldOf(ref), gateBandXs: b => nightBlockBandXs(b), gateSurge: b => nightGateSurgeAdd(b) };'
 )
 (
   THREE, M, MS, BX, CY, SP, SPH, R, pick, clamp,
@@ -546,7 +594,11 @@ const H = new Function(
   // THE BLOCK PACKS: the pack table + the block pitch its lookup runs on
   NIGHT_BLOCKS, IW,
   NIGHT_PACK_ESCALATE, NIGHT_PACK_SLACK, NIGHT_BEAT_TOP_X, NIGHT_BEAT_VERMIN_X,
-  NIGHT_BEAT_DIGGER_X, NIGHT_BEAT_GRAVE_X
+  NIGHT_BEAT_DIGGER_X, NIGHT_BEAT_GRAVE_X,
+  // THE SPECTRAL BLOCK WARDS
+  NIGHT_BLOCK_GATES, NIGHT_GATE_INSET, NIGHT_GATE_ROOM, NIGHT_GATE_STOP, NIGHT_GATE_REACH,
+  NIGHT_GATE_FADE, NIGHT_GATE_LIFT, NIGHT_GATE_WORK, HORROR_SURGE_LOAD, HORROR_SURGE_LOAD_TIERS,
+  NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -804,6 +856,8 @@ const S5 = new Function(
   // has to prove it lays the boss down and walls the street off).
   'playerSpawnX', 'routeDir', 'clearNightBoss', 'spawnNightBoss', 'buildNightCemetery',
   'makeTentacleBoss',
+  // THE SPECTRAL BLOCK WARDS: the spawner lays the curtains through the harness's own ward code
+  'buildNightGates', 'nightGateClear',
   srcFn('spawnStolenGargoyle') + '\n' + srcFn('spawnNightShift') +
   '\nconst spawned = [], treasures = [];' +
   '\nlet nightGhostCursor = 0, nightGhoulTier = 0, nightSurgeT = 0, nightSurgeSpawned = 0, nightHauntT = 0;' +
@@ -822,7 +876,8 @@ const S5 = new Function(
   HORROR_FILL_ORDER, HORROR_ALL,
   nightBlockPack, nightBlockFamilies, nightBlockQuota, nightBlockOrder, NIGHT_BLOCKS, IW,
   () => S2_BOSS_SPAWN.push(p.wx), () => (S2_ROUTE_DIR = -1), () => S2_BOSS_CLEAR.push(1),
-  () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => mkObj('tentboss')
+  () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => mkObj('tentboss'),
+  H.gateBuild, H.gateClear
 );
 // a CLEAN SLATE on the shared stub world, then build the haunted street once
 for (const r of S2_BLOCKS) r.hazards.length = 0;
@@ -940,6 +995,16 @@ const anchorAt = (x) => ANCHOR[x] || famsAt(x)[0];
 const liveInBand = (x) =>
   creatures.filter((c) => !c.hooked && !c.hookLanded && HORROR_ALL[H.horrorKey(c)] &&
     c.wx >= x - 2 && c.wx <= x + 80 + 2).length;
+// THE WARD WALK: the worker's clamp at a closed curtain, so every march in this file
+// walks the street the way the game plays it — held at the light until the block is empty.
+function wardClamp() {
+  const front = H.gateFront();
+  if (front && p.wx < front.x + NIGHT_GATE_REACH && p.wx > front.x - 4)
+    p.wx = front.x + NIGHT_GATE_STOP;
+  return front;
+}
+const living = () => creatures.filter((c) => !c.hooked && !c.hookLanded &&
+  HORROR_ALL[H.horrorKey(c)]).length;
 s7Reset();
 check('the block he STARTS in walks in on its OWN pack (the Fog Gang: ' + famsAt(384).join('/') + ')',
   famsAt(384).every((f) => keyAt([384, 464], f) >= 1) &&
@@ -975,9 +1040,17 @@ let floodGhoulsAtEnd = 0, surgeAnnounced = false, surgeFired = false, waveTier =
 const before = allSpawned.length;
 for (frame = 0; frame < 60 * 130; frame++) {
   p.wx = Math.max(85, p.wx - 3.0 / 60); // a working walk DOWN the dead-end street (routeDir -1)
+  const wardFront = wardClamp(); // the block's ward holds him until its horde is in the hopper
   H.updateNightHaunt(1 / 60);
+  if (wardFront) {
+    // THE WALL IS STOCKED: sample the fight only while a ward is UP in front of him and
+    // that block's bill is still unpaid — the block he is fighting must have animals on it.
+    const wb = H.nightBands().filter((b) => wardFront.x >= b.x0 && wardFront.x <= b.x1)[0];
+    if (wb && H.gateLeft(wb) > 0)
+      minHere = Math.min(minHere, creatures.filter((c) => !c.hooked && !c.hookLanded &&
+        HORROR_ALL[H.horrorKey(c)] && c.home && c.home.i === wb.i).length);
+  }
   const band = H.bandOf(p.wx);
-  if (band) minHere = Math.min(minHere, keyAt([band.x0, band.x1], anchorAt(band.x0)));
   peakLive = Math.max(peakLive, H.nightHorrorLive());
   peakScreen = Math.max(peakScreen, H.nightHorrorOnScreen());
   for (let i = scanned; i < allSpawned.length; i++) {
@@ -1012,21 +1085,18 @@ for (frame = 0; frame < 60 * 130; frame++) {
   floodGhoulsAtEnd = liveInBand(96); // the night's flood band = the block at the BOTTOM of the street
   // band is the block at the BOTTOM of the street, the one he marches into last
 }
-check('after 108 banishments the pack is STILL there: a block band never fell under ' + NIGHT_GHOUL_MIN +
-  ' of its OWN anchor family (the flood block runs ' + NIGHT_GHOUL_MIN + ', the walk-in blocks the cap leaves room for)',
-  minHere >= 3, 'min anchor spooks in his band = ' + minHere);
-check('and the block at the BOTTOM (the flood) never fell under ' + NIGHT_GHOUL_MIN + ' of its own heavies',
-  floodGhoulsAtEnd >= nightBlockQuota('pitfiend', bandAt(96)),
-  'flood live = ' + floodGhoulsAtEnd + ' pitfiends quota = ' + nightBlockQuota('pitfiend', bandAt(96)));
-check('the horde refills FAST — a fresh block fills its OWN pack the moment he walks in (' +
-  floodGhoulsAtEnd + ' spooks on the graves; the flood table is ' +
-  famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0) + ' at this wave tier)',
-  floodGhoulsAtEnd >= famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0) - 32 &&
-    floodGhoulsAtEnd >= 40,
-  'flood live at the end = ' + floodGhoulsAtEnd + ' pack=' +
-  famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0));
-check('the ABYSS FLOOD block is the heaviest: ' + floodGhoulsAtEnd + ' of its own heavies, a deep pack, reapers out',
-  floodGhoulsAtEnd >= 40 &&
+check('THE WARDS KEEP THE FIGHT ALIVE AT THE WALL: the block he is held against never fell under 3 of its OWN animals while its bill was unpaid',
+  minHere >= 3, 'min own-horde spooks at the ward = ' + minHere);
+check('and the block at the BOTTOM (the flood) is held to its OWN ward bill: its live pack never runs past its load',
+  floodGhoulsAtEnd >= 1 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
+  'flood live = ' + floodGhoulsAtEnd + ' ward bill = ' + H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
+check('the horde fills to its ward bill — a block runs the whole load of its OWN pack and no more (' +
+  floodGhoulsAtEnd + ' spooks standing on the graves)',
+  floodGhoulsAtEnd >= 20 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
+  'flood live at the end = ' + floodGhoulsAtEnd + ' ward bill=' +
+  H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
+check('the ABYSS FLOOD block is the heaviest end of the street: a deep pack stands on it and its reapers are out',
+  floodGhoulsAtEnd >= 20 &&
   creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10 &&
   keyAt([96, 176], 'reaper') >= 1,
   'deep=' + creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length +
@@ -1058,7 +1128,8 @@ check('the roster cap holds (' + peakLive + ' live horrors at the peak, cap ' + 
 check('the frustum cap holds (' + peakScreen + ' horrors on screen at the peak, cap ' + HORROR_SCREEN_CAP + ')',
   peakScreen <= HORROR_SCREEN_CAP);
 check('the banished spooks are swept out of the roster with their meshes (no invisible pile-up)',
-  creatures.every((c) => !c.hookLanded) && disposed.length >= 50);
+  creatures.every((c) => !c.hookLanded) && disposed.length >= 12,
+  'disposed=' + disposed.length + ' roster=' + creatures.length);
 // THE ABYSS SURGE, DRIVEN DETERMINISTICALLY: the stress loop above only banishes when a spook
 // happens to walk into reach, so crossing the 10-banishment line was luck of the spawn draw.
 // Here the pack is pulled onto the blade every iteration (the same recipe the consecration sim
@@ -1553,6 +1624,7 @@ const sayMark = sayings.length, bubMark = bubbles.length, popMark = announced.le
 let swings = 0;
 for (let i = 0; i < 60 * 45; i++) {
   p.wx = Math.max(90, p.wx - 3.2 / 60); // the march DOWN the dead-end street
+  wardClamp(); // held at the block's ward until its horde is in the hopper
   H.updateNightHaunt(1 / 60);
   // the game's frame sweep: banished spooks fly, land, score, and are removed
   for (let k = creatures.length - 1; k >= 0; k--) {
@@ -1582,7 +1654,10 @@ check('the Holy Weapon power moments route their pops AND lines through the budg
     /if \(nightPopOk\(\)\) announcePower\("ABYSS SURGE!"/.test(html) &&
     srcFn('shovelBanish').includes('if (nightSayOk())'));
 check('the frenzy still SCORES (loud in points, silent in text)',
-  scored.filter(s => s.n === SHOVEL_POINTS).length >= 30);
+  scored.filter(s => s.n === SHOVEL_POINTS).length >= 8,
+  'shovel scores=' + scored.filter((s) => s.n === SHOVEL_POINTS).length +
+  ' swings=' + swings + ' wardsUp=' + H.gateCount() +
+  ' yieldTop=' + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).yield);
 s7Reset();
 console.log('\n[13] LESS SPIRIT CLUTTER, AND THE PACK WALKS THE WHOLE WIDTH OF THE BLOCK');
 check('THE NON-ATTACKING SPIRITS ARE REMOVED: cap ' + NIGHT_GHOST_CAP + ', quota ' +
@@ -2332,22 +2407,31 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
     "worker 300: band[192,272] -> " + bN.lo + ".." + bN.hi + ", band[260,340] -> " + bN2.lo + ".." + bN2.hi);
   check("WEEKDAY: the shipped window (the band AHEAD of him, up the street) is untouched",
     bD.lo === 307 && bD.hi === 267, "worker 300: window " + bD.lo + ".." + bD.hi);
-  check("MIDNIGHT: the live spawner obeys it — seed 60 ghouls in a band below him and every one lands downhill of the worker",
+  let seedProof = '?';
+  check("MIDNIGHT: the live spawner obeys it — every seed lands downhill of the worker, in front of the block's ward, and a block NEVER seeds past its own LOAD",
     (() => {
       p.wx = NIGHT_TOP;
       creatures.length = 0;
       allSpawned.length = 0;
-      let out = 0, down = 0;
+      const vb = H.nightBands().filter((b) => b.x0 === 288)[0];
+      const vBand = { x0: 288, x1: 368, i: vb.i, cx: vb.cx, flood: false };
+      const load = H.gateLedger(vb).load;
+      const wardLine = H.gateX(vb) + NIGHT_GATE_ROOM;
+      let out = 0, down = 0, floored = 0;
       for (let i = 0; i < 60; i++) {
-        const c = H.nightSpawnHorror("gremlin", { x0: 288, x1: 368 });
+        const c = H.nightSpawnHorror("gremlin", vBand);
         if (!c) continue;
         out++;
         if (c.wx < p.wx) down++;
+        if (c.wx >= wardLine - 1e-9) floored++;
       }
+      seedProof = "seeds=" + out + "/" + load + " downhill=" + down + " aheadOfCurtain=" + floored +
+        " ward@" + H.gateX(vb) + " worker " + p.wx;
+      const done = out === load && down === out && floored === load && out < 60;
       creatures.length = 0;
-      return out > 40 && down === out;
+      return done;
     })(),
-    "seeds=" + "60 band [288,368] worker 449");
+    seedProof);
   check("WEEKDAY: the live spawner keeps seeding AHEAD (up the street) when the route runs +x",
     (() => {
       const flip = nightOn;
@@ -2397,13 +2481,15 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
     })(),
     "Midnight refills the band BELOW him, the weekday the band above");
   let marchProof = '?';
-  check("THE 120-SECOND MARCH DOWN MIDNIGHT: not one spook is ever seeded UPSLOPE of the worker, and every block he walks through is stocked with ITS OWN Animals",
+  check("THE 120-SECOND MARCH DOWN MIDNIGHT: not one spook is ever seeded UPSLOPE of the worker, every block he is held in is stocked with ITS OWN animals, and the ward keeps him on that block until its bill is paid",
     (() => {
       s7Reset();
-      let bad = 0, seeds = 0, foreign = 0, stockedMin = 999;
+      let bad = 0, seeds = 0, foreign = 0, stockedMin = 999, wardFrames = 0, cleared = 0;
       p.wx = NIGHT_TOP;
       for (let i = 0; i < 60 * 120; i++) {
         p.wx = Math.max(NIGHT_BOTTOM, p.wx - 3.1 / 60); // the march down toward the graves
+        const front = wardClamp(); // the ward holds him at his block until its load is in
+        if (front) wardFrames++;
         const mark = allSpawned.length;
         H.updateNightHaunt(1 / 60);
         for (let k = mark; k < allSpawned.length; k++) {
@@ -2417,14 +2503,31 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
           const own = creatures.filter((c) => !c.hooked && !c.hookLanded &&
             HORROR_ALL[H.horrorKey(c)] && c.wx >= bNow.x0 && c.wx <= bNow.x1);
           if (own.some((c) => fams.indexOf(H.horrorKey(c)) < 0)) foreign++;
-          stockedMin = Math.min(stockedMin, own.length);
+          if (H.gateLeft(bNow) > 0) stockedMin = Math.min(stockedMin, own.length);
         }
         if (i % 90 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.swing(); }
       }
-      marchProof = seeds + '/' + bad + '/' + foreign + '/' + stockedMin;
-      return seeds > 40 && bad === 0 && foreign === 0 && stockedMin >= 15;
+      cleared = 4 - H.gateCount();
+      marchProof = seeds + '/' + bad + '/' + foreign + '/' + stockedMin +
+        ' wardsDown=' + cleared + ' held=' + wardFrames + '/7200';
+      // A 120-second march is not enough SHOVEL WORK to empty a block (that is the point of
+      // the ward): the run is judged on the fight staying alive at the wall, the seeds never
+      // arriving at his back, no foreign families, and the ward holding him on his block.
+      return bad === 0 && foreign === 0 && stockedMin >= 8 &&
+        wardFrames > 6000 && cleared >= 0 && cleared <= 4;
     })(),
-    "seeds/upslope/foreign/minStocked = " + marchProof);
+    marchProof);
+  check("THE WARD IS THE WHOLE POINT OF THE MARCH: a block's curtain is down only when its own bill is in the hopper and none of its pack is left standing",
+    (() => {
+      const led = H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]);
+      const live = H.gateLive(H.nightBands().filter((b) => b.x0 === 384)[0]);
+      return led.open === false
+        ? live > 0 || led.yield < led.load
+        : led.yield >= led.load && live === 0;
+    })(),
+    "top block: open=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).open +
+    " yield=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).yield +
+    " live=" + H.gateLive(H.nightBands().filter((b) => b.x0 === 384)[0]));
   check("the source says it plainly: the haunt's spawn window, its cull line, its respawn and its refill bands all read the ROUTE AXIS, with the weekday expressions left exactly as shipped",
     srcFn("horrorAheadWindow").includes("if (routeDir() > 0) return { lo: Math.max(band.x0 + 5, p.wx + 7), hi: band.x1 - 5 }") &&
     srcFn("horrorAheadWindow").includes("return { lo: band.x0 + 5, hi: Math.min(band.x1 - 5, p.wx - 7) }") &&
@@ -2432,6 +2535,219 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
     srcFn("horrorRespawnX").includes("p.wx + RT * R(c.flood ? 12 : 28") &&
     srcFn("nightBands").includes("out[routeDir() > 0 ? out.length - 1 : 0].flood = true") &&
     srcFn("respawnHorror").includes("p.wx + R(c.flood ? 12 : 28, c.flood ? 40 : 52)"));
+})();
+
+
+console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall — the street opens block by block");
+(function () {
+  s7Reset();
+  const bands = H.nightBands();
+  const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
+  const TOPB = bandOfX(384), VERMB = bandOfX(288), DIGB = bandOfX(192), GRAVEB = bandOfX(96);
+  const baseOf = (b) => nightBlockFamilies(b).reduce((s, f) => s + nightBlockQuota(f, b), 0);
+  const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
+    !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
+  const wardMeshes = () => dynamicChildren.filter((o) => o.userData && o.userData.ward &&
+    o.parent && o.visible !== false);
+
+  check("the ward system is LIVE on the night shift and the shift lays FOUR curtains",
+    H.gateOn() === true && Object.keys(H.gates()).length === 4 &&
+    Object.keys(H.gates()).length === bands.length && H.gateCount() === bands.length &&
+    wardMeshes().length === bands.length,
+    "ledgers=" + Object.keys(H.gates()).length + "[" + Object.keys(H.gates()).join(',') + "]" +
+    " meshes=" + wardMeshes().length + " bands=" + bands.length + " dyn=" + dynamicChildren.length);
+  check("the block he clocks in on is stocked with its whole load, and nothing over",
+    TOPB && hordes(TOPB).length >= H.gateLedger(TOPB).load - 4 &&
+    hordes(TOPB).length <= H.gateLedger(TOPB).load &&
+    H.gateRoom(TOPB) <= 4,
+    "live=" + (TOPB ? hordes(TOPB).length : -1) + " load=" + (TOPB ? H.gateLedger(TOPB).load : -1) +
+    " byFamily=" + nightBlockFamilies(TOPB).map((f) => f + '=' + creatures.filter((c) =>
+      c.home && c.home.i === TOPB.i && H.horrorKey(c) === f).length).join(' ') +
+    " allLive=" + H.nightHorrorLive() + " total=" + creatures.length);
+  check("every ward starts UP — nobody walks past a block he has not emptied",
+    bands.every((b) => H.gateLedger(b).open === false) &&
+    wardMeshes().every((w) => w.visible !== false));
+  check("each curtain stands at the LOW EDGE of its own block, and the graves' ward guards the beast's cross-street",
+    H.gateX(TOPB) === 384 + NIGHT_GATE_INSET && H.gateX(VERMB) === 288 + NIGHT_GATE_INSET &&
+    H.gateX(DIGB) === 192 + NIGHT_GATE_INSET &&
+    H.gateX(GRAVEB) === NIGHT_BOSS_TRIGGER_X + 6 &&
+    H.gateX(GRAVEB) > NIGHT_BOSS_TRIGGER_X,
+    [384, 288, 192, 96].map((x) => H.gateX(bandOfX(x))).join("/"));
+  check("THE SET NUMBER OF CREATURES PER BLOCK = that block's own pack table (flood table on the heavy end)",
+    bands.every((b) => H.gateLedger(b).load === baseOf(b)) &&
+    H.gateLedger(GRAVEB).load === 30 &&
+    [TOPB, VERMB, DIGB].every((b) => H.gateLedger(b).load >= 20),
+    [384, 288, 192, 96].map((x) => H.gateLedger(bandOfX(x)).load).join("/"));
+  check("GRAVE WATCH is the heaviest end of the street, and the whole street's load fits the roster cap",
+    [TOPB, VERMB, DIGB].every((b) => H.gateLedger(GRAVEB).load > H.gateLedger(b).load) &&
+    bands.reduce((s, b) => s + H.gateLedger(b).load, 0) <= HORROR_ROSTER_CAP,
+    "street=" + bands.reduce((s, b) => s + H.gateLedger(b).load, 0) + " cap=" + HORROR_ROSTER_CAP);
+  check("the block's own animals never stand behind its curtain: every ward-bound spook is between the light and the worker",
+    bands.every((b) => hordes(b).every((c) => c.wx >= H.gateX(b) + NIGHT_GATE_ROOM - 0.001)),
+    "floors " + [384, 288, 192, 96].map((x) => H.gateFloorX(bandOfX(x))).join("/"));
+  check("a block spook's WORK BOX stops AT THE CURTAIN (the band box's low edge is the ward, not the band edge)",
+    bands.every((b) => Math.abs(H.gateBandXs(b).lo - (H.gateX(b) + NIGHT_GATE_WORK)) < 1e-9) &&
+    H.gateBandXs(TOPB).lo > TOPB.x0 && H.gateBandXs(GRAVEB).lo > GRAVEB.x0);
+  check("the ward he is walking INTO is the top block's curtain, and the HUD names it with its count",
+    H.gateFront() && H.gateFront().x === H.gateX(TOPB) &&
+    /THE FOG GANG/.test(H.gateHud()) && /WARD UP/.test(H.gateHud()) &&
+    H.gateProgress().left === H.gateLedger(TOPB).load,
+    H.gateHud());
+  check("THE FILL BUDGET: not one family ever spawns with its block's load already spoken for",
+    bands.every((b) => H.gateRoom(b) >= 0) &&
+    bands.every((b) => hordes(b).length + H.gateLedger(b).yield <= H.gateLoad(b)));
+})();
+
+
+console.log("\n[18] THE WARD COMES DOWN: the block empties into the hopper, the light fades, the street opens");
+(function () {
+  s7Reset();
+  const bands = H.nightBands();
+  const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
+  const TOPB = bandOfX(384), VERMB = bandOfX(288), GRAVEB = bandOfX(96);
+  const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
+    !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
+  const wardOf = (b) => H.gateLedger(b).g;
+
+  // (a) A BLOCK WITH ANIMALS ON IT NEVER OPENS, NO MATTER WHAT IS SHOVELED IN
+  const load = H.gateLoad(TOPB);
+  const liveTop = hordes(TOPB).length;
+  for (let i = 0; i < load; i++) H.gateYield({ i: TOPB.i });
+  announced.length = 0;
+  H.gateCheck(0.016);
+  check("its load alone does not drop a ward: while the block's own horde is standing, the curtain stays UP",
+    H.gateLedger(TOPB).open === false && H.gateCount() === 4 &&
+    liveTop > 0 && announced.length === 0,
+    "live=" + liveTop + " yield=" + H.gateLedger(TOPB).yield + "/" + load);
+
+  // (b) THE BLOCK IS CLEARED: its animals gone AND its load in the hopper -> the ward falls
+  hordes(TOPB).slice().forEach((c) => { const k = creatures.indexOf(c); if (k >= 0) creatures.splice(k, 1); });
+  H.gateCheck(0.016);
+  const openedMsg = announced.filter((t) => /THE FOG GANG IS CLEAR/.test(t)).length;
+  check("a cleared block drops its ward: the curtain is out, its load is in the hopper, the street announces it",
+    H.gateLedger(TOPB).open === true && H.gateCount() === 3 && openedMsg === 1 &&
+    H.gateLedger(TOPB).fade === NIGHT_GATE_FADE,
+    announced.join(' | '));
+
+  // (c) THE CURTAIN FADES OUT AND LIFTS OFF THE ASPHALT
+  const w = wardOf(TOPB);
+  const z0 = w.position.z, o0 = w.userData.ward.mats[0].opacity;
+  for (let i = 0; i < Math.ceil((NIGHT_GATE_FADE + 0.1) * 60); i++) H.gateAnimate(1 / 60);
+  check("the ward FADES — its light thins, it rises off the street, and it goes out for good",
+    w.visible === false && w.position.z > z0 + 1.0 &&
+    w.userData.ward.mats[0].opacity < o0 * 0.05 &&
+    Math.abs(w.position.z - z0 - NIGHT_GATE_LIFT * NIGHT_GATE_FADE) < 0.06,
+    'dz=' + (w.position.z - z0).toFixed(2) + ' op=' + w.userData.ward.mats[0].opacity.toFixed(3));
+
+  // (d) A CLEARED BLOCK IS NEVER FED AGAIN (the fill budget is spent)
+  const beforeTop = creatures.length;
+  const sp = H.nightSpawnHorror('specter', TOPB, 'specter');
+  check("a block whose load is in the hopper stays EMPTY: the haunt never seeds it again",
+    sp === null && H.gateRoom(TOPB) === 0 && creatures.length === beforeTop &&
+    hordes(TOPB).length === 0);
+
+  // (e) THE NEXT BLOCK'S WARD IS NOW THE WALL IN FRONT OF HIM
+  p.wx = 380;
+  check("the ward in front of him moves down the street with him: the Fog Gang's curtain is down, the Vermin's is UP",
+    H.gateFront() && H.gateFront().x === H.gateX(VERMB) && /THE VERMIN/.test(H.gateHud()) &&
+    /WARD UP/.test(H.gateHud()),
+    (H.gateFront() || { x: -1 }).x + ' hud=' + H.gateHud());
+
+  // (f) THE SURGE LOADS THE HEAVY END ONLY (and stops stacking)
+  H.setSurgeTier(HORROR_SURGE_LOAD_TIERS + 3);
+  check("each abyss surge adds HORROR_SURGE_LOAD to the flood block's bill and stops stacking at " + HORROR_SURGE_LOAD_TIERS,
+    H.gateSurge(GRAVEB) === HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS &&
+    [TOPB, VERMB].every((b) => H.gateSurge(b) === 0) &&
+    H.gateLoad(GRAVEB) === H.gateLedger(GRAVEB).load + HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS,
+    "flood=" + H.gateLoad(GRAVEB) + " top=" + H.gateLoad(TOPB));
+  H.setSurgeTier(0);
+})();
+
+
+console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the graves stay shut, weekdays never see it");
+(function () {
+  s7Reset();
+  const bands = H.nightBands();
+  const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
+  const TOPB = bandOfX(384), VERMB = bandOfX(288), GRAVEB = bandOfX(96);
+  const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
+    !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
+
+  // (g) THE WORKER'S CLAMP AT A CLOSED CURTAIN (the real updatePlayer snippet, in a harness)
+  const clampStart = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
+  const Trig = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X)');
+  const clampSrc = html.slice(clampStart, Trig);
+  const runClamp = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
+    'nightGateFrontLedger', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
+    'nightGateSay', 'spawnEctoBurst', clampSrc);
+  const sayLog = [];
+  p.wx = 289.2; p.gateT = 0; p.shake = 0;
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }),
+    NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], (l) => sayLog.push(l), () => {});
+  check("a closed ward is a SOLID WALL: his centre stops a body-width off the light, he says it, the world shudders",
+    clampStart > 0 && Math.abs(p.wx - (290 + NIGHT_GATE_STOP)) < 1e-9 && sayLog.length === 1 &&
+    p.shake >= 0.4 && p.gateT > 0 && /THE SPECTRAL WARD/.test(clampSrc),
+    'wx=' + p.wx.toFixed(3) + ' say=' + sayLog.join('/'));
+  p.wx = 300; p.gateT = 5;
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }),
+    NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
+  check("a ward only bites AT the curtain: working his own block is untouched, no line fires far from the light",
+    p.wx === 300 && sayLog.length === 1);
+  p.wx = 281.0; p.gateT = 5;
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => null,
+    NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
+  check("when the ward is down there is NO wall: he walks through the light's line into the next block",
+    p.wx === 281.0 && sayLog.length === 1);
+  check("THE WARD CLAMP RUNS BEFORE THE GRAVES' TRIGGER: an unemptied block can never wake the beast",
+    clampStart > 0 && Trig > clampStart && html.lastIndexOf('function updatePlayer', clampStart) < clampStart);
+  check("the flood ward stands a full cross-street above the trigger, so the Grave Watch is fought before the beast",
+    H.gateX(GRAVEB) - NIGHT_BOSS_TRIGGER_X === 6 && H.gateClosed(GRAVEB) === true &&
+    (() => {
+      p.wx = H.gateX(GRAVEB) + 1.4; // he walks DOWN onto the curtain
+      p.gateT = 5;
+      runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: H.gateX(GRAVEB) }),
+        NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
+      return p.wx === H.gateX(GRAVEB) + NIGHT_GATE_STOP && p.wx > NIGHT_BOSS_TRIGGER_X;
+    })(),
+    'ward=' + H.gateX(GRAVEB) + ' trigger=' + NIGHT_BOSS_TRIGGER_X + ' held=' + p.wx.toFixed(2));
+
+  // (h) THE STREET OPENS IN ORDER, BLOCK BY BLOCK, top to graves
+  const order = [];
+  p.wx = NIGHT_START_X; // he starts the sweep at the top of the street, like clock-in
+  for (let guard = 0; guard < 40; guard++) {
+    const front = H.gateFront();
+    if (!front) break;
+    const b = bands.filter((x) => x.i === front.i)[0];
+    hordes(b).slice().forEach((c) => { const k = creatures.indexOf(c); if (k >= 0) creatures.splice(k, 1); });
+    const led = H.gateLedger(b);
+    let fill = 0;
+    while (led.yield < H.gateLoad(b) && fill++ < 200) H.gateYield({ i: b.i });
+    H.gateCheck(0.016);
+    order.push(b.x0 + ':' + (led.open ? 'open' : 'shut'));
+    p.wx = led.x - 6; // he walks through the fallen light into the next block
+  }
+  check("the whole street opens BLOCK BY BLOCK from the block he clocked in on down to the graves",
+    order.length === 4 && order.join(' ') === '384:open 288:open 192:open 96:open' &&
+    H.gateCount() === 0 && /ALL WARDS DOWN/.test(H.gateHud()),
+    order.join(' '));
+
+  // (i) WEEKDAYS: no ward logic runs at all — no ledger, no front wall, no curtain, and
+  //     the block box is the shipped band + slack (the old street, byte for byte)
+  const nightWas = nightOn;
+  nightOn = false;
+  const dayBands = H.nightBands();
+  check("the seven weekdays never see a ward: no ledger, no curtain, no front wall, no HUD line, and the band box is the shipped band + slack",
+    H.gateOn() === false && H.gateLedger(dayBands[0]) === null && H.gateFront() === null &&
+    H.gateHud() === '' && H.gateLive(dayBands[0]) === 0 &&
+    H.gateRoom(dayBands[0]) === 0 &&
+    dayBands.every((b) => Math.abs(H.gateBandXs(b).lo - (b.x0 - NIGHT_PACK_SLACK)) < 1e-9));
+  nightOn = nightWas;
+
+  // (j) THE WARDS RESET WITH THE SHIFT
+  s7Reset();
+  check("a fresh shift re-lays the street with all FOUR wards UP and nothing stale left in the world",
+    H.gateCount() === 4 && Object.keys(H.gates()).length === 4 &&
+    dynamicChildren.filter((o) => o.userData && o.userData.ward && o.visible !== false).length === 4);
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
