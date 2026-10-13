@@ -580,19 +580,20 @@
           0 2px 0 rgba(0, 0, 0, 0.85);
       }
       /* ===== THE MIDNIGHT FINAL BOSS BAR ==================================
-         THE level's win condition. It sits top-CENTER (the dead-end street's fight is
-         the whole screen's business), it slams in with a pop when the beast surfaces,
-         and the fill drains right-to-left as the SHOVEL lands on it — 10 SHOVEL SWINGS
-         (a consecrated swing lands TWO). Blood-red with a violet ectoplasm glow, and
-         the last quarter pulses the same warning rhythm the worker's own health bar
-         uses, so you always know the fight is on the line. */
+         THE level's win condition. A SLEEPING beast has no bar: this lights the instant the
+         tentacle beast wakes in the grave yard — the FINAL block — and it sits in THE BLOCK
+         CHIP'S SLOT (the ward he is walking into is named on the left column; the beat he is
+         standing in IS the beast's last block, so the bar takes the name's place, exactly
+         where "THE FOG GANG · 14 LEFT" would be). Top-center belongs to the radio player,
+         which is why it never sat here. It slams in with a pop when the beast rises, the fill
+         drains right-to-left as the SHOVEL lands on it — and the last quarter pulses the same
+         warning rhythm the worker's own health bar uses. */
       #boss-goal {
         position: fixed;
-        top: calc(14px + env(safe-area-inset-top, 0px));
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 13;
-        width: min(58vw, 420px);
+        top: calc(186px + env(safe-area-inset-top, 0px));
+        left: calc(20px + env(safe-area-inset-left, 0px));
+        z-index: 12;
+        width: min(52vw, 380px);
         display: flex;
         flex-direction: column;
         gap: 4px;
@@ -680,7 +681,8 @@
       @media (max-width: 600px), (max-height: 480px) {
         #boss-goal {
           width: min(78vw, 300px);
-          top: calc(10px + env(safe-area-inset-top, 0px));
+          top: calc(146px + env(safe-area-inset-top, 0px));
+          left: calc(12px + env(safe-area-inset-left, 0px));
         }
       }
       /* ===== MOBILE (phone, any orientation) — shrink + soften the overtime HUD so it stops
@@ -4300,7 +4302,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.495</div>
+          <div id="app-version" class="menu-version">v1.0.496</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4558,7 +4560,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.495';
+      const APP_VERSION = '1.0.496';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9000,6 +9002,17 @@
           gap = gap || 1.4;
           const now = performance.now();
           if (this.last[text] && now - this.last[text] < gap * 1000) return;
+          // THE HAUNTED STREET STAYS QUIET: on MIDNIGHT NO NPC speech bubble goes on screen —
+          // only the SANITATION WORKER'S lines (the beast's own telegraphs are its fight rules
+          // and read as the worker's call). The NPC keeps its LINES on the seven weekdays.
+          if (
+            bx !== undefined &&
+            typeof isNightShift === "function" &&
+            isNightShift() &&
+            typeof nightSpeechOk === "function" &&
+            !nightSpeechOk(speaker)
+          )
+            return;
           this.last[text] = now;
           if (bx !== undefined)
             spawnBubble(text, bx, by, speaker, style); // comic bubble over the speaker (style "burst" = POW! burst)
@@ -27882,10 +27895,33 @@
       // POWER-UPS (and the two Holy Weapon moments that ARE a power-up: CONSECRATED and the
       // SHOVEL TRIAD). Spoken lines are budgeted so a swing-frenzy never buries the view in
       // comic bubbles.
+      // THE SPEECH GATE (Midnight): only the WORKER gets a bubble on this level. The beast is
+      // the player's named exception — its telegraph lines ("THE MOUTH IS OPEN — GO IN") are the
+      // rules of the fight and he has to see them. Every NPC mouth stays shut on the night.
+      const NIGHT_WORKER_ONLY_SPEECH = true;
+      function nightSpeechOk(speaker) {
+        if (typeof isNightShift !== "function" || !isNightShift()) return true;
+        if (!NIGHT_WORKER_ONLY_SPEECH) return true;
+        return speaker === "worker" || speaker === "boss";
+      }
       const NIGHT_SAY_GAP = 2.0; // at most one worker/spook spoken line this often on the night
       const NIGHT_BUBBLE_GAP = 0.4; // ...and at most one score bubble this often
       const NIGHT_POP_GAP = 6; // ...and at most ONE centre-screen pop this often (the frenzy
       // must never stitch a wall of pops across the view — the points and the meter say it)
+      // THE HAUNTED STREET STAYS QUIET (MIDNIGHT): the night shift is a shovel fight, not a
+      // chorus. The spooks, the tentacles, the grave furniture and the thieves keep their LINES
+      // (they are part of the characters and the weekday streets run them), but on THIS level
+      // only the SANITATION WORKER'S speech bubble goes on screen. Everything the horde does
+      // to him is said by the swing, the splat, the hopper jingle and the bar over its head.
+      // THE SPOOKS COUNTER IS RETIRED FROM THE STREET (MIDNIGHT): the pill counted hopper loads,
+      // which a 150-spirit street never finishes — the block chip names the block and how many
+      // of ITS creatures are left to shovel, and THAT is the night's HUD. The markup, the
+      // ecoplasm skin and the shift report's "SPOOKS SHOBELED" tally all stay.
+      const NIGHT_ECTO_PILL = false;
+      // THE BEAST'S BAR IS A FINAL-BLOCK THING: a sleeping beast has nothing to show. The bar
+      // lights the INSTANT it wakes in the grave yard, in the block chip's slot (top-center is
+      // the radio's), and the block's name steps aside for it while the fight is on.
+      const NIGHT_BOSS_BAR_IN_CHIP_SLOT = true;
       const PARRY_LINES = [
         "ON THE SHOVEL!",
         "GET THE BLADE!",
@@ -29333,21 +29369,11 @@
       function nightGateHudText() {
         if (!nightGateOn()) return "";
         const pr = nightGateProgress();
-        if (pr.open) return "ALL WARDS DOWN — THE GRAVES ARE OPEN";
-        const hardBand = nightGateBandOf(pr.led ? pr.led.i : null);
-        const hard = hardBand ? nightGhoulFloorHits(hardBand) : 0;
-        return (
-          pr.name +
-          " · " +
-          pr.left +
-          " LEFT (" +
-          pr.done +
-          "/" +
-          pr.load +
-          ") · " +
-          hard +
-          " SWINGS EACH · WARD UP"
-        );
+        // THE CHIP SAYS TWO THINGS AND NOTHING ELSE: the block, and how many of its creatures
+        // are left to shovel. (The ward's price, its done/total tally and the WARD UP flag are
+        // all cut — and the beast's bar uses this exact slot on the last block.)
+        if (pr.open) return "THE GRAVES · 0 LEFT";
+        return pr.name + " · " + pr.left + " LEFT";
       }
 
       function makeSpectralWard() {
@@ -49969,14 +49995,16 @@
         }
         setTxt($("score"), pad(score));
         setTxt($("bonus"), pad(bonusTally));
-        // THE NIGHT SHIFT (level 8): a haunted street has no baskets to service, so the
-        // goal pill under the STREET CASH line counts the SPOOKS in the hopper instead.
-        // It appears on this level only, only while a shift is live, fills left->right as
-        // he works, and goes ecoplasm-green when the night's par is done.
+        // THE NIGHT SHIFT (level 8): THE SPOOKS COUNTER IS OFF THE STREET (NIGHT_ECTO_PILL =
+        // false). The pill under the STREET CASH line used to read "SPOOKS 6 / 14" all night;
+        // the block chip below it is the night's HUD — the block he is working against and how
+        // many of ITS creatures are left. The markup, the ecoplasm skin and the shift report's
+        // hopper tally all stay exactly as they were.
         const ectoPanel = $("ecto-goal");
         if (ectoPanel) {
           const showEcto =
-            isNightShift() && (state === "play" || state === "routeend");
+            NIGHT_ECTO_PILL && isNightShift() && (state === "play" || state === "routeend");
+          ectoPanel.classList.toggle("hidden", !showEcto);
           ectoPanel.classList.toggle("hidden", !showEcto);
           if (showEcto) {
             const chip = $("ecto-chip");
@@ -50012,6 +50040,9 @@
           const showGate =
             isNightShift() &&
             NIGHT_BLOCK_GATES &&
+            // THE BEAST'S BAR TAKES THIS SLOT on the last block: while the beast is up, its
+            // bar is what stands in the chip's place, so the block's name steps aside.
+            !(NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss.awake && nightBoss.hp > 0) &&
             (state === "play" || state === "routeend");
           gatePanel.classList.toggle("hidden", !showGate);
           if (showGate) {
@@ -50027,16 +50058,18 @@
         const pips = $("pips").children;
         for (let i = 0; i < 3; i++)
           pips[i].classList.toggle("on", i < complaints);
-        // THE MIDNIGHT FINAL BOSS BAR (the dead-end street's cemetery fight). It shows
-        // ONLY while a MIDNIGHT shift is live with the beast standing — every other level,
-        // and the night before the beast surfaces and after it is in the hopper, keeps it
-        // hidden. The fill drains as the SHOVEL lands on the bar.
+        // THE MIDNIGHT FINAL BOSS BAR (the dead-end street's cemetery fight). A SLEEPING
+        // beast has NO bar: this lights the instant the tentacle beast WAKES in the grave yard
+        // (the FINAL block) and goes out when it is in the hopper. It sits in the block chip's
+        // slot — the ward's name gives the bar its place for the fight — never top-center,
+        // which is the radio player's slot. Every other level keeps it hidden.
         const bossPanel = $("boss-goal");
         if (bossPanel) {
           const b = nightBoss;
           const showBoss =
             isNightShift() &&
             !!b &&
+            b.awake === true &&
             b.hp > 0 &&
             (state === "play" || state === "routeend");
           bossPanel.classList.toggle("hidden", !showBoss);

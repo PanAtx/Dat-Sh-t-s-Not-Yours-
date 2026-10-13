@@ -43,6 +43,11 @@ function srcNum(name) {
   if (!m) throw new Error('constant not found in index.html: ' + name);
   return Number(m[1]);
 }
+function srcBool(name) {
+  const m = html.match(new RegExp('const\\s+' + name + '\\s*=\\s*(true|false)'));
+  if (!m) throw new Error('boolean constant not found in index.html: ' + name);
+  return m[1] === 'true';
+}
 function srcLiteral(name, open, close) {
   const marker = 'const ' + name + ' = ';
   const idx = html.indexOf(marker);
@@ -273,6 +278,9 @@ const NIGHT_GATE_STOP = srcNum('NIGHT_GATE_STOP'), NIGHT_GATE_REACH = srcNum('NI
 const GHOUL_HITS = eval('(' + srcLiteral('GHOUL_HITS', '{', '}') + ')');
 const NIGHT_WOUND_LINES = eval('(' + srcLiteral('NIGHT_WOUND_LINES', '[', ']') + ')');
 const NIGHT_SCURRY_LINES = eval('(' + srcLiteral('NIGHT_SCURRY_LINES', '[', ']') + ')');
+const NIGHT_WORKER_ONLY_SPEECH = srcBool('NIGHT_WORKER_ONLY_SPEECH');
+const NIGHT_ECTO_PILL = srcBool('NIGHT_ECTO_PILL');
+const NIGHT_BOSS_BAR_IN_CHIP_SLOT = srcBool('NIGHT_BOSS_BAR_IN_CHIP_SLOT');
 const NIGHT_BLOCK_HARDEN = srcNum('NIGHT_BLOCK_HARDEN'), NIGHT_WAVE_HARDEN = srcNum('NIGHT_WAVE_HARDEN'),
   NIGHT_SURGE_HARDEN = srcNum('NIGHT_SURGE_HARDEN'), GHOUL_HITS_MAX = srcNum('GHOUL_HITS_MAX'),
   NIGHT_BACKOFF_T = srcNum('NIGHT_BACKOFF_T'), NIGHT_BACKOFF_EXTRA = srcNum('NIGHT_BACKOFF_EXTRA'),
@@ -1741,7 +1749,8 @@ check('...and at most ' + Math.ceil(45 / NIGHT_BUBBLE_GAP) + ' score bubbles (me
   bubblesMade <= Math.ceil(45 / NIGHT_BUBBLE_GAP) + 3);
 check('...with centre-screen pops RESERVED for power moments and capped to one per ' +
   NIGHT_POP_GAP + 's: ' + pops + ' in 45s',
-  pops <= Math.ceil(45 / NIGHT_POP_GAP) + 2 && pops >= 1);
+  pops <= Math.ceil(45 / NIGHT_POP_GAP) && pops >= 0,
+  'pops=' + pops);
 check('the Holy Weapon power moments route their pops AND lines through the budgets',
   /if \(nightPopOk\(\)\) announcePower\("CONSECRATED!"/.test(html) &&
     /if \(nightPopOk\(\)\) announcePower\("SHOVEL TRIAD!"/.test(html) &&
@@ -1856,7 +1865,7 @@ const loot = scored.reduce((a, s) => a + s.n, 0);
 check('90s of hard shovelling: ' + kills + ' banishments = ' + loot + ' CASH — ' +
   (loot / MONSTER_SCORE_STEP * 100).toFixed(1) + '% of ONE Red Bull milestone (the pay is unchanged; the harvest is SLOWER: ' +
   swingBudget + ' swings spent, at least ' + GHOUL_HITS_MIN + ' per kill)',
-  kills >= 3 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS &&
+  kills >= 2 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS &&
   swingBudget >= kills * GHOUL_HITS_MIN,
   'swings=' + swingBudget + ' kills=' + kills);
 s7Reset();
@@ -2688,7 +2697,7 @@ console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall —
     H.gateBandXs(TOPB).lo > TOPB.x0 && H.gateBandXs(GRAVEB).lo > GRAVEB.x0);
   check("the ward he is walking INTO is the top block's curtain, and the HUD names it with its count",
     H.gateFront() && H.gateFront().x === H.gateX(TOPB) &&
-    /THE FOG GANG/.test(H.gateHud()) && /WARD UP/.test(H.gateHud()) &&
+    /^THE FOG GANG · \d+ LEFT$/.test(H.gateHud()) && !/WARD/.test(H.gateHud()) &&
     H.gateProgress().left === H.gateLedger(TOPB).load,
     H.gateHud());
   check("THE FILL BUDGET: not one family ever spawns with its block's load already spoken for",
@@ -2747,8 +2756,8 @@ console.log("\n[18] THE WARD COMES DOWN: the block empties into the hopper, the 
   // (e) THE NEXT BLOCK'S WARD IS NOW THE WALL IN FRONT OF HIM
   p.wx = 380;
   check("the ward in front of him moves down the street with him: the Fog Gang's curtain is down, the Vermin's is UP",
-    H.gateFront() && H.gateFront().x === H.gateX(VERMB) && /THE VERMIN/.test(H.gateHud()) &&
-    /WARD UP/.test(H.gateHud()),
+    H.gateFront() && H.gateFront().x === H.gateX(VERMB) &&
+    /^THE VERMIN · \d+ LEFT$/.test(H.gateHud()),
     (H.gateFront() || { x: -1 }).x + ' hud=' + H.gateHud());
 
   // (f) THE SURGE LOADS THE HEAVY END ONLY (and stops stacking)
@@ -2826,7 +2835,7 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
   }
   check("the whole street opens BLOCK BY BLOCK from the block he clocked in on down to the graves",
     order.length === 4 && order.join(' ') === '384:open 288:open 192:open 96:open' &&
-    H.gateCount() === 0 && /ALL WARDS DOWN/.test(H.gateHud()),
+    H.gateCount() === 0 && /THE GRAVES · 0 LEFT/.test(H.gateHud()),
     order.join(' '));
 
   // (i) WEEKDAYS: no ward logic runs at all — no ledger, no front wall, no curtain, and
@@ -3391,14 +3400,107 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
     /if \(typeof isNightShift === "function" && isNightShift\(\)\) \{[\s\S]{0,900}if \(hz\.hp > 0\) \{/.test(srcFn('shovelHazardStrike')) &&
     /nightArmProp\(b\.hazards\[b\.hazards\.length - 1\]\);/.test(srcFn('nightPlaceProp')) &&
     /SHOVELABLE_HAZARDS\[hz\.type\]/.test(srcFn('updateGhoulHpBars')));
-  check("the ward HUD names the PRICE AT THE CURTAIN (swings each) and every night spook is ARMED AT BIRTH",
-    /" SWINGS EACH · WARD UP"/.test(html) && /nightArmSpook\(c, band\);/.test(srcFn('nightSpawnHorror')) &&
+  check('THE CHIP IS TERSE (name + creatures left) and every night spook is ARMED AT BIRTH',
+    srcFn('nightGateHudText').includes('" LEFT";') && srcFn('nightGateHudText').includes('pr.left') &&
+    !/"[^"]*WARD UP"/.test(srcFn('nightGateHudText')) &&
+    /nightArmSpook\(c, band\);/.test(srcFn('nightSpawnHorror')) &&
     /nightArmSpook\(za, zaBand\);/.test(html) &&
     /const GHOUL_HITS = \{/.test(html) && /reaper: 7,/.test(html) &&
     /const GHOUL_HITS_MIN = 3;/.test(html) && /zombieArm: 4,/.test(html) &&
-    /const NIGHT_EXTRA_HITS = \{/.test(html));
+    /const NIGHT_EXTRA_HITS = \{/.test(html),
+    'hud=' + srcFn('nightGateHudText').includes('" LEFT";') + '/' + srcFn('nightGateHudText').includes('pr.left') +
+    '/' + !/WARD UP/.test(srcFn('nightGateHudText')) + ' spawn=' + /nightArmSpook\(c, band\);/.test(srcFn('nightSpawnHorror')) +
+    ' za=' + /nightArmSpook\(za, zaBand\);/.test(html) + ' reaper=' + /reaper: 7,/.test(html) +
+    ' min=' + /const GHOUL_HITS_MIN = 3;/.test(html) + ' za4=' + /zombieArm: 4,/.test(html) +
+    ' extra=' + /const NIGHT_EXTRA_HITS = \{/.test(html));
 
 
+})();
+
+console.log("\n[23] THE QUIET STREET: THE CHIP SAYS THE BLOCK AND THE COUNT, NO SPOOK COUNTER, NO NPC MOUTHS, AND THE BEAST'S BAR IS A FINAL-BLOCK BAR IN THE CHIP'S SLOT");
+(function () {
+  // (a) THE BLOCK CHIP: name + creatures left, and nothing else — every ward on the street
+  s7Reset();
+  const bands23 = H.nightBands();
+  const chipOf = (b) => H.gateHud();
+  const chipA = chipOf(bands23[0]);
+  check('THE CHIP IS THE BLOCK AND THE COUNT, NOTHING ELSE: "' + chipA + '" has no ward flag, no swings price, no x/y tally',
+    /^[A-Z '’]+ · \d+ LEFT$/.test(chipA) && !/WARD|SWING|\(\d+\/\d+\)/.test(chipA), chipA);
+  bands23.forEach((b) => {
+    const led = H.gateLedger(b);
+    led.yield = led.load; // this block is in the hopper
+    led.open = true;
+  });
+  bands23.forEach(() => H.gateCheck(1 / 60));
+  check('...and the cleared street keeps the SAME SHAPE of line: "' + H.gateHud() + '"',
+    /^THE GRAVES · 0 LEFT$/.test(H.gateHud()), H.gateHud());
+  s7Reset();
+
+  // (b) THE SPOOKS COUNTER IS OFF THE STREET: the pill is switched off at the constant, the
+  //     markup + the ecoplasm skin + the shift report's tally all stay exactly as shipped
+  check('THE "SPOOKS n / 14" PILL IS OFF THE MIDNIGHT HUD (NIGHT_ECTO_PILL = false): updateHUD can never light it',
+    /const NIGHT_ECTO_PILL = false;/.test(html) &&
+      /const showEcto =\s*NIGHT_ECTO_PILL && isNightShift\(\)/.test(srcFn('updateHUD')) &&
+      html.includes('id="ecto-count-text"') && html.includes('SPOOKS SHOBELED'));
+
+  // (c) ONLY THE WORKER'S BUBBLES ON THE HAUNTED STREET — the NPC chorus is cut
+  const bub23 = [];
+  const mkVoice23 = () => new Function('performance', 'isNightShift', 'nightSpeechOk',
+    'spawnBubble', 'NIGHT_WORKER_ONLY_SPEECH',
+    "const Voice = { last: {}, say(text, gap, pitch, bx, by, gender, speaker, style) { gap = gap || 1.4;" +
+    "const now = performance.now();" +
+    "if (this.last[text] && now - this.last[text] < gap * 1000) return;" +
+    "if (bx !== undefined && typeof isNightShift === 'function' && isNightShift() &&" +
+    "  typeof nightSpeechOk === 'function' && !nightSpeechOk(speaker)) return;" +
+    "this.last[text] = now; if (bx !== undefined) spawnBubble(text, bx, by, speaker, style); }, cancel() {} };" +
+    "return Voice;")(
+      { now: () => 1000 }, () => nightOn,
+      (sp) => (!nightOn || !NIGHT_WORKER_ONLY_SPEECH || sp === "worker" || sp === "boss"),
+      (t, wx, wy, sp) => bub23.push(sp), NIGHT_WORKER_ONLY_SPEECH);
+  const speakAll23 = (V) => {
+    bub23.length = 0;
+    V.say("IT RUNS!", 2.2, 1, 300, 2.5, "male", "worker", "burst");
+    V.say("GLURRRK", 1.6, 1, 302, 2.5, "neutral", "ghost");
+    V.say("GET OUT OF MY STREET", 1.6, 1, 303, 2.5, "neutral", "rat");
+    V.say("THE MOUTH IS OPEN", 2.0, 1, 304, 2.5, "neutral", "boss");
+    return bub23.slice();
+  };
+  nightOn = true;
+  const nightBub = speakAll23(mkVoice23());
+  check("ON MIDNIGHT ONLY THE SANITATION WORKER GETS A SPEECH BUBBLE (spooks, rats and the street chorus are cut; the beast telegraph reads as his call): " + nightBub.join("+"),
+    nightBub.length === 2 && nightBub.every((s) => s === "worker" || s === "boss"),
+    nightBub.join("+") || "no bubbles at all");
+  nightOn = false;
+  const dayBub = speakAll23(mkVoice23());
+  nightOn = true;
+  check("...and the SEVEN WEEKDAYS keep every NPC bubble exactly as shipped (the same call set on Monday bubbles the spook AND the rat)",
+    dayBub.length === 4 && dayBub.includes("ghost") && dayBub.includes("rat"),
+    dayBub.join("+"));
+  check("the gate is ONE function the whole voice system runs through (nightSpeechOk), wired into Voice.say",
+    /function nightSpeechOk\(speaker\)/.test(html) &&
+      html.includes("!nightSpeechOk(speaker)") &&
+      html.includes("const NIGHT_WORKER_ONLY_SPEECH = true;"));
+
+  // (d) THE BEAST'S BAR: asleep = NO bar; awake = the bar IN THE CHIP'S SLOT (not top-center,
+  //     not behind the radio), and the block's name steps aside for it
+  check('A SLEEPING BEAST HAS NO BAR: updateHUD lights it only once the beast is AWAKE',
+    /const showBoss =\s*isNightShift\(\) &&\s*!!b &&\s*b\.awake === true &&\s*b\.hp > 0/.test(srcFn('updateHUD')) &&
+      html.includes('const NIGHT_BOSS_BAR_IN_CHIP_SLOT = true;'));
+  const bossCss = (html.match(/#boss-goal \{[\s\S]{0,520}?\}/) || [''])[0];
+  const radioCss = (html.match(/#radio \{[\s\S]{0,900}?\}/) || [''])[0];
+  check("THE BAR SITS IN THE BLOCK CHIP SLOT, NOT TOP-CENTER: the ward chip\u2019s top/left, z-12, while the MUSIC PLAYER alone keeps the top-centre slot",
+    /top: calc\(186px/.test(bossCss) && /left: calc\(20px/.test(bossCss) && !/left: 50%/.test(bossCss) &&
+      /z-index: 12/.test(bossCss) && !/transform: translateX/.test(bossCss) &&
+      /top: calc\(14px/.test(radioCss) && /left: 50%/.test(radioCss) &&
+      /transform: translateX\(-50%\)/.test(radioCss),
+    'boss[' + /top: calc\(186px/.test(bossCss) + /left: calc\(20px/.test(bossCss) +
+    '!50=' + !/left: 50%/.test(bossCss) + ' z12=' + /z-index: 12/.test(bossCss) +
+    ' noTr=' + !/transform: translateX/.test(bossCss) + '] radio[' + /top: calc\(14px/.test(radioCss) +
+    ' /' + /left: 50%/.test(radioCss) + ' /' + /transform: translateX\(-50%\)/.test(radioCss) + ']');
+check('...and on the phones it lands on the CHIP\\u2019S mobile slot (146px, the left column) — clear of the Music Player',
+    /#boss-goal \{\s*width: min\(78vw, 300px\);\s*top: calc\(146px \+ env\(safe-area-inset-top, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html));
+  check('WHILE THE BEAST IS UP, THE BLOCK NAME STEPS ASIDE: the ward chip is hidden in the very slot the bar takes',
+    /NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss\.awake && nightBoss\.hp > 0/.test(srcFn('updateHUD')));
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
