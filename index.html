@@ -4300,7 +4300,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.494</div>
+          <div id="app-version" class="menu-version">v1.0.495</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4558,7 +4558,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.494';
+      const APP_VERSION = '1.0.495';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -27861,6 +27861,22 @@
       const SHOVEL_BLADE_R = 1.25; // ...and the head sweeps this far PAST the end of the reach
       // (it tracks the wide scoop head in makeShovelProp: what the player SEES sweep is what
       // the swing actually catches, so a ghoul standing next to the blade is ON the swing)
+      // EVERYTHING THE BLADE CAN CATCH ON THE HAUNTED STREET HAS A POOL OF SWINGS — the animals
+      // (GHOUL_HITS below) AND the sewer tentacles and the grave furniture (NIGHT_EXTRA_HITS
+      // here). No shovelable thing dies to one blow on Midnight, and every one of them wears a
+      // health bar over its head, so the rule is legible from the saddle. WEEKDAYS NEVER SEE
+      // ANY OF THIS: the weekday ghost, the weekday manhole tentacle and every weekday prop keep
+      // the shipped instant strike and the shipped one blow.
+      const NIGHT_EXTRA_HITS = {
+        zombieArm: 4, // the sewer tentacle: a mast of wet muscle before it comes out of the hole
+        ghoststone: 3, // a headstone is dug out in three blows
+        skullpile: 2, // loose bones give fast
+        ghostarm: 3, // a reaching arm: the shoulder has to be broken twice
+        ghosthand: 3,
+        candle: 2, // a candle flame goes out in one hard blow, then the stub
+        coffin: 4, // a lid screwed down by something with hands
+        irongate: 5, // the cemetery's own iron: heaviest thing short of the reaper
+      };
       // THE SCREEN STAYS HIS, NOT THE Ghouls'. A banishment pays in points, splats, the
       // hopper jingle and the HUD meter — NO centre-screen text: the big pop is reserved for
       // POWER-UPS (and the two Holy Weapon moments that ARE a power-up: CONSECRATED and the
@@ -28106,46 +28122,69 @@
       // the graves adds a swing to every animal's pool, every haunt wave tier adds one, and
       // every ABYSS SURGE adds one more. The block he clocked in on is the softest end of
       // the street; the Grave Watch is the hardest thing he will ever shovel.
+      // THE GHOULS' OWN TOUGHNESS (MIDNIGHT ONLY — the weekdays never see any of this):
+      // a shovel swing on the haunted street is a WOUND, not a banishment. Every spook
+      // carries a small health pool counted IN SWINGS — the number of blade blows it takes
+      // before the tool can pack it into the hopper. NOTHING on this street goes down in
+      // fewer than THREE blows: knee-high vermin and the pale floaters take 3, the graveyard
+      // families 4, the heavy horned things 5, the reaper takes 7 — and the street HARDENS as
+      // he walks it down (see nightGhoulHits): every block toward the graves adds a swing to
+      // every animal's pool, every haunt wave tier adds one, and every ABYSS SURGE adds one
+      // more. The block he clocked in on is the softest end of the street; the Grave Watch is
+      // the hardest thing he will ever shovel. Three quick swings NEVER wins a fight here:
+      // the blow knocks its target off him and the thing spends the rest of its pool running.
       const GHOUL_HITS = {
-        imp: 2, // knee-high, in swarms — two swings
-        gremlin: 2,
-        ghost: 2,
-        specter: 2,
-        goblin: 3, // grave-looter, clutching what it dug up
-        eyecrawler: 3,
-        fangspider: 3,
-        skeleton: 3,
-        ghoul: 3,
-        wraith: 3,
+        imp: 3, // knee-high, in swarms — the softest thing on the street still takes three
+        gremlin: 3,
+        ghost: 3,
+        specter: 3,
         banshee: 3,
-        hound: 3,
+        wraith: 3,
         poltergeist: 3,
-        hexbeast: 4, // six legs, eyeless, heavy
-        grubsquat: 4, // the maggot-barrel of the vermin block
-        ratking: 4, // the gutter king
-        lanternfang: 4,
-        goulra: 4, // nine eyes, standing the graveyard watch
-        pitfiend: 4,
-        devil: 4,
-        demon: 4,
-        abyssal: 4,
-        lich: 4,
-        reaper: 5, // the flood block's worst: a hooded skeleton with a scythe
+        hound: 3,
+        goblin: 4, // grave-looter, clutching what it dug up
+        eyecrawler: 4,
+        fangspider: 4,
+        skeleton: 4,
+        ghoul: 4,
+        hexbeast: 5, // six legs, eyeless, heavy
+        grubsquat: 5, // the maggot-barrel of the vermin block
+        ratking: 5, // the gutter king
+        lanternfang: 5,
+        goulra: 5, // nine eyes, standing the graveyard watch
+        pitfiend: 5,
+        devil: 5,
+        demon: 5,
+        abyssal: 5,
+        lich: 5,
+        reaper: 7, // the flood block's worst: a hooded skeleton with a scythe
       };
       const NIGHT_BLOCK_HARDEN = 1; // +1 swing needed per block down the street
       const NIGHT_WAVE_HARDEN = 1; // ...per haunt wave tier (HORROR_WAVE_AT banishments)
       const NIGHT_SURGE_HARDEN = 1; // ...per ABYSS SURGE the pit has opened
       const GHOUL_HITS_MAX = 9; // the ceiling: nothing on the street takes 10 blows
+      const GHOUL_HITS_MIN = 3; // the FLOOR: the softest thing on the street takes three blows
       const NIGHT_HP_Z = 2.2; // how far over its head the bar floats (floaters ride higher)
       const NIGHT_HP_Z_FLOAT = 2.9;
-      // THE BACK-OFF: a spook he has just wounded LEAVES THE CONTEST for a beat — knockback,
-      // hunt broken, no bite, and a real walk OFF toward the fog. That is the room a landed
-      // swing buys: the animal he is fighting stops hitting him, the rest of its block's
-      // pack moves into the gap, and the fight arrives in ones instead of in nines.
-      const NIGHT_BACKOFF_T = 1.3; // seconds it walks off after a wound
-      const NIGHT_BACKOFF_EXTRA = 0.22; // ...plus this per swing it has left in its pool
-      const NIGHT_BACKOFF_SP = 3.6; // u/s of the retreat
-      const NIGHT_WOUND_PUSH = 1.25; // u the blade knocks it back on the blow
+      const NIGHT_HP_Z_PROP = 1.5; // ...and over a headstone / coffin / iron gate (lower, on it)
+      // THE SCURRY (the back-off): a spook he has just wounded LEAVES THE CONTEST — knockback,
+      // hunt broken, no bite, and a real run OFF toward the fog. That is the room a landed
+      // swing buys: the animal he is fighting stops hitting him, the rest of its block's pack
+      // moves into the gap, and the fight arrives in ones instead of in nines. The swing
+      // CADENCE is 0.76s (SHOVEL_SWING_DUR 0.46 + SHOVEL_COOLDOWN 0.3), and a wounded animal is
+      // out of the tool and running for at least NIGHT_BACKOFF_T — so the next blow on the SAME
+      // animal cannot arrive in the same rush: he has to walk it down, turn it, and earn the
+      // blow. A pool of 3+ blows plus a scurry per blow is what makes the night a grind.
+      const NIGHT_BACKOFF_T = 1.9; // seconds it runs off after a wound (2+ swing cadences)
+      const NIGHT_BACKOFF_EXTRA = 0.25; // ...plus this per swing it has left in its pool
+      const NIGHT_BACKOFF_SP = 4.6; // u/s of the retreat (faster than the worker walks)
+      const NIGHT_WOUND_PUSH = 2.4; // u the blade knocks it back on the blow (clean off the tool)
+      const NIGHT_SCURRY_LINES = [
+        "IT RUNS!",
+        "THE WOUNDED ONE SCURRIES!",
+        "GET BACK HERE!",
+        "IT'S NOT STANDING FOR THIS!",
+      ];
       const NIGHT_WOUND_LINES = [
         "IT TAKES MORE THAN ONE!",
         "THIS ONE'S GOT LUNGS!",
@@ -29106,12 +29145,20 @@
       }
       // THE SWINGS A SPOOK OF THIS FAMILY TAKES ON THIS BLOCK: its own toughness, the
       // block's depth down the street, the haunt's wave tier and the surges that have fired.
+      // The table covers the ANIMALS (GHOUL_HITS) and everything else the blade can catch on
+      // this street — the sewer tentacles and the grave furniture (NIGHT_EXTRA_HITS). Every
+      // shovelable thing on Midnight sits between GHOUL_HITS_MIN and GHOUL_HITS_MAX blows.
+      function nightShovelableKey(key) {
+        return GHOUL_HITS[key] != null || NIGHT_EXTRA_HITS[key] != null;
+      }
       function nightGhoulHits(band, key) {
-        let n = GHOUL_HITS[key] || 3;
+        let n = GHOUL_HITS[key] != null ? GHOUL_HITS[key]
+          : NIGHT_EXTRA_HITS[key] != null ? NIGHT_EXTRA_HITS[key]
+          : 3;
         n += NIGHT_BLOCK_HARDEN * nightBlockDepth(band);
         if (NIGHT_PACK_ESCALATE) n += NIGHT_WAVE_HARDEN * nightGhoulTier;
         n += NIGHT_SURGE_HARDEN * (nightSurgeTier || 0);
-        return clamp(n, 2, GHOUL_HITS_MAX);
+        return clamp(n, GHOUL_HITS_MIN, GHOUL_HITS_MAX);
       }
       // The block's softest family — the number the HUD quotes him at the curtain.
       function nightGhoulFloorHits(band) {
@@ -29137,7 +29184,10 @@
         if (typeof isNightShift !== "function" || !isNightShift()) return false;
         if (!c || !c.g || c.hooked || c.hookLanded) return false;
         const key = horrorKey(c);
-        if (!HORROR_ALL[key]) return false; // the tentacle and the rest keep the old rules
+        // EVERY creature the blade can catch on this level is wounded, not deleted — the
+        // animals, and the sewer tentacles that rise out of the manholes. Weekdays, the thief
+        // and everything the shovel cannot take keep the shipped instant strike.
+        if (!HORROR_ALL[key] && !NIGHT_EXTRA_HITS[key]) return false;
         if (c.hpMax == null || c.hp == null) nightArmSpook(c, c.home || nightGateBandOf(c.band));
         c.hp = Math.max(0, c.hp - 1);
         SFX.playSwoosh();
@@ -29148,7 +29198,30 @@
           c.backoffT = 0; // the last blow does not send it walking off: it goes IN THE TRUCK
           return false;
         }
-        // ...and it BACKS OFF: knockback, hunt broken, no bite while it goes.
+        // ...and it SCURRIES: knockback off the tool, hunt broken, no bite while it goes, and
+        // a real run toward the fog. The next swing cannot land on the same animal in the rush.
+        if (c.type === "zombieArm") {
+          // A TENTACLE HAS NO LEGS TO SCURRY ON: it ducks back down the manhole with its armed
+          // grab cancelled, and comes up again only when the scurry window has run out.
+          c.state = "retract";
+          c.stateT = 0;
+          c.cd = NIGHT_BACKOFF_T + NIGHT_BACKOFF_EXTRA * c.hp;
+          c.touchCd = Math.max(c.touchCd || 0, c.cd + HORROR_TOUCH_CD);
+          c.backoffT = c.cd;
+          c.flinchT = Math.max(c.flinchT || 0, FLINCH_T);
+          if (nightSayOk())
+            Voice.say(
+              pick(NIGHT_SCURRY_LINES),
+              2.2,
+              0.98,
+              p.wx,
+              p.wy,
+              WORKER_GENDER,
+              "worker",
+              "burst",
+            );
+          return true;
+        }
         const WK = horrorWorkLimits(c);
         const bx = c.wx - p.wx,
           by = c.wy - p.wy;
@@ -29158,11 +29231,11 @@
         if (c.g) c.g.position.set(c.wx, c.wy, c.g.position.z);
         c.flinchT = Math.max(c.flinchT || 0, FLINCH_T);
         c.huntT = 0; // the charge is BROKEN — it must look at him again to start it
-        c.touchCd = Math.max(c.touchCd || 0, NIGHT_BACKOFF_T + HORROR_TOUCH_CD);
         c.backoffT = NIGHT_BACKOFF_T + NIGHT_BACKOFF_EXTRA * c.hp;
+        c.touchCd = Math.max(c.touchCd || 0, c.backoffT + HORROR_TOUCH_CD); // NO BITE for the whole run
         if (nightSayOk())
           Voice.say(
-            pick(NIGHT_WOUND_LINES),
+            pick(NIGHT_SCURRY_LINES),
             2.2,
             0.98,
             p.wx,
@@ -29685,6 +29758,34 @@
         return best ? { hz: best, b: bestB, d: bestD } : null;
       }
       function shovelHazardStrike(b, hz) {
+        // MIDNIGHT: the grave furniture is dug out in BLOWS. Every swing spends one swing of
+        // its pool, cracks it and shakes it; ONLY the blow that empties the pool rips it out of
+        // the ground and sends it into the hopper below. The seven weekdays keep the shipped
+        // one-blow dig (and Maspeth's cemetery is untouched).
+        if (typeof isNightShift === "function" && isNightShift()) {
+          if (hz.hpMax == null || hz.hp == null) nightArmProp(hz);
+          hz.hp = Math.max(0, hz.hp - 1);
+          hz.woundT = 0.6; // the mesh shudders on the blade
+          SFX.playSwoosh();
+          SFX.playSquelch();
+          p.shake = Math.max(p.shake || 0, 0.34);
+          spawnEctoSplat(hz.wx, hz.wy, 0.4);
+          shovelFlinch();
+          if (hz.hp > 0) {
+            if (nightSayOk())
+              Voice.say(
+                pick(HORROR_PROP_LINES),
+                2.4,
+                0.95,
+                p.wx,
+                p.wy,
+                WORKER_GENDER,
+                "worker",
+                "burst",
+              );
+            return true; // it STANDS: the next blow has to be earned
+          }
+        }
         const idx = b.hazards.indexOf(hz);
         if (idx >= 0) b.hazards.splice(idx, 1); // the block stops being in the way
         for (let ai = GHOST_ARMS.length - 1; ai >= 0; ai--)
@@ -31359,6 +31460,15 @@
         }
         groundGroup.add(top);
       }
+      // THE GRAVE FURNITURE IS ARMED TOO (Midnight): a headstone / coffin / iron gate takes a
+      // pool of swings on its own block, wears a health bar, and only the last blow digs it out.
+      function nightArmProp(hz) {
+        if (!hz) return;
+        const band = typeof bandOf === "function" ? bandOf(hz.wx) : null;
+        hz.hpMax = nightGhoulHits(band, hz.type);
+        hz.hp = hz.hpMax;
+        hz.woundT = 0;
+      }
       function nightPlaceProp(b, kind, wx, wy) {
         const g =
           kind === "headstone" ? makeGhostHeadstone()
@@ -31390,6 +31500,7 @@
         b.hazards.push({
           wx: wx, wy: wy, r: r, type: type, drop: 0, cd: 0, g: g, kind: kind,
         });
+        nightArmProp(b.hazards[b.hazards.length - 1]); // its own pool of swings + its own bar
         if (kind === "arm") GHOST_ARMS.push({ g: g, phase: R(0, 6.28) });
         if (kind === "hand") GHOST_HANDS.push({ g: g, phase: R(0, 6.28) });
         return g;
@@ -31499,6 +31610,11 @@
           za.wx = zb.x + R(14, BLOCK_W - 14);
           za.wy = R(-7.0, -3.5);
           za.g.position.set(za.wx, za.wy, GZ);
+          // THE TENTACLE IS ARMED LIKE ANY OTHER THING THE BLADE CAN CATCH (Midnight): its own
+          // pool of swings, hardened by the block it sits on, and a bar over the manhole.
+          const zaBand = bandOf(za.wx);
+          if (zaBand) za.band = zaBand.i;
+          nightArmSpook(za, zaBand);
         }
         // the only loot on a street nothing human was left on: the cemetery's ghostly
         // finds, floating off the walk (they're grabbable from the sidewalk)
@@ -38972,12 +39088,15 @@
           if (el.parentNode) el.parentNode.removeChild(el);
         }, 2750);
       }
-      // THE GHOULS' HEALTH BARS (Midnight): a tiny bar hovering over each spook's head so
-      // he can SEE that a swing is a wound, and how many swings the thing has left. DOM, off
-      // the same worldToScreen the speech bubbles and the Zzz letters use; driven from the
-      // live roster every frame and drawn from an element POOL, so a horde never allocates
-      // in the frame sweep. Bars are positional (re-targeted every frame), so a banishment,
-      // a recycle into the fog or a shift reset can never strand one on screen.
+      // THE HEALTH BARS (Midnight): a tiny bar hovering over everything the shovel can hit —
+      // every spook, every sewer tentacle, every headstone, coffin and iron gate — so he can
+      // SEE that a swing is a wound, and how many swings the thing has left. Nothing the blade
+      // can catch on this level goes without one. DOM, off the same worldToScreen the speech
+      // bubbles and the Zzz letters use; driven from the live roster AND the block hazards
+      // every frame and drawn from an element POOL, so a horde never allocates in the frame
+      // sweep. Bars are positional (re-targeted every frame), so a banishment, a recycle into
+      // the fog or a shift reset can never strand one on screen. A bar fades IN with the animal
+      // it belongs to (the same fog fade the mesh uses), so a fresh seed never pops one on.
       const ghoulHpBarPool = [];
       function nightHpBarRec() {
         const el = document.createElement("div");
@@ -38994,18 +39113,37 @@
         document.body.appendChild(el);
         return { el: el, fill: fill, num: num, w: "", t: "" };
       }
-      function updateGhoulHpBars() {
+      function updateGhoulHpBars(dt) {
         if (typeof document === "undefined" || typeof worldToScreen !== "function") return;
+        const step = dt > 0 && dt < 0.5 ? dt : 1 / 60;
         const seen = [];
         if (typeof isNightShift === "function" && isNightShift() && state === "play") {
           for (let i = 0; i < creatures.length; i++) {
             const c = creatures[i];
-            if (!c || !c.g || c.hooked || c.hookLanded) continue;
-            if (!(c.hpMax > 1)) continue; // a one-swing thing does not need a bar
-            if ((c.fade || 0) > 0.35) continue; // it is out of the fog / into it: no bar
+            if (!c || !c.g || c.hooked || c.hookLanded) continue; // riding the toss: no bar
+            if (!(c.hpMax > 0)) continue; // not armed (the thief, the boss, a weekday animal)
             const s = worldToScreen(c.wx, c.wy, GZ + (c.floaty ? NIGHT_HP_Z_FLOAT : NIGHT_HP_Z));
             if (!s) continue; // off screen
-            seen.push({ c: c, x: s.x, y: s.y });
+            seen.push({ c: c, x: s.x, y: s.y, o: 1 - 0.62 * clamp(c.fade || 0, 0, 1) });
+          }
+          // THE GRAVE FURNITURE: the same rule on the block hazards the blade can dig out.
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const b = blocks[bi];
+            if (!b || !b.hazards) continue;
+            for (let hi = 0; hi < b.hazards.length; hi++) {
+              const hz = b.hazards[hi];
+              if (!hz || !hz.g || !SHOVELABLE_HAZARDS[hz.type]) continue;
+              if (hz.hpMax == null || hz.hp == null) nightArmProp(hz);
+              if (!(hz.hpMax > 0)) continue;
+              if (hz.woundT > 0) {
+                // the shudder of a blow landed: a crack through the mesh, fading out
+                hz.woundT = Math.max(0, hz.woundT - step);
+                if (hz.g.rotation) hz.g.rotation.y = Math.sin(hz.woundT * 26) * 0.16 * hz.woundT;
+              }
+              const s = worldToScreen(hz.wx, hz.wy, GZ + NIGHT_HP_Z_PROP);
+              if (!s) continue;
+              seen.push({ c: hz, x: s.x, y: s.y, o: 1 });
+            }
           }
         }
         for (let i = 0; i < seen.length; i++) {
@@ -39020,6 +39158,7 @@
           rec.el.style.display = "block";
           rec.el.style.left = seen[i].x + "px";
           rec.el.style.top = seen[i].y + "px";
+          rec.el.style.opacity = String(seen[i].o);
           const w = Math.round(frac * 100) + "%";
           if (rec.w !== w) { rec.w = w; rec.fill.style.width = w; }
           const t = c.hp + "/" + c.hpMax;
@@ -43683,7 +43822,7 @@
           animateGhostHands();
           updateNightHaunt(dt);
           updateEctoFlights(dt);
-          updateGhoulHpBars(); // the bars over the horde: DOM, off the live pool
+          updateGhoulHpBars(dt); // the bars over the horde AND the grave furniture: DOM, pooled
           // FAIR FIGHT timers: the blade's guard window and the hit grace tick away.
           p.shovelGuardT = Math.max(0, (p.shovelGuardT || 0) - dt);
           p.nightHitT = Math.max(0, (p.nightHitT || 0) - dt);

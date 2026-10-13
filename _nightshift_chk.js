@@ -272,10 +272,13 @@ const NIGHT_GATE_STOP = srcNum('NIGHT_GATE_STOP'), NIGHT_GATE_REACH = srcNum('NI
 // THE GHOULS' TOUGHNESS (Midnight): swings per type, the block/wave/surge hardening, the back-off
 const GHOUL_HITS = eval('(' + srcLiteral('GHOUL_HITS', '{', '}') + ')');
 const NIGHT_WOUND_LINES = eval('(' + srcLiteral('NIGHT_WOUND_LINES', '[', ']') + ')');
+const NIGHT_SCURRY_LINES = eval('(' + srcLiteral('NIGHT_SCURRY_LINES', '[', ']') + ')');
 const NIGHT_BLOCK_HARDEN = srcNum('NIGHT_BLOCK_HARDEN'), NIGHT_WAVE_HARDEN = srcNum('NIGHT_WAVE_HARDEN'),
   NIGHT_SURGE_HARDEN = srcNum('NIGHT_SURGE_HARDEN'), GHOUL_HITS_MAX = srcNum('GHOUL_HITS_MAX'),
   NIGHT_BACKOFF_T = srcNum('NIGHT_BACKOFF_T'), NIGHT_BACKOFF_EXTRA = srcNum('NIGHT_BACKOFF_EXTRA'),
-  NIGHT_BACKOFF_SP = srcNum('NIGHT_BACKOFF_SP'), NIGHT_WOUND_PUSH = srcNum('NIGHT_WOUND_PUSH');
+  NIGHT_BACKOFF_SP = srcNum('NIGHT_BACKOFF_SP'), NIGHT_WOUND_PUSH = srcNum('NIGHT_WOUND_PUSH'),
+  GHOUL_HITS_MIN = srcNum('GHOUL_HITS_MIN'), NIGHT_HP_Z_PROP = srcNum('NIGHT_HP_Z_PROP');
+const NIGHT_EXTRA_HITS = eval('(' + srcLiteral('NIGHT_EXTRA_HITS', '{', '}') + ')');
 const NIGHT_GATE_FADE = srcNum('NIGHT_GATE_FADE'), NIGHT_GATE_LIFT = srcNum('NIGHT_GATE_LIFT');
 const NIGHT_GATE_WORK = srcNum('NIGHT_GATE_WORK');
 const HORROR_SURGE_LOAD = srcNum('HORROR_SURGE_LOAD');
@@ -421,6 +424,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateWall', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
   'nightBlockDepth', 'nightGhoulHits', 'nightGhoulFloorHits', 'nightArmSpook', 'nightWoundShovel',
+  'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount'].map(srcFn).join('\n');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
@@ -470,7 +474,8 @@ const H = new Function(
   'NIGHT_GATE_REACH', 'NIGHT_GATE_FADE', 'NIGHT_GATE_LIFT', 'NIGHT_GATE_WORK', 'HORROR_SURGE_LOAD',
   'HORROR_SURGE_LOAD_TIERS', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES',
   'GHOUL_HITS', 'NIGHT_WOUND_LINES', 'NIGHT_BLOCK_HARDEN', 'NIGHT_WAVE_HARDEN', 'NIGHT_SURGE_HARDEN',
-  'GHOUL_HITS_MAX', 'NIGHT_BACKOFF_T', 'NIGHT_BACKOFF_EXTRA', 'NIGHT_BACKOFF_SP', 'NIGHT_WOUND_PUSH',
+  'GHOUL_HITS_MAX', 'GHOUL_HITS_MIN', 'NIGHT_BACKOFF_T', 'NIGHT_BACKOFF_EXTRA', 'NIGHT_BACKOFF_SP',
+  'NIGHT_WOUND_PUSH', 'NIGHT_EXTRA_HITS', 'NIGHT_HP_Z_PROP', 'NIGHT_SCURRY_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   HORROR_SRC +
@@ -618,7 +623,8 @@ const H = new Function(
   NIGHT_GATE_FADE, NIGHT_GATE_LIFT, NIGHT_GATE_WORK, HORROR_SURGE_LOAD, HORROR_SURGE_LOAD_TIERS,
   NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES,
   GHOUL_HITS, NIGHT_WOUND_LINES, NIGHT_BLOCK_HARDEN, NIGHT_WAVE_HARDEN, NIGHT_SURGE_HARDEN,
-  GHOUL_HITS_MAX, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP, NIGHT_WOUND_PUSH
+  GHOUL_HITS_MAX, GHOUL_HITS_MIN, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP,
+  NIGHT_WOUND_PUSH, NIGHT_EXTRA_HITS, NIGHT_HP_Z_PROP, NIGHT_SCURRY_LINES
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -686,9 +692,21 @@ check('the many-eyed THIEF cannot be shoveled — it has to be run down', H.canS
 const mid = mkC('specter', 1, { hooked: true });
 check('a spook already riding the shovel-toss is never struck twice', H.canShovel(mid) === false);
 const tentacle = mkC('zombieArm', 1, { state: 'grab', cd: 0 });
+const tShovelable = H.canShovel(tentacle); // MEASURED BEFORE THE BLOWS (a landed spook is gone)
 creatures.length = 0; creatures.push(tentacle); p.shovelCd = 0;
-check('the manhole TENTACLE is shoverable too, and its armed grab is cancelled',
-  H.canShovel(tentacle) === true && H.swing() === true && tentacle.hooked === true && tentacle.state === 'retract');
+let tPool = 0; // THE BLOWS THEMSELVES ARM IT (nightWoundShovel arms at the first contact)
+let tSwings = 0, tDuck = false;
+while (tSwings < 24 && !tentacle.hooked) {
+  p.shovelCd = 0;
+  if (H.swing() !== true) break;
+  tSwings++;
+  if (!tPool) tPool = tentacle.hpMax;
+  if (tentacle.hp > 0) tDuck = tDuck || (tentacle.state === 'retract' && tentacle.cd > 0);
+}
+check('the manhole TENTACLE is shoverable too, it takes ' + tPool + ' BLOWS and DUCKS down its manhole between them (the armed grab is cancelled on the killing blow)',
+  tShovelable === true && tPool >= GHOUL_HITS_MIN && tSwings === tPool &&
+  tDuck && tentacle.hooked === true && tentacle.state === 'retract',
+  'pool=' + tPool + ' swings=' + tSwings + ' duck=' + tDuck + ' hp=' + tentacle.hp + ' state=' + tentacle.state + ' cd=' + tentacle.cd);
 
 // --- the toss into the hopper, and what lands ---
 deposited.length = 0; scored.length = 0; announced.length = 0;
@@ -875,7 +893,7 @@ const S5 = new Function(
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostHandProp', 'makeGhostCandleProp',
   'makeGhostCoffinProp', 'makeIronGateProp', 'makeManyEyedBeast', 'makeRubyGargoyle',
   'nightBands', 'nightWorldBlock', 'nightFloodBand', 'nightPlaceProp', 'nightHorrorLive',
-  'nightSpawnHorror', 'spawnNightGhost', 'HORROR_QUOTA', 'HORROR_QUOTA_FLOOD',
+  'nightSpawnHorror', 'spawnNightGhost', 'bandOf', 'HORROR_QUOTA', 'HORROR_QUOTA_FLOOD',
   'HORROR_ROSTER_CAP', 'NIGHT_GHOST_CAP', 'NIGHT_PROP_QUOTA', 'NIGHT_PROP_QUOTA_FLOOD',
   'addCreature', 'HORROR_FILL_ORDER', 'HORROR_ALL',
   // THE BLOCK PACKS: the per-block signature sets the dead-end street fills from
@@ -903,7 +921,7 @@ const S5 = new Function(
   () => mkObj('arm'), () => mkObj('stone'), () => mkObj('skulls'), () => mkObj('hand'),
   () => mkObj('candle'), () => mkObj('coffin'), () => mkObj('gate'), () => mkObj('beast'),
   () => mkObj('garg'), H.nightBands, H.nightWorldBlock, H.nightFloodBand, H.nightPlaceProp,
-  H.nightHorrorLive, H.nightSpawnHorror, H.spawnNightGhost, HORROR_QUOTA, HORROR_QUOTA_FLOOD,
+  H.nightHorrorLive, H.nightSpawnHorror, H.spawnNightGhost, H.bandOf, HORROR_QUOTA, HORROR_QUOTA_FLOOD,
   HORROR_ROSTER_CAP, NIGHT_GHOST_CAP, NIGHT_PROP_QUOTA, NIGHT_PROP_QUOTA_FLOOD, S2_ADD_CREATURE,
   HORROR_FILL_ORDER, HORROR_ALL,
   nightBlockPack, nightBlockFamilies, nightBlockQuota, nightBlockOrder, NIGHT_BLOCKS, IW,
@@ -1289,9 +1307,20 @@ H.setSayT(0); // a fresh text budget: the exorcise call-out is allowed to speak 
 H.ectoFlights.length = 0;
 const sayBeforeStone = sayings.length;
 const stoneHz = shovelPropBlock.hazards.filter((h) => h.type === 'ghoststone')[0];
+const stonePool = stoneHz.hpMax;
+let stoneWounds = 0;
+while (stoneHz.hp > 1 && stoneWounds < stonePool + 3) {
+  H.shovelHazardStrike(shovelPropBlock, stoneHz);
+  stoneWounds++;
+}
+check('a HEADSTONE is dug out in BLOWS (' + stonePool + ' swings on its pool): ' + stoneWounds +
+  ' wounds landed and it is STILL STANDING in its block',
+  stoneWounds === stonePool - 1 && stoneHz.hp === 1 &&
+  shovelPropBlock.hazards.length === hazardBefore &&
+  shovelPropBlock.hazards.indexOf(stoneHz) >= 0);
 H.shovelHazardStrike(shovelPropBlock, stoneHz);
-check('a shovel strike on a HEADSTONE takes it out of the block (it stops being in the way)',
-  shovelPropBlock.hazards.length === hazardBefore - 1 &&
+check('...and THE BLOW THAT EMPTIES THE POOL takes it out of the block (it stops being in the way)',
+  stoneHz.hp === 0 && shovelPropBlock.hazards.length === hazardBefore - 1 &&
   shovelPropBlock.hazards.indexOf(stoneHz) === -1);
 check('...the mesh leaves the ground and goes AIRBORNE to the eco-pail',
   stoneHz.g.parent !== S2_GROUND && H.ectoFlights.length === 1 && H.ectoFlights[0].g === stoneHz.g);
@@ -1306,9 +1335,17 @@ check('the worker CALLS IT OUT while the headstone goes in the truck (budget per
 const armHz = shovelPropBlock.hazards.filter((h) => h.type === 'ghostarm')[0];
 S2_ARMS.push({ g: armHz.g, phase: 1 });
 const hazardMid = shovelPropBlock.hazards.length;
+const armPool = armHz.hpMax;
+let armWounds = 0;
+while (armHz.hp > 1 && armWounds < armPool + 3) {
+  H.shovelHazardStrike(shovelPropBlock, armHz);
+  armWounds++;
+}
+check('a GRASPING ARM carries its own pool of ' + armPool + ' swings and keeps reaching until the last',
+  armWounds === armPool - 1 && armHz.hp === 1 && shovelPropBlock.hazards.length === hazardMid);
 H.shovelHazardStrike(shovelPropBlock, armHz);
-check('a GRASPING ARM is exorcised too, and its animation entry is purged with it',
-  shovelPropBlock.hazards.length === hazardMid - 1 &&
+check('...and on the killing blow it is exorcised, its animation entry purged with it',
+  armHz.hp === 0 && shovelPropBlock.hazards.length === hazardMid - 1 &&
   !shovelPropBlock.hazards.some((h) => h === armHz) &&
   !S2_ARMS.some((a) => a.g === armHz.g));
 H.ectoFlights.length = 0;
@@ -1713,7 +1750,7 @@ check('the Holy Weapon power moments route their pops AND lines through the budg
 const frenzyPurse = scored.filter(s => s.n === SHOVEL_POINTS).length;
 check('the frenzy still SCORES (loud in points, silent in text): ' + frenzyPurse +
   ' shovel purses banked in ' + swings + ' swings, at least 2 swings per purse',
-  frenzyPurse >= 4 && swings >= frenzyPurse * 2,
+  frenzyPurse >= 1 && swings >= frenzyPurse * GHOUL_HITS_MIN,
   'shovel scores=' + frenzyPurse + ' swings=' + swings + ' wardsUp=' + H.gateCount() +
   ' yieldTop=' + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).yield);
 s7Reset();
@@ -1818,9 +1855,9 @@ for (let i = 0; i < 60 * 90; i++) {
 const loot = scored.reduce((a, s) => a + s.n, 0);
 check('90s of hard shovelling: ' + kills + ' banishments = ' + loot + ' CASH — ' +
   (loot / MONSTER_SCORE_STEP * 100).toFixed(1) + '% of ONE Red Bull milestone (the pay is unchanged; the harvest is SLOWER: ' +
-  swingBudget + ' swings spent, at least 2 per kill)',
-  kills >= 8 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS &&
-  swingBudget >= kills * 2,
+  swingBudget + ' swings spent, at least ' + GHOUL_HITS_MIN + ' per kill)',
+  kills >= 3 && loot <= MONSTER_SCORE_STEP && loot >= kills * SHOVEL_POINTS &&
+  swingBudget >= kills * GHOUL_HITS_MIN,
   'swings=' + swingBudget + ' kills=' + kills);
 s7Reset();
 
@@ -3006,11 +3043,27 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   let probeLog = '';
 
   // (a) the toughness table
-  check("NO NIGHT ANIMAL DIES TO A SINGLE SWING: every family in the table takes at least 2 blows, the vermin 2, the grave watch 4+, the reaper 5",
-    Object.keys(GHOUL_HITS).every((k) => GHOUL_HITS[k] >= 2) &&
-    Object.keys(HORROR_ALL).every((k) => GHOUL_HITS[k] >= 2) &&
-    GHOUL_HITS.imp === 2 && GHOUL_HITS.ghoul === 3 && GHOUL_HITS.reaper === 5 &&
-    GHOUL_HITS.goulra >= 4);
+  check('NO SHOVELED THING ON THIS STREET DIES IN A RUSH: every family takes at least ' + GHOUL_HITS_MIN +
+    ' blows, the vermin ' + GHOUL_HITS_MIN + ', the grave watch 5+, the reaper ' + GHOUL_HITS.reaper,
+    Object.keys(GHOUL_HITS).every((k) => GHOUL_HITS[k] >= GHOUL_HITS_MIN) &&
+    Object.keys(HORROR_ALL).every((k) => GHOUL_HITS[k] >= GHOUL_HITS_MIN) &&
+    Object.keys(NIGHT_EXTRA_HITS).every((k) => NIGHT_EXTRA_HITS[k] >= 2) &&
+    GHOUL_HITS.imp === GHOUL_HITS_MIN && GHOUL_HITS.ghoul === 4 && GHOUL_HITS.reaper === 7 &&
+    GHOUL_HITS.goulra >= 5 && GHOUL_HITS_MIN >= 3);
+  check('THE FLOOR AND THE CEILING BOTH HOLD on every block, every family, the tentacles and the grave furniture included',
+    (() => {
+      let lo = 99, hi = 0, seen = 0;
+      for (let b = 0; b < bands.length; b++) {
+        const fam = fams(bands[b]).concat(Object.keys(NIGHT_EXTRA_HITS));
+        for (let f = 0; f < fam.length; f++) {
+          const v = H.ghHits(bands[b], fam[f]);
+          if (v < lo) lo = v;
+          if (v > hi) hi = v;
+          seen++;
+        }
+      }
+      return lo >= GHOUL_HITS_MIN && hi <= GHOUL_HITS_MAX && seen > 20;
+    })(), 'range ' + (function () { let lo = 99, hi = 0; for (let b = 0; b < bands.length; b++) { const fam = fams(bands[b]).concat(Object.keys(NIGHT_EXTRA_HITS)); for (let f = 0; f < fam.length; f++) { const v = H.ghHits(bands[b], fam[f]); if (v < lo) lo = v; if (v > hi) hi = v; } } return lo + '..' + hi; })() + ' over ' + (function () { let n = 0; for (let b = 0; b < bands.length; b++) n += fams(bands[b]).length + Object.keys(NIGHT_EXTRA_HITS).length; return n; })() + ' block-family pools');
   check("DIFFERENT TYPES ON THE SAME BLOCK take DIFFERENT beatings (a mixed fight, not a uniform one)",
     (() => {
       const hits = fams(DIGB).map((k) => H.ghHits(DIGB, k));
@@ -3040,8 +3093,8 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   check("EVERY ABYSS SURGE HARDENES IT AGAIN (+1 swing per surge the pit has opened), and NOTHING on the street ever takes more than " + GHOUL_HITS_MAX + " swings",
     (() => {
       // THE SURGE PROBE rides a family WITH ROOM UNDER THE CEILING: the Diggers' skeleton is
-      // 3 + 2 = 5 swings, so a surge is an honest +1. The Grave Watch reaper (5 + 3 = 8) is
-      // the CEILING PROOF — every tier the pit opens drives it into the cap, and the cap holds.
+      // 4 + 2 = 6 swings, so a surge is an honest +1. The Grave Watch reaper (7 + 3 = 10) is
+      // the CEILING PROOF — it arrives AT the cap and every tier the pit opens keeps it there.
       // NOTHING on any block, of any family, at MAX wave and MAX surge, ever takes 10 blows.
       const s0 = H.ghHits(DIGB, 'skeleton');
       H.setSurgeTier(1);
@@ -3067,7 +3120,8 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
         ' · grave reaper ' + r0 + ' -> cap ' + hardest +
         ' · top imp ' + i0 + '/' + floorAtMax + ' · ceiling ' + GHOUL_HITS_MAX;
       return s1 === s0 + NIGHT_SURGE_HARDEN && s2 === s0 + 2 * NIGHT_SURGE_HARDEN &&
-        hardest <= GHOUL_HITS_MAX && atCap > 0 && hardest > r0 && floorAtMax >= 2;
+        hardest === GHOUL_HITS_MAX && r0 === GHOUL_HITS_MAX && atCap > 0 &&
+        floorAtMax >= GHOUL_HITS_MIN;
     })(),
     probeLog);
 
@@ -3146,11 +3200,15 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   const w2s = (wx) => (wx > 370 ? null : { x: 100 + (wx - 300), y: 220 });
   const barPool = [];
   const BAR = new Function('document', 'worldToScreen', 'creatures', 'state', 'isNightShift', 'GZ',
-    'NIGHT_HP_Z', 'NIGHT_HP_Z_FLOAT', 'HORROR_ROSTER_CAP', 'ghoulHpBarPool',
-    srcFn('nightHpBarRec') + '\n' + srcFn('updateGhoulHpBars') + '\n' + srcFn('nightHpBarsClear') +
-    '\n;return { upd: updateGhoulHpBars, clear: nightHpBarsClear };')(
-      doc, w2s, creatures, 'play', () => nightOn, GZ, NIGHT_HP_Z, NIGHT_HP_Z_FLOAT,
-      HORROR_ROSTER_CAP, barPool);
+    'NIGHT_HP_Z', 'NIGHT_HP_Z_FLOAT', 'NIGHT_HP_Z_PROP', 'HORROR_ROSTER_CAP', 'ghoulHpBarPool',
+    'blocks', 'SHOVELABLE_HAZARDS', 'nightArmProp', 'clamp',
+    srcFn('nightHpBarRec') + '\n' + srcFn('nightArmProp') + '\n' + srcFn('updateGhoulHpBars') +
+    '\n' + srcFn('nightHpBarsClear') +
+    '\n;return { upd: updateGhoulHpBars, clear: nightHpBarsClear, arm: nightArmProp };')(
+      doc, w2s, creatures, 'play', () => nightOn, GZ, NIGHT_HP_Z, NIGHT_HP_Z_FLOAT, NIGHT_HP_Z_PROP,
+      HORROR_ROSTER_CAP, barPool, S2_BLOCKS, SHOVELABLE_HAZARDS,
+      (hz) => { hz.hpMax = NIGHT_EXTRA_HITS[hz.type] || 3; hz.hp = hz.hpMax; hz.woundT = 0; },
+      clamp);
   s7Reset();
   creatures.length = 0;
   freeBlock(DIGB); // the block's whole ward load is free to seed
@@ -3163,38 +3221,131 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   barC[0].hp = barC[0].hpMax;
   barC[1].hp = Math.max(1, barC[1].hpMax - 1);
   barC[2].hp = 1; // the last swing: BLOOD RED
-  barC[3].hpMax = 1; barC[3].hp = 1; // a one-swing thing: no bar
+  barC[3].fade = 1; // it is materializing out of the fog: its bar fades IN with it
   barC[4].hooked = true; // riding the toss: no bar
   barC[5].wx = 400; barC[5].g.position.set(400, 2.5, GZ); // off screen: no bar
+  // THE GRAVE FURNITURE ON THE SAME BLOCK wears the same bar (the blade can dig it out).
+  const digBlock = S2_BLOCKS.filter((r) => r.blockX === 192)[0];
+  digBlock.hazards.length = 0;
+  H.nightPlaceProp(digBlock, 'headstone', 210, 2.5);
+  H.nightPlaceProp(digBlock, 'coffin', 220, 2.5);
   BAR.upd();
   const shown = barPool.filter((r) => r.el.style.display === 'block');
-  check("THERE IS A TINY HEALTH BAR OVER THE SPOOK'S HEAD, and only where one belongs: alive, wounded-able and ON screen (" +
-    shown.length + " bars for " + barC.length + " spooks — a one-swing thing, a spook riding the toss and an off-screen one get none)",
-    shown.length === 3 && barPool.length === 3,
+  const bare = barC.length - 2; // 6 spooks: one riding the toss, one off the screen
+  check('THERE IS A TINY HEALTH BAR OVER EVERYTHING THE SHOVEL CAN HIT on this level - every spook, the tentacles and the grave furniture, ON screen (' + shown.length + ' bars for ' + barC.length + ' spooks + 2 props; a spook riding the toss and an off-screen one go bare)',
+    shown.length === bare + 2 && barPool.length === bare + 2,
     'shown=' + shown.length + ' pool=' + barPool.length);
-  check("the bar FILLS AS THE POOL DRAINS and counts the swings on its face: " +
+  check('the FADING-IN SPOOK wears its bar too (it fades in with the mesh — NO spook on the block is bare)',
+    (() => {
+      const fading = barPool[3]; // roster order: barC[0..3] are the four standing on screen
+      return !!fading && fading.el.style.display === 'block' &&
+        fading.t === barC[3].hp + '/' + barC[3].hpMax &&
+        Number(fading.el.style.opacity) > 0.3 && Number(fading.el.style.opacity) < 1;
+    })(), 'opacity=' + ((barPool[3] || { el: { style: { opacity: '-' } } }).el.style.opacity));
+  check('the HEADSTONE and the COFFIN wear one as well, on THEIR block\u2019s hardened pools',
+    (() => {
+      const stone = digBlock.hazards.filter((h) => h.type === 'ghoststone')[0];
+      const coffin = digBlock.hazards.filter((h) => h.type === 'coffin')[0];
+      return !!stone && !!coffin && !!stone.hpMax && !!coffin.hpMax &&
+        stone.hpMax >= GHOUL_HITS_MIN && coffin.hpMax > stone.hpMax &&
+        barPool.some((r) => r.el.style.display === 'block' && r.t === stone.hp + '/' + stone.hpMax) &&
+        barPool.some((r) => r.el.style.display === 'block' && r.t === coffin.hp + '/' + coffin.hpMax);
+    })(),
+    digBlock.hazards.map((h) => h.type + ' ' + h.hp + '/' + h.hpMax).join('·'));
+  check('the bar FILLS AS THE POOL DRAINS and counts the swings on its face: ' +
     barC.slice(0, 3).map((c) => c.hp + '/' + c.hpMax).join(' · '),
     (() => {
       const byC = barPool.slice(0, 3).map((r) => ({ w: r.fill.style.width, t: r.num.textContent }));
       return byC[0].w === '100%' && byC[0].t === barC[0].hp + '/' + barC[0].hpMax &&
         byC[2].t === '1/' + barC[2].hpMax && parseInt(byC[2].w, 10) < 40;
     })(), barPool.map((r) => r.fill.style.width + ' ' + r.num.textContent).join(' | '));
-  check("the bar CHANGES COLOUR as it goes (green full, amber mid, BLOOD RED on the last swing)",
+  check('the bar CHANGES COLOUR as it goes (green full, amber mid, BLOOD RED on the last swing)',
     (() => {
       BAR.upd();
       const cls = barPool.map((r) => (r.el.classList.has('low') ? 'low' : r.el.classList.has('mid') ? 'mid' : 'full'));
       return cls.indexOf('full') >= 0 && cls.indexOf('low') >= 0;
     })(), barPool.map((r) => r.num.textContent + '=' + (r.el.classList.has('low') ? 'low' : r.el.classList.has('mid') ? 'mid' : 'full')).join(' '));
-  check("the bars ride the ROSTER with an element POOL (no per-frame alloc): more passes create nothing new",
-    (() => { const c0 = doc.created; BAR.upd(); BAR.upd(); return doc.created === c0 && barPool.length === 3; })());
+  check('the bars ride the ROSTER with an element POOL (no per-frame alloc): more passes create nothing new',
+    (() => { const c0 = doc.created; BAR.upd(); BAR.upd(); return doc.created === c0 && barPool.length === barC.length - 2 + 2; })());
   nightOn = false; BAR.upd(); nightOn = true;
-  check("the weekdays never get a bar: with the SAME roster on a weekday shift, every element goes hidden",
+  check('the weekdays never get a bar: with the SAME roster on a weekday shift, every element goes hidden',
     barPool.every((r) => r.el.style.display === 'none'));
-  check("THE SHIFT RESET CLEARS THE BARS (nothing is stranded on screen when the roster goes)",
+  check('THE SHIFT RESET CLEARS THE BARS (nothing is stranded on screen when the roster goes)',
     (() => { const n = barPool.length; BAR.clear(); return barPool.length === 0 && doc.removed >= n; })());
-  check("the bars ride the frame (the night block of the loop drives them) and they are styled in CSS",
-    html.includes('updateGhoulHpBars();') && /\.ghp \{/.test(html) && /\.ghp-fill \{/.test(html) &&
-      html.includes('nightHpBarsClear();'));
+  check('the bars ride the frame (the night block of the loop drives them, with its dt) and they are styled in CSS',
+    html.includes('updateGhoulHpBars(dt);') && /\.ghp \{/.test(html) && /\.ghp-fill \{/.test(html) &&
+      html.includes('nightHpBarsClear();') && /\.ghp\.low/.test(html));
+  digBlock.hazards.length = 0;
+
+  // (d2) THE FIRST BLOCK, WHOLE: the block he clocked in on is NOTED — every animal the blade
+  //      can catch on it carries a pool, and every one of them wears its bar on screen.
+  const bFirst = bandOfX(384);
+  const firstFams = fams(bFirst);
+  const blockRoster = [];
+  let blockSeeds = 0;
+  (() => {
+    freeBlock(bFirst);
+    for (let i = 0; i < 14; i++) {
+      const c = H.nightSpawnHorror(firstFams[i % firstFams.length], bFirst);
+      if (!c) continue;
+      blockSeeds++;
+      c.wx = 300 + (i % 7) * 3; c.wy = 2.5; c.fade = 0; // inside the MOCK camera's frustum
+      c.g.position.set(c.wx, c.wy, GZ);
+      blockRoster.push(c);
+    }
+  })();
+  const zaFirst = mkC('zombieArm', 1, { state: 'idle', cd: 0 });
+  zaFirst.wx = 345; zaFirst.wy = -5.5; zaFirst.fade = 0;
+  zaFirst.g.position.set(zaFirst.wx, zaFirst.wy, GZ);
+  H.armSpook(zaFirst, bFirst);
+  blockRoster.push(zaFirst);
+  creatures.length = 0;
+  creatures.push.apply(creatures, blockRoster);
+  const firstPropsBlock = S2_BLOCKS.filter((r) => r.blockX === 192)[0];
+  firstPropsBlock.hazards.length = 0;
+  H.nightPlaceProp(firstPropsBlock, 'gate', 352, 2.5);
+  H.nightPlaceProp(firstPropsBlock, 'candle', 356, 2.5);
+  BAR.clear();
+  BAR.upd();
+  const firstBars = barPool.filter((r) => r.el.style.display === 'block');
+  const expectedBars = blockRoster.length + 2; // every animal, the tentacle, and both props
+  check('THE FIRST BLOCK IS NOTED END TO END: ' + blockSeeds + ' animals, the manhole tentacle and ' +
+    firstPropsBlock.hazards.length + ' pieces of grave furniture — ' + firstBars.length +
+    ' bars for ' + expectedBars + ' shoveled things (NO animal on his own block is bare)',
+    firstBars.length === expectedBars && blockRoster.every((c) => c.hpMax >= GHOUL_HITS_MIN) &&
+      firstPropsBlock.hazards.every((h) => h.hpMax >= 2),
+    'bars=' + firstBars.length + ' of ' + expectedBars);
+  const firstPools = blockRoster.filter((c) => c.type !== 'zombieArm')
+    .map((c) => (c.causeKey || c.type) + '=' + c.hpMax);
+  check('THE PRICE ON THE FIRST BLOCK is the SOFTEST on the street and it is never one swing: ' +
+    firstPools.slice(0, 6).join(' ') + ' (the ward reads ' + H.ghFloor(bFirst) + ' swings each)',
+    firstPools.every((s) => Number(s.split('=')[1]) >= GHOUL_HITS_MIN) &&
+      H.ghFloor(bFirst) >= GHOUL_HITS_MIN && H.ghFloor(bFirst) <= GHOUL_HITS_MAX,
+    firstPools.join(' '));
+  firstPropsBlock.hazards.length = 0;
+  creatures.length = 0;
+  BAR.clear();
+
+  // (d3) THREE QUICK SWINGS DO NOT WIN A FIGHT: the swing cadence against the scurry and the pool
+  const CADENCE = SHOVEL_SWING_DUR + SHOVEL_COOLDOWN;
+  const poolFirst = H.ghHits(bFirst, firstFams[0]);
+  check('THE SCURRY OUTRUNS THE CADENCE: a wounded animal is off the tool and running for at least ' +
+    Math.floor(NIGHT_BACKOFF_T / CADENCE) + ' swing cycles on the softest block (push ' +
+    NIGHT_WOUND_PUSH.toFixed(1) + 'u at ' + NIGHT_BACKOFF_SP.toFixed(1) + 'u/s, retreat ' +
+    NIGHT_BACKOFF_T.toFixed(2) + 's + ' + NIGHT_BACKOFF_EXTRA.toFixed(2) + 's per swing left, cadence ' +
+    CADENCE.toFixed(2) + 's)',
+    NIGHT_WOUND_PUSH >= SHOVEL_REACH - SHOVEL_REACH * 0.4 &&
+      NIGHT_BACKOFF_T >= 2 * CADENCE && NIGHT_BACKOFF_SP > 3.2 &&
+      poolFirst >= GHOUL_HITS_MIN && GHOUL_HITS_MIN >= 3);
+  check('A BANISHMENT TAKES THE WHOLE POOL AND A SCURRY PER BLOW: ' + poolFirst +
+    ' swings, ' + (poolFirst - 1) + ' scurries, no fewer than ' +
+    (CADENCE * poolFirst + NIGHT_BACKOFF_T * (poolFirst - 1)).toFixed(2) +
+    's from the first swing to the hopper on the softest animal on the street',
+    (() => {
+      const softest = Math.min.apply(null, fams(bFirst).map((f) => H.ghHits(bFirst, f)));
+      const minTime = CADENCE * softest + NIGHT_BACKOFF_T * (softest - 1);
+      return softest >= GHOUL_HITS_MIN && minTime >= 3 * CADENCE + NIGHT_BACKOFF_T * 2;
+    })(), 'softest=' + fams(bFirst).map((f) => f + '=' + H.ghHits(bFirst, f)).join(' '));
 
   // (e) THE WARD BILL IS PAID BY BANISHMENTS, NEVER BY HITS
   s7Reset();
@@ -3236,10 +3387,16 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   check("THE WOUND GATE SITS BEHIND THE NIGHT SWITCH AND THE NIGHT ROSTER (a weekday ghost, the tentacle and every prop keep the shipped instant strike)",
     /if \(nightWoundShovel\(c\)\) return;/.test(srcFn('shovelStrike')) &&
     /if \(typeof isNightShift !== "function" \|\| !isNightShift\(\)\) return false;/.test(srcFn('nightWoundShovel')) &&
-    /if \(!HORROR_ALL\[key\]\) return false;/.test(srcFn('nightWoundShovel')));
+    /if \(!HORROR_ALL\[key\] && !NIGHT_EXTRA_HITS\[key\]\) return false;/.test(srcFn('nightWoundShovel')) &&
+    /if \(typeof isNightShift === "function" && isNightShift\(\)\) \{[\s\S]{0,900}if \(hz\.hp > 0\) \{/.test(srcFn('shovelHazardStrike')) &&
+    /nightArmProp\(b\.hazards\[b\.hazards\.length - 1\]\);/.test(srcFn('nightPlaceProp')) &&
+    /SHOVELABLE_HAZARDS\[hz\.type\]/.test(srcFn('updateGhoulHpBars')));
   check("the ward HUD names the PRICE AT THE CURTAIN (swings each) and every night spook is ARMED AT BIRTH",
     /" SWINGS EACH · WARD UP"/.test(html) && /nightArmSpook\(c, band\);/.test(srcFn('nightSpawnHorror')) &&
-    /const GHOUL_HITS = \{/.test(html) && /reaper: 5,/.test(html));
+    /nightArmSpook\(za, zaBand\);/.test(html) &&
+    /const GHOUL_HITS = \{/.test(html) && /reaper: 7,/.test(html) &&
+    /const GHOUL_HITS_MIN = 3;/.test(html) && /zombieArm: 4,/.test(html) &&
+    /const NIGHT_EXTRA_HITS = \{/.test(html));
 
 
 })();
