@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.484</div>
+          <div id="app-version" class="menu-version">v1.0.485</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.484';
+      const APP_VERSION = '1.0.485';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -27418,7 +27418,10 @@
             flood: false,
           });
         }
-        if (out.length) out[out.length - 1].flood = true;
+        if (out.length) out[routeDir() > 0 ? out.length - 1 : 0].flood = true;
+        // ^ by day the flood is the LAST block on the route; on the dead-end street the route
+        // ends at the graveyard, so the flood is the block at the BOTTOM of the street — the
+        // pit the worker is marching toward, not the one he clocked in on.
         return out;
       }
       function nightWorldBlock(band) {
@@ -27489,8 +27492,10 @@
       // Returns null when the band has no room left ahead of him (he has already walked it):
       // the haunt never spawns a spook at his back, and never drops one behind the curb.
       function nightSpawnHorror(type, band, variant) {
-        const lo = Math.max(band.x0 + 5, p.wx + 7);
-        const hi = band.x1 - 5;
+        const w = horrorAheadWindow(band); // by day: the band AHEAD of him up the street;
+        // on the dead-end shift: the band ahead of him DOWN the street, out of its bottom end
+        const lo = w.lo,
+          hi = w.hi;
         if (hi < lo) return null;
         const c = addCreature(type, variant ? { v: variant } : null);
         c.wx = clamp(lo + Math.random() * Math.max(1, hi - lo), band.x0 + 4, band.x1 - 4);
@@ -27778,6 +27783,46 @@
         const k = c.causeKey || c.type; // a banshee IS a specter, with a causeKey of its own
         return HORROR_ALL[k] || k === "ghost" ? k : c.type;
       }
+      // ---- THE HAUNT'S APPROACH VECTOR (Midnight only — every weekday answers the shipped
+      // numbers, character for character) ----
+      // By day the worker walks UP the street toward the finish line, so the abyss sends the
+      // spooks in AHEAD of him: up the block he is walking into, out of the higher x.
+      // ON MIDNIGHT HE IS WALKING THE OTHER WAY — down a dead-end street toward the cemetery —
+      // so "ahead of him" is the BOTTOM of the street: the low-x end, the graveyard mouth, the
+      // flood block. The haunt is read from that end: a spook is born downhill of the worker
+      // and walks UP into his shovel, the band he is walking INTO is the one BELOW him, and a
+      // spook that fell BEHIND him is one that got left UPSLOPE (toward the top of the street).
+      // Nothing here changes a weekday: routeDir() is +1 on all seven of them (and OVERTIME),
+      // and every expression below collapses to the original.
+      function horrorAheadWindow(band) {
+        if (routeDir() > 0) return { lo: Math.max(band.x0 + 5, p.wx + 7), hi: band.x1 - 5 };
+        return { lo: band.x0 + 5, hi: Math.min(band.x1 - 5, p.wx - 7) };
+      }
+      function horrorFellBehind(wx) {
+        return routeDir() > 0
+          ? wx < p.wx - NIGHT_CULL_BEHIND
+          : wx > p.wx + NIGHT_CULL_BEHIND;
+      }
+      function horrorRespawnX(c) {
+        const RT = routeDir();
+        const lo = c.flood ? c.flood.x0 : creatureLimitMinX();
+        const hi = c.flood ? c.flood.x1 : creatureLimitMaxX() - 4;
+        return clamp(
+          p.wx + RT * R(c.flood ? 12 : 28, c.flood ? 40 : 52),
+          lo,
+          hi,
+        );
+      }
+      // Which band(s) the haunt keeps at quota: the band he is IN, and by day the band he is
+      // walking INTO (the next one up the street) / on the dead-end street the band he is
+      // walking INTO (the next one DOWN the street).
+      function horrorFillingBands(bands) {
+        const here = bandOf(p.wx) || (routeDir() > 0 ? bands[0] : bands[bands.length - 1]);
+        const at = bands.indexOf(here);
+        const next =
+          routeDir() > 0 ? bands[at + 1] || here : bands[at - 1] || here;
+        return [here, next];
+      }
       function bandOf(x) {
         const bands = nightBands();
         for (let k = 0; k < bands.length; k++)
@@ -27798,7 +27843,7 @@
           if (!c || c.hooked || c.hookLanded) continue;
           const key = horrorKey(c);
           if (!HORROR_ALL[key] && key !== "ghost") continue;
-          if (c.wx < p.wx - NIGHT_CULL_BEHIND) cullHorror(c);
+          if (horrorFellBehind(c.wx)) cullHorror(c);
         }
         // 2) WAVE ESCALATION: every HORROR_WAVE_AT banishments the per-block quotas climb
         //    (up to their ceilings) — the abyss answers the shovel by sending MORE.
@@ -27849,8 +27894,10 @@
         // 4) THE FILL: the band he is IN and the band he is WALKING INTO are kept at quota.
         //    Spawns happen AHEAD of him only, and only inside what he can see — a spook never
         //    spawns at his back. Rate-limited: NIGHT_FILL_TICK, NIGHT_FILL_BURST per tick.
-        const here = bandOf(p.wx) || bands[0];
-        const next = bands[bands.indexOf(here) + 1] || here;
+        const bandsToFill0 = horrorFillingBands(bands); // day: his band + the one AHEAD up the
+        // street; Midnight: his band + the one AHEAD down the street (toward the graves)
+        const here = bandsToFill0[0];
+        const next = bandsToFill0[1];
         nightHauntT -= dt;
         if (nightHauntT > 0) return;
         nightHauntT = NIGHT_FILL_TICK;
@@ -28196,13 +28243,19 @@
       function respawnHorror(c) {
         // A FLOOD spook re-enters out of the fog INSIDE the flood band (it does not leave the
         // last block to loiter up the route); everything else re-takes a spot ahead of him.
-        const lo = c.flood ? c.flood.x0 : ROUTE_START_X;
-        const hi = c.flood ? c.flood.x1 : Math.max(ROUTE_START_X + 10, ROUTE_END_X - 4);
-        c.wx = clamp(
-          p.wx + R(c.flood ? 12 : 28, c.flood ? 40 : 52),
-          lo,
-          hi,
-        );
+        // MIDNIGHT: "ahead of him" is DOWN the dead-end street, so a spook that wanders too
+        // far re-enters out of the BOTTOM of the street and walks back UP into the fight.
+        if (isNightShift()) {
+          c.wx = horrorRespawnX(c);
+        } else {
+          const lo = c.flood ? c.flood.x0 : ROUTE_START_X;
+          const hi = c.flood ? c.flood.x1 : Math.max(ROUTE_START_X + 10, ROUTE_END_X - 4);
+          c.wx = clamp(
+            p.wx + R(c.flood ? 12 : 28, c.flood ? 40 : 52),
+            lo,
+            hi,
+          );
+        }
         c.wy = R(HORROR_STREET_Y + 0.4, horrorMaxY() - 0.4); // any lane: road, curb, walk, lawn
         c.tx = c.wx;
         c.ty = c.wy;
@@ -39778,6 +39831,35 @@
         const rightSide = p.wy > -4.5 + lw + 0.3; // on the near (sidewalk-edge) street side
         return inStreet && (leftSide || rightSide);
       }
+      // THE TRUCK'S OWN BACK-UP GATE (see canBackUp). By day the driver only rolls the rear
+      // in when the worker is out in the street, clear of the truck's lane.
+      // ON MIDNIGHT THE DRIVER IS WORKING THE STREET WITH HIM: he is walking DOWN toward the
+      // graveyard with the rig reversing after him, its open hopper facing the ghouls that
+      // come up out of the bottom of the street. He is not always in the roadway when a spook
+      // gets shovelled — he fights from the curb, the walk, the lawn and the sidewalk, and a
+      // rig that stops there leaves him hauling the ghoul back down into the road to dump it.
+      // On the dead-end street the rig's rear faces AWAY from him, so reversing toward its gap
+      // can never run it over the worker — the only thing that stops it is the cul-de-sac wall.
+      // ---- THE MIDNIGHT DRIVER (the rig follows the worker from ANY lane) ----
+      // canBackUp() is the weekday gate: the driver only rolls his rear out when the worker is
+      // out in the roadway, off to the LEFT or RIGHT of the truck's own lane — never from the
+      // sidewalk, never from directly behind the hopper. It protects the worker from being run
+      // over by a rig that is reversing toward him.
+      // ON MIDNIGHT THAT GEOMETRY IS FLIPPED: he walks DOWNHILL toward the graveyard with the
+      // rig behind him, upslope, its open hopper facing back at him. The rig's reversing drive
+      // moves it AWAY from the worker, so a lane test buys him nothing there — it only stops
+      // helping him. And he spends the whole shift fighting ghouls from the curb, the walk, the
+      // lawn and the sidewalk: a driver who freezes on those lanes makes him drag a banished
+      // spook back down into the road to dump it. On the dead-end street the driver stays on
+      // his shoulder wherever he is, and the only thing that stops the rig is the cul-de-sac.
+      function rigMayFollow(laneClear) {
+        if (!isNightShift()) return laneClear; // the weekday driver, exactly as shipped
+        // Midnight: the rig's REAR is what closes on him (truck.wx + hopperOff), and the rear
+        // rests 6.2u UPSLOPE of him — a full truck-length clear of the worker, in any lane,
+        // road, curb, walk, lawn or sidewalk. The reverse can never reach him, so the lane
+        // test has nothing to protect against here; follow him everywhere.
+        return true;
+      }
       // The truck's rear hazard lights, blinking the DSNY pattern: 1s BOTH outer lights
       // (L1+L3), 1s the MIDDLE light (L2) — repeated forever, never all dark. Driven by
       // performance.now() so it stays in sync no matter who calls it. Called from BOTH the
@@ -39867,7 +39949,7 @@
             // when the worker is out in the street, to the left or right of the truck. Never on
             // the sidewalk, never with the worker directly in the truck's own lane
             // (directly behind it). Proportional easing: eases in without blasting.
-            if (canBackUp()) sp = -Math.min(MAXSP, (backErr - DEAD) * 2.0);
+            if (rigMayFollow(canBackUp())) sp = -Math.min(MAXSP, (backErr - DEAD) * 2.0);
           } else if (backErr < -DEAD) {
             // Worker pulled ahead -> drive forward (up the walking axis). This puts the truck
             // back in FOLLOW mode: the forward target (3.6/4.1u) takes over, so the rear
@@ -39888,7 +39970,7 @@
             // Proportional easing: the creep speed scales with the gap and is capped, so the
             // truck eases in without blasting past its hopper position.
             sp = Math.min(MAXSP, (-fwdErr - DEAD) * 2.0);
-          } else if (fwdErr > DEAD && canBackUp()) {
+          } else if (fwdErr > DEAD && rigMayFollow(canBackUp())) {
             // Hopper is ahead of the worker -> the driver backs up (down the walking axis, so
             // on MIDNIGHT that is DOWN THE STREET after him) to re-position, easing in the
             // same proportional way... but ONLY when the worker is out in the street, to the

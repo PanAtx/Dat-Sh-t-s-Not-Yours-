@@ -308,6 +308,8 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightBands', 'nightWorldBlock', 'nightFloodBand', 'nightQuota', 'nightBandLive',
   'nightHorrorLive', 'nightGhostLive', 'nightHorrorOnScreen', 'cullHorror', 'nightSpawnHorror',
   'spawnNightGhost', 'bandOf', 'updateNightHaunt', 'nightPlaceProp',
+  // THE HAUNT'S APPROACH VECTOR (Midnight: the spooks come out of the BOTTOM of the street)
+  'horrorAheadWindow', 'horrorFellBehind', 'horrorRespawnX', 'horrorFillingBands',
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
   'shovelToolReach', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
   'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY',
@@ -393,6 +395,7 @@ const H = new Function(
   ' shovelHazardStrike, updateEctoFlights, animateGhostHands, nightBands, nightWorldBlock,' +
   ' nightFloodBand, nightQuota, nightBandLive, nightHorrorLive, nightGhostLive,' +
   ' nightHorrorOnScreen, nightSpawnHorror, spawnNightGhost, bandOf, updateNightHaunt,' +
+ ' horrorAheadWindow, horrorFellBehind, horrorRespawnX, horrorFillingBands,' +
   ' nightPlaceProp, cullHorror, ectoFlights, shovelToolReach, horrorHunterCount,' +
   ' shoveSpookOff, shovelParry, shovelGuardOf: () => p.shovelGuardT,' +
   ' nightSayOk, nightBubbleOk,' +
@@ -513,7 +516,7 @@ check('the DSNY shovel is a real street shovel: D-grip rig, SHORT WOOD handle, d
   H.makeShovelProp().children.length === 9);
 
 // --- ACT swings the shovel (and only on this level) ---
-p.wx = 100; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 9;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 9;
 const farHound = mkC('hound', 30);
 const nearGhoul = mkC('ghoul', 2, { causeKey: 'ghoul' });
 creatures.length = 0; creatures.push(farHound, nearGhoul);
@@ -593,7 +596,9 @@ const stray = mkC('ghoul', -70, { chaseSp: 4, lopeSp: 1.5, huntT: 0, sayCd: 999,
 stray.tx = stray.wx; stray.ty = stray.wy;
 H.updateHorrorCreature(stray, 1 / 60);
 check('a horror left far behind re-takes the route AHEAD of the worker and fades back in',
-  stray.wx > p.wx + 20 && stray.fade === 0, 'wx=' + stray.wx.toFixed(1));
+  // MIDNIGHT: the haunt fills from the bottom of the dead-end street, so "ahead of him" is
+  // DOWNHILL (a lower x). The weekday shape of this rule is asserted on the source.
+  stray.wx < p.wx - 20 && stray.fade === 0, 'wx=' + stray.wx.toFixed(1) + ' worker=' + p.wx.toFixed(1));
 
 // --- the heist: bolt with the prize, corner at the end, tear it free ---
 p.wx = PLAYER_START_X; p.wy = 3;
@@ -753,7 +758,7 @@ for (const o of S2_GROUND.children) o.parent = null;
 S2_GROUND.children.length = 0;
 S2_ARMS.length = 0; S2_HANDS.length = 0;
 creatures.length = 0; allSpawned.length = 0; disposed.length = 0;
-p.wx = 85; p.wy = 2.5;
+p.wx = 449; p.wy = 2.5; // the haunted shift clocks in at the TOP of the dead-end street
 let s5Threw = null;
 try { S5.spawnNightShift(); } catch (e) { s5Threw = e; }
 check('the whole haunted street builds without throwing' + (s5Threw ? '  [' + s5Threw.message + ']' : ''), !s5Threw);
@@ -820,7 +825,7 @@ function s7Reset() {
   S2_ARMS.length = 0; S2_HANDS.length = 0;
   creatures.length = 0; allSpawned.length = 0; disposed.length = 0;
   H.resetNight();
-  p.wx = 100; p.wy = 2.5;
+  p.wx = 449; p.wy = 2.5; // the haunted shift clocks in at the TOP
   announced.length = 0; deposited.length = 0; scored.length = 0;
   S5.spawnNightShift();
 }
@@ -829,7 +834,7 @@ const keyAt = (band, type) =>
     c.wx >= band[0] - 2 && c.wx <= band[1] + 2).length;
 s7Reset();
 check('the block he STARTS in has its full 9 ghouls (plus the whole roster behind it)',
-  keyAt([96, 176], 'ghoul') >= HORROR_QUOTA.ghoul, 'ghouls=' + keyAt([96, 176], 'ghoul'));
+  keyAt([384, 464], 'ghoul') >= HORROR_QUOTA.ghoul, 'ghouls=' + keyAt([384, 464], 'ghoul'));
 check('no active block is quiet: ghouls stand in EVERY band the route walks through',
   S2_IDX.every((i) => keyAt([S2_LAYOUT[i].x, S2_LAYOUT[i].x + 80], 'ghoul') >= 1));
 check('the LIVE HAUNT never refills a spirit either: ' +
@@ -841,7 +846,7 @@ let banishEvery = 72, frame = 0, minHere = 999, spawnBehind = 0, peakLive = 0, p
 let floodGhoulsAtEnd = 0, surgeAnnounced = false, surgeFired = false, waveTier = 0, behindSample = '-', scanned = 0;
 const before = allSpawned.length;
 for (frame = 0; frame < 60 * 130; frame++) {
-  p.wx = Math.min(452, p.wx + 3.0 / 60); // a working walk down the route
+  p.wx = Math.max(85, p.wx - 3.0 / 60); // a working walk DOWN the dead-end street (routeDir -1)
   H.updateNightHaunt(1 / 60);
   const band = H.bandOf(p.wx);
   if (band) minHere = Math.min(minHere, keyAt([band.x0, band.x1], 'ghoul'));
@@ -849,7 +854,7 @@ for (frame = 0; frame < 60 * 130; frame++) {
   peakScreen = Math.max(peakScreen, H.nightHorrorOnScreen());
   for (let i = scanned; i < allSpawned.length; i++) {
     scanned = i + 1;
-    if (HORROR_ALL[allSpawned[i].type] && allSpawned[i].wx < p.wx - 2) {
+    if (HORROR_ALL[allSpawned[i].type] && allSpawned[i].wx > p.wx + 2) {
       spawnBehind++;
       if (behindSample === '-')
         behindSample = allSpawned[i].type + ' at ' + allSpawned[i].wx.toFixed(1) +
@@ -876,7 +881,8 @@ for (frame = 0; frame < 60 * 130; frame++) {
   // warning rides the shared pop budget and may legitimately be displaced by a CONSECRATED!.
   if (hh[1] > 0) surgeFired = true;
   if (announced.some((a) => /SURGE/.test(a))) surgeAnnounced = true;
-  floodGhoulsAtEnd = keyAt([384, 464], 'ghoul');
+  floodGhoulsAtEnd = keyAt([96, 176], 'ghoul'); // the night's flood band = the block at the BOTTOM of the street
+  // band is the block at the BOTTOM of the street, the one he marches into last
 }
 check('after 108 banishments the pack is STILL there: a block band never fell under ' + NIGHT_GHOUL_MIN + ' ghouls',
   minHere >= NIGHT_GHOUL_MIN, 'min ghouls in his band = ' + minHere);
@@ -884,7 +890,7 @@ check('the horde refills FAST — a fresh block fills to its quota the moment he
   floodGhoulsAtEnd >= HORROR_QUOTA_FLOOD.ghoul, 'flood ghouls at the end = ' + floodGhoulsAtEnd);
 check('the ABYSS FLOOD block is the heaviest: ' + floodGhoulsAtEnd + ' ghouls, a deep pack, reapers out',
   floodGhoulsAtEnd >= HORROR_QUOTA_FLOOD.ghoul &&
-  creatures.filter((c) => c.deep && c.wx >= 384 && c.wx <= 464).length >= 20);
+  creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10);
 check('wave escalation kicked in (5 banishments = +1 spook per family per block)', waveTier >= 1);
 // (The SURGE *warning* rides the shared centre-screen pop budget with CONSECRATED!/TRIAD — see
 // the deterministic drive below for the mechanic itself; this is only an observation of the chatter.)
@@ -957,8 +963,11 @@ check('the grave yard registers SOLID hazards on the block record (headstone, gr
   !!stone && !!arm && !!skull &&
   shovelPropBlock.hazards.filter((h) => h.g === stone || h.g === arm || h.g === skull).length === 3 &&
   S2_ARMS.some((a) => a.g === arm));
+p.wx = 300; // the mob is AHEAD of him DOWN the street
 const mob3 = [];
 for (let i = 0; i < 3; i++) {
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
   const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
   c.wx = p.wx + 1.6 + i * 0.7; c.wy = 2.5; c.huntT = 0; c.flinchT = 0;
   c.g.position.set(c.wx, c.wy, GZ);
@@ -1028,6 +1037,8 @@ check("the Holy Weapon publishes its blade materials + a holy level, and the gam
 H.resetNight();
 creatures.length = 0;
 for (let i = 0; i < 5; i++) {
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
   const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
   c.wx = p.wx + 1.4 + i * 0.5; c.wy = 2.5; c.g.position.set(c.wx, c.wy, GZ);
 }
@@ -1050,6 +1061,8 @@ check('FIVE banishments CONSECRATE the blade (charged; the pop is budgeted, not 
   ' announced=' + announced.join('/'));
 creatures.length = 0;
 for (let i = 0; i < 5; i++) {
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
   const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
   c.wx = p.wx + 1.4 + i * 1.3; c.wy = 2.5 + (i % 3) * 0.4;
   c.huntT = 4; c.flinchT = 0;
@@ -1077,6 +1090,8 @@ H.resetNight();
 creatures.length = 0;
 announced.length = 0; scored.length = 0; deposited.length = 0;
 for (let i = 0; i < 3; i++) {
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
   const c = H.nightSpawnHorror('imp', { x0: 192, x1: 272 });
   c.wx = p.wx + 1.5; c.wy = 2.5; c.g.position.set(c.wx, c.wy, GZ);
   c.hooked = true; c.hookT = 0; c.hookLanded = false;
@@ -1375,11 +1390,11 @@ check('the budget is a NIGHT-ONLY gate (weekday/Maspeth voices are untouched)',
 // --- SIM: a 45-second swing-frenzy against the live horde: how much text hits the screen? ---
 s7Reset();
 onScreen = true;
-p.wx = 120; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
 const sayMark = sayings.length, bubMark = bubbles.length, popMark = announced.length;
 let swings = 0;
 for (let i = 0; i < 60 * 45; i++) {
-  p.wx = Math.min(452, p.wx + 3.2 / 60); // he WORKS down the route, so the refill feeds him
+  p.wx = Math.max(90, p.wx - 3.2 / 60); // the march DOWN the dead-end street
   H.updateNightHaunt(1 / 60);
   // the game's frame sweep: banished spooks fly, land, score, and are removed
   for (let k = creatures.length - 1; k >= 0; k--) {
@@ -1443,10 +1458,10 @@ check('the spirit zones stay on the Maspeth bands (street / curb / sidewalk slot
 // --- SIM: the live horde over 60s: the pack must be standing in the road AND on the lawn ---
 s7Reset();
 onScreen = true;
-p.wx = 100; p.wy = 2.5;
+p.wx = 449; p.wy = 2.5;
 let inStreet = 0, inCurb = 0, inWalk = 0, inLawn = 0, peakGhosts = 0;
 for (let i = 0; i < 60 * 60; i++) {
-  p.wx = Math.min(452, p.wx + 3.0 / 60);
+  p.wx = Math.max(90, p.wx - 3.0 / 60); // the march DOWN the dead-end street
   H.updateNightHaunt(1 / 60);
   for (const c of creatures) {
     if (c.hooked || c.hookLanded) continue;
@@ -1495,11 +1510,11 @@ check('TEMP TEST BUILD: the week starts on the MIDNIGHT level (flagged, one line
 // --- SIM: a full haunted route of banishments = how much score, really? ---
 s7Reset();
 onScreen = true;
-p.wx = 100; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
 scored.length = 0;
 let kills = 0;
 for (let i = 0; i < 60 * 90; i++) {
-  p.wx = Math.min(452, p.wx + 3.2 / 60);
+  p.wx = Math.max(90, p.wx - 3.2 / 60); // the march DOWN the dead-end street
   H.updateNightHaunt(1 / 60);
   for (let k = creatures.length - 1; k >= 0; k--) {
     const c = creatures[k];
@@ -1953,25 +1968,29 @@ function truckSpawnAt(wx) {
       ";return truckSpawnX;",
   )(470, 21, 0, () => true, () => 470 - 21, () => 6.2 + 4.3)(wx);
 }
-function runTruckAI(dir, pWx, truckWx, mode, steps) {
-  const p = { wx: pWx, wy: -4.0, immuneT: 0 };
+function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
+  const p = { wx: pWx, wy: pWy == null ? -4.0 : pWy, immuneT: 0 };
   const truck = {
     wx: truckWx, hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: mode,
     g: { visible: true, position: { set() {} }, rotation: { z: 0 } },
   };
   const night = dir < 0;
-  const gapFn = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(
-    () => night);
-  const backFn = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(
-    () => night);
+  const gapFn = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => night);
+  const backFn = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(() => night);
+  // THE REAL BACK-UP GATE (canBackUp) AND THE REAL FOLLOW DECISION (rigMayFollow), run on
+  // the axis under test: the suite exercises the shipped behaviour, never a stub of it.
+  const gates = new Function(
+    "p", "truck", "laneClear", "isNightShift", "workerTopLimitX",
+    srcFn("canBackUp") + "\n" + srcFn("rigMayFollow") + "\nreturn { canBackUp, rigMayFollow };",
+  )(p, truck, () => (laneClear == null ? true : laneClear), () => night, () => 449);
   const fn = new Function(
     "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
     "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
-    "truckTargetGap", "truckBackGap",
+    "truckTargetGap", "truckBackGap", "rigMayFollow",
     srcFn("updateTruck") + "\n;return updateTruck;",
   )(
-    p, truck, "none", () => dir, () => 0, 8.5, 1.3,
-    () => true, 0.3, () => {}, () => {}, gapFn, backFn,
+    p, truck, 'none', () => dir, () => 0, 8.5, 1.3,
+    gates.canBackUp, 0.3, () => {}, () => {}, gapFn, backFn, gates.rigMayFollow,
   );
   for (let i = 0; i < steps; i++) fn(1 / 60);
   return { wx: truck.wx, sp: truck.sp, mode: truck._mode, yaw: truck.g.rotation.z };
@@ -2004,12 +2023,15 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
     };
     const gapFn0 = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => true);
     const backFn0 = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(() => true);
+    const gates0 = new Function("p", "truck", "isNightShift", "workerTopLimitX",
+      srcFn("canBackUp") + "\n" + srcFn("rigMayFollow") + "\nreturn { canBackUp, rigMayFollow };")(
+      p, truck, () => true, () => 449);
     const fn = new Function(
       "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
       "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
-      "truckTargetGap", "truckBackGap",
+      "truckTargetGap", "truckBackGap", "rigMayFollow",
       srcFn("updateTruck") + "\n;return updateTruck;",
-    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, () => true, 0.3, () => {}, () => {}, gapFn0, backFn0);
+    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, gates0.canBackUp, 0.3, () => {}, () => {}, gapFn0, backFn0, gates0.rigMayFollow);
     let minGap = 1e9, maxGap = -1e9, backFrames = 0, fwdFrames = 0, prev = truck.wx;
     for (let i = 0; i < 2400; i++) {
       p.wx = Math.max(NIGHT_START_X - 370, p.wx - 8.5 / 60); // March: top of the street -> the boss zone
@@ -2065,7 +2087,7 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
     day.wx > 376 && day.yaw === 0 && Math.abs(day.wx - (400 + 3.6 + 4.3)) < 1.2,
     "wx " + 376 + " -> " + day.wx.toFixed(1) + " rest=" + (400 + 3.6 + 4.3),
   );
-  const dayBack = runTruckAI(1, 400, 420, "follow", 120);
+  const dayBack = runTruckAI(1, 400, 420, "follow", 120, -7.0);
   check("WEEKDAY: the rear ahead of the worker still backs the rig DOWN (-x), as shipped",
     dayBack.wx < 420 && dayBack.sp < 0 && dayBack.mode === "close",
     "wx " + 420 + " -> " + dayBack.wx.toFixed(1));
@@ -2084,6 +2106,166 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
     return truckSpawnAt(wx);
   }
 })();
+console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the haunt comes up out of the BOTTOM of the street");
+(function () {
+  const NIGHT_TOP = 449, NIGHT_BOTTOM = 84;
+  // A) THE SMARTER DRIVER. canBackUp() is the weekday rule: the driver only rolls the rear out
+  // when the worker is out in the roadway, clear of the truck's own lane. On the dead-end
+  // street the man fights ghouls from the CURB, the walk and the SIDEWALK all shift, and a rig
+  // that freezes there makes him haul the sack down into the road to dump it. rigMayFollow()
+  // answers canBackUp() by day and opens the whole street up on Midnight.
+  const sidewalkClear = false; // wy=1.6 is a sidewalk: canBackUp() says NO from that lane
+  const nightWalk = runTruckAI(-1, 430, truckSpawnAt(430), "follow", 300, 1.6, sidewalkClear);
+  const dayWalk = runTruckAI(1, 120, 120 + 3.6 + 4.3, "follow", 300, 1.6, sidewalkClear);
+  const dayBack = runTruckAI(1, 400, 420, "follow", 120, -7.0);
+  check("MIDNIGHT: with the worker up on the SIDEWALK the rig still follows him down the street (the Midnight driver works the street with him)",
+    nightWalk.wx < truckSpawnAt(430) - 3 && nightWalk.sp < 0.6,
+    "truck " + truckSpawnAt(430).toFixed(1) + " -> " + nightWalk.wx.toFixed(1));
+  check("WEEKDAY: a worker up on the sidewalk is the SHIPPED freeze — canBackUp() still keeps the rig from rolling out of its lane",
+    Math.abs(dayWalk.wx - (120 + 7.9)) < 1.2 && Math.abs(dayWalk.sp) < 0.05,
+    "wx=" + dayWalk.wx.toFixed(2) + " sp=" + dayWalk.sp.toFixed(3));
+  check("MIDNIGHT: the follow runs from every lane he works (road, street, curb, grass, sidewalk)",
+    [-6, -3, -1, 0.4, 1.6].every((wy) => {
+      const clear = !(wy > -4.5 - 1.9 - 0.3 && wy < -4.5 + 1.9 + 0.3);
+      const r = runTruckAI(-1, 430, truckSpawnAt(430), "follow", 200, wy, clear);
+      return r.wx < truckSpawnAt(430) - 2;
+    }),
+    "lanes swept: road -6 / curb -3 / street -1 / grass 0.4 / sidewalk 1.6");
+  check("the weekday back-up gate itself is UNTOUCHED (canBackUp is the shipped lane test, byte for byte)",
+    /const inStreet = p\.wy > -10 && p\.wy < -0\.3;/.test(srcFn("canBackUp")) &&
+    /const leftSide = p\.wy < -4\.5 - lw - 0\.3;/.test(srcFn("canBackUp")) &&
+    /const rightSide = p\.wy > -4\.5 \+ lw \+ 0\.3;/.test(srcFn("canBackUp")) &&
+    /return inStreet && \(leftSide \|\| rightSide\);/.test(srcFn("canBackUp")));
+  check("the rig's follow runs THROUGH that gate on every day but one (rigMayFollow(canBackUp()) at both drive decisions)",
+    srcFn("updateTruck").includes("if (rigMayFollow(canBackUp())) sp = -Math.min(MAXSP") &&
+    srcFn("updateTruck").includes("fwdErr > DEAD && rigMayFollow(canBackUp())"));
+  check("MIDNIGHT: the widened lane is LIVE behaviour — the rig centre parks ~10.5u upslope of the worker with the open scoop 6.2u up the fighting lane",
+    (() => {
+      const r = runTruckAI(-1, 420, truckSpawnAt(420), "follow", 600, -4.0, true);
+      const gap = r.wx - 420, scoop = r.wx - 4.3;
+      return gap > 9 && gap < 12.5 && scoop - 420 > 5 && scoop - 420 < 7.5;
+    })(),
+    "gap=" + (runTruckAI(-1, 420, truckSpawnAt(420), "follow", 600, -4.0, true).wx - 420).toFixed(2));
+  check("WEEKDAY: and the shipped lane width is unchanged (the rig rests its centre 5.8u..7.9u ahead of the worker — the close-mode rest to the forward target, exactly as shipped)",
+    (() => {
+      const wx = runTruckAI(1, 300, 315, "follow", 420, -7.0).wx;
+      return wx - 300 >= 5.5 && wx - 300 <= 8.0;
+    })(),
+    "wx=" + runTruckAI(1, 300, 315, "follow", 420, -7.0).wx.toFixed(1));
+  // B) THE HAUNT COMES FROM THE BOTTOM. The worker marches DOWN the dead-end street, so the
+  // abyss has to feed the fight from the direction he is walking into: the low-x end, the
+  // graveyard mouth, the flood block. Every rule the haunt runs off "ahead of him" / "behind
+  // him" is resolved on the ROUTE AXIS — and by day routeDir() is +1, so all of it collapses
+  // back to the shipped numbers, character for character.
+  const axisArgs = ["routeDir", "p", "NIGHT_CULL_BEHIND", "creatureLimitMinX", "creatureLimitMaxX", "ROUTE_START_X", "ROUTE_END_X", "R", "clamp", "isNightShift"];
+  function axisFns(dir) {
+    return new Function(...axisArgs,
+      srcFn("horrorAheadWindow") + "\n" + srcFn("horrorFellBehind") + "\n" + srcFn("horrorRespawnX") +
+      "\nreturn { horrorAheadWindow, horrorFellBehind, horrorRespawnX };")(
+      () => dir, { wx: 300 }, 70, () => 76, () => 470, 80, 464,
+      (a, b) => (a + b) / 2, (v, lo, hi) => Math.max(lo, Math.min(hi, v)), () => dir < 0);
+  }
+  const nightAxis = axisFns(-1), dayAxis = axisFns(1);
+  const bN = nightAxis.horrorAheadWindow({ x0: 192, x1: 272 });
+  const bN2 = nightAxis.horrorAheadWindow({ x0: 260, x1: 340 });
+  const bD = dayAxis.horrorAheadWindow({ x0: 192, x1: 272 });
+  check("MIDNIGHT: a band's spawn window is the part of the band DOWNHILL of the worker — the spooks are born at the bottom of the street and walk UP into his shovel",
+    bN.lo === 197 && bN.hi === 267 && bN2.lo === 265 && bN2.hi === 293,
+    "worker 300: band[192,272] -> " + bN.lo + ".." + bN.hi + ", band[260,340] -> " + bN2.lo + ".." + bN2.hi);
+  check("WEEKDAY: the shipped window (the band AHEAD of him, up the street) is untouched",
+    bD.lo === 307 && bD.hi === 267, "worker 300: window " + bD.lo + ".." + bD.hi);
+  check("MIDNIGHT: the live spawner obeys it — seed 60 ghouls in a band below him and every one lands downhill of the worker",
+    (() => {
+      p.wx = NIGHT_TOP;
+      creatures.length = 0;
+      allSpawned.length = 0;
+      let out = 0, down = 0;
+      for (let i = 0; i < 60; i++) {
+        const c = H.nightSpawnHorror("ghoul", { x0: 288, x1: 368 });
+        if (!c) continue;
+        out++;
+        if (c.wx < p.wx) down++;
+      }
+      creatures.length = 0;
+      return out > 40 && down === out;
+    })(),
+    "seeds=" + "60 band [288,368] worker 449");
+  check("WEEKDAY: the live spawner keeps seeding AHEAD (up the street) when the route runs +x",
+    (() => {
+      const flip = nightOn;
+      nightOn = false;
+      p.wx = 100;
+      creatures.length = 0;
+      let out = 0, up = 0;
+      for (let i = 0; i < 60; i++) {
+        const c = H.nightSpawnHorror("ghoul", { x0: 192, x1: 272 });
+        if (!c) continue;
+        out++;
+        if (c.wx > p.wx) up++;
+      }
+      creatures.length = 0;
+      nightOn = flip;
+      p.wx = NIGHT_TOP;
+      return out > 20 && up === out;
+    })(),
+    "the day axis, the day rules");
+  check("MIDNIGHT: a spook left BEHIND is one left UPSLOPE (toward the top of the street); a spook down at the graves is right where he belongs",
+    nightAxis.horrorFellBehind(371) === true && nightAxis.horrorFellBehind(229) === false);
+  check("WEEKDAY: and by day behind means the low-x side, as shipped",
+    dayAxis.horrorFellBehind(229) === true && dayAxis.horrorFellBehind(371) === false);
+  const rN = nightAxis.horrorRespawnX({}), rD = dayAxis.horrorRespawnX({});
+  check("MIDNIGHT: a spook that wanders off re-enters out of the BOTTOM of the street (28..52u downhill of him, inside the road he can work)",
+    rN < 273 && rN > 76, "respawn x=" + rN.toFixed(1) + " (worker 300)");
+  check("WEEKDAY: the respawn rule is the shipped one — re-takes a spot 28..52u up the street",
+    rD > 327 && rD < 353, "respawn x=" + rD.toFixed(1));
+  check("MIDNIGHT: the ABYSS FLOOD band moves to the block at the BOTTOM of the street (the pit he marches into last), where by day it is the finish-line block",
+    (() => {
+      const floodN = H.nightBands().filter((b) => b.flood)[0];
+      const flip = nightOn;
+      nightOn = false;
+      const floodD = H.nightBands().filter((b) => b.flood)[0];
+      nightOn = flip;
+      return floodN.x0 < floodD.x0 && floodN.x0 <= 100 && floodD.x0 >= 380;
+    })(),
+    "night flood x0=" + H.nightBands().filter((b) => b.flood)[0].x0);
+  check("MIDNIGHT: the band the haunt refills is the one he is walking INTO — the next band DOWN the street (by day: the next band up it)",
+    (() => {
+      const f = new Function("routeDir", "p", "bandOf", srcFn("horrorFillingBands") + ";return horrorFillingBands;");
+      const bands = [{ x0: 96, x1: 176, i: 1 }, { x0: 192, x1: 272, i: 2 }, { x0: 288, x1: 368, i: 3 }];
+      const at = (x) => bands.filter((b) => x >= b.x0 - 6 && x <= b.x1 + 6)[0];
+      const bn = f(() => -1, { wx: 230 }, at)(bands);
+      const bd = f(() => 1, { wx: 230 }, at)(bands);
+      return bn[1].x0 === 96 && bd[1].x0 === 288;
+    })(),
+    "Midnight refills the band BELOW him, the weekday the band above");
+  check("THE 120-SECOND MARCH DOWN MIDNIGHT: not one spook is ever seeded UPSLOPE of the worker — the top of the street stays empty and the fight is always in front of him",
+    (() => {
+      s7Reset();
+      let bad = 0, seeds = 0, behindCull = 0;
+      p.wx = NIGHT_TOP;
+      for (let i = 0; i < 60 * 120; i++) {
+        p.wx = Math.max(NIGHT_BOTTOM, p.wx - 3.1 / 60); // the march down toward the graves
+        const mark = allSpawned.length;
+        H.updateNightHaunt(1 / 60);
+        for (let k = mark; k < allSpawned.length; k++) {
+          if (!HORROR_ALL[allSpawned[k].type]) continue;
+          seeds++;
+          if (allSpawned[k].wx > p.wx) bad++;
+        }
+        if (i % 90 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.swing(); }
+      }
+      return seeds > 40 && bad === 0;
+    })(),
+    "0 seeds upslope of the worker across the whole march");
+  check("the source says it plainly: the haunt's spawn window, its cull line, its respawn and its refill bands all read the ROUTE AXIS, with the weekday expressions left exactly as shipped",
+    srcFn("horrorAheadWindow").includes("if (routeDir() > 0) return { lo: Math.max(band.x0 + 5, p.wx + 7), hi: band.x1 - 5 }") &&
+    srcFn("horrorAheadWindow").includes("return { lo: band.x0 + 5, hi: Math.min(band.x1 - 5, p.wx - 7) }") &&
+    srcFn("horrorFellBehind").includes("wx > p.wx + NIGHT_CULL_BEHIND") &&
+    srcFn("horrorRespawnX").includes("p.wx + RT * R(c.flood ? 12 : 28") &&
+    srcFn("nightBands").includes("out[routeDir() > 0 ? out.length - 1 : 0].flood = true") &&
+    srcFn("respawnHorror").includes("p.wx + R(c.flood ? 12 : 28, c.flood ? 40 : 52)"));
+})();
+
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);
