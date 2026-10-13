@@ -350,8 +350,9 @@ check('the whole street stays INSIDE the roster cap at base quota',
     q + blockQuota(f, x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x)), 0), 0) <= HORROR_ROSTER_CAP,
   'base=' + ACTIVE_XS.reduce((s, x) => s + famFn(bandOfX(x)).reduce((q, f) =>
     q + blockQuota(f, x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x)), 0), 0) + ' cap=' + HORROR_ROSTER_CAP);
-check('THE SPAWN GATE IS ARMED: nightBlockOwns answers the band and the variant key',
-  /nightBlockOwns\(variant \|\| type, band\)/.test(srcFn('nightSpawnHorror')));
+check('THE SPAWN GATE IS ARMED: nightBlockOwns answers the band and the FAMILY key (a cosmetic variant never vetoes the animal)',
+  /nightBlockOwns\(type, band\)/.test(srcFn('nightSpawnHorror')) &&
+    !/nightBlockOwns\(variant/.test(srcFn('nightSpawnHorror')));
 check('THE GATE REFUSES A FOREIGN FAMILY: a ghoul asked for on the vermin block is refused',
   ownsFn('ghoul', bandOfX(288)) === false && ownsFn('gremlin', bandOfX(288)) === true &&
   ownsFn('ghoul', bandOfX(192)) === true && ownsFn('banshee', bandOfX(384)) === true &&
@@ -455,7 +456,7 @@ check('the haunt only ever runs on the night shift (the seven weekdays never see
 check('the block exclusivity is Midnight-only (the gate never arms on a weekday)',
   /typeof isNightShift === "function" &&/.test(srcFn('nightSpawnHorror')) &&
   /isNightShift\(\) &&/.test(srcFn('nightSpawnHorror')) &&
-  /!nightBlockOwns\(variant \|\| type, band\)/.test(srcFn('nightSpawnHorror')));
+  /!nightBlockOwns\(type, band\)/.test(srcFn('nightSpawnHorror')));
 check('the dead-end layout knobs are all still in force (one cross-street, cemetery last, fence wall)',
   /const NIGHT_XS = \[464\]/.test(html) && /const NIGHT_CEMETERY_BLOCK_IDX = 0/.test(html) &&
   /const NIGHT_FENCE_Y = 8\.3/.test(html) && /const NIGHT_TOP_BLOCK_X = 384/.test(html));
