@@ -4245,7 +4245,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.490</div>
+          <div id="app-version" class="menu-version">v1.0.492</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4503,7 +4503,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.490';
+      const APP_VERSION = '1.0.492';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28827,7 +28827,9 @@
       const NIGHT_GATE_ROOM = 2.5; // the block's animals are born this far ahead of it
       const NIGHT_GATE_WORK = 0.35; // ...and they may work down to this close off the light
       const NIGHT_GATE_STOP = 0.34; // his center stops this far off the light (FENCE_STOP kin)
-      const NIGHT_GATE_REACH = 1.6; // ~140ms at top speed: the overshoot the clamp catches
+      const NIGHT_GATE_REACH = 1.6; // one frame at top speed — a REFERENCE distance only: the
+      // ward clamp does NOT use a fire window (a window wider than its snap point pins the
+      // worker inside the wall: he can only slide sideways. Fire on crossing, snap ON the line.)
       const NIGHT_GATE_FADE = 1.15; // s the curtain takes to dissolve
       const NIGHT_GATE_LIFT = 1.35; // u/s it rises as it fades
       const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
@@ -28943,6 +28945,26 @@
         // the lowest x a ward-bound animal may be born at: at the curtain, never below it
         const led = nightGateLedger(band);
         return led && !led.open ? led.x + NIGHT_GATE_ROOM : band.x0 + 4;
+      }
+      function nightGateWall(fromX, toX) {
+        // THE WALL OF THIS FRAME. A position-only lookup cannot see a curtain the worker
+        // has just stepped past (it is above him, so it is not "ahead" any more) — and that
+        // is exactly the frame the wall must bite. So the ward is found on the SEGMENT his
+        // center travelled: the closed curtain standing inside (toX .. fromX] is the one he
+        // crossed this frame (the highest = the first one his body hit), and if he crossed
+        // none, his wall is simply the closed curtain standing ahead of him.
+        if (!nightGateOn()) return null;
+        let hit = null;
+        const keys = Object.keys(nightGates);
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          if (!led || led.open) continue;
+          if (toX <= led.x && fromX >= led.x) {
+            if (!hit || led.x > hit.x) hit = led; // crossed it this frame
+          }
+        }
+        if (hit) return hit;
+        return nightGateFrontLedger(); // no crossing: the standing wall ahead
       }
       function nightGateFrontLedger() {
         // the ward he is walking INTO: the closed curtain with the HIGHEST x at or below
@@ -41441,18 +41463,37 @@
         // clipping through, and the world shudders once while he says what the wall is
         // doing. This clamp runs BEFORE the cross-street's boss trigger, so a block he has
         // not emptied can never wake the beast at the graves. Weekdays: never enters.
-        if (isNightShift() && NIGHT_BLOCK_GATES && state === "play" && !bossFightOn) {
+        if (isNightShift() && NIGHT_BLOCK_GATES && state === "play") {
           p.gateT = Math.max(0, (p.gateT || 0) - dt);
-          const ward = nightGateFrontLedger();
-          if (ward && p.wx < ward.x + NIGHT_GATE_REACH && p.wx > ward.x - 4) {
-            p.wx = ward.x + NIGHT_GATE_STOP; // hard stop, right on the light
-            if (p.gateT <= 0) {
-              p.gateT = 2.2; // one line per ~2s of pressing at the curtain
-              p.shake = Math.max(p.shake || 0, 0.42);
-              nightGateSay(pick(NIGHT_GATE_LINES));
-              spawnEctoBurst(ward.x, p.wy, 0.6); // the light flares where he hits it
+          // His wall is looked up on the SEGMENT his center travelled this frame
+          // (previous RESOLVED center -> new center): a position-only lookup can never see
+          // the curtain he has just stepped past, and that is the frame the wall must bite.
+          const ward = !bossFightOn ? nightGateWall(p.gatePrev == null ? p.wx : p.gatePrev, p.wx) : null;
+          if (ward) {
+            // THE WARD IS A CROSSING WALL. His center may never be past the light line
+            // (wardStop = the curtain plus a body-width). Pressing into the curtain is a
+            // STABLE dead stop on the line, pressing away frees him on the very next frame
+            // (the snap sits at the edge of the release, so there is NO pin pocket — a fire
+            // window wider than its own snap point is what traps a worker in a wall: wx
+            // pinned, only sideways left), and his side axis is never touched, so he slides
+            // along the light exactly the way he slides along the cemetery fence. A center
+            // deep below the line that did NOT cross it this frame is left where it stands
+            // (the wall is not a tow rope and never yanks him across a block).
+            const wardStop = ward.x + NIGHT_GATE_STOP;
+            if (p.wx < wardStop) {
+              p.wx = wardStop; // hard stop right on the light
+              if (p.gateT <= 0) {
+                p.gateT = 2.2; // one line per ~2s of pressing at the curtain
+                p.shake = Math.max(p.shake || 0, 0.42);
+                nightGateSay(pick(NIGHT_GATE_LINES));
+                spawnEctoBurst(ward.x, p.wy, 0.6); // the light flares where he hits it
+              }
             }
           }
+          // THE HISTORY RIDES THE RESOLVED CENTER: written AFTER the snap, so the next
+          // frame's crossing test measures the wall against where he really stands. Storing
+          // the pre-snap position here leaks the worker past the curtain a frame later.
+          p.gatePrev = p.wx;
         }
         if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X) {
           // THE CROSS-STREET: walking into the cemetery's mouth is the boss's trigger. This

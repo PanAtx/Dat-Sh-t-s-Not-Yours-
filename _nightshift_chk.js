@@ -409,7 +409,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateSurgeAdd', 'nightGateBaseLoad',
   'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive',
   'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateFloorX', 'nightGateHolds',
-  'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
+  'nightGateWall', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount'].map(srcFn).join('\n');
 const H = new Function(
@@ -541,7 +541,7 @@ const H = new Function(
   ' gateX: b => nightGateX(b), gateLoad: b => nightGateLoad(b), gateBase: b => nightGateBaseLoad(b),' +
   ' gateLive: b => nightGateLive(b), gateLeft: b => nightGateLeft(b), gateRoom: b => nightGateRoom(b),' +
   ' gateFloorX: b => nightGateFloorX(b), gateClosed: b => nightGateClosedAt(b), gateCount: () => nightGateCount(),' +
-  ' gateFront: () => nightGateFrontLedger(), gateProgress: () => nightGateProgress(),' +
+  ' gateFront: () => nightGateFrontLedger(), gateWall: (a, b) => nightGateWall(a, b), gateProgress: () => nightGateProgress(),' +
   ' gateHud: () => nightGateHudText(), gateBuild: bs => buildNightGates(bs), gateClear: () => nightGateClear(),' +
   ' gateCheck: dt => nightGateCheck(dt), gateAnimate: dt => nightGateAnimate(dt),' +
   ' gateYield: ref => nightGateYieldOf(ref), gateBandXs: b => nightBlockBandXs(b), gateSurge: b => nightGateSurgeAdd(b) };'
@@ -998,9 +998,12 @@ const liveInBand = (x) =>
 // THE WARD WALK: the worker's clamp at a closed curtain, so every march in this file
 // walks the street the way the game plays it — held at the light until the block is empty.
 function wardClamp() {
-  const front = H.gateFront();
-  if (front && p.wx < front.x + NIGHT_GATE_REACH && p.wx > front.x - 4)
-    p.wx = front.x + NIGHT_GATE_STOP;
+  const front = H.gateWall(p.gatePrev == null ? p.wx : p.gatePrev, p.wx);
+  p.gatePrev = p.wx; // (mirror of the real clamp: the wall of this frame's travel segment)
+  if (front) {
+    const line = front.x + NIGHT_GATE_STOP;
+    if (p.wx < line) p.wx = line; // snap ON the line = free the moment he presses away
+  }
   return front;
 }
 const living = () => creatures.filter((c) => !c.hooked && !c.hookLanded &&
@@ -2678,23 +2681,23 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
   const Trig = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X)');
   const clampSrc = html.slice(clampStart, Trig);
   const runClamp = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
-    'nightGateFrontLedger', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
+    'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
     'nightGateSay', 'spawnEctoBurst', clampSrc);
   const sayLog = [];
   p.wx = 289.2; p.gateT = 0; p.shake = 0;
-  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }),
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }), () => ({ x: 290 }),
     NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], (l) => sayLog.push(l), () => {});
   check("a closed ward is a SOLID WALL: his centre stops a body-width off the light, he says it, the world shudders",
     clampStart > 0 && Math.abs(p.wx - (290 + NIGHT_GATE_STOP)) < 1e-9 && sayLog.length === 1 &&
     p.shake >= 0.4 && p.gateT > 0 && /THE SPECTRAL WARD/.test(clampSrc),
     'wx=' + p.wx.toFixed(3) + ' say=' + sayLog.join('/'));
   p.wx = 300; p.gateT = 5;
-  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }),
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }), () => ({ x: 290 }),
     NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
   check("a ward only bites AT the curtain: working his own block is untouched, no line fires far from the light",
     p.wx === 300 && sayLog.length === 1);
   p.wx = 281.0; p.gateT = 5;
-  runClamp(() => true, true, 'play', false, 1 / 60, p, () => null,
+  runClamp(() => true, true, 'play', false, 1 / 60, p, () => null, () => null,
     NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
   check("when the ward is down there is NO wall: he walks through the light's line into the next block",
     p.wx === 281.0 && sayLog.length === 1);
@@ -2703,9 +2706,9 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
   check("the flood ward stands a full cross-street above the trigger, so the Grave Watch is fought before the beast",
     H.gateX(GRAVEB) - NIGHT_BOSS_TRIGGER_X === 6 && H.gateClosed(GRAVEB) === true &&
     (() => {
-      p.wx = H.gateX(GRAVEB) + 1.4; // he walks DOWN onto the curtain
+      p.wx = H.gateX(GRAVEB) - 0.1; // he walks DOWN THROUGH the curtain's line
       p.gateT = 5;
-      runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: H.gateX(GRAVEB) }),
+      runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: H.gateX(GRAVEB) }), () => ({ x: H.gateX(GRAVEB) }),
         NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], () => {}, () => {});
       return p.wx === H.gateX(GRAVEB) + NIGHT_GATE_STOP && p.wx > NIGHT_BOSS_TRIGGER_X;
     })(),
@@ -2750,6 +2753,171 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
     dynamicChildren.filter((o) => o.userData && o.userData.ward && o.visible !== false).length === 4);
 })();
 
+console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — press away and he walks");
+(function () {
+  s7Reset();
+  const bands = H.nightBands();
+  const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
+  const TOPB = bandOfX(384), VERMB = bandOfX(288);
+  const WARDX = H.gateX(VERMB);                 // 290 — the Vermin curtain
+  const LINE = WARDX + NIGHT_GATE_STOP;         // his centre's line: fire threshold AND snap value
+  const says = [];
+  const atWard = () => ({ x: WARDX, i: VERMB.i });
+
+  // the REAL clamp, extracted from updatePlayer (v1.0.491: fire on crossing, snap ON the line)
+  const w0 = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
+  const w1 = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X)');
+  const wardSrc = html.slice(w0, w1);
+  const wall = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
+    'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
+    'nightGateSay', 'spawnEctoBurst', wardSrc);
+  const frame = (getFront) => wall(() => true, true, 'play', false, 1 / 60, p, getFront, getFront,
+    NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], (l) => says.push(l), () => {});
+  const walk = (dx, dy, n, getFront) => {
+    for (let k = 0; k < n; k++) { p.wx += dx; p.wy += dy; frame(getFront); }
+  };
+
+  // (a) THE WALL: crossing the line catches him and holds him exactly on it
+  p.wx = WARDX + 1.5; p.wy = 3; p.gateT = 0; p.shake = 0; says.length = 0;
+  walk(-1.6, 0, 1, atWard);
+  check("[20a] the curtain catches him the FIRST frame his centre crosses its line — a body-width off the light",
+    p.wx === LINE, 'wx=' + p.wx.toFixed(4) + ' line=' + LINE.toFixed(4));
+  const pinned = p.wx;
+  walk(-0.7, 0, 90, atWard); // holding the stick INTO the wall for 1.5s
+  check("[20a] holding the stick into the ward is a STABLE dead stop: zero drift over 90 frames",
+    p.wx === pinned, 'wx=' + p.wx.toFixed(6) + ' pin=' + pinned.toFixed(6));
+  check("[20a] and he only talks about it once per ~2s (no line spam from a pinned worker)",
+    says.length === 1, says.length + " lines");
+
+  // (b) THE SLIDE: sideways is free — the axis the wall owns is the only one it touches
+  p.wy = 3;
+  walk(0, 0.5, 20, atWard);
+  check("[20b] he SLIDES along the wall: 20 side steps move his cross-street axis and never yank his centre",
+    p.wx === pinned && Math.abs(p.wy - 13) < 1e-9, 'wx=' + p.wx.toFixed(4) + ' wy=' + p.wy.toFixed(2));
+
+  // (c) THE ESCAPE — the reported bug: pressing AWAY must free him instantly
+  p.gateT = 0;
+  walk(0.6, 0, 1, atWard);
+  check("[20c] THE WALL LETS GO: one push uphill and he is OFF the line on the very next frame",
+    p.wx > pinned, 'wx=' + p.wx.toFixed(4) + ' pin=' + pinned.toFixed(4));
+  const free0 = p.wx;
+  walk(0.6, 0, 80, atWard); // keep walking up the street, away from the curtain
+  check("[20c] walking away from a closed ward is FREE travel: 80 frames move him the full 48 units, the clamp never re-bites",
+    Math.abs(p.wx - (free0 + 48)) < 1e-9, 'wx=' + p.wx.toFixed(3) + ' from=' + free0.toFixed(3));
+  // (d) THE WALL IS BUILT THE SAFE WAY: it catches the CROSSING (so no speed can tunnel
+  //     it), it snaps ON the line, and it has no snap pocket (a window above the snap
+  //     point) and no long tail (the old 4-unit strip behind the light that yanked him).
+  check("THE CLAMP CATCHES THE CROSSING: it looks the wall up on the SEGMENT his center travelled this frame (nightGateWall(previous center, new center)), so no walk, sprint, dash, knockback or throw can go through a closed ward",
+    /nightGateWall\(p\.gatePrev == null \? p\.wx : p\.gatePrev, p\.wx\)/.test(wardSrc) &&
+    /const wardStop = ward\.x \+ NIGHT_GATE_STOP;/.test(wardSrc) &&
+    /if \(p\.wx < wardStop\)/.test(wardSrc) &&
+    /p\.gatePrev = p\.wx;/.test(wardSrc),
+    wardSrc.replace(/\s+/g, ' ').slice(wardSrc.indexOf('const ward ='), wardSrc.indexOf('const ward =') + 132));
+  check("THE CLAMP HAS NO SNAP POCKET AND NO LONG TAIL (the two ways a wall traps a worker: a window wider than its snap pins him inside it; a tail across the block teleports him)",
+    wardSrc.indexOf('p.wx > ward.x + ') < 0 && wardSrc.indexOf('ward.x - 4') < 0 &&
+    /p\.wx = wardStop;/.test(wardSrc) && wardSrc.indexOf('if (p.wx < wardStop) {') >= 0 &&
+    wardSrc.indexOf('NIGHT_GATE_REACH') < 0,
+    'pocket=' + (wardSrc.indexOf('p.wx > ward.x + ') >= 0) + ' tail=' + (wardSrc.indexOf('ward.x - 4') >= 0));
+  check("THE WALL LIVES INSIDE THE WARD GUARD, so an open street (no front curtain) can never throw: 300 frames with a null ward, no exception, no move",
+    (() => {
+      p.wx = 300; p.gateT = 0;
+      try { for (let k = 0; k < 300; k++) frame(() => null); } catch (e) { return 'throws: ' + e.message; }
+      return p.wx === 300;
+    })(),
+    'wx=' + p.wx.toFixed(3));
+
+  // (e) NO SPEED TUNNELS THE CURTAIN, and the wall never yanks a worker across the block:
+  //     every stride that ends below the line is caught ON the line, and standing deep in
+  //     the block below (only reachable after the ward fell) leaves him exactly where he is.
+  const tunnel = (step) => {
+    p.wx = WARDX + 6; p.gateT = 0; p.gatePrev = WARDX + 6; p.gatePrevWard = VERMB.i;
+    for (let k = 0; k < 80; k++) { p.wx -= step; frame(atWard); }
+    return p.wx; // the stride that crossed the line must have stopped ON the line
+  };
+  const caught = [0.18, 0.34, 0.6, 1.2, 3.0, 9.0, 30].map((s) => Math.abs(tunnel(s) - LINE) < 1e-9);
+  check("NOT ONE STRIDE TUNNELS THE WARD: walking (0.18), sprinting (0.34), a frame at top speed (0.6), a dash (1.2), a shove (3.0), a knockback (9.0) and a 30-unit throw all stop ON the light line",
+    caught.every(Boolean), caught.map((c, i) => [0.18, 0.34, 0.6, 1.2, 3.0, 9.0, 30][i] + '=' + (c ? 'caught' : 'TUNNELED')).join(' '));
+  const realWall = (a, b) => H.gateWall(a, b); // the game's own segment lookup
+  p.wx = WARDX - 4; p.gateT = 0; p.gatePrev = WARDX - 4; // placed deep, history deep: never crossed
+  frame(realWall);
+  check("[20e] the wall is a WALL, not a tow rope: a center deep in the block below a closed curtain (that did not cross it this frame) is left exactly where it stands — no cross-block yank",
+    p.wx === WARDX - 4, 'wx=' + p.wx.toFixed(4));
+  p.wx = WARDX - 4; p.gateT = 0; p.gatePrev = WARDX + 1; // a throw from above the line, through the curtain
+  frame(realWall);
+  check("the crossing test is what owns the ward: a throw that PASSES the curtain's line is pulled back onto it — nobody rides through a closed ward",
+    p.wx === LINE, 'wx=' + p.wx.toFixed(4));
+  p.wx = WARDX - 0.3; p.gateT = 0; p.gatePrev = null; p.gatePrevWard = -99;
+  frame(atWard);
+  check("[20e] the near side of the light is his limit: a center inside the curtain's strip is put back on the line, a body-width off the light",
+    p.wx === LINE, 'wx=' + p.wx.toFixed(4) + ' line=' + LINE.toFixed(4));
+  p.gateT = 0; p.gatePrev = LINE; p.gatePrevWard = VERMB.i;
+  walk(0.6, 0, 2, atWard);
+  check("[20e] and from the line he is free to walk back up the street (the ward is a wall, not a cage)",
+    p.wx > LINE, 'wx=' + p.wx.toFixed(4));
+
+  // (f) EVERY CURTAIN IS A WALL HE CAN LEAVE, tested where the game puts him: standing on
+  //     the block ABOVE the curtain. For each of the FOUR wards: the wards above him are
+  //     down (so he is standing on this block), he marches down onto the curtain (the wall
+  //     catches him), pushes uphill (he frees himself), presses back in (same line).
+  const topFirst = bands.slice().sort((a, b) => b.x0 - a.x0);
+  const atCurtain = (band) => {
+    s7Reset();
+    for (const b of topFirst) { // open every curtain ABOVE the one under test
+      if (b.i === band.i) break;
+      const led = H.gateLedger(b);
+      led.open = true; led.fade = 1;
+    }
+    const line = H.gateX(band) + NIGHT_GATE_STOP;
+    p.wx = H.gateX(band) + 1.6; p.wy = 4; p.gateT = 0; says.length = 0;
+    p.gatePrev = p.wx; p.gatePrevWard = band.i; // the frame the shift started him on this block
+    let caught = false;
+    for (let j = 0; j < 12 && !caught; j++) { // march DOWN onto the curtain
+      p.wx -= 0.6;
+      frame(realWall);
+      if (Math.abs(p.wx - line) < 1e-9) caught = true;
+    }
+    if (!caught) return null;
+    const pin = p.wx;
+    for (let j = 0; j < 12; j++) { p.wx += 0.6; frame(realWall); } // push AWAY
+    const away = p.wx - pin;
+    for (let j = 0; j < 24; j++) { p.wx -= 0.6; frame(realWall); } // press BACK in
+    return { away, back: Math.abs(p.wx - pin), line, pin };
+  };
+  const runs = topFirst.map((b) => ({ x: H.gateX(b), r: atCurtain(b) }));
+  check("ALL FOUR CURTAINS stand on their block's low edge, catch him on their line, and SET HIM FREE the moment he pushes uphill: 12 frames away = the FULL 7.2 units (the reported trap: pinned, only sideways left)",
+    runs.length === 4 && runs.every((o) => o.r && Math.abs(o.r.away - 7.2) < 1e-9),
+    runs.map((o) => "ward " + o.x + " -> " + (o.r ? "escape " + o.r.away.toFixed(2) : "never caught")).join('; '));
+  check("and pressing back into a curtain returns him to the EXACT same line every block: a stable wall, no teleport, no drift",
+    runs.every((o) => o.r && o.r.back < 1e-9),
+    runs.map((o) => (o.r ? o.r.back.toFixed(6) : 'n/a')).join('/'));
+  check("no ward fell for walking: at every block he probed, the curtain was still UP when he left it",
+    runs.every((o) => o.r !== null));
+  s7Reset();
+
+  // (f2) WITH THE WARDS DOWN, the same march is pure free travel — the walls live only in
+  //      the closed ledgers, so the cleared street can be run end to end.
+  bands.forEach((b) => { const led = H.gateLedger(b); led.open = true; led.fade = 1; });
+  p.wx = 400; p.gateT = 0; says.length = 0;
+  for (let k = 0; k < 300; k++) { p.wx -= 0.6; frame(realWall); }
+  check("an opened street runs END TO END at full stride: 300 frames of walking down = 180 units, no wall, no line",
+    H.gateFront() === null && Math.abs(p.wx - (400 - 180)) < 1e-9 && says.length === 0,
+    'wx=' + p.wx.toFixed(3) + ' front=' + (H.gateFront() ? H.gateFront().x : 'none') + ' says=' + says.length);
+  s7Reset();
+
+  // (g) WEEKDAYS: the clamp is inert, the street stays the old street
+  const nightWas = nightOn;
+  nightOn = false;
+  p.wx = 300; p.gateT = 0; says.length = 0;
+  const frameDay = () => wall(() => nightOn, true, 'play', false, 1 / 60, p, atWard, atWard,
+    NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], (l) => says.push(l), () => {});
+  for (let k = 0; k < 60; k++) { p.wx -= 0.6; frameDay(); }
+  check("no weekday is walled: 60 frames walking straight THROUGH every curtain's line move him the full 36 units and the clamp never fires",
+    Math.abs(p.wx - 264) < 1e-9 && says.length === 0, 'wx=' + p.wx.toFixed(3) + ' says=' + says.length);
+  nightOn = nightWas;
+
+})();
+
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
+
 if (fail) failures.forEach((f, i) => console.log('  FAIL ' + (i + 1) + ') ' + f));
 process.exit(fail ? 1 : 0);
