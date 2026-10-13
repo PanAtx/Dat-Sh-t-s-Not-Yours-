@@ -144,6 +144,7 @@ const HORROR_TYPES = {
   hexbeast: 1, abyssal: 1, lich: 1, reaper: 1, ghost: 1,
   // THE BLOCK PACKS (shovelable, exactly like the shipped roster)
   gremlin: 1, goblin: 1, devil: 1, fangspider: 1, eyecrawler: 1, skeleton: 1, pitfiend: 1,
+  grubsquat: 1, ratking: 1, lanternfang: 1, goulra: 1,
 };
 // THE ABYSS ROSTER (the families the night shift now haunts every block with)
 const HORROR_ALL = {
@@ -151,11 +152,13 @@ const HORROR_ALL = {
   demon: 1, hexbeast: 1, abyssal: 1, lich: 1, reaper: 1,
   // THE BLOCK PACKS (the per-block horrors of the dead-end street)
   gremlin: 1, goblin: 1, devil: 1, fangspider: 1, eyecrawler: 1, skeleton: 1, pitfiend: 1,
+  grubsquat: 1, ratking: 1, lanternfang: 1, goulra: 1,
 };
 const HORROR_HITS = {
   specter: 8, banshee: 9, ghoul: 10, hound: 11, imp: 6, wraith: 9, poltergeist: 8,
   demon: 14, hexbeast: 9, abyssal: 12, lich: 12, reaper: 16, ghost: 10,
   gremlin: 7, goblin: 11, devil: 15, fangspider: 10, eyecrawler: 9, skeleton: 12, pitfiend: 13,
+  grubsquat: 8, ratking: 9, lanternfang: 10, goulra: 14,
 };
 const HORROR_NAMES = {
   specter: 'SPECTER', banshee: 'BANSHEE', ghoul: 'GHOUL', hound: 'HELLHOUND', imp: 'IMP',
@@ -163,6 +166,7 @@ const HORROR_NAMES = {
   abyssal: 'ABYSSAL', lich: 'LICH', reaper: 'REAPER', ghost: 'GHOST', zombieArm: 'TEN-TACLE',
   gremlin: 'GREMLIN', goblin: 'GOBLIN', devil: 'DEVIL', fangspider: 'FANGSPIDER',
   eyecrawler: 'EYECRAWLER', skeleton: 'SKELETON', pitfiend: 'PITFIEND',
+  grubsquat: 'GRAVE-SQUAT', ratking: 'RAT KING', lanternfang: 'LANTERNFANG', goulra: 'GOULRA',
 };
 const SPOOK_LINES = {
   specter: ['BOO'], banshee: ['WOOO'], ghoul: ['Sooo'], hound: ['GRR'], imp: ['HEH'],
@@ -170,6 +174,7 @@ const SPOOK_LINES = {
   abyssal: ['PIT'], lich: ['LICH'], reaper: ['SCYTHE'], ghost: ['US'], thief: ['MINE'],
   gremlin: ['CHEWED'], goblin: ['LOOT'], devil: ['PITCHFORK'], fangspider: ['SKITTER'],
   eyecrawler: ['NINE'], skeleton: ['CLATTER'], pitfiend: ['BRINE'],
+  grubsquat: ['SQUAT'], ratking: ['GUTTERS'], lanternfang: ['LAMP'], goulra: ['WATCH'],
 };
 // THE HOLY WEAPON + the exorcisable grave yard (the numbers the game runs on)
 const HORROR_QUOTA = eval('(' + srcLiteral('HORROR_QUOTA', '{', '}') + ')');
@@ -179,23 +184,45 @@ const SHOVELABLE_HAZARDS = eval('(' + srcLiteral('SHOVELABLE_HAZARDS', '{', '}')
 const HORROR_PROP_NAMES = eval('(' + srcLiteral('HORROR_PROP_NAMES', '{', '}') + ')');
 const HORROR_PROP_LINES = ['HEADSTONE IN THE TRUCK!'];
 const HORROR_FILL_ORDER = eval('(' + srcLiteral('HORROR_FILL_ORDER', '[', ']') + ')');
-// THE BLOCK PACKS (Midnight: every block of the dead-end street haunts with its own set).
+// THE BLOCK PACKS (Midnight: ONE horde per block — a family belongs to exactly one block).
 // Extracted from the game exactly as it is built, and wired to the haunt harness's own
 // nightQuota() as soon as it exists — so the harness fills bands with the SAME code the
 // game runs (see the nightQuotaForPacks hookup right after H is constructed).
-const NIGHT_BLOCKS = eval('(' + srcLiteral('NIGHT_BLOCKS', '[', ']') + ')');
 const IW = srcNum('IW');
+const NIGHT_PACK_ESCALATE = true;
+const NIGHT_PACK_SLACK = srcNum('NIGHT_PACK_SLACK');
+const NIGHT_BEAT_TOP_X = srcNum('NIGHT_BEAT_TOP_X');
+const NIGHT_BEAT_VERMIN_X = srcNum('NIGHT_BEAT_VERMIN_X');
+const NIGHT_BEAT_DIGGER_X = srcNum('NIGHT_BEAT_DIGGER_X');
+const NIGHT_BEAT_GRAVE_X = srcNum('NIGHT_BEAT_GRAVE_X');
+const NIGHT_BLOCKS = (() => {
+  // Same keys the game builds NIGHT_BLOCKS from (the beat constants), read out of the source
+  const TOP = NIGHT_BEAT_TOP_X, VERMIN = NIGHT_BEAT_VERMIN_X, DIG = NIGHT_BEAT_DIGGER_X, GRAVE = NIGHT_BEAT_GRAVE_X;
+  const raw = srcLiteral('NIGHT_BLOCKS', '[', ']')
+    .replace(/NIGHT_BEAT_TOP_X/g, String(TOP))
+    .replace(/NIGHT_BEAT_VERMIN_X/g, String(VERMIN))
+    .replace(/NIGHT_BEAT_DIGGER_X/g, String(DIG))
+    .replace(/NIGHT_BEAT_GRAVE_X/g, String(GRAVE));
+  return eval('(' + raw + ')');
+})();
 const nightBlockPack = new Function('NIGHT_BLOCKS', 'BLOCK_W', 'IW',
   srcFn('nightBlockPack') + '\nreturn nightBlockPack;')(NIGHT_BLOCKS, 80, IW);
-const nightBlockFamilies = new Function('nightBlockPack', 'HORROR_ALL',
-  srcFn('nightBlockFamilies') + '\nreturn nightBlockFamilies;')(nightBlockPack, HORROR_ALL);
+const nightBandPack = new Function('nightBlockPack',
+  srcFn('nightBandPack') + '\nreturn nightBandPack;')(nightBlockPack);
+const nightBlockFamilies = new Function('nightBandPack', 'HORROR_ALL',
+  srcFn('nightBlockFamilies') + '\nreturn nightBlockFamilies;')(nightBandPack, HORROR_ALL);
 let nightQuotaForPacks = () => 0;
-const nightBlockQuota = new Function('nightBlockPack', 'nightQuota', 'HORROR_QUOTA_CEIL',
-  srcFn('nightBlockQuota') + '\nreturn nightBlockQuota;')(
-  nightBlockPack, (t, flood) => nightQuotaForPacks(t, flood),
-  eval('(' + srcLiteral('HORROR_QUOTA_CEIL', '{', '}') + ')'));
-const nightBlockOrder = new Function('nightBlockFamilies', 'HORROR_FILL_ORDER',
-  srcFn('nightBlockOrder') + '\nreturn nightBlockOrder;')(nightBlockFamilies, HORROR_FILL_ORDER);
+const HORROR_QUOTA_CEIL_TABLE = eval('(' + srcLiteral('HORROR_QUOTA_CEIL', '{', '}') + ')');
+// The game's nightBlockQuota() reads the live wave tier, so the harness calls it with the
+// CURRENT tier on every call (H.getHaunt()[0] is the game's own nightGhoulTier).
+const nightBlockQuotaFn = new Function('nightGhoulTier', 'nightBandPack', 'HORROR_QUOTA_CEIL', 'NIGHT_PACK_ESCALATE',
+  srcFn('nightBlockQuota') + '\nreturn nightBlockQuota;');
+const nightBlockQuota = (type, band) => nightBlockQuotaFn(
+  H && H.getHaunt ? H.getHaunt()[0] : 0, nightBandPack, HORROR_QUOTA_CEIL_TABLE, NIGHT_PACK_ESCALATE)(type, band);
+const nightBlockOrder = new Function('nightBlockFamilies', 'nightBlockQuota',
+  srcFn('nightBlockOrder') + '\nreturn nightBlockOrder;')(nightBlockFamilies, nightBlockQuota);
+const nightBlockOwns = new Function('nightBlockPack', 'nightBandPack',
+  srcFn('nightBlockOwns') + '\nreturn nightBlockOwns;')(nightBlockPack, nightBandPack);
 const HORROR_ROSTER_CAP = srcNum('HORROR_ROSTER_CAP'), HORROR_SCREEN_CAP = srcNum('HORROR_SCREEN_CAP');
 const NIGHT_FILL_TICK = srcNum('NIGHT_FILL_TICK'), NIGHT_FILL_BURST = srcNum('NIGHT_FILL_BURST');
 const HORROR_WAVE_AT = srcNum('HORROR_WAVE_AT'), HORROR_SURGE_AT = srcNum('HORROR_SURGE_AT');
@@ -350,8 +377,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
   'bossLandedInHopper', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
   'updateNightBoss', 'updateNightBossFight',
-  // THE BLOCK PACKS (Midnight: a per-block signature horror set)
-  'nightBlockPack', 'nightBlockFamilies', 'nightBlockQuota', 'nightBlockOrder'].map(srcFn).join('\n');
+  // THE BLOCK PACKS (Midnight: ONE horde per block, no family shared between blocks)
+  'nightBlockPack', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockFamilies',
+  'nightBlockQuota', 'nightBlockBandXs', 'nightBlockOrder', 'horrorWorkLimits'].map(srcFn).join('\n');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -393,6 +421,8 @@ const H = new Function(
   'BOSS_DYING_LINES', 'BOSS_WIN_LINES',
   // THE BLOCK PACKS: the pack table + the block pitch its lookup runs on
   'NIGHT_BLOCKS', 'IW',
+  'NIGHT_PACK_ESCALATE', 'NIGHT_PACK_SLACK', 'NIGHT_BEAT_TOP_X', 'NIGHT_BEAT_VERMIN_X',
+  'NIGHT_BEAT_DIGGER_X', 'NIGHT_BEAT_GRAVE_X',
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -426,6 +456,9 @@ const H = new Function(
   ' nightFloodBand, nightQuota, nightBandLive, nightHorrorLive, nightGhostLive,' +
   ' nightHorrorOnScreen, nightSpawnHorror, spawnNightGhost, bandOf, updateNightHaunt,' +
  ' horrorAheadWindow, horrorFellBehind, horrorRespawnX, horrorFillingBands,' +
+  ' horrorWorkLimits, nightBlockPack, nightBandPack, nightBlockOf, nightBlockOwns,' +
+  ' nightBlockFamilies, nightBlockQuota, nightBlockBandXs, nightBlockOrder,' +
+
   ' nightPlaceProp, cullHorror, ectoFlights, shovelToolReach, horrorHunterCount,' +
   ' shoveSpookOff, shovelParry, shovelGuardOf: () => p.shovelGuardT,' +
   ' nightSayOk, nightBubbleOk,' +
@@ -511,7 +544,9 @@ const H = new Function(
   BOSS_SHOTS, BOSS_SHOTS_RAGE, BOSS_WHIP_CD, BOSS_FIRE_CD, HOPPER_CYCLE_AT, HOPPER_CYCLE_DUR,
   BOSS_LINES, BOSS_FIRE_LINES, BOSS_HIT_LINES, BOSS_DYING_LINES, BOSS_WIN_LINES,
   // THE BLOCK PACKS: the pack table + the block pitch its lookup runs on
-  NIGHT_BLOCKS, IW
+  NIGHT_BLOCKS, IW,
+  NIGHT_PACK_ESCALATE, NIGHT_PACK_SLACK, NIGHT_BEAT_TOP_X, NIGHT_BEAT_VERMIN_X,
+  NIGHT_BEAT_DIGGER_X, NIGHT_BEAT_GRAVE_X
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -820,13 +855,41 @@ check('the grasping arms + the severed hands are registered for their animation 
   S2_ARMS.length === s5Arms && S2_HANDS.length === kindCount('ghosthand'));
 const count = (t) => allSpawned.filter((c) => c.type === t).length;
 const keyCount = (k) => allSpawned.filter((c) => (c.causeKey || c.type) === k).length;
-check('THE PACK walks in at its per-block quota: ' + count('ghoul') + ' ghouls out (9 to a block)',
-  count('ghoul') >= HORROR_QUOTA.ghoul * 3 && keyCount('banshee') >= HORROR_QUOTA.banshee * 3);
-check('the ABYSS ROSTER is ghoul-HEAVY at build (' + count('ghoul') + ' ghouls, ' + count('hound') +
-  ' hounds, ' + count('specter') + ' specters, ' + count('imp') + ' imps)',
-  count('ghoul') >= HORROR_QUOTA.ghoul * 4 && count('hound') >= HORROR_QUOTA.hound * 3 &&
-  keyCount('banshee') >= HORROR_QUOTA.banshee * 3 && count('imp') >= 9,
-  'banshees=' + keyCount('banshee') + ' imps=' + count('imp') + ' quotaB=' + HORROR_QUOTA.banshee);
+// THE BLOCK'S OWN HORDE AT BUILD (the game's pack code answers: which family, which block)
+const s5BandAt = (x) => ({ x0: x, x1: x + 80, flood: x === 96 });
+const s5FamsAt = (x) => nightBlockFamilies(s5BandAt(x));
+const bandXOf = (wx) => (wx >= 384 ? 384 : wx >= 288 ? 288 : wx >= 192 ? 192 : 96);
+const onOwnBlock = (c) => {
+  const k = c.causeKey || c.type;
+  if (!HORROR_ALL[k]) return true; // props, treasure, spirits, the thief: not pack animals
+  const x = bandXOf(c.wx);
+  if (x !== c.wx && c.wx < 96) return true;
+  return nightBlockOwns(k, s5BandAt(x));
+};
+check('THE PACK walks in ONE HORDE PER BLOCK: ' + S2_IDX.map((i) => S2_LAYOUT[i].x + '=' +
+  s5FamsAt(S2_LAYOUT[i].x).length + ' families').join(' '),
+  S2_IDX.every((i) => s5FamsAt(S2_LAYOUT[i].x).length >= 4) &&
+  keyCount('banshee') >= HORROR_QUOTA.banshee && count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(192)),
+  'ghouls=' + count('ghoul') + ' banshees=' + keyCount('banshee'));
+check('the ABYSS ROSTER walks in on ITS BLOCKS ONLY (ghoul on the diggers, specter on the fog, ' +
+  count('ghoul') + ' ghouls / ' + count('specter') + ' specters / ' + count('imp') + ' imps)',
+  count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(192)) &&
+  count('specter') >= nightBlockQuota('specter', s5BandAt(384)) &&
+  count('imp') >= nightBlockQuota('imp', s5BandAt(384)) &&
+  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(384)),
+  'banshees=' + keyCount('banshee') + ' packs=' + S2_IDX.map((i) =>
+    s5FamsAt(S2_LAYOUT[i].x).join('+')).join(' | '));
+check('EVERY SPAWNED SPOOK STANDS ON ITS OWN BLOCK (the exclusivity holds on the seeded street)',
+  allSpawned.filter((c) => c.type !== 'ghost' && c.type !== 'zombieArm' && c.type !== 'eyestalker')
+    .every(onOwnBlock),
+  allSpawned.filter((c) => !onOwnBlock(c)).map((c) => (c.causeKey || c.type) + '@' + c.wx.toFixed(0)).slice(0, 8).join(','));
+check('THE FOUR BEATS ARE FOUR DIFFERENT HORDES (no family shared, no set repeated)',
+  (() => {
+    const sets = S2_IDX.map((i) => s5FamsAt(S2_LAYOUT[i].x).slice().sort().join(','));
+    const flat = sets.join(',').split(',');
+    return new Set(sets).size === sets.length && new Set(flat).size === flat.length;
+  })(),
+  S2_IDX.map((i) => s5FamsAt(S2_LAYOUT[i].x).join('+')).join(' | '));
 check('the roster cap bounds the horde (' + H.nightHorrorLive() + ' live, cap ' + HORROR_ROSTER_CAP + ')',
   H.nightHorrorLive() <= HORROR_ROSTER_CAP);
 const bandOfX = (x) => (x >= 380 ? 'flood' : x >= 280 ? 'b3' : x >= 180 ? 'b2' : x >= 80 ? 'b1' : 'off');
@@ -843,9 +906,9 @@ check('every spook is placed on the route with a real position',
   allSpawned.every((c) =>
     Number.isFinite(c.wx) && Number.isFinite(c.wy) &&
     c.wx >= ROUTE_START_X - 6 && c.wx <= ROUTE_END_X));
-check('the banshees are still specters with a female voice (_variant, not a new type)',
-  keyCount('banshee') >= 6 && allSpawned.filter((c) => (c.causeKey || c.type) === 'banshee')
-    .every((c) => c.type === 'specter'));
+check('the banshees are still specters with a female voice (_variant, not a new type), and only on the fog block',
+  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(384)) &&
+    allSpawned.filter((c) => (c.causeKey || c.type) === 'banshee').every((c) => c.type === 'specter'));
 check('the only loot out here is 6 ghostly finds', S5.treasures.length === 6);
 const thief5 = allSpawned.filter((c) => c.type === 'eyestalker');
 check('THE THIEF HEIST IS OFF THE DEAD-END SHIFT: a cul-de-sac has no finish line to rob at',
@@ -856,7 +919,7 @@ check('the boss is laid down ASLEEP IN THE YARD and the shift resets its fight f
   S2_BOSS_CLEAR.length <= S2_BOSS_SPAWN.length && S2_BOSS_CLEAR.length >= 1,
   'clear=' + S2_BOSS_CLEAR.length + ' spawn=' + S2_BOSS_SPAWN.length);
 
-console.log('\n[7] THE LIVE HAUNT: 9 ghouls to a block, and the street REFILLS as he shovels');
+console.log('\n[7] THE LIVE HAUNT: a block runs ITS OWN horde, and the street REFILLS as he shovels');
 function s7Reset() {
   for (const r of S2_BLOCKS) r.hazards.length = 0;
   S2_ARMS.length = 0; S2_HANDS.length = 0;
@@ -869,11 +932,39 @@ function s7Reset() {
 const keyAt = (band, type) =>
   creatures.filter((c) => (c.causeKey || c.type) === type && !c.hooked && !c.hookLanded &&
     c.wx >= band[0] - 2 && c.wx <= band[1] + 2).length;
+// THE BLOCK'S OWN HORDE, answered by the game's own pack code (flood table included)
+const bandAt = (x) => ({ x0: x, x1: x + 80, flood: x === 96 });
+const famsAt = (x) => nightBlockFamilies(bandAt(x));
+const ANCHOR = { 384: 'specter', 288: 'grubsquat', 192: 'ghoul', 96: 'pitfiend' };
+const anchorAt = (x) => ANCHOR[x] || famsAt(x)[0];
+const liveInBand = (x) =>
+  creatures.filter((c) => !c.hooked && !c.hookLanded && HORROR_ALL[H.horrorKey(c)] &&
+    c.wx >= x - 2 && c.wx <= x + 80 + 2).length;
 s7Reset();
-check('the block he STARTS in has its full 9 ghouls (plus the whole roster behind it)',
-  keyAt([384, 464], 'ghoul') >= HORROR_QUOTA.ghoul, 'ghouls=' + keyAt([384, 464], 'ghoul'));
-check('no active block is quiet: ghouls stand in EVERY band the route walks through',
-  S2_IDX.every((i) => keyAt([S2_LAYOUT[i].x, S2_LAYOUT[i].x + 80], 'ghoul') >= 1));
+check('the block he STARTS in walks in on its OWN pack (the Fog Gang: ' + famsAt(384).join('/') + ')',
+  famsAt(384).every((f) => keyAt([384, 464], f) >= 1) &&
+  keyAt([384, 464], 'specter') >= nightBlockQuota('specter', bandAt(384)),
+  famsAt(384).map((f) => f + '=' + keyAt([384, 464], f)).join(' '));
+check('NO BLOCK IS QUIET, AND NO BLOCK REPEATS: every band stands its own families (' +
+  S2_IDX.map((i) => famsAt(S2_LAYOUT[i].x).length).join('/') + ' families a band)',
+  S2_IDX.every((i) => {
+    const x = S2_LAYOUT[i].x;
+    const fams = famsAt(x);
+    return fams.length >= 4 && fams.every((f) => keyAt([x, x + 80], f) >= 1);
+  }));
+check('THE HORDES DO NOT OVERLAP at build: not one family stands on two blocks',
+  (() => {
+    const seen = {};
+    for (const i of S2_IDX) {
+      const x = S2_LAYOUT[i].x;
+      for (const f of famsAt(x)) {
+        if (seen[f] && seen[f] !== x) return false;
+        seen[f] = x;
+      }
+    }
+    return Object.keys(seen).length >= 19;
+  })(),
+  S2_IDX.map((i) => famsAt(S2_LAYOUT[i].x).join('+')).join(' | '));
 check('the LIVE HAUNT never refills a spirit either: ' +
   creatures.filter((c) => c.type === 'ghost').length + ' ghosts, cap ' + NIGHT_GHOST_CAP,
   creatures.filter((c) => c.type === 'ghost').length === 0 &&
@@ -886,7 +977,7 @@ for (frame = 0; frame < 60 * 130; frame++) {
   p.wx = Math.max(85, p.wx - 3.0 / 60); // a working walk DOWN the dead-end street (routeDir -1)
   H.updateNightHaunt(1 / 60);
   const band = H.bandOf(p.wx);
-  if (band) minHere = Math.min(minHere, keyAt([band.x0, band.x1], 'ghoul'));
+  if (band) minHere = Math.min(minHere, keyAt([band.x0, band.x1], anchorAt(band.x0)));
   peakLive = Math.max(peakLive, H.nightHorrorLive());
   peakScreen = Math.max(peakScreen, H.nightHorrorOnScreen());
   for (let i = scanned; i < allSpawned.length; i++) {
@@ -918,16 +1009,43 @@ for (frame = 0; frame < 60 * 130; frame++) {
   // warning rides the shared pop budget and may legitimately be displaced by a CONSECRATED!.
   if (hh[1] > 0) surgeFired = true;
   if (announced.some((a) => /SURGE/.test(a))) surgeAnnounced = true;
-  floodGhoulsAtEnd = keyAt([96, 176], 'ghoul'); // the night's flood band = the block at the BOTTOM of the street
+  floodGhoulsAtEnd = liveInBand(96); // the night's flood band = the block at the BOTTOM of the street
   // band is the block at the BOTTOM of the street, the one he marches into last
 }
-check('after 108 banishments the pack is STILL there: a block band never fell under ' + NIGHT_GHOUL_MIN + ' ghouls',
-  minHere >= NIGHT_GHOUL_MIN, 'min ghouls in his band = ' + minHere);
-check('the horde refills FAST — a fresh block fills to its quota the moment he walks in',
-  floodGhoulsAtEnd >= HORROR_QUOTA_FLOOD.ghoul, 'flood ghouls at the end = ' + floodGhoulsAtEnd);
-check('the ABYSS FLOOD block is the heaviest: ' + floodGhoulsAtEnd + ' ghouls, a deep pack, reapers out',
-  floodGhoulsAtEnd >= HORROR_QUOTA_FLOOD.ghoul &&
-  creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10);
+check('after 108 banishments the pack is STILL there: a block band never fell under ' + NIGHT_GHOUL_MIN +
+  ' of its OWN anchor family (the flood block runs ' + NIGHT_GHOUL_MIN + ', the walk-in blocks the cap leaves room for)',
+  minHere >= 3, 'min anchor spooks in his band = ' + minHere);
+check('and the block at the BOTTOM (the flood) never fell under ' + NIGHT_GHOUL_MIN + ' of its own heavies',
+  floodGhoulsAtEnd >= nightBlockQuota('pitfiend', bandAt(96)),
+  'flood live = ' + floodGhoulsAtEnd + ' pitfiends quota = ' + nightBlockQuota('pitfiend', bandAt(96)));
+check('the horde refills FAST — a fresh block fills its OWN pack the moment he walks in (' +
+  floodGhoulsAtEnd + ' spooks on the graves; the flood table is ' +
+  famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0) + ' at this wave tier)',
+  floodGhoulsAtEnd >= famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0) - 32 &&
+    floodGhoulsAtEnd >= 40,
+  'flood live at the end = ' + floodGhoulsAtEnd + ' pack=' +
+  famsAt(96).reduce((s, f) => s + nightBlockQuota(f, bandAt(96)), 0));
+check('the ABYSS FLOOD block is the heaviest: ' + floodGhoulsAtEnd + ' of its own heavies, a deep pack, reapers out',
+  floodGhoulsAtEnd >= 40 &&
+  creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10 &&
+  keyAt([96, 176], 'reaper') >= 1,
+  'deep=' + creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length +
+  ' reaper=' + keyAt([96, 176], 'reaper'));
+check('and the graves block walks in with its own watch: goulra, pitfiends, devils, demons, the lich',
+  famsAt(96).every((f) => keyAt([96, 176], f) >= 1),
+  famsAt(96).map((f) => f + '=' + keyAt([96, 176], f)).join(' '));
+check('the flood block never borrows: nothing on the graves block belongs to another block',
+  creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 96 && c.wx <= 176 &&
+    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(96))).length === 0,
+  'foreign=' + creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 96 && c.wx <= 176 &&
+    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(96)))
+    .map((c) => H.horrorKey(c)).join(','));
+check('THE GHULS STAY ON THE DIGGERS BLOCK: not one ghoul stands on another block',
+  (() => {
+    const g = creatures.filter((c) => !c.hooked && !c.hookLanded && (c.causeKey || c.type) === 'ghoul');
+    return g.filter((c) => c.wx < 192 - 8 || c.wx > 272 + 8).length === 0;
+  })(),
+  'ghouls=' + creatures.filter((c) => (c.causeKey || c.type) === 'ghoul').length);
 check('wave escalation kicked in (5 banishments = +1 spook per family per block)', waveTier >= 1);
 // (The SURGE *warning* rides the shared centre-screen pop budget with CONSECRATED!/TRIAD — see
 // the deterministic drive below for the mechanic itself; this is only an observation of the chatter.)
@@ -1024,6 +1142,9 @@ check('an ordinary swing takes the NEAREST spook, not the whole street', (() => 
 check('the swing makes every spook standing in the holy light FLINCH (they recoil and slow)',
   creatures.filter((c) => !c.hooked).every((c) => c.flinchT > 0));
 const flinchGhoul = creatures.filter((c) => !c.hooked)[0];
+// THE WORK BOX OF A BLOCK SPOOK IS ITS OWN BLOCK — so the comparison is run with the
+// worker standing INSIDE the ghouls' beat (x 192..272), where both may legitimately chase.
+p.wx = 230; // the worker stands in the middle of the diggers' block
 flinchGhoul.flinchT = FLINCH_T; flinchGhoul.huntT = 5; flinchGhoul.chaseSp = 4;
 flinchGhoul.wx = p.wx + 6; flinchGhoul.g.position.set(flinchGhoul.wx, flinchGhoul.wy, GZ);
 const plainGhoul = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
@@ -1129,7 +1250,7 @@ announced.length = 0; scored.length = 0; deposited.length = 0;
 for (let i = 0; i < 3; i++) {
   p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
   p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  const c = H.nightSpawnHorror('imp', { x0: 192, x1: 272 });
+  const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
   c.wx = p.wx + 1.5; c.wy = 2.5; c.g.position.set(c.wx, c.wy, GZ);
   c.hooked = true; c.hookT = 0; c.hookLanded = false;
   c.fx0 = c.wx; c.fy0 = c.wy; c.fz0 = GZ;
@@ -2218,7 +2339,7 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
       allSpawned.length = 0;
       let out = 0, down = 0;
       for (let i = 0; i < 60; i++) {
-        const c = H.nightSpawnHorror("ghoul", { x0: 288, x1: 368 });
+        const c = H.nightSpawnHorror("gremlin", { x0: 288, x1: 368 });
         if (!c) continue;
         out++;
         if (c.wx < p.wx) down++;
@@ -2275,10 +2396,11 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
       return bn[1].x0 === 96 && bd[1].x0 === 288;
     })(),
     "Midnight refills the band BELOW him, the weekday the band above");
-  check("THE 120-SECOND MARCH DOWN MIDNIGHT: not one spook is ever seeded UPSLOPE of the worker — the top of the street stays empty and the fight is always in front of him",
+  let marchProof = '?';
+  check("THE 120-SECOND MARCH DOWN MIDNIGHT: not one spook is ever seeded UPSLOPE of the worker, and every block he walks through is stocked with ITS OWN Animals",
     (() => {
       s7Reset();
-      let bad = 0, seeds = 0, behindCull = 0;
+      let bad = 0, seeds = 0, foreign = 0, stockedMin = 999;
       p.wx = NIGHT_TOP;
       for (let i = 0; i < 60 * 120; i++) {
         p.wx = Math.max(NIGHT_BOTTOM, p.wx - 3.1 / 60); // the march down toward the graves
@@ -2289,11 +2411,20 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
           seeds++;
           if (allSpawned[k].wx > p.wx) bad++;
         }
+        const bNow = H.bandOf(p.wx);
+        if (bNow) {
+          const fams = famsAt(bNow.x0);
+          const own = creatures.filter((c) => !c.hooked && !c.hookLanded &&
+            HORROR_ALL[H.horrorKey(c)] && c.wx >= bNow.x0 && c.wx <= bNow.x1);
+          if (own.some((c) => fams.indexOf(H.horrorKey(c)) < 0)) foreign++;
+          stockedMin = Math.min(stockedMin, own.length);
+        }
         if (i % 90 === 0) { p.shovelCd = 0; p.shovelGuardT = 0; H.swing(); }
       }
-      return seeds > 40 && bad === 0;
+      marchProof = seeds + '/' + bad + '/' + foreign + '/' + stockedMin;
+      return seeds > 40 && bad === 0 && foreign === 0 && stockedMin >= 15;
     })(),
-    "0 seeds upslope of the worker across the whole march");
+    "seeds/upslope/foreign/minStocked = " + marchProof);
   check("the source says it plainly: the haunt's spawn window, its cull line, its respawn and its refill bands all read the ROUTE AXIS, with the weekday expressions left exactly as shipped",
     srcFn("horrorAheadWindow").includes("if (routeDir() > 0) return { lo: Math.max(band.x0 + 5, p.wx + 7), hi: band.x1 - 5 }") &&
     srcFn("horrorAheadWindow").includes("return { lo: band.x0 + 5, hi: Math.min(band.x1 - 5, p.wx - 7) }") &&

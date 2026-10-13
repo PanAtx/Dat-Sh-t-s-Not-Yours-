@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.487</div>
+          <div id="app-version" class="menu-version">v1.0.488</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.487';
+      const APP_VERSION = '1.0.488';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -25902,58 +25902,71 @@
       }
       // FANGSPIDER: the gutter thing. A black bulged abdomen, a flat horse-face head with
       // fangs that strike, and EIGHT long legs on hip pivots in an alternating gait.
+      // IT WALKS THE STREET LIKE A REAL SPIDER — the legs run DOWN-AND-OUT from a hip
+      // above the centre of the body, the knee arcs up, and every foot is planted on the
+      // asphalt at z = 0 (the hips sit at 0.34 and the leg chain is cut to reach
+      // exactly that). Nothing of it floats, and nothing of it is buried.
       // Rig: userData.spider = { legs[8], body, head, fangs[2] } (floatOrLope drives it).
       function makeFangspider() {
         const g = new THREE.Group();
         const hair = M(0x141018), chitin = M(0x2a2230), fangM = M(0xe8e2cc), gut = M(0x3c1f2c);
         const eyeM = M(0xffd0c0, { emissive: 0xd40000, emissiveIntensity: 1.6 });
-        const body = SPH(0.2, hair, 14, 11); // the bulged abdomen, low behind the head
+        const HIP = 0.34; // the leg roof it stands the body on
+        const body = SPH(0.2, hair, 14, 11); // the bulged abdomen, riding on the legs
         body.scale.set(1.35, 1.15, 1.0);
-        body.position.set(-0.16, 0, 0.3);
+        body.position.set(-0.16, 0, HIP + 0.02);
         const head = SPH(0.11, chitin, 12, 9); // the flattened horse face
         head.scale.set(1.5, 1.0, 0.72);
-        head.position.set(0.16, 0, 0.26);
+        head.position.set(0.16, 0, HIP - 0.02);
         g.add(body, head);
         for (let i = 0; i < 4; i++) {
           const spot = SPH(0.03, gut, 8, 6); // the mangy patches across the sac
           spot.scale.set(1.4, 1.0, 0.4);
-          spot.position.set(-0.24 + i * 0.06, (i % 2 ? 1 : -1) * 0.09, 0.34);
+          spot.position.set(-0.24 + i * 0.06, (i % 2 ? 1 : -1) * 0.09, HIP + 0.06);
           g.add(spot);
         }
         for (const s of [-1, 1]) {
           const eye = SP(0.022, eyeM, 8); // many small eyes over the face
-          eye.position.set(0.3, s * 0.05, 0.31);
+          eye.position.set(0.3, s * 0.05, HIP + 0.05);
           head.add(eye);
           const eye2 = SP(0.014, eyeM, 6);
-          eye2.position.set(0.29, s * 0.085, 0.34);
+          eye2.position.set(0.29, s * 0.085, HIP + 0.08);
           head.add(eye2);
           const ear = CY(0.03, 0.002, 0.15, hair, 6); // the ears it pins back
           ear.rotation.y = s * 0.75 - 0.4;
-          ear.position.set(0.14, s * 0.08, 0.34);
+          ear.position.set(0.14, s * 0.08, HIP + 0.08);
           head.add(ear);
         }
         const fangs = [];
         for (const s of [-1, 1]) {
           const f = CY(0.022, 0.0, 0.13, fangM, 6); // hooks hanging under the face
           f.rotation.x = -Math.PI / 2 + 0.35;
-          f.position.set(0.3, s * 0.04, 0.18);
+          f.position.set(0.3, s * 0.04, HIP - 0.1);
           g.add(f);
           fangs.push(f);
         }
+        // THE EIGHT LEGS: a hip above the body, the femur angling DOWN-AND-OUT, the knee
+        // arcing up, the shin angling DOWN-AND-OUT again, and the foot planted at z = 0.
+        // (rotation.x fans the reach sideways in this Z-up world; rotation.y is the
+        // fore-and-aft stride the gait pumps.)
         const legs = [];
         for (let pair = 0; pair < 4; pair++) {
           for (const s of [-1, 1]) {
             const hip = new THREE.Group();
-            hip.position.set(0.12 - pair * 0.1, s * 0.12, 0.28);
-            hip.rotation.y = s * (0.55 - pair * 0.12); // the legs splay out and back
-            const femur = BX(0.055, 0.055, 0.26, chitin);
-            femur.position.set(0.02, 0, -0.12);
-            const knee = BX(0.04, 0.04, 0.24, hair);
-            knee.position.set(0.04, 0, -0.32);
-            const shin = BX(0.03, 0.03, 0.22, chitin);
-            shin.position.set(0.03, s * 0.08, -0.5);
-            const tip = SPH(0.022, hair, 8, 6);
-            tip.position.set(0.01, s * 0.13, -0.62);
+            hip.position.set(0.14 - pair * 0.11, s * 0.1, HIP);
+            hip.rotation.x = s * (0.42 + pair * 0.05); // the legs fan out to the sides
+            hip.rotation.y = (pair % 2 ? 1 : -1) * 0.34; // the front pair reaches forward
+            const femur = BX(0.055, 0.055, 0.2, chitin);
+            femur.position.set(0.02, 0, -0.1);
+            const knee = SPH(0.045, hair, 9, 7); // the raised knee the shin drops off
+            knee.scale.set(1.0, 1.0, 1.25);
+            knee.position.set(0.04, 0, -0.16);
+            const shin = BX(0.038, 0.038, 0.16, chitin);
+            shin.rotation.x = s * (0.5 - pair * 0.05);
+            shin.position.set(0.03, s * 0.11, -0.26);
+            const tip = SPH(0.026, hair, 8, 6); // the toe pad, on the asphalt
+            tip.scale.set(1.2, 1.2, 0.6);
+            tip.position.set(0.01, s * 0.22, -0.33);
             hip.add(femur, knee, shin, tip);
             g.add(hip);
             legs.push(hip);
@@ -25964,18 +25977,23 @@
       }
       // EYECRAWLER: the six-legged crawler that wears a CROWN of eye stalks. It runs the
       // hexbeast tripod gait and the snapping pit-maw (userData.hex), plus userData.eyes.
+      // It is a SPIDER of a thing, so it WALKS THE STREET: the barrel hangs between six legs
+      // whose chain is cut to the hip height (hips 0.46, feet at z = 0), and the eye crown
+      // sits LOW over the shell — the stalks crane forward out of the back, they do not
+      // stack the creature up in the air.
       function makeEyecrawler() {
         const g = new THREE.Group();
         const shell = M(0x3a2f42), shellD = M(0x1e1826), bone = M(0xe0d8bc);
         const wet = M(0x7c5a86), stalkM = M(0x9c92ae);
         const eyeM = M(0xfff0d8, { emissive: 0x9a10ff, emissiveIntensity: 1.3 });
+        const HIP = 0.46; // the leg roof the barrel hangs from
         const body = SPH(0.3, shell, 14, 11); // the low barrel it crawls on
         body.scale.set(1.9, 1.25, 1.0);
-        body.position.set(0, 0, 0.36);
+        body.position.set(0, 0, HIP - 0.04);
         g.add(body);
         const plate = CY(0.26, 0.19, 0.12, shellD, 12);
         plate.rotation.x = Math.PI / 2;
-        plate.position.set(-0.32, 0, 0.42);
+        plate.position.set(-0.32, 0, HIP + 0.02);
         g.add(plate);
         const legs = [];
         const legDefs = [
@@ -25984,28 +26002,30 @@
           [-0.32, -0.22], [-0.32, 0.22],
         ];
         for (let i = 0; i < legDefs.length; i++) {
+          const s = legDefs[i][1] < 0 ? -1 : 1;
           const hip = new THREE.Group();
-          hip.position.set(legDefs[i][0], legDefs[i][1], 0.36);
-          const thigh = BX(0.06, 0.06, 0.2, shell);
-          thigh.position.z = -0.1;
-          const shin = BX(0.05, 0.05, 0.22, shellD);
-          shin.position.set(0.03, 0, -0.3);
-          const toe = BX(0.12, 0.04, 0.04, bone);
-          toe.position.set(0.08, 0, -0.42);
+          hip.position.set(legDefs[i][0], legDefs[i][1], HIP);
+          hip.rotation.x = s * 0.3; // the legs stance WIDE out past the barrel
+          const thigh = BX(0.06, 0.06, 0.18, shell);
+          thigh.position.set(0, s * 0.04, -0.1);
+          const shin = BX(0.05, 0.05, 0.18, shellD);
+          shin.position.set(0.03, s * 0.11, -0.28);
+          const toe = BX(0.12, 0.04, 0.04, bone); // the flat foot, on the asphalt
+          toe.position.set(0.08, s * 0.15, -0.44);
           hip.add(thigh, shin, toe);
           g.add(hip);
           legs.push(hip);
         }
         const head = SP(0.13, shellD, 12);
         head.scale.set(1.15, 0.9, 0.8);
-        head.position.set(0.5, 0, 0.38);
+        head.position.set(0.5, 0, HIP + 0.02);
         g.add(head);
         const maw = CY(0.09, 0.04, 0.14, wet, 10);
         maw.rotation.x = Math.PI / 2; // the mouth opens UP out of the back
-        maw.position.set(0.5, 0, 0.52);
+        maw.position.set(0.5, 0, HIP + 0.16);
         g.add(maw);
         const jaw = new THREE.Group();
-        jaw.position.set(0.5, 0, 0.48);
+        jaw.position.set(0.5, 0, HIP + 0.12);
         for (let i = 0; i < 5; i++) {
           const tooth = CY(0.02, 0.002, 0.09, bone, 6);
           tooth.rotation.x = Math.PI / 2; // hanging DOWN into the pit
@@ -26020,13 +26040,13 @@
           const tip = BX(0.12, 0.04, 0.04, bone);
           tip.position.set(0.3, 0, 0);
           pair[0].add(arm, tip);
-          pair[0].position.set(0.56, pair[1] * 0.11, 0.48);
+          pair[0].position.set(0.56, pair[1] * 0.11, HIP + 0.12);
           g.add(pair[0]);
         }
-        const eyes = []; // the stalk crown: eyes on five stalks
+        const eyes = []; // the stalk crown, LOW over the shell: eyes on five stalks
         const stalkDefs = [
-          [0.46, 0, 0.9, 0.22], [0.56, -0.13, 0.82, 0.18], [0.56, 0.13, 0.82, 0.18],
-          [0.34, -0.17, 0.74, 0.15], [0.34, 0.17, 0.74, 0.15],
+          [0.46, 0, 0.68, 0.22], [0.56, -0.13, 0.6, 0.18], [0.56, 0.13, 0.6, 0.18],
+          [0.34, -0.17, 0.54, 0.15], [0.34, 0.17, 0.54, 0.15],
         ];
         for (const d of stalkDefs) {
           const st = CY(0.018, 0.014, d[3], stalkM, 7);
@@ -26139,7 +26159,367 @@
         g.userData.tent = { tentacles: tentacles, eyes: eyes };
         return g;
       }
+      // ============ THE BLOCK-OWN ANIMALS (a family with NO other block's claim) =========
+      // Four more kinds, built so the four beats of tonight's street each run animals
+      // NOTHING on the other three beats has. Every one of them is a GROUND WALKER: its
+      // leg chain is cut to the height of its hips, so its feet land on the asphalt at
+      // z = 0 — the same convention the ghoul (hips 0.66 / feet 0.02), the hellhound
+      // (hips 0.44 / paws 0.02) and the hexbeast run on. None of them floats.
+      // GRAVE-SQUAT: the fat pale thing the vermin block breeds under its tarp mounds — a
+      // ringed maggot barrel on SIX short legs, a bristle collar and a hooked beak-maw.
+      // Rig: userData.hex (the six-leg tripod gait the hexbeast runs).
+      function makeGrubsquat() {
+        const g = new THREE.Group();
+        const hide = M(0x8d7f5a), hideD = M(0x59492f), bristle = M(0x2b2418), beak = M(0xe6ddbe);
+        const eyeM = M(0xffe3b0, { emissive: 0xff7a10, emissiveIntensity: 1.5 });
+        const shell = SPH(0.24, hide, 14, 11); // the barrel, fat and low
+        shell.scale.set(1.55, 1.1, 1.0);
+        shell.position.set(-0.08, 0, 0.42);
+        g.add(shell);
+        for (let i = 0; i < 5; i++) {
+          const ring = CY(0.028, 0.028, 0.52, hideD, 8); // the grower rings
+          ring.rotation.x = Math.PI / 2;
+          ring.position.set(-0.3 + i * 0.11, 0, 0.42);
+          g.add(ring);
+        }
+        const legs = [], jaw = new THREE.Group(), mandL = new THREE.Group(), mandR = new THREE.Group();
+        const legDefs = [
+          [0.22, -0.2], [0.02, -0.24], [-0.22, -0.2],
+          [0.22, 0.2], [0.02, 0.24], [-0.22, 0.2],
+        ];
+        for (let i = 0; i < 6; i++) {
+          const s = i < 3 ? -1 : 1;
+          const hip = new THREE.Group();
+          hip.position.set(legDefs[i][0], legDefs[i][1], 0.4);
+          hip.rotation.z = -s * 0.3; // the stance runs WIDE — the feet land out past the barrel
+          const thigh = BX(0.075, 0.075, 0.17, hideD);
+          thigh.position.set(0, s * 0.03, -0.09);
+          const shin = BX(0.055, 0.055, 0.16, hide);
+          shin.position.set(0.02, s * 0.07, -0.25);
+          const toe = BX(0.11, 0.045, 0.04, beak); // the flat pad it plants on the street
+          toe.position.set(0.05, s * 0.09, -0.38);
+          hip.add(thigh, shin, toe);
+          g.add(hip);
+          legs.push(hip);
+        }
+        const head = SPH(0.1, hideD, 12, 9); // the blunt beaked head
+        head.scale.set(1.35, 0.95, 0.85);
+        head.position.set(0.32, 0, 0.36);
+        g.add(head);
+        for (let i = 0; i < 10; i++) { // the bristle collar behind the head
+          const a = (i / 10) * Math.PI * 2;
+          const b = CY(0.012, 0.0, 0.14, bristle, 4);
+          b.rotation.y = Math.PI / 2 - 0.5;
+          b.position.set(0.16, Math.sin(a) * 0.15, 0.42 + Math.cos(a) * 0.14);
+          g.add(b);
+        }
+        jaw.position.set(0.32, 0, 0.3);
+        for (let i = 0; i < 4; i++) {
+          const hook = CY(0.016, 0.002, 0.11, beak, 5); // the hooked mandibles curl under
+          hook.rotation.x = -Math.PI / 2 + 0.4;
+          hook.position.set(0.08, (i - 1.5) * 0.038, -0.02);
+          jaw.add(hook);
+        }
+        g.add(jaw);
+        for (const pair of [[mandL, -1], [mandR, 1]]) {
+          const arm = BX(0.2, 0.045, 0.045, hide);
+          arm.position.set(0.09, 0, 0);
+          const tip = BX(0.1, 0.035, 0.035, beak);
+          tip.position.set(0.22, 0, 0);
+          pair[0].add(arm, tip);
+          pair[0].position.set(0.4, pair[1] * 0.1, 0.3);
+          g.add(pair[0]);
+        }
+        for (const s of [-1, 1]) {
+          const eye = SP(0.028, eyeM, 8); // the squint of two fat eyes
+          eye.position.set(0.42, s * 0.06, 0.42);
+          g.add(eye);
+      // RAT KING: the grey mane-headed rat that rules the vermin block's gutters. A
+      // quadruped on hip pivots — it trots on the same math as the hounds (hips 0.42,
+      // paws on the asphalt) and it carries a whiplash tail up and back off the rump.
+      // Rig: userData.hound (the four diagonal leg pairs + head/jaw/tail pivots).
+      function makeRatking() {
+        const g = new THREE.Group();
+        const fur = M(0x6a6660), furD = M(0x413d39), mane = M(0x8b8578), skin = M(0xa8748a);
+        const fangM = M(0xe8e2cc), eyeM = M(0xffe9cf, { emissive: 0xd8400a, emissiveIntensity: 1.7 });
+        const body = SPH(0.16, fur, 14, 10);
+        body.scale.set(2.0, 1.0, 1.05);
+        body.position.set(-0.06, 0, 0.42);
+        const chest = SPH(0.13, fur, 12, 9);
+        chest.scale.set(1.1, 0.95, 1.0);
+        chest.position.set(0.2, 0, 0.42);
+        g.add(body, chest);
+        for (let i = 0; i < 7; i++) { // the mange: bald ridges across the back
+          const patch = BX(0.06, 0.2, 0.03, mane);
+          patch.position.set(0.12 - i * 0.07, 0, 0.56);
+          patch.rotation.y = 0.2 - i * 0.05;
+          g.add(patch);
+        }
+        const headPiv = new THREE.Group();
+        headPiv.position.set(0.36, 0, 0.48);
+        g.add(headPiv);
+        const skull = SPH(0.1, furD, 12, 9);
+        skull.scale.set(1.25, 0.9, 0.85);
+        headPiv.add(skull);
+        const jawPiv = new THREE.Group();
+        jawPiv.position.set(0.06, 0, -0.02);
+        headPiv.add(jawPiv);
+        const muzzle = SPH(0.055, skin, 10, 8);
+        muzzle.scale.set(1.7, 0.75, 0.7);
+        muzzle.position.set(0.08, 0, 0);
+        jawPiv.add(muzzle);
+        for (let i = 0; i < 2; i++) { // the two front teeth — a rat is all teeth
+          const t = CY(0.016, 0.002, 0.09, fangM, 6);
+          t.rotation.x = -Math.PI / 2;
+          t.position.set(0.15, (i ? 1 : -1) * 0.025, -0.05);
+          jawPiv.add(t);
+        }
+        for (const s of [-1, 1]) {
+          const eye = SP(0.026, eyeM, 8);
+          eye.position.set(0.03, s * 0.06, 0.05);
+          headPiv.add(eye);
+          const ear = SPH(0.05, skin, 10, 7); // the big bald ears it runs by
+          ear.scale.set(0.6, 0.5, 1.1);
+          ear.position.set(-0.04, s * 0.09, 0.09);
+          headPiv.add(ear);
+        }
+        const legs = {};
+        const legDefs = [
+          [0.2, -0.11, "legFL"], [0.2, 0.11, "legFR"],
+          [-0.24, -0.12, "legBL"], [-0.24, 0.12, "legBR"],
+        ];
+        for (const d of legDefs) {
+          const hip = new THREE.Group();
+          hip.position.set(d[0], d[1], 0.42);
+          const thigh = BX(0.075, 0.075, 0.17, furD);
+          thigh.position.z = -0.09;
+          const shin = BX(0.05, 0.05, 0.17, fur);
+          shin.position.set(0.02, 0, -0.25);
+          const paw = SPH(0.045, skin, 9, 7); // the flat hand it walks the street on
+          paw.scale.set(1.25, 1.0, 0.55);
+          paw.position.set(0.05, 0, -0.37);
+          hip.add(thigh, shin, paw);
+          g.add(hip);
+          legs[d[2]] = hip;
+        }
+        const tailPiv = new THREE.Group();
+        tailPiv.position.set(-0.4, 0, 0.5); // at the rump, BEHIND the rear hip line
+        tailPiv.rotation.x = -0.18; // a resting lean back-and-up; the lash swings around it
+        let tlx = 0,
+          tlz = 0.02;
+        for (let i = 0; i < 6; i++) {
+          const seg = SPH(0.035 - i * 0.004, i % 2 ? skin : furD, 9, 7);
+      // LANTERNFANG: the pit thing the diggers block keeps in its open holes. A thin, wet
+      // man of a body with a jar-lantern swung on one hook-hand and a jaw of teeth-hooks.
+      // Rig: userData.ghoul (the lope — hips 0.64, feet 0.02 on the asphalt) +
+      // userData.lamp (it swings with the arm) + userData.eyes (the shared eye contract).
+      function makeLanternfang() {
+        const g = new THREE.Group();
+        const wet = M(0x2f4f4a), wetD = M(0x16272a), bone = M(0xd8dcc4), brass = M(0xa8863a);
+        const glass = M(0xffe9a8, { emissive: 0xffb020, emissiveIntensity: 1.9 });
+        const hipZ = 0.64;
+        const legs = [];
+        for (const s of [-1, 1]) {
+          const hip = new THREE.Group();
+          hip.position.set(0, s * 0.12, hipZ);
+          const thigh = BX(0.11, 0.11, 0.28, wetD);
+          thigh.position.z = -0.14;
+          const shin = BX(0.085, 0.085, 0.26, wetD);
+          shin.position.set(0.02, 0, -0.4);
+          const foot = BX(0.18, 0.1, 0.07, wet);
+          foot.position.set(0.07, 0, -0.56);
+          hip.add(thigh, shin, foot);
+          g.add(hip);
+          legs.push(hip);
+        }
+        const waist = new THREE.Group();
+        waist.position.set(0, 0, hipZ + 0.02);
+        waist.rotation.y = 0.85; // it leans INTO its stride, the way the ghouls do
+        const chest = BX(0.34, 0.26, 0.42, wet);
+        chest.position.set(0.04, 0, 0.2);
+        waist.add(chest);
+        for (let i = 0; i < 5; i++) {
+          const slit = BX(0.05, 0.24, 0.03, wetD); // the gill slits down the ribs
+          slit.position.set(-0.06 + i * 0.08, 0, 0.3);
+          waist.add(slit);
+        }
+        const jaw = BX(0.2, 0.15, 0.08, bone); // the lantern-jaw: a mouth of hooks
+        jaw.position.set(0.28, 0, 0.34);
+        waist.add(jaw);
+        for (let i = 0; i < 6; i++) {
+          const hook = CY(0.014, 0.002, 0.08, bone, 5);
+          hook.rotation.x = -Math.PI / 2;
+          hook.position.set(0.24 + (i % 3) * 0.05, (i % 2 ? 1 : -1) * 0.06, 0.41);
+          waist.add(hook);
+        }
+        const skull = SP(0.12, wetD, 11);
+        skull.scale.set(1.15, 0.9, 1.0);
+        skull.position.set(0.24, 0, 0.48);
+        waist.add(skull);
+        const eyes = [];
+        for (const s of [-1, 1]) {
+          const eye = SP(0.03, glass, 8); // it navigates by its own lamp
+          eye.position.set(0.34, s * 0.055, 0.5);
+          waist.add(eye);
+          eyes.push(eye);
+        }
+        const arms = [];
+        for (const s of [-1, 1]) {
+          const sh = new THREE.Group();
+          sh.position.set(0.1, s * 0.2, 0.32);
+          const upper = BX(0.085, 0.085, 0.4, wet);
+          upper.position.z = -0.2;
+          const fore = BX(0.07, 0.07, 0.38, wetD);
+          fore.position.set(0.03, 0, -0.56);
+          sh.add(upper, fore);
+          const hook = new THREE.Group();
+          hook.position.set(0.05, 0, -0.78);
+          for (let f = 0; f < 3; f++) {
+            const claw = BX(0.14, 0.026, 0.026, bone);
+            claw.position.set(0.07, (f - 1) * 0.04, 0);
+            claw.rotation.y = -0.5; // every finger curls down toward the ground
+            hook.add(claw);
+          }
+          sh.add(hook);
+          if (s < 0) {
+            const lamp = new THREE.Group(); // the jar-lantern, swung on the hook
+            const jar = CY(0.07, 0.05, 0.14, brass, 9);
+            jar.rotation.x = Math.PI / 2;
+            const flame = SP(0.045, glass, 9);
+            flame.position.z = 0.02;
+            const cage = BX(0.12, 0.12, 0.02, brass);
+            cage.position.z = 0.11;
+            lamp.add(jar, flame, cage);
+            lamp.position.set(0.04, 0, -0.92);
+            sh.add(lamp);
+            g.userData.lamp = lamp;
+          }
+          waist.add(sh);
+          arms.push(sh);
+        }
+        g.add(waist);
+        g.userData.ghoul = { legs: legs, arms: arms, jaw: jaw, waist: waist };
+        g.userData.eyes = eyes;
+        return g;
+      }
+
+
+          seg.scale.set(1.3, 0.9, 0.9);
+          seg.position.set(tlx, 0, tlz);
+          tailPiv.add(seg);
+          tlx -= 0.11 - i * 0.006; // every segment sits further BEHIND the beast
+          tlz += 0.06 - i * 0.004; // ...and carried higher
+        }
+        g.add(tailPiv);
+        g.userData.hound = { legs: legs, headPiv: headPiv, jawPiv: jawPiv, tailPiv: tailPiv };
+        return g;
+      }
+
+        }
+        g.userData.hex = { legs: legs, jaw: jaw, mandL: mandL, mandR: mandR };
+        return g;
+      }
+
+      // GOULRA: the bulging sack the graveyard block keeps as its watch — a knot of
+      // nine red eyes on a wet gut, dragging itself on two thick suction feet with a
+      // brine ring waving off the shoulders. Rigs: userData.ghoul (its lope) +
+      // userData.tent (the ring) + userData.eyes (the eye contract, same as the pitfiend).
+      function makeGoulra() {
+        const g = new THREE.Group();
+        const sack = M(0x5b3f5c), sackD = M(0x2c1a30), wet = M(0xa46fa8), bone = M(0xe0dcd0);
+        const eyeM = M(0xffe6f2, { emissive: 0xb0109a, emissiveIntensity: 1.8 });
+        const hipZ = 0.6;
+        const legs = [];
+        for (const s of [-1, 1]) {
+          const hip = new THREE.Group();
+          hip.position.set(-0.04, s * 0.16, hipZ);
+          const thigh = BX(0.14, 0.14, 0.24, sackD);
+          thigh.position.z = -0.12;
+          const shin = BX(0.1, 0.1, 0.22, sackD);
+          shin.position.set(0.02, 0, -0.34);
+          const foot = SPH(0.08, wet, 10, 8); // the suction foot it plants
+          foot.scale.set(1.25, 1.1, 0.5);
+          foot.position.set(0.06, 0, -0.52);
+          hip.add(thigh, shin, foot);
+          g.add(hip);
+          legs.push(hip);
+        }
+        const waist = new THREE.Group();
+        waist.position.set(0, 0, hipZ + 0.04);
+        waist.rotation.y = 0.4;
+        const body = SP(0.3, sack, 15); // the bulging sack of a body
+        body.scale.set(1.15, 1.05, 1.1);
+        body.position.set(-0.02, 0, 0.28);
+        waist.add(body);
+        const gut = SPH(0.21, wet, 12, 9);
+        gut.scale.set(1.0, 0.9, 0.85);
+        gut.position.set(0.05, 0, 0.2);
+        waist.add(gut);
+        for (let i = 0; i < 6; i++) {
+          const drip = CY(0.022, 0.012, 0.14, wet, 6); // the brine hanging off it
+          drip.rotation.x = Math.PI / 2;
+          drip.position.set(-0.2 + i * 0.09, (i % 2 ? 1 : -1) * 0.13, 0.04);
+          waist.add(drip);
+        }
+        const jaw = BX(0.24, 0.16, 0.08, bone); // the wide slit of a mouth
+        jaw.position.set(0.3, 0, 0.28);
+        waist.add(jaw);
+        const eyes = []; // the knot: nine red eyes across its front
+        const eyeDefs = [
+          [0.33, 0, 0.5, 0.04], [0.34, 0.1, 0.45, 0.03], [0.34, -0.1, 0.45, 0.03],
+          [0.3, 0.18, 0.52, 0.026], [0.3, -0.18, 0.52, 0.026], [0.26, 0.06, 0.56, 0.024],
+          [0.26, -0.06, 0.56, 0.024], [0.36, 0.04, 0.38, 0.022], [0.36, -0.04, 0.38, 0.022],
+        ];
+        for (const d of eyeDefs) {
+          const eye = SP(d[3], eyeM, 9);
+          eye.position.set(d[0], d[1], d[2]);
+          waist.add(eye);
+          eyes.push(eye);
+        }
+        const arms = [];
+        for (const s of [-1, 1]) {
+          const sh = new THREE.Group();
+          sh.position.set(0.1, s * 0.3, 0.36);
+          const upper = BX(0.11, 0.11, 0.34, sack);
+          upper.position.z = -0.17;
+          const fore = BX(0.08, 0.08, 0.32, wet);
+          fore.position.set(0.03, 0, -0.48);
+          sh.add(upper, fore);
+          for (let f = 0; f < 3; f++) {
+            const claw = BX(0.12, 0.024, 0.024, bone);
+            claw.position.set(0.05, (f - 1) * 0.04, -0.66);
+            claw.rotation.y = -0.5;
+            sh.add(claw);
+          }
+          waist.add(sh);
+          arms.push(sh);
+        }
+        const tentacles = []; // the brine ring off the shoulders
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const t = new THREE.Group();
+          t.position.set(-0.02 + Math.cos(a) * 0.12, Math.sin(a) * 0.2, 0.44);
+          t.rotation.z = Math.cos(a) * 0.7;
+          t.rotation.y = Math.sin(a) * 0.7;
+          let tl = 0;
+          for (let seg = 0; seg < 3; seg++) {
+            const arm = CY(0.026 - seg * 0.007, 0.018 - seg * 0.006, 0.12, seg ? wet : sack, 6);
+            arm.rotation.x = Math.PI / 2 - 0.4;
+            arm.position.set(0.02, 0, tl);
+            t.add(arm);
+            tl += 0.11;
+          }
+          waist.add(t);
+          tentacles.push(t);
+        }
+        g.add(waist);
+        g.userData.ghoul = { legs: legs, arms: arms, jaw: jaw, waist: waist };
+        g.userData.tent = { tentacles: tentacles, eyes: eyes };
+        g.userData.eyes = eyes;
+        return g;
+      }
       // ==================== THE ABYSS ROSTER (the night shift's new horrors) =========
+
       // Every one of these is BUILT TO BE SHOBELED: registered in HORROR_TYPES, driven by
       // the same shared brain (updateHorrorCreature), animated through the rig it publishes
       // in userData, and packed into the eco-pail hopper by the Holy Weapon.
@@ -27343,6 +27723,11 @@
       const HP_HIT_EYECRAWLER = 9; // six legs and a maw of needles
       const HP_HIT_SKELETON = 12; // bone hands, cold as the lich's
       const HP_HIT_PITFIEND = 13; // the brine ring drags at him all at once
+      // ...and THE BLOCK-OWN ANIMALS (the families no OTHER block of tonight's street has).
+      const HP_HIT_GRUBSQUAT = 8; // the beak-maw, in a snap of hooked mandibles
+      const HP_HIT_RATKING = 9; // a rat king goes for the hands and the haul
+      const HP_HIT_LANTERNFANG = 10; // the hook-jaw, and the lamp it bricks with
+      const HP_HIT_GOULRA = 14; // the eye-knot's hug: the heaviest block animal out here
       const HORROR_TOUCH_CD = 1.5; // per-creature contact cooldown (one brush, not a per-frame drain)
       // ============ FAIR FIGHT (a horde must be survivable) ============
       // A spook's brush may NEVER pin him. The stagger is a fifth of a second, only ONE hit
@@ -27563,6 +27948,12 @@
         eyecrawler: 1, // six-legged, eyeless, wearing a crown of eye stalks
         skeleton: 1, // the red-eyed dead out of St Basuras
         pitfiend: 1, // the brine thing: wet, tentacle-ringed, flood-eyed
+        // THE BLOCK-OWN ANIMALS (the families no other block of tonight's street has —
+        // NIGHT_BLOCKS puts each one on exactly ONE block).
+        grubsquat: 1, // the fat maggot-barrel of the vermin block, six short legs
+        ratking: 1, // the mane-headed rat that runs the vermin block's gutters
+        lanternfang: 1, // the lamp-carrying pit thing of the diggers block
+        goulra: 1, // the nine-eyed sack standing the graveyard watch
       };
       const HORROR_HITS = {
         specter: HP_HIT_SPECTER,
@@ -27585,6 +27976,10 @@
         eyecrawler: HP_HIT_EYECRAWLER,
         skeleton: HP_HIT_SKELETON,
         pitfiend: HP_HIT_PITFIEND,
+        grubsquat: HP_HIT_GRUBSQUAT,
+        ratking: HP_HIT_RATKING,
+        lanternfang: HP_HIT_LANTERNFANG,
+        goulra: HP_HIT_GOULRA,
       };
       const HORROR_NAMES = {
         specter: "SPECTER",
@@ -27609,6 +28004,11 @@
         eyecrawler: "EYECRAWLER",
         skeleton: "SKELETON",
         pitfiend: "PITFIEND",
+        // THE BLOCK-OWN ANIMALS (the HUD names of the families that stand one block only)
+        grubsquat: "GRAVE-SQUAT",
+        ratking: "RAT KING",
+        lanternfang: "LANTERNFANG",
+        goulra: "GOULRA",
       };
       // The chatter of the pack (the voice pack runs these through the ghost/ped formants)
       const SPOOK_LINES = {
@@ -27737,6 +28137,31 @@
           "WE FLOODED IN AT THE GRAVES!",
           "SEVEN ARMS AN' NO PAIL!",
           "SINK WITH US, SAN MAN...",
+        ],
+        // THE BLOCK-OWN ANIMALS (each one speaks only on its own block)
+        grubsquat: [
+          "*the barrel splits and clicks*",
+          "FATTENED UP ON YA BAGS!",
+          "SQUAT... SQUAT... SQUAT...",
+          "GET AWAY FROM MY TARP!",
+        ],
+        ratking: [
+          "THE GUTTERS BELONG TO ME!",
+          "*rat king squealing*",
+          "EIGH' THOUSAND OF US, SAN MAN!",
+          "THAT HAUL IS MINE, IT'S MINE!",
+        ],
+        lanternfang: [
+          "I'VE BEEN DIGGING SINCE NINE-TWENTY-EIGHT!",
+          "FOLLOW THE LAMP — IT FINDS THE PIT!",
+          "*hookjaw clattering*",
+          "YOU'RE THE LIGHT, SAN MAN... YOU'RE THE LIGHT...",
+        ],
+        goulra: [
+          "NINE EYES AND ALL OF THEM ON YOU!",
+          "I STAND THE WATCH. I DON'T SLEEP.",
+          "*the gut gurgles*",
+          "NOTHING GOES PAST THE FENCE, SAN MAN...",
         ],
         ghost: [
           "Play with us and stay with us...",
@@ -28178,6 +28603,9 @@
         // against the roster and screen caps and the flinch exactly like the shipped ones,
         // and they are what makes each block of tonight's street a DIFFERENT fight.
         gremlin: 1, goblin: 1, devil: 1, fangspider: 1, eyecrawler: 1, skeleton: 1, pitfiend: 1,
+        // THE BLOCK-OWN ANIMALS: they count against the roster and screen caps and the
+        // flinch exactly like the shipped ones, and each one stands on ONE block only.
+        grubsquat: 1, ratking: 1, lanternfang: 1, goulra: 1,
       };
       function nightBands() {
         // one band per ACTIVE block, in route order; the last one is the flood
@@ -28225,26 +28653,48 @@
       // the band's x0, a band with no entry of its own falls back to the pack it stands in
       // (no block is ever left quiet), and packed families count against the caps, the
       // hunter limit and the flinch exactly like the shipped ones.
+      // ============ THE BLOCK PACKS (ONE HORDE PER BLOCK — NOBODY SHARED) =========
+      // The quotas above say HOW MANY of each family the street runs. NIGHT_BLOCKS says
+      // WHICH families haunt WHICH block of tonight's dead-end street — and on the haunted
+      // shift a family belongs to EXACTLY ONE BLOCK: the block he clocks in on, the two
+      // blocks between it and the graves, and the graveyard block each run a set NOTHING
+      // else on the street has. No ghoul stands in the vermin block, no fangspider walks
+      // the diggers' beat; walk a block, fight its own horde, and its animals are never
+      // seen on the next block. The lookup runs off the band's x0 (a band with no entry of
+      // its own falls back to the pack it stands in — no block is ever left quiet), the
+      // flood table rides the flood block at the BOTTOM of the street, and every family
+      // counts against the roster/screen caps, the hunter limit and the flinch exactly
+      // like the shipped ones.
+      const FLOOD_PACK_RISE = 2;        // the flood block: +2 of EVERY family in its pack
+      const NIGHT_PACK_ESCALATE = true; // the wave tier climbs the block pack too
+      const NIGHT_PACK_SLACK = 8;       // u a block spook may work outside its own block
+      // THE FOUR BLOCK BEATS OF TONIGHT'S STREET (the pack x keys; the top block is the
+      // corner store he clocks in beside, the low block is the graveyard = the flood).
+      const NIGHT_BEAT_TOP_X = 384;
+      const NIGHT_BEAT_VERMIN_X = 288;
+      const NIGHT_BEAT_DIGGER_X = 192;
+      const NIGHT_BEAT_GRAVE_X = 96;
       const NIGHT_BLOCKS = [
         {
-          x: 384, // the top block — the corner store and the one cross-street he clocks in beside
+          x: NIGHT_BEAT_TOP_X, // the top block — the corner store and the one cross-street he clocks in beside
           name: "THE FOG GANG",
-          pack: { wraith: 2, poltergeist: 2, banshee: 1 },
+          pack: { specter: 6, wraith: 5, poltergeist: 4, imp: 4, banshee: 3 },
         },
         {
-          x: 288,
-          name: "THE VERMIN", // gremlins in the walls, fangspiders in the gutters
-          pack: { gremlin: 4, fangspider: 3, imp: 2 },
+          x: NIGHT_BEAT_VERMIN_X,
+          name: "THE VERMIN", // gremlins in the walls, fangspiders in the gutters, the squat in the tarps
+          pack: { grubsquat: 6, gremlin: 5, fangspider: 5, hexbeast: 4, ratking: 3 },
         },
         {
-          x: 192,
-          name: "THE DIGGERS", // goblins with grave-loot, six-legged eye things
-          pack: { goblin: 4, eyecrawler: 3, hexbeast: 2 },
+          x: NIGHT_BEAT_DIGGER_X,
+          name: "THE DIGGERS", // the ghouls and the red-eyed dead, with the lanternfings in the pits
+          pack: { ghoul: 9, skeleton: 6, goblin: 5, hound: 4, lanternfang: 2 },
         },
         {
-          x: 96, // THE FLOOD BLOCK: the top of the graves (St Basuras) — the heavy end
+          x: NIGHT_BEAT_GRAVE_X, // THE FLOOD BLOCK: the top of the graves (St Basuras) — the heavy end
           name: "THE GRAVE WATCH",
-          pack: { devil: 3, skeleton: 4, pitfiend: 3, reaper: 1, lich: 1 },
+          pack: { pitfiend: 4, demon: 3, devil: 3, eyecrawler: 3, goulra: 3, lich: 2, reaper: 2 },
+          flood: { pitfiend: 6, demon: 5, devil: 5, eyecrawler: 4, goulra: 4, lich: 3, reaper: 3 },
         },
       ];
       function nightBlockPack(band) {
@@ -28260,29 +28710,68 @@
         }
         return NIGHT_BLOCKS[0];
       }
-      function nightBlockFamilies(band) {
+      // THE PACK THIS BAND RUNS: the flood table when the band is the flood block, the
+      // block's own table otherwise. This is the WHOLE horde — a family that is not in
+      // this table does not stand on this block, anywhere on tonight's street.
+      function nightBandPack(band) {
         const e = nightBlockPack(band);
-        if (!e) return [];
+        if (!e) return {};
+        if (band && band.flood && e.flood) return e.flood;
+        return e.pack;
+      }
+      // THE FAMILY'S OWN BLOCK (the exclusivity lookup): which beat does this family
+      // belong to? null = a family with no beat of its own (it is not a block animal).
+      function nightBlockOf(type) {
+        for (let i = 0; i < NIGHT_BLOCKS.length; i++) {
+          const e = NIGHT_BLOCKS[i];
+          if (e.pack[type] || (e.flood && e.flood[type])) return e;
+        }
+        return null;
+      }
+      // DOES THIS BAND OWN THIS FAMILY? THE load rule of the haunted shift: a family is
+      // born, refilled, surged and respawned ONLY on the block whose pack lists it, so no
+      // block ever shows a creature the block before it showed.
+      function nightBlockOwns(type, band) {
+        const e = nightBlockPack(band);
+        return !!e && nightBandPack(band)[type] > 0;
+      }
+      function nightBlockFamilies(band) {
+        const pack = nightBandPack(band);
         const fams = [];
-        for (const k in e.pack) if (HORROR_ALL[k]) fams.push(k);
+        for (const k in pack) if (HORROR_ALL[k] && pack[k] > 0) fams.push(k);
         return fams;
       }
       function nightBlockQuota(type, band) {
-        // the block's own pack load ON TOP of the shipped quota (never below it), riding the
-        // same wave escalation the rest of the street rides, with the shipped ceiling kept
-        const e = nightBlockPack(band);
-        const extra = e && e.pack[type] ? e.pack[type] : 0;
-        const q = nightQuota(type, band ? band.flood : false) + extra;
+        // THIS BLOCK's own load of THIS family (the block tables are the whole quota, so a
+        // family the block does not list is zero HERE), riding the same wave escalation the
+        // rest of the street rides, with the shipped ceiling kept on top of it.
+        const per = nightBandPack(band)[type] || 0;
+        if (per <= 0) return 0;
+        const q = per + (NIGHT_PACK_ESCALATE && nightGhoulTier > 0 ? nightGhoulTier : 0);
         const ceil = HORROR_QUOTA_CEIL[type];
-        return ceil != null ? Math.max(q, ceil) : q;
+        return ceil != null ? Math.min(ceil, q) : q;
       }
-      // The order the haunt fills a band in: the shipped ghoul-heavy fill order FIRST (the
-      // density and fairness rules the shipped pack runs on never move), then this block's
-      // OWN horrors, and the surge keeps its shipped shock pack on top of all of it.
+      function nightBlockBandXs(band) {
+        // the band bounds widened by the block slack — the box a block spook may work in
+        const out = {
+          lo: band.x0 - NIGHT_PACK_SLACK,
+          hi: band.x1 + NIGHT_PACK_SLACK,
+        };
+        return out;
+      }
+      // The order the haunt fills a band in: THIS BLOCK's own horrors, heaviest family
+      // first, and the surge hits HIS band with more of the SAME block's pack (the block
+      // pit opens — it does not import another block's animals).
       function nightBlockOrder(band, surge) {
         const fams = nightBlockFamilies(band);
-        if (surge) return HORROR_FILL_ORDER.concat(["ghoul", "ghoul", "demon", "hound"], fams);
-        return HORROR_FILL_ORDER.concat(fams);
+        fams.sort(function (a, b) {
+          return nightBlockQuota(b, band) - nightBlockQuota(a, band);
+        });
+        if (surge) {
+          const heavy = fams.slice(0, 3);
+          return fams.concat(heavy, heavy);
+        }
+        return fams.slice();
       }
       function nightBandLive(band, type) {
         let n = 0;
@@ -28335,6 +28824,17 @@
       // Returns null when the band has no room left ahead of him (he has already walked it):
       // the haunt never spawns a spook at his back, and never drops one behind the curb.
       function nightSpawnHorror(type, band, variant) {
+        // THE BLOCK EXCLUSIVITY GATE (Midnight only): a family is born ONLY on the block
+        // whose pack lists it. Ask for a ghoul on the vermin block and the haunt simply
+        // will not do it — so the creatures of one block are never seen on another. The
+        // banshee rides the shipped specter MESH, so the gate reads the variant key (the
+        // causeKey the roster counts by), not the mesh. Weekdays never enter this gate.
+        if (
+          typeof isNightShift === "function" &&
+          isNightShift() &&
+          !nightBlockOwns(variant || type, band)
+        )
+          return null;
         const w = horrorAheadWindow(band); // by day: the band AHEAD of him up the street;
         // on the dead-end shift: the band ahead of him DOWN the street, out of its bottom end
         const lo = w.lo,
@@ -28347,6 +28847,10 @@
         c.g.position.set(c.wx, c.wy, c.floaty ? GZ + 0.5 : GZ);
         c.fade = 0;
         c.band = band.i;
+        // ITS OWN BLOCK (the home beat): a block spook works its own block — its wander
+        // lanes, its recycle and its fog re-entry all resolve inside THIS band, so the
+        // horde of a block he has already walked never drifts up into the next one.
+        c.home = { x0: band.x0, x1: band.x1, i: band.i };
         c.shockT = 0;
         if (band.flood) {
           c.deep = true; // the flood pack: long renewing charges (see updateHorrorCreature)
@@ -28646,10 +29150,23 @@
           ? wx < p.wx - NIGHT_CULL_BEHIND
           : wx > p.wx + NIGHT_CULL_BEHIND;
       }
+      // THE WORK BOX OF A BLOCK SPOOK (Midnight: its own block, widened by the pack slack;
+      // every weekday: the shipped full-route limits, character for character).
+      function horrorWorkLimits(c) {
+        if (isNightShift() && c && c.home) return nightBlockBandXs(c.home);
+        return { lo: creatureLimitMinX(), hi: creatureLimitMaxX() };
+      }
       function horrorRespawnX(c) {
         const RT = routeDir();
         const lo = c.flood ? c.flood.x0 : creatureLimitMinX();
         const hi = c.flood ? c.flood.x1 : creatureLimitMaxX() - 4;
+        // MIDNIGHT: a block spook re-enters OUT OF ITS OWN BLOCK — it walks back into the
+        // fog of the beat it belongs to and comes up into the shovel again there, so the
+        // horde of the block he has already cleared never re-appears on the next one.
+        if (isNightShift() && c.home) {
+          const hb = nightBlockBandXs(c.home);
+          return clamp(p.wx + RT * R(10, 26), hb.lo, hb.hi);
+        }
         return clamp(
           p.wx + RT * R(c.flood ? 12 : 28, c.flood ? 40 : 52),
           lo,
@@ -28907,6 +29424,9 @@
         const dx = p.wx - c.wx,
           dy = p.wy - c.wy;
         const dW = Math.hypot(dx, dy) || 0.001;
+        // THE WORK BOX (Midnight: the creature's OWN block band + the pack slack; the
+        // seven weekdays: the shipped route limits). Every lane clamp below runs on it.
+        const WK = horrorWorkLimits(c);
         c.sayCd = (c.sayCd || 0) - dt;
         c.phase = (c.phase || 0) + dt;
         // ---- BRAIN: hunt while the timer runs; a fresh hunt only starts ON SCREEN ----
@@ -28966,7 +29486,7 @@
               c.blinkT = R(1.3, 2.4);
               const step = Math.min(dW - 1.4, R(3.0, 5.0));
               spawnEctoSplat(c.wx, c.wy, 0.3); // it leaves a wet mark where it WAS
-              c.wx = clamp(c.wx + (dx / dW) * step, creatureLimitMinX(), creatureLimitMaxX());
+              c.wx = clamp(c.wx + (dx / dW) * step, WK.lo, WK.hi);
               c.wy = clamp(c.wy + (dy / dW) * step * 0.85, HORROR_STREET_Y, horrorMaxY());
               c.fade = 0; // ...and it fades back IN at the spot it landed in
               spawnEctoSplat(c.wx, c.wy, 0.36);
@@ -28977,7 +29497,9 @@
           c.wanderT = (c.wanderT || 0) - dt;
           if (c.wanderT <= 0) {
             c.wanderT = R(3, 7);
-            c.tx = clamp(p.wx + R(-28, 30), creatureLimitMinX(), creatureLimitMaxX());
+            // MIDNIGHT: the waypoint is drawn INSIDE the spook's own block (the pack slack
+            // at its edges) — it haunts its own beat and never wanders onto a neighbour's.
+            c.tx = clamp(c.home ? c.home.x0 + R(-6, BLOCK_W + 6) : p.wx + R(-28, 30), WK.lo, WK.hi);
             c.ty = R(HORROR_STREET_Y + 0.5, horrorMaxY() - 0.4); // lawn, walk, curb, road
           }
           const gx = c.tx - c.wx,
@@ -28991,7 +29513,8 @@
           if (c.g) c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
         }
         // ---- LANES: the pack owns the whole width — road, curb, sidewalk AND front lawn ----
-        c.wx = clamp(c.wx, creatureLimitMinX(), creatureLimitMaxX());
+        // (Midnight: inside the creature's OWN block — see the work box above.)
+        c.wx = clamp(c.wx, WK.lo, WK.hi);
         c.wy = clamp(c.wy, HORROR_STREET_Y, horrorMaxY());
         // ---- BODY: the float, the glow, the lope ----
         if (c.g) floatOrLope(c, dt, hunting);
@@ -29023,16 +29546,20 @@
           }
           return;
         }
-        if (c.type === "hound") {
-          const hp = c.g.userData.hound;
-          if (!hp) return;
+        // THE QUADRUPEDS (the hellhound, the rat king): four legs on diagonal pairs.
+        // The rig contract decides it — anything that publishes userData.hound trots on
+        // this math, so the vermin block's RAT KING walks the street exactly like a hound.
+        const hp = c.g.userData.hound;
+        if (hp && hp.legs && hp.legs.legFL) {
           const sw = Math.sin(c.phase * (hunting ? 16 : 7)) * (hunting ? 0.75 : 0.4);
           hp.legs.legFL.rotation.y = sw;
           hp.legs.legBR.rotation.y = sw; // diagonal pairs, like a real gallop
           hp.legs.legFR.rotation.y = -sw;
           hp.legs.legBL.rotation.y = -sw;
-          hp.tailPiv.rotation.x = -0.22 + Math.sin(c.phase * 9) * 0.42; // the whip pitches around its resting carry
-          hp.tailPiv.rotation.y = Math.sin(c.phase * 4.5) * 0.34; // ...and lashes side to side
+          if (hp.tailPiv) {
+            hp.tailPiv.rotation.x = -0.22 + Math.sin(c.phase * 9) * 0.42; // the whip pitches around its resting carry
+            hp.tailPiv.rotation.y = Math.sin(c.phase * 4.5) * 0.34; // ...and lashes side to side
+          }
           hp.headPiv.rotation.y = Math.sin(c.phase * 3) * 0.2;
           hp.jawPiv.rotation.y = hunting
             ? -0.45 + Math.sin(c.phase * 14) * 0.3
@@ -29053,7 +29580,7 @@
           hx.mandL.rotation.y = -0.12 - Math.max(0, snap) * 0.55;
           hx.mandR.rotation.y = 0.12 + Math.max(0, snap) * 0.55;
           hx.jaw.rotation.z = Math.sin(c.phase * (hunting ? 13 : 5)) * 0.22;
-          c.g.position.z = GZ + Math.abs(Math.sin(c.phase * 9)) * (hunting ? 0.04 : 0.015);
+          c.g.position.z = GZ + Math.abs(Math.sin(c.phase * 9)) * (hunting ? 0.018 : 0.008);
           return;
         }
         // ABYSSAL: it has no legs — it DRAGS on its suction foot, and the tentacle ring
@@ -29072,7 +29599,9 @@
           return;
         }
         // FANGSPIDER: EIGHT legs in a paired alternating gait — the sac low and swaying,
-        // the face nodding, the fangs striking when it is on him.
+        // the face nodding, the fangs striking when it is on him. IT WALKS THE GROUND:
+        // each leg is planted at the tip (the hips sit at 0.34 and the chain is cut to
+        // reach z = 0), and the body only ROCKS on its eight legs — it never leaves the street.
         const spd = c.g.userData.spider;
         if (spd && spd.legs && spd.legs.length) {
           const sw = Math.sin(c.phase * (hunting ? 19 : 9)) * (hunting ? 0.68 : 0.34);
@@ -29083,7 +29612,7 @@
           for (let fi = 0; fi < spd.fangs.length; fi++)
             spd.fangs[fi].rotation.x = -Math.PI / 2 + 0.35 + (hunting ? Math.abs(Math.sin(c.phase * 12)) * 0.4 : Math.sin(c.phase * 2.2) * 0.08);
           if (spd.body) spd.body.scale.z = 1.0 + Math.sin(c.phase * 2.6) * 0.06; // the sac breathes
-          c.g.position.z = GZ + Math.abs(Math.sin(c.phase * 10)) * (hunting ? 0.035 : 0.012);
+          c.g.position.z = GZ + Math.abs(Math.sin(c.phase * 10)) * 0.014; // a ground ROCK, not a hop
           return;
         }
         // PITFIEND: it walks the ghoul lope below, and its brine ring WAVES around the
@@ -29116,6 +29645,11 @@
         c.g.position.z = GZ + Math.abs(Math.sin(c.phase * 4.5)) * 0.03 + hop;
         const sc = c.g.userData.scythe; // a lich / reaper drags its point on the same rig
         if (sc) sc.rotation.z = 0.22 + Math.sin(c.phase * 3.2) * 0.14;
+        const lp = c.g.userData.lamp; // a lanternfang swings its jar as it walks
+        if (lp) {
+          lp.rotation.z = Math.sin(c.phase * (hunting ? 7.5 : 3.4)) * (hunting ? 0.34 : 0.18);
+          lp.rotation.x = Math.sin(c.phase * 4.1) * 0.12;
+        }
       }
       // A horror creature re-enters the street ahead of the worker, out of the fog.
       function respawnHorror(c) {
@@ -30224,19 +30758,20 @@
             if (ok) nightPlaceProp(b, kinds[i], px, py);
           }
         }
-        // THE PACK, at its per-block quota on EVERY active block — filled FAMILY BY FAMILY
-        // across the bands, so no block is ever left quiet when the roster cap truncates the
-        // tail. The flood block runs the flood quota. updateNightHaunt() then keeps the band
-        // he is standing in (and the one he is walking into) at quota for the whole shift.
-        const nightFillKeys = [];
-        for (let fi = 0; fi < HORROR_FILL_ORDER.length; fi++)
-          if (nightFillKeys.indexOf(HORROR_FILL_ORDER[fi]) < 0)
-            nightFillKeys.push(HORROR_FILL_ORDER[fi]);
-        for (let ki = 0; ki < nightFillKeys.length; ki++) {
-          const key = nightFillKeys[ki];
-          for (let k = 0; k < bands.length; k++) {
-            const band = bands[k];
-            const n = (band.flood ? HORROR_QUOTA_FLOOD : HORROR_QUOTA)[key] || 0;
+        // THE PACK — ONE HORDE PER BLOCK. Tonight every block of the dead-end street runs
+        // its OWN families (NIGHT_BLOCKS): the block he clocks in on, the two between it and
+        // the graves, and the graveyard block are four DIFFERENT hordes, and a family born on
+        // one block is never born on another. Each band is filled with its own pack, band by
+        // band, so no block is ever left quiet when the roster cap truncates the tail; the
+        // flood block at the BOTTOM of the street runs its heavier flood table.
+        // updateNightHaunt() then keeps the band he is standing in (and the one he is
+        // walking into) at ITS OWN quota for the whole shift.
+        for (let k = 0; k < bands.length; k++) {
+          const band = bands[k];
+          const bandPack = nightBlockFamilies(band); // THIS block's own horrors
+          for (let pi = 0; pi < bandPack.length; pi++) {
+            const key = bandPack[pi];
+            const n = nightBlockQuota(key, band);
             for (let i = 0; i < n; i++) {
               if (nightHorrorLive() >= HORROR_ROSTER_CAP) break;
               nightSpawnHorror(
@@ -30244,25 +30779,6 @@
                 band,
                 key === "wraith" && Math.random() < 0.4 ? "rime" : key,
               );
-            }
-          }
-        }
-        // ...AND THEN EACH BLOCK'S OWN PACK (NIGHT_BLOCKS). The pass above is the shipped,
-        // family-by-family fill and its distribution is UNTOUCHED; the block packs are laid
-        // ON TOP of it band by band, so the block he clocks in on, the two blocks between it
-        // and the graves, and the block the graveyard guards open the shift with FOUR
-        // DIFFERENT SETS of attacking horrors. Everything stays inside the same roster cap,
-        // and updateNightHaunt() keeps both the shipped quotas and each block's pack filled.
-        for (let k = 0; k < bands.length; k++) {
-          const band = bands[k];
-          const bandPack = nightBlockFamilies(band); // THIS block's signature horrors
-          for (let pi = 0; pi < bandPack.length; pi++) {
-            const key = bandPack[pi];
-            const shipped = (band.flood ? HORROR_QUOTA_FLOOD : HORROR_QUOTA)[key] || 0;
-            const n = nightBlockQuota(key, band) - shipped; // the pack's OWN share, on top
-            for (let i = 0; i < n; i++) {
-              if (nightHorrorLive() >= HORROR_ROSTER_CAP) break;
-              nightSpawnHorror(key === "banshee" ? "specter" : key, band, key);
             }
           }
         }
@@ -30649,6 +31165,54 @@
             c.chaseSp = R(3.0, 4.0);
             c.huntT = 0;
             c.wanderT = R(0, 3.4);
+            c.phase = R(0, 6);
+            c.dir = 1;
+            break;
+          }
+          // ============ THE BLOCK-OWN ANIMALS (one family, one block) ==========
+          // These four are the families NO other block has. Same shared brain, same
+          // shovel contract, same caps — and each one is only ever born on its own block.
+          case "grubsquat": {
+            c.data = makeGrubsquat();
+            c.causeKey = "grubsquat";
+            c.lopeSp = R(0.8, 1.3); // fat: it waddles its barrel along
+            c.chaseSp = R(2.6, 3.4); // ...and it is a LOT faster when it rears up
+            c.huntT = 0;
+            c.wanderT = R(0, 3.6);
+            c.phase = R(0, 6);
+            c.dir = 1;
+            break;
+          }
+          case "ratking": {
+            c.data = makeRatking();
+            c.causeKey = "ratking";
+            c.lopeSp = R(1.8, 2.6); // four legs and no intention of slowing down
+            c.chaseSp = R(5.2, 6.4); // the quickest thing on the vermin block
+            c.huntT = 0;
+            c.wanderT = R(0, 2.2);
+            c.phase = R(0, 6);
+            c.dir = 1;
+            break;
+          }
+          case "lanternfang": {
+            c.data = makeLanternfang();
+            c.causeKey = "lanternfang";
+            c.gender = "male"; // the digger's own voice, in the ped formants
+            c.lopeSp = R(1.1, 1.7);
+            c.chaseSp = R(3.6, 4.5); // it follows its lamp straight at him
+            c.huntT = 0;
+            c.wanderT = R(0, 3.2);
+            c.phase = R(0, 6);
+            c.dir = 1;
+            break;
+          }
+          case "goulra": {
+            c.data = makeGoulra();
+            c.causeKey = "goulra";
+            c.lopeSp = R(0.8, 1.3); // it hauls the sack on its suction feet
+            c.chaseSp = R(2.9, 3.8); // heavy, and it does not break off
+            c.huntT = 0;
+            c.wanderT = R(0, 3.8);
             c.phase = R(0, 6);
             c.dir = 1;
             break;
@@ -37622,6 +38186,27 @@
           "Contact with unpermitted flood matter",
           "Failure to complete the cemetery flood drill",
         ],
+        // --- THE BLOCK-OWN ANIMALS (the families that stand exactly one block) ---
+        grubsquat: [
+          "Failure to fumigate an authorized maggot colony",
+          "Contact with a class-5 squat (open tarp mound)",
+          "Failure to report breeding inside municipal bags",
+        ],
+        ratking: [
+          "Failure to yield the right of way to a vermin sovereign",
+          "Contact with an unpermitted rat king (gutter class)",
+          "Failure to file the swarm incident report",
+        ],
+        lanternfang: [
+          "Operating a open excavation without a lamp marshal",
+          "Contact with an unpermitted hookjaw in a public pit",
+          "Failure to observe the digger line at night",
+        ],
+        goulra: [
+          "Failure to clear the cemetery watch post",
+          "Contact with a multi-eyed entity (nine-eye class)",
+          "Failure to report a fence-line sentinel",
+        ],
         // --- the street itself: the hydrant and friends ---
         hazard: [
           "Failure to respect municipal property",
@@ -42355,6 +42940,10 @@
             case "eyecrawler":
             case "skeleton":
             case "pitfiend":
+            case "grubsquat":
+            case "ratking":
+            case "lanternfang":
+            case "goulra":
               updateHorrorCreature(c, dt);
               break;
             // THE MANY-EYED BEAST — the thief. It never hunts: it runs for the far end
