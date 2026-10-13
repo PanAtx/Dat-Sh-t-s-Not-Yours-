@@ -236,9 +236,15 @@ const cemSign = (() => {
 check(
   'makeCemeterySign: a plaque (frame + text face + mounting brackets) hung on the fence face, facing the sidewalk (-Y)',
   cemSign.length > 0 &&
-    cemSign.indexOf('makeCemeterySignMaterial()') >= 0 &&
+    cemSign.indexOf('makeCemeterySignMaterial(name)') >= 0 &&
+    cemSign.indexOf('const name = label || "Mount Mongo Cemetery";') >= 0 &&
     cemSign.indexOf('position.set(0, -0.12, 1.3)') >= 0 &&
     cemSign.indexOf('position.set(0, -0.19, 1.3)') >= 0
+);
+check(
+  'the plaque is NAME-DRIVEN (the builder takes the graveyard name; Maspeth keeps its own)',
+  signMat.indexOf('const name = label || "Mount Mongo Cemetery";') >= 0 &&
+    signMat.indexOf('ctx.fillText(name, 512, 84);') >= 0
 );
 check(
   'buildCemeteryBlock: the "Mount Mongo Cemetery" sign is hung CENTERED on the FRONT fence (bx + BLOCK_W/2, CEM_FENCE_Y, GZ)',
@@ -554,7 +560,7 @@ check(
 
 // ================= 8. THE IMPASSABLE FENCE (worker clamp) =================
 const upIdx = src.indexOf('function updatePlayer(');
-const fenceClamp = src.slice(upIdx, upIdx + 12000);
+const fenceClamp = src.slice(upIdx, upIdx + 26000);
 check(
   'worker CANNOT cross the iron fence: cemFence clamp (FENCE_STOP 0.3, hard stop at the line)',
   fenceClamp.indexOf('if (!b.cemFence) continue') >= 0 &&
@@ -569,10 +575,15 @@ const mbEnd = src.indexOf('function ', mbIdx + 30);
 const mbSec = src.slice(mbIdx, mbEnd > mbIdx ? mbEnd : mbIdx + 14000);
 check(
   'cemetery cell: b.cemetery + b.house = null + cemFence bounds on the block',
-  mbSec.indexOf('const isCemCell = isQueensBlock && b.blockX === QUEENS_CEMETERY_X') >= 0 &&
+  mbSec.indexOf('const isCemCell =') >= 0 &&
+    mbSec.indexOf('(isQueensBlock && b.blockX === QUEENS_CEMETERY_X)') >= 0 &&
     mbSec.indexOf('b.cemetery = true') >= 0 &&
     mbSec.indexOf('b.house = null') >= 0 &&
     mbSec.indexOf('b.cemFence = {') >= 0
+);
+check(
+  'cemetery cell: ONLY Maspeth builds its own fenced block group (the night graveyard is built by buildNightCemetery)',
+  /if \(isCemCell\) \{\s*b\.cemetery = true;[\s\S]{0,900}if \(isQueensBlock\) \{[\s\S]{0,1600}buildCemeteryBlock\(/.test(src)
 );
 check(
   'cemetery cell: the fence + back rows build (buildCemeteryBlock) + headstones fill the rest',
@@ -1243,15 +1254,25 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
     { buildingFront: { x0: 100, x1: 120, y1: 10 } }, // unrelated block: ignored
   ];
   const p = { wx: 432, wy: 5.3 }; // inside 384.2..480.2
-  const fn = new Function('p', 'blocks', 'clamp', loopSrc);
-  fn(p, blocks, clamp);
+  const fn = new Function('p', 'blocks', 'clamp', 'isNightShift', 'NIGHT_FENCE_Y', 'workerMaxY', loopSrc);
+  const NFY = Number((src.match(/const NIGHT_FENCE_Y = ([0-9.]+)/) || [0, 6.9])[1]);
+  const runDay = (p2, blocks2) => fn(p2, blocks2, clamp, () => false, NFY, () => 8.0);
+  runDay(p, blocks);
   check('worker pushed against the fence line stays at fence-0.3 (5.1)', Math.abs(p.wy - 5.1) < 1e-9, 'wy=' + p.wy);
-  const p2 = { wx: 144, wy: 3.0 }; // on the sidewalk side: free
-  fn(p2, blocks, clamp);
+  const p2 = { wx: 432, wy: 3.0 }; // on the sidewalk side: free
+  runDay(p2, blocks);
   check('worker on the sidewalk side of the fence is unaffected', p2.wy === 3.0);
   const p3 = { wx: 250, wy: 5.3 }; // past the fence x-range: free (real: 490)
-  fn(p3, blocks, clamp);
+  runDay(p3, blocks);
   check('outside the fence x-range the cemetery wall does not apply', p3.wy === 5.3);
+  // THE MIDNIGHT DEAD END: the iron fence that runs the length of the street is the
+  // worker's back wall, and the seven weekdays never clamp on it.
+  const n1 = { wx: 250, wy: 9.4 };
+  fn(n1, blocks, clamp, () => true, NFY, () => 8.0);
+  check('MIDNIGHT: the dead-end fence holds the worker at NIGHT_FENCE_Y - 0.3', Math.abs(n1.wy - (NFY - 0.3)) < 1e-9, 'wy=' + n1.wy);
+  const n2 = { wx: 250, wy: 9.4 };
+  fn(n2, blocks, clamp, () => false, NFY, () => 8.0);
+  check('WEEKDAY: the same spot is untouched by the dead-end fence (wy stays 9.4)', Math.abs(n2.wy - 9.4) < 1e-9, 'wy=' + n2.wy);
 
   // ---- SIDE FENCES: the worker stops IN PLACE (like a wall) — never teleports to the front ----
   const sideBlocks = [
@@ -1270,14 +1291,14 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
   // THE OLD BUG: walking up the cross street (wy 7) into the left side fence
   // tripped the front-fence clamp and snapped wy down to 5.1 (teleport to the sidewalk).
   const s1 = { wx: 95.9, wy: 7.0 };
-  fn(s1, sideBlocks, clamp);
+  fn(s1, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check(
     'side fence (left): worker stops in place at fence-0.3 (95.7) with wy UNTOUCHED (no teleport)',
     Math.abs(s1.wx - 95.7) < 1e-9 && s1.wy === 7.0,
     'wx=' + s1.wx + ' wy=' + s1.wy
   );
   const s2 = { wx: 175.9, wy: 7.0 }; // overlapping the right fence face (crossing from the street)
-  fn(s2, sideBlocks, clamp);
+  fn(s2, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check(
     'side fence (right): worker stops in place at fence+0.3 (176.3) with wy UNTOUCHED',
     Math.abs(s2.wx - 176.3) < 1e-9 && s2.wy === 7.0,
@@ -1285,14 +1306,14 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
   );
   // A worker standing on the FAR cross streets (past the stop lines) is never yanked.
   const s2b = { wx: 177.0, wy: 7.0 };
-  fn(s2b, sideBlocks, clamp);
+  fn(s2b, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check('far right cross street (wx 177) is free of the side fence clamp', s2b.wx === 177.0 && s2b.wy === 7.0);
   const s2c = { wx: 95.0, wy: 7.0 };
-  fn(s2c, sideBlocks, clamp);
+  fn(s2c, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check('far left cross street (wx 95) is free of the side fence clamp', s2c.wx === 95.0 && s2c.wy === 7.0);
   // Diagonal overshoot across the side fence in one step: the old code snapped wy to 5.1 here.
   const s3 = { wx: 96.8, wy: 6.5 };
-  fn(s3, sideBlocks, clamp);
+  fn(s3, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check(
     'diagonal overshoot across the side fence: wx clamps to 95.7 and wy STAYS (no snap to the front fence)',
     Math.abs(s3.wx - 95.7) < 1e-9 && s3.wy === 6.5,
@@ -1300,15 +1321,15 @@ console.log('[functional] fence clamp (the real updatePlayer fence loop, run in 
   );
   // Holding the stick into the side fence: stable dead stop, no creep / flicker.
   const s4 = { wx: 95.7, wy: 8.0 };
-  fn(s4, sideBlocks, clamp);
+  fn(s4, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check('holding into the side fence is a stable stop (wx stays 95.7, wy free)', s4.wx === 95.7 && s4.wy === 8.0);
   // The sidewalk in front of the cemetery stays free (below the front fence line).
   const s5 = { wx: 96.5, wy: 5.0 };
-  fn(s5, sideBlocks, clamp);
+  fn(s5, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check('sidewalk in front of the cemetery is free (wy 5.0 < fence line)', s5.wx === 96.5 && s5.wy === 5.0);
   // Past the back edge (wy > yBack) the side fences have ended — free (on the street side, outside the front x-range).
   const s6 = { wx: 95.0, wy: 12.5 };
-  fn(s6, sideBlocks, clamp);
+  fn(s6, sideBlocks, clamp, () => false, 8.85, () => 8.0);
   check('past the back edge (wy > yBack) the side fences do not apply', s6.wx === 95.0 && s6.wy === 12.5);
 }
 

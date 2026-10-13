@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.485</div>
+          <div id="app-version" class="menu-version">v1.0.486</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.485';
+      const APP_VERSION = '1.0.486';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7275,6 +7275,21 @@
             );
           }
         }
+        // ST BASURAS CEMETERY (the MIDNIGHT dead-end street's LAST block — the one the
+        // worker walks INTO at the bottom of the hill): the lot behind the wrought-iron
+        // fence carries cemetery grass, the same lighter green Maspeth lays over its 5th
+        // block, a hair above the ground slab (0.34 vs 0.3) so it never z-fights. Seven
+        // weekdays never build this patch.
+        if (isNightShift()) {
+          groundStrip(
+            BLOCK_W,
+            CEM_BACK_Y - CEM_FENCE_Y,
+            0.34,
+            (CEM_FENCE_Y + CEM_BACK_Y) / 2,
+            0x2c5426,
+            NIGHT_GRAVE_BLOCK_X + BLOCK_W / 2,
+          );
+        }
         // Main curb: ONE segment per block ON EACH SIDE. Each extends 1.5u PAST the
         // block on both sides so its end lands EXACTLY on the curb-return arc's
         // main-road tangent point (x = blockEdge +/- 1.5), where the straight curb
@@ -7572,7 +7587,34 @@
         const CR = 2.0; // NYC corner radius — quarter-circle curb return at each intersection corner
         const CB = 0.5; // curb-stone band width — SAME thickness as the main-road curb (0.5u),
         // so the return is flush with the straight curbs it meets
-        for (const xInt of LEVEL_XS) {
+        // THE MIDNIGHT DEAD END has ONE cross-street (see NIGHT_XS): a cul-de-sac is served
+        // by a single street, the one at the TOP of the level where the worker clocks in.
+        // The other gaps on tonight's route stay plain road — no cross-street, no corner
+        // returns, no crosswalks. Weekdays build every intersection, unchanged.
+        const nightGap = isNightShift();
+        if (nightGap) {
+          // THE MIDNIGHT DEAD END keeps ONE cross-street, so the five removed intersections
+          // must not stay as holes in the street: their gaps get the same curb stones and
+          // paint edge the blocks carry, paved straight through. A cul-de-sac is one street,
+          // not a grid — no cross-street, no corner returns, no zebra crossings. Weekdays
+          // never run this branch; their intersections stay exactly as shipped.
+          const curbM = new THREE.MeshLambertMaterial({ color: 0xaab2ba });
+          const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
+          const fillLen = IW - 3.0; // the block curb segments already cover 1.5u of each gap end
+          for (const xGap of NIGHT_GAP_XS) {
+            const gcx = xGap + IW / 2;
+            for (const cy of [0.5, -9.5]) {
+              const seg = new THREE.Mesh(new THREE.BoxGeometry(fillLen, 0.5, 0.5), curbM);
+              seg.position.set(gcx, cy, 0.1);
+              seg.receiveShadow = true;
+              groundGroup.add(seg);
+            }
+            const edge = new THREE.Mesh(new THREE.BoxGeometry(fillLen, 0.24, 0.05), edgeM);
+            edge.position.set(gcx, -9.2, 0.31);
+            groundGroup.add(edge);
+          }
+        }
+        for (const xInt of nightGap ? NIGHT_XS : LEVEL_XS) {
           const g = new THREE.Group();
           const cx = xInt + IW / 2; // center of the intersection gap
           const halfW = CROSS_W / 2; // cross-street half-width
@@ -14617,10 +14659,14 @@
         }
         return g;
       }
-      function makeCemeterySignMaterial() {
-        // The "Mount Mongo Cemetery" plaque face: a near-black board with a brass
-        // double border and the name in gold serif lettering. Node-safe -> a plain
-        // dark material (no DOM in the smoke tests).
+      function makeCemeterySignMaterial(label) {
+        // The cemetery plaque face: a near-black board with a brass double border and the
+        // name in gold serif lettering. Node-safe -> a plain dark material (no DOM in the
+        // smoke tests).
+        // THE NAME IS AN ARGUMENT: Maspeth hangs "Mount Mongo Cemetery" on its 5th-block
+        // fence; the MIDNIGHT dead-end street hangs "St Basuras Cemetery" on the fence that
+        // closes its LAST block — same plaque, same brass, different graveyard.
+        const name = label || "Mount Mongo Cemetery";
         if (typeof document === "undefined" || !THREE.CanvasTexture) {
           return M(0x14140f);
         }
@@ -14640,11 +14686,11 @@
         ctx.fillStyle = "#d4b86a";
         let fs = 84;
         ctx.font = "bold " + fs + "px Georgia, 'Times New Roman', serif";
-        while (ctx.measureText("Mount Mongo Cemetery").width > 940 && fs > 20) {
+        while (ctx.measureText(name).width > 940 && fs > 20) {
           fs--;
           ctx.font = "bold " + fs + "px Georgia, 'Times New Roman', serif";
         }
-        ctx.fillText("Mount Mongo Cemetery", 512, 84);
+        ctx.fillText(name, 512, 84);
         const texture = new THREE.CanvasTexture(canvas);
         texture.needsUpdate = true;
         return new THREE.MeshLambertMaterial({
@@ -14654,10 +14700,13 @@
           emissiveIntensity: 0.25,
         });
       }
-      function makeCemeterySign() {
-        // A "Mount Mongo Cemetery" plaque hung on the FRONT face of the iron fence,
-        // facing the sidewalk (-Y). Origin at the plaque center ON the fence face
-        // (local y=0); the plaque hangs just in front of it (negative y). Z-UP.
+      function makeCemeterySign(label) {
+        // A cemetery plaque hung on the FRONT face of the iron fence, facing the sidewalk
+        // (-Y). Origin at the plaque center ON the fence face (local y=0); the plaque hangs
+        // just in front of it (negative y). Z-UP.
+        // `label` is the graveyard's name on the brass board — Maspeth's fence reads
+        // "Mount Mongo Cemetery", the Midnight dead-end's fence reads "St Basuras Cemetery".
+        const name = label || "Mount Mongo Cemetery";
         const g = new THREE.Group();
         const iron = MS(0x101014, { metalness: 0.55, roughness: 0.5 });
         const frame = BX(
@@ -14668,7 +14717,7 @@
         );
         frame.position.set(0, -0.12, 1.3);
         g.add(frame);
-        const face = BX(9, 0.06, 1.4, makeCemeterySignMaterial());
+        const face = BX(9, 0.06, 1.4, makeCemeterySignMaterial(name));
         face.position.set(0, -0.19, 1.3);
         g.add(face);
         // two mounting brackets tie the plaque to the fence bars behind it
@@ -26724,6 +26773,23 @@
       const NIGHT_BOSS_X = 74; // ...and this is where it rises out of the yard
       const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
       const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
+      // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so
+      // tonight the route carries NO intersections and NO corner stores — except the pair
+      // at the very TOP of the level, the intersection the worker clocks in beside and the
+      // corner store on the block behind it. Its LAST block (the one he walks INTO at the
+      // bottom) holds no buildings at all: it is St Basuras Cemetery.
+      const NIGHT_XS = [464]; // the single cross-street tonight: the top of the street
+      const NIGHT_GAP_XS = [80, 176, 272, 368, 560]; // the old intersections, now plain street
+      const NIGHT_TOP_BLOCK_X = 384; // the block at the top of the dead end (384..464)
+      const NIGHT_TOP_BLOCK_IDX = LEVEL_BLOCKS.findIndex((bl) => bl.x === NIGHT_TOP_BLOCK_X);
+      const NIGHT_CEMETERY_BLOCK_IDX = 0; // the LAST block on the route = block 0 = the graves
+      const NIGHT_CEMETERY_NAME = "St Basuras Cemetery"; // the brass plaque on the iron fence
+      // The wrought-iron fence line closing the BACK of every block on tonight's street: it
+      // runs behind the front-lawn band (y 5.0..8.5), so the cul-de-sac is walled by iron the
+      // way a weekday street is walled by its row of houses. The worker's clamp stops a
+      // body-width off it (FENCE_STOP, exactly like the Maspeth cemetery fence), which keeps
+      // every lane he works tonight — road, curb, walk and lawn — open to him.
+      const NIGHT_FENCE_Y = 8.3;
       // THE FINAL BOSS — the many-eyed TENTACLE BEAST of the cemetery.
       const BOSS_MAX_HP = 10; // shovel swings to banish it (consecrated swings land TWO)
       const BOSS_DMG = 1; // one plain swing
@@ -29135,6 +29201,35 @@
         );
         lawn.position.set((NIGHT_END_X + 8) / 2, -0.4, GZ + 0.03);
         g.add(lawn);
+        // ---- ST BASURAS'S WROUGHT-IRON FENCE (the Maspeth recipe, see buildCemeteryBlock):
+        // the front run along the sidewalk edge carrying the brass plaque, plus the two side
+        // runs closing the lot. The worker's wall IS the fence line — the cemFence clamp in
+        // his movement stops him at it exactly like the weekday cemetery's fence.
+        const front = makeCemeteryFence(BLOCK_W);
+        front.position.set(bx, CEM_FENCE_Y, GZ);
+        g.add(front);
+        const frontSign = makeCemeterySign(NIGHT_CEMETERY_NAME);
+        frontSign.position.set(bx + BLOCK_W / 2, CEM_FENCE_Y, GZ);
+        g.add(frontSign);
+        const sideLen = CEM_BACK_Y - CEM_FENCE_Y;
+        for (let s = 0; s < 2; s++) {
+          const side = makeCemeteryFence(sideLen);
+          side.position.set(s === 0 ? bx : bx + BLOCK_W, CEM_FENCE_Y, GZ);
+          side.rotation.z = Math.PI / 2; // the +X run turns to run along the cross street
+          g.add(side);
+        }
+        if (b) {
+          b.cemetery = true;
+          b.house = null; // the graveyard collects nothing
+          b.cemFence = {
+            x0: bx + 0.2,
+            x1: bx + BLOCK_W - 0.2,
+            y: CEM_FENCE_Y,
+            yBack: CEM_BACK_Y,
+            sideLeft: bx,
+            sideRight: bx + BLOCK_W,
+          };
+        }
         // ---- THE FENCE ACROSS THE STREET: the dead end ----
         const fenceLen = 18.2;
         const fence = makeCemeteryFence(fenceLen);
@@ -29142,7 +29237,7 @@
         fence.rotation.z = Math.PI / 2; // the +X run turns to face +Y: a wall across the road
         g.add(fence);
         // the sign, on the fence's street-facing side
-        const sign = makeCemeterySign();
+        const sign = makeCemeterySign(NIGHT_CEMETERY_NAME);
         sign.position.set(NIGHT_END_X + 1.7, 1.4, GZ);
         sign.rotation.z = -Math.PI / 2; // the plaque turns to look DOWN the street at him
         g.add(sign);
@@ -29184,6 +29279,18 @@
         }
         // ---- THE CUL-DE-SAC's TOP: the turntable + the brick dead-end wall ----------
         const top = new THREE.Group();
+        // ---- ST BASURAS'S FENCE, THE LENGTH OF THE STREET (the Maspeth wrought-iron
+        // recipe, see buildCemeteryBlock): one run per block, closing the back of the
+        // lawn. A weekday street is walled by its row of houses; on the dead-end the
+        // worker walks past open graveyard grass, so the iron is his wall (the
+        // NIGHT_FENCE_Y clamp in his movement).
+        for (let fi = 0; fi < LEVEL_BLOCKS.length; fi++) {
+          const fbl = LEVEL_BLOCKS[fi];
+          if (!fbl || !fbl.garbage) continue;
+          const run = makeCemeteryFence(BLOCK_W);
+          run.position.set(fbl.x, NIGHT_FENCE_Y, GZ);
+          top.add(run);
+        }
         const pad = new THREE.Mesh(
           new THREE.CircleGeometry(13, 24),
           M(0x2b2b31),
@@ -31002,42 +31109,49 @@
         // headstones + monuments + dead trees + raven take over the lot, and a row of
         // sidewalk trees lines the curb in front. The fence line becomes this cell's
         // wall.
-        const isCemCell = isQueensBlock && b.blockX === QUEENS_CEMETERY_X;
+        const isCemCell =
+          (isQueensBlock && b.blockX === QUEENS_CEMETERY_X) ||
+          (isNightShift() && b.blockX === NIGHT_GRAVE_BLOCK_X);
         if (isCemCell) {
           b.cemetery = true;
           b.house = null; // nothing to collect here: the day totals skip it
-          b.cemFence = {
-            x0: baseX + 0.2,
-            x1: baseX + cellW - 0.2,
-            y: CEM_FENCE_Y,
-            yBack: CEM_BACK_Y, // the two side fences run from the front line up to here
-          };
-          // The two side fences (parallel to the cross street) close the block's left
-          // and right edges: the worker bumps into them like walls too.
-          if (houseIdx === 0) b.cemFence.sideLeft = baseX; // left side fence at x = block start
-          if (
-            houseIdx ===
-            (isQueensBlock ? QUEENS_HOUSES_PER_BLOCK - 1 : HOUSES_PER_BLOCK - 1)
-          )
-            b.cemFence.sideRight = baseX + cellW; // right side fence at x = block end
-          if (houseIdx === 0) {
-            groundGroup.add(
-              buildCemeteryBlock(),
-            ); // fence + back rows + monuments + trees + raven
-            buildCemeteryStreetGhosts(b); // spectral arms / ghost headstones / skull piles on the street + walk
-          } else {
-            // two headstones per cell so the whole block reads as one big graveyard
-            for (let k = 0; k < 2; k++) {
-              const hs = makeHeadstone((Math.random() * 5) | 0);
-              hs.position.set(
-                baseX + R(0.8, cellW - 0.8),
-                R(CEM_FENCE_Y + 1.0, CEM_BACK_Y - 0.8),
-                GZ,
-              );
-              hs.rotation.z = R(-0.6, 0.6); // lazy spin about the VERTICAL axis
-              groundGroup.add(hs);
+          if (isQueensBlock) {
+            b.cemFence = {
+              x0: baseX + 0.2,
+              x1: baseX + cellW - 0.2,
+              y: CEM_FENCE_Y,
+              yBack: CEM_BACK_Y, // the two side fences run from the front line up to here
+            };
+            // The two side fences (parallel to the cross street) close the block's left
+            // and right edges: the worker bumps into them like walls too.
+            if (houseIdx === 0) b.cemFence.sideLeft = baseX; // left side fence at x = block start
+            if (
+              houseIdx ===
+              (isQueensBlock ? QUEENS_HOUSES_PER_BLOCK - 1 : HOUSES_PER_BLOCK - 1)
+            )
+              b.cemFence.sideRight = baseX + cellW; // right side fence at x = block end
+            if (houseIdx === 0) {
+              groundGroup.add(
+                buildCemeteryBlock(),
+              ); // fence + back rows + monuments + trees + raven
+              buildCemeteryStreetGhosts(b); // spectral arms / ghost headstones / skull piles on the street + walk
+            } else {
+              // two headstones per cell so the whole block reads as one big graveyard
+              for (let k = 0; k < 2; k++) {
+                const hs = makeHeadstone((Math.random() * 5) | 0);
+                hs.position.set(
+                  baseX + R(0.8, cellW - 0.8),
+                  R(CEM_FENCE_Y + 1.0, CEM_BACK_Y - 0.8),
+                  GZ,
+                );
+                hs.rotation.z = R(-0.6, 0.6); // lazy spin about the VERTICAL axis
+                groundGroup.add(hs);
+              }
             }
           }
+          // THE MIDNIGHT LAST BLOCK: St Basuras Cemetery owns the whole lot, so this cell
+          // has NO house and NO storefront at all — the wrought-iron fence, the plaque, the
+          // graves and the boss's yard are laid out by buildNightCemetery().
         }
         let hg;
         if (storeOptions && storeOptions.isStore) {
@@ -31726,12 +31840,30 @@
             let storeOptions = null;
             const isFlatbush = borough === "BROOKLYN" && area === "FLATBUSH";
             const isBedStuy = borough === "BROOKLYN" && area === "BED-STUY";
-            if (
+            // ==================== THE MIDNIGHT DEAD-END STREET ====================
+            // A cul-de-sac has ONE way in, so tonight the street carries ONE intersection
+            // and ONE corner store only — the pair at the TOP of the level, right where the
+            // worker clocks in. Everything downhill of it is plain brownstone front, and the
+            // LAST block on the route holds NO buildings at all: that is St Basuras Cemetery.
+            const isNightLevel = isNightShift();
+            const nightStoreCorner =
+              isNightLevel && blkIdx === NIGHT_TOP_BLOCK_IDX && i === HOUSES_PER_BLOCK - 1;
+            const isCemBlock =
+              (isNightLevel && blkIdx === NIGHT_CEMETERY_BLOCK_IDX) ||
+              (isQueens && blkIdx === QUEENS_CEMETERY_BLOCK);
+            if (isCemBlock) {
+              b.cemetery = true; // the graveyard owns this cell to the last foot
+              // THE CEMETERY BLOCK: the wrought-iron fence, the graves and the brass plaque
+              // own the lot — no house, no storefront, no stoop, no mailbox, no curb tree,
+              // no curb trash. Maspeth does exactly this on its 5th block (isCemCell below);
+              // the graveyard itself is laid out by buildNightCemetery() at shift spawn.
+            } else if (
               (borough === "MANHATTAN" ||
                 borough === "THE BRONX" ||
                 isBedStuy ||
                 isFlatbush) &&
-              (i === 0 || i === HOUSES_PER_BLOCK - 1)
+              (i === 0 || i === HOUSES_PER_BLOCK - 1) &&
+              (!isNightLevel || nightStoreCorner)
             ) {
               const storeName = storePool[storeIdx % storePool.length];
               storeIdx++;
@@ -34396,7 +34528,7 @@
         const tyN = 0.5 - 0.25; // near-side curb-line level (roadYMax - 0.25)
         const tyF = -9.5 + 0.25; // far-side curb-line level (roadYMin + 0.25)
         const CR = 2.0; // corner radius
-        for (const xInt of LEVEL_XS) {
+        for (const xInt of isNightShift() ? NIGHT_XS : LEVEL_XS) {
           const cx = xInt + IW / 2; // center of the intersection gap
           // Main-road crosswalks: 2.8u-wide (X) bars stacked down the road
           // (y -9.0..0.0, the 0.5u curb-inset band), at cx +/- (halfW + 3.5).
@@ -39450,6 +39582,14 @@
           if (p.wx < cf.x0 || p.wx > cf.x1) continue;
           if (p.wy < stopY) continue;
           p.wy = stopY; // at the fence: hard stop right on the line
+        }
+        // === THE MIDNIGHT DEAD END: the iron fence closing the BACK of every block ===
+        // St Basuras ends the street and its wrought-iron fencing runs the full length of
+        // the haunted block, so the worker's uphill side is a wall — the same rule as the
+        // cemetery fence above: his center stops a body-width off the iron. The seven
+        // weekdays are walled by their houses (the front-wall clamp above), never this.
+        if (isNightShift() && p.wy > NIGHT_FENCE_Y - FENCE_STOP) {
+          p.wy = NIGHT_FENCE_Y - FENCE_STOP;
         }
         // === SOLID SIDEWALK OBSTACLES (USPS collection boxes / sidewalk trees = b.trees) ===
         // The worker can't walk THROUGH a collection box: hard circle push-out
