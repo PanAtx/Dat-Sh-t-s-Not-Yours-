@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.483</div>
+          <div id="app-version" class="menu-version">v1.0.484</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.483';
+      const APP_VERSION = '1.0.484';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -10705,7 +10705,7 @@
       function truckXSafe() {
         return truck && typeof truck.wx === "number"
           ? truck.wx
-          : playerSpawnX() - routeDir() * 8;
+          : truckSpawnX(playerSpawnX());
       }
       // The hopper's offsets are measured from the model centre toward its REAR. The rig is
       // PARKED THE NORMAL WAY on the haunted street (it is NOT rotated — see truckMeshYaw),
@@ -19185,7 +19185,12 @@
       // NIGHT: the worker clocks in at the TOP of the dead end (NIGHT_START_X, x=460) and
       //        walks DOWN toward -X; the rig BACKS DOWN ahead of him; the street's near end
       //        is the CEMETERY (NIGHT_END_X, x=80), and the drive-off leaves toward -X.
-      const NIGHT_TRAIL_X = 13; // the rig's tail: the worker's uphill limit is NIGHT_TOP_X - this
+      const NIGHT_TRAIL_X = 21; // the rig's tail: the worker's uphill limit is NIGHT_TOP_X - this
+      // ...which is the rig's FULL STANDING ROOM on the widened Midnight gap: its centre parks
+      // at NIGHT_TOP_X - 10.5, its 4u collision nose at NIGHT_TOP_X - 6.5 and its visual nose
+      // (the cab door sits ~5.5u ahead of the centre) ~5u INSIDE the brick wall, while the
+      // worker keeps 10.5u of street behind him with the open scoop 6.2u up that lane — room
+      // to swing a ghoul into the hopper without the truck crowding the fight.
       const NIGHT_MOUTH_X = 6; // ...and the cemetery's back wall is its downhill limit + this
       function routeFarX() {
         return isNightShift() ? NIGHT_TOP_X : ROUTE_FINISH_X;
@@ -19223,6 +19228,27 @@
       function playerSpawnX() {
         return isNightShift() ? NIGHT_START_X : PLAYER_START_X;
       }
+      // ---- THE RIG'S FOLLOW GAPS (Midnight only — every weekday keeps 3.6 / 4.1 / 1.5) ----
+      // On the dead-end street the rig REVERSES behind the worker with its open scoop facing
+      // him, so the lane the worker fights in is the strip BETWEEN him and the truck: a ghoul
+      // has to come up the street into his shovel (SHOVEL_REACH = 3.4u) and the tossed spook
+      // has to lob into the scoop. Riding the weekday 3.6u gap in that lane crams the fight
+      // — ghouls spawn between the worker and a truck whose nose is in his face. So on the
+      // haunted shift the driver parks FURTHER UP THE STREET: a 6.2u gap to the scoop (6.7u
+      // with a load in hand), rest 4.5u, which gives him ~3u of clear lane in front of the
+      // hopper to work in. The rig's nose (boxL/2 = 4u ahead of its centre) then tops out at
+      // NIGHT_TOP_X - 2.8, so it never pokes through the cul-de-sac wall.
+      function truckTargetGap(carry) {
+        if (!isNightShift()) return carry === "none" ? 3.6 : 4.1; // the shipped weekday gaps
+        return carry === "none" ? 6.2 : 6.7;
+      }
+      function truckBackGap() {
+        return isNightShift() ? 4.5 : 1.5; // the back-up rest: "just ahead of the worker"
+      }
+      // How far UPSLOPE of the worker the rig's CENTRE parks (the gap + the rear offset).
+      function truckStandOffset() {
+        return truckTargetGap("none") + 4.3;
+      }
       function playerSpawnFacing() {
         return isNightShift() ? Math.PI : 0; // he clocks in FACING DOWNHILL
       }
@@ -19230,7 +19256,13 @@
       // (the -X side, so he walks up onto it); at night he starts at the top of the
       // street with the rig AHEAD of him downhill, so it anchors on the +X side.
       function truckSpawnX(wx) {
-        return wx - routeDir() * 8;
+        // By day the rig parks 8u BEHIND the worker (the -X side, so he walks up onto it).
+        // On the haunted street it clocks in at its FULL widened standing room — the worker's
+        // uphill limit plus the rig's stand — so the lane between the man and the open scoop is
+        // already open at the first frame of the shift (no drive-off-the-wall to get there).
+        return isNightShift()
+          ? workerTopLimitX() + truckStandOffset()
+          : wx - 8;
       }
       function truckSpawnFacing() {
         return 0; // the rig is PARKED THE NORMAL WAY on the night too — it just DRIVES
@@ -26683,7 +26715,10 @@
       // never touch them and their own ROUTE_START_X / PLAYER_START_X / ROUTE_FINISH_X
       // rules stay exactly as shipped.
       const NIGHT_TOP_X = 470; // the cul-de-sac wall at the TOP of the screen (dead end)
-      const NIGHT_START_X = 460; // the worker clocks in at the top of the street, facing down
+      const NIGHT_START_X = 449; // the worker clocks in at the top of the street, facing down
+      // ...exactly at the uphill limit his own clamp gives him (NIGHT_TOP_X - NIGHT_TRAIL_X), so
+      // the shift opens with the rig parked 10.5u upslope of him and a clear 6.2u lane to the
+      // scoop — no first-frame snap, no truck on top of him at clock-in.
       const NIGHT_END_X = 30; // the graveyard's back wall: he can't walk past the dead
       const NIGHT_BOSS_TRIGGER_X = 112; // step into this cross-street and the beast wakes
       const NIGHT_BOSS_X = 74; // ...and this is where it rises out of the yard
@@ -39803,8 +39838,8 @@
         // ahead of the worker (~1.5u — past the deepest carrying approach, 1.15u, so he
         // can load immediately). Backing all the way out to the forward target felt like
         // the driver stopping far too far away.
-        const target = carry === "none" ? 3.6 : 4.1;
-        const backTarget = 1.5; // the back-up rest position: "JUST AHEAD of the worker"
+        const target = truckTargetGap(carry); // 3.6 / 4.1 by day; FURTHER UP the street on Midnight
+        const backTarget = truckBackGap(); // the back-up rest position: "just ahead of the worker"
         const DEAD = 0.8; // dead zone around the rest position: hold
         // "RUN IT UP!" (Monster invincibility): while the worker is sprinting (p.immuneT > 0)
         // the truck's TOP SPEED jumps INSTANTLY to a bit MORE than the worker's sprint

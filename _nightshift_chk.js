@@ -315,6 +315,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   // cemetery fight, the shovel on the beast, the hopper suction and the win)
   'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerTopLimitX',
   'creatureLimitMinX', 'creatureLimitMaxX', 'playerSpawnX', 'playerSpawnFacing', 'truckSpawnX',
+  'truckTargetGap', 'truckBackGap', 'truckStandOffset',
   'truckMeshYaw', 'routeSpanX', 'routeProgressFrac', 'makeTentacleBoss', 'spawnNightBoss',
   'clearNightBoss', 'startBossFight', 'bossAngryTarget', 'spawnBossFireball',
   'killBossFireball', 'updateBossFireballs', 'bossWhipStrike', 'bossShovelTargetable',
@@ -417,6 +418,7 @@ const H = new Function(
   ' bossShovelHit, bossShovelTargetable, bossShovelRange, grabBossGargoyle,' +
   ' nightWallX, workerEndLimitX, workerTopLimitX, creatureLimitMinX, creatureLimitMaxX,' +
   ' routeDir, routeFarX, routeNearX, playerSpawnX, truckSpawnX, routeProgressFrac,' +
+ ' truckTargetGap, truckBackGap, truckStandOffset,' +
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
   ' getFireballs: () => bossFireballs, getBossWin: () => bossWin, setBossWin: (v) => { bossWin = v; },' +
   ' getBossWinT: () => bossWinT, setBossWinT: (v) => { bossWinT = v; },' +
@@ -1632,9 +1634,21 @@ nightOn = true;
 const dayDir = (function () { nightOn = false; const d = H.routeDir(); nightOn = true; return d; })();
 check('the night shift is the ONLY level that runs the route backwards (routeDir -1, weekday +1)',
   H.routeDir() === -1 && dayDir === 1, 'night=' + H.routeDir() + ' day=' + dayDir);
-check('the worker clocks in at the TOP of the dead end and the rig starts ahead of him downhill',
-  H.playerSpawnX() === NIGHT_START_X && H.truckSpawnX(NIGHT_START_X) === NIGHT_START_X + 8 &&
-  NIGHT_START_X < NIGHT_TOP_X && NIGHT_TOP_X > NIGHT_BOSS_X, 'spawn=' + NIGHT_START_X);
+check('the worker clocks in at the TOP of the dead end and the rig clocks in UPSLOPE of him at its full widened standing room',
+  H.playerSpawnX() === NIGHT_START_X &&
+  H.truckSpawnX(NIGHT_START_X) === H.workerTopLimitX() + H.truckStandOffset() &&
+  H.truckSpawnX(NIGHT_START_X) - NIGHT_START_X > 10 &&
+  NIGHT_START_X === H.workerTopLimitX() &&
+  Math.abs(H.truckSpawnX(NIGHT_START_X) - 4.3 - NIGHT_START_X - H.truckTargetGap("none")) < 1e-9 &&
+  NIGHT_START_X < NIGHT_TOP_X && NIGHT_TOP_X > NIGHT_BOSS_X,
+  'spawn=' + NIGHT_START_X + ' rig=' + H.truckSpawnX(NIGHT_START_X).toFixed(1) +
+  ' laneToScoop=' + (H.truckSpawnX(NIGHT_START_X) - 4.3 - NIGHT_START_X).toFixed(1));
+check('the widened Midnight lane FITS the cul-de-sac: the rig (collision nose AND visual nose) stands inside the brick wall, and the lane to the scoop is a real fighting lane',
+  H.workerTopLimitX() + H.truckStandOffset() + 4 < NIGHT_TOP_X &&
+  H.workerTopLimitX() + H.truckStandOffset() + 6.5 < NIGHT_TOP_X &&
+  H.truckStandOffset() > 10 && H.truckTargetGap("none") > 6 &&
+  'rigCentre=' + (H.workerTopLimitX() + H.truckStandOffset()).toFixed(1) +
+  ' wall=' + NIGHT_TOP_X + ' gap=' + H.truckTargetGap("none"));
 check('the route bar fills as he walks DOWNHILL toward the graveyard (mirrored anchors)',
   Math.abs(H.routeProgressFrac(NIGHT_TOP_X)) < 1e-9 &&
   H.routeProgressFrac(NIGHT_GRAVE_X) > 0.8 &&
@@ -1884,45 +1898,32 @@ check('the rig keeps the STANDARD facing on the dead-end street (never rotated) 
     !srcFn('hopperWorldX').includes('routeDir()') &&
     !srcFn('hopperAimX').includes('routeDir()') &&
     !srcFn('hopperPileX').includes('routeDir()'));
-check('the truck AI keeps the shipped gaps and drive (only the safety net reads the route axis)',
-  srcFn('updateTruck').includes('const target = carry === "none" ? 3.6 : 4.1;') &&
-    srcFn('updateTruck').includes('const backTarget = 1.5;') &&
+check('the truck AI reads its gaps from the route (the weekday 3.6 / 4.1 / 1.5, wider on Midnight) and drives on the canonical axis',
+  srcFn('updateTruck').includes('const target = truckTargetGap(carry);') &&
+    srcFn('updateTruck').includes('const backTarget = truckBackGap();') &&
     srcFn('updateTruck').includes('truck.wx += sp * dt;') &&
-    srcFn('updateTruck').includes('(p.wx + backTarget - rearX) * RT > 40'));
-check('MIDNIGHT: the rig is parked UPSLOPE of the worker, so it travels DOWNHILL in REVERSE to take up its gap (and its mesh yaw stays 0)',
-  srcFn('truckSpawnX').includes('wx - routeDir() * 8') &&
+    srcFn('updateTruck').includes('(p.wx + backTarget - rearX) * RT > 40') &&
+    srcFn('truckTargetGap').includes('carry === "none" ? 3.6 : 4.1') &&
+    srcFn('truckTargetGap').includes('return isNightShift()') === false &&
+    srcFn('truckTargetGap').includes('6.2 : 6.7') &&
+    srcFn('truckBackGap').includes('1.5'));
+check('MIDNIGHT: the rig is parked UPSLOPE of the worker at its widened standing room, so it travels DOWNHILL in REVERSE to take up its gap (and its mesh yaw stays 0)',
+  srcFn('truckSpawnX').includes('workerTopLimitX() + truckStandOffset()') &&
+    srcFn('truckStandOffset').includes('truckTargetGap("none") + 4.3') &&
     (() => {
-      const t = new Function("truck", "truckXSafe", "routeDir", srcFn("hopperWorldX") + ";return hopperWorldX;")(
-        { wx: 424, hopperOff: -4.3 }, () => 424, () => -1);
+      const t = new Function("truck", "truckXSafe", srcFn("hopperWorldX") + ";return hopperWorldX;")(
+        { wx: 424, hopperOff: -4.3 }, () => 424);
       return t() < 424; // the scoop faces DOWN the street, at the worker
     })());
 check('MIDNIGHT: the rig converges on the worker by rolling -x: the rear lands 3.6u UP the walking axis, between the worker and the truck',
   (() => {
     const night = runTruckAI(-1, 400, 424, "follow", 240);
-    return night.wx < 424 && night.wx > 400 && Math.abs(night.wx - (400 + 3.6 + 4.3)) < 1.5 && night.yaw === 0;
+    return night.wx < 424 && night.wx > 400 && Math.abs(night.wx - (400 + 6.2 + 4.3)) < 1.5 && night.yaw === 0;
   })());
 check('MIDNIGHT: a scoop that overshot down the street climbs back UPSLOPE in forward to re-take its gap (the same driver behaviour as a weekday)',
   (() => {
-    const back = runTruckAI(-1, 400, 384, "follow", 240);
-    return back.wx > 384 && back.sp > 0 && Math.abs(back.wx - 407.9) < 1.5;
-  })());
-check('MIDNIGHT: the rig keeps pace BEHIND a worker walking down the street (it follows, it does not lead)',
-  (() => {
-    // walk the worker from 460 down to 300 at PLAYER_SPEED and let the real AI run
-    const p = { wx: 460, wy: -4.0, immuneT: 0 };
-    const truck = { wx: truckSpawnAt(460), hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: "follow", g: { visible: true, position: { set() {} }, rotation: { z: 0 } } };
-    const fn = new Function("p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED", "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash", srcFn("updateTruck") + "\n;return updateTruck;")(
-      p, truck, "none", () => -1, () => 0, 8.5, 1.3, () => true, 0.3, () => {}, () => {});
-    let minGap = 1e9, maxGap = -1e9, moved = 0, prev = truck.wx;
-    for (let i = 0; i < 600; i++) {
-      p.wx -= 8.5 / 60; // the worker marches down the dead-end street
-      fn(1 / 60);
-      const gap = truck.wx - p.wx; // the rig's offset UPSLOPE of the worker
-      minGap = Math.min(minGap, gap); maxGap = Math.max(maxGap, gap);
-      if (truck.wx < prev) moved++;
-      prev = truck.wx;
-    }
-    return moved > 200 && maxGap < 20 && minGap > 4;
+    const back = runTruckAI(-1, 400, 384, "follow", 420);
+    return back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5;
   })());
 check('the drive-off leaves the way the route runs (the cinematic mirrors, the day stays put)',
   srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * RT * dt;') &&
@@ -1945,8 +1946,12 @@ check('every day\u2019s own spawn anchors now come from the route (no hard-coded
 console.log("\n[10] THE MIRRORED RIG: the truck backs DOWNHILL, the mesh turns, the drive-off leaves the way the route runs");
 // the REAL updateTruck AI, run against a stub truck on both axes
 function truckSpawnAt(wx) {
-  const src = srcFn("truckSpawnX");
-  return new Function("routeDir", src + ";return truckSpawnX;")(() => -1)(wx);
+  return new Function(
+    "NIGHT_TOP_X", "NIGHT_TRAIL_X", "ROUTE_END_X", "isNightShift", "workerTopLimitX",
+    "truckStandOffset", "truckTargetGap",
+    srcFn("truckSpawnX") + srcFn("truckStandOffset") + srcFn("truckTargetGap") + srcFn("workerTopLimitX") +
+      ";return truckSpawnX;",
+  )(470, 21, 0, () => true, () => 470 - 21, () => 6.2 + 4.3)(wx);
 }
 function runTruckAI(dir, pWx, truckWx, mode, steps) {
   const p = { wx: pWx, wy: -4.0, immuneT: 0 };
@@ -1954,13 +1959,19 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
     wx: truckWx, hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: mode,
     g: { visible: true, position: { set() {} }, rotation: { z: 0 } },
   };
+  const night = dir < 0;
+  const gapFn = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(
+    () => night);
+  const backFn = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(
+    () => night);
   const fn = new Function(
     "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
     "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
+    "truckTargetGap", "truckBackGap",
     srcFn("updateTruck") + "\n;return updateTruck;",
   )(
     p, truck, "none", () => dir, () => 0, 8.5, 1.3,
-    () => true, 0.3, () => {}, () => {},
+    () => true, 0.3, () => {}, () => {}, gapFn, backFn,
   );
   for (let i = 0; i < steps; i++) fn(1 / 60);
   return { wx: truck.wx, sp: truck.sp, mode: truck._mode, yaw: truck.g.rotation.z };
@@ -1972,33 +1983,36 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
   const night = runTruckAI(-1, 400, 424, "follow", 240);
   check(
     "MIDNIGHT: the rig rolls DOWNHILL (-x) in REVERSE to take up its gap, its mesh yaw staying 0 (never rotated)",
-    night.wx < 424 && night.wx > 400 && Math.abs(night.wx - (400 + 3.6 + 4.3)) < 1.5 && night.yaw === 0,
-    "wx " + 424 + " -> " + night.wx.toFixed(1) + " sp=" + night.sp.toFixed(2) + " yaw=" + night.yaw.toFixed(2) + " rest=" + (400 + 3.6 + 4.3),
+    night.wx < 424 && night.wx > 400 && Math.abs(night.wx - (400 + 6.2 + 4.3)) < 1.5 && night.yaw === 0,
+    "wx " + 424 + " -> " + night.wx.toFixed(1) + " sp=" + night.sp.toFixed(2) + " yaw=" + night.yaw.toFixed(2) + " rest=" + (400 + 6.2 + 4.3),
   );
   // MIDNIGHT: the rig overshot DOWN the street -> the driver creeps back UPSLOPE in forward,
   // the exact same two-mode behaviour the weekday driver runs.
   const back = runTruckAI(-1, 400, 384, "follow", 240);
   check(
     "MIDNIGHT: a rig that overshot down the street climbs back UPSLOPE in forward to re-take its gap",
-    back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 3.6 + 4.3)) < 1.5,
+    back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5,
     "wx " + 384 + " -> " + back.wx.toFixed(1) + " sp=" + back.sp.toFixed(2) + " mode=" + back.mode,
   );
   // MIDNIGHT: the rig FOLLOWS a worker marching down the street — it never leads him, never
   // loses him, and it never runs forward: net travel is -x while its nose points +x.
   const pace = (function () {
-    const p = { wx: 460, wy: -4.0, immuneT: 0 };
+    const p = { wx: 449, wy: -4.0, immuneT: 0 }; // clock-in: exactly the uphill clamp
     const truck = {
-      wx: truckSpawnAt(460), hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: "follow",
+      wx: truckSpawnAt(449), hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: "follow",
       g: { visible: true, position: { set() {} }, rotation: { z: 0 } },
     };
+    const gapFn0 = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => true);
+    const backFn0 = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(() => true);
     const fn = new Function(
       "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
       "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
+      "truckTargetGap", "truckBackGap",
       srcFn("updateTruck") + "\n;return updateTruck;",
-    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, () => true, 0.3, () => {}, () => {});
+    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, () => true, 0.3, () => {}, () => {}, gapFn0, backFn0);
     let minGap = 1e9, maxGap = -1e9, backFrames = 0, fwdFrames = 0, prev = truck.wx;
-    for (let i = 0; i < 600; i++) {
-      p.wx -= 8.5 / 60; // the worker marches DOWN the dead-end street
+    for (let i = 0; i < 2400; i++) {
+      p.wx = Math.max(NIGHT_START_X - 370, p.wx - 8.5 / 60); // March: top of the street -> the boss zone
       fn(1 / 60);
       const gap = truck.wx - p.wx; // the rig's distance UPSLOPE of the worker
       minGap = Math.min(minGap, gap);
@@ -2011,9 +2025,38 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
   })();
   check(
     "MIDNIGHT: the rig KEEPS PACE behind a marching worker — always upslope of him, the open scoop riding the gap between them, net travel downhill in REVERSE",
-    pace.minGap > 6 && pace.maxGap < 16 && pace.backFrames > 400 && pace.fwdFrames < 20 && pace.hopper > 3 && pace.hopper < 8,
+    pace.minGap > 7 && pace.maxGap < 17 && pace.backFrames > 400 && pace.fwdFrames < 40 && pace.hopper > 5 && pace.hopper < 11,
     "gap " + pace.minGap.toFixed(1) + ".." + pace.maxGap.toFixed(1) + " backFrames=" + pace.backFrames + " fwdFrames=" + pace.fwdFrames + " scoopAhead=" + pace.hopper.toFixed(1),
   );
+  check("MIDNIGHT: the rig REVERSES ALL THE WAY DOWN the dead-end street after him — it is still in its widened gap (and in reach of the scoop) when he reaches the boss's cross-street",
+    pace.worker <= NIGHT_BOSS_TRIGGER_X && // he made it to the graveyard mouth
+      pace.end - pace.worker > 8 && pace.end - pace.worker < 18 && // the rig is up the lane behind him
+      Math.abs(pace.end - 4.3 - pace.worker - 6.2) < 3.5, // the scoop sits in the widened lane
+    "worker=" + pace.worker.toFixed(1) + " rig=" + pace.end.toFixed(1) +
+      " gap=" + (pace.end - pace.worker).toFixed(1) + " trigger=" + NIGHT_BOSS_TRIGGER_X);
+  check("MIDNIGHT ONLY: the rig parks FURTHER UP the street than any weekday — the 6.2u/6.7u lane to the open scoop (3.6u/4.1u by day), rest 4.5u (1.5u by day)",
+    (() => {
+      const gaps = (night) => {
+        const t = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => night);
+        const b = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(() => night);
+        return { none: t("none"), bag: t("bag"), back: b() };
+      };
+      const n = gaps(true), d = gaps(false);
+      return Math.abs(d.none - 3.6) < 1e-9 && Math.abs(d.bag - 4.1) < 1e-9 && Math.abs(d.back - 1.5) < 1e-9 &&
+        Math.abs(n.none - 6.2) < 1e-9 && Math.abs(n.bag - 6.7) < 1e-9 && Math.abs(n.back - 4.5) < 1e-9 &&
+        n.none > d.none && n.bag > d.bag && n.back > d.back;
+    })(),
+    "night=" + 6.2 + "/" + 6.7 + "/" + 4.5 + " day=" + 3.6 + "/" + 4.1 + "/" + 1.5);
+  check("MIDNIGHT: the widened lane FITS the cul-de-sac — the rig's centre parks upslope of the worker's limit, its 4u nose stays inside the brick wall, the scoop sits in the fighting lane, and it clocks in upslope of the worker",
+    (() => {
+      const g = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => true);
+      const stand = new Function("isNightShift", srcFn("truckTargetGap") + srcFn("truckStandOffset") + ";return truckStandOffset;")(() => true)();
+      const NITE_TOP = 470, NITE_TRAIL = 17.5;
+      const topLimit = NITE_TOP - NITE_TRAIL; // workerTopLimitX() on the night
+      const centre = topLimit + stand; // the rig parks this far UPSLOPE of the worker's limit
+      return centre > topLimit && centre + 4 < NITE_TOP && centre - 4.3 - topLimit > 3 &&
+        stand > 3.6 + 4.3 && Math.abs(stand - (g("none") + 4.3)) < 1e-9;
+    })());
   // WEEKDAY: the exact shipped math — the rig follows the worker's forward (+x) and rests
   // the rear 3.6u AHEAD; nothing about a weekday shift moves.
   const day = runTruckAI(1, 400, 376, "follow", 420);
@@ -2037,8 +2080,8 @@ function runTruckAI(dir, pWx, truckWx, mode, steps) {
       () => dir,
     )();
   }
-  function truckSpawnAt(wx) {
-    return new Function("routeDir", "TRUCK_SPAWN_GAP_UNUSED", srcFn("truckSpawnX") + ";return truckSpawnX;")(() => -1)(wx);
+  function truckSpawnAtAtRemoved(wx) {
+    return truckSpawnAt(wx);
   }
 })();
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
