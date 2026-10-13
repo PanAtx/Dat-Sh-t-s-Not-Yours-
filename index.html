@@ -4196,7 +4196,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.488</div>
+          <div id="app-version" class="menu-version">v1.0.489</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4454,7 +4454,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.488';
+      const APP_VERSION = '1.0.489';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -26159,6 +26159,10 @@
         g.userData.tent = { tentacles: tentacles, eyes: eyes };
         return g;
       }
+
+
+
+
       // ============ THE BLOCK-OWN ANIMALS (a family with NO other block's claim) =========
       // Four more kinds, built so the four beats of tonight's street each run animals
       // NOTHING on the other three beats has. Every one of them is a GROUND WALKER: its
@@ -26234,6 +26238,13 @@
           const eye = SP(0.028, eyeM, 8); // the squint of two fat eyes
           eye.position.set(0.42, s * 0.06, 0.42);
           g.add(eye);
+
+
+        }
+        g.userData.hex = { legs: legs, jaw: jaw, mandL: mandL, mandR: mandR };
+        return g;
+      }
+
       // RAT KING: the grey mane-headed rat that rules the vermin block's gutters. A
       // quadruped on hip pivots — it trots on the same math as the hounds (hips 0.42,
       // paws on the asphalt) and it carries a whiplash tail up and back off the rump.
@@ -26309,6 +26320,20 @@
           tlz = 0.02;
         for (let i = 0; i < 6; i++) {
           const seg = SPH(0.035 - i * 0.004, i % 2 ? skin : furD, 9, 7);
+
+
+
+          seg.scale.set(1.3, 0.9, 0.9);
+          seg.position.set(tlx, 0, tlz);
+          tailPiv.add(seg);
+          tlx -= 0.11 - i * 0.006; // every segment sits further BEHIND the beast
+          tlz += 0.06 - i * 0.004; // ...and carried higher
+        }
+        g.add(tailPiv);
+        g.userData.hound = { legs: legs, headPiv: headPiv, jawPiv: jawPiv, tailPiv: tailPiv };
+        return g;
+      }
+
       // LANTERNFANG: the pit thing the diggers block keeps in its open holes. A thin, wet
       // man of a body with a jar-lantern swung on one hook-hand and a jaw of teeth-hooks.
       // Rig: userData.ghoul (the lope — hips 0.64, feet 0.02 on the asphalt) +
@@ -26404,21 +26429,8 @@
       }
 
 
-          seg.scale.set(1.3, 0.9, 0.9);
-          seg.position.set(tlx, 0, tlz);
-          tailPiv.add(seg);
-          tlx -= 0.11 - i * 0.006; // every segment sits further BEHIND the beast
-          tlz += 0.06 - i * 0.004; // ...and carried higher
-        }
-        g.add(tailPiv);
-        g.userData.hound = { legs: legs, headPiv: headPiv, jawPiv: jawPiv, tailPiv: tailPiv };
-        return g;
-      }
 
-        }
-        g.userData.hex = { legs: legs, jaw: jaw, mandL: mandL, mandR: mandR };
-        return g;
-      }
+
 
       // GOULRA: the bulging sack the graveyard block keeps as its watch — a knot of
       // nine red eyes on a wet gut, dragging itself on two thick suction feet with a

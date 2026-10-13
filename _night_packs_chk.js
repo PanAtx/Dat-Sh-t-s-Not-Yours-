@@ -514,5 +514,44 @@ check('the six-leg crawlers (eye crawler, grave-squat) stay ground-bound on thei
     }
     return worst <= 0.02;
   })());
+// 14) NESTING GUARD — every builder and every block-pack helper must be declared at
+// TOP-LEVEL brace depth. A family inserted INSIDE another function parses fine, passes
+// every regex-based check in this file, and then throws "makeX is not defined" the moment
+// the game builds it: makeRatking landed inside makeGrubsquat and makeLanternfang deeper
+// still, so addCreature("lanternfang") threw during spawnNightShift and the ENTIRE
+// start-game transition died with a green test suite. Strip strings/comments, walk the
+// braces, and read the depth on each declaration line.
+const STRIPPED = (() => {
+  const S = html;
+  let out = '', i = 0;
+  while (i < S.length) {
+    const c = S[i], two = S.substr(i, 2);
+    if (two === '//') { while (i < S.length && S[i] !== '\n') i++; continue; }
+    if (two === '/*') { const e = S.indexOf('*/', i); i = e < 0 ? S.length : e + 2; out += ' '; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      const q = c; i++;
+      while (i < S.length) { if (S[i] === '\\') { i += 2; continue; } if (S[i] === q) { i++; break; } i++; }
+      out += '""'; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+})();
+(() => {
+  const lines = STRIPPED.split('\n');
+  const want = ['makeGrubsquat', 'makeRatking', 'makeLanternfang', 'makeGoulra', 'makeFangspider', 'makeEyecrawler', 'makePitfiend', 'makeWraith', 'makeSpecter', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockQuota', 'nightBlockFamilies', 'nightBlockOrder', 'horrorWorkLimits', 'horrorRespawnX', 'nightSpawnHorror', 'addCreature', 'updateHorrorCreature', 'spawnNightShift', 'advanceGame'];
+  const depthOf = {};
+  let depth = 0;
+  for (let k = 0; k < lines.length; k++) {
+    want.forEach((nm) => { if (new RegExp('function ' + nm + '\\(').test(lines[k])) depthOf[nm] = depth; });
+    for (let j = 0; j < lines[k].length; j++) {
+      if (lines[k][j] === '{') depth++;
+      else if (lines[k][j] === '}') depth--;
+    }
+  }
+  want.forEach((nm) => check(`${nm} is declared at TOP-LEVEL scope (brace depth 0, never nested in another function): depth=${depthOf[nm] === undefined ? 'MISSING' : depthOf[nm]}`, depthOf[nm] === 0));
+  check(`the inline game script closes balanced (final brace depth 0): ${depth}`, depth === 0);
+})();
+
 console.log('\n' + pass + ' block-pack checks passed, ' + fail + ' failed');
 if (fail) { console.log(failures.map((f, i) => '  FAIL ' + (i + 1) + ') ' + f).join('\n')); process.exit(1); }
