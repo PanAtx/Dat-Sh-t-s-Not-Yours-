@@ -4042,12 +4042,28 @@ const tipOf = () => {
     z: batHeld.position.z + 1.7 * uz, // the blade tip's height
   };
 };
+// where each glove actually lands in the rig, from the arm angles the stance set on them
+const fist = (side, ex, ey) => ({
+  x: -0.52 * Math.sin(ey),
+  y: side * 0.29 + 0.52 * Math.sin(ex) * Math.cos(ey),
+  z: 1.38 - 0.52 * Math.cos(ex) * Math.cos(ey),
+});
 S6.poseShovel(0);
 const dipTip = tipOf();
 const batOut = S6.poseShovelReady();
 const batTip = tipOf();
 const batArms = { rx: S6_ARMR.rotation.x, ry: S6_ARMR.rotation.y, lx: S6_ARML.rotation.x, ly: S6_ARML.rotation.y };
-S6.poseShovel(0.3); // the coil pose the old stance rode (the left-shoulder carry)
+const rfist = fist(-1, batArms.rx, batArms.ry), lfist = fist(1, batArms.lx, batArms.ly);
+// the nearest the shaft (the line through both fists, extended to the blade) comes to his
+// skull: the head is drawn at (0, 0, 1.8) with a 0.24u radius
+const batClear = () => {
+  const ax = lfist.x - rfist.x, ay = lfist.y - rfist.y, az = lfist.z - rfist.z;
+  const bx = 0 - rfist.x, by = 0 - rfist.y, bz = 1.8 - rfist.z;
+  const aa = ax * ax + ay * ay + az * az;
+  const t = aa > 1e-9 ? (ax * bx + ay * by + az * bz) / aa : 0;
+  return Math.hypot(ax * t - bx, ay * t - by, az * t - bz);
+};
+S6.poseShovel(0.3); // the coil pose the old stance rode (the LEFT-shoulder, lefty carry)
 const coilTip = tipOf();
 const SHOVEL_HOLD30 = S6.hold;
 function SH15bKeys() {
@@ -4058,18 +4074,23 @@ function SH15bKeys() {
 check('the stance is a pose of its own (SHOVEL_HOLD.ready, solved by poseShovelReady) — the swing curve keeps its five keys and its 1.22 top amplitude, so NO swing frame ever samples the stance, and the stance marker rides past the swing (key ' + SHOVEL_READY_KEY + ')',
   SH15bKeys() && !!batOut && batOut.twist === 0 && batOut.lean === 0 &&
     html.includes('if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06)'));
-check('THE SHOVEL NOW RIDES OVER HIS RIGHT SHOULDER — the blade tip flipped from HIS LEFT side (the old carry, what looked wrong) to his RIGHT side',
-  coilTip.y > 0.3 && batTip.y < -0.02,
-  'blade tip side y ' + coilTip.y.toFixed(2) + ' (LEFT) -> ' + batTip.y.toFixed(2) + ' (RIGHT)');
-check('AND IT IS STILL HELD UP LIKE A BASEBALL BAT, NOT LOW AT THE GROUND: the blade stands near-vertical with its tip ABOVE his head (his shipped walking carry aims it at the asphalt)',
-  batTip.az > 0.85 && batTip.z > 2.1 && dipTip.az < -0.3 && dipTip.z < 1.8,
-  'rise ' + batTip.az.toFixed(2) + ' tip z ' + batTip.z.toFixed(2) + ' (head top ~1.95); walking carry rise ' + dipTip.az.toFixed(2) + ' tip z ' + dipTip.z.toFixed(2));
-check('BOTH FISTS STAY ON THE WOOD IN THE STANCE: the right hand down on the butt at his right hip, the left crossed onto the shaft in front of the chest — each a true 0.52u arm out of its own shoulder, head clear of his head',
-  batArms.rx === 0 && batArms.ry === 0 &&
-    Math.abs(batArms.lx + 1.5708) < 1e-4 && batArms.ly === 0,
-  'armR ' + batArms.rx.toFixed(3) + '/' + batArms.ry.toFixed(3) +
-  ' armL ' + batArms.lx.toFixed(3) + '/' + batArms.ly.toFixed(3));
-check('THE PLAY LOOP RUNS IT: no swing = the right-shoulder ready pose; the moment a swing is live the curve takes the tool back, and the stance adds no twist and no lean (he stands square to where he faces)',
+check('HE CARRIES IT AS A RIGHT-HANDED HITTER: BOTH fists on his RIGHT side, the right hand LOW on the knob at his hip and the left hand crossed above it on the shaft — the plate grip, with the hands 0.41u apart along the handle',
+  rfist.y < -0.02 && lfist.y < -0.02 && rfist.z < lfist.z && rfist.x > -0.05 && lfist.x > 0.2 &&
+    Math.hypot(lfist.x - rfist.x, lfist.y - rfist.y, lfist.z - rfist.z) < 0.52,
+  'right fist y ' + rfist.y.toFixed(2) + ' z ' + rfist.z.toFixed(2) + ' | left fist y ' + lfist.y.toFixed(2) + ' z ' + lfist.z.toFixed(2));
+check('THE SHOVEL IS ON HIS RIGHT SIDE AND COCKED UP LIKE A BAT OVER THE RIGHT SHOULDER — the blade flipped from HIS LEFT (the old lefty carry, what looked wrong) to his RIGHT side, at a STEEPER angle than the old carry had',
+  coilTip.y > 0.3 && batTip.y < -0.03 && batTip.az > coilTip.az && batTip.az > 0.6,
+  'blade side ' + coilTip.y.toFixed(2) + ' (LEFT) -> ' + batTip.y.toFixed(2) + ' (RIGHT), rise ' + coilTip.az.toFixed(2) + ' -> ' + batTip.az.toFixed(2));
+check('HELD LIKE A BASEBALL BAT, NOT DRAGGED AT THE GROUND: the blade finishes in the air above the shoulder line with its tip OVER his head height (his shipped walking carry aims it at the asphalt)',
+  batTip.z > 1.95 && batTip.az > 0.6 && dipTip.az < -0.3 && dipTip.z < 1.8,
+  'blade rise ' + batTip.az.toFixed(2) + ', tip z ' + batTip.z.toFixed(2) + ' (head top ~1.95), tip on his right at y ' + batTip.y.toFixed(2) + '; walking carry rise ' + dipTip.az.toFixed(2) + ' tip z ' + dipTip.z.toFixed(2));
+check('BOTH FISTS STAY ON THE WOOD IN THE STANCE, each a true 0.52u arm out of its own shoulder, and the shaft CLEARS HIS HEAD — the nearest it comes to his skull (r 0.24) is ' + batClear().toFixed(2) + 'u',
+  Math.hypot(rfist.x, rfist.y + 0.29, rfist.z - 1.38) > 0.5 &&
+    Math.hypot(lfist.x, lfist.y - 0.29, lfist.z - 1.38) > 0.5 &&
+    Math.hypot(rfist.x, rfist.y + 0.29, rfist.z - 1.38) < 0.54 &&
+    Math.hypot(lfist.x, lfist.y - 0.29, lfist.z - 1.38) < 0.54 &&
+    batClear() > 0.3, 'closest shaft-to-skull distance ' + batClear().toFixed(3));
+check('THE PLAY LOOP RUNS IT: no swing = the right-handed ready pose; the moment a swing is live the curve takes the tool back, and the stance adds no twist and no lean (he stands square to where he faces)',
   html.includes('const batUp = !(p.shovelT > 0);') &&
     html.includes('const hold = batUp ? poseShovelReady() : poseShovel(sw);') &&
     html.includes('shovelTwist = 0; // the stance is SQUARE: no twist, no lean over the blade'));

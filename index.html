@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.507</div>
+          <div id="app-version" class="menu-version">v1.0.508</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.507';
+      const APP_VERSION = '1.0.508';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28798,14 +28798,18 @@
           { k: 1.22, r: [0.95, -0.45], l: [0.2, -0.95], lean: 0.1, twist: 1.5 },
         ],
         // THE BAT READY POSE (the stance, NOT a swing frame — the swing curve tops out at
-        // max 1.22 and never touches this): THE SHOVEL OVER THE RIGHT SHOULDER, the way a
-        // right-handed batter carries the bat. The RIGHT hand keeps the butt down at his
-        // right hip; the LEFT hand is crossed over onto the shaft in front of the chest;
-        // the whole tool stands UP past the face with the scoop in the air over the right
-        // shoulder — the side the swing launches from, so the press flows out of the carry.
-        // Every fist is a true 0.52u arm out of its own shoulder, so the tool never leaves
-        // his hands and no arm passes through his head. Solved by poseShovelReady().
-        ready: { r: [0, 0], l: [-1.5708, 0] },
+        // max 1.22 and never touches this): A RIGHT-HANDED HITTER'S CARRY. Both fists sit on
+        // HIS RIGHT SIDE — the right hand low on the knob at his right hip, the left hand
+        // crossed over onto the shaft at chest height just outboard of it — and the whole
+        // tool rises STEEPLY UP-AND-OUT on the right, the blade ending in the air ABOVE his
+        // head on his right side. That is exactly how a righty stands at the plate with the
+        // bat resting on the right shoulder, and it is the side the swing launches from, so
+        // the press flows straight out of the carry. The old stance laid the blade over the
+        // LEFT shoulder (a lefty's carry) and the swing started by crossing behind his head.
+        // Measured in the rig: both fists y < 0 (his RIGHT side), the blade rise +0.67, the
+        // blade tip 2.06 overhead on his right. Every fist is a true 0.52u arm out of its own
+        // shoulder, so the tool never leaves his hands and no arm crosses his head.
+        ready: { r: [0.5, -0.2], l: [-1.2, -0.8] },
         max: 1.22,
       };
       // k is the swing's clock (0 = the press, 1 = SHOVEL_SWING_DUR later): LOADED 0.1s
