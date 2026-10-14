@@ -411,7 +411,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'horrorAheadWindow', 'horrorFellBehind', 'horrorRespawnX', 'horrorFillingBands',
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
   'shovelToolReach', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
-  'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY',
+  'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY', 'levelName',
   // THE MIDNIGHT DEAD END (the mirrored route's anchors) + THE FINAL BOSS (the
   // cemetery fight, the shovel on the beast, the hopper suction and the win)
   'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerTopLimitX',
@@ -735,7 +735,7 @@ check('a struck spook ARCS into the hopper scoop (arrives at the aim x, not the 
   flyer.hookLanded === true && guard < 600 && Math.abs(flyer.wx - 3) < 0.6, 'wx=' + flyer.wx.toFixed(2));
 check('it is DEPOSITED as ECOPLASM — five of these and the compactor cycles',
   deposited.length === 1 && deposited[0] === 'ecto');
-check('a shoveled spook pays out street cash (+250 x the Bed-Stuy board)',
+check('a shoveled spook pays out street cash (+' + SHOVEL_POINTS + ' x the Bed-Stuy board)',
   scored.length === 1 && scored[0].n === SHOVEL_POINTS && scored[0].bonus === true);
 check('the HUD SPOOKS counter + the shift report row both ticked (one lump, one row, per banishment)',
   H.getEcto() === ectoBase + 1 && dayStats.spooks.got === gotBase + 1,
@@ -1594,9 +1594,11 @@ check('the haunt refill, the flights and the severed-hand pass all run off the n
 check('the night state resets with the shift (no carry-over consecration, flights, waves)',
   /shovelCharge = 0;\r?\n\s*shovelCharged = false;/.test(html) &&
   html.includes('ectoFlights.length = 0;') && html.includes('GHOST_HANDS.length = 0;'));
-check('the HUD chip shows the shovel charge and the route banner names the dead end',
+check('the HUD chip shows the shovel charge and the route banner names the level as the dead end',
   /shovelCharged\r?\n\s*\? "  • HOLY SHOVEL!"/.test(html) &&
-  html.includes('CEMETERY AT THE BOTTOM OF THE HILL'));
+    srcFn('resetWorldState').includes('levelName(_d)') &&
+    html.includes('CEMETERY AT THE BOTTOM') &&
+    html.includes('name: "MIDNIGHT * DEAD END"'));
 check('MASPETH Cemetery is untouched: its own slot grid, cap and ghost exchanges are unchanged',
   html.includes('const GHOST_SLOTS = 75') && html.includes('const GHOST_CAP = 45') &&
   /const GHOST_LINES = \[/.test(html) && /const GHOST_STREET_LINES = \[/.test(html) &&
@@ -1839,10 +1841,13 @@ s7Reset();
 console.log('\n[14] THE PAY SCALE: banishments are small change, so POWER-UPS stay a grind');
 const MONSTER_SCORE_STEP = srcNum('MONSTER_SCORE_STEP');
 const POWERUP_CASH_STEP = srcNum('POWERUP_CASH_STEP');
-check('a banishment pays ' + SHOVEL_POINTS + ' (was 250), grave furniture ' + SHOVEL_PROP_POINTS +
+check('a banishment pays ' + SHOVEL_POINTS + ' (was 250, then 25), grave furniture ' + SHOVEL_PROP_POINTS +
   ' (was 150), a Shovel Triad ' + TRIAD_POINTS + ' (was 2500)',
-  SHOVEL_POINTS <= 25 && SHOVEL_PROP_POINTS <= 10 && TRIAD_POINTS <= 250 &&
-    SHOVEL_POINTS >= 10 && SHOVEL_POINTS * 10 === 250 && TRIAD_POINTS === SHOVEL_POINTS * 10);
+  SHOVEL_POINTS === 10 && SHOVEL_PROP_POINTS <= 10 && TRIAD_POINTS <= 250 &&
+    SHOVEL_POINTS >= 10 && TRIAD_POINTS === SHOVEL_POINTS * 10);
+check('THE SHOVEL IS CHEAP NOW, AND IT STAYS CHEAP: ' + SHOVEL_POINTS + ' a spook is under half the ' +
+  'old 25 purse, and a full night of shovel work cannot fill a tenth of one Red Bull milestone',
+  SHOVEL_POINTS <= 10 && HORROR_SPOOK_TARGET * SHOVEL_POINTS * 10 < MONSTER_SCORE_STEP);
 check('the night\'s par (' + HORROR_SPOOK_TARGET + ' spooks) is ' + (HORROR_SPOOK_TARGET * SHOVEL_POINTS) +
   ' CASH — the shovel alone cannot buy a Red Bull',
   HORROR_SPOOK_TARGET * SHOVEL_POINTS < MONSTER_SCORE_STEP / 10);
@@ -2298,10 +2303,28 @@ check('MIDNIGHT: a scoop that overshot down the street climbs back UPSLOPE in fo
 check('the drive-off leaves the way the route runs (the cinematic mirrors, the day stays put)',
   srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * RT * dt;') &&
     srcFn('updateRouteEnd').includes('sx * routeDir() > halfW + 1.0'));
-check('the shift reports the dead end: the card, the route line and the objective all say so',
-  html.includes('DEAD END! THE BEAST SLEEPS IN THE CEMETERY!') &&
+check('the shift reports the dead end: the LEVEL IS NAMED "MIDNIGHT * DEAD END", the card warns the beast, the route line and the objective say so',
+  html.includes('name: "MIDNIGHT * DEAD END"') &&
+    /function levelName\(d\)/.test(html) &&
+    srcFn('showDayIntro').includes('$("day-intro-day").textContent = levelName(d);') &&
+    srcFn('resetWorldState').includes('levelName(_d)') &&
+    srcFn('showDayStats').includes('levelName(d)') &&
+    html.includes('THE BEAST SLEEPS IN THE CEMETERY!') &&
     html.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY') &&
-    html.includes('CEMETERY AT THE BOTTOM OF THE HILL'));
+    html.includes('CEMETERY AT THE BOTTOM'));
+check('THE NAME IS SHORT AND IT FITS THE PHONE CARD (the night title scales down and may break lines)',
+  /#day-intro\.night \.day \{[^}]*font-size: clamp\(23px, 6\.2vw, 58px\)/.test(html) &&
+    /#day-intro\.night \.day \{[^}]*max-width: 94vw/.test(html) &&
+    /#day-intro\.night \.day \{[^}]*overflow-wrap: anywhere/.test(html));
+check('THE SPEECH BUDGETS ARE CUT FOR THE NIGHT (a score bubble every ' + NIGHT_BUBBLE_GAP +
+  's, a spoken line every ' + NIGHT_SAY_GAP + 's — the screen belongs to the horde)',
+  NIGHT_BUBBLE_GAP >= 2.0 && NIGHT_SAY_GAP >= 4.0 &&
+    /const NIGHT_BUBBLE_GAP = [\d.]+;/.test(html) && /const NIGHT_SAY_GAP = [\d.]+;/.test(html) &&
+    /const NIGHT_WORKER_ONLY_SPEECH = true;/.test(html));
+check('A 45s FRENZY IS NOW BUDGETED BY THE SECOND, NOT THE SWING — at most ' +
+  Math.ceil(45 / NIGHT_BUBBLE_GAP) + ' score bubbles and ' + Math.ceil(45 / NIGHT_SAY_GAP) +
+  ' lines can exist in it',
+  45 / NIGHT_BUBBLE_GAP <= 22 && 45 / NIGHT_SAY_GAP <= 11);
 check('the cemetery is BUILT AT THE NEAR END with the fence across the street + a dead-end wall',
   srcFn('buildNightCemetery').includes('makeCemeteryFence(fenceLen)') &&
     srcFn('buildNightCemetery').includes('NIGHT_TOP_X + 22') &&

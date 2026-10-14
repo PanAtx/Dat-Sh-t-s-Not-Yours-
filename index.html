@@ -683,9 +683,18 @@
         }
       }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
-         violet-glowing instead of the usual borough amber. */
+         violet-glowing instead of the usual borough amber. Its NAME is two words and a
+         star ("MIDNIGHT * DEAD END"), longer than any weekday's, so the night title scales
+         down to fit a phone and is allowed to break onto a second line — the card must never
+         be wider than the screen that shows it. */
       #day-intro.night .day {
         color: #d9c9ff;
+        font-size: clamp(23px, 6.2vw, 58px);
+        line-height: 1.05;
+        letter-spacing: 1px;
+        max-width: 94vw;
+        white-space: normal;
+        overflow-wrap: anywhere;
         text-shadow:
           0 0 8px rgba(126, 84, 255, 0.9),
           0 3px 0 rgba(0, 0, 0, 0.85);
@@ -4451,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.501</div>
+          <div id="app-version" class="menu-version">v1.0.502</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4709,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.501';
+      const APP_VERSION = '1.0.502';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6651,14 +6660,20 @@
     // animals, no cars, no bins — see isNightShift(), which zeroes the whole Sunday
     // roster, and spawnNightShift(), which puts the horror out in their place.
     day: "MIDNIGHT",
+    // LEVEL 8 HAS A NAME OF ITS OWN, and it is short on purpose: the street IS the level,
+    // and the street is a dead end. Every place the game speaks the level's name — the day
+    // card, the HUD route line, the shift report — goes through levelName(d), so the
+    // weekdays keep their plain "MONDAY" and this one reads "MIDNIGHT * DEAD END".
+    name: "MIDNIGHT * DEAD END",
     borough: "BROOKLYN",
     area: "BED-STUY",
     night: true,
     // Card copy stays SHORT on purpose: this card must fit a phone screen, so the
     // banner is one punchy line and the objective two — the flavor lives in the
-    // worker's spoken NIGHT_START_LINES, not on the panel.
+    // worker's spoken NIGHT_START_LINES, not on the panel. (The dead end is in the
+    // level's NAME now, so the banner does not have to shout it a second time.)
     special: "THE NIGHT SHIFT!",
-    warning: "DEAD END! THE BEAST SLEEPS IN THE CEMETERY!",
+    warning: "THE BEAST SLEEPS IN THE CEMETERY!",
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -6667,6 +6682,14 @@
       // 0 (never a real level) if the night entry is ever removed, so nothing silently
       // starts treating Sunday as haunted.
       const NIGHT_LEVEL = LEVEL_DAYS.findIndex(function (d) { return !!d.night; }) + 1;
+      // THE LEVEL'S NAME, SAID THE SAME WAY EVERYWHERE. A weekday is just its day ("MONDAY");
+      // the haunted shift has its own short name ("MIDNIGHT * DEAD END") and it is the only
+      // level that carries one. The day card, the HUD route line and the shift report all
+      // call this — one string, one place, so the night is never labelled three ways.
+      function levelName(d) {
+        if (!d) return "";
+        return d.name ? d.name : d.day || "";
+      }
 
       // >>> TEMP TEST BUILD: the game STARTS ON THE MIDNIGHT (haunted) LEVEL so the night
       // >>> shift can be playtested without walking the whole week. Set this back to 1
@@ -28058,8 +28081,11 @@
         if (!NIGHT_WORKER_ONLY_SPEECH) return true;
         return speaker === "worker" || speaker === "boss";
       }
-      const NIGHT_SAY_GAP = 2.0; // at most one worker/spook spoken line this often on the night
-      const NIGHT_BUBBLE_GAP = 0.4; // ...and at most one score bubble this often
+      const NIGHT_SAY_GAP = 4.5; // at most one worker/spook spoken line this often on the night
+      // (was 2.0: on a shovel fight the screen is the horde, not the worker's running
+      // commentary — a line every four-and-a-half seconds is a mutter, not a clutter wall)
+      const NIGHT_BUBBLE_GAP = 2.2; // ...and at most one score bubble this often (was 0.4, which
+      // put a "+points NAME" bubble on screen on nearly every swing of a frenzy)
       const NIGHT_POP_GAP = 6; // ...and at most ONE centre-screen pop this often (the frenzy
       // must never stitch a wall of pops across the view — the points and the meter say it)
       // THE HAUNTED STREET STAYS QUIET (MIDNIGHT): the night shift is a shovel fight, not a
@@ -28089,10 +28115,11 @@
       // the old snap — and the parry window grows with it, so he is never less safe.
       const SHOVEL_COOLDOWN = 0.3; // ...and how soon he can swing again (the swing runs 0.46,
       // so this counts from the END of it: a rhythm, not a mash-fest)
-      const SHOVEL_POINTS = 25; // per spook packed into the hopper — a BANISHMENT IS SMALL CHANGE
-      // now (was 250): the horde is worth hundreds of kills, and shovel money must not buy the
-      // week's power-ups by itself. The Red Bull milestone is 30,000 SCORE and the healer
-      // milestone 5,000 STREET CASH, so 25 a spook keeps the haunted street a real grind.
+      const SHOVEL_POINTS = 10; // per spook packed into the hopper — A BANISHMENT IS PENNIES
+      // (was 250, then 25: the horde is worth a hundred-plus kills a night, and shovel money
+      // must not buy the week's power-ups by itself. The Red Bull milestone is 30,000 SCORE
+      // and the healer milestone 5,000 STREET CASH, so 10 a spook keeps the haunted street
+      // the grind it is: a shovel-only night earns a rounding error against a milestone.)
       const HORROR_FLY_DUR = 0.85; // the arc from the shovel to the hopper scoop
       const HORROR_SEE_R = 13; // a spook notices the worker this close (and ONLY while on screen)
       const HORROR_SPOOK_TARGET = 14; // the shift-report par for one haunted night
@@ -28190,7 +28217,8 @@
       const CONS_ARC_TARGETS = 3;
       const CONS_ARC_COS = Math.cos(1.15); // ±66° off the facing for the consecrated arc
       const TRIAD_WINDOW = 4;
-      const TRIAD_POINTS = 250; // three banishments inside the window: a 10x kicker, nothing more
+      const TRIAD_POINTS = 100; // three banishments inside the window: a 10x kicker, nothing more
+                                // (it tracks SHOVEL_POINTS: 10 x the 10 a spook is worth)
       const FLINCH_R = 3.0;
       const FLINCH_T = 0.6;
       const FLINCH_SP = 0.45; // a flinching spook moves at 55% speed
@@ -36282,15 +36310,15 @@
         truck.g.position.set(truck.wx, -4.5, GZ);
         const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         $("route").textContent =
-          _d.day +
+          levelName(_d) +
           " \u00b7 " +
           _d.borough +
           " / " +
           _d.area +
-          // THE NIGHT SHIFT: the street is a DEAD END with a cemetery at its near end —
-          // say so up front, and say which way the shift runs.
+          // THE NIGHT SHIFT: the level's NAME carries the dead end; the route line only adds
+          // which end of the cul-de-sac the shift runs toward, so it stays short on a phone.
           (typeof isNightShift === "function" && isNightShift()
-            ? " \u00b7 DEAD END \u00b7 CEMETERY AT THE BOTTOM OF THE HILL"
+            ? " \u00b7 CEMETERY AT THE BOTTOM"
             : "");
         worker.group.rotation.set(0, 0, 0);
         wparts.legL.rotation.set(0, 0, 0);
@@ -50655,7 +50683,7 @@
           p0.style.opacity = "1";
         }
         if (writeUpDimTimer) clearTimeout(writeUpDimTimer);
-        $("day-stats-title").textContent = d.day + " \u00b7 " + d.borough;
+        $("day-stats-title").textContent = levelName(d) + " \u00b7 " + d.borough;
         $("day-stats-loc").textContent =
           "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
         const g = $("day-stats-grid");
@@ -51225,7 +51253,7 @@
       function showDayIntro() {
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         rollWeather(d); // a new sky for the new shift (Bed-Stuy's special day is always rain)
-        $("day-intro-day").textContent = d.day;
+        $("day-intro-day").textContent = levelName(d);
         // THE NIGHT SHIFT (level 8): the card belongs to NO day of the week, so it goes
         // cold violet + ecto-glow instead of the borough amber (see #day-intro.night).
         const introEl = $("day-intro");
