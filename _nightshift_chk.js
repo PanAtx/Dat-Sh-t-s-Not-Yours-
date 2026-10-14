@@ -9,10 +9,15 @@
 // TOP of the screen and BACKS DOWN the block ahead of the worker, the worker clocks in near
 // the top and walks the street DOWNHILL, and there is NO FINISH LINE — the street ends in a
 // CEMETERY (the iron fence across the road, graves, monuments, dead trees, candles) and the
-// many-eyed TENTACLE BEAST rises out of that yard holding the truck's Ruby-Plated Gargoyle.
-// The shovel is the ONLY thing that touches it: 10 plain swings (a consecrated swing lands
-// TWO), the bar drains, and at ZERO the compactor SUCKS the whole beast into the hopper,
-// the Gargoyle drops on the grave yard, and walking onto IT wins the night.
+// CEMETERY (the iron fence across the road, graves, monuments, dead trees, candles) and the
+// SLUG DEMON rises out of that yard holding the truck's Ruby-Plated Gargoyle: a slug the size
+// of a car with a toothed grin, TWO tentacle arms that hurl spectral fire off their tips, and
+// a heart hanging in a spiked chest cavity. The heart is the ONLY soft spot — the shell cracks
+// open on its own beat and a shovel inside that window is the only cut on the bar (10 heart
+// strikes; a consecrated swing lands TWO), the fire comes faster and thicker as the bar drains,
+// and the beast only leaves its rise point once it has been hit BOSS_FURY_HITS times. At ZERO
+// the compactor SUCKS the whole beast into the hopper, the Gargoyle drops on the grave yard,
+// and walking onto IT wins the night.
 //
 // PART 1 the level table + the emptied roster (real npcCounts, real LEVEL_DAYS)
 // PART 2 the monsters + the shovel + the hopper, SIMULATED against stub world callbacks
@@ -311,6 +316,9 @@ const NIGHT_TOP_X = srcNum('NIGHT_TOP_X'), NIGHT_START_X = srcNum('NIGHT_START_X
 const NIGHT_END_X = srcNum('NIGHT_END_X'), NIGHT_BOSS_X = srcNum('NIGHT_BOSS_X');
 const NIGHT_BOSS_TRIGGER_X = srcNum('NIGHT_BOSS_TRIGGER_X'), NIGHT_GRAVE_X = srcNum('NIGHT_GRAVE_X');
 const NIGHT_GRAVE_BLOCK_X = srcNum('NIGHT_GRAVE_BLOCK_X');
+const NIGHT_FENCE_X = srcNum('NIGHT_FENCE_X'); // THE BOTTOM BORDER: the bottom cemetery fence
+const NIGHT_FENCE_STANDOFF = srcNum('NIGHT_FENCE_STANDOFF'); // the respect he keeps off the iron
+const NK_FLOOR = NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF; // his actual floor line (39.6)
 const NIGHT_TRAIL_X = srcNum('NIGHT_TRAIL_X'), NIGHT_MOUTH_X = srcNum('NIGHT_MOUTH_X');
 const BOSS_MAX_HP = srcNum('BOSS_MAX_HP'), BOSS_DMG = srcNum('BOSS_DMG');
 const BOSS_DMG_CONS = srcNum('BOSS_DMG_CONS'), BOSS_INVULN_T = srcNum('BOSS_INVULN_T');
@@ -326,6 +334,19 @@ const BOSS_FIRE_LIFE = srcNum('BOSS_FIRE_LIFE'), BOSS_SUCTION_T = srcNum('BOSS_S
 const BOSS_SHOTS = srcNum('BOSS_SHOTS'), BOSS_SHOTS_RAGE = srcNum('BOSS_SHOTS_RAGE');
 const BOSS_WHIP_CD = eval('(' + srcLiteral('BOSS_WHIP_CD', '[', ']') + ')');
 const BOSS_FIRE_CD = eval('(' + srcLiteral('BOSS_FIRE_CD', '[', ']') + ')');
+// THE HEART WINDOW + THE FURY RAMP (the slug demon's own numbers, read out of the game)
+const BOSS_HEART_TELEGRAPH = srcNum('BOSS_HEART_TELEGRAPH');
+const BOSS_HEART_OPEN_T = srcNum('BOSS_HEART_OPEN_T'), BOSS_HEART_OPEN_MIN = srcNum('BOSS_HEART_OPEN_MIN');
+const BOSS_HEART_RAGE = srcNum('BOSS_HEART_RAGE'), BOSS_HEART_CD_RAGE = srcNum('BOSS_HEART_CD_RAGE');
+const BOSS_HEART_CD = eval('(' + srcLiteral('BOSS_HEART_CD', '[', ']') + ')');
+const BOSS_FURY_HITS = srcNum('BOSS_FURY_HITS'), BOSS_FURY_MUL = srcNum('BOSS_FURY_MUL');
+const BOSS_FIRE_CD_FLOOR = srcNum('BOSS_FIRE_CD_FLOOR'), BOSS_SHOTS_FURY = srcNum('BOSS_SHOTS_FURY');
+const BOSS_ROAM_R = srcNum('BOSS_ROAM_R');
+const BOSS_FIRE_TINTS = eval('(' + srcLiteral('BOSS_FIRE_TINTS', '[', ']') + ')');
+const BOSS_CRACK_LINES = eval('(' + srcLiteral('BOSS_CRACK_LINES', '[', ']') + ')');
+const BOSS_HEART_LINES = eval('(' + srcLiteral('BOSS_HEART_LINES', '[', ']') + ')');
+const BOSS_ARMOUR_LINES = eval('(' + srcLiteral('BOSS_ARMOUR_LINES', '[', ']') + ')');
+const BOSS_ROAM_LINES = eval('(' + srcLiteral('BOSS_ROAM_LINES', '[', ']') + ')');
 const HOPPER_CYCLE_AT_X = srcNum('HOPPER_CYCLE_AT');
 const HOPPER_CYCLE_DUR_X = Number(
   (html.match(/HOPPER_CYCLE_DUR\s*=\s*([0-9.]+)/) || [0, "0.75"])[1],
@@ -359,6 +380,8 @@ const SFX = {
   playGustSound: () => log.push('gust'), playSqueal: () => log.push('squeal'),
   playZombieGroan: () => log.push('groan'), playEctoPop: () => log.push('pop'),
   playPickupSound: () => log.push('pickup'),
+  // THE SLUG DEMON: the wet tear of the chest shell, and steel SKIDDING off the armour
+  playZombieGrab: () => log.push('tear'), playCanDropSound: () => log.push('clang'),
 };
 const dayStats = { bags: { got: 0, total: 0 }, treasure: { got: 0, total: 0 }, spooks: { got: 0, total: HORROR_SPOOK_TARGET } };
 const p = { wx: 0, wy: 2.5, stunT: 0, stunDur: 1, shovelT: 0, shovelCd: 0, shovelGuardT: 0, nightHitT: 0, facing: 9, shake: 0 };
@@ -427,7 +450,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightSpeechOk', 'nightSpeechAllowed', 'cashName', 'nightBirdsBanned',
   // THE MIDNIGHT DEAD END (the mirrored route's anchors) + THE FINAL BOSS (the
   // cemetery fight, the shovel on the beast, the hopper suction and the win)
-  'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerTopLimitX',
+  'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerEndHardX', 'workerTopLimitX',
   'creatureLimitMinX', 'creatureLimitMaxX', 'playerSpawnX', 'playerSpawnFacing', 'truckSpawnX',
   'truckTargetGap', 'truckBackGap', 'truckStandOffset',
   'truckMeshYaw', 'routeSpanX', 'routeProgressFrac', 'makeTentacleBoss', 'spawnNightBoss',
@@ -436,6 +459,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
   'bossLandedInHopper', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
   'updateNightBoss', 'updateNightBossFight',
+  // THE SLUG DEMON'S HEART (the window math, the fury ramp, the armour clang, the muzzle)
+  'bossFuryOf', 'bossIsFurious', 'bossHeartOpen', 'bossHeartOpenT', 'bossHeartCloseT',
+  'bossFireShots', 'bossFireGap', 'bossArmMuzzle', 'bossTakeArmourSwing', 'bossArmourBite',
   // THE BLOCK PACKS (Midnight: ONE horde per block, no family shared between blocks)
   'nightBlockPack', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockFamilies',
   'nightBlockQuota', 'nightBlockBandXs', 'nightBlockOrder', 'horrorWorkLimits',
@@ -454,7 +480,11 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount',
   // SPECTRAL BLOOD (the shovel wound the player can SEE on Midnight)
   'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex',
-  'nightTestClockInAtBoss'].map(srcFn).join('\n');
+  'nightTestClockInAtBoss',
+  // THE BOSS RING (Midnight): the rig's fence floor + the ghost iron's ceiling
+  'nightSealClosed', 'workerCeilX', 'truckFenceFloorX', 'makeCemeteryFence',
+  'makeGhostIronFence', 'buildNightSeal', 'nightSealClear', 'nightSealArm',
+  'nightSealClose', 'nightSealDrop', 'nightSealSay', 'updateNightSeal'].map(srcFn).join('\n');
 // THE KILL DROP: the door the note goes through, spied on right here, and the bands it
 // must land in — injected into the haunt sandbox exactly like every other number.
 const NK_NOTES = [];
@@ -471,6 +501,11 @@ const NK_STREET_Y = srcNum('HORROR_STREET_Y'); // the parked-car lane / far gutt
 const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
 const NK_WARD_BAND = srcNum('NIGHT_WARD_DEATH_BAND'); // how far a panel may lag the fall: the tear sweeps
 const NK_BOSS_ROOM_X = srcNum('NIGHT_BOSS_ROOM_X'); // u of bottom strip handed to the worker around the beast
+// THE BOSS RING (Midnight): the seal line where the first cemetery fence begins, the body-width
+// of respect off the ghost iron, and the rig's collision nose (its fence floor = line + nose)
+const NK_SEAL_X = srcNum('NIGHT_SEAL_X');
+const NK_SEAL_STOP = srcNum('NIGHT_SEAL_STOP');
+const NK_TRUCK_NOSE = srcNum('NIGHT_TRUCK_NOSE_L');
 const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
 const NK_BLOOD_C = parseInt((html.match(/const NIGHT_BLOOD_C = (0x[0-9a-f]+)/) || [0, '0xd8233a'])[1], 16);
 const NK_BLOOD_LITE = parseInt((html.match(/const NIGHT_BLOOD_LITE = (0x[0-9a-f]+)/) || [0, '0xff8a90'])[1], 16);
@@ -510,7 +545,8 @@ const H = new Function(
   'NIGHT_GLOW_ECTO', 'NIGHT_ECTO_SIZE',
   // THE MIDNIGHT DEAD END + THE FINAL BOSS
   'NIGHT_TOP_X', 'NIGHT_START_X', 'NIGHT_END_X', 'NIGHT_BOSS_X', 'NIGHT_BOSS_TRIGGER_X',
-  'NIGHT_GRAVE_X', 'NIGHT_GRAVE_BLOCK_X', 'NIGHT_TRAIL_X', 'NIGHT_MOUTH_X',
+  'NIGHT_GRAVE_X', 'NIGHT_GRAVE_BLOCK_X', 'NIGHT_TRAIL_X', 'NIGHT_MOUTH_X', 'NIGHT_FENCE_X',
+  'NIGHT_FENCE_STANDOFF',
   'BOSS_MAX_HP', 'BOSS_DMG', 'BOSS_DMG_CONS', 'BOSS_INVULN_T', 'BOSS_POINTS', 'BOSS_RISE_T',
   'BOSS_LUNGE_SP', 'BOSS_LUNGE_SP_RAGE', 'BOSS_SEE_R', 'BOSS_BODY_R', 'BOSS_BODY_CD',
   'BOSS_HP_BODY', 'BOSS_HP_WHIP', 'BOSS_HP_FIRE', 'BOSS_WHIP_TELEGRAPH', 'BOSS_WHIP_STRIKE',
@@ -539,6 +575,13 @@ const H = new Function(
   'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L', 'NIGHT_WARD_DEATH_BAND',
   'NIGHT_BLOOD_C', 'NIGHT_BLOOD_LITE', 'NIGHT_BLOOD_TINT', 'NIGHT_BLOOD_AURA', 'NIGHT_BLOOD_SPRAY',
   'NIGHT_BOSS_ROOM_X', 'NIGHT_TEST_BOSS_START',
+  // THE SLUG DEMON'S HEART WINDOW + THE FURY RAMP (injected like every other number)
+  'BOSS_HEART_TELEGRAPH', 'BOSS_HEART_OPEN_T', 'BOSS_HEART_OPEN_MIN', 'BOSS_HEART_RAGE',
+  'BOSS_HEART_CD', 'BOSS_HEART_CD_RAGE', 'BOSS_FURY_HITS', 'BOSS_FURY_MUL',
+  'BOSS_FIRE_CD_FLOOR', 'BOSS_SHOTS_FURY', 'BOSS_ROAM_R', 'BOSS_FIRE_TINTS',
+  'BOSS_CRACK_LINES', 'BOSS_HEART_LINES', 'BOSS_ARMOUR_LINES', 'BOSS_ROAM_LINES',
+  // THE BOSS RING (Midnight): the seal line, the respect off the ghost iron, the rig's nose
+  'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_TRUCK_NOSE_L', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -558,6 +601,8 @@ const H = new Function(
   '\nlet nightBoss = null, bossFireballs = [], bossFightOn = false, bossWin = false,' +
   ' bossWinT = 0, bossGargoyle = null, hopperCycling = false, hopperCycleT = 0,' +
   ' bossDeposits = 0;' +
+  // THE GHOST IRON OF THE BOSS RING: the live ring (armed / closed / tearing down)
+  '\nlet nightSeal = null;' +
   '\nconst hurtLog = [], stunLog = [], routeEnds = [], confettiLog = [], bossBursts = [];' +
   '\nfunction hurtNPC(a, c) { hurtLog.push({ a: a, c: c }); return true; }' +
   '\nfunction doStun(d, t) { stunLog.push({ d: d, t: t }); p.stunT = d; p.stunDur = d; }' +
@@ -606,6 +651,8 @@ const H = new Function(
   ' makeTentacleBoss, spawnNightBoss, clearNightBoss, startBossFight, updateNightBoss,' +
   ' updateNightBossFight, updateBossFireballs, bossWhipStrike, bossTakeShovelSwing,' +
   ' bossShovelHit, bossShovelTargetable, bossShovelRange, grabBossGargoyle,' +
+  ' bossFuryOf, bossIsFurious, bossHeartOpen, bossHeartOpenT, bossHeartCloseT,' +
+  ' bossFireShots, bossFireGap, bossArmMuzzle, bossTakeArmourSwing, bossArmourBite,' +
   ' nightWallX, workerEndLimitX, workerTopLimitX, creatureLimitMinX, creatureLimitMaxX,' +
   ' routeDir, routeFarX, routeNearX, playerSpawnX, truckSpawnX, routeProgressFrac,' +
   ' playerSpawnFacing, NIGHT_START_FACING,' +
@@ -613,6 +660,13 @@ const H = new Function(
   ' nightBloodArm, nightBloodTick, nightBloodClear, spawnBloodSpray,' +
  ' truckTargetGap, truckBackGap, truckStandOffset,' +
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
+  // THE BOSS RING: the rig's fence floor, the ring's ceiling, the live ghost iron
+  ' getSeal: () => nightSeal, sealClosed: () => nightSealClosed(),' +
+  ' ceilX: () => workerCeilX(), truckFloorX: () => truckFenceFloorX(),' +
+  ' sealBuild: () => buildNightSeal(), sealArm: () => nightSealArm(),' +
+  ' sealClose: () => nightSealClose(), sealDrop: () => nightSealDrop(),' +
+  ' sealTick: (dt) => updateNightSeal(dt), sealClear: () => nightSealClear(),' +
+  ' creatureMinX: () => creatureLimitMinX(), creatureMaxX: () => creatureLimitMaxX(),' +
   ' getFireballs: () => bossFireballs, getBossWin: () => bossWin, setBossWin: (v) => { bossWin = v; },' +
   ' getBossWinT: () => bossWinT, setBossWinT: (v) => { bossWinT = v; },' +
   ' getFightOn: () => bossFightOn, getBossGargoyle: () => bossGargoyle,' +
@@ -685,7 +739,7 @@ const H = new Function(
   NIGHT_ECTO_SIZE,
   // THE MIDNIGHT DEAD END + THE FINAL BOSS (the mirrored anchors, the fight's numbers)
   NIGHT_TOP_X, NIGHT_START_X, NIGHT_END_X, NIGHT_BOSS_X, NIGHT_BOSS_TRIGGER_X, NIGHT_GRAVE_X,
-  NIGHT_GRAVE_BLOCK_X, NIGHT_TRAIL_X, NIGHT_MOUTH_X,
+  NIGHT_GRAVE_BLOCK_X, NIGHT_TRAIL_X, NIGHT_MOUTH_X, NIGHT_FENCE_X, NIGHT_FENCE_STANDOFF,
   BOSS_MAX_HP, BOSS_DMG, BOSS_DMG_CONS, BOSS_INVULN_T, BOSS_POINTS, BOSS_RISE_T,
   BOSS_LUNGE_SP, BOSS_LUNGE_SP_RAGE, BOSS_SEE_R, BOSS_BODY_R, BOSS_BODY_CD,
   BOSS_HP_BODY, BOSS_HP_WHIP, BOSS_HP_FIRE, BOSS_WHIP_TELEGRAPH, BOSS_WHIP_STRIKE,
@@ -712,6 +766,13 @@ const H = new Function(
   NK_BLOOD_C, NK_BLOOD_LITE, NK_BLOOD_TINT, NK_BLOOD_AURA, NK_BLOOD_SPRAY,
   NK_BOSS_ROOM_X,
   false // NIGHT_TEST_BOSS_START: the suites run the SHIPPED law — the switch is OFF
+  // THE SLUG DEMON'S HEART WINDOW + THE FURY RAMP (mirrored straight out of index.html)
+  , BOSS_HEART_TELEGRAPH, BOSS_HEART_OPEN_T, BOSS_HEART_OPEN_MIN, BOSS_HEART_RAGE,
+    BOSS_HEART_CD, BOSS_HEART_CD_RAGE, BOSS_FURY_HITS, BOSS_FURY_MUL,
+    BOSS_FIRE_CD_FLOOR, BOSS_SHOTS_FURY, BOSS_ROAM_R, BOSS_FIRE_TINTS,
+    BOSS_CRACK_LINES, BOSS_HEART_LINES, BOSS_ARMOUR_LINES, BOSS_ROAM_LINES,
+    NK_SEAL_X, NK_SEAL_STOP, NK_TRUCK_NOSE, srcNum('NIGHT_SEAL_RISE_T'),
+    ['THE FENCE’S UP — NO WAY BACK UP THE STREET!']
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -1111,8 +1172,13 @@ check('no band of the route has a single ghost column (the slot grid stands the 
   ghostIn('b1') === 0 && ghostIn('b2') === 0 && ghostIn('b3') === 0 && ghostIn('flood') === 0);
 check('no spirit is parked off the route',
   allSpawned.filter((c) => c.type === 'ghost').every((c) => c.wx >= 90 && c.wx <= 474));
-check('the night spawner adds the EXTRA manhole tentacles (' + count('zombieArm') + '; Sunday\'s own still spawns — the block is Bed-Stuy)',
-  count('zombieArm') >= 2 && /if \(isBedStuyLevel\(\)\) \{[\s\S]{0,400}addCreature\("zombieArm"\)/.test(html));
+const s5BelowWard = allSpawned.filter((c) => c.wx < NIGHT_BEAT_GRAVE_X);
+check('THE BOSS BLOCK IS BORN EMPTY: not one of the ' + allSpawned.length + ' things the night spawner seeds stands below the first ward block (' + NIGHT_BEAT_GRAVE_X + 'u) — no sewer arm, no spook, no spirit, no floating find, no hell note. The swept near end is the beast\'s own ring, and the grave furniture it used to carry is gated off in buildNightCemetery (NIGHT_BOSS_FIELD_SWEPT)',
+  allSpawned.length > 0 && s5BelowWard.length === 0 && s5Haz.length === 0,
+  s5BelowWard.map((c) => (c.causeKey || c.type) + "@" + c.wx.toFixed(0)).slice(0, 6).join(","));
+check('the night spawner adds the EXTRA manhole tentacles (' + count('zombieArm') + "; Sunday's own still spawns — the block is Bed-Stuy, and on Midnight its draw is taken ONLY from the blocks above the boss block)",
+  count('zombieArm') >= 2 && /if \(isBedStuyLevel\(\)\) \{[\s\S]{0,1400}addCreature\("zombieArm"\)/.test(html) &&
+    /const zDraw = isNightShift\(\)[\s\S]{0,260}b\.x >= BLOCK_W && b\.x \+ 8\.0 > workerEndLimitX\(\)/.test(html));
 check('every spook is placed on the route with a real position',
   allSpawned.every((c) =>
     Number.isFinite(c.wx) && Number.isFinite(c.wy) &&
@@ -2125,9 +2191,45 @@ check('the route bar fills as he walks DOWNHILL toward the graveyard (mirrored a
     ' near=' + H.routeNearX() + ' far=' + H.routeFarX());
 check('the dead end has NO FINISH LINE (buildFinishLine bails on the night level only)',
   srcFn('buildFinishLine').includes('if (isNightShift()) return;'));
-check('the cul-de-sac is walled at both ends: the cemetery mouth and the rig tail',
-  H.workerEndLimitX() === NIGHT_GRAVE_X - 8 && H.workerTopLimitX() === NIGHT_TOP_X - NIGHT_TRAIL_X,
+check('the cul-de-sac is walled at both ends: the bottom cemetery fence (standoff included) and the rig tail',
+  H.workerEndLimitX() === NK_FLOOR && H.workerTopLimitX() === NIGHT_TOP_X - NIGHT_TRAIL_X,
   'mouth=' + H.workerEndLimitX() + ' top=' + H.workerTopLimitX());
+check('HE KEEPS HIS DISTANCE FROM THE IRON (Midnight): the floor of the street is the fence line PLUS the standoff (' +
+    NK_FLOOR + 'u from ' + NIGHT_FENCE_X + 'u), it is the same line awake and asleep, the creature band floor never drops below it, and a flung body stops ON the floor (workerEndHardX never subtracts the standoff on the night)',
+  NK_FLOOR === NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF && NIGHT_FENCE_STANDOFF >= 1 &&
+    H.workerEndLimitX() === NK_FLOOR &&
+    H.creatureMinX() >= NK_FLOOR &&
+    srcFn('nightWallX').includes('NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF') &&
+    srcFn('workerEndHardX').includes('isNightShift() ? nightWallX() : workerEndLimitX() - 2') &&
+    srcFn('updateBossFireballs').includes('workerEndHardX()') &&
+    srcFn('bossWhipStrike').includes('workerEndHardX()'),
+  'floor=' + NK_FLOOR);
+// THE SWEPT BOSS FIELD (Midnight): the final-boss block carries no haunt at all. The block
+// the beast is fought on is the near end of the dead-end street (x 0..NIGHT_BEAT_GRAVE_X);
+// NIGHT_BLOCKS packs the four wards ABOVE it (96 / 192 / 288 / 384u) and lists nothing at 0u.
+const NK_FIELD_X1 = NIGHT_BEAT_GRAVE_X; // 96u — the first packed ward block, the boss ring's far end
+const NIGHT_BOSS_FIELD_SWEPT = /const NIGHT_BOSS_FIELD_SWEPT = true/.test(html);
+check("THE BOSS FIELD IS SWEPT CLEAN (Midnight): the final-boss block (x 0.." + NK_FIELD_X1 + "u) lays NO ghostly haunt — no spectral headstone, no skull pile, no grave candle, no open coffin, no iron gate leaf, no risen ARM, no severed hand: buildNightCemetery's 21-prop scatter in the fight span (x 36..96u) is gated off by NIGHT_BOSS_FIELD_SWEPT, and the shoverable haunt stays on the ward blocks above (the band props at x >= " + NK_FIELD_X1 + "u) and in the YARD behind the bottom fence, which is the cemetery itself",
+  NIGHT_BOSS_FIELD_SWEPT === true &&
+    srcFn('buildNightCemetery').includes('if (b && b.hazards && !NIGHT_BOSS_FIELD_SWEPT)') &&
+    srcFn('buildNightCemetery').includes('nightPlaceProp(b, kinds[i], px, py)') &&
+    NIGHT_BLOCKS.filter((e) => e.x === 0).length === 0 && NK_FIELD_X1 === 96);
+check("NO OPEN MANHOLE (and its pair of blinking eyes) is cut into the boss block on Midnight — the refusal lives in addManhole, it is night- and block-precise, every weekday block (and a Node harness with no night flag) cuts them exactly as shipped",
+  srcFn('addManhole').includes('typeof isNightShift === "function" && isNightShift() && b && b.blockX === 0') &&
+    srcFn('makeBlockContents').includes('else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));'));
+check("THE MANHOLE TENTACLE IS A WARD-BLOCK HAUNT: the night's draw comes only from the packed blocks above the boss block that stand on open street, so no ghostly arm rises in the boss ring; a weekday Sunday still draws from every garbage block",
+  /const zDraw = isNightShift\(\)\s*\?\s*zBlocks\.filter\(function \(b\) \{\s*return b\.x >= BLOCK_W && b\.x \+ 8\.0 > workerEndLimitX\(\);/.test(html) &&
+    /const zb = zDraw\[\(Math\.random\(\) \* zDraw\.length\) \| 0\];/.test(html) &&
+    /const zBlocks = LEVEL_BLOCKS\.filter\([\s\S]{0,80}b\.garbage === true/.test(html));
+check("NOTHING SPOOKY IS BORN ON THE BOSS BLOCK: no block pack is listed at 0u (no pack, no band fill, no respawn there), the haunt's spirit cap is zero, and the ghost face the street knows — the pair of LURKING EYES sunk in an open manhole — is refused on block 0 with the bore itself",
+  NIGHT_BLOCKS.filter((e) => e.x === 0).length === 0 &&
+    NIGHT_GHOST_CAP === 0 &&
+    srcFn('addManhole').includes('addLurkingEyes(g)') &&
+    srcFn('addManhole').includes('b.blockX === 0'));
+check("THE BOSS STANDS ALONE IN A CLEAR RING at x " + NIGHT_BOSS_X + "u, inside the swept block and short of the ward curtain at " + NK_FIELD_X1 + "u — and the four ward blocks above keep their packs, surge wraiths, floor reinforces, props, spirits, notes and tentacles exactly as shipped",
+  NIGHT_BOSS_X < NK_FIELD_X1 && NIGHT_BOSS_X > NIGHT_FENCE_X &&
+    NIGHT_BLOCKS.length === 4 &&
+    NIGHT_BLOCKS.every((e) => e.x >= NK_FIELD_X1 && Object.keys(e.pack).length > 0));
 // --- THE BEAST: built asleep at the cemetery with the FULL bar ---
 H.clearNightBoss();
 H.spawnNightBoss();
@@ -2137,10 +2239,21 @@ check('the beast is BUILT AT THE CEMETERY with its full bar, asleep and buried u
   boss.g.visible === false && Math.abs(boss.wx - NIGHT_BOSS_X) < 1e-9,
   'hp=' + (boss && boss.hp) + ' x=' + (boss && boss.wx));
 const tent = H.makeTentacleBoss();
-check('it is a FINAL BOSS of a rig: NINE eyes on stalks, SIX three-joint whip tentacles, a maw',
-  tent.userData.tent.eyes.length === 9 && tent.userData.tent.tentacles.length === 6 &&
-  !!tent.userData.tent.maw && tent.userData.tent.tentacles.every(t => t.sh && t.j1 && t.j2),
-  'eyes=' + tent.userData.tent.eyes.length + ' tentacles=' + tent.userData.tent.tentacles.length);
+const tp = tent.userData.tent;
+check('it is a FINAL BOSS of a rig: NINE eyes on stalks, TWO three-joint TENTACLE ARMS with hooked, fire-lit tips, and a MAW',
+  tp.eyes.length === 9 && tp.tentacles.length === 2 && !!tp.maw &&
+  tp.tentacles.every(t => t.sh && t.j1 && t.j2 && t.tip && t.flame),
+  'eyes=' + tp.eyes.length + ' arms=' + tp.tentacles.length);
+check('THE GRIN IS SHARP: two rows of needle teeth (the jaws tear open on the ghost fire)',
+  tp.teeth.length >= 20 && !!tp.jawT && !!tp.jawB, 'teeth=' + tp.teeth.length);
+check('THE HEART IS BUILT IN: a spiked cavity, a beating heart with its own aura and light, and TWO skin flaps to sleet apart',
+  !!tp.heart && !!tp.aura && !!tp.light && tp.flaps.length === 2 &&
+  tp.flaps.every(f => f.position.y !== 0) && tp.spikes.children.length >= 10,
+  'flaps=' + tp.flaps.length + ' spikes=' + tp.spikes.children.length);
+check('IT IS A SLUG, BIG AS A CAR: a swollen mantle on a creeping foot, a gut, a dragged tail and dripping slime',
+  tp.body.scale.x >= 1.6 && tp.body.scale.y >= 1.1 && !!tp.belly && !!tp.mantle &&
+  tp.drips.length >= 6 && tp.tentacles[0].side !== tp.tentacles[1].side,
+  'mantle x-scale=' + tp.body.scale.x);
 // --- the wake: walking into the cross-street raises it out of the yard ---
 p.wx = NIGHT_BOSS_X - 8; p.wy = 2.5; p.shake = 0;
 sayings.length = 0; log.length = 0;
@@ -2155,25 +2268,40 @@ boss.riseT = BOSS_RISE_T;
 H.startBossFight();
 check('walking in twice is a no-op (the fight is already on, the bar is already live)',
   boss.riseT === BOSS_RISE_T);
-// --- rise, then the LUNGE (it drags itself at him and keeps its yard) ---
+// --- rise, then THE STAND (it holds its grave until the heart has been taken a few times) ---
 for (let i = 0; i < 400 && boss.riseT > 0; i++) H.updateNightBoss(boss, 1 / 60);
 check('it climbs all the way OUT of the grave yard and stands at full size',
   boss.riseT === 0 && Math.abs(boss.g.position.z - GZ) < 0.25 && boss.g.scale.x === 1,
   'z=' + boss.g.position.z.toFixed(2));
 const x0 = boss.wx;
-for (let i = 0; i < 150; i++) H.updateNightBoss(boss, 1 / 60);
-check('it LUNGES at the worker (it drags itself toward him, not away)',
-  Math.abs(boss.wx - p.wx) < Math.abs(x0 - p.wx), x0.toFixed(1) + ' -> ' + boss.wx.toFixed(1));
-check('it never leaves the cemetery: the lunge is clamped to its own yard',
+for (let i = 0; i < 150; i++) { boss.heartT = 99; H.updateNightBoss(boss, 1 / 60); }
+check('it HOLDS ITS GRAVE on the rise point: no strike on the heart yet, no walking (' + BOSS_FURY_HITS + ' strikes arms the run)',
+  Math.abs(boss.wx - x0) < 1e-9 && boss.hits === 0 && H.bossIsFurious(boss) === false,
+  'x=' + boss.wx.toFixed(2));
+boss.hits = BOSS_FURY_HITS; boss.fury = 1; // FURIOUS: the heart has been taken a few times
+const x1 = boss.wx;
+for (let i = 0; i < 150; i++) { boss.heartT = 99; H.updateNightBoss(boss, 1 / 60); }
+check('FURIOUS, it drags itself over the block AT THE WORKER (it runs him, it never runs from him)',
+  Math.abs(boss.wx - p.wx) < Math.abs(x1 - p.wx), x1.toFixed(1) + ' -> ' + boss.wx.toFixed(1));
+check('it never leaves the cemetery block: the run is clamped to its own ring',
   boss.wx >= NIGHT_GRAVE_X - 6 - 1e-6 && boss.wx <= NIGHT_BOSS_TRIGGER_X + 8 + 1e-6,
   'x=' + boss.wx.toFixed(1));
-check('while the beast stands, THE BOTTOM IS HIS RING — the beast is NOT a wall at its back: his floor is the cul-de-sac mouth, below the beast\'s rise point and below the sealed gate, so he can walk around under it and fight from any side without leaving the street',
-  Math.abs(H.workerEndLimitX() - Math.max(NIGHT_END_X + NIGHT_MOUTH_X, NIGHT_GRAVE_X - 8 - NK_BOSS_ROOM_X)) < 1e-9 &&
+boss.heartT = 1.4;
+check('while the beast stands, THE BOTTOM IS HIS RING — the beast is NOT a wall at its back: his floor is the bottom cemetery fence with the standoff on it (' + NK_FLOOR + 'u), below the beast\'s rise point, so he can walk around under it and fight from any side without leaving the street — and he can never get to the iron',
+  Math.abs(H.workerEndLimitX() - Math.max(NK_FLOOR, NIGHT_END_X + NIGHT_MOUTH_X, NIGHT_GRAVE_X - 8 - NK_BOSS_ROOM_X)) < 1e-9 &&
+    H.workerEndLimitX() === NK_FLOOR &&
     H.workerEndLimitX() < NIGHT_BOSS_X - 0.6 &&
     H.workerEndLimitX() >= NIGHT_END_X + NIGHT_MOUTH_X &&
-    H.workerEndLimitX() < NIGHT_GRAVE_X - 8 &&
-    srcFn('nightWallX').includes('NIGHT_BOSS_ROOM_X'),
-  'wall=' + H.workerEndLimitX());
+    srcFn('nightWallX').includes('NIGHT_BOSS_ROOM_X') &&
+    srcFn('nightWallX').includes('NIGHT_FENCE_X'),
+  'wall=' + H.workerEndLimitX() + ' fence=' + NIGHT_FENCE_X);
+check('THE FENCE IS THE BORDER, NOT THE DECORATION: the iron across the road stands exactly on the worker\'s floor line (nightWallX == the fence x), the creature band floor never drops below it, and the graves gate law is untouched',
+  NIGHT_FENCE_X === NIGHT_END_X + 8 &&
+    NIGHT_FENCE_X >= NIGHT_GRAVE_X - 8 &&
+    srcFn('buildNightCemetery').includes('fence.position.set(NIGHT_FENCE_X, -9.6, GZ)') &&
+    srcFn('creatureLimitMinX').includes('Math.max(nightWallX(), NIGHT_FENCE_X)') &&
+    srcFn('nightWallX').includes('Math.max(NIGHT_GRAVE_X - 8, fenceLine)'),
+  'fence=' + NIGHT_FENCE_X);
 check('the body is SOLID: it crowds him into the headstones and a crush costs a hit',
   (function () {
     p.wx = boss.wx + 0.8; p.wy = boss.wy; p.nightHitT = 0; boss.bodyCd = 0;
@@ -2213,14 +2341,23 @@ check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
     for (let i = 0; i < 120 && boss.whipState !== 'idle'; i++) H.updateNightBoss(boss, 1 / 60);
     return H.hurtLog().length === 0 && H.stunLog().length === 0;
   })());
-// --- GHOST FIRE: the maw opens, the ball flies at him, it burns out in the fog ---
+// --- GHOST FIRE: the tentacle arm LIFTS, the ball comes off its tip, it burns out in the fog ---
 (function () {
-  boss.rage = 0; boss.fireT = 0.01; boss.mawOpen = 0;
+  boss.rage = 0; boss.hp = BOSS_MAX_HP; boss.fireT = 0.01; boss.mawOpen = 0; boss.armCharge = 0;
+  H.getFireballs().length = 0; // the sweep is COLD before this test: one volley, one ball
   const n0 = H.getFireballs().length;
   H.updateNightBoss(boss, 1 / 60);
-  check('the maw OPENS on the ghost fire and a cold ball comes out of it',
-    H.getFireballs().length === n0 + BOSS_SHOTS && boss.mawOpen > 0.9,
-    'balls=' + (H.getFireballs().length - n0));
+  check('the TENTACLE ARM rears up and the maw tears open: a cold ball comes off the hook',
+    H.getFireballs().length === n0 + BOSS_SHOTS && boss.mawOpen > 0.9 && boss.armCharge > 0.9,
+    'balls=' + (H.getFireballs().length - n0) + ' charge=' + boss.armCharge.toFixed(2));
+  check('the fire leaves from the ARM\u2019S HOOK, not out of the body (the muzzle is the tip)',
+    (function () {
+      const fb = H.getFireballs()[H.getFireballs().length - 1];
+      const m1 = H.bossArmMuzzle(boss, 1), m2 = H.bossArmMuzzle(boss, -1);
+      const offArm = Math.min(Math.hypot(fb.wx - m1.wx, fb.wy - m1.wy),
+                              Math.hypot(fb.wx - m2.wx, fb.wy - m2.wy));
+      return offArm < 1.7 && Math.hypot(fb.wx - boss.wx, fb.wy - boss.wy) > 1.0;
+    })(), 'spectral fire in ' + BOSS_FIRE_TINTS.length + ' grave-fire colours');
   p.nightHitT = 0; p.stunT = 0; H.hurtLog().length = 0; H.stunLog().length = 0;
   p.wx = boss.wx + 3; p.wy = boss.wy;
   const f = H.getFireballs()[H.getFireballs().length - 1];
@@ -2240,18 +2377,65 @@ check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
   check('a fireball that misses BURNS OUT in the fog (no immortal projectile)',
     H.getFireballs().indexOf(f2) < 0);
   H.getFireballs().length = 0;
+  // --- THE FURY RAMP: the weaker the bar, the meaner the fire (bigger AND faster volleys) ---
+  boss.hp = Math.ceil(BOSS_MAX_HP / 4); boss.hits = 0; boss.rage = 1; boss.fireT = 0.01;
+  const n2 = H.getFireballs().length;
+  H.updateNightBoss(boss, 1 / 60);
+  check('in the LAST THIRD of the bar it hurls the fire in THREES',
+    H.getFireballs().length === n2 + BOSS_SHOTS_FURY, 'balls=' + (H.getFireballs().length - n2));
+  H.getFireballs().length = 0;
+  boss.hp = BOSS_MAX_HP; // the bar goes back to FULL: the ramp tests below run on mock bars
+  const avgGap = (b, n) => { let s = 0; for (let i = 0; i < n; i++) s += H.bossFireGap(b); return s / n; };
+  const gapFull = avgGap({ hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP, rage: 0 }, 80);
+  const gapLast = avgGap({ hp: 1, maxHp: BOSS_MAX_HP, rage: 1 }, 80);
+  check('THE GAP BETWEEN VOLLEYS COLLAPSES as it weakens (' + gapFull.toFixed(2) + 's on a full bar \u2192 ' + gapLast.toFixed(2) + 's on its last heart, floor ' + BOSS_FIRE_CD_FLOOR + 's)',
+    gapLast < gapFull * 0.6 && gapLast >= BOSS_FIRE_CD_FLOOR - 1e-9);
+  check('THE HEART WINDOW SHORTENS AND THE ARMOUR GAP SHRINKS on the last hearts',
+    H.bossHeartOpenT({ hp: 1, maxHp: BOSS_MAX_HP }) <
+      H.bossHeartOpenT({ hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP }) &&
+      H.bossHeartCloseT({ hp: 1, maxHp: BOSS_MAX_HP }) <
+      H.bossHeartCloseT({ hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP }));
+  // --- THE HEART CYCLE on the live beast: shut -> CRACK (the tell) -> OPEN (the bite) -> shut ---
+  boss.heartState = 'shut'; boss.heartT = 0.01;
+  H.updateNightBoss(boss, 1 / 60);
+  check('the shell CRACKS first — a TELEGRAPH the player can read before the window opens',
+    boss.heartState === 'crack' && boss.heartT > 0 && H.bossHeartOpen() === false);
+  for (let i = 0; i < 90 && boss.heartState === 'crack'; i++) H.updateNightBoss(boss, 1 / 60);
+  check('...then the flaps SLEET APART and the heart is exposed (the ONLY bite window)',
+    boss.heartState === 'open' && H.bossHeartOpen() === true &&
+      Math.abs(boss.heartT - H.bossHeartOpenT(boss)) < 0.15, 'T=' + boss.heartT.toFixed(2));
+  for (let i = 0; i < 260 && boss.heartState === 'open'; i++) H.updateNightBoss(boss, 1 / 60);
+  check('the window CLOSES on its own beat (the armour is back up)',
+    boss.heartState === 'shut' && H.bossHeartOpen() === false);
+  boss.rage = 0;
 })();
-// --- THE SHOVEL IS THE ONLY THING THAT SHORTENS THE BAR ---
+// --- THE SHOVEL ON THE EXPOSED HEART IS THE ONLY THING THAT SHORTENS THE BAR ---
 p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0; p.facing = 0; // he faces the beast
+const exposeHeart = () => { boss.heartState = 'open'; boss.heartT = 2.2; boss.heartOpen = 1; };
+const shutHeart = () => { boss.heartState = 'shut'; boss.heartT = 99; boss.heartOpen = 0; };
 check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head sweep)',
   H.bossShovelRange() > SHOVEL_REACH + SHOVEL_BLADE_R && H.bossShovelTargetable() === true);
+check('WITH THE SHELL SHUT THERE IS NO TARGET — the heart is the only window the shovel bites',
+  (function () {
+    shutHeart();
+    p.shovelCd = 0;
+    const hp0 = boss.hp;
+    const swingIn = H.swing();
+    const clang = log[log.length - 1] === 'clang' || log.indexOf('clang') >= 0;
+    return boss.hp === hp0 && swingIn === true && clang && H.bossHeartOpen() === false;
+  })(), 'hp=' + boss.hp);
 (function () {
+  exposeHeart();
   const hp0 = boss.hp;
   const face0 = p.facing;
   H.setCharge(0);
+  p.shovelCd = 0;
   H.swing();
-  check('ONE SWING, ONE CUT on the bar (an ordinary swing takes BOSS_DMG)',
+  check('ONE SWING ON THE OPEN HEART, ONE CUT on the bar (an ordinary swing takes BOSS_DMG)',
     boss.hp === hp0 - BOSS_DMG && log.indexOf('sting') >= 0, 'hp=' + boss.hp);
+  check('the WOUND SLAMS THE SHELL SHUT: the next opening is the next chance',
+    boss.heartState === 'shut' && boss.heartT > 0 && H.bossHeartOpen() === false,
+    'heart=' + boss.heartState + ' T=' + (boss.heartT && boss.heartT.toFixed(2)));
   check('a swing on the beast NEVER rotates him (he keeps his facing); the BEAST is what turns into the blow, and the cooldown is set (no mash-fest)',
     p.facing === face0 &&
       Math.abs(((boss.facing || 0) - (face0 + Math.PI)) % (Math.PI * 2)) < 1e-6 &&
@@ -2265,10 +2449,11 @@ check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head s
     log.indexOf('sting') >= 0 && boss.hurtT > 0 && boss.whipState === 'idle');
   boss.invulnT = 0;
   H.setCharge(CONS_CHARGE_AT); // THE HOLY SHOVEL
+  exposeHeart();
   const beforeCons = boss.hp;
   p.shovelCd = 0;
   H.swing();
-  check('a CONSECRATED swing cuts DOUBLE through the bar',
+  check('a CONSECRATED swing on the open heart cuts DOUBLE through the bar',
     boss.hp === beforeCons - BOSS_DMG_CONS, 'hp ' + beforeCons + ' -> ' + boss.hp);
   H.setCharge(0);
   p.wy = boss.wy; p.shovelCd = 0;
@@ -2276,17 +2461,25 @@ check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head s
   const outHp = boss.hp;
   check('a swing at EMPTY FOG does not touch the bar (out of the tool is out of the fight)',
     H.swing() === true && boss.hp === outHp);
-  boss.hp = BOSS_MAX_HP; // fresh bar: count the swings it takes from FULL health
+  boss.hp = BOSS_MAX_HP; // fresh bar: count the heart strikes it takes from FULL health
+  boss.hits = 0;
   const scoreBefore = scored.reduce((a, s) => a + s.n, 0);
-  let swings = 0;
+  let swings = 0, clangs = 0;
   while (boss.hp > 0 && swings < 80) {
     p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0; p.facing = 0;
     boss.invulnT = 0;
+    shutHeart(); // the ARMOUR is up: a swing in this beat is a CLANG, not a cut
     H.swing();
+    clangs++;
+    if (boss.hp > 0) { exposeHeart(); p.shovelCd = 0; H.swing(); } // ...and this one is the heart
     swings++;
   }
-  check('TEN ordinary SHOVEL SWINGS banish it (the bar IS the level\u2019s win condition)',
+  check('TEN strikes on the EXPOSED HEART banish it (the bar IS the level\u2019s win condition)',
     boss.hp === 0 && swings === BOSS_MAX_HP, 'swings=' + swings);
+  check('the swings that missed the window cost the bar NOTHING (10 cuts, ' + clangs + ' clangs)',
+    clangs === BOSS_MAX_HP, 'clangs=' + clangs);
+  check('every heart strike is COUNTED: the fury ramp rides on it (hits=' + boss.hits + ' of ' + BOSS_MAX_HP + ')',
+    boss.hits >= BOSS_MAX_HP - 1);
   check('every cut on the bar pays (the banishment purse is scored on the hits)',
     scored.reduce((a, s) => a + s.n, 0) - scoreBefore >= BOSS_POINTS * BOSS_DMG,
     'scored=' + (scored.reduce((a, s) => a + s.n, 0) - scoreBefore));
@@ -2308,8 +2501,8 @@ check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head s
   check('THE RUBY-PLATED GARGOYLE drops on the grave yard where the beast was hoarding it',
     !!gg && Math.abs(gg.wx - NIGHT_GRAVE_X) < 1e-9 && gg.val === GARGOYLE_VALUE,
     'x=' + (gg && gg.wx));
-  check('the wall DROPS behind the graves once the beast is gone (the yard opens)',
-    H.workerEndLimitX() === NIGHT_GRAVE_X - 8, 'wall=' + H.workerEndLimitX());
+  check('the wall DROPS behind the graves once the beast is gone (the yard opens, and he still keeps the standoff off the iron)',
+    H.workerEndLimitX() === NK_FLOOR, 'wall=' + H.workerEndLimitX());
 })();
 // --- THE WIN: walk onto the Gargoyle, take it, and the night ends ---
 (function () {
@@ -2372,7 +2565,7 @@ check('THE LEVEL ENDS AT THE BOSS, not a stripe: the finish line is weekday-only
     srcFn('updatePlayer').includes('startBossFight()'));
 check('the worker cannot walk past the beast while it stands, and the top wall closes the street',
   srcFn('updatePlayer').includes('const wall = workerEndLimitX();') &&
-    srcFn('updatePlayer').includes('p.wx > workerTopLimitX()'));
+    srcFn('updatePlayer').includes('p.wx > workerCeilX()'));
 check('THE HUD BAR EXISTS and updateHUD shows it only with a beast standing',
   html.includes('<div id="boss-goal" class="hidden">') &&
     html.includes('const bossPanel = $("boss-goal");') &&
@@ -2478,11 +2671,12 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
   const fn = new Function(
     "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
     "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
-    "truckTargetGap", "truckBackGap", "rigMayFollow",
+    "truckTargetGap", "truckBackGap", "rigMayFollow", "isNightShift", "truckFenceFloorX",
     srcFn("updateTruck") + "\n;return updateTruck;",
   )(
     p, truck, 'none', () => dir, () => 0, 8.5, 1.3,
     gates.canBackUp, 0.3, () => {}, () => {}, gapFn, backFn, gates.rigMayFollow,
+    () => night, () => (night ? 80 + 4.0 : null),
   );
   for (let i = 0; i < steps; i++) fn(1 / 60);
   return { wx: truck.wx, sp: truck.sp, mode: truck._mode, yaw: truck.g.rotation.z };
@@ -2521,9 +2715,9 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
     const fn = new Function(
       "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
       "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
-      "truckTargetGap", "truckBackGap", "rigMayFollow",
+      "truckTargetGap", "truckBackGap", "rigMayFollow", "isNightShift", "truckFenceFloorX",
       srcFn("updateTruck") + "\n;return updateTruck;",
-    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, gates0.canBackUp, 0.3, () => {}, () => {}, gapFn0, backFn0, gates0.rigMayFollow);
+    )(p, truck, "none", () => -1, () => 0, 8.5, 1.3, gates0.canBackUp, 0.3, () => {}, () => {}, gapFn0, backFn0, gates0.rigMayFollow, () => true, () => NK_SEAL_X + NK_TRUCK_NOSE);
     let minGap = 1e9, maxGap = -1e9, backFrames = 0, fwdFrames = 0, prev = truck.wx;
     for (let i = 0; i < 2400; i++) {
       p.wx = Math.max(NIGHT_START_X - 370, p.wx - 8.5 / 60); // March: top of the street -> the boss zone
@@ -4019,7 +4213,8 @@ check('THE GATE SITS INSIDE announcePower ITSELF, and it ONLY bites on the night
     return appended;
   };
   const shout = ['CONSECRATED!', 'SHOVEL TRIAD!', 'ABYSS SURGE!', 'THE BEAST IS UP!',
-    'THE TENTACLE BEAST!', 'THE BEAST IS ANGRY!', 'THE BEAST IS IN THE TRUCK!',
+    'THE SLUG DEMON!', 'THE HEART IS OPEN!', 'THE BEAST IS LOOSE ON THE BLOCK!',
+    'THE BEAST IS ANGRY!', 'THE BEAST IS IN THE TRUCK!',
     'RUBY-PLATED GARGOYLE! TAKE IT!', 'MIDNIGHT CLEARED!', 'THE FOG GANG IS CLEAR \u2014 THE WARD FALLS!'];
   check('ON MIDNIGHT the battle\u2019s big words are GONE from the centre of the screen (points, sound and meters still land): ' +
     shout.map((t) => t.split('!')[0] + '\u2192' + popWith(true, t)).join(' \u00b7 '),
@@ -4644,10 +4839,12 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
     walk35 = Math.max(w, walk35 - 0.2);
     if (Math.abs(walk35 - w) < 1e-9) break; // standing on the floor, face to face with it
   }
-  check("WITH THE BEAST AWAKE HE WALKS THE WHOLE BOTTOM STRIP: his floor is the cul-de-sac mouth at " + wall35 + "u — " + (NIGHT_BOSS_X - wall35).toFixed(0) + "u BELOW the beast's rise point (" + NIGHT_BOSS_X + "u) and 2u past the sealed graves gate (" + (NIGHT_GRAVE_X - 8) + "u), so he can circle under the monster and swing at it from below; walking him down the street live lands him exactly on that floor (" + walk35.toFixed(2) + "u after " + steps35 + " steps)",
+  check("WITH THE BEAST AWAKE HE WALKS THE WHOLE BOTTOM STRIP: his floor is the bottom cemetery fence with the standoff on it at " + wall35 + "u — " + (NIGHT_BOSS_X - wall35).toFixed(0) + "u BELOW the beast's rise point (" + NIGHT_BOSS_X + "u), " + NIGHT_FENCE_STANDOFF + "u UP-street of the iron (" + NIGHT_FENCE_X + "u), so he can circle under the monster and swing at it from below; walking him down the street live lands him exactly on that floor (" + walk35.toFixed(2) + "u after " + steps35 + " steps) and NEVER TO THE IRON",
     boss35.awake === true && boss35.hooked !== true &&
-      Math.abs(walk35 - wall35) < 1e-9 && wall35 === NIGHT_END_X + NIGHT_MOUTH_X &&
-      NIGHT_BOSS_X - wall35 >= 30 && (NIGHT_GRAVE_X - 8) - wall35 === 2,
+      Math.abs(walk35 - wall35) < 1e-9 && wall35 === NK_FLOOR &&
+      NIGHT_BOSS_X - wall35 >= 30 &&
+      Math.abs(wall35 - NIGHT_FENCE_X - NIGHT_FENCE_STANDOFF) < 1e-9 &&
+      Math.abs(wall35 - (NIGHT_GRAVE_X - 8) - NIGHT_FENCE_STANDOFF) < 1e-9,
     "wall=" + wall35 + " walk=" + walk35.toFixed(2) + " steps=" + steps35);
   check("THE STREET DOES NOT GROW FOR IT — no new blocks scroll: the ring lives inside the SAME anchors (near end " + H.routeNearX() + ", far end " + H.routeFarX() + ", uphill wall " + H.workerTopLimitX() + "), his floor never drops past the cemetery mouth, and the grave ward still stands above him",
     H.routeNearX() === NIGHT_END_X && H.routeFarX() === NIGHT_TOP_X &&
@@ -4655,9 +4852,84 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
       wall35 >= NIGHT_END_X + NIGHT_MOUTH_X &&
       grave35 && H.gateX(grave35) > wall35);
   H.clearNightBoss();
-  check("WHEN THE BEAST IS DOWN THE GATE STANDS AS SHIPPED (" + (NIGHT_GRAVE_X - 8) + "u): the ring is the fight's opening, not a loosening of the sealed end — the awake floor is never further up the street than the asleep floor",
-    Math.abs(H.workerEndLimitX() - (NIGHT_GRAVE_X - 8)) < 1e-9 &&
-      H.workerEndLimitX() > wall35);
+  check("WHEN THE BEAST IS DOWN THE GATE STANDS AS SHIPPED (" + NK_FLOOR + "u, the graves gate " + (NIGHT_GRAVE_X - 8) + "u plus the standoff): the ring is the fight's opening, not a loosening of the sealed end — the awake floor is never further up the street than the asleep floor, and BOTH keep him off the iron",
+    Math.abs(H.workerEndLimitX() - NK_FLOOR) < 1e-9 &&
+      Math.abs(H.workerEndLimitX() - (NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF)) < 1e-9 &&
+      H.workerEndLimitX() >= wall35);
+})();
+
+// ---- THE GHOST IRON, WALKED LIVE: the rig parks at the line, the fence shuts behind him ----
+(function () {
+  H.clearNightBoss(); H.sealClear();
+  const ringFloor = NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF; // the bottom fence: his shipped floor
+  p.wx = 200; p.wy = 2.5; p.stunT = 0;
+  H.spawnNightBoss();
+  H.startBossFight(); // the wake arms the seal line
+  const seal0 = H.getSeal();
+  check("THE WAKE ARMS THE SEAL LINE AND LEAVES THE STREET OPEN ABOVE IT (the ring shuts on the crossing, not on the wake)",
+    H.ceilX() === H.workerTopLimitX() && H.sealClosed() === false && !!seal0,
+    "ceil=" + H.ceilX() + " armed=" + (seal0 ? seal0.armed : "none"));
+  // Walk him down the dead-end street on the shipped walls: floor lookup every frame,
+  // the crossing closes the iron exactly where updatePlayer's clamp runs it.
+  let x36 = 200, steps36 = 0, closedAt36 = null, ceilAt36 = null;
+  while (steps36++ < 4000) {
+    const wall = H.workerEndLimitX();
+    const prev = x36;
+    x36 = Math.max(wall, x36 - 0.5); // he may never go below the bottom fence
+    if (prev >= NK_SEAL_X && x36 < NK_SEAL_X && H.sealClose()) {
+      closedAt36 = x36;
+      ceilAt36 = H.ceilX();
+    }
+    x36 = Math.min(x36, H.ceilX()); // ...and after the close he has a new ceiling
+    if (x36 <= wall + 1e-9) break; // he is standing on the floor of the ring
+  }
+  check("HE WALKS UNDER THE FIRST CEMETERY FENCE LINE (" + NK_SEAL_X + "u) AND THE GHOST IRON SHUTS ON THE CROSSING FRAME at " +
+      (closedAt36 == null ? "never" : closedAt36.toFixed(2) + "u") + ", giving him a ceiling of " + ceilAt36 +
+      "u — the street above is gone for the fight",
+    closedAt36 != null && closedAt36 < NK_SEAL_X && Math.abs(ceilAt36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 &&
+      H.sealClosed() === true,
+    "cross=" + closedAt36 + " ceil=" + ceilAt36);
+  // Press him UP the street from deep in the ring: the iron stops him on the line, every frame,
+  // and he is never yanked across it (the sealed ceiling is a wall, not a tow rope).
+  let up36 = 45, press36 = 0, pastIron = false;
+  while (press36++ < 3000) {
+    const ceil36 = H.ceilX();
+    up36 = Math.min(ceil36, up36 + 0.5);
+    if (up36 > ceil36 + 1e-9) pastIron = true; // he got ABOVE the ghost iron: it is not a wall
+    if (up36 >= ceil36 - 1e-9) break;
+  }
+  check("THE FENCE IS A SOLID WALL FROM INSIDE THE RING: pressing up the street from " + 45 + "u stops him on the ghost iron at " +
+      up36.toFixed(2) + "u and he never gets past it (" + press36 + " frames of walking)",
+    pastIron === false && Math.abs(up36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 && H.sealClosed() === true,
+    "at=" + up36.toFixed(2) + " steps=" + press36);
+  check("THE RING HE IS SHUT INTO IS THE BEAST'S OWN YARD: " + (up36 - ringFloor).toFixed(1) +
+      "u of street between the bottom fence (" + ringFloor + "u) and the ghost iron (" + up36.toFixed(1) + "u), the rise point " +
+      NIGHT_BOSS_X + "u and the graves gate " + (NIGHT_GRAVE_X - 8) + "u inside it, the rig parked at " + H.truckFloorX() + "u on the line",
+    up36 - ringFloor > 20 && NIGHT_BOSS_X > ringFloor && NIGHT_BOSS_X < NK_SEAL_X &&
+      NIGHT_GRAVE_X - 8 >= NIGHT_END_X && NIGHT_GRAVE_X - 8 < NK_SEAL_X &&
+      H.truckFloorX() === NK_SEAL_X + NK_TRUCK_NOSE && H.truckFloorX() > up36 &&
+      H.truckFloorX() + 4 < H.workerTopLimitX() + H.truckStandOffset() + 20);
+  for (let i = 0; i < 60; i++) H.sealTick(1 / 60); // the iron finishes its rise
+  const sealMesh = H.getSeal();
+  check("THEIRON STANDS IN FRAME: it is visible, risen on the line, and its light is lit",
+    sealMesh.g.visible === true && sealMesh.rise === 1 && Math.abs(sealMesh.g.position.z - GZ) < 1e-9,
+    "rise=" + sealMesh.rise + " z=" + sealMesh.g.position.z.toFixed(2));
+  H.setBoss(null);
+  H.sealDrop(); // the banish opens the street
+  check("BANISHED, THE IRON TEARS DOWN AND THE WHOLE STREET IS HIS AGAIN (the drive-off gate never gets a sealed street)",
+    (function () {
+      let faded = false;
+      for (let i = 0; i < Math.ceil((NIGHT_GATE_FADE + 0.2) * 60); i++) {
+        H.sealTick(1 / 60);
+        if (sealMesh.g.visible === false) faded = true;
+      }
+      return faded && H.sealClosed() === false && H.ceilX() === H.workerTopLimitX() &&
+        Math.abs(sealMesh.g.position.z - GZ) < 1e-9;
+    })(),
+    "visible=" + sealMesh.g.visible + " ceil=" + H.ceilX());
+  H.clearNightBoss();
+  check("AND THE SHIFT CLEARS IT: no live ring, no mesh left standing on the line",
+    H.getSeal() === null);
 })();
 
 console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL needed) — Midnight clocks in at the final boss, wards stamped clear — and the whole doorway is ONE line that flips back");
@@ -4712,7 +4984,7 @@ console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL 
     H.gateX(flood36) === NIGHT_BOSS_TRIGGER_X + 6 &&
       H.gateClosed(flood36) === false &&
       H.routeNearX() === NIGHT_END_X && H.routeFarX() === NIGHT_TOP_X &&
-      Math.abs(H.workerEndLimitX() - (NIGHT_GRAVE_X - 8)) < 1e-9);
+      Math.abs(H.workerEndLimitX() - NK_FLOOR) < 1e-9);
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));

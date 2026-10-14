@@ -793,6 +793,20 @@
         border-color: rgba(255, 210, 120, 0.95);
         animation: goalPulse 0.55s infinite;
       }
+      /* ===== THE HEART WINDOW (the beat the shovel can actually land on) =============
+         The bar IS the tell: the instant the chest shell sleets apart the bar burns emerald
+         and pulses. Armour-up, the bar sits dead — the player can see, at a glance, whether a
+         swing is a cut or a clang. */
+      #boss-goal.heart #boss-hpbar {
+        border-color: rgba(120, 255, 195, 0.98);
+        box-shadow:
+          0 0 22px rgba(58, 240, 210, 0.75),
+          inset 0 0 10px rgba(120, 255, 195, 0.55);
+        animation: goalPulse 0.42s infinite;
+      }
+      #boss-goal.heart #boss-goal-name {
+        color: #b9ffe4;
+      }
       @keyframes bossPop {
         0% {
           transform: scale(0.35);
@@ -4335,7 +4349,7 @@
          updateHUD() drives --boss-hp; SHOVEL THE BAR is the level's win condition. -->
     <div id="boss-goal" class="hidden">
       <div id="boss-goal-name">
-        THE TENTACLE BEAST<span id="boss-goal-phase"></span>
+        THE SLUG DEMON<span id="boss-goal-phase"></span>
       </div>
       <div id="boss-hpbar">
         <i id="boss-hpfill"></i>
@@ -4462,7 +4476,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.522</div>
+          <div id="app-version" class="menu-version">v1.0.526</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4720,7 +4734,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.522';
+      const APP_VERSION = '1.0.526';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5808,6 +5822,11 @@
       // until it finds clear concrete.
       function nightLampClear(b, jx, lampY) {
         const wx = b.worldX + jx;
+        // THE BOTTOM CEMETERY FENCE (Midnight): below it lies the graveyard, not a street —
+        // no pole is planted there. A lamp keeps NIGHT_LAMP_CLEAR of the iron like it keeps of
+        // every other fixture, so a cell the fence owns gets no pole at all.
+        if (typeof NIGHT_FENCE_X === "number" && wx < NIGHT_FENCE_X + NIGHT_LAMP_CLEAR)
+          return false;
         const trees = b.trees || [];
         for (let i = 0; i < trees.length; i++) {
           const t = trees[i];
@@ -6630,6 +6649,11 @@
       let bossWin = false;
       let bossWinT = 0;
       let bossGargoyle = null; // the Ruby-Plated Gargoyle sitting on the grave yard
+      // THE GHOST IRON OF THE BOSS RING (Midnight): the spectral fence that closes the
+      // street behind the worker the moment he walks below the line where the cemetery fence
+      // begins. `nightSeal` is the live ring, armed when the beast wakes, CLOSED once he has
+      // crossed the line, and dissolving the instant the beast is banished.
+      let nightSeal = null; // null | { x, armed, closed, t, rise, drop }
       let routeIdx = 0,
         routeDist = 0;
       const ROUTES = [
@@ -7623,29 +7647,36 @@
         // edge -9.5) — same 0.5u width and same z-top (0.35) as the near curb, and
         // flush with the far corner curb-return bands.
         const curbM = new THREE.MeshLambertMaterial({ color: 0xaab2ba });
+        // MIDNIGHT: THE STREET ENDS AT THE BOTTOM CEMETERY FENCE. Everything below that line
+        // is the cemetery — lawn, graves, the boss's yard — so the curb (both sides) and the
+        // road-edge line START AT THE FENCE and never run out over the graves. Every weekday
+        // cuts nothing: nightCurbCut is null and each segment keeps its shipped length
+        // (BLOCK_W + 3, landing 1.5u past the block edges on the curb-return tangent points).
+        const nightCurbCut =
+          isNightShift() && typeof NIGHT_FENCE_X === "number" ? NIGHT_FENCE_X : null;
+        const curbSpan = function (bl) {
+          const a = nightCurbCut != null ? Math.max(bl.x - 1.5, nightCurbCut) : bl.x - 1.5;
+          const bEnd = bl.x + BLOCK_W + 1.5;
+          return { w: bEnd - a, cx: (a + bEnd) / 2 };
+        };
         for (const bl of LEVEL_BLOCKS) {
-          const seg = new THREE.Mesh(
-            new THREE.BoxGeometry(BLOCK_W + 3.0, 0.5, 0.5),
-            curbM,
-          );
-          seg.position.set(bl.x + BLOCK_W / 2, 0.5, 0.1);
+          const cs = curbSpan(bl);
+          if (cs.w < 1) continue; // the whole block is cemetery: no curb to pour
+          const seg = new THREE.Mesh(new THREE.BoxGeometry(cs.w, 0.5, 0.5), curbM);
+          seg.position.set(cs.cx, 0.5, 0.1);
           seg.receiveShadow = true;
           groundGroup.add(seg);
-          const segF = new THREE.Mesh(
-            new THREE.BoxGeometry(BLOCK_W + 3.0, 0.5, 0.5),
-            curbM,
-          );
-          segF.position.set(bl.x + BLOCK_W / 2, -9.5, 0.1);
+          const segF = new THREE.Mesh(new THREE.BoxGeometry(cs.w, 0.5, 0.5), curbM);
+          segF.position.set(cs.cx, -9.5, 0.1);
           segF.receiveShadow = true;
           groundGroup.add(segF);
         }
         const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
         for (const bl of LEVEL_BLOCKS) {
-          const edge = new THREE.Mesh(
-            new THREE.BoxGeometry(BLOCK_W + 3.0, 0.24, 0.05),
-            edgeM,
-          );
-          edge.position.set(bl.x + BLOCK_W / 2, -9.2, 0.31);
+          const cs = curbSpan(bl);
+          if (cs.w < 1) continue;
+          const edge = new THREE.Mesh(new THREE.BoxGeometry(cs.w, 0.24, 0.05), edgeM);
+          edge.position.set(cs.cx, -9.2, 0.31);
           groundGroup.add(edge);
         }
         // Paperboy-style cross-streets with crosswalks at every intersection
@@ -16983,6 +17014,16 @@
         return g;
       }
       function addHydrant(b, wx, wy) {
+        // THE BOTTOM CEMETERY FENCE (Midnight): the ground below the iron is cemetery — grass,
+        // graves and the beast's yard — so NO fire hydrant is planted there. Weekdays (and the
+        // Node harnesses, which carry no night flag) walk straight past this guard.
+        if (
+          typeof isNightShift === "function" &&
+          isNightShift() &&
+          typeof NIGHT_FENCE_X === "number" &&
+          wx < NIGHT_FENCE_X
+        )
+          return null;
         const g = makeHydrantMesh();
         // Callers pass a y from curbClearY(FOOT_R_HYDRANT): the hydrant stands ON THE
         // WALK, clear of the raised curb strip (y 0.25..0.75), so it rests on the
@@ -17618,6 +17659,12 @@
         }
       }
       function addManhole(b, wx, wy) {
+        // MIDNIGHT — THE BOSS BLOCK IS SWEPT CLEAN. An open manhole with a pair of eyes
+        // blinking in the bore is a ghostly face, and the ring the final beast is fought in
+        // (block 0 of the dead-end street, x 0..96u) is the ONE block that cuts them out:
+        // the worker comes down here for the boss, not for the haunt. Weekdays — Bed-Stuy
+        // and the rest — cut them exactly as shipped, every block, every roll.
+        if (typeof isNightShift === "function" && isNightShift() && b && b.blockX === 0) return;
         const g = new THREE.Group();
         const hole = CY(0.55, 0.55, 0.05, M(0x0a0c0e), 14);
         hole.rotation.x = Math.PI / 2;
@@ -19665,21 +19712,59 @@
       // tentacles. Once it is in the hopper the yard opens onto the grass, which is where
       // the Ruby-Plated Gargoyle lands.)
       function nightWallX() {
-        const yardOpen = NIGHT_GRAVE_X - 8; // the gate at the graves (past the treasure spot)
+        // THE BOTTOM CEMETERY FENCE IS THE FLOOR OF THE STREET, STANDOFF INCLUDED: no body,
+        // awake or asleep, ever gets to the iron, let alone below it. The graves gate
+        // (NIGHT_GRAVE_X - 8) and the fence line are the same x tonight, so the fight's bottom
+        // strip opens UP TO the respectful distance and no further.
+        const fenceLine = NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF;
+        const yardOpen = Math.max(NIGHT_GRAVE_X - 8, fenceLine); // the gate at the graves (past the treasure spot)
         if (nightBoss && nightBoss.awake && !nightBoss.hooked)
           // THE BEAST IS NO LONGER THE WALL AT ITS BACK. The worker gets the bottom of
           // the street as his ring: gate minus the boss room, never below the cemetery
-          // mouth — past the rise point, around under the beast, fighting from any side.
-          return Math.max(NIGHT_END_X + NIGHT_MOUTH_X, yardOpen - NIGHT_BOSS_ROOM_X);
+          // mouth and NEVER PAST THE BOTTOM FENCE — past the rise point, around under the
+          // beast, fighting from any side.
+          return Math.max(fenceLine, NIGHT_END_X + NIGHT_MOUTH_X, yardOpen - NIGHT_BOSS_ROOM_X);
         return yardOpen;
       }
       function workerEndLimitX() {
         return isNightShift() ? nightWallX() : ROUTE_START_X;
       }
+      // ==================== THE GHOST IRON (Midnight): the ring's ceiling ================
+      // Is the grave ring shut? TRUE from the frame the worker has walked BELOW the seal line
+      // (x 80, where the first cemetery fence begins) with the beast standing, to the frame the
+      // beast is banished. Weekdays, and every night frame before the wake, answer false.
+      function nightSealClosed() {
+        return !!(isNightShift() && nightSeal && nightSeal.armed && nightSeal.closed);
+      }
+      // The worker's UPSLOPE wall: the cul-de-sac tail by day and on an open street, and THE
+      // GHOST IRON the moment the ring has shut behind him. Every clamp, knock-back and cull
+      // that keeps a body on the street reads this one number, so a flung body can never land
+      // past spectral wrought iron (it stops on it, exactly like the bottom fence).
+      function workerCeilX() {
+        const top = isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
+        return nightSealClosed() ? Math.min(top, NIGHT_SEAL_X + NIGHT_SEAL_STOP) : top;
+      }
+      // The rig's FLOOR: the line the truck stops on and never backs past. Its collision nose
+      // (boxL = 4u ahead of the centre) stands on the seal line, its open scoop 4.3u up the
+      // street, so the driver parks at the first cemetery fence and stays there for the whole
+      // fight. Weekdays have no such line (null = follow the worker freely, the shipped law).
+      function truckFenceFloorX() {
+        return isNightShift() ? NIGHT_SEAL_X + NIGHT_TRUCK_NOSE_L : null;
+      }
+      // THE HARD DOWNHILL FLOOR for a flung body (the fireball / lunge / bonk knock-backs).
+      // A weekday fling may land 2u short of the start barrier — the worker walks back onto
+      // the route. On the dead-end street the bottom fence is a solid iron wall, so a fling
+      // stops ON the floor line: the standoff is never subtracted, and he never lands in the bars.
+      function workerEndHardX() {
+        return isNightShift() ? nightWallX() : workerEndLimitX() - 2;
+      }
       // Creature bands (the spooks must never wander through the dead-end wall, and never
       // spawn on the finish-buffer block in the direction the route no longer runs).
+      // MIDNIGHT: the band floor is the BOTTOM CEMETERY FENCE itself — a spook the shockwave
+      // or the truck's pass shoves downhill stops AT the iron, because below it there is no
+      // street for the worker to shovel in.
       function creatureLimitMinX() {
-        return isNightShift() ? nightWallX() - 8 : ROUTE_START_X - 6;
+        return isNightShift() ? Math.max(nightWallX(), NIGHT_FENCE_X) : ROUTE_START_X - 6;
       }
       function creatureLimitMaxX() {
         return isNightShift() ? NIGHT_TOP_X + 6 : ROUTE_END_X;
@@ -27765,123 +27850,284 @@
       // in the cemetery grass, and the shovel is the only thing that can shorten it.
       // userData.tent = { body, eyes[], tentacles[], maw, shell } and floatOrLope's
       // abyssal/ghoul contracts do NOT apply to it: updateNightBoss() drives the rig.
+            // ==================== THE MIDNIGHT FINAL BOSS: THE SLUG DEMON ===================
+      // The fat of the dead-end street. A SLUG THE SIZE OF A CAR: a swollen violet mantle on a
+      // creeping suction foot, a tail dragged out behind it, an olive-stained back crusted with
+      // warts and suckers, a scatter of pale eyes crawling over the neck on their own stalks, a
+      // wide grinning MAW packed with TWO ROWS of needle teeth, and TWO big TENTACLE ARMS off
+      // the shoulders that curl and swirl the cold grave fire off their tips. Its ONE soft spot
+      // is the HEART hanging in the spiked cavity of its chest, sealed behind two skin flaps
+      // that sleet apart on the beast's own beat — the shovel only ever bites in that window.
+      // userData.tent = { body, belly, mantle, eyes[], tentacles[2], maw, jawT, jawB, glowMat,
+      // teeth[], heart, aura, light, flaps[], spikes, drips[] } and floatOrLope's abyssal/ghoul
+      // contracts do NOT apply to it: updateNightBoss() drives the rig.
       function makeTentacleBoss() {
         const g = new THREE.Group();
-        const sack = M(0x54284f),
-          sackD = M(0x2c1430),
-          wet = M(0xb478c8),
-          gut = M(0x3a1c3c);
-        const sclera = M(0xf7f3e6),
-          irisM = M(0xd43a6a),
-          pupilM = M(0x000000);
-        const suck = M(0xe0b8d2);
-        // --- the body: a swollen sack on a suction foot ---
-        const foot = CY(1.15, 0.85, 0.34, sackD, 16);
+        // --- the hide: violet mantle, olive staining, a wet sheen, a dark gut ---
+        const hide = M(0x6a3f78),
+          hideD = M(0x33203f),
+          sheen = M(0xa97fc4),
+          moss = M(0x6d8049),
+          gut = M(0x7d3a56),
+          boneM = M(0xe2d9c0),
+          tusk = M(0xf4ecd6),
+          sclera = M(0xf7f3e6),
+          irisM = M(0xbfffd0, { emissive: 0x59ffd0, emissiveIntensity: 1.6 }),
+          pupilM = M(0x0b0b0b),
+          suck = M(0xe0b8d2),
+          slimeM = M(0xc4b2da, { transparent: true, opacity: 0.62 });
+        // --- the foot it drags on, the swollen mantle, the belly and the dragged tail ---
+        const foot = CY(1.45, 1.22, 0.44, hideD, 20);
         foot.rotation.x = Math.PI / 2;
-        foot.position.z = 0.17;
-        const body = SPH(1.05, sack, 20, 14);
-        body.scale.set(1.22, 1.0, 1.02);
-        body.position.z = 1.28;
-        const belly = SPH(0.8, gut, 16, 12);
-        belly.scale.set(1.1, 0.92, 0.7);
-        belly.position.set(0.12, 0, 0.92);
-        g.add(foot, body, belly);
-        // warts + suckers across the back
-        for (let i = 0; i < 14; i++) {
+        foot.position.set(-0.3, 0, 0.22);
+        const body = SPH(1.22, hide, 24, 16); // THE MANTLE
+        body.scale.set(1.64, 1.18, 1.12);
+        body.position.set(-0.18, 0, 1.36);
+        const belly = SPH(1.0, gut, 20, 14);
+        belly.scale.set(1.52, 1.06, 0.72);
+        belly.position.set(0.1, 0, 0.84);
+        const tail = SPH(0.94, hide, 20, 14);
+        tail.scale.set(1.8, 0.92, 0.84);
+        tail.position.set(-2.1, 0.34, 1.06);
+        tail.rotation.y = -0.36;
+        tail.rotation.z = 0.14;
+        const neck = SPH(0.9, hide, 20, 14);
+        neck.scale.set(1.14, 1.02, 1.06);
+        neck.position.set(1.24, 0, 2.0);
+        g.add(foot, body, belly, tail, neck);
+        // --- the crusted back: warts, suckers and the olive staining ---
+        for (let i = 0; i < 26; i++) {
           const a = R(0, Math.PI * 2);
-          const w = SP(R(0.07, 0.14), i % 2 ? sackD : suck, 8);
-          w.position.set(R(-0.8, 0.7), Math.cos(a) * 0.72, 1.35 + Math.sin(a) * 0.42);
+          const w = SP(R(0.07, 0.16), i % 3 === 0 ? suck : i % 3 === 1 ? moss : hideD, 8);
+          w.position.set(
+            R(-2.0, 0.9),
+            Math.cos(a) * 0.78,
+            1.5 + Math.sin(a) * 0.52 + R(-0.1, 0.34),
+          );
           g.add(w);
         }
-        // --- NINE eyes on stalks, clustered, every one scanning its own direction ---
+        // --- the slime drips: strands hanging off the mantle (they run on the anim clock) ---
+        const drips = [];
+        for (let i = 0; i < 9; i++) {
+          const dr = CY(0.045, 0.018, 0.46, slimeM, 6);
+          dr.rotation.x = Math.PI / 2;
+          dr.position.set(R(-1.9, 0.8), R(-0.72, 0.72), 0.92);
+          g.add(dr);
+          drips.push(dr);
+        }
+        // --- NINE pale eyes: stalks on the neck and down the flank, every one scanning its
+        //     own way (the bar reads on them: one eye goes dark per wound) ---
         const eyes = [];
         const faces = [
-          [0.62, 0.0, 1.28],
-          [0.54, 0.3, 1.44],
-          [0.54, -0.3, 1.44],
-          [0.36, 0.55, 1.3],
-          [0.36, -0.55, 1.3],
-          [0.78, 0.18, 1.02],
-          [0.78, -0.18, 1.02],
-          [0.2, 0.1, 1.72],
-          [0.2, -0.1, 1.72],
+          [0.62, 0.0, 1.4],
+          [0.52, 0.34, 1.6],
+          [0.52, -0.34, 1.6],
+          [0.34, 0.6, 1.42],
+          [0.34, -0.6, 1.42],
+          [0.78, 0.2, 1.12],
+          [0.78, -0.2, 1.12],
+          [0.18, 0.12, 1.94],
+          [0.18, -0.12, 1.94],
         ];
         for (let i = 0; i < faces.length; i++) {
           const f = faces[i];
-          const len = 0.3 + (i % 3) * 0.12;
+          const len = 0.3 + (i % 3) * 0.13;
           const piv = new THREE.Group();
-          piv.position.set(f[0] * 0.7, f[1] * 0.75, f[2]);
+          piv.position.set(f[0] * 0.72, f[1] * 0.78, f[2]);
           piv.rotation.y = 1.05 + R(-0.3, 0.3); // every stalk cranes forward
           piv.rotation.x = R(-0.35, 0.35); // ...and scans its own way
-          const stalk = CY(0.05, 0.062, len, wet, 8);
+          const stalk = CY(0.052, 0.064, len, sheen, 8);
           stalk.position.y = len / 2;
           piv.add(stalk);
-          const ball = SP(0.155, sclera, 12);
+          const ball = SP(0.16, sclera, 12);
           ball.position.y = len + 0.07;
           piv.add(ball);
-          const iris = SP(0.078, irisM, 10);
-          iris.position.set(0.115, len + 0.07, 0.0);
+          const iris = SP(0.082, irisM, 10);
+          iris.position.set(0.118, len + 0.07, 0.0);
           piv.add(iris);
-          const pupil = SP(0.036, pupilM, 8);
-          pupil.position.set(0.172, len + 0.07, 0.0);
+          const pupil = SP(0.038, pupilM, 8);
+          pupil.position.set(0.178, len + 0.07, 0.0);
           piv.add(pupil);
           g.add(piv);
           eyes.push(piv);
         }
-        // --- SIX WHIP TENTACLES: hip pivot + two joints, each with a club tip ---
+
+        // --- TWO TENTACLE ARMS: shoulder pivot + two joints + a curled hook tip. THE
+        //     FIREBALLS COME OFF THE TIPS — the arm lifted on a volley is the tell. ---
         const tentacles = [];
-        for (let i = 0; i < 6; i++) {
-          const side = i % 2 === 0 ? 1 : -1;
-          const row = (i / 2) | 0; // 0,1,2 from the front back
+        for (let i = 0; i < 2; i++) {
+          const side = i === 0 ? 1 : -1;
           const sh = new THREE.Group();
-          sh.position.set(0.62 - row * 0.62, side * 0.68, 1.62 - row * 0.16);
-          sh.rotation.z = 0.3 + row * 0.24; // they stand UP out of the shoulders
-          sh.rotation.y = side * 0.55; // ...and splay off the flanks
-          const seg1 = CY(0.13, 0.1, 0.72, sack, 10);
+          sh.position.set(0.66, side * 0.82, 2.12);
+          sh.rotation.z = 0.42; // they rear UP out of the shoulders
+          sh.rotation.y = side * 0.62; // ...and splay off the flanks
+          const seg1 = CY(0.2, 0.16, 0.95, hide, 12);
           seg1.rotation.x = Math.PI / 2;
-          seg1.position.z = 0.36;
+          seg1.position.z = 0.48;
           const j1 = new THREE.Group();
-          j1.position.z = 0.72;
-          const seg2 = CY(0.1, 0.062, 0.68, wet, 10);
+          j1.position.z = 0.95;
+          const seg2 = CY(0.16, 0.1, 0.88, sheen, 12);
           seg2.rotation.x = Math.PI / 2;
-          seg2.position.z = 0.34;
+          seg2.position.z = 0.44;
           const j2 = new THREE.Group();
-          j2.position.z = 0.68;
-          const seg3 = CY(0.058, 0.028, 0.56, sackD, 8);
+          j2.position.z = 0.88;
+          const seg3 = CY(0.1, 0.042, 0.74, hideD, 10);
           seg3.rotation.x = Math.PI / 2;
-          seg3.position.z = 0.28;
-          const tip = SPH(0.14, suck, 10, 8);
-          tip.scale.set(0.9, 0.9, 1.5);
-          tip.position.z = 0.6;
-          j2.add(seg3, tip);
+          seg3.position.z = 0.37;
+          const curl = CY(0.05, 0.024, 0.4, moss, 8);
+          curl.rotation.z = -Math.PI / 2; // ...and the tip CURLS back over the fire
+          curl.position.set(0.2, 0, 0.72);
+          const tip = SPH(0.16, suck, 12, 10);
+          tip.scale.set(0.9, 0.9, 1.55);
+          tip.position.z = 0.74;
+          const flame = SP(
+            0.2,
+            M(0xffd9a4, {
+              emissive: 0xff7a2a,
+              emissiveIntensity: 2.4,
+              transparent: true,
+              opacity: 0,
+            }),
+            12,
+          );
+          flame.position.set(0.12, 0, 0.78);
+          flame.visible = false;
+          j2.add(seg3, curl, tip, flame);
           j1.add(seg2, j2);
           sh.add(seg1, j1);
           g.add(sh);
-          tentacles.push({ sh: sh, j1: j1, j2: j2, tip: tip, side: side, row: row });
+          tentacles.push({
+            sh: sh,
+            j1: j1,
+            j2: j2,
+            tip: tip,
+            flame: flame,
+            side: side,
+            row: 0,
+          });
         }
-        // --- THE MAW: a pit of a mouth the ghost fire comes out of ---
+        // --- THE MAW: the grin, the jaws and TWO ROWS of needle teeth ---
         const maw = new THREE.Group();
-        maw.position.set(0.92, 0, 1.0);
-        const lip = CY(0.34, 0.26, 0.3, M(0x1b0d1e), 12);
-        lip.rotation.x = -Math.PI / 2; // opening FORWARD out of the sack
+        maw.position.set(1.72, 0, 1.72);
+        maw.rotation.z = -0.14;
+        const lip = CY(0.46, 0.36, 0.3, hideD, 14);
+        lip.rotation.x = -Math.PI / 2; // opening FORWARD out of the neck
         lip.position.set(0.06, 0, 0);
-        const glow = SP(0.19, M(0x9dffe9, { emissive: 0x3af0d2, emissiveIntensity: 2.1 }), 12);
-        glow.position.set(0.16, 0, 0);
-        const jawT = BX(0.5, 0.42, 0.1, M(0x2c2233));
-        jawT.position.set(0.16, 0, 0.26);
-        const jawB = BX(0.46, 0.38, 0.09, M(0x1a1420));
-        jawB.position.set(0.14, 0, -0.24);
+        const glow = SP(
+          0.24,
+          M(0xffd0e0, { emissive: 0xff2f66, emissiveIntensity: 1.9 }),
+          12,
+        );
+        glow.position.set(0.14, 0, 0);
+        const jawT = BX(0.34, 0.3, 0.14, hideD);
+        jawT.position.set(0.06, 0, 0.32);
+        const jawB = BX(0.32, 0.28, 0.13, gut);
+        jawB.position.set(0.04, 0, -0.3);
+        const teeth = [];
+        for (let i = 0; i < 13; i++) {
+          const y = -0.44 + i * 0.0733;
+          const xx = 0.16 - Math.abs(y) * 0.19;
+          const up = CY(0.052, 0.004, 0.26, tusk, 6); // upper row points DOWN into the grin
+          up.position.set(xx, y, 0.2);
+          const dn = CY(0.052, 0.004, 0.24, tusk, 6);
+          dn.rotation.x = Math.PI; // ...and the lower row points UP through it
+          dn.position.set(xx * 0.92, y * 0.96, -0.19);
+          maw.add(up, dn);
+          teeth.push(up, dn);
+        }
+        const drool = [];
+        for (let i = 0; i < 5; i++) {
+          const dl = CY(0.026, 0.011, 0.3, slimeM, 6);
+          dl.position.set(0.1, -0.34 + i * 0.17, 0.14);
+          maw.add(dl);
+          drool.push(dl);
+        }
         maw.add(lip, glow, jawT, jawB);
         g.add(maw);
+
+        // --- THE HEART CAVITY: the ONE soft spot. A spiked rim, the heart hanging in it,
+        //     and two skin flaps that sleet apart on the beast's own beat. ---
+        const chest = new THREE.Group();
+        chest.position.set(1.06, 0, 1.16);
+        const hole = SPH(0.68, M(0x1e0a16), 18, 14);
+        hole.scale.set(0.52, 0.98, 0.92);
+        chest.add(hole);
+        const spikes = new THREE.Group();
+        for (let i = 0; i < 14; i++) {
+          const a = (i / 14) * Math.PI * 2;
+          const spk = CY(0.072, 0.006, 0.36, boneM, 6);
+          spk.rotation.x = a; // every spike points IN to the gut of the cavity
+          spk.position.set(0.14, Math.cos(a) * 0.46, Math.sin(a) * 0.44);
+          spikes.add(spk);
+        }
+        chest.add(spikes);
+        const heart = new THREE.Group();
+        const heartRed = M(0xd42a2a, { emissive: 0xff3417, emissiveIntensity: 1.1 });
+        const heartDk = M(0x8c1526, { emissive: 0x94100c, emissiveIntensity: 0.7 });
+        const mass = SPH(0.27, heartRed, 16, 12);
+        mass.scale.set(0.9, 1.1, 1.3);
+        const atria = SPH(0.2, heartRed, 14, 10);
+        atria.scale.set(1.25, 0.82, 0.9);
+        atria.position.set(0.02, 0.06, 0.2);
+        const aorta = CY(0.11, 0.085, 0.32, heartDk, 8);
+        aorta.rotation.z = 0.55;
+        aorta.position.set(0.08, 0.02, 0.28);
+        const vein = CY(0.062, 0.046, 0.3, heartDk, 8);
+        vein.rotation.z = -0.95;
+        vein.position.set(-0.12, -0.05, 0.16);
+        heart.add(mass, atria, aorta, vein);
+        heart.position.set(0.1, 0, 0);
+        const aura = SP(
+          0.46,
+          M(0xffb27a, {
+            emissive: 0xff5522,
+            emissiveIntensity: 2.4,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+          }),
+          16,
+        );
+        aura.position.set(0.12, 0, 0);
+        const light = new THREE.PointLight(0xff5a2a, 0, 6.5);
+        light.position.set(0.36, 0, 0);
+        chest.add(heart, aura, light);
+        const flaps = [];
+        for (const s of [1, -1]) {
+          const flap = new THREE.Group();
+          flap.position.set(0.22, s * 0.52, 0);
+          flap.baseY = s * 0.52; // the shut line — animateNightBoss slides the lids off it
+          flap.side = s;
+          const plate = BX(0.18, 0.64, 1.06, hide);
+          plate.position.set(0, -s * 0.31, 0);
+          const seam = CY(0.06, 0.06, 1.02, sheen, 8);
+          seam.rotation.x = Math.PI / 2;
+          seam.position.set(0.02, -s * 0.6, 0);
+          flap.add(plate, seam);
+          chest.add(flap);
+          flaps.push(flap);
+        }
+        g.add(chest);
         g.userData.tent = {
           body: body,
           belly: belly,
+          mantle: neck,
           eyes: eyes,
           tentacles: tentacles,
           maw: maw,
           jawT: jawT,
           jawB: jawB,
+          teeth: teeth,
+          drool: drool,
+          drips: drips,
           glowMat: glow.material,
+          chest: chest,
+          heart: heart,
+          heartMats: [heartRed, heartDk],
+          aura: aura,
+          light: light,
+          spikes: spikes,
+          flaps: flaps,
         };
         return g;
       }
@@ -28318,8 +28564,45 @@
       // the shift opens with the rig parked 10.5u upslope of him and a clear 6.2u lane to the
       // scoop — no first-frame snap, no truck on top of him at clock-in.
       const NIGHT_END_X = 30; // the graveyard's back wall: he can't walk past the dead
+      // THE BOTTOM BORDER OF THE STREET (Midnight): the bottom cemetery fence stands where
+      // the asphalt ENDS and the graveyard grass begins — NIGHT_END_X + 8, exactly the edge
+      // of the yard slab buildNightCemetery lays, and the same line as the sealed graves gate
+      // (NIGHT_GRAVE_X - 8). It is a border, not a decoration: the worker, the horde, the
+      // lamps, the hydrants and the curb all stop at it, and everything below it is the
+      // cemetery — grass, graves and the beast's yard, not a street.
+      const NIGHT_FENCE_X = 38; // = NIGHT_END_X + 8: the edge of the yard slab, the worker's floor
+      // RESPECT FOR THE IRON (Midnight): the fence line is the border of the street and his
+      // body does NOT stand on it. The bottom fence is a bars-and-finial wall with a 0.3u
+      // concrete footing, and a body parked exactly on the line clipped the bars. So the
+      // floor of the street is this much UP-street of the iron — nightWallX answers
+      // NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF, awake and asleep alike, and every knock-back
+      // clamp stops on the same hard floor.
+      const NIGHT_FENCE_STANDOFF = 1.6;
       const NIGHT_BOSS_TRIGGER_X = 112; // step into this cross-street and the beast wakes
       const NIGHT_BOSS_X = 74; // ...and this is where it rises out of the yard
+      // ==================== THE BOSS RING (Midnight): the rig stops at the iron ==========
+      // The rig BACKS DOWN the dead-end street after the worker, and it stops at the line
+      // where the cemetery's fence row BEGINS — the near edge of the graves block
+      // (NIGHT_GRAVE_BLOCK_X + BLOCK_W = 96). From that frame the rig never crosses the line:
+      // its 4u collision nose stands fully UP-street of it and its open scoop rests 4.9u up
+      // the street, parked for the rest of the night. The moment the worker walks BELOW that
+      // line the cemetery closes behind him: a GHOSTLY WROUGHT-IRON FENCE — the very same
+      // fence recipe the graves are walled with, strung across the FULL width of the street
+      // (road, curb, walk and lawn) and drawn in cold spectral blue — rises up out of the
+      // asphalt on that exact line and he cannot walk up the street again while the beast is
+      // standing. The last fight is therefore fought in THE RING: the bottom cemetery fence
+      // (x 39.6, his floor) up to the ghost iron (x 96.6, his ceiling) — the beast's own yard,
+      // the truck parked at its top edge. Banish the beast and the ghost iron tears panel by
+      // panel and lifts off the road, the street opens back up, and he walks up to the scoop.
+      const NIGHT_SEAL_X = 80; // the seal line: where the first cemetery fence begins (the graves block's near edge = NIGHT_GRAVE_BLOCK_X + BLOCK_W)
+      const NIGHT_SEAL_STOP = 0.6; // a body-width of respect off the ghost iron (his sealed ceiling)
+      const NIGHT_TRUCK_NOSE_L = 4.0; // the rig's collision nose ahead of its centre (truck.boxL)
+      const NIGHT_SEAL_RISE_T = 0.55; // s the ghost iron takes to rise out of the asphalt
+      const NIGHT_SEAL_LINES = [
+        "THE FENCE'S UP — NO WAY BACK UP THE STREET!",
+        "IT SEALED THE STREET BEHIND ME!",
+        "ONLY THE SHOVEL OPENS THIS ONE!",
+      ];
       // MORE RING AT THE BOTTOM (Midnight): with the beast awake the worker used to be
       // pinned behind it (the beast WAS the wall at its own back, x 73.4). The last fight
       // needs street to move in: he may now walk the bottom strip — past the rise point,
@@ -28350,6 +28633,11 @@
       const NIGHT_TOP_BLOCK_IDX = LEVEL_BLOCKS.findIndex((bl) => bl.x === NIGHT_TOP_BLOCK_X);
       const NIGHT_CEMETERY_BLOCK_IDX = 0; // the LAST block on the route = block 0 = the graves
       const NIGHT_CEMETERY_NAME = "St Basuras Cemetery"; // the brass plaque on the iron fence
+      // THE PLAQUE's SPOT ON THE FENCE (Midnight): measured back (downhill) from the beast's
+      // rise point, so the board reads from the ring the fight is fought in instead of from
+      // the bottom of the street. 6u is the plaque's own half-width plus the beast's body, so
+      // the brass sits at the worker's eye line with the monster rising in front of it.
+      const NIGHT_SIGN_ON_FENCE_OFF = 6;
       // The wrought-iron fence line closing the BACK of every block on tonight's street: it
       // runs behind the front-lawn band (y 5.0..8.5), so the cul-de-sac is walled by iron the
       // way a weekday street is walled by its row of houses. The worker's clamp stops a
@@ -28382,6 +28670,29 @@
       const BOSS_FIRE_R = 1.0; // the blast radius on the worker
       const BOSS_HP_FIRE = 11; // cold fire straight through the hi-vis
       const BOSS_FIRE_LIFE = 3.4; // a fireball that misses burns out in the fog
+      // ============== THE SLUG DEMON'S HEART (the ONLY soft spot) =====================
+      // The chest is ARMOUR the whole fight: a pair of skin flaps seals a spiked cavity with
+      // the heart hanging in it. The shell CRACKS (the tell), the flaps SLEET apart and the
+      // heart hangs out beating for BOSS_HEART_OPEN_T — and a shovel that lands INSIDE that
+      // window is the ONLY thing that ever touches the bar. Anywhere else the blade skids off
+      // the hide. A wound slams the shell shut again, and every wound makes the next opening
+      // shorter and the next armour gap briefer: the worse it gets, the less room to take it.
+      const BOSS_HEART_TELEGRAPH = 0.55; // the shell cracks first — THIS is the tell
+      const BOSS_HEART_OPEN_T = 2.45; // ...and the heart stays out this long
+      const BOSS_HEART_RAGE = 0.45; // ...shrunk by this much at the bottom of the bar
+      const BOSS_HEART_OPEN_MIN = 1.15; // ...never shorter than this
+      const BOSS_HEART_CD = [2.9, 4.4]; // seconds of ARMOUR between exposures
+      const BOSS_HEART_CD_RAGE = 1.7; // ...compressed to this at the bottom of the bar
+      // THE FURY RAMP: every heart strike makes it MEANER. The ghost fire comes off the
+      // tentacle faster and in bigger volleys as the bar drains (BOSS_SHOTS → _RAGE at half
+      // → _FURY in the last third, and the gap collapses toward BOSS_FIRE_CD_FLOOR). And it
+      // only leaves its rise point once it has been hit BOSS_FURY_HITS times: until then it
+      // holds the grave and swats from where it stands — then the whole block is its run.
+      const BOSS_FURY_HITS = 3; // heart strikes before it comes off the rise point
+      const BOSS_FURY_MUL = 2.6; // fire/whip cadence multiplier at the bottom of the bar
+      const BOSS_FIRE_CD_FLOOR = 0.9; // the fastest the beast ever spits
+      const BOSS_SHOTS_FURY = 3; // THREE balls in a volley in the last third
+      const BOSS_ROAM_R = 46; // ...and it chases him this far when it is furious
       // THE ABYSS ROSTER — what haunts a BLOCK, and how thickly. The night shift's whole job
       // is banishing this pack, so the street refills ITSELF as fast as he can shovel
       // (updateNightHaunt): every number below is a PER ACTIVE BLOCK BAND quota, enforced
@@ -29139,17 +29450,17 @@
         // digs the headstones, skull piles, hands, coffins, candles and gates out too.
         const charged = shovelCharged;
         const reach = charged ? CONS_REACH : SHOVEL_REACH;
-        // THE FINAL BOSS: the shovel is the ONLY thing that touches the beast, so when the
-        // beast is inside the tool the swing is a swing ON IT — and the boss outranks the
-        // grave furniture (the beast is the fight, a headstone can wait).
+        // THE FINAL BOSS: the shovel is the ONLY thing that touches the beast, and its
+        // EXPOSED HEART is the only thing the shovel bites. So when the beast is inside the
+        // tool the swing is a swing ON IT — the shell open is a cut on the bar, the shell shut
+        // is a CLANG off the hide — and the boss outranks the grave furniture either way (the
+        // beast is the fight, a headstone can wait).
         if (bossShovelTargetable()) {
           const bd = Math.hypot(nightBoss.wx - p.wx, nightBoss.wy - p.wy);
-          if (
-            bd <= shovelToolReach(reach) + 1.15 &&
-            shovelFacingOK(nightBoss.wx, nightBoss.wy) &&
-            bossTakeShovelSwing(charged)
-          )
-            return true;
+          if (bd <= shovelToolReach(reach) + 1.15 && shovelFacingOK(nightBoss.wx, nightBoss.wy)) {
+            if (bossHeartOpen() && bossTakeShovelSwing(charged)) return true;
+            if (bossTakeArmourSwing(charged)) return true;
+          }
         }
         const hits = [];
         for (let i = 0; i < creatures.length; i++) {
@@ -29208,6 +29519,14 @@
           bossShovelHit(pend.charged);
           shovelFlinch(); // the pack recoils from the blow as much as from the light
           if (pend.charged) shovelShockwave(); // the consecrated arc goes with the blow
+          return;
+        }
+        if (pend.bossArmour) {
+          // THE FRAME THE SWING LANDS ON THE HIDE: the shell was shut. Steel skids off,
+          // the bar does NOT move, and the beast answers with the arm it has loaded.
+          bossArmourBite();
+          shovelFlinch();
+          if (pend.charged) shovelShockwave();
           return;
         }
         if (pend.spooks) {
@@ -31513,9 +31832,39 @@
       ];
       const BOSS_HIT_LINES = [
         "SHOVEL IT! SHOVEL IT!",
-        "ONE EYE LESS! ONE EYE LESS!",
-        "THAT'S THE TENTACLE, THAT IS!",
+        "THE HEART! IT TOOK THE HEART!",
+        "THAT'S A WOUND, THAT IS!",
         "FAT! IT'S REAL FAT!",
+      ];
+      // THE HEART WINDOW: the crack is the tell, the opening is the ONLY bite, and the
+      // armour line is what a swing on the hide gets paid with.
+      const BOSS_CRACK_LINES = [
+        "UUBRRRAAH... THE SHELL...!",
+        "IT'S CRACKIN' OPEN...",
+        "NO! NOT THE GUT! NOT YET!",
+      ];
+      const BOSS_HEART_LINES = [
+        "MY HEART! SHUT IT! SHUT IT!",
+        "THE HEART'S OUT! HE'LL HAVE IT!",
+        "EEEEOOW! THE GUT'S OPEN!",
+      ];
+      const BOSS_ARMOUR_LINES = [
+        "THE HIDE IS ARMOUR! THE HEART'S THE MARK!",
+        "SKID OFF, SAN MAN! SKID OFF!",
+        "YOU CAN'T SHOVEL A WALL!",
+        "WATCH THE CHEST! THE CHEST!",
+      ];
+      const BOSS_ROAM_LINES = [
+        "I'LL WALK THIS BLOCK! I'LL WALK IT!",
+        "NO MORE GRAVE FOR ME! NONE!",
+        "RUN, SAN MAN! RUN AN' BE CHACED!",
+      ];
+      // SPECTRAL FIRE (the grave-fire colours off the tentacle hooks): cold mint, rot violet
+      // and burning amber — the same fires riding the same beast. [halo, core, emissive]
+      const BOSS_FIRE_TINTS = [
+        [0x9dffe9, 0xbfffe0, 0x2affc0],
+        [0xd7a8ff, 0xbb8cf8, 0x8f2fd6],
+        [0xffc07a, 0xff9a3d, 0xff6a12],
       ];
       const BOSS_DYING_LINES = ["THE TRUCK! NO! THE TRUCK!", "I DON' WANNA BE GARBAGE!"];
       const BOSS_WIN_LINES = [
@@ -31544,6 +31893,14 @@
           hooked: false,
           invulnT: 0,
           rage: 0,
+          fury: 0, // 1 once it has taken BOSS_FURY_HITS heart strikes: off the rise point
+          hits: 0, // ...and the strikes it has taken (the fury ramp counts them)
+          heartState: "shut", // shut -> crack (the tell) -> open (the ONLY bite window)
+          heartT: 2.2, // the first opening comes quick: the player learns the window
+          heartOpen: 0, // 0..1 sleet of the flaps, driven by animateNightBoss
+          armCharge: 0, // the tentacle arm currently wheeling the ghost fire
+          armSide: 1, // ...which arm that is (RIGHT, LEFT, ALTERNATE)
+          shotIdx: 0, // the spectral fire colour rotator
           phase: R(0, 6),
           riseT: 0,
           whipT: R(BOSS_WHIP_CD[0], BOSS_WHIP_CD[1]) + 1.2,
@@ -31571,12 +31928,14 @@
         bossWin = false;
         bossWinT = 0;
         bossGargoyle = null;
+        nightSealClear(); // a fresh shift: the ring's ghost iron goes with the beast
         if (typeof $ === "function") {
           const bar = $("boss-goal");
           if (bar) {
             bar.classList.add("hidden");
             bar.classList.remove("low");
             bar.classList.remove("boom");
+            bar.classList.remove("heart");
             bar._w = null;
           }
         }
@@ -31590,17 +31949,37 @@
         b.riseT = BOSS_RISE_T;
         b.whipT = R(BOSS_WHIP_CD[0], BOSS_WHIP_CD[1]) + 1.1; // it gets up, THEN swings
         b.fireT = R(BOSS_FIRE_CD[0], BOSS_FIRE_CD[1]) + 1.4;
+        // THE SHELL: shut as it comes up, and cracking open inside two heartbeats of the fight
+        b.heartState = "shut";
+        b.heartT = Math.min(b.heartT, 1.9);
+        b.heartOpen = 0;
+        b.armCharge = 0;
         b.g.visible = true;
-        announcePower("THE TENTACLE BEAST!", "pop-power");
+        nightSealArm(); // THE RING IS LIVE: the ghost iron standing on the fence line is armed
+        announcePower("THE SLUG DEMON!", "pop-power");
         SFX.playThunder(); // the ground opens
         SFX.playBansheeWail();
         spawnEctoBurst(b.wx, b.wy, 1.8);
         p.shake = Math.max(p.shake, 1.15);
         Voice.say(pick(BOSS_LINES), 3.0, 0.82, b.wx, b.wy, "neutral", "ghost");
         Voice.say(
-          "SHOVEL IT DOWN! THE SHOVEL'S ALL I'VE GOT!",
-          2.8,
+          "THE SHOVEL ONLY BITES THE HEART! WATCH THE CHEST!",
+          2.9,
           1.1,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
+        // THE RING: say what just closed behind him, so the player knows the fight is down
+        // here with the rig parked at the iron and no running back up the street.
+        Voice.say(
+          nightSealClosed()
+            ? "THE GHOST FENCE SHUT THE STREET — WE FIGHT IT IN THE YARD!"
+            : "WALK THE STREET DOWN TO THE FENCE — IT CLOSES BEHIND YOU!",
+          3.0,
+          1.08,
           p.wx,
           p.wy,
           WORKER_GENDER,
@@ -31610,44 +31989,50 @@
       }
       // GHOST FIRE — the beast's ranged attack: a ball of cold grave fire that flies at
       // the worker and bursts on him, or burns out in the fog.
-      function spawnBossFireball(b, spread) {
-        const g = new THREE.Group();
-        const coreM = M(0xbfffe0, { emissive: 0x36f7c8, emissiveIntensity: 2.4 });
-        g.add(SP(0.26, coreM, 12));
-        g.add(
-          SP(
-            0.44,
-            M(0x9dffe9, {
-              emissive: 0x2affc0,
-              emissiveIntensity: 1.5,
-              transparent: true,
-              opacity: 0.4,
-              depthWrite: false,
-            }),
-            12,
-          ),
-        );
-        dynamicGroup.add(g);
-        const dx = p.wx - b.wx,
-          dy = p.wy - b.wy;
-        const d = Math.hypot(dx, dy) || 1;
-        const nx = dx / d,
-          ny = dy / d;
-        const st = {
-          g: g,
-          coreM: coreM,
-          wx: b.wx + nx * 1.2,
-          wy: b.wy + ny * 1.2,
-          z: GZ + 1.15,
-          vx: nx * BOSS_FIRE_SP + ny * spread,
-          vy: ny * BOSS_FIRE_SP - nx * spread,
-          vz: 0.4,
-          life: BOSS_FIRE_LIFE,
-          trail: 0,
-        };
-        g.position.set(st.wx, st.wy, st.z);
-        bossFireballs.push(st);
-      }
+      function spawnBossFireball(b, spread, side) {
+  const g = new THREE.Group();
+  // SPECTRAL FIRE in the grave-fire colours of the beast: cold mint, rot violet and a
+  // burning amber, one ball cycling off the next so a volley reads as a fan of fire.
+  b.shotIdx = (b.shotIdx + 1) % BOSS_FIRE_TINTS.length;
+  const tint = BOSS_FIRE_TINTS[b.shotIdx];
+  const coreM = M(tint[1], { emissive: tint[2], emissiveIntensity: 2.4 });
+  g.add(SP(0.26, coreM, 12));
+  g.add(
+    SP(
+      0.44,
+      M(tint[0], {
+        emissive: tint[2],
+        emissiveIntensity: 1.5,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false,
+      }),
+      12,
+    ),
+  );
+  dynamicGroup.add(g);
+  // THE MUZZLE IS THE TENTACLE TIP: the ball comes off the hook of the arm it lifted.
+  const muz = bossArmMuzzle(b, side);
+  const dx = p.wx - muz.wx,
+    dy = p.wy - muz.wy;
+  const d = Math.hypot(dx, dy) || 1;
+  const nx = dx / d,
+    ny = dy / d;
+  const st = {
+    g: g,
+    coreM: coreM,
+    wx: muz.wx + nx * 1.2,
+    wy: muz.wy + ny * 1.2,
+    z: GZ + 1.9,
+    vx: nx * BOSS_FIRE_SP + ny * spread,
+    vy: ny * BOSS_FIRE_SP - nx * spread,
+    vz: 0.4,
+    life: BOSS_FIRE_LIFE,
+    trail: 0,
+  };
+  g.position.set(st.wx, st.wy, st.z);
+  bossFireballs.push(st);
+}
       function killBossFireball(f, hard) {
         if (f.g.parent) f.g.parent.remove(f.g);
         disposeObj(f.g);
@@ -31680,8 +32065,8 @@
             const kd = Math.hypot(p.wx - f.wx, p.wy - f.wy) || 1;
             p.wx = clamp(
               p.wx + ((p.wx - f.wx) / kd) * 1.8,
-              workerEndLimitX() - 2,
-              workerTopLimitX() + 2,
+              workerEndHardX(),
+              workerCeilX() + 2,
             );
             p.wy = clamp(p.wy + ((p.wy - f.wy) / kd) * 1.4, -9.4, workerMaxY());
             p.shake = Math.max(p.shake, 0.7);
@@ -31703,7 +32088,7 @@
           if (
             f.life <= 0 ||
             f.wx < workerEndLimitX() - 10 ||
-            f.wx > workerTopLimitX() + 8
+            f.wx > workerCeilX() + 8
           ) {
             killBossFireball(f, false);
             bossFireballs.splice(i, 1);
@@ -31726,8 +32111,8 @@
         p.nightHitT = NIGHT_HIT_GRACE;
         p.wx = clamp(
           p.wx + (kx / d) * 2.4,
-          workerEndLimitX() - 2,
-          workerTopLimitX() + 2,
+          workerEndHardX(),
+          workerCeilX() + 2,
         );
         p.wy = clamp(p.wy + (ky / d) * 2.0, -9.4, workerMaxY());
         p.shake = Math.max(p.shake, 0.9);
@@ -31745,10 +32130,59 @@
           );
         return true;
       }
-      // THE SHOVEL ON THE BEAST. The blade is the ONLY thing that touches it, one swing
-      // lands on the boss, a consecrated swing lands DOUBLE, and the boss is invulnerable
-      // for BOSS_INVULN_T after a hit (a charged blast can't chew through two at once).
+      // ============ THE HEART WINDOW (the ONLY thing the shovel ever lands on) ============
+      // The hide is ARMOUR. FURY is the fraction of the bar the beast has lost: the ghost-fire
+      // gap, the volley size, the whips, the heart window and the heart gap all ride on it, and
+      // the beast only comes off its rise point once the blade has taken the heart
+      // BOSS_FURY_HITS times. A swing anywhere but on the exposed heart is a CLANG.
+      function bossFuryOf(b) {
+        if (!b || !b.maxHp) return 0;
+        return clamp(1 - b.hp / b.maxHp, 0, 1);
+      }
+      function bossIsFurious(b) {
+        return !!b && b.awake && !b.hooked && b.hp > 0 && b.hits >= BOSS_FURY_HITS;
+      }
+      function bossHeartOpen() {
+        const b = nightBoss;
+        return !!b && b.awake && !b.hooked && b.hp > 0 && b.heartState === "open";
+      }
+      function bossHeartOpenT(b) {
+        return Math.max(
+          BOSS_HEART_OPEN_MIN,
+          BOSS_HEART_OPEN_T * (1 - BOSS_HEART_RAGE * bossFuryOf(b)),
+        );
+      }
+      function bossHeartCloseT(b) {
+        const f = bossFuryOf(b); // the worse it is, the shorter the armour lasts
+        return R(
+          BOSS_HEART_CD_RAGE + (BOSS_HEART_CD[0] - BOSS_HEART_CD_RAGE) * (1 - f),
+          BOSS_HEART_CD[1] * (1 - f * 0.4),
+        );
+      }
+      function bossFireShots(b) {
+        if (bossFuryOf(b) >= 0.66) return BOSS_SHOTS_FURY; // the last third: THREE
+        if (b && b.rage) return BOSS_SHOTS_RAGE; // ...half the bar: TWO
+        return BOSS_SHOTS; // ...and ONE on a full bar
+      }
+      function bossFireGap(b) {
+        return Math.max(
+          BOSS_FIRE_CD_FLOOR,
+          R(BOSS_FIRE_CD[0], BOSS_FIRE_CD[1]) / (1 + bossFuryOf(b) * BOSS_FURY_MUL),
+        );
+      }
+      // The tentacle hook it hurls the fire from: the tip in world space, on the arm it lifted.
+      function bossArmMuzzle(b, side) {
+        const fx = Math.cos(b.facing),
+          fy = Math.sin(b.facing);
+        const s = side === -1 ? -1 : 1;
+        return { wx: b.wx + fx * 0.8 - fy * s * 1.05, wy: b.wy + fy * 0.8 + fx * s * 1.05 };
+      }
+      // THE SHOVEL ON THE HEART. The blade is the ONLY thing that touches the beast and the
+      // heart is the ONLY thing it bites: one open-heart swing lands BOSS_DMG, a consecrated
+      // swing lands DOUBLE, and the beast is invulnerable for BOSS_INVULN_T after a hit (a
+      // charged blast can't chew through two at once). With the shell shut it is ARMOUR.
       function bossShovelTargetable() {
+
         const b = nightBoss;
         return !!b && b.awake && !b.hooked && b.hp > 0;
       }
@@ -31758,6 +32192,7 @@
       function bossTakeShovelSwing(charged) {
         const b = nightBoss;
         if (!bossShovelTargetable()) return false;
+        if (!bossHeartOpen()) return false; // the shell is SHUT — that swing is armour
         const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
         if (d > bossShovelRange()) return false;
         if (!shovelFacingOK(b.wx, b.wy)) return false; // the beast has to be IN his arc
@@ -31773,19 +32208,60 @@
         SFX.playSwoosh();
         return true;
       }
+      // THE ARMOUR SWING: the blade comes down on the hide while the shell is shut. The swing
+      // is SPENT, the bar never moves, and the worker hears exactly why — the ONLY cut in this
+      // fight is the shovel on the exposed heart.
+      function bossTakeArmourSwing(charged) {
+        const b = nightBoss;
+        if (!bossShovelTargetable()) return false;
+        if (bossHeartOpen()) return false; // the heart IS open — this is a real bite
+        const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
+        if (d > bossShovelRange()) return false;
+        if (!shovelFacingOK(b.wx, b.wy)) return false;
+        b.facing = (p.facing || 0) + Math.PI; // ...and it turns its face INTO the blow
+        p.shovelT = SHOVEL_SWING_DUR;
+        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;
+        p.shovelCd = SHOVEL_COOLDOWN;
+        shovelCharged = false;
+        shovelArm = 0;
+        pendingStrike = { bossArmour: true, charged: charged, d: d };
+        SFX.playSwoosh();
+        return true;
+      }
+      function bossArmourBite() {
+        const b = nightBoss;
+        if (!b || b.hooked || b.hp <= 0) return;
+        b.hurtT = Math.max(b.hurtT || 0, 0.22); // it hardly feels it
+        b.whipT = Math.min(b.whipT, 0.7); // ...and it comes straight back, swinging
+        p.shake = Math.max(p.shake, 0.5);
+        SFX.playCanDropSound(); // STEEL SKIDDING OFF THE HIDE
+        SFX.playSquelch();
+        spawnEctoSplat(b.wx, b.wy, 0.4);
+        const line = pick(BOSS_ARMOUR_LINES);
+        if (nightBubbleOk(line, "worker"))
+          Voice.say(line, 2.2, 1.12, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+      }
       function bossShovelHit(charged) {
         const b = nightBoss;
         if (!b || b.hooked || b.hp <= 0 || b.invulnT > 0) return;
         const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
         if (d > bossShovelRange() + 1.2) return; // it moved out of the arc in the wind-up
         if (!shovelFacingOK(b.wx, b.wy)) return; // ...or he turned away from it
+        if (!bossHeartOpen()) {
+          bossArmourBite(); // the shell slid shut during the swing: a CLANG, not a cut
+          return;
+        }
+        b.hits++; // THE HEART HAS BEEN TAKEN — the fury ramp steps up on this
         b.hp = Math.max(0, b.hp - (charged ? BOSS_DMG_CONS : BOSS_DMG));
         b.invulnT = BOSS_INVULN_T; // the blade has to come around again
         b.hurtT = 0.5; // the flinch pose
         b.whipState = "idle"; // a hit on the wind cuts the lash off
         b.whipT = Math.max(0.4, b.whipT);
+        // THE SHELL SLAMS SHUT ON THE WOUND: the next opening is the next chance.
+        b.heartState = "shut";
+        b.heartT = bossHeartCloseT(b);
         p.shake = Math.max(p.shake, 0.85);
-        SFX.playBeastSting(); // the STING of a shovel landing on nine eyes at once
+        SFX.playBeastSting(); // the STING of a shovel landing in the open cavity
         SFX.playSquelch();
         spawnEctoBurst(b.wx, b.wy, 0.75);
         addScore(BOSS_POINTS, true);
@@ -31809,7 +32285,7 @@
           return;
         }
         if (!b.rage && bossAngryTarget(b)) {
-          b.rage = 1; // HALF THE BAR: fireballs in PAIRS, a harder lunge
+          b.rage = 1; // HALF THE BAR: fireballs in PAIRS, a harder run
           if (nightPopOk()) announcePower("THE BEAST IS ANGRY!", "pop-power");
           Voice.say(
             "IT'S GETTING MEAN! SHOVEL FASTER!",
@@ -31820,6 +32296,21 @@
             WORKER_GENDER,
             "worker",
             "burst",
+          );
+        }
+        // THE FURY: the heart strikes it has taken past BOSS_FURY_HITS and it is OFF THE
+        // RISE POINT — the whole block is its run now, and the fire never lets up.
+        if (!b.fury && b.hits >= BOSS_FURY_HITS) {
+          b.fury = 1;
+          if (nightPopOk()) announcePower("THE BEAST IS LOOSE ON THE BLOCK!", "pop-power");
+          Voice.say(
+            pick(BOSS_ROAM_LINES),
+            2.8,
+            0.9,
+            b.wx,
+            b.wy,
+            "neutral",
+            "ghost",
           );
         }
       }
@@ -31861,6 +32352,7 @@
         SFX.playHopperJingle();
         nightBoss = null;
         spawnBossGargoyle();
+        nightSealDrop(); // THE RING OPENS: the ghost iron tears down and the street is his again
       }
       // THE TREASURE: the Ruby-Plated Gargoyle, dropped onto the grave-yard grass.
       function spawnBossGargoyle() {
@@ -31946,174 +32438,266 @@
       // THE RIG: eyes scanning on their own axes, tentacles waving (and LASHING), the maw
       // opening on the ghost fire, the body swelling, the flinch when the blade lands.
       function animateNightBoss(b, dt, mode) {
-        const t = b.g && b.g.userData ? b.g.userData.tent : null;
-        if (!t) return;
-        b.phase += dt;
-        const fast = mode === "fight" ? 1 : 0.45;
-        const rageOn = b.rage ? 1.35 : 1;
-        for (let i = 0; i < t.eyes.length; i++) {
-          // NINE eyes, every one scanning its own direction on its own beat
-          t.eyes[i].rotation.x = Math.sin(b.phase * (1.5 + i * 0.21) * rageOn + i) * 0.5;
-          t.eyes[i].rotation.y = 1.0 + Math.sin(b.phase * (0.8 + i * 0.27) + i * 2) * 0.55;
-        }
-        for (let i = 0; i < t.tentacles.length; i++) {
-          const tn = t.tentacles[i];
-          const mine = b.whipState !== "idle" && i % 2 === b.whipSide;
-          if (mine && b.whipState === "lash") {
-            // THE WHIP: the whole arm comes down through the arc in one beat
-            tn.sh.rotation.z = 0.95 - b.whipSwing * 1.75;
-            tn.j1.rotation.x = 0.55 - b.whipSwing * 1.25;
-            tn.j2.rotation.x = 0.42 - b.whipSwing * 0.95;
-            continue;
-          }
-          const amp = 0.34 * fast;
-          tn.sh.rotation.z +=
-            (0.35 + (mine ? 0.85 : 0) - tn.sh.rotation.z) * Math.min(1, dt * 8);
-          tn.j1.rotation.x +=
-            (Math.sin(b.phase * (2.6 + i * 0.6) * rageOn + i) * amp - tn.j1.rotation.x) *
-            Math.min(1, dt * 7);
-          tn.j2.rotation.x +=
-            (Math.sin(b.phase * (3.3 + i * 0.5) * rageOn + i * 1.7) * amp * 1.2 -
-              tn.j2.rotation.x) *
-            Math.min(1, dt * 7);
-        }
-        // the maw: it opens on the ghost fire and snaps shut after
-        b.mawOpen = Math.max(0, b.mawOpen - dt * 2.6);
-        t.jawT.rotation.x = 0.12 + b.mawOpen * 0.9;
-        t.jawB.rotation.x = -0.1 - b.mawOpen * 0.7;
-        if (t.glowMat) t.glowMat.emissiveIntensity = 0.7 + b.mawOpen * 2.4;
-        // the body: it breathes, and it FLINCHES back on a shovel hit
-        const breathe = 1 + Math.sin(b.phase * 1.9) * 0.035;
-        const flinch = b.hurtT > 0 ? b.hurtT / 0.5 : 0;
-        t.body.scale.set(1.22 * breathe, 1.0 * breathe, 1.02 * breathe);
-        b.g.rotation.x = flinch * -0.16;
-        // THE BAR, ON THE BEAST: every lost eye goes dark, so the bar reads on the rig
-        const lit = Math.max(0, Math.ceil((b.hp / b.maxHp) * t.eyes.length));
-        for (let i = 0; i < t.eyes.length; i++) t.eyes[i].visible = i < lit;
-        if (b.hurtT > 0) b.hurtT = Math.max(0, b.hurtT - dt);
+  const t = b.g && b.g.userData ? b.g.userData.tent : null;
+  if (!t) return;
+  b.phase += dt;
+  const fast = mode === "fight" ? 1 : 0.45;
+  const fury = bossFuryOf(b);
+  const rageOn = 1 + fury * 1.1;
+  for (let i = 0; i < t.eyes.length; i++) {
+    // NINE eyes, every one scanning its own direction on its own beat
+    t.eyes[i].rotation.x = Math.sin(b.phase * (1.5 + i * 0.21) * rageOn + i) * 0.5;
+    t.eyes[i].rotation.y = 1.0 + Math.sin(b.phase * (0.8 + i * 0.27) + i * 2) * 0.55;
+  }
+  // THE TWO TENTACLE ARMS: the LASH comes down through the arc, the FIRE arm rears up
+  // and wheels its hook over the cold grave fire, the idle arm keeps a slow wet sway.
+  const lashArm = b.whipState !== "idle" ? (b.whipSide === 1 ? 0 : 1) : -1;
+  const fireArm = b.armCharge > 0.02 ? (b.armSide === 1 ? 0 : 1) : -1;
+  for (let i = 0; i < t.tentacles.length; i++) {
+    const tn = t.tentacles[i];
+    if (i === lashArm && b.whipState === "lash") {
+      // THE WHIP: the whole arm comes down through the arc in one beat
+      tn.sh.rotation.z = 0.95 - b.whipSwing * 1.75;
+      tn.j1.rotation.x = 0.55 - b.whipSwing * 1.25;
+      tn.j2.rotation.x = 0.42 - b.whipSwing * 0.95;
+      continue;
+    }
+    if (i === fireArm) {
+      // THE CURL: the arm lifts high and swirls the hook — the fire comes OFF THE TIP
+      tn.sh.rotation.z += (1.32 - tn.sh.rotation.z) * Math.min(1, dt * 9);
+      tn.sh.rotation.y += (tn.side * 0.22 - tn.sh.rotation.y) * Math.min(1, dt * 7);
+      tn.j1.rotation.x = Math.sin(b.phase * (6.2 + fury * 3)) * 0.6;
+      tn.j2.rotation.x = Math.sin(b.phase * (7.4 + fury * 3) + 1.2) * 0.75;
+      if (tn.flame) {
+        tn.flame.visible = true;
+        tn.flame.scale.setScalar(0.55 + b.armCharge * 0.8);
+        tn.flame.material.opacity = 0.3 + b.armCharge * 0.55;
       }
+      continue;
+    }
+    const amp = 0.34 * fast;
+    tn.sh.rotation.z += (0.35 - tn.sh.rotation.z) * Math.min(1, dt * 8);
+    tn.j1.rotation.x +=
+      (Math.sin(b.phase * (2.6 + i * 0.6) * rageOn + i) * amp - tn.j1.rotation.x) *
+      Math.min(1, dt * 7);
+    tn.j2.rotation.x +=
+      (Math.sin(b.phase * (3.3 + i * 0.5) * rageOn + i * 1.7) * amp * 1.2 -
+        tn.j2.rotation.x) *
+      Math.min(1, dt * 7);
+    if (tn.flame && tn.flame.visible) {
+      const o = tn.flame.material.opacity - dt * 2.2;
+      if (o <= 0.02) {
+        tn.flame.visible = false;
+        tn.flame.material.opacity = 0;
+      } else tn.flame.material.opacity = o;
+    }
+  }
+  // the maw: the grin TEARS open on the ghost fire, teeth and all
+  b.mawOpen = Math.max(0, b.mawOpen - dt * 2.6);
+  t.jawT.rotation.x = 0.12 + b.mawOpen * 0.9;
+  t.jawB.rotation.x = -0.1 - b.mawOpen * 0.7;
+  if (t.glowMat) t.glowMat.emissiveIntensity = 0.7 + b.mawOpen * 2.4;
+  for (let i = 0; i < t.teeth.length; i++)
+    t.teeth[i].scale.y = 1 + b.mawOpen * 0.2 + (i % 2 ? 0.05 : -0.05) * Math.sin(b.phase * 3.1 + i);
+  for (let i = 0; i < t.drool.length; i++)
+    t.drool[i].scale.y = 1 + Math.sin(b.phase * 1.4 + i) * 0.22;
+  for (let i = 0; i < t.drips.length; i++)
+    t.drips[i].scale.y = 1 + Math.sin(b.phase * 1.1 + i * 1.7) * 0.36;
+  // THE HEART: the flaps SLEET apart, the cavity flushes, the heart beats faster the
+  // meaner it gets — and the open window is the ONLY time the blade ever bites.
+  const op = clamp(b.heartOpen || 0, 0, 1);
+  for (let i = 0; i < t.flaps.length; i++) {
+    const fl = t.flaps[i];
+    const s = fl.side || 1;
+    fl.position.y = (fl.baseY || 0) + s * op * 0.78;
+    fl.rotation.x = -s * op * 0.34;
+  }
+  const thump = Math.sin(b.phase * (6.4 + fury * 6));
+  const beat = 1 + thump * 0.14;
+  t.heart.scale.set(beat, beat * 1.06, beat);
+  t.aura.material.opacity = 0.08 + op * 0.5;
+  t.aura.material.emissiveIntensity = 0.5 + op * 2.6;
+  t.aura.scale.setScalar(0.82 + op * 0.4 + beat * 0.1);
+  t.light.intensity = op * 2.6;
+  t.spikes.rotation.x = op * 0.55;
+  for (let i = 0; i < t.heartMats.length; i++)
+    t.heartMats[i].emissiveIntensity = 0.75 + op * 1.9 + thump * 0.25;
+  // the body: it breathes, and it FLINCHES back on a shovel hit
+  const breathe = 1 + Math.sin(b.phase * 1.9) * 0.035;
+  const flinch = b.hurtT > 0 ? b.hurtT / 0.5 : 0;
+  t.body.scale.set(1.64 * breathe, 1.18 * breathe, 1.12 * breathe);
+  b.g.rotation.x = flinch * -0.1;
+  // THE BAR, ON THE BEAST: every lost eye goes dark, so the bar reads on the rig
+  const lit = Math.max(0, Math.ceil((b.hp / b.maxHp) * t.eyes.length));
+  for (let i = 0; i < t.eyes.length; i++) t.eyes[i].visible = i < lit;
+  if (b.hurtT > 0) b.hurtT = Math.max(0, b.hurtT - dt);
+}
       // THE FIGHT, per frame: waking, rising, lunging, lashing, spitting, and the suction.
       function updateNightBoss(b, dt) {
-        // ---- the kill ride: the whole beast goes INTO THE HOPPER ----
-        if (b.hooked) {
-          b.suckT += dt;
-          const k = Math.min(1, b.suckT / BOSS_SUCTION_T);
-          const tx = hopperAimX(),
-            ty = hopperWorldY(),
-            tz = hopperTopZ() + 0.3;
-          b.wx = b.fx0 + (tx - b.fx0) * k;
-          b.wy = b.fy0 + (ty - b.fy0) * k;
-          const arc = Math.sin(k * Math.PI) * 1.5;
-          b.g.position.set(b.wx, b.wy, b.fz0 + (tz - b.fz0) * k + arc);
-          b.g.rotation.x += dt * (4 + k * 16); // tumbling head over heels
-          b.g.rotation.z += dt * (3 + k * 12);
-          b.g.scale.setScalar(Math.max(0.12, 1 - k * 0.88)); // ...and it is drawn IN
-          if (Math.random() < dt * 20) spawnEctoBurst(b.wx, b.wy, 1.05);
-          if (Math.random() < dt * 3)
-            Voice.say(pick(BOSS_DYING_LINES), 2.2, 0.9, b.wx, b.wy, "neutral", "ghost");
-          if (k >= 1) bossLandedInHopper(b);
-          return;
-        }
-        const dx = p.wx - b.wx,
-          dy = p.wy - b.wy;
-        const d = Math.hypot(dx, dy) || 0.001;
-        if (b.invulnT > 0) b.invulnT = Math.max(0, b.invulnT - dt);
-        if (bossAngryTarget(b)) b.rage = 1; // HALF THE BAR: pairs of fire, a harder lunge
-        // ---- rising out of the grave yard ----
-        if (b.riseT > 0) {
-          b.riseT = Math.max(0, b.riseT - dt);
-          const k = 1 - b.riseT / BOSS_RISE_T; // 0..1: it climbs up out of the ground
-          b.g.visible = true;
-          b.g.position.set(b.wx, b.wy, GZ - 1.95 + k * 1.95);
-          b.g.scale.setScalar(Math.max(0.12, k)); // and it swells as it comes
-          b.g.rotation.z = Math.atan2(dy, dx);
-          animateNightBoss(b, dt, "calm");
-          if (Math.random() < dt * 12) {
-            const sxp = b.wx + R(-1.2, 1.2);
-            const syp = b.wy + R(-1.2, 1.2);
-            spawnEctoSplat(sxp, syp, 0.5);
-          }
-          if (b.riseT <= 0 && nightPopOk()) announcePower("THE BEAST IS UP!", "pop-power");
-          return;
-        }
-        b.g.scale.setScalar(1); // it is fully up: full size from here on
-        // ---- LUNGE: it comes at the worker, and it does not leave its graveyard ----
-        const rageOn = b.rage ? 1 : 0;
-        const lungeSp = rageOn ? BOSS_LUNGE_SP_RAGE : BOSS_LUNGE_SP;
-        if (d > 2.6 && d < BOSS_SEE_R) {
-          b.wx += (dx / d) * lungeSp * dt;
-          b.wy += (dy / d) * lungeSp * 0.8 * dt;
-        } else if (d <= 2.6) {
-          b.wx -= (dx / d) * lungeSp * 0.42 * dt; // it crowds him, then eases off
-          b.wy -= (dy / d) * lungeSp * 0.3 * dt;
-        }
-        // ...it keeps the yard it lives in: it will not chase him up out of the cemetery
-        b.wx = clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_BOSS_TRIGGER_X + 8);
-        b.wy = clamp(b.wy, -7.4, 6.2);
-        b.facing = Math.atan2(dy, dx);
-        // ---- THE WHIP: idle -> wind (the telegraph) -> lash -> idle ----
-        b.whipT -= dt;
-        if (b.whipState === "idle") {
-          if (b.whipT <= 0 && d < BOSS_WHIP_R + 2.2) {
-            b.whipState = "wind";
-            b.whipT = BOSS_WHIP_TELEGRAPH;
-            b.whipSide = 1 - b.whipSide; // RIGHT, LEFT, ALTERNATE — that is the tell
-            b.whipSwing = 0;
-            SFX.playZombieGroan();
-            spawnEctoSplat(b.wx + (dx / d) * 3.4, b.wy + (dy / d) * 3.4, 0.42); // the line it loads
-          }
-        } else if (b.whipState === "wind" && b.whipT <= 0) {
-          b.whipState = "lash";
-          b.whipT = BOSS_WHIP_STRIKE;
-          b.whipSwing = 0;
-          SFX.playSwoosh();
-          bossWhipStrike(b); // the catch resolves on the frame the lash goes through
-        } else if (b.whipState === "lash") {
-          b.whipSwing = Math.min(1, b.whipSwing + dt / BOSS_WHIP_STRIKE);
-          if (b.whipT <= 0) {
-            b.whipState = "idle";
-            b.whipT = R(BOSS_WHIP_CD[0], BOSS_WHIP_CD[1]) / (b.rage ? 1.5 : 1);
-          }
-        }
-        // ---- THE GHOST FIRE: ONE ball, TWO in PAIRS once the bar is at half ----
-        b.fireT -= dt;
-        if (b.fireT <= 0) {
-          const shots = b.rage ? BOSS_SHOTS_RAGE : BOSS_SHOTS;
-          for (let s = 0; s < shots; s++) spawnBossFireball(b, s === 0 ? 0 : s % 2 ? 2.6 : -2.6);
-          b.mawOpen = 1;
-          b.fireT = R(BOSS_FIRE_CD[0], BOSS_FIRE_CD[1]) / (b.rage ? 1.5 : 1);
-          SFX.playGustSound(); // the cold sigh of the grave fire leaving the maw
-          SFX.playSqueal();
-          if (nightSayOk())
-            Voice.say(pick(BOSS_FIRE_LINES), 2.5, 0.95, b.wx, b.wy, "neutral", "ghost");
-        }
-        // ---- THE BODY IS SOLID: it crowds him into the headstones ----
-        if (d < BOSS_BODY_R + 0.6) {
-          const nx = dx / d,
-            ny = dy / d;
-          p.wx += nx * (BOSS_BODY_R + 0.6 - d);
-          p.wy = clamp(p.wy + ny * (BOSS_BODY_R + 0.6 - d), -9.4, workerMaxY());
-          if (b.bodyCd <= 0 && (p.nightHitT || 0) <= 0) {
-            b.bodyCd = BOSS_BODY_CD;
-            hurtNPC(BOSS_HP_BODY, "beast", true, false);
-            doStun(HORROR_STUN_T, "scare");
-            p.nightHitT = NIGHT_HIT_GRACE;
-          }
-        }
-        if (b.bodyCd > 0) b.bodyCd = Math.max(0, b.bodyCd - dt);
-        // ---- rig ----
-        b.g.visible = true;
-        b.g.position.set(b.wx, b.wy, GZ + Math.sin(b.phase * 2.1) * 0.06);
-        b.g.rotation.z = b.facing;
-        animateNightBoss(b, dt, "fight");
-        if (Math.random() < dt * 1.4)
-          Voice.say(pick(BOSS_LINES), 2.7, 0.92, b.wx, b.wy, "neutral", "ghost");
-      }
+  // ---- the kill ride: the whole beast goes INTO THE HOPPER ----
+  if (b.hooked) {
+    b.suckT += dt;
+    const k = Math.min(1, b.suckT / BOSS_SUCTION_T);
+    const tx = hopperAimX(),
+      ty = hopperWorldY(),
+      tz = hopperTopZ() + 0.3;
+    b.wx = b.fx0 + (tx - b.fx0) * k;
+    b.wy = b.fy0 + (ty - b.fy0) * k;
+    const arc = Math.sin(k * Math.PI) * 1.5;
+    b.g.position.set(b.wx, b.wy, b.fz0 + (tz - b.fz0) * k + arc);
+    b.g.rotation.x += dt * (4 + k * 16); // tumbling head over heels
+    b.g.rotation.z += dt * (3 + k * 12);
+    b.g.scale.setScalar(Math.max(0.12, 1 - k * 0.88)); // ...and it is drawn IN
+    if (Math.random() < dt * 20) spawnEctoBurst(b.wx, b.wy, 1.05);
+    if (Math.random() < dt * 3)
+      Voice.say(pick(BOSS_DYING_LINES), 2.2, 0.9, b.wx, b.wy, "neutral", "ghost");
+    if (k >= 1) bossLandedInHopper(b);
+    return;
+  }
+  const dx = p.wx - b.wx,
+    dy = p.wy - b.wy;
+  const d = Math.hypot(dx, dy) || 0.001;
+  if (b.invulnT > 0) b.invulnT = Math.max(0, b.invulnT - dt);
+  if (bossAngryTarget(b)) b.rage = 1; // HALF THE BAR: pairs of fire, a harder run
+  const fury = bossFuryOf(b); // the anger RAMP: 0 on a full bar, 1 on the last heart
+  // ---- rising out of the grave yard ----
+  if (b.riseT > 0) {
+    b.riseT = Math.max(0, b.riseT - dt);
+    const k = 1 - b.riseT / BOSS_RISE_T; // 0..1: it climbs up out of the ground
+    b.g.visible = true;
+    b.g.position.set(b.wx, b.wy, GZ - 1.95 + k * 1.95);
+    b.g.scale.setScalar(Math.max(0.12, k)); // and it swells as it comes
+    b.g.rotation.z = Math.atan2(dy, dx);
+    animateNightBoss(b, dt, "calm");
+    if (Math.random() < dt * 12) {
+      const sxp = b.wx + R(-1.2, 1.2);
+      const syp = b.wy + R(-1.2, 1.2);
+      spawnEctoSplat(sxp, syp, 0.5);
+    }
+    if (b.riseT <= 0 && nightPopOk()) announcePower("THE BEAST IS UP!", "pop-power");
+    return;
+  }
+  b.g.scale.setScalar(1); // it is fully up: full size from here on
+  // ---- THE HEART WINDOW: shut -> CRACK (the tell) -> OPEN (the ONLY bite) ----
+  b.heartT -= dt;
+  if (b.heartState === "shut") {
+    if (b.heartT <= 0) {
+      b.heartState = "crack";
+      b.heartT = BOSS_HEART_TELEGRAPH;
+      SFX.playZombieGrab(); // the wet tear of the chest shell splitting
+      spawnEctoSplat(b.wx + Math.cos(b.facing) * 1.1, b.wy, 0.38);
+      if (nightSayOk())
+        Voice.say(pick(BOSS_CRACK_LINES), 2.2, 0.95, b.wx, b.wy, "neutral", "ghost");
+    }
+  } else if (b.heartState === "crack" && b.heartT <= 0) {
+    b.heartState = "open";
+    b.heartT = bossHeartOpenT(b);
+    SFX.playSqueal();
+    if (nightPopOk()) announcePower("THE HEART IS OPEN!", "pop-power");
+    if (nightSayOk())
+      Voice.say(pick(BOSS_HEART_LINES), 2.4, 1.12, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+  } else if (b.heartState === "open" && b.heartT <= 0) {
+    b.heartState = "shut"; // the shell slides back over the gut
+    b.heartT = bossHeartCloseT(b);
+  }
+  const wantOpen = b.heartState === "open" ? 1 : 0;
+  b.heartOpen += (wantOpen - b.heartOpen) * Math.min(1, dt * (wantOpen ? 9 : 6));
+  // ---- THE RISE POINT, THEN THE RUN: it holds its grave and swats from where it
+  // stands until the blade has taken the heart BOSS_FURY_HITS times. THEN it is
+  // FURIOUS — it comes off the grave and drags itself over the whole block at him,
+  // faster the less of it is left.
+  b.facing = Math.atan2(dy, dx);
+  const furious = bossIsFurious(b);
+  const runSp = BOSS_LUNGE_SP + fury * (BOSS_LUNGE_SP_RAGE - BOSS_LUNGE_SP);
+  if (furious) {
+    if (d > 2.6 && d < BOSS_ROAM_R) {
+      b.wx += (dx / d) * runSp * dt;
+      b.wy += (dy / d) * runSp * 0.85 * dt;
+    } else if (d <= 2.6) {
+      b.wx -= (dx / d) * runSp * 0.42 * dt; // it crowds him, then eases off
+      b.wy -= (dy / d) * runSp * 0.3 * dt;
+    }
+  }
+  // ...it keeps the RING it lives in: the graves below it, the ghost iron above it. It never
+  // runs out of the dead-end street, and it never crosses the seal line into the truck's lane.
+  b.wx = clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2);
+  b.wy = clamp(b.wy, -7.4, 6.2);
+  // ---- THE WHIP: idle -> wind (the telegraph) -> lash -> idle ----
+  b.whipT -= dt;
+  if (b.whipState === "idle") {
+    if (b.whipT <= 0 && d < BOSS_WHIP_R + 2.2) {
+      b.whipState = "wind";
+      b.whipT = BOSS_WHIP_TELEGRAPH;
+      b.whipSide = 1 - b.whipSide; // RIGHT, LEFT, ALTERNATE — that is the tell
+      b.whipSwing = 0;
+      SFX.playZombieGroan();
+      spawnEctoSplat(b.wx + (dx / d) * 3.4, b.wy + (dy / d) * 3.4, 0.42); // the line it loads
+    }
+  } else if (b.whipState === "wind" && b.whipT <= 0) {
+    b.whipState = "lash";
+    b.whipT = BOSS_WHIP_STRIKE;
+    b.whipSwing = 0;
+    SFX.playSwoosh();
+    bossWhipStrike(b); // the catch resolves on the frame the lash goes through
+  } else if (b.whipState === "lash") {
+    b.whipSwing = Math.min(1, b.whipSwing + dt / BOSS_WHIP_STRIKE);
+    if (b.whipT <= 0) {
+      b.whipState = "idle";
+      b.whipT =
+        R(BOSS_WHIP_CD[0], BOSS_WHIP_CD[1]) /
+        ((b.rage ? 1.5 : 1) * (1 + fury * BOSS_FURY_MUL));
+    }
+  }
+  // ---- THE GHOST FIRE: off the TENTACLE TIP — ONE ball, then TWO, then THREE, and
+  // the gap between volleys collapses toward BOSS_FIRE_CD_FLOOR as the bar drains.
+  b.fireT -= dt;
+  if (b.fireT <= 0) {
+    const shots = bossFireShots(b);
+    b.armSide = b.armSide >= 1 ? -1 : 1; // the arm it lifts IS the tell
+    for (let s = 0; s < shots; s++)
+      spawnBossFireball(
+        b,
+        (s === 0 ? 0 : s % 2 ? 2.6 : -2.6) * (1 + fury * 0.45),
+        s === 0 ? b.armSide : -b.armSide,
+      );
+    b.mawOpen = 1; // ...and the grin tears open with it
+    b.armCharge = 1;
+    b.fireT = bossFireGap(b);
+    SFX.playGustSound(); // the cold sigh of the grave fire leaving the hook
+    SFX.playSqueal();
+    if (nightSayOk())
+      Voice.say(pick(BOSS_FIRE_LINES), 2.5, 0.95, b.wx, b.wy, "neutral", "ghost");
+  }
+  b.armCharge = Math.max(0, b.armCharge - dt * 1.9);
+  // ---- THE BODY IS SOLID: it crowds him into the headstones ----
+  if (d < BOSS_BODY_R + 1.5) {
+    const nx = dx / d,
+      ny = dy / d;
+    p.wx += nx * (BOSS_BODY_R + 1.5 - d);
+    p.wy = clamp(p.wy + ny * (BOSS_BODY_R + 1.5 - d), -9.4, workerMaxY());
+    if (b.bodyCd <= 0 && (p.nightHitT || 0) <= 0) {
+      b.bodyCd = BOSS_BODY_CD;
+      hurtNPC(BOSS_HP_BODY, "beast", true, false);
+      doStun(HORROR_STUN_T, "scare");
+      p.nightHitT = NIGHT_HIT_GRACE;
+    }
+  }
+  if (b.bodyCd > 0) b.bodyCd = Math.max(0, b.bodyCd - dt);
+  // ---- rig ----
+  b.g.visible = true;
+  b.g.position.set(b.wx, b.wy, GZ + Math.sin(b.phase * 2.1) * 0.06);
+  b.g.rotation.z = b.facing;
+  animateNightBoss(b, dt, "fight");
+  if (Math.random() < dt * 1.4)
+    Voice.say(pick(BOSS_LINES), 2.7, 0.92, b.wx, b.wy, "neutral", "ghost");
+}
+
       // The fight's frame hook: the boss, its fire, the treasure, and the WIN beat. Called
       // every frame of a live shift from the night section of updateCreatures.
       function updateNightBossFight(dt) {
         if (!isNightShift()) return;
         if (nightBoss) updateNightBoss(nightBoss, dt);
+        updateNightSeal(dt); // the ring's ghost iron: its rise, its pulse, its falling tear
         if (bossFireballs.length) updateBossFireballs(dt);
         // THE TREASURE: walk onto it and it is his — WHICH ENDS THE NIGHT.
         if (bossGargoyle && state === "play") {
@@ -32163,6 +32747,237 @@
       // BOSS rises out of the grass in front of it.
       // Its far end (behind the rig) is the cul-de-sac's turntable + a brick dead-end wall:
       // the road runs out, and the only way off a dead-end street is the drive-off.
+      // THE SWEEP, in one constant the checks can read: the night's boss block lays no grave
+      // furniture, no ghostly arm and no haunting face (NIGHT_BOSS_FIELD_SWEPT).
+      const NIGHT_BOSS_FIELD_SWEPT = true;
+      // ============ THE GHOST IRON OF THE BOSS RING (Midnight) =====================
+      // The street's OWN iron closes the graves; this is the ring's fence, standing on the
+      // line where the cemetery fence row BEGINS (x = NIGHT_SEAL_X). It is built out of the
+      // SAME wrought-iron recipe the graves are walled with (posts, finials, dense bars, two
+      // rails, a footing — see makeCemeteryFence), re-skinned in COLD SPECTRAL BLUE and made
+      // fully transparent, and it carries the spectral ward's own light furniture (the panel
+      // run, the core wisp, two rails of light, lantern beads, a sealed lintel, a ground
+      // bleed and two haze sheets) so it reads as grave-light a body cannot walk through. It
+      // spans the FULL width of the street — road, curb, walk, lawn and the grass behind it —
+      // and two short side returns run off its ends, so it lines up with the cemetery row on
+      // both edges exactly as the real iron does. It is laid INVISIBLE with the world.
+      function makeGhostIronFence() {
+        const g = new THREE.Group();
+        const ward = { mats: [], base: [], panels: [], phase: R(0, Math.PI * 2) };
+        const add = (m, op) => {
+          ward.mats.push(m);
+          ward.base.push(op);
+          m.opacity = op;
+        };
+        const glass = (color, op) => {
+          const m = new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: op,
+            depthWrite: false,
+            fog: false,
+          });
+          add(m, op);
+          return m;
+        };
+        // ---- the iron itself: the full street width, lying across the road ----
+        const Y0 = -9.6, Y1 = 9.2; // the far gutter rail to past the lawn / grave grass line
+        const iron = makeCemeteryFence(Y1 - Y0);
+        iron.position.set(0, Y0, GZ);
+        iron.rotation.z = Math.PI / 2; // a +X run turned to run ACROSS the road
+        const ironM = glass(0x8fb6e8, 0.34); // the Maspeth cemetery ghost's cold blue
+        iron.traverse((o) => {
+          if (o.isMesh) o.material = ironM;
+        });
+        g.add(iron);
+        // ---- the two side returns: the fence lines up with the row on both edges ----
+        for (let s = 0; s < 2; s++) {
+          const side = makeCemeteryFence(4.2);
+          side.position.set(0, s === 0 ? Y0 : Y1, GZ);
+          const sideM = glass(0x7fa8d8, 0.26);
+          side.traverse((o) => {
+            if (o.isMesh) o.material = sideM;
+          });
+          g.add(side);
+        }
+        // ---- the ward's light furniture, in grave blue, on the same line ----
+        const H = 3.4, WID = 0.9;
+        const NP = NIGHT_WARD_PANELS;
+        const P0 = -8.5 + NIGHT_WARD_SPAN_R - NIGHT_WARD_SPAN_L;
+        const WSPAN = (NP - 1) * 1.45;
+        const MID = P0 + WSPAN / 2;
+        const C_PANEL = [0x9cc4ee, 0x5f8fd0]; // pale spectral steel + cold blue
+        for (let k = 0; k < NP; k++) {
+          const m = glass(C_PANEL[k % 3 === 1 ? 0 : 1], 0.34);
+          const panel = BX(0.2, WID, H, m);
+          panel.position.set(0, P0 + k * 1.45, GZ + H / 2);
+          ward.panels.push(m); // registry: the tear sweep runs along this list, gutter-first
+          g.add(panel);
+        }
+        const coreM = glass(0xeaf4ff, 0.22);
+        const core = CY(WID * 0.4, WID * 0.4, WSPAN + 1.3, coreM, 8, 1);
+        core.position.set(0.16, MID, GZ + H * 0.62);
+        core.rotation.x = Math.PI / 2;
+        g.add(core);
+        for (let r = 0; r < 2; r++) {
+          const rm = glass(0x7fa8d8, 0.44);
+          const rail = BX(0.14, WSPAN + 1.5, 0.16, rm);
+          rail.position.set(0, MID, GZ + (r ? H * 0.82 : 0.42));
+          g.add(rail);
+        }
+        for (let k = 0; k < NP; k++) {
+          const bm = glass(0xf2f8ff, 0.66);
+          const bead = SP(0.13, bm, 7, 6);
+          bead.position.set(0, P0 + 0.1 + k * 1.45, GZ + H + 0.24);
+          g.add(bead);
+        }
+        const lintM = glass(0x6f9ed4, 0.3);
+        const lintel = BX(0.16, WSPAN + 1.9, 0.34, lintM);
+        lintel.position.set(0.05, MID, GZ + H + 0.5);
+        g.add(lintel);
+        const WALK_TOP = 0.35; // NIGHT_WALK_TOP
+        const bleedM = glass(0x9fc2ea, 0.44);
+        const bleed = BX(0.9, WSPAN + 1.55, 0.04, bleedM);
+        bleed.position.set(-0.1, MID, GZ - WALK_TOP + 0.04);
+        ward.bleed = bleedM;
+        g.add(bleed);
+        const poolM = glass(0x4b7fc0, 0.22);
+        const pool = BX(2.6, WSPAN + 1.7, 0.04, poolM);
+        pool.position.set(-0.25, MID, GZ - WALK_TOP + 0.02);
+        ward.pool = poolM;
+        g.add(pool);
+        for (let s = 0; s < 2; s++) {
+          const hm = glass(s ? 0x6fa0e0 : 0x5f8fd0, s ? 0.1 : 0.15);
+          const sheet = BX(1.15, WSPAN + 1.5, 0.04, hm);
+          sheet.position.set(-0.15 - s * 0.55, MID, GZ + H * 0.24);
+          g.add(sheet);
+        }
+        const glow = new THREE.PointLight(0x5f9fe0, 0.6, WSPAN / 2 + 4);
+        glow.position.set(0.4, MID, GZ + H * 0.55);
+        g.add(glow);
+        g.userData.ward = ward;
+        return g;
+      }
+      // The ring is built with the world and starts OPEN (invisible, sitting on the line).
+      function buildNightSeal() {
+        nightSealClear();
+        if (!isNightShift()) return 0;
+        const g = makeGhostIronFence();
+        g.position.set(NIGHT_SEAL_X, 0, GZ);
+        g.visible = false;
+        dynamicGroup.add(g);
+        nightSeal = {
+          x: NIGHT_SEAL_X, // the fence line it stands on
+          g: g,
+          armed: false, // the beast is standing: the line is live
+          closed: false, // ...and the worker has walked below it
+          t: 0,
+          rise: 0, // 0..1 the iron's rise out of the asphalt
+          drop: 0, // >0 the falling tear is running
+        };
+        return 1;
+      }
+      function nightSealClear() {
+        if (nightSeal && nightSeal.g) {
+          if (nightSeal.g.parent) nightSeal.g.parent.remove(nightSeal.g);
+          if (typeof disposeObj === "function") disposeObj(nightSeal.g);
+        }
+        nightSeal = null;
+      }
+      // THE WAKE ARMS THE LINE (startBossFight): the ring is live the instant the beast is up,
+      // and if he is already standing in the yard (the playtest doorway) it closes on him.
+      function nightSealArm() {
+        if (!isNightShift()) return false;
+        if (!nightSeal) buildNightSeal();
+        if (!nightSeal) return false;
+        nightSeal.armed = true;
+        nightSeal.drop = 0;
+        nightSeal.closed = p.wx < NIGHT_SEAL_X;
+        if (nightSeal.closed) nightSeal.rise = 0;
+        return nightSeal.closed;
+      }
+      // THE CLOSE (updatePlayer, on the crossing frame): the ghost iron rises out of the road
+      // on the fence line, the street shudders, and the way back up is gone for the fight.
+      function nightSealClose() {
+        if (!nightSeal || !nightSeal.armed || nightSeal.closed) return false;
+        nightSeal.closed = true;
+        nightSeal.drop = 0;
+        nightSeal.rise = 0;
+        nightSeal.t = 0;
+        nightSeal.g.visible = true;
+        nightSeal.g.position.z = GZ;
+        nightSeal.g.scale.z = 0.2;
+        p.shake = Math.max(p.shake || 0, 1.0);
+        spawnEctoBurst(NIGHT_SEAL_X, p.wy, 1.5);
+        if (typeof SFX !== "undefined" && SFX.playThunder) SFX.playThunder();
+        Voice.say(pick(NIGHT_SEAL_LINES), 2.8, 1.12, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+        return true;
+      }
+      // THE BANISH OPENS THE STREET (killNightBoss): the iron tears gutter-first and lifts off
+      // the asphalt exactly like a ward falling, and the ring's ceiling goes with it — the
+      // worker walks up to the scoop with the gargoyle and the shift ends.
+      function nightSealDrop() {
+        if (!nightSeal) return;
+        nightSeal.armed = false;
+        nightSeal.closed = false;
+        if (nightSeal.g && nightSeal.g.visible) nightSeal.drop = NIGHT_GATE_FADE;
+      }
+      function nightSealSay(line) {
+        Voice.say(line, 2.4, 1.14, p.wx, p.wy, WORKER_GENDER, "worker", "burst");
+      }
+      // The ring's frame hook: the rise out of the road, the pulse while it stands, and the
+      // falling tear. Called from updateNightBossFight every frame of a live night shift.
+      function updateNightSeal(dt) {
+        if (!isNightShift() || !nightSeal || !nightSeal.g) return;
+        const g = nightSeal.g;
+        const ward = g.userData.ward;
+        if (!ward) return;
+        nightSeal.t += dt;
+        if (nightSeal.drop > 0) {
+          // THE FALLING TEAR (the ward's own recipe): panel by panel, gutter end first.
+          nightSeal.drop = Math.max(0, nightSeal.drop - dt);
+          const kk = nightSeal.drop / NIGHT_GATE_FADE;
+          for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m] * kk * 0.9;
+          if (ward.panels && ward.panels.length > 1) {
+            for (let m = 0; m < ward.panels.length; m++) {
+              const slot = 1 - m / (ward.panels.length - 1);
+              const k = Math.min(1, Math.max(0, (kk - slot * NIGHT_WARD_DEATH_BAND) / (1 - NIGHT_WARD_DEATH_BAND)));
+              ward.panels[m].opacity = ward.base[m] * kk * 0.9 * k;
+            }
+          }
+          g.position.z += dt * NIGHT_GATE_LIFT; // the iron LIFTS off the asphalt
+          if (nightSeal.drop <= 0) {
+            g.visible = false;
+            g.position.z = GZ;
+            g.scale.z = 1;
+            for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m];
+          }
+          return;
+        }
+        if (!nightSeal.closed) {
+          if (g.visible) {
+            g.visible = false;
+            g.position.z = GZ;
+            for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m];
+          }
+          return;
+        }
+        if (nightSeal.rise < 1) {
+          // THE RISE: the iron comes up out of the road in NIGHT_SEAL_RISE_T seconds.
+          nightSeal.rise = Math.min(1, nightSeal.rise + dt / NIGHT_SEAL_RISE_T);
+          const k = nightSeal.rise;
+          g.position.z = GZ - (1 - k) * 3.2;
+          g.scale.z = 0.2 + 0.8 * k;
+          for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m] * k;
+          return;
+        }
+        g.position.z = GZ;
+        g.scale.z = 1;
+        const pulse =
+          0.88 + Math.sin(nightSeal.t * 1.9 + ward.phase) * 0.11 + Math.sin(nightSeal.t * 7.3) * 0.03;
+        for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m] * pulse;
+      }
+
       function buildNightCemetery() {
         const bx = NIGHT_GRAVE_BLOCK_X; // the FIRST block is the graveyard tonight
         const b = blocks.find(function (rb) {
@@ -32183,8 +32998,14 @@
         const front = makeCemeteryFence(BLOCK_W);
         front.position.set(bx, CEM_FENCE_Y, GZ);
         g.add(front);
+        // THE PLAQUE STANDS OVER THE BOSS's RISE POINT, not at the middle of the block:
+        // tonight the screen shows only a ~22u slice of the street's x at a time (the 45deg
+        // isometric camera), so the board hung at bx + BLOCK_W/2 (x=48) sat a good 20u DOWN
+        // the fence from the fight — the worker had to walk his whole way past the beast to
+        // read it. At NIGHT_BOSS_X the plaque is in frame the moment he walks onto the
+        // cemetery block, facing him down the street.
         const frontSign = makeCemeterySign(NIGHT_CEMETERY_NAME);
-        frontSign.position.set(bx + BLOCK_W / 2, CEM_FENCE_Y, GZ);
+        frontSign.position.set(bx + NIGHT_BOSS_X - NIGHT_SIGN_ON_FENCE_OFF, CEM_FENCE_Y, GZ);
         g.add(frontSign);
         const sideLen = CEM_BACK_Y - CEM_FENCE_Y;
         for (let s = 0; s < 2; s++) {
@@ -32205,17 +33026,18 @@
             sideRight: bx + BLOCK_W,
           };
         }
-        // ---- THE FENCE ACROSS THE STREET: the dead end ----
-        const fenceLen = 18.2;
+        // ---- THE FENCE ACROSS THE STREET: the bottom border ----
+        // It stands where the asphalt ends and the grass begins (NIGHT_FENCE_X — the edge of
+        // the yard slab), so the iron closes the street itself: the worker's floor
+        // (nightWallX) is this line, and it is cut short on its left side to meet the fence
+        // line the cemetery's own fence row runs along (CEM_FENCE_Y).
+        const fenceLen = CEM_FENCE_Y + 9.6; // 15.0 (was 18.2: 3.2u of fence inside the lot)
         const fence = makeCemeteryFence(fenceLen);
-        fence.position.set(NIGHT_END_X + 2, -9.6, GZ);
+        fence.position.set(NIGHT_FENCE_X, -9.6, GZ);
         fence.rotation.z = Math.PI / 2; // the +X run turns to face +Y: a wall across the road
         g.add(fence);
-        // the sign, on the fence's street-facing side
-        const sign = makeCemeterySign(NIGHT_CEMETERY_NAME);
-        sign.position.set(NIGHT_END_X + 1.7, 1.4, GZ);
-        sign.rotation.z = -Math.PI / 2; // the plaque turns to look DOWN the street at him
-        g.add(sign);
+        // NO plaque on this road fence: the one cemetery board tonight is the brass on the
+        // fence line up the walk (see frontSign), where the worker can read it.
         // ---- inside the yard: graves, monuments, dead trees ----
         for (let i = 0; i < 12; i++) {
           const hs = makeHeadstone((Math.random() * 5) | 0);
@@ -32236,8 +33058,17 @@
           g.add(tr);
         }
         groundGroup.add(g);
-        // ---- the grave furniture OUT on the walk and the asphalt (all exorcisable) ----
-        if (b && b.hazards) {
+        // ---- THE GRAVE FURNITURE OUT ON THE WALK AND THE ASPHALT ----
+        // THE BOSS FIELD IS SWEPT CLEAN (Midnight). The final-boss ring is the ONE stretch of
+        // tonight's street that carries NOTHING spooky: no spectral headstone, no skull pile,
+        // no grave candle, no open coffin, no iron gate leaf, no risen ARM, no severed hand
+        // with the eyes in it — the 21 registered props that used to litter x 36..96 are not
+        // laid. The worker walks the four ward blocks above with the shovel busy, and down
+        // here he fights ONE monster on clear ground. The shoverable haunt stays exactly where
+        // the ward system puts it (the 18 band props at x >= 96u, the ward packs, the candles).
+        // The YARD behind the bottom fence keeps its graves — that is the cemetery, and it is
+        // the beast's bed — and so do the dead-tree row, the monuments and the top headstones.
+        if (b && b.hazards && !NIGHT_BOSS_FIELD_SWEPT) {
           const kinds = [
             "headstone", "headstone", "headstone", "headstone",
             "skull", "skull", "skull",
@@ -32536,7 +33367,7 @@
         console.log(
           "  -> THE NIGHT SHIFT: the dead-end street is haunted (spook par " +
             HORROR_SPOOK_TARGET +
-            ", THE TENTACLE BEAST at the cemetery, gargoyle worth $" +
+            ", THE SLUG DEMON at the cemetery, gargoyle worth $" +
             GARGOYLE_VALUE +
             ", HELL NOTES laid on the street: " +
             notesLaid +
@@ -34584,6 +35415,13 @@
           if (BONUS || Math.random() < 0.85) spawnBonus(houseX(), sideY());
         }
         // lane markings & sidewalk joints (scroll with the block)
+        // MIDNIGHT: THE STREET ENDS AT THE BOTTOM CEMETERY FENCE — no lane paint and no
+        // sidewalk joint is laid below that line, because the ground under it is the graveyard
+        // (grass, graves, the beast's yard), not a street. Weekdays paint everywhere.
+        const paintOpen =
+          isNightShift() && typeof NIGHT_FENCE_X === "number"
+            ? (worldX) => worldX >= NIGHT_FENCE_X
+            : () => true;
         const dashM = M(0xcfd5da);
         for (let i = 0; i < 2; i++) {
           const dash = new THREE.Mesh(
@@ -34596,6 +35434,9 @@
             -4.5,
             0.31,
           );
+          // MIDNIGHT: the WHOLE dash must lie on street — the stripe is 1.4u long centred on
+          // its x, so the x-gate alone let a paint stub poke under the iron at the fence line.
+          if (!paintOpen(baseX + dash.position.x - 0.7)) continue; // the graves own this stretch
           b.group.add(dash);
         }
         // sidewalk expansion joint — must stay ON the concrete (wy 0.5..5.0);
@@ -34605,8 +35446,16 @@
           M(0x79818a),
         );
         joint.position.set(0.2, 2.75, 0.31);
-        b.group.add(joint);
+        if (paintOpen(baseX + joint.position.x)) b.group.add(joint);
         // static hazards — Maspeth keeps them inside the narrower 6.4u cell
+        // MIDNIGHT: THE STREET ENDS AT THE BOTTOM CEMETERY FENCE. A cell of the grave block
+        // that stands in the graveyard (its centre below NIGHT_FENCE_X) is cemetery ground —
+        // grass, graves and the beast's yard — so it lays NO street dressing at all: no
+        // manhole, no pothole, no hydrant, no bottle pile, no wrapper, no pile. A cell the
+        // fence halves keeps its dressing on the street side, and every weekday lays all of
+        // it on every cell exactly as shipped (the roll below is untouched source).
+        const graveCell = isNightShift() && !paintOpen(baseX + cellW / 2);
+        if (!graveCell) {
         const hzX = (m) => baseX + (isQueensBlock ? R(m, cellW - m) : R(m, 6));
         // Staten Island (New Dorp): a CLEAN street — no empty/piss bottles and no
         // loose litter wrappers (fresh SI-specific dressing is coming for the street).
@@ -34617,12 +35466,13 @@
         else if (hr < 0.46) addPothole(b, hzX(1.5), R(-8, -3));
         else if (hr < 0.58)
           addHydrant(b, hzX(1.5), curbClearY(FOOT_R_HYDRANT)); // off the curb, on the walk
-        else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));
+        else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5)); // (the night's boss block refuses it — see addManhole)
         // loose food wrappers on the street next to the sidewalk (litter dressing)
         if (Math.random() < 0.65 && !siClean) addWrapper(b, hzX(1), R(-2.5, -0.7));
         // random dog shit piles on the sidewalk and curb (kept RARE; on the concrete only)
         // — rate cut 0.15 -> 0.08: at 15%-per-house the piles read as "a bit too much"
         if (Math.random() < 0.08) addDogShit(b, hzX(1), R(0, 4.8));
+        }
         // sidewalk trees (registered in b.trees so NPC walkers route around them —
         // they're a solid obstacle, not a walkable hazard like a pothole or a bottle).
         // Suppressed on every mailbox house (every 5th corner from Block 2 on)
@@ -35578,10 +36428,23 @@
         // updateCreatures.) =====
         if (isBedStuyLevel()) {
           const zBlocks = LEVEL_BLOCKS.filter((b) => b.garbage === true); // the active garbage blocks
-          if (zBlocks.length) {
-            const zb = zBlocks[(Math.random() * zBlocks.length) | 0];
+          // MIDNIGHT — THE BOSS BLOCK IS SWEPT CLEAN. The tentacle is a ghostly ARM rising out
+          // of an open manhole, and it is a ward-block haunt: the final-boss block (x 0..96u —
+          // the ring the beast is fought in) is taken out of the draw, and so is any block the
+          // bottom cemetery fence cuts off, because the bore has to stand on open street the
+          // worker can reach and shovel. Weekdays draw from every garbage block as shipped.
+          const zDraw = isNightShift()
+            ? zBlocks.filter(function (b) {
+                return b.x >= BLOCK_W && b.x + 8.0 > workerEndLimitX();
+              })
+            : zBlocks;
+          if (zDraw.length) {
+            const zb = zDraw[(Math.random() * zDraw.length) | 0];
             const za = addCreature("zombieArm");
             za.wx = zb.x + R(12, BLOCK_W - 12); // a spot along the block
+            // MIDNIGHT: the tentacle rises out of a manhole IN THE STREET — the boss block is
+            // out of the draw above, and this keeps the bore off the bottom fence line.
+            if (isNightShift() && za.wx < workerEndLimitX() + 2) za.wx = workerEndLimitX() + 2;
             za.wy = R(-7.0, -3.5); // out in the street (over the asphalt, in a lane)
             za.g.position.set(za.wx, za.wy, GZ);
             console.log(
@@ -42861,7 +43724,30 @@
                 "burst",
               );
           }
-          if (p.wx > workerTopLimitX()) p.wx = workerTopLimitX(); // the top of the cul-de-sac
+          if (p.wx > workerCeilX()) {
+            p.wx = workerCeilX(); // the top of the cul-de-sac — or THE GHOST IRON of the ring
+          }
+          // THE GHOST FENCE CLOSES THE STREET (the boss ring): the seal line is armed by the
+          // wake, and the frame he walks BELOW it — the line where the first cemetery fence
+          // begins, which is where the rig parked — the spectral iron rises out of the asphalt
+          // across the whole width of the street. From that frame he cannot walk back up; the
+          // fight is fought in the ring by the graves. The crossing is measured on the segment
+          // his centre travelled (the ward's own recipe), so the wall bites on the very frame
+          // he steps past it and never yanks him across the line from deep in the yard.
+          if (bossFightOn && nightSeal && nightSeal.armed && !nightSeal.closed) {
+            const prevSeal = p.gatePrev == null ? p.wx : p.gatePrev;
+            if (prevSeal >= NIGHT_SEAL_X && p.wx < NIGHT_SEAL_X) nightSealClose();
+          }
+          if (nightSealClosed() && p.wx >= NIGHT_SEAL_X - 0.001 && state === "play") {
+            p.wx = NIGHT_SEAL_X + NIGHT_SEAL_STOP; // hard stop on the ghost iron
+            p.sealT = Math.max(0, (p.sealT || 0) - dt);
+            if (p.sealT <= 0) {
+              p.sealT = 2.2; // one line per ~2s of pressing at the iron
+              p.shake = Math.max(p.shake || 0, 0.42);
+              nightSealSay(pick(NIGHT_SEAL_LINES));
+              spawnEctoBurst(NIGHT_SEAL_X, p.wy, 0.6); // the light flares where he hits it
+            }
+          }
         }
         if (BONUS && p.wx > BONUS_ROUTE_END_X) p.wx = BONUS_ROUTE_END_X; // 4-block street: can't walk past its end
         if (RT > 0 && p.wx >= ROUTE_FINISH_X && state === "play" && !BONUS) {
@@ -43596,6 +44482,18 @@
           truck._mode = "follow";
         } else {
           truck.wx += sp * dt;
+        }
+        // THE RIG'S FENCE FLOOR (Midnight): the driver backs down the dead-end street after the
+        // worker and stops at the line where the first cemetery fence begins — his collision
+        // nose on the seal line, his open scoop 4.3u up the street — and from that frame he
+        // NEVER backs past it. The ring is fought below the iron with the rig parked at it.
+        if (isNightShift()) {
+          const fenceFloor = truckFenceFloorX();
+          if (fenceFloor != null && truck.wx < fenceFloor) {
+            truck.wx = fenceFloor;
+            truck.sp = 0; // ...and he is parked: no more reverse, just the hazard lights
+            truck._mode = "hold";
+          }
         }
         // Truck physical bounding box: used for vehicle collision avoidance (set per-model in buildTruck)
         if (truck.boxL == null) truck.boxL = 4.0;
@@ -51067,15 +51965,24 @@
             else bossPanel.classList.remove("low");
             setTxt(
               $("boss-hpeye"),
-              b.hp + " / " + b.maxHp + (b.rage ? "  ENRAGED" : ""),
+              b.hp + " / " + b.maxHp +
+                (b.hits >= 2 ? "  FURY " + Math.min(4, b.hits) : b.rage ? "  ENRAGED" : ""),
             );
+            // THE PHASE: the window IS the fight — the bar pulses on the open heart, and the
+            // player is told which beat the beast is on the rest of the time.
+            const heartUp = bossHeartOpen();
+            bossPanel.classList.toggle("heart", heartUp);
             setTxt(
               $("boss-goal-phase"),
-              b.whipState === "wind"
-                ? "  LASH COMING"
-                : b.mawOpen > 0.35
-                  ? "  GHOST FIRE"
-                  : "",
+              heartUp
+                ? "  HEART — SHOVEL IT!"
+                : b.heartState === "crack"
+                  ? "  SHELL CRACKING"
+                  : b.whipState === "wind"
+                    ? "  LASH COMING"
+                    : b.mawOpen > 0.35
+                      ? "  GHOST FIRE"
+                      : "  ARMOUR UP",
             );
           }
         }
@@ -52000,7 +52907,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL DOWN THE <b>TENTACLE BEAST</b> &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b>"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

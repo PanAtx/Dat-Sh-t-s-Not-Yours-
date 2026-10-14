@@ -287,6 +287,10 @@ const api = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'R', 'GZ', 'BW', 'block
   'let SUN_X0 = -25, SUN_Y0 = 28, SUN_Z0 = 58; let NIGHT_ON = true;' +
   'let nightGlowMats = [], nightGlowT = -1e9, nightTruckRig = null, nightTruckLights = null;' +
   'let creatureList = [], truck = null, GHOST_OBJECT_MAT = null, GHOST_AURA_MAT = null;' +
+  // The harness street is the PLAIN furnished block row (no grave cut), so the bottom
+  // cemetery fence is parked off the map here; setFence() drops the real line in when a
+  // section wants to prove the fence keep-out.
+  'let NIGHT_FENCE_X = -1e6;' +
   'function isNightShift() { return NIGHT_ON; }\n' + FUNCS +
   '\nreturn { applyNightPalette, applyNightWindows, buildNightLamps, armMidnightLook, updateNightLamps,' +
   ' ensureNightSkyRig, clearNightSkyRig, getLamps: () => nightLamps, getWindows: () => nightWindows,' +
@@ -294,6 +298,7 @@ const api = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'R', 'GZ', 'BW', 'block
   ' getUniforms: () => RETRO_U, getLampLamps: () => nightLamps,' +
   ' pickNearest: pickNearestLamps, retroGainFor: retroGainFor, nightLampFlicker: nightLampFlicker,' +
   ' paneSpec: nightPaneSpec,' +
+  ' setFence: (v) => { NIGHT_FENCE_X = v; },' +
   ' getSun: () => [SUN_X0, SUN_Y0, SUN_Z0], setNight: (v) => { NIGHT_ON = v; },' +
   ' setTruck: (v) => { truck = v; }, setCreatures: (v) => { creatureList = v; },' +
   ' getGlowMats: () => nightGlowMats, getTruckRig: () => nightTruckRig,' +
@@ -445,6 +450,28 @@ const LAMP_CELLS = () => blocks.filter((b) => Math.round((b.worldX - b.blockX) /
     nFar === 18 && rowFixtures(LAMP_CELLS()[0]).length === 0, 'nFar=' + nFar);
   cleanB();
 })();
+// ---- THE BOTTOM CEMETERY FENCE: no pole stands below it ------------------------------
+console.log('\n[2c] THE BOTTOM CEMETERY FENCE: the graveyard gets no street furniture');
+const GRAVE_FENCE_X = srcNum('NIGHT_FENCE_X');
+(function () {
+  api.setFence(GRAVE_FENCE_X); // the real border line, read out of the game
+  const nCut = api.buildNightLamps();
+  const Ls = api.getLamps();
+  const minWx = Math.min.apply(null, Ls.map((l) => l.wx));
+  check('with the real fence line in (' + GRAVE_FENCE_X + 'u) every pole the builder plants stands ABOVE the iron — ' +
+    nCut + ' poles of 18 lamp cells, the ' + (18 - nCut) + ' cells the cemetery owns get none at all',
+    nCut < 18 && nCut >= 16 && Ls.length === nCut && Ls.every((l) => l.wx >= GRAVE_FENCE_X + LAMP_KEEP),
+    'n=' + nCut + ' nearest pole wx=' + minWx);
+  api.setFence(-1e6); // the harness street is a plain furnished block row again
+})();
+check('the keep-out is driven by the fence constant, not a hard-coded x',
+  srcFn('nightLampClear').includes("NIGHT_FENCE_X + NIGHT_LAMP_CLEAR"));
+check('the fire hydrant spawner honours the same border: a spot below the fence is refused, and a weekday level (or a Node harness with no night flag) never sees the guard',
+  /typeof isNightShift === "function"[\s\S]{0,200}isNightShift\(\)[\s\S]{0,200}wx < NIGHT_FENCE_X/.test(srcFn('addHydrant')));
+check('the poured curb stops AT the fence on Midnight and keeps its full shipped length on every weekday',
+  srcFn('buildGround').includes('Math.max(bl.x - 1.5, nightCurbCut)') &&
+    srcFn('buildGround').includes('isNightShift() && typeof NIGHT_FENCE_X === "number"') &&
+    srcFn('buildGround').includes('cs.w < 1'));
 api.ensureNightSkyRig();
 check('the moon + stars go UP in the sky (parented to the camera, behind the block)',
   !!api.getRig() && api.getRig().children.length === 2 && api.getRig().parent === camera);

@@ -187,14 +187,121 @@ check('the canvas draws the NAME variable (no hard-coded string left)',
 check('the sign builder forwards the name into the plaque face', signBuild.indexOf('makeCemeterySignMaterial(name)') >= 0);
 check('Maspeth still builds its plaque with no name argument (weekday look unchanged)',
   srcFn('buildCemeteryBlock').indexOf('makeCemeterySign()') >= 0);
-check('the dead-end fence across the road carries the St Basuras plaque',
-  nightCemSrc.indexOf('makeCemeterySign(NIGHT_CEMETERY_NAME)') >= 0);
+check('the dead-end cemetery carries exactly ONE St Basuras plaque (the road fence board is gone)',
+  (nightCemSrc.match(/makeCemeterySign\(NIGHT_CEMETERY_NAME\)/g) || []).length === 1);
 check('the graveyard is fenced with the Maspeth wrought-iron builders',
   nightCemSrc.indexOf('makeCemeteryFence(BLOCK_W)') >= 0 && nightCemSrc.indexOf('makeCemeteryFence(sideLen)') >= 0);
 check('the graveyard fence line is registered as the worker wall (cemFence)',
   nightCemSrc.indexOf('b.cemFence = {') >= 0 && nightCemSrc.indexOf('y: CEM_FENCE_Y') >= 0);
-check('the plaque on the front fence reads the Midnight name',
-  nightCemSrc.indexOf('frontSign.position.set(bx + BLOCK_W / 2, CEM_FENCE_Y, GZ)') >= 0);
+check('the plaque is hung ON THE FENCE LINE at the sidewalk-edge row, over the beast',
+  nightCemSrc.indexOf('frontSign.position.set(bx + NIGHT_BOSS_X - NIGHT_SIGN_ON_FENCE_OFF, CEM_FENCE_Y, GZ)') >= 0);
+// THE PLAQUE READS FROM THE BOSS RING: the 45deg iso camera (ortho half-width 8 world units)
+// shows only +/-$8*$sqrt2 = 11.3u of the street's screen axis around the worker, so a board
+// more than that out of the rise point is only readable by walking DOWN to the grave wall.
+const NK_BOSS_X = srcNum('NIGHT_BOSS_X');
+const NK_SIGN_OFF = srcNum('NIGHT_SIGN_ON_FENCE_OFF');
+const SIGN_X = NK_BOSS_X - NK_SIGN_OFF;
+const CAM_X_HALF = 8 * Math.SQRT2;
+check('the plaque sits inside the camera frame of the fight (no walk down to the grave wall to read it)',
+  SIGN_X > NK_BOSS_X - CAM_X_HALF && SIGN_X < NK_BOSS_X + CAM_X_HALF,
+  'plaque x=' + SIGN_X + ' boss x=' + NK_BOSS_X + ' screen half=' + CAM_X_HALF.toFixed(1));
+check('THE FENCE ACROSS THE ROAD IS CUT SHORT ON ITS LEFT SIDE: it ends ON the fence line it meets',
+  (function () {
+    const lenM = nightCemSrc.match(/const fenceLen = ([^;]+);/);
+    const baseM = nightCemSrc.match(/fence\.position\.set\(NIGHT_FENCE_X, (-?[0-9.]+), GZ\)/);
+    if (!lenM || !baseM) return false;
+    const farY = parseFloat(baseM[1]) + (CEM_FENCE_Y + 9.6); // the source spells len as CEM_FENCE_Y + 9.6
+    return lenM[1].trim() === 'CEM_FENCE_Y + 9.6' && Math.abs(farY - CEM_FENCE_Y) < 1e-9 && farY < CEM_BACK_Y;
+  })(), 'road fence y -9.6 -> ' + (-9.6 + CEM_FENCE_Y + 9.6) + ' (fence line ' + CEM_FENCE_Y + ')');
+check('the road-end fence carries NO plaque (no board rotated onto the street wall)',
+  nightCemSrc.indexOf('sign.rotation.z = -Math.PI / 2') < 0);
+// ---- THE BOTTOM BORDER: the fence closes the street, the street stops at the fence ----
+const NIGHT_END_X = srcNum('NIGHT_END_X');
+const NIGHT_GRAVE_X = srcNum('NIGHT_GRAVE_X');
+const NIGHT_FENCE_X = srcNum('NIGHT_FENCE_X');
+console.log('\n[5] the bottom border (' + NIGHT_FENCE_X + 'u): the street ends at the fence');
+check('the border sits where the asphalt ends and the grass begins (the edge of the yard slab, NIGHT_END_X + 8, and the sealed graves gate)',
+  NIGHT_FENCE_X === NIGHT_END_X + 8 && NIGHT_FENCE_X === NIGHT_GRAVE_X - 8,
+  'fence=' + NIGHT_FENCE_X + ' yard slab ends ' + (NIGHT_END_X + 8) + ' graves gate ' + (NIGHT_GRAVE_X - 8));
+check('the graveyard lawn slab ENDS on the fence line (the grass below it is the cemetery, the street above it is the street)',
+  nightCemSrc.indexOf('new THREE.PlaneGeometry(NIGHT_END_X + 8, 19)') >= 0);
+check('the worker is walled AT the bottom fence: nightWallX answers the fence line PLUS the standoff, awake AND asleep, so he can never get to the iron',
+  srcFn('nightWallX').includes('const fenceLine = NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF') &&
+    srcFn('nightWallX').includes('Math.max(fenceLine, NIGHT_END_X + NIGHT_MOUTH_X, yardOpen - NIGHT_BOSS_ROOM_X)') &&
+    srcFn('nightWallX').includes('Math.max(NIGHT_GRAVE_X - 8, fenceLine)') &&
+    srcNum('NIGHT_FENCE_STANDOFF') >= 1);
+check('the street furniture stops at the border: no street lamp below it, no fire hydrant below it',
+  srcFn('nightLampClear').includes('NIGHT_FENCE_X + NIGHT_LAMP_CLEAR') &&
+    srcFn('addHydrant').includes('wx < NIGHT_FENCE_X'));
+check('no curb is poured below the border on Midnight: the curb (both sides) and the road-edge line start AT the fence',
+  srcFn('buildGround').includes('Math.max(bl.x - 1.5, nightCurbCut)') &&
+    srcFn('buildGround').includes('nightCurbCut != null ? Math.max(bl.x - 1.5, nightCurbCut) : bl.x - 1.5') &&
+    srcFn('buildGround').includes('isNightShift() && typeof NIGHT_FENCE_X === "number"'));
+check('a weekday level pours the FULL curb on every block (the cut is behind isNightShift + a Node-safe typeof guard)',
+  srcFn('buildGround').includes('const cs = curbSpan(bl);') &&
+    /const nightCurbCut =\s*\n\s*isNightShift\(\) && typeof NIGHT_FENCE_X === "number" \? NIGHT_FENCE_X : null;/.test(srcFn('buildGround')));
+check('the spook band floor never drops below the border (a shoveled spook is always on street the worker can stand on)',
+  srcFn('creatureLimitMinX').includes('Math.max(nightWallX(), NIGHT_FENCE_X)'));
+check('no street paint below the border: the lane dashes and the sidewalk joint stop at the fence on Midnight, and a weekday lays both on every cell',
+  srcFn('makeBlockContents').includes('worldX >= NIGHT_FENCE_X') &&
+    srcFn('makeBlockContents').includes('if (!paintOpen(baseX + dash.position.x - 0.7)) continue;') &&
+    srcFn('makeBlockContents').includes('if (paintOpen(baseX + joint.position.x)) b.group.add(joint);'));
+check('no manhole (and no pothole, hydrant, bottle pile, wrapper or pile) is laid in the graveyard: the whole street-dressing roll is skipped on a grave cell, and the shipped roll text is untouched for every weekday',
+  srcFn('makeBlockContents').includes('const graveCell = isNightShift() && !paintOpen(baseX + cellW / 2);') &&
+    srcFn('makeBlockContents').includes('if (!graveCell) {') &&
+    srcFn('makeBlockContents').includes('else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));') &&
+    srcFn('makeBlockContents').includes('if (hr < 0.28 && !siClean) addBottles(b, hzX(1), R(1.5, 4.5));'));
+check('the manhole tentacle rises out of a manhole ON THE STREET: on Midnight a draw that lands below the border is pushed onto open street',
+  srcFn('spawnWorld').includes('if (isNightShift() && za.wx < workerEndLimitX() + 2) za.wx = workerEndLimitX() + 2;'));
+check('a flung body stops ON the floor: the knock-back clamps use the hard floor helper, never floor minus 2 on the night',
+  srcFn('workerEndHardX').includes('isNightShift() ? nightWallX() : workerEndLimitX() - 2') &&
+    srcFn('updateBossFireballs').includes('workerEndHardX()') &&
+    srcFn('bossWhipStrike').includes('workerEndHardX()'));
+// ---- THE SWEPT BOSS BLOCK (Midnight): the final-boss block carries no haunt ----
+// NK_BOSS_X (74u, the rise point) is declared with the border law above; block 0 IS the
+// cemetery block, and BLOCK_W is this suite's block width (80u).
+const NK_BOSS_FIELD_END_X = srcNum('NIGHT_GRAVE_BLOCK_X') + BLOCK_W; // the boss block's far edge
+check('THE BOSS BLOCK IS SWEPT CLEAN: the 21-prop grave scatter on the walk and the asphalt (4 headstones, 3 skull piles, 5 candles, 2 coffins, 2 gate leaves, 2 risen ARMS, 2 severed hands) is gated off behind NIGHT_BOSS_FIELD_SWEPT, and the sweep is the live law (the constant is true)',
+  /const NIGHT_BOSS_FIELD_SWEPT = true;/.test(html) &&
+    nightCemSrc.includes('if (b && b.hazards && !NIGHT_BOSS_FIELD_SWEPT)') &&
+    nightCemSrc.includes('"arm", "arm", "hand", "hand",') &&
+    nightCemSrc.includes('nightPlaceProp(b, kinds[i], px, py)'));
+check('SWEEP SPANS THE FIGHT, NOT THE CEMETERY: the gated scatter covered x ' + (srcNum('NIGHT_END_X') + 6) + '..' + (srcNum('NIGHT_END_X') + 66) + "u — the boss ring the worker fences the beast in (the rise point " + NK_BOSS_X + "u and the yard strip in front of the iron, from the fence line " + srcNum('NIGHT_FENCE_X') + "u down) — while the graves BEHIND the bottom fence (the 7 headstones, the monuments, the dead trees) stay laid exactly as shipped",
+  (() => {
+    const sx0 = srcNum('NIGHT_END_X') + 6, sx1 = srcNum('NIGHT_END_X') + 66;
+    return sx0 < NIGHT_FENCE_X && sx1 >= NK_BOSS_X && sx1 >= NK_BOSS_FIELD_END_X &&
+      nightCemSrc.includes("const px = R(NIGHT_END_X + 6, NIGHT_END_X + 66);") &&
+      nightCemSrc.includes("for (let i = 0; i < 7; i++)") &&
+      nightCemSrc.includes("makeHeadstone(4)") && nightCemSrc.includes("makeDeadTree()");
+  })());
+check('THE BEAST IS NOT SWEPT AWAY: the boss is still laid to rest on this block and wakes here — the sweep removes the haunt, never the fight',
+  srcFn('spawnNightBoss').includes("g.position.set(NIGHT_BOSS_X, 1.4, GZ - 1.95)") &&
+    srcFn('startBossFight').includes("bossFightOn = true") &&
+    NK_BOSS_X > NIGHT_FENCE_X && NK_BOSS_X < NK_BOSS_FIELD_END_X);
+check('THE OPEN MANHOLE WITH THE BLINKING EYES IS REFUSED ON THE BOSS BLOCK, in the spawner itself: block-precise, night-only, Node-safe — every weekday block keeps its manholes and the shipped hazard roll text is untouched',
+  srcFn('addManhole').includes('typeof isNightShift === "function" && isNightShift() && b && b.blockX === 0') &&
+    srcFn('addManhole').includes('addLurkingEyes(g)') &&
+    srcFn('makeBlockContents').includes('else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));'));
+check('THE GHOSTLY ARM OUT OF THE SEWER IS A WARD-BLOCK HAUNT: the night draws the tentacle only from the packed blocks above the boss block that stand on open street; weekdays draw from every garbage block',
+  srcFn('spawnWorld').includes('const zDraw = isNightShift()') &&
+    srcFn('spawnWorld').includes('return b.x >= BLOCK_W && b.x + 8.0 > workerEndLimitX();') &&
+    srcFn('spawnWorld').includes('const zb = zDraw[(Math.random() * zDraw.length) | 0];'));
+check('NOTHING WAS INVENTED FOR THE BOSS BLOCK: the four ward packs all stand above the swept block, the street keeps its three sewer tentacles, and the spirit cap stays shut',
+  (() => {
+    const BEATS = {
+      NIGHT_BEAT_TOP_X: srcNum('NIGHT_BEAT_TOP_X'),
+      NIGHT_BEAT_VERMIN_X: srcNum('NIGHT_BEAT_VERMIN_X'),
+      NIGHT_BEAT_DIGGER_X: srcNum('NIGHT_BEAT_DIGGER_X'),
+      NIGHT_BEAT_GRAVE_X: srcNum('NIGHT_BEAT_GRAVE_X'),
+    };
+    const NB = new Function(
+      'NIGHT_BEAT_TOP_X', 'NIGHT_BEAT_VERMIN_X', 'NIGHT_BEAT_DIGGER_X', 'NIGHT_BEAT_GRAVE_X',
+      'return ' + srcLiteral('NIGHT_BLOCKS', '[', ']')
+    )(BEATS.NIGHT_BEAT_TOP_X, BEATS.NIGHT_BEAT_VERMIN_X, BEATS.NIGHT_BEAT_DIGGER_X, BEATS.NIGHT_BEAT_GRAVE_X);
+    return NB.length === 4 && NB.every((e) => e.x >= NK_BOSS_FIELD_END_X) &&
+      srcNum('NIGHT_GHOST_CAP') === 0 &&
+      /const tentacleBands = zBlocks\.slice\(-3\);/.test(html);
+  })());
 check('the street-length iron fence is built per block, behind the lawn',
   nightCemSrc.indexOf('run.position.set(fbl.x, NIGHT_FENCE_Y, GZ)') >= 0 &&
   nightCemSrc.indexOf('if (!fbl || !fbl.garbage) continue;') >= 0);
