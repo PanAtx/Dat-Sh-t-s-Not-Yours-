@@ -465,6 +465,8 @@ const NK_WARD_PANELS = srcNum('NIGHT_WARD_PANELS'); // panels laid across the fu
 const NK_WARD_SPAN_L = srcNum('NIGHT_WARD_SPAN_L'); // extra reach past the far gutter (screen right)
 const NK_STREET_Y = srcNum('HORROR_STREET_Y'); // the parked-car lane / far gutter line
 const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
+const NK_WARD_BAND = srcNum('NIGHT_WARD_DEATH_BAND'); // how far a panel may lag the fall: the tear sweeps
+const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -524,7 +526,7 @@ const H = new Function(
   'spawnCash', 'bonuses', 'NIGHT_KILL_NOTE', 'NIGHT_KILL_NOTE_CAP',
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
-  'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L',
+  'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L', 'NIGHT_WARD_DEATH_BAND',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -691,7 +693,7 @@ const H = new Function(
   // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
   NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
-  NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L
+  NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L, NK_WARD_BAND
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -3831,6 +3833,9 @@ console.log('\n[26] NO WALL OVER AN EMPTY BLOCK: THE WARD\u2019S DEBT IS WHAT TH
 console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT — THE 16-BIT WAY-OUT CUE AT THE DEAD CENTRE OF THE SCREEN');
 (function () {
   s7Reset();
+  // the arrow now arms for the panel sweep PLUS the flash: the wall tears for
+  // NIGHT_GATE_FADE seconds, then "GO!" burns for NIGHT_GO_FLASH
+  const GO_ARM = NIGHT_GO_FLASH + NIGHT_GATE_FADE;
   const bands25 = H.nightBands();
   const cleared = bands25[0];
   const crew25 = creatures.filter((c) => c.home && c.home.i === cleared.i && !c.hooked && !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
@@ -3843,20 +3848,20 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
   const opened25 = H.gateCheck(0.016);
   check('THE WARD FALLS AND THE ARROW LIGHTS WITH IT: ' + opened25 + ' ward down, the clock at ' + H.getGoT().toFixed(2) + 's, the line "' + H.getGoMsg() + '"',
     opened25 >= 1 && H.gateLedger(cleared).open === true &&
-      Math.abs(H.getGoT() - NIGHT_GO_FLASH) < 1e-9 &&
+      Math.abs(H.getGoT() - GO_ARM) < 1e-9 &&
       /^[A-Z ’ ]+ WALL IS DOWN!$/.test(H.getGoMsg()),
     'open=' + H.gateLedger(cleared).open + ' opened=' + opened25 + ' t=' + H.getGoT() + ' msg=' + H.getGoMsg());
   // (b) IT RUNS ON ITS OWN CLOCK: it burns NIGHT_GO_FLASH seconds and goes out by itself
   let frames = 0;
   while (H.getGoT() > 0 && frames++ < 6000) H.goTick(1 / 60);
-  check('THE ARROW BURNS FOR EXACTLY ITS FLASH AND GOES OUT ON ITS OWN CLOCK (' +
-    (frames / 60).toFixed(2) + 's of frames for a ' + NIGHT_GO_FLASH + 's flash)',
-    H.getGoT() === 0 && Math.abs(frames / 60 - NIGHT_GO_FLASH) < 0.05,
+  check('THE ARROW BURNS FOR EXACTLY ITS FLASH (sweep time + flash) AND GOES OUT ON ITS OWN CLOCK (' +
+    (frames / 60).toFixed(2) + 's of frames for a ' + GO_ARM + 's arm)',
+    H.getGoT() === 0 && Math.abs(frames / 60 - GO_ARM) < 0.05,
     'frames=' + frames + ' t=' + H.getGoT());
   // (c) A NEW WARD DROP RE-LIGHTS IT, AND THE SHIFT RESET KILLS IT
   H.setGoT(0.4);
   H.goFlash({ name: "THE GRAVES", x: 96 });
-  check('A NEW WARD DROP RE-LIGHTS IT AT FULL FLASH', Math.abs(H.getGoT() - NIGHT_GO_FLASH) < 1e-9 && /^THE GRAVES WALL IS DOWN!$/.test(H.getGoMsg()));
+  check('A NEW WARD DROP RE-LIGHTS IT AT FULL FLASH', Math.abs(H.getGoT() - GO_ARM) < 1e-9 && /^THE GRAVES WALL IS DOWN!$/.test(H.getGoMsg()));
   H.gateClear();
   check('...AND THE SHIFT RESET TAKES IT OFF THE STREET (no arrow standing over a fresh street)',
     H.getGoT() === 0 && H.getGoMsg() === "");
@@ -3864,16 +3869,16 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
   //     against the night, in a state box the harness can read
   (() => {
     const st = { t: 0, msg: "" };
-    const flash = new Function('NIGHT_GO_FLASH', 'st', 'isNightShift',
+    const flash = new Function('NIGHT_GO_FLASH', 'st', 'isNightShift', 'NIGHT_GATE_FADE',
       srcFn('nightGoFlash')
         .replace(/\bnightGoT\b/g, 'st.t')
         .replace(/\bnightGoMsg\b/g, 'st.msg') +
       '\n;nightGoFlash({ name: "MANHATTAN" });');
-    flash(NIGHT_GO_FLASH, st, () => false);
+    flash(NIGHT_GO_FLASH, st, () => false, NIGHT_GATE_FADE);
     const dayT = st.t, dayMsg = st.msg;
-    flash(NIGHT_GO_FLASH, st, () => true);
+    flash(NIGHT_GO_FLASH, st, () => true, NIGHT_GATE_FADE);
     check('THE WEEKDAYS NEVER SEE IT: the same call on a day shift lights 0s and says nothing; on the night it lights ' + st.t + 's',
-      dayT === 0 && dayMsg === "" && Math.abs(st.t - NIGHT_GO_FLASH) < 1e-9 &&
+      dayT === 0 && dayMsg === "" && Math.abs(st.t - GO_ARM) < 1e-9 &&
       st.msg === "MANHATTAN WALL IS DOWN!");
   })();
   // (e) THE MARKUP + THE SKIN: a red chunky arrow pointing BOTTOM-LEFT with GO! in it,
@@ -4335,6 +4340,26 @@ const wGlow = w33.children.filter((c) => c.kind === 'light');
 const wLo = Math.min(...wPanels.map((c) => c.position.y)) - 0.45; // panel half-width
 const wHi = Math.max(...wPanels.map((c) => c.position.y)) + 0.45;
 const wMid = -8.5 + NK_WARD_SPAN - NK_WARD_SPAN_L + ((NK_WARD_PANELS - 1) * 1.45) / 2;
+// THE WARD'S OWN RECORD + THE GAME'S OWN FALLING LOOP, extracted and run live
+const wRec33 = w33.userData.ward;
+const an33 = srcFn('nightGateAnimate');
+const sweep33 = (an33.match(/if \(ward\.panels && ward\.panels\.length > 1\) \{[\s\S]*?\n            \}/) || [''])[0];
+const runSweep33 = new Function('ward', 'kk', 'NIGHT_WARD_DEATH_BAND', sweep33);
+const fadeAll33 = (kk) => {
+  for (let m = 0; m < wRec33.mats.length; m++) wRec33.mats[m].opacity = wRec33.base[m] * kk * 0.9;
+  runSweep33(wRec33, kk, NK_WARD_BAND);
+};
+const zTop = 0.3 + 3.4; // GZ + H: the panels' own top edge
+const wLintel = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (zTop + 0.62)) < 1e-9);
+const wCord = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (zTop + 0.3)) < 1e-9);
+const wFringe = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (zTop - 0.18)) < 1e-9);
+const wBleed = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (0.3 - 0.35 + 0.04)) < 1e-9);
+const wPool = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (0.3 - 0.35 + 0.02)) < 1e-9);
+const wHaze = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - (0.3 + 3.4 * 0.24)) < 1e-9);
+const wLintZ = wLintel.length ? wLintel[0].position.z : -1;
+const wPanTop = zTop; // the panels stand 0.3..3.7 in model z
+const wBleedZ = wBleed.length ? wBleed[0].position.z : 99;
+const wPoolZ = wPool.length ? wPool[0].position.z : 99;
 check('THE CURTAIN IS BUILT FOR THE FULL STREET: ' + NK_WARD_PANELS + ' panels (was 12) spanning ' + NK_WARD_SPAN + 'u onto the stoop line and ' + NK_WARD_SPAN_L + 'u past the far gutter — the built curtain lays ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' across the lane',
   NK_WARD_PANELS >= 17 && NK_WARD_SPAN >= 1.5 && NK_WARD_SPAN_L >= 3 &&
     wPanels.length === NK_WARD_PANELS && wBeads.length === NK_WARD_PANELS &&
@@ -4342,8 +4367,40 @@ check('THE CURTAIN IS BUILT FOR THE FULL STREET: ' + NK_WARD_PANELS + ' panels (
     wHi - wLo >= (NK_WARD_PANELS - 1) * 1.45,
   'panels=' + wPanels.length + ' span=' + wLo.toFixed(2) + '..' + wHi.toFixed(2));
 check('IT RUNS THE FULL LENGTH, BUILDING LINE TO BUILDING LINE: past the roadway\'s far gutter on the RIGHT of the screen (' + wLo.toFixed(2) + ', the parked-car lane sits at ' + NK_STREET_Y + ') and past the stoop / lawn line on the LEFT (' + wHi.toFixed(2) + ', the lawn line sits at ' + NK_LAWN_Y + ') — the light is off-screen at BOTH edges, so the street is completely blocked',
-  wLo <= NK_STREET_Y - 1.5 && wHi >= NK_LAWN_Y + 5.5,
+  wLo <= NK_STREET_Y - 2 && wHi >= NK_LAWN_Y + 5.5,
   'wall covers ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' (far gutter ' + NK_STREET_Y + ', stoop line ' + NK_LAWN_Y + ')');
+check('AND IT OVERRUNS HIS OWN WALKING LIMIT ON THE RIGHT: the wall runs past the lane floor he can ever stand on (his clamp floor is ' + NK_WALK_MIN + 'u), and past every living thing\'s lane (HORROR_STREET_Y ' + NK_STREET_Y + ') — ' + (Math.abs(wLo) - Math.abs(+NK_WALK_MIN)).toFixed(2) + 'u of light beyond the farthest he can walk, so the wall can never be reached around',
+  wLo <= +NK_WALK_MIN - 1.0 && wLo <= NK_STREET_Y - 2 &&
+    /clamp\(p\.wy[^,]+, -9\.4, workerMaxY\(\)/.test(html),
+  'wall end ' + wLo.toFixed(2) + ' vs floor ' + NK_WALK_MIN + ' vs ghoul lane ' + NK_STREET_Y);
+check('THE TOP IS SEALED — PAVEMENT TO SKY: a lintel arch spans the whole run above the panels with a sagging cord under it and 4 fringe hems hanging off the top (lintel at z ' + wLintZ.toFixed(2) + ' over the panel tops at z ' + wPanTop.toFixed(2) + '), so the block reads as a wall, not a waist-high picket line',
+  wLintel.length === 1 && wCord.length === 1 && wFringe.length === 4 &&
+    wLintZ > wPanTop && wLintZ > 0.3 + 3.4 + 0.2 && wLintZ < 0.3 + 3.4 + 1.2 &&
+    Math.abs(wLintel[0].position.y - wMid) < 1e-9 &&
+    Math.abs(wCord[0].position.y - wMid) < 1e-9 &&
+    /THE SEALED TOP/.test(wSrc33) &&
+    /lintel\.position\.set\(0, MID, GZ \+ H \+ 0\.62\)/.test(wSrc33) &&
+    wRec33.lint != null && wRec33.cord != null && wRec33.fringe.length === 4 &&
+    wRec33.mats.indexOf(wRec33.lint) >= 0 && wRec33.mats.indexOf(wRec33.cord) >= 0 &&
+    wRec33.fringe.every((f) => wRec33.mats.indexOf(f) >= 0));
+check('THE WALL BLEEDS ONTO THE PAVEMENT: a bright contact line at its base, a wide glow strip soaked across the lanes and 2 haze sheets standing in the road — laid flat at the walk-slab height (' + wBleedZ.toFixed(2) + ' / ' + wPoolZ.toFixed(2) + ', the slab top is 0.35 proud), all riding the curtain\'s own opacity in ward.mats',
+  wBleed.length === 1 && wPool.length === 1 && wHaze.length === 2 &&
+    wBleedZ < 0.3 && wPoolZ < 0.3 && wBleedZ > 0.3 - 0.35 - 0.2 &&
+    Math.abs(wBleed[0].position.y - wMid) < 1e-9 && Math.abs(wPool[0].position.y - wMid) < 1e-9 &&
+    wRec33.bleed != null && wRec33.pool != null && wRec33.haze.length === 2 &&
+    [wRec33.bleed, wRec33.pool].concat(wRec33.haze).every((f) => wRec33.mats.indexOf(f) >= 0) &&
+    /THE BLEED ONTO THE PAVEMENT/.test(wSrc33) &&
+    wSrc33.indexOf('depthWrite: false') >= 0);
+check('THE DEATH SWEEP IS WIRED, GUTTER-FIRST: ward.panels registers EXACTLY the panel mats (the same objects as the head of ward.mats, in lane order from the far gutter), and the falling loop lags every panel by up to NIGHT_WARD_DEATH_BAND (' + NK_WARD_BAND + ') of the fall along its lane slot — panel 0 (the RIGHT edge of the screen) tears first, the last panel dies last',
+  wRec33.panels.length === NK_WARD_PANELS &&
+    wRec33.panels.every((m, i) => wRec33.mats[i] === m) &&
+    wSrc33.indexOf('ward.panels.push(m)') >= 0 &&
+    /if \(ward\.panels && ward\.panels\.length > 1\) \{/.test(an33) &&
+    /const WARD_W = NIGHT_WARD_DEATH_BAND;/.test(an33) &&
+    /const W_slot = 1 - m \/ \(ward\.panels\.length - 1\)/.test(an33) &&
+    /Math\.min\(1, Math\.max\(0, \(kk - W_slot \* WARD_W\) \/ \(1 - WARD_W\)\)\)/.test(an33) &&
+    /ward\.panels\[m\]\.opacity = ward\.base\[m\] \* kk \* 0\.9 \* W_k;/.test(an33) &&
+    /ward\.mats\[m\]\.opacity = ward\.base\[m\] \* kk \* 0\.9;/.test(an33));
 check('EVERY PART OF THE CURTAIN REACHES WITH IT: the binding rails, the core wisp, the lantern beads and the glow are all hung on the full panel run (WSPAN-derived lengths, a glow radius grown to reach both ends, every part centred on the run\'s middle at ' + wMid.toFixed(2) + ') — one wall, not a picket line with a tail',
   /BX\(0\.14, WSPAN \+ 1\.5, 0\.16/.test(wSrc33) &&
     /CY\(WID \* 0\.4, WID \* 0\.4, WSPAN \+ 1\.3/.test(wSrc33) &&
@@ -4357,6 +4414,29 @@ check('EVERY PART OF THE CURTAIN REACHES WITH IT: the binding rails, the core wi
     Math.abs(wRails[1].position.y - wMid) < 1e-9 &&
     Math.abs(wGlow[0].position.y - wMid) < 1e-9 &&
     wGlow[0].distance >= wMid - wLo + 3 && wGlow[0].distance >= wHi - wMid + 3);
+fadeAll33(0.25);
+const ops33 = wRec33.panels.map((m) => m.opacity);
+const lit33 = wRec33.panels[NK_WARD_PANELS - 1].opacity;
+const mono33 = ops33.every((v, i) => i === 0 || v >= ops33[i - 1] - 1e-12);
+fadeAll33(1);
+const noStagger33 = wRec33.panels.every((m, i) => Math.abs(m.opacity - wRec33.base[i] * 0.9) < 1e-12);
+fadeAll33(0);
+const allDark33 = wRec33.mats.every((m) => m.opacity === 0);
+check('THE SWEEP REALLY RUNS (the game\'s own falling loop applied to the game\'s own ward): a quarter into the fall the gutter end is ALREADY OUT (panel 0 opacity ' + ops33[0].toFixed(3) + ') while the stoop end still burns (' + lit33.toFixed(3) + '), darkness advances MONOTONIC panel by panel, at the top of the fall nothing is staggered, and at the bottom every part of the ward is fully out',
+  sweep33.length > 40 && ops33[0] === 0 &&
+    lit33 > wRec33.base[0] * 0.9 * 0.25 * 0.5 && mono33 === true &&
+    noStagger33 === true && allDark33 === true,
+  'kk=0.25 first=' + ops33[0].toFixed(3) + ' last=' + lit33.toFixed(3) + ' mono=' + mono33 +
+    ' full=' + noStagger33 + ' dark=' + allDark33);
+check('THE LINT, CORD, FRINGE, BLEED, POOL AND HAZE DIE WITH THE CURTAIN AND NEVER STAGGER: the sweep touches ONLY ward.panels, so every other part rides the plain full-curtain fade',
+  [wRec33.lint, wRec33.cord, wRec33.bleed, wRec33.pool].concat(wRec33.haze, wRec33.fringe)
+    .every((m) => wRec33.panels.indexOf(m) < 0) &&
+    sweep33.indexOf('ward.mats') < 0 && /ward\.panels\[m\]\.opacity/.test(sweep33));
+check('THE ARROW WAITS FOR THE LAST PANEL: the GO! flash is armed for NIGHT_GO_FLASH + NIGHT_GATE_FADE = ' + (NIGHT_GO_FLASH + NIGHT_GATE_FADE).toFixed(2) + 's (the tear finishes, then the red way-out arrow burns) and NO setter arms the flash without the sweep time',
+  /nightGoT = NIGHT_GO_FLASH \+ NIGHT_GATE_FADE;/.test(srcFn('nightGoFlash')) &&
+    (html.match(/nightGoT = NIGHT_GO_FLASH;/g) || []).length === 0 &&
+    (html.match(/nightGoT = NIGHT_GO_FLASH \+ NIGHT_GATE_FADE/g) || []).length >= 1 &&
+    NIGHT_GO_FLASH === 3.4 && NIGHT_GATE_FADE === 1.15);
 check('THE GAMEPLAY LINE IS UNTOUCHED: the ward stands, stops and works exactly on its shipped numbers (the same x line, the 0.34 stop, the 2.5 birth room, the 0.35 work box) — only the LIGHT got wider, never the wall',
   NIGHT_GATE_INSET === 2 && NIGHT_GATE_STOP === 0.34 && NIGHT_GATE_ROOM === 2.5 &&
     NIGHT_GATE_WORK === 0.35 &&
