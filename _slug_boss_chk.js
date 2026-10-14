@@ -299,7 +299,10 @@ console.log(
 );
 const NK_SEAL_X = srcNum("NIGHT_SEAL_X");
 const NK_SEAL_STOP = srcNum("NIGHT_SEAL_STOP");
-const NK_NOSE = srcNum("NIGHT_TRUCK_NOSE_L");
+const NK_SEAL_INNER = srcNum("NIGHT_SEAL_INNER");
+const NK_TRUCK_NOSE = srcNum("NIGHT_TRUCK_NOSE_L");
+const NK_NOSE = NK_TRUCK_NOSE; // the sandbox injection's short name
+const NK_TRUCK_CLEAR = srcNum("NIGHT_TRUCK_SEAL_CLEAR");
 const NK_RISE_T = srcNum("NIGHT_SEAL_RISE_T");
 const NK_TOP_X = srcNum("NIGHT_TOP_X"), NK_TRAIL = srcNum("NIGHT_TRAIL_X");
 const NK_FENCE = srcNum("NIGHT_FENCE_X"), NK_STANDOFF = srcNum("NIGHT_FENCE_STANDOFF");
@@ -324,7 +327,8 @@ let night4 = true;
 const RING = new Function(
   "S", "p", "isNightShift", "THREE", "M", "BX", "CY", "SP", "SPH", "R", "pick", "clamp", "GZ",
   "dynamicGroup", "disposeObj", "spawnEctoBurst", "Voice", "SFX", "WORKER_GENDER",
-  "NIGHT_SEAL_X", "NIGHT_SEAL_STOP", "NIGHT_TRUCK_NOSE_L", "NIGHT_SEAL_RISE_T", "NIGHT_SEAL_LINES",
+  "NIGHT_SEAL_X", "NIGHT_SEAL_STOP", "NIGHT_SEAL_INNER", "NIGHT_TRUCK_NOSE_L",
+  "NIGHT_TRUCK_SEAL_CLEAR", "NIGHT_SEAL_RISE_T", "NIGHT_SEAL_LINES",
   "NIGHT_TOP_X", "NIGHT_TRAIL_X", "ROUTE_END_X", "NIGHT_GATE_FADE", "NIGHT_GATE_LIFT",
   "NIGHT_WARD_PANELS", "NIGHT_WARD_SPAN_R", "NIGHT_WARD_SPAN_L", "NIGHT_WARD_DEATH_BAND",
   "makeCemeteryFence",
@@ -338,7 +342,8 @@ const RING = new Function(
   S4, p4, () => night4, THREE, M, BX, CY, SP, SPH, R, pick, clampFn, GZ,
   dyn4, (o) => disposed4.push(o), (x, y, s) => bursts4.push({ x, y, s }),
   { say: (t) => said4.push(t) }, { playThunder() {} }, "male",
-  NK_SEAL_X, NK_SEAL_STOP, NK_NOSE, NK_RISE_T, ["THE FENCE'S UP — NO WAY BACK UP THE STREET!"],
+  NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_NOSE, NK_TRUCK_CLEAR, NK_RISE_T,
+  ["THE FENCE'S UP — NO WAY BACK UP THE STREET!"],
   NK_TOP_X, NK_TRAIL, 560, NK_GATE_FADE, NK_GATE_LIFT,
   NK_PANELS, srcNum("NIGHT_WARD_SPAN_R"), srcNum("NIGHT_WARD_SPAN_L"), NK_BAND,
   new Function(
@@ -354,15 +359,16 @@ check(
   "seal=" + NK_SEAL_X,
 );
 check(
-  "THE RIG STANDS ON THE LINE AND NEVER PAST IT: the floor answers " +
+  "THE RIG PARKS FURTHER UP THE STREET THAN THE GHOST FENCE — THE HOPPER NEVER CLIPS IT: the floor answers " +
     RING.truckFenceFloorX() +
-    "u (the line + the " + NK_NOSE + "u collision nose), so its nose is ON the fence line and its open scoop rests UP-street of it",
+    "u (the line + the " + NK_NOSE + "u collision nose + " + NK_TRUCK_CLEAR + "u of clearance), so its whole body and its open scoop rest UP-street of the spectral iron",
   (function () {
     const f = RING.truckFenceFloorX();
     const bodyLow = f - NK_NOSE, scoop = f - 4.3; // the cab-side body edge / the open hopper
     return (
-      Math.abs(bodyLow - NK_SEAL_X) < 1e-9 && // the rig's downhill body edge stands ON the line
-      scoop < NK_SEAL_X && // ...and its scoop rests at the line, on the ring side, ready for the gargoyle
+      bodyLow > NK_SEAL_X + 1 && // the rig's downhill body edge stands CLEAR of the iron
+      scoop > NK_SEAL_X + 1 && // ...and so does its open hopper mouth (no hopper-in-the-fence)
+      scoop - NK_SEAL_X >= NK_TRUCK_CLEAR - 1.5 && // ...by the full clearance the law promises
       f < NK_TOP_X // ...and inside the cul-de-sac wall (it never noses through the dead end)
     );
   })(),
@@ -451,6 +457,37 @@ check(
       S4.seal.g.position.z === GZ &&
       S4.seal.g.scale.z === 1 &&
       ward.mats.every((m, i) => m.opacity > 0.2 * ward.base[i])
+    );
+  })(),
+);
+check(
+  "THE RIG PARKS AHEAD OF THE GHOST IRON, NEVER IN IT: its fence floor sets the collision nose and the OPEN SCOOP up-street of the line, clear of the iron's own glow footprint, and clear of the worker's sealed ceiling (a sealed worker standing at the iron is never standing in the truck's collision box)",
+  (function () {
+    const floor = RING.truckFenceFloorX(); // the rig's centre floor
+    const nose = floor - NK_TRUCK_NOSE; // its collision box edge (down-street, truck.boxL)
+    const scoop = floor - 4.3; // its open hopper mouth
+    const ceil = NK_SEAL_X + NK_SEAL_STOP; // the worker's sealed ceiling
+    return (
+      floor === NK_SEAL_X + NK_TRUCK_NOSE + NK_TRUCK_CLEAR &&
+      scoop > NK_SEAL_X + 1 && // the hopper stands CLEAR of the ghost fence
+      nose > ceil + 1 && // ...and the rig's box never overlaps the sealed worker's line
+      floor < NK_TOP_X - NK_TRAIL // ...while still sitting ON the street
+    );
+  })(),
+  "floor=" + RING.truckFenceFloorX() + " nose=" + (RING.truckFenceFloorX() - 4),
+);
+check(
+  "THE IRON RISES ONLY ON A WORKER FULLY INSIDE THE RING: the crossing is measured on the INNER line (the fence line minus " + NK_SEAL_INNER + "u) — walking him down from the street, the wall never rises in the fence's own footprint, his sealed ceiling sits BEHIND him, and updatePlayer's hard stop pushes a man standing in the iron back INTO the fight",
+  (function () {
+    const src = srcFn("updatePlayer");
+    return (
+      /const sealInner = NIGHT_SEAL_X - NIGHT_SEAL_INNER/.test(src) &&
+      src.includes("if (prevSeal >= sealInner && p.wx < sealInner)") &&
+      src.includes('if (nightSealClosed() && p.wx >= NIGHT_SEAL_X - 0.001 && state === "play")') &&
+      src.includes("p.wx = NIGHT_SEAL_X + NIGHT_SEAL_STOP;") &&
+      NK_SEAL_INNER >= 3 &&
+      NK_SEAL_X - NK_SEAL_INNER > NK_FENCE + NK_STANDOFF + 20 && // the inner line is INSIDE the ring
+      NK_SEAL_X + NK_SEAL_STOP > NK_SEAL_X - NK_SEAL_INNER + NK_SEAL_INNER // ceiling clear of the crossing spot
     );
   })(),
 );

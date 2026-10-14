@@ -502,10 +502,13 @@ const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
 const NK_WARD_BAND = srcNum('NIGHT_WARD_DEATH_BAND'); // how far a panel may lag the fall: the tear sweeps
 const NK_BOSS_ROOM_X = srcNum('NIGHT_BOSS_ROOM_X'); // u of bottom strip handed to the worker around the beast
 // THE BOSS RING (Midnight): the seal line where the first cemetery fence begins, the body-width
-// of respect off the ghost iron, and the rig's collision nose (its fence floor = line + nose)
+// of respect off the ghost iron, the depth he must reach INSIDE the ring before the iron may
+// rise, and the rig's nose + up-street clearance (its fence floor = line + nose + clear)
 const NK_SEAL_X = srcNum('NIGHT_SEAL_X');
 const NK_SEAL_STOP = srcNum('NIGHT_SEAL_STOP');
+const NK_SEAL_INNER = srcNum('NIGHT_SEAL_INNER');
 const NK_TRUCK_NOSE = srcNum('NIGHT_TRUCK_NOSE_L');
+const NK_TRUCK_CLEAR = srcNum('NIGHT_TRUCK_SEAL_CLEAR');
 const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
 const NK_BLOOD_C = parseInt((html.match(/const NIGHT_BLOOD_C = (0x[0-9a-f]+)/) || [0, '0xd8233a'])[1], 16);
 const NK_BLOOD_LITE = parseInt((html.match(/const NIGHT_BLOOD_LITE = (0x[0-9a-f]+)/) || [0, '0xff8a90'])[1], 16);
@@ -581,7 +584,8 @@ const H = new Function(
   'BOSS_FIRE_CD_FLOOR', 'BOSS_SHOTS_FURY', 'BOSS_ROAM_R', 'BOSS_FIRE_TINTS',
   'BOSS_CRACK_LINES', 'BOSS_HEART_LINES', 'BOSS_ARMOUR_LINES', 'BOSS_ROAM_LINES',
   // THE BOSS RING (Midnight): the seal line, the respect off the ghost iron, the rig's nose
-  'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_TRUCK_NOSE_L', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
+  'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_SEAL_INNER', 'NIGHT_TRUCK_NOSE_L',
+  'NIGHT_TRUCK_SEAL_CLEAR', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -771,7 +775,8 @@ const H = new Function(
     BOSS_HEART_CD, BOSS_HEART_CD_RAGE, BOSS_FURY_HITS, BOSS_FURY_MUL,
     BOSS_FIRE_CD_FLOOR, BOSS_SHOTS_FURY, BOSS_ROAM_R, BOSS_FIRE_TINTS,
     BOSS_CRACK_LINES, BOSS_HEART_LINES, BOSS_ARMOUR_LINES, BOSS_ROAM_LINES,
-    NK_SEAL_X, NK_SEAL_STOP, NK_TRUCK_NOSE, srcNum('NIGHT_SEAL_RISE_T'),
+    NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_TRUCK_NOSE, NK_TRUCK_CLEAR,
+    srcNum('NIGHT_SEAL_RISE_T'),
     ['THE FENCE’S UP — NO WAY BACK UP THE STREET!']
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
@@ -4872,23 +4877,26 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
   // Walk him down the dead-end street on the shipped walls: floor lookup every frame,
   // the crossing closes the iron exactly where updatePlayer's clamp runs it.
   let x36 = 200, steps36 = 0, closedAt36 = null, ceilAt36 = null;
+  const ringInner = NK_SEAL_X - NK_SEAL_INNER; // the depth he must REACH before the iron may rise
   while (steps36++ < 4000) {
     const wall = H.workerEndLimitX();
     const prev = x36;
     x36 = Math.max(wall, x36 - 0.5); // he may never go below the bottom fence
-    if (prev >= NK_SEAL_X && x36 < NK_SEAL_X && H.sealClose()) {
+    if (prev >= ringInner && x36 < ringInner && H.sealClose()) {
       closedAt36 = x36;
       ceilAt36 = H.ceilX();
     }
     x36 = Math.min(x36, H.ceilX()); // ...and after the close he has a new ceiling
     if (x36 <= wall + 1e-9) break; // he is standing on the floor of the ring
   }
-  check("HE WALKS UNDER THE FIRST CEMETERY FENCE LINE (" + NK_SEAL_X + "u) AND THE GHOST IRON SHUTS ON THE CROSSING FRAME at " +
-      (closedAt36 == null ? "never" : closedAt36.toFixed(2) + "u") + ", giving him a ceiling of " + ceilAt36 +
-      "u — the street above is gone for the fight",
-    closedAt36 != null && closedAt36 < NK_SEAL_X && Math.abs(ceilAt36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 &&
-      H.sealClosed() === true,
-    "cross=" + closedAt36 + " ceil=" + ceilAt36);
+  check("HE WALKS INTO THE GRAVE RING AND THE GHOST IRON SHUTS BEHIND HIM at the FIRST CEMETERY FENCE LINE " +
+      NK_SEAL_X + "u — and ONLY once he is fully inside it (" + closedAt36 + "u, a " +
+      (closedAt36 == null ? 0 : (NK_SEAL_X - closedAt36).toFixed(1)) + "u pocket INSIDE the iron), so the wall never rises in the fence's own footprint and never shoves him back out of the fight",
+    closedAt36 != null && closedAt36 <= ringInner + 0.5 &&
+      NK_SEAL_X - closedAt36 >= NK_SEAL_INNER &&
+      Math.abs(ceilAt36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 &&
+      ceilAt36 > closedAt36 + NK_SEAL_INNER && H.sealClosed() === true,
+    "cross=" + closedAt36 + " ceil=" + ceilAt36 + " inner=" + ringInner);
   // Press him UP the street from deep in the ring: the iron stops him on the line, every frame,
   // and he is never yanked across it (the sealed ceiling is a wall, not a tow rope).
   let up36 = 45, press36 = 0, pastIron = false;
@@ -4904,10 +4912,15 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
     "at=" + up36.toFixed(2) + " steps=" + press36);
   check("THE RING HE IS SHUT INTO IS THE BEAST'S OWN YARD: " + (up36 - ringFloor).toFixed(1) +
       "u of street between the bottom fence (" + ringFloor + "u) and the ghost iron (" + up36.toFixed(1) + "u), the rise point " +
-      NIGHT_BOSS_X + "u and the graves gate " + (NIGHT_GRAVE_X - 8) + "u inside it, the rig parked at " + H.truckFloorX() + "u on the line",
+      NIGHT_BOSS_X + "u and the graves gate " + (NIGHT_GRAVE_X - 8) + "u inside it, the rig parked UP-street of the iron at " + H.truckFloorX() + "u (centre), scoop at " +
+      (H.truckFloorX() - 4.3).toFixed(1) + "u — " + (H.truckFloorX() + 4.0 - NK_SEAL_X).toFixed(1) + "u of nose and " +
+      (H.truckFloorX() - 4.3 - NK_SEAL_X).toFixed(1) + "u of hopper CLEAR of the fence line, and " +
+      (H.truckFloorX() - 4.0 - up36).toFixed(1) + "u between his sealed ceiling and the rig's collision box",
     up36 - ringFloor > 20 && NIGHT_BOSS_X > ringFloor && NIGHT_BOSS_X < NK_SEAL_X &&
       NIGHT_GRAVE_X - 8 >= NIGHT_END_X && NIGHT_GRAVE_X - 8 < NK_SEAL_X &&
-      H.truckFloorX() === NK_SEAL_X + NK_TRUCK_NOSE && H.truckFloorX() > up36 &&
+      H.truckFloorX() === NK_SEAL_X + NK_TRUCK_NOSE + NK_TRUCK_CLEAR &&
+      H.truckFloorX() - 4.0 > up36 + 1 && H.truckFloorX() - 4.3 > NK_SEAL_X + 1 &&
+      H.truckFloorX() > up36 &&
       H.truckFloorX() + 4 < H.workerTopLimitX() + H.truckStandOffset() + 20);
   for (let i = 0; i < 60; i++) H.sealTick(1 / 60); // the iron finishes its rise
   const sealMesh = H.getSeal();

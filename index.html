@@ -4476,7 +4476,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.526</div>
+          <div id="app-version" class="menu-version">v1.0.527</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4734,7 +4734,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.526';
+      const APP_VERSION = '1.0.527';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19744,12 +19744,16 @@
         const top = isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
         return nightSealClosed() ? Math.min(top, NIGHT_SEAL_X + NIGHT_SEAL_STOP) : top;
       }
-      // The rig's FLOOR: the line the truck stops on and never backs past. Its collision nose
-      // (boxL = 4u ahead of the centre) stands on the seal line, its open scoop 4.3u up the
-      // street, so the driver parks at the first cemetery fence and stays there for the whole
-      // fight. Weekdays have no such line (null = follow the worker freely, the shipped law).
+      // The rig's FLOOR: the line the truck stops on and never backs past. It floors with its
+      // whole self UP-street of the ghost iron — the collision nose clear of the line AND the
+      // open scoop NIGHT_TRUCK_SEAL_CLEAR up the street — so the hopper never clips the spectral
+      // fence, and the sealed worker's ceiling (the iron + a body-width) stays clear of the rig's
+      // collision box: open asphalt between the man, the iron and the hopper. Weekdays have no
+      // such line (null = follow the worker freely, the shipped law).
       function truckFenceFloorX() {
-        return isNightShift() ? NIGHT_SEAL_X + NIGHT_TRUCK_NOSE_L : null;
+        return isNightShift()
+          ? NIGHT_SEAL_X + NIGHT_TRUCK_NOSE_L + NIGHT_TRUCK_SEAL_CLEAR
+          : null;
       }
       // THE HARD DOWNHILL FLOOR for a flung body (the fireball / lunge / bonk knock-backs).
       // A weekday fling may land 2u short of the start barrier — the worker walks back onto
@@ -28596,7 +28600,9 @@
       // panel and lifts off the road, the street opens back up, and he walks up to the scoop.
       const NIGHT_SEAL_X = 80; // the seal line: where the first cemetery fence begins (the graves block's near edge = NIGHT_GRAVE_BLOCK_X + BLOCK_W)
       const NIGHT_SEAL_STOP = 0.6; // a body-width of respect off the ghost iron (his sealed ceiling)
+      const NIGHT_SEAL_INNER = 5.0; // u he must be INSIDE the ring before the iron is allowed to rise
       const NIGHT_TRUCK_NOSE_L = 4.0; // the rig's collision nose ahead of its centre (truck.boxL)
+      const NIGHT_TRUCK_SEAL_CLEAR = 5.0; // u the rig's open scoop keeps UP-street of the ghost iron (the fence's own glow pool is ~1.3u deep in the road)
       const NIGHT_SEAL_RISE_T = 0.55; // s the ghost iron takes to rise out of the asphalt
       const NIGHT_SEAL_LINES = [
         "THE FENCE'S UP — NO WAY BACK UP THE STREET!",
@@ -43728,17 +43734,22 @@
             p.wx = workerCeilX(); // the top of the cul-de-sac — or THE GHOST IRON of the ring
           }
           // THE GHOST FENCE CLOSES THE STREET (the boss ring): the seal line is armed by the
-          // wake, and the frame he walks BELOW it — the line where the first cemetery fence
-          // begins, which is where the rig parked — the spectral iron rises out of the asphalt
-          // across the whole width of the street. From that frame he cannot walk back up; the
-          // fight is fought in the ring by the graves. The crossing is measured on the segment
-          // his centre travelled (the ward's own recipe), so the wall bites on the very frame
-          // he steps past it and never yanks him across the line from deep in the yard.
+          // wake, and the iron rises the frame he is FULLY INSIDE the ring — a full
+          // NIGHT_SEAL_INNER past the line where the first cemetery fence begins (the line the
+          // rig parked on). It never rises in the fence's own footprint, so it can't shove him
+          // back out of the fight zone: at the close he has a night of open asphalt between him
+          // and the wall, and his sealed ceiling (the iron + a body-width) sits behind him,
+          // clear of the rig's collision box. The crossing is measured on the segment his centre
+          // travelled (the ward's own recipe), so the wall bites on the frame he is past it.
           if (bossFightOn && nightSeal && nightSeal.armed && !nightSeal.closed) {
             const prevSeal = p.gatePrev == null ? p.wx : p.gatePrev;
-            if (prevSeal >= NIGHT_SEAL_X && p.wx < NIGHT_SEAL_X) nightSealClose();
+            const sealInner = NIGHT_SEAL_X - NIGHT_SEAL_INNER;
+            if (prevSeal >= sealInner && p.wx < sealInner) nightSealClose();
           }
           if (nightSealClosed() && p.wx >= NIGHT_SEAL_X - 0.001 && state === "play") {
+            // He is standing IN the iron (walked back up onto it, or flung at it): the wall
+            // pushes him back INSIDE the ring — the same hard stop the spectral ward uses, and
+            // the same one-line-per-2s of pressing, never a tow-rope pull.
             p.wx = NIGHT_SEAL_X + NIGHT_SEAL_STOP; // hard stop on the ghost iron
             p.sealT = Math.max(0, (p.sealT || 0) - dt);
             if (p.sealT <= 0) {
