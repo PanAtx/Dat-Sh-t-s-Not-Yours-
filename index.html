@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.502</div>
+          <div id="app-version" class="menu-version">v1.0.503</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.502';
+      const APP_VERSION = '1.0.503';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -9179,15 +9179,15 @@
           gap = gap || 1.4;
           const now = performance.now();
           if (this.last[text] && now - this.last[text] < gap * 1000) return;
-          // THE HAUNTED STREET STAYS QUIET: on MIDNIGHT NO NPC speech bubble goes on screen —
-          // only the SANITATION WORKER'S lines (the beast's own telegraphs are its fight rules
-          // and read as the worker's call). The NPC keeps its LINES on the seven weekdays.
+          // THE HAUNTED STREET IS SILENT: on MIDNIGHT no speech bubble goes on screen at all —
+          // not the spooks', not the beast's, not the worker's — until the player names the
+          // lines he wants in NIGHT_SPEECH_ALLOW. One gate, one door (see nightSpeechOk).
           if (
             bx !== undefined &&
             typeof isNightShift === "function" &&
             isNightShift() &&
             typeof nightSpeechOk === "function" &&
-            !nightSpeechOk(speaker)
+            !nightSpeechOk(speaker, text)
           )
             return;
           this.last[text] = now;
@@ -28072,13 +28072,32 @@
       // POWER-UPS (and the two Holy Weapon moments that ARE a power-up: CONSECRATED and the
       // SHOVEL TRIAD). Spoken lines are budgeted so a swing-frenzy never buries the view in
       // comic bubbles.
-      // THE SPEECH GATE (Midnight): only the WORKER gets a bubble on this level. The beast is
-      // the player's named exception — its telegraph lines ("THE MOUTH IS OPEN — GO IN") are the
-      // rules of the fight and he has to see them. Every NPC mouth stays shut on the night.
-      const NIGHT_WORKER_ONLY_SPEECH = true;
-      function nightSpeechOk(speaker) {
+      // THE SPEECH GATE (Midnight): THE HAUNTED STREET IS SILENT. No speech bubbles at all —
+      // not the spooks, not the grave furniture, not the beast, not even the worker's own
+      // lines — until the player instructs which speech he wants. That instruction lives in
+      // NIGHT_SPEECH_ALLOW below: each entry is an exact line ("THE MOUTH IS OPEN — GO IN"),
+      // a substring of lines, a speaker tag ("worker", "boss", "score", "ghoul"…) or "*"
+      // (everything). The gate is ONE door: nightSpeechOk(speaker, text) is called by
+      // Voice.say, and nightBubbleOk(text, speaker) is called by spawnBubble itself, so no
+      // bubble in the game can reach the screen on the night without passing it. The fight
+      // still reads through the swing, the splat, the hopper jingle, the bar over each
+      // spook's head, the HUD meter, the centre-screen PICKUP pops and the GO! arrow.
+      const NIGHT_SPEECH_BANNED = true; // every bubble is off on the haunted street
+      const NIGHT_SPEECH_ALLOW = []; // ...UNTIL INSTRUCTED: name the lines to be said here
+      const NIGHT_WORKER_ONLY_SPEECH = true; // (the old rule, kept as the fallback skin)
+      function nightSpeechAllowed(text, speaker) {
+        const allow = typeof NIGHT_SPEECH_ALLOW === "string" ? [NIGHT_SPEECH_ALLOW] : NIGHT_SPEECH_ALLOW;
+        for (let i = 0; i < allow.length; i++) {
+          const a = String(allow[i]);
+          if (a === "*" || a === speaker) return true;
+          if (typeof text === "string" && text.indexOf(a) >= 0) return true;
+        }
+        return false;
+      }
+      function nightSpeechOk(speaker, text) {
         if (typeof isNightShift !== "function" || !isNightShift()) return true;
-        if (!NIGHT_WORKER_ONLY_SPEECH) return true;
+        if (nightSpeechAllowed(text, speaker)) return true; // the player named this one
+        if (NIGHT_SPEECH_BANNED) return false; // default: the night says NOTHING
         return speaker === "worker" || speaker === "boss";
       }
       const NIGHT_SAY_GAP = 4.5; // at most one worker/spook spoken line this often on the night
@@ -28792,8 +28811,15 @@
         nightSayT = NIGHT_SAY_GAP;
         return true;
       }
-      function nightBubbleOk() {
+      function nightBubbleOk(text, speaker) {
         if (typeof isNightShift !== "function" || !isNightShift()) return true;
+        // THE SILENT STREET FIRST: on Midnight a bubble only exists if the player named it
+        // (NIGHT_SPEECH_ALLOW, read through the speech gate). With no gate to read there is
+        // no bubble — the night defaults to SILENCE, never to a screen full of text. The gap
+        // below only budgets what is ALLOWED in the first place.
+        const speechOk =
+          typeof nightSpeechOk === "function" ? nightSpeechOk(speaker, text) : false;
+        if (!speechOk) return false;
         if (nightBubbleT > 0) return false;
         nightBubbleT = NIGHT_BUBBLE_GAP;
         return true;
@@ -29975,8 +30001,9 @@
           spawnEctoBurst(p.wx, p.wy, 1.1);
           if (typeof SFX.playEctoPop === "function") SFX.playEctoPop();
         }
-        if (typeof spawnBubble === "function" && nightBubbleOk())
-          spawnBubble("+" + points + " " + (label || ""), p.wx, p.wy, "score");
+        const goBubble = "+" + points + " " + (label || "");
+        if (typeof spawnBubble === "function" && nightBubbleOk(goBubble, "score"))
+          spawnBubble(goBubble, p.wx, p.wy, "score");
       }
       // THE HOLY LIGHT: everything standing within FLINCH_R of the blade recoils from the
       // swing — that is the breathing room that makes a horde survivable.
@@ -31266,9 +31293,10 @@
         // (The boss does NOT feed the shift report's spook PAR: the par is the 14 spooks of
         // the horde. The beast is scored on its own bar and its own purse.)
         SFX.playHopperJingle();
-        if (nightBubbleOk())
+        const bossHitLine = pick(BOSS_HIT_LINES);
+        if (nightBubbleOk(bossHitLine, "worker"))
           Voice.say(
-            pick(BOSS_HIT_LINES),
+            bossHitLine,
             2.4,
             1.1,
             p.wx,
@@ -36311,15 +36339,12 @@
         const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         $("route").textContent =
           levelName(_d) +
-          " \u00b7 " +
-          _d.borough +
-          " / " +
-          _d.area +
-          // THE NIGHT SHIFT: the level's NAME carries the dead end; the route line only adds
-          // which end of the cul-de-sac the shift runs toward, so it stays short on a phone.
+          // THE NIGHT SHIFT SAYS ITS OWN NAME AND NOTHING ELSE: "MIDNIGHT * DEAD END" is the
+          // whole banner — no borough, no area, no extra caption. The seven weekdays keep
+          // their full MONDAY · MANHATTAN / GRAMMERCY PARK strip.
           (typeof isNightShift === "function" && isNightShift()
-            ? " \u00b7 CEMETERY AT THE BOTTOM"
-            : "");
+            ? ""
+            : " \u00b7 " + _d.borough + " / " + _d.area);
         worker.group.rotation.set(0, 0, 0);
         wparts.legL.rotation.set(0, 0, 0);
         wparts.legR.rotation.set(0, 0, 0);
@@ -50560,6 +50585,17 @@
         return { cx: best.cx, by: best.by, w: w, h: h };
       }
       function spawnBubble(text, wx, wy, speaker, style) {
+        // THE SILENT STREET (MIDNIGHT): every bubble in the game — scores, hauls, pranks,
+        // BEAST MODE, WHACK!, tap cues, the worker's POW! — walks through THIS door. On the
+        // haunted shift it stays shut: nothing reaches the screen unless the player named it
+        // in NIGHT_SPEECH_ALLOW. Weekdays are untouched.
+        if (
+          typeof nightBubbleOk === "function" &&
+          typeof isNightShift === "function" &&
+          isNightShift() &&
+          !nightBubbleOk(text, speaker)
+        )
+          return;
         const el = document.createElement("div");
         let cls = "bubble";
         if (speaker === "score") cls = "bubble bub-score";
@@ -50683,9 +50719,14 @@
           p0.style.opacity = "1";
         }
         if (writeUpDimTimer) clearTimeout(writeUpDimTimer);
-        $("day-stats-title").textContent = levelName(d) + " \u00b7 " + d.borough;
-        $("day-stats-loc").textContent =
-          "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
+        // THE NIGHT'S REPORT IS TITLED BY ITS NAME ALONE — "MIDNIGHT * DEAD END", no borough
+        // line under it. Weekdays keep "WEDNESDAY · BROOKLYN" + the street caption.
+        $("day-stats-title").textContent = d.night
+          ? levelName(d)
+          : levelName(d) + " \u00b7 " + d.borough;
+        $("day-stats-loc").textContent = d.night
+          ? "SHIFT REPORT \u2014 THE DEAD-END STREET"
+          : "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
         const g = $("day-stats-grid");
         if (g) {
           let idx = 0;
@@ -51266,8 +51307,11 @@
           ? "BEGIN THE NIGHT SHIFT"
           : "START THE SHIFT";
         // The day card names the weather too — the light / fog / rain match the words.
-        $("day-intro-loc").textContent =
-          d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
+        // THE NIGHT CARD IS THE NAME ALONE: "MIDNIGHT * DEAD END" on top and no street caption
+        // underneath it (no BROOKLYN, no BED-STUY, no weather label — the sky line is enough).
+        $("day-intro-loc").textContent = d.night
+          ? ""
+          : d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
         // The forecast panel: the day's icon + rolled temperature + the sky's line.
         $("day-intro-forecast").textContent =
           weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine;

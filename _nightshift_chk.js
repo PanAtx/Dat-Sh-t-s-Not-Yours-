@@ -279,6 +279,8 @@ const GHOUL_HITS = eval('(' + srcLiteral('GHOUL_HITS', '{', '}') + ')');
 const NIGHT_WOUND_LINES = eval('(' + srcLiteral('NIGHT_WOUND_LINES', '[', ']') + ')');
 const NIGHT_SCURRY_LINES = eval('(' + srcLiteral('NIGHT_SCURRY_LINES', '[', ']') + ')');
 const NIGHT_WORKER_ONLY_SPEECH = srcBool('NIGHT_WORKER_ONLY_SPEECH');
+const NIGHT_SPEECH_BANNED = srcBool('NIGHT_SPEECH_BANNED');
+const NIGHT_SPEECH_ALLOW = eval('(' + srcLiteral('NIGHT_SPEECH_ALLOW', '[', ']') + ')');
 const NIGHT_ECTO_PILL = srcBool('NIGHT_ECTO_PILL');
 const NIGHT_BOSS_BAR_IN_CHIP_SLOT = srcBool('NIGHT_BOSS_BAR_IN_CHIP_SLOT');
 const NIGHT_BLOCK_HARDEN = srcNum('NIGHT_BLOCK_HARDEN'), NIGHT_WAVE_HARDEN = srcNum('NIGHT_WAVE_HARDEN'),
@@ -412,6 +414,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
   'shovelToolReach', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
   'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY', 'levelName',
+  'nightSpeechOk', 'nightSpeechAllowed',
   // THE MIDNIGHT DEAD END (the mirrored route's anchors) + THE FINAL BOSS (the
   // cemetery fight, the shovel on the beast, the hopper suction and the win)
   'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerTopLimitX',
@@ -487,6 +490,8 @@ const H = new Function(
   'GHOUL_HITS', 'NIGHT_WOUND_LINES', 'NIGHT_BLOCK_HARDEN', 'NIGHT_WAVE_HARDEN', 'NIGHT_SURGE_HARDEN',
   'GHOUL_HITS_MAX', 'GHOUL_HITS_MIN', 'NIGHT_BACKOFF_T', 'NIGHT_BACKOFF_EXTRA', 'NIGHT_BACKOFF_SP',
   'NIGHT_WOUND_PUSH', 'NIGHT_EXTRA_HITS', 'NIGHT_HP_Z_PROP', 'NIGHT_SCURRY_LINES',
+  // THE SILENT STREET (Midnight): the speech gate's own knobs, injected like the rest
+  'NIGHT_SPEECH_BANNED', 'NIGHT_SPEECH_ALLOW',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -640,7 +645,8 @@ const H = new Function(
   NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES, NIGHT_GO_FLASH,
   GHOUL_HITS, NIGHT_WOUND_LINES, NIGHT_BLOCK_HARDEN, NIGHT_WAVE_HARDEN, NIGHT_SURGE_HARDEN,
   GHOUL_HITS_MAX, GHOUL_HITS_MIN, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP,
-  NIGHT_WOUND_PUSH, NIGHT_EXTRA_HITS, NIGHT_HP_Z_PROP, NIGHT_SCURRY_LINES
+  NIGHT_WOUND_PUSH, NIGHT_EXTRA_HITS, NIGHT_HP_Z_PROP, NIGHT_SCURRY_LINES,
+  NIGHT_SPEECH_BANNED, NIGHT_SPEECH_ALLOW
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -1594,11 +1600,13 @@ check('the haunt refill, the flights and the severed-hand pass all run off the n
 check('the night state resets with the shift (no carry-over consecration, flights, waves)',
   /shovelCharge = 0;\r?\n\s*shovelCharged = false;/.test(html) &&
   html.includes('ectoFlights.length = 0;') && html.includes('GHOST_HANDS.length = 0;'));
-check('the HUD chip shows the shovel charge and the route banner names the level as the dead end',
+check('the HUD chip shows the shovel charge and the route banner is the level NAME ALONE (no Bed-Stuy, no cemetery caption on the night)',
   /shovelCharged\r?\n\s*\? "  • HOLY SHOVEL!"/.test(html) &&
     srcFn('resetWorldState').includes('levelName(_d)') &&
-    html.includes('CEMETERY AT THE BOTTOM') &&
-    html.includes('name: "MIDNIGHT * DEAD END"'));
+    /isNightShift\(\)\s*\?\s*""/.test(srcFn('resetWorldState')) &&
+    html.includes('name: "MIDNIGHT * DEAD END"') &&
+    !/CEMETERY AT THE BOTTOM/.test(srcFn('resetWorldState')) &&
+    !/BED-STUY · CEMETERY/.test(html));
 check('MASPETH Cemetery is untouched: its own slot grid, cap and ghost exchanges are unchanged',
   html.includes('const GHOST_SLOTS = 75') && html.includes('const GHOST_CAP = 45') &&
   /const GHOST_LINES = \[/.test(html) && /const GHOST_STREET_LINES = \[/.test(html) &&
@@ -1728,8 +1736,8 @@ check('swing, parry and prop exorcism speak ONLY through the text budget',
     srcFn('updateHorrorCreature').includes('nightSayOk()'));
 check('the banished spook\'s "last word" is gone (no talking bubble per kill)',
   !srcFn('shovelStrike').includes('SPOOK_LINES'));
-check('score bubbles are rate-limited too (' + NIGHT_BUBBLE_GAP + 's apart)',
-  srcFn('shovelBanish').includes('nightBubbleOk()') && NIGHT_BUBBLE_GAP >= 0.3);
+check('score bubbles run through the night gate (no bubble on Midnight; ' + NIGHT_BUBBLE_GAP + 's apart for any the player names)',
+  srcFn('shovelBanish').includes('nightBubbleOk(goBubble, "score")') && NIGHT_BUBBLE_GAP >= 0.3);
 check('the budget ticks with the haunt and resets with the shift',
   srcFn('updateNightHaunt').includes('nightSayT = Math.max(0, nightSayT - dt)') &&
     html.includes('nightSayT = 0;') && html.includes('nightBubbleT = 0;'));
@@ -1762,8 +1770,10 @@ check('a 45s frenzy (' + swings + ' swings) puts at most ~' + Math.ceil(45 / NIG
   ' spoken lines on screen — measured ' + lines,
   lines <= Math.ceil(45 / NIGHT_SAY_GAP) + 4 && swings >= 40,
   'lines=' + lines + ' swings=' + swings);
-check('...and at most ' + Math.ceil(45 / NIGHT_BUBBLE_GAP) + ' score bubbles (measured ' + bubblesMade + ')',
-  bubblesMade <= Math.ceil(45 / NIGHT_BUBBLE_GAP) + 3);
+check('...and NOT ONE score bubble reaches the screen on the silent street (measured ' + bubblesMade +
+  ' bubbles in ' + swings + ' swings — the ceiling for any line the player names is ' + Math.ceil(45 / NIGHT_BUBBLE_GAP) + ')',
+  bubblesMade === 0 && bubblesMade <= Math.ceil(45 / NIGHT_BUBBLE_GAP) + 3,
+  'bubbles=' + bubblesMade);
 check('...with centre-screen pops RESERVED for power moments and capped to one per ' +
   NIGHT_POP_GAP + 's: ' + pops + ' in 45s',
   pops <= Math.ceil(45 / NIGHT_POP_GAP) && pops >= 0,
@@ -2303,28 +2313,30 @@ check('MIDNIGHT: a scoop that overshot down the street climbs back UPSLOPE in fo
 check('the drive-off leaves the way the route runs (the cinematic mirrors, the day stays put)',
   srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * RT * dt;') &&
     srcFn('updateRouteEnd').includes('sx * routeDir() > halfW + 1.0'));
-check('the shift reports the dead end: the LEVEL IS NAMED "MIDNIGHT * DEAD END", the card warns the beast, the route line and the objective say so',
+check('the shift reports the dead end: the LEVEL IS NAMED "MIDNIGHT * DEAD END" AND NOTHING ELSE — no Bed-Stuy, no cemetery caption on the night',
   html.includes('name: "MIDNIGHT * DEAD END"') &&
     /function levelName\(d\)/.test(html) &&
     srcFn('showDayIntro').includes('$("day-intro-day").textContent = levelName(d);') &&
+    srcFn('showDayIntro').includes('$("day-intro-loc").textContent = d.night') &&
     srcFn('resetWorldState').includes('levelName(_d)') &&
+    /isNightShift\(\)\s*\?\s*""/.test(srcFn('resetWorldState')) &&
+    srcFn('showDayStats').includes('d.night') &&
     srcFn('showDayStats').includes('levelName(d)') &&
     html.includes('THE BEAST SLEEPS IN THE CEMETERY!') &&
-    html.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY') &&
-    html.includes('CEMETERY AT THE BOTTOM'));
+    html.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY'));
+check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (the trim is night-only)',
+  srcFn('showDayIntro').includes('d.borough + " \\u00b7 " + d.area + " \\u00b7 " + WEATHERS[weather].label') &&
+    srcFn('resetWorldState').includes('" \\u00b7 " + _d.borough + " / " + _d.area') &&
+    srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + d.borough') &&
+    srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + d.borough + " / " + d.area'));
 check('THE NAME IS SHORT AND IT FITS THE PHONE CARD (the night title scales down and may break lines)',
   /#day-intro\.night \.day \{[^}]*font-size: clamp\(23px, 6\.2vw, 58px\)/.test(html) &&
     /#day-intro\.night \.day \{[^}]*max-width: 94vw/.test(html) &&
     /#day-intro\.night \.day \{[^}]*overflow-wrap: anywhere/.test(html));
-check('THE SPEECH BUDGETS ARE CUT FOR THE NIGHT (a score bubble every ' + NIGHT_BUBBLE_GAP +
-  's, a spoken line every ' + NIGHT_SAY_GAP + 's — the screen belongs to the horde)',
-  NIGHT_BUBBLE_GAP >= 2.0 && NIGHT_SAY_GAP >= 4.0 &&
-    /const NIGHT_BUBBLE_GAP = [\d.]+;/.test(html) && /const NIGHT_SAY_GAP = [\d.]+;/.test(html) &&
-    /const NIGHT_WORKER_ONLY_SPEECH = true;/.test(html));
-check('A 45s FRENZY IS NOW BUDGETED BY THE SECOND, NOT THE SWING — at most ' +
-  Math.ceil(45 / NIGHT_BUBBLE_GAP) + ' score bubbles and ' + Math.ceil(45 / NIGHT_SAY_GAP) +
-  ' lines can exist in it',
-  45 / NIGHT_BUBBLE_GAP <= 22 && 45 / NIGHT_SAY_GAP <= 11);
+check('THE SPEECH IS OFF ON THE NIGHT BY THE CONSTANTS (NIGHT_SPEECH_BANNED with an empty allow-list: NOTHING is said)',
+  NIGHT_SPEECH_BANNED === true && Array.isArray(NIGHT_SPEECH_ALLOW) && NIGHT_SPEECH_ALLOW.length === 0 &&
+    /const NIGHT_SPEECH_BANNED = true;/.test(html) && /const NIGHT_SPEECH_ALLOW = \[\];/.test(html) &&
+    NIGHT_BUBBLE_GAP >= 2.0 && NIGHT_SAY_GAP >= 4.0);
 check('the cemetery is BUILT AT THE NEAR END with the fence across the street + a dead-end wall',
   srcFn('buildNightCemetery').includes('makeCemeteryFence(fenceLen)') &&
     srcFn('buildNightCemetery').includes('NIGHT_TOP_X + 22') &&
@@ -3455,7 +3467,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
 
 })();
 
-console.log("\n[23] THE QUIET STREET: THE CHIP SAYS THE BLOCK AND THE COUNT, NO SPOOK COUNTER, NO NPC MOUTHS, AND THE BEAST'S BAR IS A FINAL-BLOCK BAR IN THE CHIP'S SLOT");
+console.log("\n[23] THE QUIET STREET: THE CHIP SAYS THE BLOCK AND THE COUNT, NOT ONE SPEECH BUBBLE ON MIDNIGHT, AND THE BEAST'S BAR IS A FINAL-BLOCK BAR IN THE CHIP'S SLOT");
 (function () {
   // (a) THE BLOCK CHIP: name + creatures left, and nothing else — every ward on the street
   s7Reset();
@@ -3481,43 +3493,57 @@ console.log("\n[23] THE QUIET STREET: THE CHIP SAYS THE BLOCK AND THE COUNT, NO 
       /const showEcto =\s*NIGHT_ECTO_PILL && isNightShift\(\)/.test(srcFn('updateHUD')) &&
       html.includes('id="ecto-count-text"') && html.includes('SPOOKS SHOBELED'));
 
-  // (c) ONLY THE WORKER'S BUBBLES ON THE HAUNTED STREET — the NPC chorus is cut
-  const bub23 = [];
-  const mkVoice23 = () => new Function('performance', 'isNightShift', 'nightSpeechOk',
-    'spawnBubble', 'NIGHT_WORKER_ONLY_SPEECH',
-    "const Voice = { last: {}, say(text, gap, pitch, bx, by, gender, speaker, style) { gap = gap || 1.4;" +
-    "const now = performance.now();" +
-    "if (this.last[text] && now - this.last[text] < gap * 1000) return;" +
-    "if (bx !== undefined && typeof isNightShift === 'function' && isNightShift() &&" +
-    "  typeof nightSpeechOk === 'function' && !nightSpeechOk(speaker)) return;" +
-    "this.last[text] = now; if (bx !== undefined) spawnBubble(text, bx, by, speaker, style); }, cancel() {} };" +
-    "return Voice;")(
-      { now: () => 1000 }, () => nightOn,
-      (sp) => (!nightOn || !NIGHT_WORKER_ONLY_SPEECH || sp === "worker" || sp === "boss"),
-      (t, wx, wy, sp) => bub23.push(sp), NIGHT_WORKER_ONLY_SPEECH);
-  const speakAll23 = (V) => {
-    bub23.length = 0;
-    V.say("IT RUNS!", 2.2, 1, 300, 2.5, "male", "worker", "burst");
-    V.say("GLURRRK", 1.6, 1, 302, 2.5, "neutral", "ghost");
-    V.say("GET OUT OF MY STREET", 1.6, 1, 303, 2.5, "neutral", "rat");
-    V.say("THE MOUTH IS OPEN", 2.0, 1, 304, 2.5, "neutral", "boss");
-    return bub23.slice();
+  // (c) THE HAUNTED STREET IS SILENT — not ONE speech bubble, for anyone, until the player
+  //     names the lines he wants. The gate under test is the GAME'S OWN source, compiled in
+  //     a state box and run against the day (Monday) and the night (Midnight).
+  const nightBox23 = (allow) => new Function(
+    'isNightShift', 'NIGHT_SPEECH_BANNED', 'NIGHT_SPEECH_ALLOW', 'NIGHT_BUBBLE_GAP',
+    'let nightBubbleT = 0; const box = { bubbles: [] };' +
+    srcFn('nightSpeechAllowed') + srcFn('nightSpeechOk') + srcFn('nightBubbleOk') +
+    'function spawnBubble(t, sp) { box.bubbles.push(sp); }' +
+    'box.speak = (t, sp) => { if (nightSpeechOk(sp, t)) spawnBubble(t, sp); };' +
+    'box.bubble = (t, sp) => { if (nightBubbleOk(t, sp)) spawnBubble(t, sp); };' +
+    'return box;')(
+      () => nightOn, NIGHT_SPEECH_BANNED, allow, NIGHT_BUBBLE_GAP);
+  const speakAll23 = (box) => {
+    box.bubbles.length = 0;
+    box.speak("IT RUNS!", "worker");
+    box.speak("GLURRRK", "ghost");
+    box.speak("GET OUT OF MY STREET", "rat");
+    box.speak("THE MOUTH IS OPEN", "boss");
+    box.bubble("+10 GHOUND", "score");
+    box.bubble("POW!", "worker");
+    return box.bubbles.slice();
   };
   nightOn = true;
-  const nightBub = speakAll23(mkVoice23());
-  check("ON MIDNIGHT ONLY THE SANITATION WORKER GETS A SPEECH BUBBLE (spooks, rats and the street chorus are cut; the beast telegraph reads as his call): " + nightBub.join("+"),
-    nightBub.length === 2 && nightBub.every((s) => s === "worker" || s === "boss"),
-    nightBub.join("+") || "no bubbles at all");
+  const silent23 = nightBox23(NIGHT_SPEECH_ALLOW);
+  const nightBub = speakAll23(silent23);
+  check("ON MIDNIGHT NO SPEECH BUBBLE GOES ON SCREEN AT ALL — worker, spook, rat, beast, score and POW! all read " + nightBub.length,
+    nightBub.length === 0, nightBub.join("+") || "no bubbles at all");
   nightOn = false;
-  const dayBub = speakAll23(mkVoice23());
+  const dayBub = speakAll23(nightBox23(NIGHT_SPEECH_ALLOW));
   nightOn = true;
-  check("...and the SEVEN WEEKDAYS keep every NPC bubble exactly as shipped (the same call set on Monday bubbles the spook AND the rat)",
-    dayBub.length === 4 && dayBub.includes("ghost") && dayBub.includes("rat"),
+  check("...and the SEVEN WEEKDAYS keep every bubble exactly as shipped (the same six lines bubble the worker, the spook, the rat, the beast, the score and the POW!)",
+    dayBub.length === 6 && dayBub.includes("ghost") && dayBub.includes("rat") && dayBub.includes("score"),
     dayBub.join("+"));
-  check("the gate is ONE function the whole voice system runs through (nightSpeechOk), wired into Voice.say",
-    /function nightSpeechOk\(speaker\)/.test(html) &&
-      html.includes("!nightSpeechOk(speaker)") &&
-      html.includes("const NIGHT_WORKER_ONLY_SPEECH = true;"));
+  // THE WHITELIST IS THE PLAYER'S DOOR: name the lines (or speakers) and exactly those come back
+  const named23 = nightBox23(["boss", "THE MOUTH IS OPEN"]);
+  const namedBub = speakAll23(named23);
+  check("NIGHT_SPEECH_ALLOW IS THE INSTRUCTION HOOK — naming \"boss\" and \"THE MOUTH IS OPEN\" brings back " +
+    namedBub.join("+") + ' and nothing else ("*" opens the whole street)',
+    namedBub.length === 1 && namedBub[0] === "boss", namedBub.join("+"));
+  const star23 = speakAll23(nightBox23(["*"])).length;
+  check('...and the wildcard "*" is honored for the day the player wants every line back: ' + star23 +
+    ' of 6 bubbles on the night (the rest is the NIGHT_BUBBLE_GAP budget, which only ever bites lines he named)',
+    star23 >= 5 && star23 <= 6, 'star=' + star23);
+  check("the gate is ONE function the whole voice system runs through (nightSpeechOk), wired into Voice.say AND into spawnBubble itself",
+    /function nightSpeechOk\(speaker, text\)/.test(html) &&
+      html.includes("!nightSpeechOk(speaker, text)") &&
+      /function nightBubbleOk\(text, speaker\)/.test(html) &&
+      /if \(\r?\n\s*typeof nightBubbleOk === "function" &&\r?\n\s*typeof isNightShift === "function" &&\r?\n\s*isNightShift\(\) &&\r?\n\s*!nightBubbleOk\(text, speaker\)\r?\n\s*\)\r?\n\s*return;/.test(srcFn('spawnBubble')) &&
+      /const NIGHT_SPEECH_BANNED = true;/.test(html) &&
+      /const NIGHT_SPEECH_ALLOW = \[\];/.test(html) &&
+      /const NIGHT_WORKER_ONLY_SPEECH = true;/.test(html));
 
   // (d) THE BEAST'S BAR: asleep = NO bar; awake = the bar IN THE CHIP'S SLOT (not top-center,
   //     not behind the radio), and the block's name steps aside for it
