@@ -460,6 +460,8 @@ const NK_R0 = srcNum('HELL_NOTE_ROAD_Y0'), NK_R1 = srcNum('HELL_NOTE_ROAD_Y1');
 const NK_CAP = srcNum('NIGHT_KILL_NOTE_CAP');
 const NK_ON = /const NIGHT_KILL_NOTE = true/.test(html);
 const NK_FACE = srcNum('NIGHT_START_FACING'); // the Midnight clock-in facing (radians)
+const NK_WARD_SPAN = srcNum('NIGHT_WARD_SPAN_R'); // the ward curtain's extra reach onto the sidewalk
+const NK_WARD_PANELS = srcNum('NIGHT_WARD_PANELS'); // panels laid across the full street
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -519,6 +521,7 @@ const H = new Function(
   'spawnCash', 'bonuses', 'NIGHT_KILL_NOTE', 'NIGHT_KILL_NOTE_CAP',
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
+  'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -589,6 +592,7 @@ const H = new Function(
   ' nightWallX, workerEndLimitX, workerTopLimitX, creatureLimitMinX, creatureLimitMaxX,' +
   ' routeDir, routeFarX, routeNearX, playerSpawnX, truckSpawnX, routeProgressFrac,' +
   ' playerSpawnFacing, NIGHT_START_FACING,' +
+  ' makeSpectralWard, NIGHT_WARD_SPAN_R, NIGHT_WARD_PANELS,' +
  ' truckTargetGap, truckBackGap, truckStandOffset,' +
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
   ' getFireballs: () => bossFireballs, getBossWin: () => bossWin, setBossWin: (v) => { bossWin = v; },' +
@@ -683,7 +687,8 @@ const H = new Function(
   NIGHT_SPEECH_BANNED, NIGHT_SPEECH_ALLOW,
   // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
-  NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE
+  NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
+  NK_WARD_SPAN, NK_WARD_PANELS
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4313,6 +4318,40 @@ check('THE FIRST SWING IS AIMED WHERE HE IS LOOKING: at the clock-in facing the 
   aheadDownLeft === true && deadBehind === false && squareRight === false,
   'ahead=' + aheadDownLeft + ' behind=' + deadBehind + ' right=' + squareRight);
 p.facing = 0;
+
+console.log("\n[33] THE CURTAIN FULLY BLOCKS THE STREET: the ward reaches onto the sidewalk at the screen's right");
+// THE GAME'S OWN WARD BUILDER, measured against tonight's lane edges. The suite's THREE
+// mock keeps positions (not box dims), so the panel/bead POSITIONS carry the measurement
+// and the source carries the rail / core / glow lengths that ride with them.
+const w33 = H.makeSpectralWard();
+const wSrc33 = srcFn('makeSpectralWard');
+const wPanels = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - 2.0) < 1e-9);
+const wRails = w33.children.filter((c) => c.kind === 'box' && (Math.abs(c.position.z - (0.3 + 3.4 * 0.82)) < 1e-9 || Math.abs(c.position.z - (0.3 + 0.42)) < 1e-9));
+const wBeads = w33.children.filter((c) => c.kind === 'sph');
+const wGlow = w33.children.filter((c) => c.kind === 'light');
+const wLo = Math.min(...wPanels.map((c) => c.position.y)) - 0.45; // panel half-width
+const wHi = Math.max(...wPanels.map((c) => c.position.y)) + 0.45;
+check('THE CURTAIN IS WIDENED BY DESIGN: ' + NK_WARD_PANELS + ' panels (was 12) with ' + NK_WARD_SPAN + 'u of extra reach onto the sidewalk side — the built curtain lays ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' across the lane',
+  NK_WARD_PANELS === 14 && NK_WARD_SPAN >= 1.5 && wPanels.length === NK_WARD_PANELS &&
+    wBeads.length === NK_WARD_PANELS && wRails.length === 2 && wGlow.length === 1 &&
+    wHi - wLo >= (NK_WARD_PANELS - 1) * 1.45,
+  'panels=' + wPanels.length + ' span=' + wLo.toFixed(2) + '..' + wHi.toFixed(2));
+check('IT READS AS A WALL THAT FULLY BLOCKS THE STREET: the light covers the roadway past its left edge (' + wLo.toFixed(2) + ', the asphalt ends at -6.2) and runs CLEAR ONTO AND PAST THE SIDEWALK on the screen-right side (' + wHi.toFixed(2) + ', the walkway ends at 4.4) — no gap left between the last panel and the building line',
+  wLo <= -6.9 && wHi >= 4.4 + 7.0,
+  'wall covers ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' (road -6.2..-1.6, walk 1.6..4.4)');
+check('EVERY PART OF THE CURTAIN REACHES WITH IT: the binding rails, the core wisp and the lantern glow are all lengthed with the panel run (WSPAN-derived rails and core, a glow radius widened by the span) — the curtain is one wall, not a picket line with a tail',
+  /BX\(0\.14, WSPAN \+ 1\.5, 0\.16/.test(wSrc33) &&
+    /CY\(WID \* 0\.4, WID \* 0\.4, WSPAN \+ 1\.3/.test(wSrc33) &&
+    /WSPAN = \(NP - 1\) \* 1\.45/.test(wSrc33) &&
+    /PointLight\(0x36f2cf, 0\.55, 9 \+ SPAN \* 2\)/.test(wSrc33) &&
+    /bead\.position\.set\(0, -8\.4 \+ k \* 1\.45 \+ SPAN/.test(wSrc33) &&
+    Math.abs(wRails[0].position.y - NK_WARD_SPAN) < 1e-9 &&
+    Math.abs(wGlow[0].position.y - NK_WARD_SPAN) < 1e-9);
+check('THE GAMEPLAY LINE IS UNTOUCHED: the ward stands, stops and works exactly on its shipped numbers (the same x line, the 0.34 stop, the 2.5 birth room, the 0.35 work box) — only the LIGHT got wider, never the wall',
+  NIGHT_GATE_INSET === 2 && NIGHT_GATE_STOP === 0.34 && NIGHT_GATE_ROOM === 2.5 &&
+    NIGHT_GATE_WORK === 0.35 &&
+    srcFn('buildNightGates').includes('g.position.set(led.x, 0, GZ)') &&
+    srcFn('nightGateWall').length > 0 && srcFn('nightGateOn').includes('isNightShift'));
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

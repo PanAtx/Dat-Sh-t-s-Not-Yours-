@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.513</div>
+          <div id="app-version" class="menu-version">v1.0.514</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.513';
+      const APP_VERSION = '1.0.514';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29416,6 +29416,14 @@
       // worker inside the wall: he can only slide sideways. Fire on crossing, snap ON the line.)
       const NIGHT_GATE_FADE = 1.15; // s the curtain takes to dissolve
       const NIGHT_GATE_LIFT = 1.35; // u/s it rises as it fades
+      // THE CURTAIN REACHES ACROSS THE WHOLE STREET (a look-only extension): the ward is
+      // slid and lengthed toward the RIGHT of the screen — onto and past the sidewalk — so
+      // the light reads as a wall that FULLY BLOCKS the street, with no readable gap left
+      // between the last panel and the building line. Panels 12 -> 14 with 2u of extra
+      // reach, and the rails, core wisp, beads and lantern glow all extend with them.
+      // None of the ward's GAMEPLAY numbers move: same x line, same stop, same work box.
+      const NIGHT_WARD_SPAN_R = 2.0; // u of extra reach onto the sidewalk (screen right)
+      const NIGHT_WARD_PANELS = 14; // panels in the curtain (was 12)
       const NIGHT_GO_FLASH = 3.4; // s the red "GO!" arrow stands after a ward falls
       const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
       const HORROR_SURGE_LOAD_TIERS = 3; // ...and it stops stacking after this many surges
@@ -29856,7 +29864,12 @@
           m.opacity = base;
         };
         const H = 3.4, WID = 0.9, OP = 0.34;
-        for (let k = 0; k < 12; k++) {
+        // THE FULL-BLOCK SPAN: the curtain starts at the gutter on the street side and
+        // runs past the sidewalk on the screen-right side — NIGHT_WARD_SPAN_R slides the
+        // whole rig right, NIGHT_WARD_PANELS panels lay the light across it.
+        const SPAN = NIGHT_WARD_SPAN_R, NP = NIGHT_WARD_PANELS;
+        const WSPAN = (NP - 1) * 1.45; // the panel run's length end to end
+        for (let k = 0; k < NP; k++) {
           const m = new THREE.MeshBasicMaterial({
             color: k % 3 === 1 ? 0x9cffe8 : 0x46e8c8,
             transparent: true,
@@ -29864,7 +29877,7 @@
             depthWrite: false,
           });
           const panel = BX(0.2, WID, H, m);
-          panel.position.set(0, -8.5 + k * 1.45, GZ + H / 2);
+          panel.position.set(0, -8.5 + k * 1.45 + SPAN, GZ + H / 2);
           add(m, OP);
           g.add(panel);
         }
@@ -29874,8 +29887,8 @@
           fog: false,
           depthWrite: false,
         });
-        const core = CY(0.36, 0.36, 17.2, coreM, 8, 1);
-        core.position.set(0.16, 0, GZ + H * 0.62);
+        const core = CY(WID * 0.4, WID * 0.4, WSPAN + 1.3, coreM, 8, 1);
+        core.position.set(0.16, SPAN, GZ + H * 0.62);
         core.rotation.x = Math.PI / 2;
         add(coreM, 0.2);
         g.add(core);
@@ -29886,12 +29899,12 @@
             fog: false,
             depthWrite: false,
           });
-          const rail = BX(0.14, 17.4, 0.16, rm);
-          rail.position.set(0, 0, GZ + (r ? H * 0.82 : 0.42));
+          const rail = BX(0.14, WSPAN + 1.5, 0.16, rm);
+          rail.position.set(0, SPAN, GZ + (r ? H * 0.82 : 0.42));
           add(rm, 0.42);
           g.add(rail);
         }
-        for (let k = 0; k < 12; k++) {
+        for (let k = 0; k < NP; k++) {
           const bm = new THREE.MeshBasicMaterial({
             color: 0xe8fffb,
             transparent: true,
@@ -29899,12 +29912,12 @@
             depthWrite: false,
           });
           const bead = SP(0.13, bm, 7, 6);
-          bead.position.set(0, -8.4 + k * 1.45, GZ + H + 0.24);
+          bead.position.set(0, -8.4 + k * 1.45 + SPAN, GZ + H + 0.24);
           add(bm, 0.66);
           g.add(bead);
         }
-        const glow = new THREE.PointLight(0x36f2cf, 0.55, 9);
-        glow.position.set(0.4, 0, GZ + H * 0.55);
+        const glow = new THREE.PointLight(0x36f2cf, 0.55, 9 + SPAN * 2);
+        glow.position.set(0.4, SPAN, GZ + H * 0.55);
         g.add(glow);
         g.userData.ward = ward;
         return g;
