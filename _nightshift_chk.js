@@ -303,6 +303,7 @@ const NIGHT_GO_FLASH = srcNum('NIGHT_GO_FLASH');
 const NIGHT_GATE_WORK = srcNum('NIGHT_GATE_WORK');
 const HORROR_SURGE_LOAD = srcNum('HORROR_SURGE_LOAD');
 const HORROR_SURGE_LOAD_TIERS = srcNum('HORROR_SURGE_LOAD_TIERS');
+const HORROR_BLOCK_CREATURE_MAX = srcNum('HORROR_BLOCK_CREATURE_MAX');
 const NIGHT_GATE_LINES = eval('(' + srcLiteral('NIGHT_GATE_LINES', '[', ']') + ')');
 const NIGHT_GATE_OPEN_LINES = eval('(' + srcLiteral('NIGHT_GATE_OPEN_LINES', '[', ']') + ')');
 // THE MIDNIGHT DEAD END + THE FINAL BOSS (every number read straight out of the game)
@@ -523,7 +524,7 @@ const H = new Function(
   // THE SPECTRAL BLOCK WARDS
   'NIGHT_BLOCK_GATES', 'NIGHT_GATE_INSET', 'NIGHT_GATE_ROOM', 'NIGHT_GATE_STOP',
   'NIGHT_GATE_REACH', 'NIGHT_GATE_FADE', 'NIGHT_GATE_LIFT', 'NIGHT_GATE_WORK', 'HORROR_SURGE_LOAD',
-  'HORROR_SURGE_LOAD_TIERS', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES', 'NIGHT_GO_FLASH',
+  'HORROR_SURGE_LOAD_TIERS', 'HORROR_BLOCK_CREATURE_MAX', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES', 'NIGHT_GO_FLASH',
   'GHOUL_HITS', 'NIGHT_WOUND_LINES', 'NIGHT_BLOCK_HARDEN', 'NIGHT_WAVE_HARDEN', 'NIGHT_SURGE_HARDEN',
   'GHOUL_HITS_MAX', 'GHOUL_HITS_MIN', 'NIGHT_BACKOFF_T', 'NIGHT_BACKOFF_EXTRA', 'NIGHT_BACKOFF_SP',
   'NIGHT_WOUND_PUSH', 'NIGHT_EXTRA_HITS', 'NIGHT_HP_Z_PROP', 'NIGHT_SCURRY_LINES',
@@ -696,6 +697,7 @@ const H = new Function(
   // THE SPECTRAL BLOCK WARDS
   NIGHT_BLOCK_GATES, NIGHT_GATE_INSET, NIGHT_GATE_ROOM, NIGHT_GATE_STOP, NIGHT_GATE_REACH,
   NIGHT_GATE_FADE, NIGHT_GATE_LIFT, NIGHT_GATE_WORK, HORROR_SURGE_LOAD, HORROR_SURGE_LOAD_TIERS,
+  HORROR_BLOCK_CREATURE_MAX,
   NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES, NIGHT_GO_FLASH,
   GHOUL_HITS, NIGHT_WOUND_LINES, NIGHT_BLOCK_HARDEN, NIGHT_WAVE_HARDEN, NIGHT_SURGE_HARDEN,
   GHOUL_HITS_MAX, GHOUL_HITS_MIN, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP,
@@ -2895,13 +2897,22 @@ console.log("\n[18] THE WARD COMES DOWN: the block empties into the hopper, the 
     /^THE VERMIN · \d+ LEFT$/.test(H.gateHud()),
     (H.gateFront() || { x: -1 }).x + ' hud=' + H.gateHud());
 
-  // (f) THE SURGE LOADS THE HEAVY END ONLY (and stops stacking)
+  // (f) THE SURGE LOADS THE HEAVY END ONLY (and the whole bill stops at the CAP)
   H.setSurgeTier(HORROR_SURGE_LOAD_TIERS + 3);
-  check("each abyss surge adds HORROR_SURGE_LOAD to the flood block's bill and stops stacking at " + HORROR_SURGE_LOAD_TIERS,
-    H.gateSurge(GRAVEB) === HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS &&
-    [TOPB, VERMB].every((b) => H.gateSurge(b) === 0) &&
-    H.gateLoad(GRAVEB) === H.gateLedger(GRAVEB).load + HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS,
-    "flood=" + H.gateLoad(GRAVEB) + " top=" + H.gateLoad(TOPB));
+  (() => {
+    const graveF = H.gateSurge(bandOfX(96));
+    const topS = H.gateSurge(bandOfX(384));
+    const vermS = H.gateSurge(bandOfX(288));
+    const digS = H.gateSurge(bandOfX(192));
+    const graveL = H.gateLoad(bandOfX(96));
+    const loads = [96, 192, 288, 384].map((x) => H.gateLoad(bandOfX(x)));
+    check("each abyss surge adds HORROR_SURGE_LOAD to the flood block's bill, stacking stops at " + HORROR_SURGE_LOAD_TIERS + " surges, and NO BLOCK'S BILL EVER PASSES " + HORROR_BLOCK_CREATURE_MAX + " creatures: the grave ward tops out at EXACTLY the cap, every other block pays 0",
+      graveF === HORROR_BLOCK_CREATURE_MAX - 20 &&
+      topS === 0 && vermS === 0 && digS === 0 &&
+      graveL === HORROR_BLOCK_CREATURE_MAX &&
+      loads.every((v) => v <= HORROR_BLOCK_CREATURE_MAX),
+      "flood=" + graveL + " top=" + loads[3]);
+  })();
   H.setSurgeTier(0);
 })();
 
@@ -3908,7 +3919,7 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
       html.includes('id="night-go-arrow">GO!<'));
   const goCss = (html.match(/#night-go \{[\s\S]{0,900}?\}/) || [''])[0];
   const goRules = html.match(/#night-go \{[^}]*\}/g) || [];
-  const goArrow = (html.match(/#night-go-arrow \{[\s\S]{0,900}?\}/) || [''])[0];
+  const goArrow = (html.match(/#night-go-arrow \{[\s\S]{0,1600}?\}/) || [''])[0];
   check('IT STANDS AT THE DEAD CENTRE OF THE SCREEN (full-viewport panel, flex-centred, taps pass through it) and goes hidden with the panel',
     /position: fixed/.test(goCss) && /inset: 0/.test(goCss) &&
       /align-items: center/.test(goCss) && /justify-content: center/.test(goCss) &&
@@ -3920,15 +3931,35 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
   check('THE ARROW IS A RED 16-BIT CHUNK POINTING BOTTOM-LEFT: down-pointing clip-path, rotated onto the way out, GO! lettering',
     /clip-path: polygon\(\s*50% 100%,/.test(goArrow) && /transform: rotate\(40deg\)/.test(goArrow) &&
       /background: #ff3b4a/.test(goArrow) && /"Bangers"/.test(goArrow));
+  check("THE ARROW IS BIG ENOUGH THAT \"GO!\" CANNOT BE CLIPPED: the block is a full 108px square and the clip-path STEMS are wide enough to hold the lettering (the stem spans 26%..74% of it)",
+    /#night-go-arrow \{[^}]*width: 108px[^}]*height: 108px/.test(goArrow) &&
+      (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[1] === '26' &&
+      (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[2] === '74' &&
+      (() => { // THE MEASURED FIT: 30px Bangers lettering, ~0.42em per glyph + spacing
+        const fs = Number((goArrow.match(/font-size: (\d+)px/) || [])[1] || 0);
+        const ls = Number((goArrow.match(/letter-spacing: ([\d.]+)px/) || [])[1] || 0);
+        const stemPx = 108 * (Number((goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[2]) -
+          Number((goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[1])) / 100;
+        const wordPx = fs * 0.42 * 3 + ls * 2; // "GO!" = 3 glyphs + 2 gaps
+        return fs === 30 && stemPx > wordPx;
+      })(),
+    goArrow.match(/font-size: (\d+)px/)[1] + 'px in a ' +
+      ((goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[2] - (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[1]) + '% stem');
   check('IT SLAMS IN, THE LINE BLINKS, THE ARROW NUDGES TOWARD THE EXIT, AND ITS LAST SECOND FLICKERS OUT',
     /animation: goSlam 0\.3s/.test(goCss) && /@keyframes goSlam/.test(html) &&
       /animation: goBlink 0\.72s/.test(html) && /@keyframes goBlink/.test(html) &&
       /animation: goNudge 0\.52s/.test(goArrow) && /@keyframes goNudge/.test(html) &&
       /#night-go\.go-out \{/.test(html) && /@keyframes goOut/.test(html));
-  check('THE PHONES GET THE SAME CENTRE, NOT A CORNER: the small-screen block moves nothing (no bottom/left), the arrow stays 56px / GO! 21px',
+  check('THE PHONES GET THE SAME CENTRE, NOT A CORNER: the small-screen block moves nothing (no bottom/left), and the arrow SHRINKS TO THE PHONE SIZE (74px / GO! 24px) WITHOUT EVER GOING BELOW the legible floor of its own lettering',
     goRules.length >= 2 &&
       goRules.every((r) => !/bottom:/.test(r) && !/left:/.test(r)) &&
-      (html.match(/#night-go-arrow \{[^}]*\}/g) || []).some((r) => /width: 56px/.test(r) && /font-size: 21px/.test(r)) &&
+      (html.match(/#night-go-arrow \{[^}]*\}/g) || []).some((r) => /width: 74px/.test(r) && /font-size: 24px/.test(r)) &&
+      (() => {
+        const m = (html.match(/#night-go-arrow \{[^}]*\}/g) || []).slice(-1)[0];
+        const fs = Number((m.match(/font-size: (\d+)px/) || [])[1]);
+      const stemPct = Number((m.match(/(\d+)% 0, (\d+)% 0/) || [])[2]) - 26 || 48; // the clip-path is inherited from the desktop rule (26%..74%)
+        return fs === 24 && 74 * 0.48 > fs * 0.42 * 3 + 2; // stem wider than the word on the phone
+      })() &&
       /#night-go-msg \{[^}]*max-width: 58vw/.test(html),
     'rules=' + goRules.length + ' corners=' + goRules.filter((r) => /bottom:|left:/.test(r)).length);
   // (f) ONLY THE NIGHT HUD LIGHTS IT, AND THE HUD RIDES ITS CLOCK (never on a weekday,
@@ -4563,22 +4594,25 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
   const grave35 = bands35.filter((b) => b.x0 === NIGHT_BEAT_GRAVE_X)[0];
   const others35 = bands35.filter((b) => b.x0 !== NIGHT_BEAT_GRAVE_X);
   const street35 = bands35.reduce((s, b) => s + H.gateLedger(b).load, 0);
-  check("THE GRAVE WARD IS A GATE NOW, NOT THE STREET'S FARM: its bill is 20 shovelfuls where it used to be 30 (a full third of the fighting gone), it is the lightest ward on the street, and the whole street fits the roster cap (" + street35 + " / " + HORROR_ROSTER_CAP + ")",
+  check("THE GRAVE WARD KEEPS ITS CUT: its flood bill is 20 shovelfuls where it used to be 30, it is NO LONGER THE HEAVIEST WARD ON THE STREET (the vermin ward out-seeds it), and the whole street fits the roster cap (" + street35 + " / " + HORROR_ROSTER_CAP + ")",
     !!grave35 && H.gateLedger(grave35).load === 20 &&
-      others35.every((b) => H.gateLedger(b).load >= 20) &&
+      others35.some((b) => H.gateLedger(b).load > 20) &&
       street35 <= HORROR_ROSTER_CAP &&
       /THE BILL COMES DOWN/.test(srcFn('nightBlockPack')) === false &&
       NIGHT_BLOCKS.filter((e) => e.x === NIGHT_BEAT_GRAVE_X)[0].flood.reaper === 1,
     "grave=" + (grave35 ? H.gateLedger(grave35).load : -1) +
       " others=" + others35.map((b) => H.gateLedger(b).load).join("/") + " street=" + street35);
-  check("THE SURGE STILL STACKS ON THE FLOOD BLOCK — from its CUT base (20 + " + HORROR_SURGE_LOAD + " x " + HORROR_SURGE_LOAD_TIERS + ")",
+  check("THE SURGE STACKS ON THE FLOOD BLOCK'S CUT BASE — AND THE BILL STOPS AT THE LAW'S " + HORROR_BLOCK_CREATURE_MAX + " CREATURES (the block only takes on the room left under the cap; more surges past that add NOTHING)",
     grave35 && (() => {
       H.setSurgeTier(0);
       const base35 = H.gateLoad(grave35) === 20;
       H.setSurgeTier(HORROR_SURGE_LOAD_TIERS);
-      const full35 = H.gateLoad(grave35) === 20 + HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS;
+      const full35 = H.gateLoad(grave35) === HORROR_BLOCK_CREATURE_MAX &&
+        H.gateSurge(grave35) === HORROR_BLOCK_CREATURE_MAX - 20;
+      H.setSurgeTier(HORROR_SURGE_LOAD_TIERS + 9);
+      const hard35 = H.gateLoad(grave35) === HORROR_BLOCK_CREATURE_MAX; // more surges, same wall
       H.setSurgeTier(0);
-      return base35 && full35;
+      return base35 && full35 && hard35;
     })());
   // THE RING, WALKED LIVE: with the beast awake, how far down-and-left does the street let him go?
   H.clearNightBoss(); H.spawnNightBoss();

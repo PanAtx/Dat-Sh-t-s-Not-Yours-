@@ -616,21 +616,23 @@
         animation: goBlink 0.72s steps(2, start) infinite;
       }
       #night-go-arrow {
-        width: 78px;
-        height: 78px;
+        width: 108px;
+        height: 108px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-family: "Bangers", "Arial Black", Impact, sans-serif;
         font-size: 30px;
-        letter-spacing: 2px;
+        letter-spacing: 1.5px;
         color: #fff;
         text-shadow: 2px 2px 0 rgba(90, 0, 12, 0.9);
         background: #ff3b4a;
         /* A fat down-pointing arrow; the block is rotated onto the bottom-left — the
-           way out of every block on tonight's street. */
+           way out of every block on tonight's street. THE STEM IS WIDE (26%..74%) and
+           the wings start low (48%), so the word "GO!" standing dead centre never
+           touches the clip edges at any readable font size. */
         clip-path: polygon(
-          50% 100%, 8% 44%, 32% 44%, 32% 0, 68% 0, 68% 44%, 92% 44%
+          50% 100%, 4% 48%, 26% 48%, 26% 0, 74% 0, 74% 48%, 96% 48%
         );
         transform: rotate(40deg);
         filter: drop-shadow(4px 5px 0 rgba(0, 0, 0, 0.5));
@@ -863,10 +865,10 @@
           max-width: 58vw;
         }
         #night-go-arrow {
-          width: 56px;
-          height: 56px;
-          font-size: 21px;
-          letter-spacing: 1.4px;
+          width: 74px;
+          height: 74px;
+          font-size: 24px;
+          letter-spacing: 1px;
         }
         .bonus-goal-chip {
           font-size: clamp(8px, 2.5vw, 11px);
@@ -4460,7 +4462,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.518</div>
+          <div id="app-version" class="menu-version">v1.0.519</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4720,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.518';
+      const APP_VERSION = '1.0.519';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5430,6 +5432,11 @@
       const NIGHT_LAMP_EVERY = 3;        // one street lamp every 3rd house cell
       const NIGHT_LAMP_CELL = 1;         // ...offset to the middle cell of the triplet
       const NIGHT_LAMP_FOOT = 0.24;      // the lamp's footprint radius (its base shoe)
+      const NIGHT_LAMP_CLEAR = 1.15;     // u of walk a lamp keeps from a FIXTURE it would land
+      // on top of: a fire hydrant, a mailbox or a sidewalk tree. Standing fixtures on the same
+      // walk row that close to the pole lose the spot — the lamp samples other spots and, if
+      // the cell is fully claimed, passes on planting a pole there at all.
+      const NIGHT_LAMP_TRIES = 6;        // spots a pole samples on its cell before it gives up
       const NIGHT_LAMP_Y = 1.34;         // the lamp line: ON THE SIDEWALK, next to the curb and NOT
                                          // on it — and the game's OWN keep-out puts it there:
                                          // curbClearY(NIGHT_LAMP_FOOT) = 0.75 (walk-side face of the
@@ -5794,6 +5801,31 @@
       // Street lamps for the haunted block ONLY. One every NIGHT_LAMP_EVERY cells, staggered
       // along the cell, on the curb line - and registered as a SOLID b.trees obstacle (the
       // mailbox precedent), so the worker walks AROUND a pole instead of through it.
+      // A LAMP NEVER LANDS ON A HYDRANT, A MAILBOX OR A TREE: every standing fixture on the
+      // walk is registered on its block — trees and mailboxes in b.trees (wx, wy), hydrants as
+      // "hit" hazards on the curbClearY(FOOT_R_HYDRANT) line (wx, wy). A spot that overlaps a
+      // fixture's stretch of the same walk row is no spot at all; the pole samples the cell
+      // until it finds clear concrete.
+      function nightLampClear(b, jx, lampY) {
+        const wx = b.worldX + jx;
+        const trees = b.trees || [];
+        for (let i = 0; i < trees.length; i++) {
+          const t = trees[i];
+          // lamps themselves are NOT fixtures — a rebuild must not be blocked by the poles
+          // it registered on the previous pass
+          if (t && t.kind !== "lamp" &&
+              Math.abs(t.wx - wx) < NIGHT_LAMP_CLEAR && Math.abs(t.wy - lampY) < 1.2) return false;
+        }
+        const hz = b.hazards || [];
+        for (let i = 0; i < hz.length; i++) {
+          const h = hz[i];
+          // the fire hydrant's own signature: a "hit" hazard planted on the hydrant line
+          if (h && h.type === "hit" &&
+              Math.abs(h.wy - (typeof curbClearY === "function" ? curbClearY(FOOT_R_HYDRANT) : 1.32)) < 0.06 &&
+              Math.abs(h.wx - wx) < NIGHT_LAMP_CLEAR) return false;
+        }
+        return true;
+      }
       function buildNightLamps() {
         nightLamps.length = 0;
         if (typeof isNightShift !== "function" || !isNightShift()) return 0;
@@ -5803,14 +5835,21 @@
           if (!b || !b.group || b.blockX == null || b.worldX == null) continue;
           const cell = Math.round((b.worldX - b.blockX) / BW);
           if (cell % NIGHT_LAMP_EVERY !== NIGHT_LAMP_CELL) continue;
-          const jx = R(1.6, 6.4); // stagger: a row of lamps must never march in lockstep
-          const lamp = makeStreetLamp();
           // ON THE SIDEWALK, NOT ON THE CURB — and the shipped keep-out rule decides where that
           // is: curbClearY() is the same rule that plants the hydrants and the sidewalk trees, so
           // the lamps stand in that same line on the walk. The base rides the WALK SLAB (raised
           // 0.35 over the asphalt); the head is what reaches out over the road.
           const lampY =
             typeof curbClearY === "function" ? curbClearY(NIGHT_LAMP_FOOT) : NIGHT_LAMP_Y;
+          let jx = null;
+          for (let t = 0; t < NIGHT_LAMP_TRIES; t++) {
+            const cand = R(1.6, 6.4); // stagger: a row of lamps must never march in lockstep
+            if (nightLampClear(b, cand, lampY)) { jx = cand; break; }
+          }
+          // THE CELL IS FURNISHED TO THE RAFTERS — every spot on the walk line is a hydrant's,
+          // a mailbox's or a tree's. The lamp passes on this cell rather than standing on them.
+          if (jx === null) continue;
+          const lamp = makeStreetLamp();
           lamp.g.position.set(jx, lampY, GZ + NIGHT_WALK_TOP);
           b.group.add(lamp.g);
           const wx = b.worldX + jx;
@@ -29459,6 +29498,10 @@
       const NIGHT_BLOOD_SPRAY = 5; // red droplets thrown by the blow
       const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
       const HORROR_SURGE_LOAD_TIERS = 3; // ...and it stops stacking after this many surges
+      const HORROR_BLOCK_CREATURE_MAX = 40; // NO BLOCK ON THE STREET — surges included — ever
+      // asks for more than this many creatures to shovel. The ward's bill is CLAMPED at
+      // this number: after a surge, the flood block only takes on the room that is left
+      // beneath the cap, so Grave Watch tops out at 40 and never beyond.
       const NIGHT_GATE_LINES = [
         "THE WARD WON'T LET ME THROUGH!",
         "GOT TO CLEAR THIS WHOLE BLOCK FIRST!",
@@ -29490,7 +29533,11 @@
       }
       function nightGateSurgeAdd(band) {
         if (!band || !band.flood) return 0; // only the pit block takes on surges
-        return Math.min(nightSurgeTier, HORROR_SURGE_LOAD_TIERS) * HORROR_SURGE_LOAD;
+        // THE CAP: a block's whole bill — base plus every surge stacked on it — never passes
+        // HORROR_BLOCK_CREATURE_MAX creatures. The surge still feeds the flood block, but only
+        // the room left under the cap; Grave Watch therefore tops out at exactly 40.
+        const room = Math.max(0, HORROR_BLOCK_CREATURE_MAX - nightGateBaseLoad(band));
+        return Math.min(Math.min(nightSurgeTier, HORROR_SURGE_LOAD_TIERS) * HORROR_SURGE_LOAD, room);
       }
       function nightGateBaseLoad(band) {
         // THE SET NUMBER OF CREATURES ON THIS BLOCK: its own pack table, family by family

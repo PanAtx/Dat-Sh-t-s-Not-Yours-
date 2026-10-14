@@ -274,7 +274,7 @@ const SHADER_CONSTS = html.slice(
 );
 const FUNCS = ['applyNightPalette', 'nightPaneSpec', 'pickNearestLamps', 'retroGainFor', 'nightLampFlicker',
   'nightRadialTex', 'nightMoonTex', 'ensureNightSkyRig', 'clearNightSkyRig', 'makeStreetLamp',
-  'buildNightLamps', 'ensureNightLampLights', 'applyNightWindows', 'armMidnightLook', 'retroUniforms',
+  'nightLampClear', 'buildNightLamps', 'ensureNightLampLights', 'applyNightWindows', 'armMidnightLook', 'retroUniforms',
   'patchRetroSheen', 'armNightRetro', 'applyNightHiVis', 'retroProbeColor', 'updateNightLamps',
   'nightEctoK', 'nightEctoSize', 'applyMidnightMusic', 'registerNightGlowMat', 'scanNightGlow',
   'applyNightGlow', 'nightTruckRadial', 'hazardClock',
@@ -381,6 +381,70 @@ check('the pools lie FLAT ON THE ASPHALT (0.12 above the road), centred in the l
   'pool world z=' + api.getLamps()[0].pool.getWorldPosition(new THREE.Vector3()).z.toFixed(2));
 check('the ' + NIGHT_LAMP_POOL + ' pooled PointLights exist and are IDLE (zero) until the night frame runs',
   api.getLights().length === NIGHT_LAMP_POOL && api.getLights().every((L) => L.intensity === 0));
+
+// ---- NO POLE STANDS ON A HYDRANT, A MAILBOX OR A TREE ---------------------------------
+console.log('\n[2b] THE WALK ROW BELONGS TO ITS FIXTURES: no lamp lands on a hydrant, a mailbox or a tree');
+const LAMP_KEEP = srcNum('NIGHT_LAMP_CLEAR');
+const LAMP_TRIES_N = srcNum('NIGHT_LAMP_TRIES');
+const HY_Y = 0.75 + 0.35 + 0.22, MB_Y = 1.5, TR_Y = 0.75 + 0.35 + 0.52; // the shipped fixture lines
+const LAMP_CELLS = () => blocks.filter((b) => Math.round((b.worldX - b.blockX) / 8) % 3 === 1);
+(function () {
+  const cleanB = () => { blocks.forEach((b) => {
+    b.hazards = b.hazards.filter((h) => !h._probe);
+    b.trees = b.trees.filter((t) => !t._probe);
+  }); };
+  const seedAt = (b, rec, list) => { rec._probe = true; b[list].push(rec); };
+  const rowFixtures = (b) => [].concat(
+    (b.trees || []).filter((t) => t.kind !== "lamp" && Math.abs(t.wy - MB_Y) < 1.2),
+    (b.hazards || []).filter((h) => h.type === "hit" && Math.abs(h.wy - HY_Y) < 0.06));
+  const allClear = (lamps) => lamps.every((l) => blocks.every((b) =>
+    rowFixtures(b).every((f) => !(Math.abs(f.wx - l.wx) < LAMP_KEEP &&
+      Math.abs(f.wy - l.wy) < 1.2)) &&
+    (b.hazards || []).filter((h) => h.type === "hit" && Math.abs(h.wy - HY_Y) < 0.06)
+      .every((h) => Math.abs(h.wx - l.wx) >= LAMP_KEEP)));
+  cleanB();
+  const n18a = api.buildNightLamps();
+  const n18b = api.buildNightLamps();
+  check('the plain furnished street keeps its full row — ' + n18a + ' poles, and the same ' + n18b + ' next build (the keep-out costs nothing where nothing stands)',
+    n18a === 18 && n18b === 18 && api.getLamps().length === 18, 'a=' + n18a + ' b=' + n18b);
+  // hydrant + mailbox + sidewalk tree planted ACROSS the sampled stretch of every lamp cell
+  LAMP_CELLS().forEach((b) => {
+    seedAt(b, { wx: b.worldX + 1.5, wy: HY_Y, r: 0.75, type: "hit", drop: 0, cd: 0 }, "hazards");
+    seedAt(b, { wx: b.worldX + 3.9, wy: MB_Y, kind: "mailbox" }, "trees");
+    seedAt(b, { wx: b.worldX + 3.0, wy: TR_Y }, "trees");
+  });
+  const nF = api.buildNightLamps();
+  const lampsF = api.getLamps();
+  check('with a hydrant, a mailbox and a tree claiming a fat stretch of its walk row the builder SAMPLES up to ' + LAMP_TRIES_N + ' spots per cell (' + nF + ' poles stand of ' + n18a + ' cells) — every pole it plants squeezed its spot into the clear concrete that is left',
+    nF > 0 && allClear(lampsF), 'nF=' + nF);
+  check('EVERY pole standing on that furnished street keeps ' + LAMP_KEEP + 'u of clear walk from every hydrant, mailbox and sidewalk tree on its row (the lamp registrations themselves never block a lamp)',
+    lampsF.length === nF && allClear(lampsF), 'poles=' + lampsF.length);
+  // a FULLY claimed cell: the fixture line covers the WHOLE sampled stretch of every lamp cell
+  cleanB();
+  LAMP_CELLS().forEach((b) => {
+    seedAt(b, { wx: b.worldX + 1.5, wy: HY_Y, r: 0.75, type: "hit", drop: 0, cd: 0 }, "hazards");
+    seedAt(b, { wx: b.worldX + 2.75, wy: TR_Y }, "trees");
+    seedAt(b, { wx: b.worldX + 4.0, wy: HY_Y, r: 0.75, type: "hit", drop: 0, cd: 0 }, "hazards");
+    seedAt(b, { wx: b.worldX + 5.25, wy: MB_Y, kind: "mailbox" }, "trees");
+    seedAt(b, { wx: b.worldX + 6.5, wy: HY_Y, r: 0.75, type: "hit", drop: 0, cd: 0 }, "hazards");
+  });
+  const nFull = api.buildNightLamps();
+  check('a cell furnished across its ENTIRE sampled stretch (hydrants, a tree and a mailbox shoulder to shoulder) gets NO pole at all (' + nFull + ' lamps) — the lamp gives the whole cell up, it never stands on top of a fixture',
+    nFull === 0 && api.getLamps().length === 0 && allClear(api.getLamps()), 'nFull=' + nFull);
+  // off-the-row fixtures are nobody's business: the lawn tree and the road hazard do not claim spots
+  cleanB();
+  const FAR_Y = TR_Y + 4.5, ROAD_Y = -6;
+  LAMP_CELLS().forEach((b) => {
+    seedAt(b, { wx: b.worldX + 4.0, wy: FAR_Y }, "trees");
+    seedAt(b, { wx: b.worldX + 4.0, wy: FAR_Y + 0.4 }, "trees");
+    seedAt(b, { wx: b.worldX + 4.2, wy: ROAD_Y, r: 0.9, type: "hit", drop: 0, cd: 0 }, "hazards");
+    seedAt(b, { wx: b.worldX + 4.0, wy: 0.5, r: 0.5, type: "hit", drop: 0, cd: 0 }, "hazards");
+  });
+  const nFar = api.buildNightLamps();
+  check('a lawn tree five steps back from the walk line, a pothole in the road and a curb-level hit hazard own NOTHING on the lamp line — all ' + nFar + ' poles built as on the clean street (the keep-out is a ROW rule, not a ban)',
+    nFar === 18 && rowFixtures(LAMP_CELLS()[0]).length === 0, 'nFar=' + nFar);
+  cleanB();
+})();
 api.ensureNightSkyRig();
 check('the moon + stars go UP in the sky (parented to the camera, behind the block)',
   !!api.getRig() && api.getRig().children.length === 2 && api.getRig().parent === camera);
