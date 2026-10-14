@@ -453,7 +453,8 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'hellNoteDropY', 'dropShovelHellNote',
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount',
   // SPECTRAL BLOOD (the shovel wound the player can SEE on Midnight)
-  'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex'].map(srcFn).join('\n');
+  'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex',
+  'nightTestClockInAtBoss'].map(srcFn).join('\n');
 // THE KILL DROP: the door the note goes through, spied on right here, and the bands it
 // must land in — injected into the haunt sandbox exactly like every other number.
 const NK_NOTES = [];
@@ -537,7 +538,7 @@ const H = new Function(
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
   'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L', 'NIGHT_WARD_DEATH_BAND',
   'NIGHT_BLOOD_C', 'NIGHT_BLOOD_LITE', 'NIGHT_BLOOD_TINT', 'NIGHT_BLOOD_AURA', 'NIGHT_BLOOD_SPRAY',
-  'NIGHT_BOSS_ROOM_X',
+  'NIGHT_BOSS_ROOM_X', 'NIGHT_TEST_BOSS_START',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -641,7 +642,8 @@ const H = new Function(
   ' armSpook: (c, b) => nightArmSpook(c, b), woundShovel: (c) => nightWoundShovel(c),' +
   ' barLog: () => hpBarLog,' +
   ' gateCheck: dt => nightGateCheck(dt), gateAnimate: dt => nightGateAnimate(dt),' +
-  ' gateYield: ref => nightGateYieldOf(ref), gateBandXs: b => nightBlockBandXs(b), gateSurge: b => nightGateSurgeAdd(b) };'
+  ' gateYield: ref => nightGateYieldOf(ref), gateBandXs: b => nightBlockBandXs(b), gateSurge: b => nightGateSurgeAdd(b),' +
+  ' testClockIn: () => nightTestClockInAtBoss() };'
 )
 (
   THREE, M, MS, BX, CY, SP, SPH, R, pick, clamp,
@@ -708,7 +710,8 @@ const H = new Function(
   NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
   NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L, NK_WARD_BAND,
   NK_BLOOD_C, NK_BLOOD_LITE, NK_BLOOD_TINT, NK_BLOOD_AURA, NK_BLOOD_SPRAY,
-  NK_BOSS_ROOM_X
+  NK_BOSS_ROOM_X,
+  false // NIGHT_TEST_BOSS_START: the suites run the SHIPPED law — the switch is OFF
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4655,6 +4658,71 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
   check("WHEN THE BEAST IS DOWN THE GATE STANDS AS SHIPPED (" + (NIGHT_GRAVE_X - 8) + "u): the ring is the fight's opening, not a loosening of the sealed end — the awake floor is never further up the street than the asleep floor",
     Math.abs(H.workerEndLimitX() - (NIGHT_GRAVE_X - 8)) < 1e-9 &&
       H.workerEndLimitX() > wall35);
+})();
+
+console.log("\n[36] THE PLAYTEST DOORWAY: ?testboss drops the haunted shift straight at the final boss — wards stamped clear, and the switch is a FLAG, never a hard-code");
+(function () {
+  nightOn = true;
+  s7Reset();
+  // (a) THE LAW IS A FLAG: read the shipped expression out of the game and run it cold
+  const lawStmt = (html.match(/const NIGHT_TEST_BOSS_START =\s*([\s\S]*?);\r?\n/) || [])[1] || "";
+  const lawOf = (win, loc) =>
+    new Function('window', 'location', 'return (' + lawStmt + ');')(win, loc);
+  check("IT READS ONLY THE FLAGS, NEVER A BAKED-IN true: plain page (no window flag, empty URL) = OFF; ?testboss in the URL = ON; window.NIGHT_TEST_BOSS_START === true = ON; window.NIGHT_TEST_BOSS_START = false = OFF (the console kill-switch)",
+    /\bwindow\.NIGHT_TEST_BOSS_START === true\b/.test(lawStmt) &&
+      /\[\?&\]testboss\b/.test(lawStmt) &&
+      lawOf({}, { search: "" }) === false &&
+      lawOf({ NIGHT_TEST_BOSS_START: false }, { search: "" }) === false &&
+      lawOf({ NIGHT_TEST_BOSS_START: true }, { search: "" }) === true &&
+      lawOf({}, { search: "/index.html?testboss" }) === true &&
+      lawOf({}, { search: "/index.html?a=1&testboss&z=2" }) === true &&
+      lawOf({}, { search: "/index.html?x=testbosses" }) === false,
+    'law=' + lawStmt.slice(0, 120));
+  check("SWITCH OFF — THE SHIPPED LAW (the suites and a plain index.html): the clock-in stays at the TOP of the dead end, playerSpawnX() = " + H.playerSpawnX() + "u, " + (H.playerSpawnX() - NIGHT_BOSS_TRIGGER_X) + "u uphill of the waking line",
+    H.playerSpawnX() === NIGHT_START_X && H.playerSpawnX() > NIGHT_BOSS_TRIGGER_X);
+  const spawnDoor = (flag) =>
+    new Function('isNightShift', 'NIGHT_TEST_BOSS_START', 'NIGHT_BOSS_TRIGGER_X', 'NIGHT_START_X', 'PLAYER_START_X',
+      srcFn('playerSpawnX') + '\nreturn playerSpawnX();')(() => true, flag, NIGHT_BOSS_TRIGGER_X, NIGHT_START_X, PLAYER_START_X);
+  const doorOn = spawnDoor(true), doorOff = spawnDoor(false);
+  check("SWITCH ON — THE DOORWAY: the flagged clock-in lands ON the grave block at trigger+3 = " + doorOn + "u, below the grave ward line and " + (doorOn - NIGHT_BOSS_TRIGGER_X) + "u above the cross-street that wakes the beast — and flipping the flag back off returns it to " + doorOff + "u, the top of the street, exactly as shipped",
+    doorOn === NIGHT_BOSS_TRIGGER_X + 3 &&
+      doorOn < NIGHT_BOSS_TRIGGER_X + 6 && doorOn > NIGHT_BOSS_TRIGGER_X &&
+      doorOff === NIGHT_START_X);
+  check("THE SPAWNER WIRES IT: spawnNightShift ends with the stamp running behind a typeof-guarded look at the switch (a world that never declared it — every suite, any harness — simply never touches the branch), through its own helper nightTestClockInAtBoss",
+    /typeof NIGHT_TEST_BOSS_START !== "undefined" && NIGHT_TEST_BOSS_START\)\s*\r?\n\s*nightTestClockInAtBoss\(\);/.test(srcFn('spawnNightShift')) &&
+      /function nightTestClockInAtBoss\(\)/.test(html) &&
+      srcFn('spawnNightShift').indexOf('nightTestClockInAtBoss();') <
+        srcFn('spawnNightShift').indexOf('console.log('));
+  // (b) LIVE THE SCAFFOLD RUNS: the fully-built haunted street, stamped the playtest way
+  const bands36 = H.nightBands();
+  const flood36 = bands36.filter((b) => b.flood)[0];
+  H.setBoss(null);
+  H.spawnNightBoss(); // the playtest build lays the beast down asleep in the yard (as spawnNightShift does)
+  const seeded36 = creatures.filter((c) => c.home && HORROR_ALL[H.horrorKey(c)]).length;
+  const closed36 = bands36.filter((b) => H.gateClosed(b) === true).length;
+  H.testClockIn();
+  const left36 = creatures.filter((c) => c.home && HORROR_ALL[H.horrorKey(c)]).length;
+  const wards36 = dynamicChildren.filter((o) => o.userData && o.userData.ward).length;
+  check("THE STREET IS STAMPED CLEARED: all " + closed36 + " sealed wards (of " + bands36.length + ", with " + seeded36 + " seeded spooks on the beat) come out OPEN — each ledger paid to its own lock-in bill (sent = yield = load) and the fog sweep empties the roster to " + left36 + " left",
+    closed36 === bands36.length && seeded36 > 0 &&
+      bands36.every((b) => H.gateClosed(b) === false) &&
+      bands36.every((b) => {
+        const led = H.gateLedger(b);
+        return led.open === true && led.sent === led.load && led.yield === led.load;
+      }) && left36 === 0,
+    'seeded=' + seeded36 + ' closedBefore=' + closed36 + ' left=' + left36);
+  check("THE LIGHT IS DOWN AND THE ARROW IS DARK: not a curtain mesh left on the street (" + wards36 + "), the GO! clock zeroed, and the worker stands the doorway — wx " + p.wx.toFixed(1) + "u on the " + p.wy.toFixed(1) + "u cemetery lane, facing the same downhill way he always clocks in with",
+    wards36 === 0 && p.wx === NIGHT_BOSS_TRIGGER_X + 3 && p.wy === 2.5 &&
+      p.facing === NK_FACE && H.getGoT() === 0);
+  check("THE BEAST IS LAID, ASLEEP, RIGHT IN FRONT OF HIM: the scaffold does NOT wake it — the fight starts the way it always starts, by walking into the cross-street (trigger " + NIGHT_BOSS_TRIGGER_X + "u, he stands " + p.wx + "u, the beast rises at " + NIGHT_BOSS_X + "u)",
+    H.getBoss() !== null && H.getBoss().awake === false &&
+      H.getFightOn() === false && p.wx > NIGHT_BOSS_TRIGGER_X &&
+      p.wx - NIGHT_BOSS_TRIGGER_X === 3);
+  check("THE STAMP IS NOT A LOOSENING: the doorway sits under the shipped geometry — the grave ward line stays at trigger+6 (" + (NIGHT_BOSS_TRIGGER_X + 6) + "u, and the stamp opens it rather than moving it: gateX = " + H.gateX(flood36) + "u), the sealed end rules answer the same anchors (near " + H.routeNearX() + ", far " + H.routeFarX() + ", gate-asleep floor " + (NIGHT_GRAVE_X - 8) + "u) — the street never grew for the playtest",
+    H.gateX(flood36) === NIGHT_BOSS_TRIGGER_X + 6 &&
+      H.gateClosed(flood36) === false &&
+      H.routeNearX() === NIGHT_END_X && H.routeFarX() === NIGHT_TOP_X &&
+      Math.abs(H.workerEndLimitX() - (NIGHT_GRAVE_X - 8)) < 1e-9);
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));

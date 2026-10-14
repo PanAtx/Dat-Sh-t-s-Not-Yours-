@@ -4462,7 +4462,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.520</div>
+          <div id="app-version" class="menu-version">v1.0.521</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4720,7 +4720,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.520';
+      const APP_VERSION = '1.0.521';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19690,7 +19690,14 @@
         return isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
       }
       function playerSpawnX() {
-        return isNightShift() ? NIGHT_START_X : PLAYER_START_X;
+        // PLAYTEST (NIGHT_TEST_BOSS_START): the playtest clock-in lands ON the grave block,
+        // three paces above the cross-street that wakes the beast. Switch off = the shipped
+        // law, unchanged: the TOP of the dead-end street (NIGHT_START_X, x 449).
+        if (isNightShift())
+          return typeof NIGHT_TEST_BOSS_START !== "undefined" && NIGHT_TEST_BOSS_START
+            ? NIGHT_BOSS_TRIGGER_X + 3
+            : NIGHT_START_X;
+        return PLAYER_START_X;
       }
       // ---- THE RIG'S FOLLOW GAPS (Midnight only — every weekday keeps 3.6 / 4.1 / 1.5) ----
       // On the dead-end street the rig REVERSES behind the worker with its open scoop facing
@@ -28319,6 +28326,22 @@
       // around under the beast, down to the cul-de-sac mouth — so he can take the fight
       // from any side. No new blocks scroll: this is walking room inside the same view.
       const NIGHT_BOSS_ROOM_X = 8; // u of bottom strip handed to the worker around the beast
+      // ==================== PLAYTEST SWITCH: MIDNIGHT AT THE FINAL BOSS ====================
+      // Flips the haunted shift's clock-in straight onto the GRAVE BLOCK with every ward
+      // above stamped as ALREADY CLEARED: each ledger is paid in full (sent/yield at the
+      // lock-in bill), every curtain drops, the fog sweep takes the whole street roster, and
+      // the worker lands at the open grave ward, three paces above the cross-street that
+      // wakes the beast — two steps downhill and the fight starts. Nothing else about the
+      // shift changes: same wards, same law, same boss, same drive-off.
+      // TO TURN IT OFF — the Midnight shift begins at the FIRST block, exactly as shipped:
+      //   * play without "?testboss" in the page URL (plain index.html), AND
+      //   * leave window.NIGHT_TEST_BOSS_START unset (to kill it mid-session from the
+      //     console: window.NIGHT_TEST_BOSS_START = false — then reload the level).
+      // With neither flag set the value is FALSE: the shipped full shift, untouched (and
+      // every automated suite runs exactly that law).
+      const NIGHT_TEST_BOSS_START =
+        (typeof window !== "undefined" && window.NIGHT_TEST_BOSS_START === true) ||
+        (typeof location !== "undefined" && /[?&]testboss\b/.test(location.search || ""));
       const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
       const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
       // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so
@@ -32511,6 +32534,10 @@
         // so its treasure is won at the end of a BOSS FIGHT — see updateNightBoss.)
         buildNightCemetery();
         spawnNightBoss();
+        // PLAYTEST (see NIGHT_TEST_BOSS_START): when the switch is lit, the street is
+        // clocked in as if the four wards above were ALREADY cleared — see the helper.
+        if (typeof NIGHT_TEST_BOSS_START !== "undefined" && NIGHT_TEST_BOSS_START)
+          nightTestClockInAtBoss();
         console.log(
           "  -> THE NIGHT SHIFT: the dead-end street is haunted (spook par " +
             HORROR_SPOOK_TARGET +
@@ -32520,6 +32547,48 @@
             notesLaid +
             " x $100)",
         );
+      }
+      // THE PLAYTEST CLOCK-IN AT THE FINAL BOSS (the "?testboss" door; see
+      // NIGHT_TEST_BOSS_START). It uses the ward system's own ledger law — a cleared
+      // block is one whose bill is paid (yield at the lock-in load) and whose curtain is
+      // OPEN — stamped straight onto the fresh street:
+      //   * every ward ledger is paid in full and opened, curtains removed, no GO! flash;
+      //   * the fog sweep takes the whole seeded roster of the four blocks above (the
+      //     cull path the street itself uses when the light reclaims a spook);
+      //   * the worker is NOT moved here — his clock-in spot comes from playerSpawnX(),
+      //     which the same switch sends to the grave block above the boss's cross-street.
+      // Set the switch back off (plain URL, no window flag) and every one of these
+      // branches stops running: the shift opens at the first block, exactly as shipped.
+      function nightTestClockInAtBoss() {
+        const keys = Object.keys(nightGates);
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          if (!led) continue;
+          led.sent = led.load; // the block put its whole pack out on the beat
+          led.yield = led.load; // ...and every shovelful of the bill is paid
+          led.open = true; // the ward stands down
+          led.fade = 0;
+          if (led.g) {
+            if (led.g.parent) led.g.parent.remove(led.g);
+            if (typeof disposeObj === "function") disposeObj(led.g);
+            led.g = null;
+          }
+        }
+        nightGoT = 0; // no GO! arrow at a playtest clock-in
+        nightGoMsg = "";
+        for (let i = creatures.length - 1; i >= 0; i--) {
+          const c = creatures[i];
+          if (!c || !c.home) continue; // (the tentacles and the living are not swept)
+          if (c.hooked || c.hookLanded) continue; // the blade already has them
+          if (!HORROR_ALL[horrorKey(c)]) continue;
+          cullHorror(c); // the fog sweep pays the (open) ledger — the shipped clear path
+        }
+        p.wx = NIGHT_BOSS_TRIGGER_X + 3; // ON the grave block, above the waking line
+        p.wy = 2.5; // the cemetery walking lane
+        p.facing = NIGHT_START_FACING; // ...and he faces the same DOWN-street way
+        if (typeof camera !== "undefined" && camera && camera.position)
+          camera.position.x = p.wx; // no first-frame pan from the old top-of-street pivot
+        console.log("  -> PLAYTEST ?testboss: MIDNIGHT clocks in AT THE FINAL BOSS (wards stamped clear)");
       }
 
       function addCreature(type, opts) {
