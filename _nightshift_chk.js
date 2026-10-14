@@ -258,6 +258,7 @@ const SHOVEL_PROP_POINTS = srcNum('SHOVEL_PROP_POINTS'), SHOCKWAVE_R = srcNum('S
 const HORROR_STUN_T = srcNum('HORROR_STUN_T'), NIGHT_HIT_GRACE = srcNum('NIGHT_HIT_GRACE');
 const HORROR_HUNTERS_MAX = srcNum('HORROR_HUNTERS_MAX'), SHOVEL_GUARD = srcNum('SHOVEL_GUARD');
 const SHOVEL_BUTT = srcNum('SHOVEL_BUTT'), SHOVEL_BLADE_R = srcNum('SHOVEL_BLADE_R');
+const SHOVEL_FACE_RULE = srcBool('SHOVEL_FACE_RULE'), SHOVEL_FACE_ARC = srcNum('SHOVEL_FACE_ARC');
 const NIGHT_SAY_GAP = srcNum('NIGHT_SAY_GAP'), NIGHT_BUBBLE_GAP = srcNum('NIGHT_BUBBLE_GAP');
 const NIGHT_POP_GAP = srcNum('NIGHT_POP_GAP');
 const HORROR_STREET_Y = srcNum('HORROR_STREET_Y'), HORROR_LAWN_Y = srcNum('HORROR_LAWN_Y');
@@ -412,7 +413,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   // THE HAUNT'S APPROACH VECTOR (Midnight: the spooks come out of the BOTTOM of the street)
   'horrorAheadWindow', 'horrorFellBehind', 'horrorRespawnX', 'horrorFillingBands',
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
-  'shovelToolReach', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
+  'shovelToolReach', 'shovelFacingOK', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
   'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY', 'levelName',
   'nightSpeechOk', 'nightSpeechAllowed',
   // THE MIDNIGHT DEAD END (the mirrored route's anchors) + THE FINAL BOSS (the
@@ -466,7 +467,8 @@ const H = new Function(
   'GHOST_HANDS', 'ghostSlotX', 'disposeObj', 'spawnEctoBurst', 'spawnBubble', 'addCreature',
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
-  'SHOVEL_BLADE_R', 'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
+  'SHOVEL_BLADE_R', 'SHOVEL_FACE_RULE', 'SHOVEL_FACE_ARC',
+  'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
   'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y', 'nightEctoKUnused', 'nightEctoSize',
   'NIGHT_GLOW_ECTO', 'NIGHT_ECTO_SIZE',
   // THE MIDNIGHT DEAD END + THE FINAL BOSS
@@ -521,7 +523,7 @@ const H = new Function(
   '\nfunction spawnHopperBurst(x, y, s) { bossBursts.push({ x: x, y: y, s: s }); }' +
   '\nfunction swingNow() { const r = tryShovelSwing(); shovelDeliverStrike(); return r; }' +
   '\nreturn { makeSpecter, makeGhoul, makeHellhound, makeManyEyedBeast, makeRubyGargoyle,' +
-  ' makeShovelProp, canShovel, tryShovelSwing, shovelDeliverStrike, swing: swingNow,' +
+  ' makeShovelProp, canShovel, tryShovelSwing, shovelDeliverStrike, shovelFacingOK, swing: swingNow,' +
   ' shovelFlight, landSpookInHopper,' +
   ' updateHorrorCreature, updateThief, reclaimStolenGargoyle, spawnEctoSplat,' +
   ' makeWraith, makePoltergeist, makeImp, makeDemon, makeHexbeast, makeAbyssal, makeLich,' +
@@ -623,7 +625,8 @@ const H = new Function(
   S2_ADD_CREATURE, () => mkObj('arm'), () => mkObj('stone'), () => mkObj('skulls'),
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
-  SHOVEL_BLADE_R, PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
+  SHOVEL_BLADE_R, SHOVEL_FACE_RULE, SHOVEL_FACE_ARC,
+  PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
   () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y, () => 0, () => NIGHT_ECTO_SIZE, NIGHT_GLOW_ECTO,
   NIGHT_ECTO_SIZE,
   // THE MIDNIGHT DEAD END + THE FINAL BOSS (the mirrored anchors, the fight's numbers)
@@ -685,7 +688,7 @@ check('the DSNY shovel is a real street shovel: D-grip rig, SHORT WOOD handle, d
   H.makeShovelProp().children.length === 9);
 
 // --- ACT swings the shovel (and only on this level) ---
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 9;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 0; // he faces the ghoul he is about to swing at
 const farHound = mkC('hound', 30);
 const nearGhoul = mkC('ghoul', 2, { causeKey: 'ghoul' });
 creatures.length = 0; creatures.push(farHound, nearGhoul);
@@ -699,7 +702,7 @@ check('and the wound is a fight: the NEAREST spook goes IN THE HOPPER only after
     const used = shovelDown(nearGhoul);
     return used === owed && nearGhoul.hookLanded === true;
   })(), 'pool left=' + nearGhoul.hp + ' landed=' + nearGhoul.hookLanded);
-check('the swing turns him to face what he just hit', Math.abs(p.facing) < 1e-9);
+check('the swing NEVER rotates him — he keeps the facing he swung from (no spin-around on the catch)', p.facing === 0);
 check('the swing + its cooldown are armed (no mash-fest)', p.shovelT > 0 && p.shovelCd > 0);
 p.shovelCd = 0; creatures.length = 0; creatures.push(mkC('ghoul', 9)); log.length = 0;
 check('a whiff still swings (a live swoosh — the button never feels dead)',
@@ -719,7 +722,7 @@ creatures.length = 0; creatures.push(tentacle); p.shovelCd = 0;
 let tPool = 0; // THE BLOWS THEMSELVES ARM IT (nightWoundShovel arms at the first contact)
 let tSwings = 0, tDuck = false;
 while (tSwings < 24 && !tentacle.hooked) {
-  p.shovelCd = 0;
+  p.shovelCd = 0; p.facing = 0;
   if (H.swing() !== true) break;
   tSwings++;
   if (!tPool) tPool = tentacle.hpMax;
@@ -1098,6 +1101,7 @@ function shovelDown(c, cap) {
     if (c.g) c.g.position.set(c.wx, c.wy, GZ);
     c.huntT = 0; c.flinchT = 0; c.backoffT = 0; c.touchCd = 0;
     p.shovelCd = 0; p.stunT = 0; p.stunDur = 0;
+    p.facing = Math.atan2(c.wy - p.wy, c.wx - p.wx); // he swings at what he is FACING
     H.swing();
     swings++;
   }
@@ -1250,7 +1254,7 @@ let surgeBanishes = 0, surgeKills = 0, surgeSwings = 0;
       c.huntT = 0; c.flinchT = 0; c.staggered = 0;
       c.g.position.set(c.wx, c.wy, GZ);
     }
-    p.shovelCd = 0;
+    p.shovelCd = 0; p.facing = 0; // the mob is AHEAD of him in +x
     const swung = H.swing();
     if (swung) surgeSwings++;
     if (process.env.DBG && guard < 3) {
@@ -1303,7 +1307,7 @@ for (let i = 0; i < 3; i++) {
 }
 creatures.length = 0;
 mob3.forEach((c) => creatures.push(c));
-p.shovelCd = 0;
+p.shovelCd = 0; p.facing = 0; // he swings DOWN at the mob laid out in +x
 announced.length = 0; deposited.length = 0; scored.length = 0;
 const sayBefore = sayings.length;
 check('an ordinary swing WOUNDS the NEAREST spook, not the whole street (one swing out of ITS pool; nothing hooked)', (() => {
@@ -1421,6 +1425,7 @@ for (let i = 0; i < 5; i++) {
 // the fifth one sits past the consecrated reach (5.2) but inside the shockwave (6.8)
 p.shovelCd = 0;
 announced.length = 0; deposited.length = 0; scored.length = 0;
+p.facing = 0; // the ring is laid out in +x from him — he swings INTO it
 H.swing();
 check('a CONSECRATED swing wounds THREE spooks out of the arc in one stroke, and spends the charge (nothing is banned by one blow any more)',
   creatures.filter((c) => c.hp < c.hpMax).length === CONS_ARC_TARGETS &&
@@ -1670,6 +1675,7 @@ p.shovelCd = 0; p.stunT = HORROR_STUN_T; p.stunDur = HORROR_STUN_T; p.shovelGuar
 creatures.length = 0;
 const stunGhoul = mkC('ghoul', 1.8);
 creatures.push(stunGhoul);
+p.facing = 0;
 check('out of a ghoul stagger a swing fires AT ONCE, clears the stun and WOUNDS the thing (the defence is not locked out by a brush)',
   H.swing() === true && p.stunT === 0 && stunGhoul.hp === stunGhoul.hpMax - 1 && stunGhoul.hooked !== true);
 p.shovelCd = 0; p.stunT = 0.9; p.stunDur = 0.9;
@@ -1746,7 +1752,7 @@ check('the budget is a NIGHT-ONLY gate (weekday/Maspeth voices are untouched)',
 // --- SIM: a 45-second swing-frenzy against the live horde: how much text hits the screen? ---
 s7Reset();
 onScreen = true;
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN, so the horde ahead is IN his arc
 const sayMark = sayings.length, bubMark = bubbles.length, popMark = announced.length;
 let swings = 0;
 for (let i = 0; i < 60 * 45; i++) {
@@ -1877,7 +1883,7 @@ check('TEMP TEST BUILD: the week starts on the MIDNIGHT level (flagged, one line
 // --- SIM: a full haunted route of banishments = how much score, really? ---
 s7Reset();
 onScreen = true;
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1;
+p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN into the pack
 scored.length = 0;
 let kills = 0, swingBudget = 0;
 for (let i = 0; i < 60 * 90; i++) {
@@ -2157,17 +2163,20 @@ check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
   H.getFireballs().length = 0;
 })();
 // --- THE SHOVEL IS THE ONLY THING THAT SHORTENS THE BAR ---
-p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0;
+p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0; p.facing = 0; // he faces the beast
 check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head sweep)',
   H.bossShovelRange() > SHOVEL_REACH + SHOVEL_BLADE_R && H.bossShovelTargetable() === true);
 (function () {
   const hp0 = boss.hp;
+  const face0 = p.facing;
   H.setCharge(0);
   H.swing();
   check('ONE SWING, ONE CUT on the bar (an ordinary swing takes BOSS_DMG)',
     boss.hp === hp0 - BOSS_DMG && log.indexOf('sting') >= 0, 'hp=' + boss.hp);
-  check('the swing turns him to face the beast and sets the cooldown (no mash-fest)',
-    Math.abs(Math.atan2(boss.wy - p.wy, boss.wx - p.wx) - p.facing) < 1e-6 && p.shovelCd > 0);
+  check('a swing on the beast NEVER rotates him (he keeps his facing); the BEAST is what turns into the blow, and the cooldown is set (no mash-fest)',
+    p.facing === face0 &&
+      Math.abs(((boss.facing || 0) - (face0 + Math.PI)) % (Math.PI * 2)) < 1e-6 &&
+      p.shovelCd > 0);
   const afterFirst = boss.hp;
   p.shovelCd = 0;
   H.swing();
@@ -2192,7 +2201,7 @@ check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head s
   const scoreBefore = scored.reduce((a, s) => a + s.n, 0);
   let swings = 0;
   while (boss.hp > 0 && swings < 80) {
-    p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0;
+    p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0; p.facing = 0;
     boss.invulnT = 0;
     H.swing();
     swings++;
@@ -3408,7 +3417,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
 
   // (e) THE WARD BILL IS PAID BY BANISHMENTS, NEVER BY HITS
   s7Reset();
-  p.wx = 449; p.wy = 2.5; p.stunT = 0;
+  p.wx = 449; p.wy = 2.5; p.stunT = 0; p.facing = 0; // the paid spook is laid out in +x
   const bTop = bandOfX(384);
   const topFam = hardestFam(bTop); // the SOFTEST block's TOUGHEST family: the clearest bill
   const sp = spookOn(topFam, bTop);
@@ -3919,6 +3928,67 @@ check('the burst SKIN, the OW! auto-burst rule and the BEAST MODE marker are unt
   /\.bubble\.bub-burst \{/.test(html) && /style === "burst" \|\|/.test(html) &&
     /speaker === "worker" && \/\^ow\/i\.test\(String\(text\)\.trim\(\)\)/.test(html) &&
     /spawnBubble\("BEAST MODE!", p\.wx, p\.wy, "worker", "burst"\)/.test(html));
+
+console.log("[28] THE FACING LAW: the shovel bites only what he FACES, and a swing never rotates him");
+// (a) THE ROTATION IS GONE — the swing code never assigns his facing
+check('the swing code carries NO facing snap at all — p.facing is never assigned by a shovel swing',
+  srcFn('tryShovelSwing').indexOf('p.facing') < 0 &&
+    srcFn('bossTakeShovelSwing').indexOf('p.facing =') < 0);
+check('the rule is live: a front arc of ' + SHOVEL_FACE_ARC + '° — ±' + SHOVEL_FACE_ARC / 2 +
+  '° around his facing — and the beast must be inside it to be cut',
+  SHOVEL_FACE_RULE === true && SHOVEL_FACE_ARC > 90 && SHOVEL_FACE_ARC <= 270 &&
+    srcFn('bossTakeShovelSwing').includes('if (!shovelFacingOK(b.wx, b.wy)) return false;'));
+check('THE FACING LAW runs on the grave furniture too (a headstone behind him is not on the swing)',
+  srcFn('nearestShovelHazard').includes('!shovelFacingOK(hz.wx, hz.wy)'));
+const ff28Start = html.indexOf('THE SHOVEL IS BETWEEN HIM AND THE TEETH');
+const FFS28 = ff28Start >= 0 ? html.slice(ff28Start, ff28Start + 2600) : "";
+check('THE PARRY IS DIRECTIONAL TOO: the blade defends only the side he is facing — a ghoul that comes in on his back takes its BITE (the facing law is a HARDER night, on purpose)',
+  FFS28.includes('shovelFacingOK(c.wx, c.wy)') &&
+    FFS28.indexOf('shovelFacingOK(c.wx, c.wy)') < FFS28.indexOf('shovelParry(') &&
+    FFS28.includes('(p.nightHitT || 0) > 0'));
+// (b) RUN IT: one ghoul in front, one at his back
+nightOn = true; H.setCharge(0); H.clearNightBoss();
+p.wx = 300; p.wy = 2.5; p.stunT = 0; p.stunDur = 0; p.shovelCd = 0; p.shovelGuardT = 0;
+p.facing = 0; // dead east, standing still
+const faceBefore = p.facing;
+const frontGhoul = mkC('ghoul', 2.2);
+const backGhoul = mkC('ghoul', -2.2);
+creatures.length = 0; creatures.push(frontGhoul, backGhoul);
+const faceLawSwing = H.swing();
+check('THE SWING WOUNDS THE GHOUL HE FACES AND TOUCHES NOTHING AT HIS BACK — a clean wound on the front one, nothing on the back one',
+  faceLawSwing === true && frontGhoul.hp === frontGhoul.hpMax - 1 &&
+    backGhoul.hp === backGhoul.hpMax && backGhoul.hooked !== true && frontGhoul.hooked !== true,
+  'front=' + frontGhoul.hp + '/' + frontGhoul.hpMax + ' back=' + backGhoul.hp + '/' + backGhoul.hpMax);
+check('HE KEEPS HIS FACING — the swing does not drag him around, point him, or spin him on the catch',
+  p.facing === faceBefore);
+// (c) the back ghoul is answerable ONLY once he turns to it (the blade knocks a pack back,
+// so the sim lays each ghoul on the blade before the swing that is meant to land on it)
+function facePlace(c, dx) {
+  c.wx = p.wx + dx; c.wy = p.wy; c.huntT = 0; c.flinchT = 0; c.backoffT = 0; c.touchCd = 0;
+  if (c.g) c.g.position.set(c.wx, c.wy, GZ);
+}
+p.shovelCd = 0; p.shovelGuardT = 0; p.facing = Math.PI;
+facePlace(backGhoul, -2.2); facePlace(frontGhoul, 2.2); // west = in front of him now, east = behind
+const frontHpAfterB = frontGhoul.hp; // (b) already spent one swing on the front ghoul
+const faceSwing2 = H.swing();
+check('TURNING ON THE GHOUL AT HIS BACK is what makes the shovel land on it (the fight punishes a blind back)',
+  faceSwing2 === true && backGhoul.hp === backGhoul.hpMax - 1 && frontGhoul.hp === frontHpAfterB,
+  'front=' + frontGhoul.hp + '/' + frontHpAfterB + ' back=' + backGhoul.hp + '/' + backGhoul.hpMax);
+check('and the ghoul he USED to face is now OUTSIDE his arc at blade distance — the same swing that bit it a moment ago cannot reach around',
+  (() => {
+    p.shovelCd = 0; p.shovelGuardT = 0; p.facing = Math.PI;
+    facePlace(frontGhoul, 2.2); // IN RANGE, but straight BEHIND him
+    const hpF = frontGhoul.hp;
+    H.swing();
+    return frontGhoul.hp === hpF && Math.hypot(frontGhoul.wx - p.wx, frontGhoul.wy - p.wy) <= SHOVEL_REACH + SHOVEL_BLADE_R;
+  })());
+// (d) the shape of the arc, measured with the game's own law
+p.wx = 300; p.wy = 2.5; p.facing = 0;
+check('THE ARC, AS THE GAME COMPUTES IT: 100° off his facing is ON the swing, 130° off is NOT',
+  H.shovelFacingOK(300 + Math.cos(1.745) * 2.5, 2.5 + Math.sin(1.745) * 2.5) === true &&
+    H.shovelFacingOK(300 + Math.cos(2.27) * 2.5, 2.5 + Math.sin(2.27) * 2.5) === false);
+check('a ghoul standing straight behind him (180° off) is OUTSIDE the tool entirely',
+  H.shovelFacingOK(298, 2.5) === false);
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

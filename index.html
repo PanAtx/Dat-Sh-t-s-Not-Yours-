@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.503</div>
+          <div id="app-version" class="menu-version">v1.0.504</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.503';
+      const APP_VERSION = '1.0.504';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28049,6 +28049,15 @@
       const SHOVEL_GUARD = 0.45;
       const SHOVEL_BUTT = 0.55; // the handle runs BACK past his rear fist — the wood is a weapon
       const SHOVEL_BLADE_R = 1.25; // ...and the head sweeps this far PAST the end of the reach
+      // ============ THE SHOVEL ONLY BITES WHAT HE IS FACING (MIDNIGHT) ================
+      // A swing is a SHOVEL SWING, not a 360° lawnmower: the blade only lands on a creature
+      // that stands in the general direction he is facing. So a ghoul that comes at his back
+      // cannot be answered until he turns around to it — and the brush he takes while facing
+      // the other way is real damage. That is the whole point of the fight: watch your six,
+      // and commit your turns. The swing NEVER drags his facing with it any more — he keeps
+      // the direction he was pointing in, exactly as he walked it.
+      const SHOVEL_FACE_RULE = true; // the swing is directional
+      const SHOVEL_FACE_ARC = 210; // ...on this front arc in degrees (±105° from his facing)
       // (it tracks the wide scoop head in makeShovelProp: what the player SEES sweep is what
       // the swing actually catches, so a ghoul standing next to the blade is ON the swing)
       // EVERYTHING THE BLADE CAN CATCH ON THE HAUNTED STREET HAS A POOL OF SWINGS — the animals
@@ -28842,12 +28851,24 @@
         nightPopT = NIGHT_POP_GAP;
         return true;
       }
-      // THE WHOLE TOOL IS THE WEAPON. A swing is a roundhouse with a real shovel: the head
-      // sweeps a circle SHOVEL_BLADE_R wider than the shaft's reach, and the shaft runs BACK
-      // past his fists (SHOVEL_BUTT), so a ghoul at his side, at his back, on the wood, or at
-      // the blade is ON the swing. Anything inside that envelope is banished.
+      // THE WHOLE TOOL IS THE WEAPON — IN THE DIRECTION HE IS POINTING IT. A swing is a
+      // roundhouse with a real shovel: the head sweeps SHOVEL_BLADE_R wider than the shaft's
+      // reach and the shaft runs back past his fists (SHOVEL_BUTT), so a ghoul at his side, on
+      // the wood, or at the blade is inside the tool. The tool's arc is a FRONT arc
+      // (SHOVEL_FACE_ARC): anything standing behind that arc is NOT on the swing, and he has
+      // to turn to it. Nothing about a swing ever changes p.facing — he stays pointed where
+      // he walked to.
       function shovelToolReach(reach) {
         return reach + SHOVEL_BLADE_R;
+      }
+      // THE FACING TEST: is this world point inside the shovel's front arc?
+      function shovelFacingOK(wx, wy) {
+        if (!SHOVEL_FACE_RULE) return true;
+        const a = Math.atan2(wy - p.wy, wx - p.wx);
+        let d = a - (p.facing || 0);
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        return Math.abs(d) <= (SHOVEL_FACE_ARC * Math.PI) / 360;
       }
       // How many spooks are after him RIGHT NOW. A block of nine ghouls is allowed to charge
       // from the front, not from nine directions at once — this is what stops a "swarm".
@@ -28893,8 +28914,9 @@
           );
       }
       // ACT on the night shift = THE SHOVEL SWING. It fires whether or not anything is
-      // in range (the control feel must never feel dead), takes the nearest reachable
-      // spook, and always turns the swing into the face of whatever got caught.
+      // in range (the control feel must never feel dead), takes the nearest reachable spook
+      // that stands IN FRONT OF HIM (shovelFacingOK — the tool is directional), and it never
+      // touches his facing: he keeps pointing exactly where he was pointed.
       function tryShovelSwing() {
         if (typeof isNightShift !== "function" || !isNightShift()) return false;
         if (state !== "play" || p.shovelCd > 0) return false;
@@ -28915,7 +28937,11 @@
         // grave furniture (the beast is the fight, a headstone can wait).
         if (bossShovelTargetable()) {
           const bd = Math.hypot(nightBoss.wx - p.wx, nightBoss.wy - p.wy);
-          if (bd <= shovelToolReach(reach) + 1.15 && bossTakeShovelSwing(charged))
+          if (
+            bd <= shovelToolReach(reach) + 1.15 &&
+            shovelFacingOK(nightBoss.wx, nightBoss.wy) &&
+            bossTakeShovelSwing(charged)
+          )
             return true;
         }
         const hits = [];
@@ -28923,7 +28949,10 @@
           const c = creatures[i];
           if (!canShovel(c)) continue;
           const d = Math.hypot(c.wx - p.wx, c.wy - p.wy);
-          if (d <= shovelToolReach(reach)) hits.push({ c: c, d: d });
+          // THE FACING LAW: the blade only bites what he faces — a ghoul at his back is not
+          // on the swing, so it keeps hitting him until he turns around to it.
+          if (d <= shovelToolReach(reach) && shovelFacingOK(c.wx, c.wy))
+            hits.push({ c: c, d: d });
         }
         hits.sort(function (a, b) {
           return a.d - b.d;
@@ -28943,12 +28972,11 @@
         shovelArm = 0; // the swing is running; shovelDeliverStrike() lands the catch mid-arc
         pendingStrike = null;
         if (targets.length) {
-          // The press picks up what the tool CAUGHT — the facing, the targets, the charge —
-          // and the banishment itself fires when the blade comes through (see above).
-          p.facing = Math.atan2(targets[0].c.wy - p.wy, targets[0].c.wx - p.wx);
+          // The press picks up what the tool CAUGHT — the targets and the charge. HIS FACING
+          // IS NOT PART OF IT: no snap, no turn, no rotation after the catch — the direction
+          // he walked in is the direction he stays in.
           pendingStrike = { spooks: targets.slice(), charged: charged };
         } else if (prop) {
-          p.facing = Math.atan2(prop.hz.wy - p.wy, prop.hz.wx - p.wx);
           pendingStrike = { b: prop.b, hz: prop.hz, charged: charged };
         } else {
           SFX.playSwoosh(); // a miss: the shovel still whistles through the fog
@@ -30076,11 +30104,12 @@
             const hz = b.hazards[k];
             if (!hz || !hz.g || !SHOVELABLE_HAZARDS[hz.type]) continue;
             const d = Math.hypot(hz.wx - p.wx, hz.wy - p.wy);
-            if (d < bestD) {
-              bestD = d;
-              best = hz;
-              bestB = b;
-            }
+            // THE FACING LAW runs on grave furniture too: a headstone behind him is not on
+            // the swing, he has to turn the shovel around to dig it out.
+            if (d >= bestD || !shovelFacingOK(hz.wx, hz.wy)) continue;
+            bestD = d;
+            best = hz;
+            bestB = b;
           }
         }
         return best ? { hz: best, b: bestB, d: bestD } : null;
@@ -31264,14 +31293,16 @@
         if (!bossShovelTargetable()) return false;
         const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
         if (d > bossShovelRange()) return false;
-        p.facing = Math.atan2(b.wy - p.wy, b.wx - p.wx);
+        if (!shovelFacingOK(b.wx, b.wy)) return false; // the beast has to be IN his arc
+        // HIS FACING IS NEVER MOVED by the swing — he keeps facing the way he was facing, and
+        // the beast is what turns its face INTO the incoming blow.
+        b.facing = (p.facing || 0) + Math.PI;
         p.shovelT = SHOVEL_SWING_DUR;
         p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;
         p.shovelCd = SHOVEL_COOLDOWN;
         shovelCharged = false;
         shovelArm = 0;
         pendingStrike = { boss: true, charged: charged, d: d };
-        b.facing = p.facing + Math.PI; // it turns its face INTO the incoming blow
         SFX.playSwoosh();
         return true;
       }
@@ -31280,6 +31311,7 @@
         if (!b || b.hooked || b.hp <= 0 || b.invulnT > 0) return;
         const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
         if (d > bossShovelRange() + 1.2) return; // it moved out of the arc in the wind-up
+        if (!shovelFacingOK(b.wx, b.wy)) return; // ...or he turned away from it
         b.hp = Math.max(0, b.hp - (charged ? BOSS_DMG_CONS : BOSS_DMG));
         b.invulnT = BOSS_INVULN_T; // the blade has to come around again
         b.hurtT = 0.5; // the flinch pose
@@ -41129,12 +41161,15 @@
           // corner in a hallway can never weld shut into a wall of monsters.
           if (HORROR_TYPES[c.type] && (c.type !== "ghost" || isNightShift())) {
             // === FAIR FIGHT #1 — THE SHOVEL IS BETWEEN HIM AND THE TEETH =========
-            // The blade is up (the swipe and its tail): a spook that comes into the WHOLE
-            // TOOL — head, shaft, or the wood behind his fists — is banished on the spot.
-            // No damage, no stagger: swinging IS the defence against the horde.
+            // The blade is up (the swipe and its tail): a spook that comes into the tool
+            // IN THE DIRECTION HE IS FACING is banished on the spot. No damage, no stagger:
+            // swinging IS the defence against the horde — but defence means Facing it. A
+            // ghoul that comes in BEHIND his arc (a hit on the back of the head) is not on
+            // the blade at all: it takes its bite, and he has to turn around to answer it.
             if (
               (p.shovelGuardT || 0) > 0 &&
-              Math.sqrt(d2) <= SHOVEL_BUTT + SHOVEL_BLADE_R + 0.15
+              Math.sqrt(d2) <= SHOVEL_BUTT + SHOVEL_BLADE_R + 0.15 &&
+              shovelFacingOK(c.wx, c.wy)
             ) {
               shovelParry(c); // straight INTO THE HOPPER
               return;
