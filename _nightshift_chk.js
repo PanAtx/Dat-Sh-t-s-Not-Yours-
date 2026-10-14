@@ -432,7 +432,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateFloorX', 'nightGateHolds',
   'nightGateDebt',
   'nightGateWall', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
-  'nightGoFlash', 'nightGoTick',
+  'nightGateCredit', 'nightGateStanding', 'nightGoFlash', 'nightGoTick',
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
   'nightBlockDepth', 'nightGhoulHits', 'nightGhoulFloorHits', 'nightArmSpook', 'nightWoundShovel',
   'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
@@ -576,6 +576,7 @@ const H = new Function(
   ' gateFront: () => nightGateFrontLedger(), gateWall: (a, b) => nightGateWall(a, b), gateProgress: () => nightGateProgress(),' +
   ' gateHud: () => nightGateHudText(), gateBuild: bs => buildNightGates(bs), gateClear: () => nightGateClear(),' +
   ' goFlash: (led) => nightGoFlash(led), goTick: (dt) => nightGoTick(dt),' +
+  ' gateCredit: (c) => nightGateCredit(c), gateStanding: b => nightGateStanding(b), gateCrew: b => nightGateLive(b),' +
   ' gateDebt: b => nightGateDebt(b), cull: (c) => cullHorror(c),' +
   ' getGoT: () => nightGoT, setGoT: (v) => { nightGoT = v; }, getGoMsg: () => nightGoMsg,' +
   ' ghHits: (b, k) => nightGhoulHits(b, k), ghFloor: b => nightGhoulFloorHits(b), depth: b => nightBlockDepth(b),' +
@@ -3515,6 +3516,112 @@ check('...and on the phones it lands on the CHIP\\u2019S mobile slot (146px, the
     /#boss-goal \{\s*width: min\(78vw, 300px\);\s*top: calc\(146px \+ env\(safe-area-inset-top, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html));
   check('WHILE THE BEAST IS UP, THE BLOCK NAME STEPS ASIDE: the ward chip is hidden in the very slot the bar takes',
     /NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss\.awake && nightBoss\.hp > 0/.test(srcFn('updateHUD')));
+})();
+
+console.log('\n[27] THE COUNT IS THE TRUTH: ONE SETTLEMENT PER ANIMAL, THE CHIP COUNTS WHAT STANDS, AND THE WALL FALLS ON THE FRAME THE BLOCK GOES EMPTY');
+(function () {
+  const bAt = (x) => H.nightBands().filter((b) => b.x0 === x)[0];
+  const seedIn = (band, cap) => {
+    const fams = H.nightBlockFamilies(band);
+    const room = Math.min(H.gateRoom(band), cap);
+    for (let i = 0; i < room; i++) {
+      const c = H.nightSpawnHorror(fams[i % fams.length], band);
+      if (!c) continue;
+      c.wx = band.x0 + 8 + (i % 7) * 10; c.wy = 2.5; c.fade = 0; c.huntT = 3;
+      c.g.position.set(c.wx, c.wy, GZ);
+    }
+  };
+  const crew = (band) => creatures.filter((c) => c.home && c.home.i === band.i && !c.hookLanded);
+  const landOne = (c) => {
+    c.hooked = true; c.hookT = 0; c.hookLanded = false;
+    c.fx0 = c.wx; c.fy0 = c.wy; c.fz0 = GZ;
+    let g = 0;
+    while (!c.hookLanded && g++ < 400) H.shovelFlight(c, 1 / 60);
+    return c;
+  };
+  // (a) NO DOUBLE SETTLEMENT: the shovel pays an animal, and the fog sweep cannot pay it again
+  s7Reset();
+  const B1 = bAt(288), L1 = H.gateLedger(B1);
+  p.wx = 330; seedIn(B1, 4);
+  const one = landOne(crew(B1)[0]);
+  const y1 = L1.yield;
+  H.cull(one); // the sweep that used to double-count it (its x is on the truck, behind him)
+  check('AN ANIMAL IS SETTLED ONE TIME: the shovel paid ' + y1 + ' for it and the fog sweep that follows settles ' +
+      (L1.yield - y1) + ' more (gatePaid=' + one.gatePaid + ')',
+    L1.yield === y1 && one.gatePaid === true, 'yield=' + L1.yield + ' after=' + y1);
+  // (b) THE CHIP AND THE STREET AGREE (the invariant behind "0 left ⇒ wall down"): the animals
+  //     standing on the beat are exactly the pack the block put out minus the pack settled.
+  s7Reset();
+  const B2 = bAt(192), L2 = H.gateLedger(B2), load2 = H.gateLoad(B2);
+  p.wx = 250; seedIn(B2, 30);
+  const standing = crew(B2).length;
+  const settle2 = Math.min(standing - 1, load2);
+  for (let i = 0; i < settle2; i++) { H.gateCredit(crew(B2)[0]); H.cull(crew(B2)[0]); }
+  H.gateCheck(1 / 60);
+  check('THE CHIP AND THE STREET AGREE: "' + (L2.name + " · " + H.gateLeft(B2) + " LEFT") +
+      '" for ' + crew(B2).length + ' standing, sent=' + L2.sent + ', settled=' + L2.yield +
+      ' — the number LEFT IS the animals on the beat, so 0 LEFT can only be read on an empty block',
+    L2.sent - L2.yield === crew(B2).length && H.gateLeft(B2) === Math.max(0, Math.max(load2, L2.sent) - L2.yield) &&
+      L2.open === false && H.gateLive(B2) > 0 && H.gateLeft(B2) > 0,
+    'left=' + H.gateLeft(B2) + ' live=' + H.gateLive(B2) + ' sent=' + L2.sent + ' yield=' + L2.yield + ' open=' + L2.open);
+  // (c) THE WALL FALLS THE FRAME THE LAST ONE GOES IN THE TRUCK — no extra creature needed
+  s7Reset();
+  const B3 = bAt(288), L3 = H.gateLedger(B3), load3 = H.gateLoad(B3);
+  p.wx = 330;
+  let sweep = 0, lastLeft = 0;
+  while (L3.open === false && sweep++ < 40) {
+    seedIn(B3, 12);
+    const list = crew(B3);
+    if (!list.length) { H.gateCheck(1 / 60); continue; }
+    list.forEach(landOne);
+    list.forEach((c) => { const k = creatures.indexOf(c); if (k >= 0) creatures.splice(k, 1); });
+    lastLeft = H.gateLeft(B3);
+    H.gateCheck(1 / 60);
+  }
+  check('THE WARD COMES DOWN ON THE FRAME THE BLOCK GOES EMPTY: sent=' + L3.sent + ', paid=' + L3.yield +
+      '/' + load3 + ', standing=' + H.gateLive(B3) + ', chip read ' + lastLeft + ' LEFT on the last sweep',
+    L3.open === true && H.gateLive(B3) === 0 && H.gateLeft(B3) === 0 &&
+      L3.sent >= load3 && L3.yield >= load3 && L3.yield === L3.sent,
+    'open=' + L3.open + ' yield=' + L3.yield + '/' + load3 + ' sent=' + L3.sent);
+  check('...AND THE GO! ARROW LIT ON THAT FRAME: "' + H.getGoMsg() + '" at ' + H.getGoT().toFixed(2) + 's',
+    H.getGoT() > 0 && /WALL IS DOWN!/.test(H.getGoMsg()));
+  // (d) THE FOG TAKES ANIMALS BACK AND PAYS FOR THEM — the room formula is exact, the block
+  //     closes in exactly `load` settlements, never more, never fewer
+  s7Reset();
+  const B4 = bAt(288), L4 = H.gateLedger(B4), load4 = H.gateLoad(B4);
+  p.wx = 330; seedIn(B4, 12);
+  const full4 = crew(B4).length;
+  const roomFull4 = H.gateRoom(B4);
+  const taken4 = crew(B4).slice(0, 4);
+  taken4.forEach((c) => H.cull(c));
+  const room4 = H.gateRoom(B4);
+  const live4 = crew(B4).length;
+  // settle the rest with the shovel and the ward must fall at EXACTLY `load` settlements
+  const list4 = crew(B4).slice();
+  list4.forEach(landOne);
+  H.gateCheck(1 / 60);
+  const openWithFullPay = L4.open;
+  list4.forEach((c) => { const k = creatures.indexOf(c); if (k >= 0) creatures.splice(k, 1); });
+  const leftAfter = H.gateLeft(B4);
+  const liveAfter = H.gateLive(B4);
+  H.gateCheck(1 / 60);
+  check('THE FOG PAYS WHAT IT TAKES, AND THE BLOCK CLOSES IN EXACTLY ITS LOAD (' + load4 + '): full ' +
+      full4 + ' standing → room ' + roomFull4 + '; ' + taken4.length + ' taken back → ' + live4 +
+      ' standing, room ' + room4 + ', settled ' + L4.yield + '; the rest in the truck → settled ' +
+      L4.yield + ', standing ' + liveAfter + ', left ' + leftAfter + ' → ward ' + (L4.open ? "DOWN" : "up"),
+    roomFull4 === 0 && live4 === full4 - taken4.length && room4 === Math.max(0, load4 - L4.yield - live4) &&
+      L4.yield === load4 && (openWithFullPay || liveAfter === 0) && L4.open === true && liveAfter === 0 && leftAfter === 0 &&
+      /Math\.max\(0, load - Math\.min\(led\.yield, load\) - nightGateLive\(band\)\)/.test(srcFn('nightGateRoom')),
+    'yield=' + L4.yield + '/' + load4 + ' live=' + liveAfter + ' left=' + leftAfter + ' open=' + L4.open + ' room=' + room4);
+  // (e) THE CHIP AND THE WALL RUN ONE FORMULA (no second arithmetic in the HUD)
+  check('ONE ACCOUNT, TWO VOICES: the HUD tally, the chip, the spawn cap and the wall all read the same book',
+    /left: nightGateLeft\(band\)/.test(srcFn('nightGateProgress')) &&
+      /const debt = nightGateDebt\(band\);/.test(srcFn('nightGateLeft')) &&
+      /Math\.max\(0, debt - Math\.min\(led\.yield, debt\)\)/.test(srcFn('nightGateLeft')) &&
+      /function nightGateStanding\(band\)/.test(html) &&
+      /if \(led\.yield < nightGateLoad\(band\)\) continue;/.test(srcFn('nightGateCheck')) &&
+      /if \(led\.sent < nightGateLoad\(band\)\) continue;/.test(srcFn('nightGateCheck')));
+  s7Reset();
 })();
 
 console.log('\n[26] NO WALL OVER AN EMPTY BLOCK: THE WARD\u2019S DEBT IS WHAT THE BLOCK SENT OUT, AND THE FOG PAYS IT TOO (the walk-back-up stall)');

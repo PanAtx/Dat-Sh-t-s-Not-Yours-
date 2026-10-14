@@ -4442,7 +4442,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.499</div>
+          <div id="app-version" class="menu-version">v1.0.500</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4700,7 +4700,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.499';
+      const APP_VERSION = '1.0.500';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29270,25 +29270,39 @@
         return n;
       }
       function nightGateDebt(band) {
-        // WHAT THE BLOCK STILL OWES THE SHOVEL: the greater of its pack (the number locked at
-        // clock-in, surges included) and the number of its animals actually on the beat.
+        // THE BLOCK'S WHOLE PACK, LOCKED AT CLOCK-IN (surges included). The spawn cap in
+        // nightGateRoom can never let the block put out more animals than this, and every
+        // animal that leaves the street settles exactly one of them — so the block closes in
+        // exactly `load` settlements: no more to shovel, and none missing from the count.
         const led = nightGateLedger(band);
         if (!led) return 0;
-        return Math.max(nightGateLoad(band), led.sent);
+        return Math.max(nightGateLoad(band), led.yield + nightGateLive(band));
+      }
+      function nightGateStanding(band) {
+        return nightGateLive(band);
       }
       function nightGateLeft(band) {
+        // THE TRUTH OF THE BLOCK, ONE NUMBER EQUAL TO WHAT THE WALL WAITS FOR: the animals
+        // this block has put on the beat that are NOT in the truck yet. The block's standing
+        // horde IS part of that number, so the chip can only read "0 LEFT" when nothing of
+        // the block is standing and its whole pack is in the hopper — which is exactly the
+        // frame the ward falls. (It used to read 0 with a creature standing because a spook
+        // that landed in the scoop behind him was settled twice, by the shovel AND by the
+        // fog sweep taken together — see nightGateCredit.)
         const led = nightGateLedger(band);
         if (!led) return 0;
-        return Math.max(0, nightGateDebt(band) - led.yield);
+        const debt = nightGateDebt(band);
+        return Math.max(0, debt - Math.min(led.yield, debt));
       }
       function nightGateRoom(band) {
         // HOW MANY of this block's horde the haunt may put on the street right now: the
-        // block's own LOAD, minus what he has already accounted for, minus what is standing.
-        // (The spawn cap runs on the PACK, never on the running debt — a block seeds exactly
-        // its own set of animals and no more. The debt is what nightGateCheck closes on.)
+        // block's own LOAD, minus what he has already paid for, minus what is standing.
+        // A block that loses animals to the fog gets them back on the beat, so the pack the
+        // shovel owes always arrives and a ward is never stranded.
         const led = nightGateLedger(band);
         if (!led) return 0;
-        return Math.max(0, nightGateLoad(band) - led.yield - nightGateLive(band));
+        const load = nightGateLoad(band);
+        return Math.max(0, load - Math.min(led.yield, load) - nightGateLive(band));
       }
       function nightGateClosedAt(band) {
         const led = nightGateLedger(band);
@@ -29458,6 +29472,23 @@
         const led = nightGateLedgerOf(ref);
         if (led) led.yield++;
       }
+      // ONE CREDIT PER ANIMAL, NEVER TWO. An animal leaves a block's account exactly once:
+      // the shovel paying for it (landSpookInHopper -> shovelBanish) is the SAME settlement
+      // the fog pays when it takes the animal back (cullHorror). Without this a spook that
+      // landed in the scoop behind him — its x has lerped onto the truck, so the fell-behind
+      // sweep sees it as "far behind" — was counted TWICE: the block read paid up ("0 LEFT")
+      // with an animal still standing, and its ghostly wall refused to come down until he
+      // found and shoveled a spook the chip never told him about. The ledger is also clamped
+      // to what the block actually sent out, so a stray double count can never outrun the wall.
+      function nightGateCredit(c) {
+        const led = nightGateLedgerOf(c && (c.home || c.band));
+        if (c) {
+          if (c.gatePaid) return; // its account is already settled (the shovel got it first)
+          c.gatePaid = true;
+        }
+        if (!led) return;
+        if (led.yield < led.sent) led.yield++;
+      }
       // THE WARD IS DOWN — SAY IT LIKE A 16-BIT BEAT-'EM-UP. The instant a block's ghostly
       // wall falls, a red arrow SLAMS into the lower-left corner of the screen pointing the
       // way he walks (down the street, bottom-left) with "GO!" burned in it, under the line
@@ -29495,14 +29526,15 @@
           const led = nightGateLedger(band);
           if (!led || led.open) continue;
           if (nightGateLive(band) > 0) continue; // its animals are still on the street
-          // THE WARD'S DEBT IS WHAT THIS BLOCK ACTUALLY SENT OUT, and an animal leaves the
-          // debt whether the SHOVEL took it or the FOG took it back (see cullHorror). Counting
-          // the debt against the animals on the beat — not against a number locked at
-          // clock-in — is what makes a ward that can never be paid impossible: an empty block
-          // that has accounted for every animal it put out ALWAYS comes down, so walking back
-          // up the street can never strand a wall over a cleared block.
+          // THE WALL COMES DOWN ON AN EMPTY BLOCK HE HAS PAID FOR. Two numbers, both read
+          // straight off the street: the block must have PUT OUT its pack (sent), and the
+          // shovel must have PAID for it (yield — every settlement counted ONCE per animal,
+          // the fog's take-back included). The chip counts the same account plus what is
+          // standing, so "0 LEFT" and a wall over an empty beat can never co-exist: the frame
+          // the last creature of the block goes in the truck is the frame the ward falls,
+          // and the GO! arrow lights with it.
           if (led.sent < nightGateLoad(band)) continue; // the block has not put out its pack yet
-          if (led.yield < led.sent) continue; // ...and every animal it put out is not accounted for
+          if (led.yield < nightGateLoad(band)) continue; // ...and the shovel has not paid for it
           // THE BLOCK IS EMPTY AND ITS LOAD IS IN THE HOPPER: the ward comes down. It is
           // HIS block's ward — the curtain at the low edge of the beat he is standing in —
           // so breaking it is what lets him walk down into the next block's wave.
@@ -29540,20 +29572,24 @@
         }
       }
       function nightGateProgress() {
-        // the ward he is working against, and how much of that block is left to shovel
+        // the ward he is working against, and how much of that block is left to shovel —
+        // THE SAME ARITHMETIC THE WALL ITSELF RUNS (see nightGateCheck): the pack the block
+        // has put out, the pack his shovel has paid for, and the animals standing on the beat.
         const led = nightGateFrontLedger();
         if (!led)
           return { name: "THE GRAVES", load: 0, done: 0, live: 0, left: 0, frac: 1, open: true, x: 0 };
         const band = nightGateBandOf(led.i) || { i: led.i, x0: led.x - NIGHT_GATE_INSET, x1: led.x };
         const load = nightGateLoad(band);
+        const live = nightGateLive(band);
+        const owed = Math.max(0, load - Math.min(led.yield, load));
         return {
           led: led,
           name: led.name,
           load: load,
-          live: nightGateLive(band),
+          live: live,
           done: led.yield,
-          left: Math.max(0, load - led.yield),
-          frac: load > 0 ? Math.min(1, led.yield / load) : 1,
+          left: nightGateLeft(band), // standing + owed — never 0 with a creature on screen
+          frac: load > 0 ? Math.min(1, Math.min(led.yield, load) / load) : 1,
           open: false,
           x: led.x,
         };
@@ -29744,7 +29780,7 @@
       // worker was walking back up the street could never close its load, and its ghostly
       // wall would stand up FOREVER over an empty block (and the GO! arrow would never light).
       function cullHorror(c) {
-        if (nightGateOn()) nightGateYieldOf(c && (c.home || c.band));
+        if (nightGateOn()) nightGateCredit(c); // the fog pays, once — the shovel already got it if it did
         const i = creatures.indexOf(c);
         if (i >= 0) creatures.splice(i, 1);
         if (c.g) {
@@ -29855,7 +29891,7 @@
         ectoCount++;
         // THE BLOCK WARD runs on this count: the banished animal is credited to the block
         // it was born on, and the block's ward falls when its whole load is in the hopper.
-        if (spook) nightGateYieldOf(spook.home || spook.band);
+        if (spook) nightGateCredit(spook); // ONE settlement per animal — never a second from the fog sweep
         if (dayStats && dayStats.spooks) dayStats.spooks.got++;
         hopperDeposit("ecto");
         addScore(points, true);
