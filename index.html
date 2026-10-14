@@ -565,6 +565,114 @@
         border-color: #b6fff2;
         box-shadow: 0 0 20px rgba(58, 240, 210, 0.95);
       }
+      /* ===== THE MIDNIGHT "GO!" ARROW (the 16-bit way-out cue) ======================
+         The instant the ghostly ward of the block he just emptied comes down, a red arrow
+         SLAMS into the LOWER-LEFT corner of the screen — the direction he walks on the
+         dead-end street (he shovels his way down toward the graves) — with GO! burned into
+         it and the block's own name over it. Blinking line, chunky arrow, hard drop shadow:
+         the "the way is open, MOVE" cue straight out of the 16-bit beat-'em-ups. It burns
+         on its own clock (NIGHT_GO_FLASH), blinks out over its last second, and the centre
+         of the screen never carries it (the centre is the pickups' language). */
+      #night-go {
+        position: fixed;
+        bottom: calc(128px + env(safe-area-inset-bottom, 0px));
+        left: calc(24px + env(safe-area-inset-left, 0px));
+        z-index: 26;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        animation: goSlam 0.3s cubic-bezier(0.2, 1.7, 0.4, 1) forwards;
+      }
+      #night-go.hidden {
+        display: none;
+      }
+      #night-go-msg {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: 17px;
+        line-height: 1.15;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        text-align: center;
+        color: #fff6d8;
+        background: rgba(14, 6, 28, 0.78);
+        border: 2px solid #ff3b4a;
+        border-radius: 8px;
+        padding: 5px 11px 6px;
+        box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 59, 74, 0.5);
+        text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.7);
+        animation: goBlink 0.72s steps(2, start) infinite;
+      }
+      #night-go-arrow {
+        width: 78px;
+        height: 78px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: 30px;
+        letter-spacing: 2px;
+        color: #fff;
+        text-shadow: 2px 2px 0 rgba(90, 0, 12, 0.9);
+        background: #ff3b4a;
+        /* A fat down-pointing arrow; the block is rotated onto the bottom-left — the
+           way out of every block on tonight's street. */
+        clip-path: polygon(
+          50% 100%, 8% 44%, 32% 44%, 32% 0, 68% 0, 68% 44%, 92% 44%
+        );
+        transform: rotate(40deg);
+        filter: drop-shadow(4px 5px 0 rgba(0, 0, 0, 0.5));
+        animation: goNudge 0.52s ease-in-out infinite;
+      }
+      #night-go.go-out {
+        animation: goOut 1s steps(2, start) infinite;
+      }
+      @keyframes goSlam {
+        0% {
+          transform: scale(0.25);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.18);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      @keyframes goBlink {
+        0%,
+        54% {
+          opacity: 1;
+        }
+        55%,
+        100% {
+          opacity: 0.62;
+        }
+      }
+      @keyframes goNudge {
+        0%,
+        100% {
+          transform: rotate(40deg) translate(0, 0);
+        }
+        50% {
+          transform: rotate(40deg) translate(-7px, 7px);
+        }
+      }
+      @keyframes goOut {
+        0%,
+        54% {
+          opacity: 1;
+        }
+        55%,
+        100% {
+          opacity: 0.25;
+        }
+      }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
          violet-glowing instead of the usual borough amber. */
       #day-intro.night .day {
@@ -725,6 +833,23 @@
           top: calc(146px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
+        }
+        #night-go {
+          bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+          left: calc(12px + env(safe-area-inset-left, 0px));
+          gap: 6px;
+        }
+        #night-go-msg {
+          font-size: 12px;
+          letter-spacing: 1px;
+          padding: 4px 8px 5px;
+          max-width: 58vw;
+        }
+        #night-go-arrow {
+          width: 56px;
+          height: 56px;
+          font-size: 21px;
+          letter-spacing: 1.4px;
         }
         .bonus-goal-chip {
           font-size: clamp(8px, 2.5vw, 11px);
@@ -4198,6 +4323,15 @@
         <b id="boss-hpeye">EYE</b>
       </div>
     </div>
+    <!-- THE MIDNIGHT "GO!" ARROW (the 16-bit beat-'em-up way-out cue): the instant the
+         ghostly ward of the block he just shovels empty comes down, this red arrow lights
+         in the lower-left corner — the way he walks — with GO! burned into it and the
+         block's name over it ("THE FOG GANG WALL IS DOWN!"). It burns for
+         NIGHT_GO_FLASH seconds and goes out on its own clock. -->
+    <div id="night-go" class="hidden">
+      <div id="night-go-msg">THE WALL IS DOWN!</div>
+      <div id="night-go-arrow">GO!</div>
+    </div>
     <div id="hud">
       <div id="tl" class="hudbox"
         ><div class="hp"
@@ -4308,7 +4442,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.497</div>
+          <div id="app-version" class="menu-version">v1.0.498</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4566,7 +4700,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.497';
+      const APP_VERSION = '1.0.498';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6421,6 +6555,11 @@
       let nightSayT = 0,
         nightBubbleT = 0,
         nightPopT = 0;
+      // THE "GO!" FLASH (see nightGoFlash): the seconds left on the arrow that tells the
+      // worker the ghostly wall of the block he just emptied is DOWN and the street below
+      // is open, and the line it carries ("THE FOG GANG WALL IS DOWN!").
+      let nightGoT = 0,
+        nightGoMsg = "";
       let gargoyleReclaimed = false; // true once the worker has it back (fires exactly once)
       // THE MIDNIGHT FINAL BOSS (the night shift's ONLY level end): the many-eyed
       // TENTACLE BEAST that sits in the cemetery at the near end of the dead-end street.
@@ -29038,6 +29177,7 @@
       // worker inside the wall: he can only slide sideways. Fire on crossing, snap ON the line.)
       const NIGHT_GATE_FADE = 1.15; // s the curtain takes to dissolve
       const NIGHT_GATE_LIFT = 1.35; // u/s it rises as it fades
+      const NIGHT_GO_FLASH = 3.4; // s the red "GO!" arrow stands after a ward falls
       const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
       const HORROR_SURGE_LOAD_TIERS = 3; // ...and it stops stacking after this many surges
       const NIGHT_GATE_LINES = [
@@ -29305,11 +29445,30 @@
         const led = nightGateLedgerOf(ref);
         if (led) led.yield++;
       }
+      // THE WARD IS DOWN — SAY IT LIKE A 16-BIT BEAT-'EM-UP. The instant a block's ghostly
+      // wall falls, a red arrow SLAMS into the lower-left corner of the screen pointing the
+      // way he walks (down the street, bottom-left) with "GO!" burned in it, under the line
+      // that names the block whose wall came down. It is the ONLY way-out cue the haunted
+      // street uses: no centre-screen text (that belongs to the pickups), just the arrow,
+      // its blinking line, the wail, the burst of ecoplasm at the curtain and the shoveled
+      // block's name in the chip. It burns for NIGHT_GO_FLASH seconds, then goes out; a new
+      // ward drop re-lights it; the shift reset takes it off the street.
+      function nightGoFlash(led) {
+        if (typeof isNightShift !== "function" || !isNightShift()) return;
+        nightGoT = NIGHT_GO_FLASH;
+        nightGoMsg =
+          (led && led.name ? String(led.name).toUpperCase() + " " : "THE STREET ") +
+          "WALL IS DOWN!";
+      }
+      function nightGoTick(dt) {
+        if (nightGoT > 0) nightGoT = Math.max(0, nightGoT - (dt > 0 && dt < 0.5 ? dt : 1 / 60));
+      }
       function nightGateOpenLedger(led) {
         led.open = true;
         led.fade = NIGHT_GATE_FADE;
-        announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power"); // (swallowed on Midnight: no big text; the worker's short bubble carries it)
+        announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power"); // (swallowed on Midnight: no big text; the arrow says it)
         nightGateSay(pick(NIGHT_GATE_OPEN_LINES));
+        nightGoFlash(led); // THE WALL IS GONE — the red GO! arrow lights in the way-out corner
         if (typeof SFX.playBansheeWail === "function") SFX.playBansheeWail();
         spawnEctoBurst(led.x, 0, 1.5);
         p.shake = Math.max(p.shake || 0, 0.55);
@@ -29458,6 +29617,8 @@
 
       function nightGateClear() {
         const keys = Object.keys(nightGates);
+        nightGoT = 0;
+        nightGoMsg = ""; // a fresh shift: the GO! arrow goes out with the old wards
         for (let k = 0; k < keys.length; k++) {
           const led = nightGates[keys[k]];
           if (led && led.g) {
@@ -43869,6 +44030,7 @@
           updateNightHaunt(dt);
           updateEctoFlights(dt);
           updateGhoulHpBars(dt); // the bars over the horde AND the grave furniture: DOM, pooled
+          nightGoTick(dt); // the "GO!" arrow's clock after a ward falls
           // FAIR FIGHT timers: the blade's guard window and the hit grace tick away.
           p.shovelGuardT = Math.max(0, (p.shovelGuardT || 0) - dt);
           p.nightHitT = Math.max(0, (p.nightHitT || 0) - dt);
@@ -50073,6 +50235,21 @@
               gchip.style.setProperty("--prog", (gpr.frac * 100).toFixed(1) + "%");
             }
             setTxt($("gate-chip-text"), nightGateHudText());
+          }
+        }
+        // THE "GO!" ARROW (the 16-bit way-out cue): lit the instant a block's ghostly wall
+        // falls, it burns in the lower-left corner — the direction he walks — for
+        // NIGHT_GO_FLASH seconds, naming the block whose wall came down. It shares nothing
+        // with the centre screen (that belongs to POWER UP! / RUN IT UP!) and it goes out on
+        // its own clock; nightGateClear() kills it with the old street.
+        const goPanel = $("night-go");
+        if (goPanel) {
+          const showGo =
+            isNightShift() && NIGHT_BLOCK_GATES && nightGoT > 0 && state === "play";
+          goPanel.classList.toggle("hidden", !showGo);
+          if (showGo) {
+            setTxt($("night-go-msg"), nightGoMsg);
+            goPanel.classList.toggle("go-out", nightGoT <= 1.0); // last second: it blinks out
           }
         }
         const pips = $("pips").children;

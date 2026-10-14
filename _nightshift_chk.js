@@ -288,6 +288,7 @@ const NIGHT_BLOCK_HARDEN = srcNum('NIGHT_BLOCK_HARDEN'), NIGHT_WAVE_HARDEN = src
   GHOUL_HITS_MIN = srcNum('GHOUL_HITS_MIN'), NIGHT_HP_Z_PROP = srcNum('NIGHT_HP_Z_PROP');
 const NIGHT_EXTRA_HITS = eval('(' + srcLiteral('NIGHT_EXTRA_HITS', '{', '}') + ')');
 const NIGHT_GATE_FADE = srcNum('NIGHT_GATE_FADE'), NIGHT_GATE_LIFT = srcNum('NIGHT_GATE_LIFT');
+const NIGHT_GO_FLASH = srcNum('NIGHT_GO_FLASH');
 const NIGHT_GATE_WORK = srcNum('NIGHT_GATE_WORK');
 const HORROR_SURGE_LOAD = srcNum('HORROR_SURGE_LOAD');
 const HORROR_SURGE_LOAD_TIERS = srcNum('HORROR_SURGE_LOAD_TIERS');
@@ -430,6 +431,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive',
   'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateFloorX', 'nightGateHolds',
   'nightGateWall', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
+  'nightGoFlash', 'nightGoTick',
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
   'nightBlockDepth', 'nightGhoulHits', 'nightGhoulFloorHits', 'nightArmSpook', 'nightWoundShovel',
   'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
@@ -480,12 +482,13 @@ const H = new Function(
   // THE SPECTRAL BLOCK WARDS
   'NIGHT_BLOCK_GATES', 'NIGHT_GATE_INSET', 'NIGHT_GATE_ROOM', 'NIGHT_GATE_STOP',
   'NIGHT_GATE_REACH', 'NIGHT_GATE_FADE', 'NIGHT_GATE_LIFT', 'NIGHT_GATE_WORK', 'HORROR_SURGE_LOAD',
-  'HORROR_SURGE_LOAD_TIERS', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES',
+  'HORROR_SURGE_LOAD_TIERS', 'NIGHT_GATE_LINES', 'NIGHT_GATE_OPEN_LINES', 'NIGHT_GO_FLASH',
   'GHOUL_HITS', 'NIGHT_WOUND_LINES', 'NIGHT_BLOCK_HARDEN', 'NIGHT_WAVE_HARDEN', 'NIGHT_SURGE_HARDEN',
   'GHOUL_HITS_MAX', 'GHOUL_HITS_MIN', 'NIGHT_BACKOFF_T', 'NIGHT_BACKOFF_EXTRA', 'NIGHT_BACKOFF_SP',
   'NIGHT_WOUND_PUSH', 'NIGHT_EXTRA_HITS', 'NIGHT_HP_Z_PROP', 'NIGHT_SCURRY_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
+  '\nlet nightGoT = 0, nightGoMsg = "";' +
   HORROR_SRC +
   '\nlet ectoCount = 0; let stolenGargoyle = null; let gargoyleReclaimed = false;' +
   '\nlet shovelCharge = 0, shovelCharged = false, shovelTriadT = 0, shovelTriadCount = 0;' +
@@ -571,6 +574,8 @@ const H = new Function(
   ' gateFloorX: b => nightGateFloorX(b), gateClosed: b => nightGateClosedAt(b), gateCount: () => nightGateCount(),' +
   ' gateFront: () => nightGateFrontLedger(), gateWall: (a, b) => nightGateWall(a, b), gateProgress: () => nightGateProgress(),' +
   ' gateHud: () => nightGateHudText(), gateBuild: bs => buildNightGates(bs), gateClear: () => nightGateClear(),' +
+  ' goFlash: (led) => nightGoFlash(led), goTick: (dt) => nightGoTick(dt),' +
+  ' getGoT: () => nightGoT, setGoT: (v) => { nightGoT = v; }, getGoMsg: () => nightGoMsg,' +
   ' ghHits: (b, k) => nightGhoulHits(b, k), ghFloor: b => nightGhoulFloorHits(b), depth: b => nightBlockDepth(b),' +
   ' armSpook: (c, b) => nightArmSpook(c, b), woundShovel: (c) => nightWoundShovel(c),' +
   ' barLog: () => hpBarLog,' +
@@ -629,7 +634,7 @@ const H = new Function(
   // THE SPECTRAL BLOCK WARDS
   NIGHT_BLOCK_GATES, NIGHT_GATE_INSET, NIGHT_GATE_ROOM, NIGHT_GATE_STOP, NIGHT_GATE_REACH,
   NIGHT_GATE_FADE, NIGHT_GATE_LIFT, NIGHT_GATE_WORK, HORROR_SURGE_LOAD, HORROR_SURGE_LOAD_TIERS,
-  NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES,
+  NIGHT_GATE_LINES, NIGHT_GATE_OPEN_LINES, NIGHT_GO_FLASH,
   GHOUL_HITS, NIGHT_WOUND_LINES, NIGHT_BLOCK_HARDEN, NIGHT_WAVE_HARDEN, NIGHT_SURGE_HARDEN,
   GHOUL_HITS_MAX, GHOUL_HITS_MIN, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP,
   NIGHT_WOUND_PUSH, NIGHT_EXTRA_HITS, NIGHT_HP_Z_PROP, NIGHT_SCURRY_LINES
@@ -3501,6 +3506,88 @@ check('...and on the phones it lands on the CHIP\\u2019S mobile slot (146px, the
     /#boss-goal \{\s*width: min\(78vw, 300px\);\s*top: calc\(146px \+ env\(safe-area-inset-top, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html));
   check('WHILE THE BEAST IS UP, THE BLOCK NAME STEPS ASIDE: the ward chip is hidden in the very slot the bar takes',
     /NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss\.awake && nightBoss\.hp > 0/.test(srcFn('updateHUD')));
+})();
+
+console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT — THE 16-BIT WAY-OUT CUE IN THE LOWER-LEFT CORNER');
+(function () {
+  s7Reset();
+  const bands25 = H.nightBands();
+  const cleared = bands25[0];
+  const crew25 = creatures.filter((c) => c.home && c.home.i === cleared.i && !c.hooked && !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
+  const load25 = H.gateLoad(cleared);
+  // (a) THE WARD DROP LIGHTS THE ARROW: the block's horde gone + its load in the hopper,
+  //     the ward falls, and the arrow takes the screen with the block's name on it
+  for (let i = 0; i < load25; i++) H.gateYield({ i: cleared.i });
+  crew25.slice().forEach((c) => { const k = creatures.indexOf(c); if (k >= 0) creatures.splice(k, 1); });
+  H.setGoT(0);
+  const opened25 = H.gateCheck(0.016);
+  check('THE WARD FALLS AND THE ARROW LIGHTS WITH IT: ' + opened25 + ' ward down, the clock at ' + H.getGoT().toFixed(2) + 's, the line "' + H.getGoMsg() + '"',
+    opened25 >= 1 && H.gateLedger(cleared).open === true &&
+      Math.abs(H.getGoT() - NIGHT_GO_FLASH) < 1e-9 &&
+      /^[A-Z ’ ]+ WALL IS DOWN!$/.test(H.getGoMsg()),
+    'open=' + H.gateLedger(cleared).open + ' opened=' + opened25 + ' t=' + H.getGoT() + ' msg=' + H.getGoMsg());
+  // (b) IT RUNS ON ITS OWN CLOCK: it burns NIGHT_GO_FLASH seconds and goes out by itself
+  let frames = 0;
+  while (H.getGoT() > 0 && frames++ < 6000) H.goTick(1 / 60);
+  check('THE ARROW BURNS FOR EXACTLY ITS FLASH AND GOES OUT ON ITS OWN CLOCK (' +
+    (frames / 60).toFixed(2) + 's of frames for a ' + NIGHT_GO_FLASH + 's flash)',
+    H.getGoT() === 0 && Math.abs(frames / 60 - NIGHT_GO_FLASH) < 0.05,
+    'frames=' + frames + ' t=' + H.getGoT());
+  // (c) A NEW WARD DROP RE-LIGHTS IT, AND THE SHIFT RESET KILLS IT
+  H.setGoT(0.4);
+  H.goFlash({ name: "THE GRAVES", x: 96 });
+  check('A NEW WARD DROP RE-LIGHTS IT AT FULL FLASH', Math.abs(H.getGoT() - NIGHT_GO_FLASH) < 1e-9 && /^THE GRAVES WALL IS DOWN!$/.test(H.getGoMsg()));
+  H.gateClear();
+  check('...AND THE SHIFT RESET TAKES IT OFF THE STREET (no arrow standing over a fresh street)',
+    H.getGoT() === 0 && H.getGoMsg() === "");
+  // (d) THE WEEKDAYS NEVER SEE IT — the ward's own flash code, run against a day shift and
+  //     against the night, in a state box the harness can read
+  (() => {
+    const st = { t: 0, msg: "" };
+    const flash = new Function('NIGHT_GO_FLASH', 'st', 'isNightShift',
+      srcFn('nightGoFlash')
+        .replace(/\bnightGoT\b/g, 'st.t')
+        .replace(/\bnightGoMsg\b/g, 'st.msg') +
+      '\n;nightGoFlash({ name: "MANHATTAN" });');
+    flash(NIGHT_GO_FLASH, st, () => false);
+    const dayT = st.t, dayMsg = st.msg;
+    flash(NIGHT_GO_FLASH, st, () => true);
+    check('THE WEEKDAYS NEVER SEE IT: the same call on a day shift lights 0s and says nothing; on the night it lights ' + st.t + 's',
+      dayT === 0 && dayMsg === "" && Math.abs(st.t - NIGHT_GO_FLASH) < 1e-9 &&
+      st.msg === "MANHATTAN WALL IS DOWN!");
+  })();
+  // (e) THE MARKUP + THE SKIN: a red chunky arrow pointing BOTTOM-LEFT with GO! in it,
+  //     the block's line above it, slams in, blinks, nudges toward the way out
+  check('THE MARKUP IS ON THE SCREEN: the panel, the line and the arrow',
+    html.includes('id="night-go" class="hidden"') && html.includes('id="night-go-msg"') &&
+      html.includes('id="night-go-arrow">GO!<'));
+  const goCss = (html.match(/#night-go \{[\s\S]{0,560}?\}/) || [''])[0];
+  const goArrow = (html.match(/#night-go-arrow \{[\s\S]{0,900}?\}/) || [''])[0];
+  check('IT SITS IN THE LOWER-LEFT CORNER (bottom + left, safe-area aware) and goes hidden with the panel',
+    /bottom: calc\(128px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(goCss) &&
+      /left: calc\(24px \+ env\(safe-area-inset-left, 0px\)\)/.test(goCss) &&
+      /z-index: 26/.test(goCss) && /#night-go\.hidden \{\s*display: none;/.test(html),
+    'bottom=' + /bottom: calc\(128px/.test(goCss) + ' left=' + /left: calc\(24px/.test(goCss));
+  check('THE ARROW IS A RED 16-BIT CHUNK POINTING BOTTOM-LEFT: down-pointing clip-path, rotated onto the way out, GO! lettering',
+    /clip-path: polygon\(\s*50% 100%,/.test(goArrow) && /transform: rotate\(40deg\)/.test(goArrow) &&
+      /background: #ff3b4a/.test(goArrow) && /"Bangers"/.test(goArrow));
+  check('IT SLAMS IN, THE LINE BLINKS, THE ARROW NUDGES TOWARD THE EXIT, AND ITS LAST SECOND FLICKERS OUT',
+    /animation: goSlam 0\.3s/.test(goCss) && /@keyframes goSlam/.test(html) &&
+      /animation: goBlink 0\.72s/.test(html) && /@keyframes goBlink/.test(html) &&
+      /animation: goNudge 0\.52s/.test(goArrow) && /@keyframes goNudge/.test(html) &&
+      /#night-go\.go-out \{/.test(html) && /@keyframes goOut/.test(html));
+  check('THE PHONES GET THE SAME ARROW IN THE SAME CORNER (smaller: 56px, 12px inset, 112px bottom)',
+    /#night-go \{\s*bottom: calc\(112px \+ env\(safe-area-inset-bottom, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html) &&
+      /#night-go-arrow \{\s*width: 56px;\s*height: 56px;\s*font-size: 21px;/.test(html));
+  // (f) ONLY THE NIGHT HUD LIGHTS IT, AND THE HUD RIDES ITS CLOCK (never on a weekday,
+  //     never when the flash is out, never on the win screen)
+  check('THE HUD DRIVES IT OFF THE CLOCK AND THE SHIFT, AND NOTHING ELSE',
+    /const showGo =\s*isNightShift\(\) && NIGHT_BLOCK_GATES && nightGoT > 0 && state === "play";/.test(srcFn('updateHUD')) &&
+      /goPanel\.classList\.toggle\("hidden", !showGo\)/.test(srcFn('updateHUD')) &&
+      /goPanel\.classList\.toggle\("go-out", nightGoT <= 1\.0\)/.test(srcFn('updateHUD')));
+  check('THE FRAME TICKS IT (the night block of the loop) AND THE WARD CODE LIGHTS IT (nightGateOpenLedger)',
+    html.includes('nightGoTick(dt);') && /nightGoFlash\(led\);/.test(srcFn('nightGateOpenLedger')) &&
+      /nightGoT = 0;/.test(srcFn('nightGateClear')) && /const NIGHT_GO_FLASH = /.test(html));
 })();
 
 console.log('\n[24] THE SCREEN QUIET LAW: the centre text is the PICKUP, and the red POW! is the WORKER\u2019S OWN PAIN');
