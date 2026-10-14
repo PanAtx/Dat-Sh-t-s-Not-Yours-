@@ -1489,14 +1489,14 @@ check('THREE banishments inside 4 seconds pay the SHOVEL TRIAD (+$2,500, with th
 check('the TRIAD counter resets after the bonus (no free-run combo)', H.getTriad()[1] === 0);
 console.log('\n[6] the SHOVEL is held in BOTH hands, head on the end of the handle');
 const SHOVEL_SRC = ['makeShovelProp', 'shovelFist', 'shovelShaftEuler',
-  'poseShovel', 'equipShovel'].map(srcFn).join('\n');
+  'poseShovel', 'poseShovelReady', 'equipShovel'].map(srcFn).join('\n');
 const armStub = (tag) => ({ tag, rotation: { x: 0, y: 0, z: 0, set(a, b, c) { this.x = a; this.y = b; this.z = c; return this; } } });
 const S6_ARMR = armStub('armR'), S6_ARML = armStub('armL');
 const S6_ROOT = mkObj('workerGroup');
 const S6 = new Function(
   'THREE', 'M', 'BX', 'CY', 'SP', 'clamp', 'SHOVEL_HOLD', 'worker', 'wparts', 'shovelGroup',
   'let shovelTwist = 0;\n' + SHOVEL_SRC +
-  '\nreturn { makeShovelProp, poseShovel, equipShovel, shovelFist, shovelShaftEuler,' +
+  '\nreturn { makeShovelProp, poseShovel, poseShovelReady, equipShovel, shovelFist, shovelShaftEuler,' +
   ' hold: SHOVEL_HOLD, getShovel: () => shovelGroup, getTwist: () => shovelTwist };'
 )(THREE, M, BX, CY, SP, clamp, eval('(' + srcLiteral('SHOVEL_HOLD', '{', '}') + ')'),
   { group: S6_ROOT }, { armR: S6_ARMR, armL: S6_ARML }, null);
@@ -3958,8 +3958,9 @@ check('the swing code carries NO facing snap at all — p.facing is never assign
   srcFn('tryShovelSwing').indexOf('p.facing') < 0 &&
     srcFn('bossTakeShovelSwing').indexOf('p.facing =') < 0);
 check('the rule is live: a front arc of ' + SHOVEL_FACE_ARC + '° — ±' + SHOVEL_FACE_ARC / 2 +
-  '° around his facing — and the beast must be inside it to be cut',
+  '° around his facing — and the beast must be inside it to be cut; the stance marker key sits past the swing\'s own amplitude (' + SHOVEL_READY_KEY + ') so it never rides the swing',
   SHOVEL_FACE_RULE === true && SHOVEL_FACE_ARC > 90 && SHOVEL_FACE_ARC <= 270 &&
+    SHOVEL_READY_KEY > 1.22 &&
     srcFn('bossTakeShovelSwing').includes('if (!shovelFacingOK(b.wx, b.wy)) return false;'));
 check('THE FACING LAW runs on the grave furniture too (a headstone behind him is not on the swing)',
   srcFn('nearestShovelHazard').includes('!shovelFacingOK(hz.wx, hz.wy)'));
@@ -4027,26 +4028,50 @@ nightOn = false;
 check('the seven weekdays keep STREET CASH everywhere (HUD, popup, pill, report)',
   H.cashName() === "STREET CASH");
 nightOn = true;
-// THE BAT-READY SHOVEL (sampled off the game's own pose curve, with the tool IN HIS HANDS)
+// THE BAT-READY SHOVEL (sampled off the game's own pose rig, with the tool IN HIS HANDS)
 S6.equipShovel(true);
 const batHeld = S6.getShovel();
-const batAxis = () => {
-  const dx = batHeld.rotation.x, dy = batHeld.rotation.y;
-  return { az: -Math.cos(dx) * Math.sin(dy), z: batHeld.position.z }; // az > 0 = the blade points UP
+const tipOf = () => {
+  // the SAME Euler math the renderer multiplies: the tool's own +X (its blade direction)
+  // runs to (cos y, sin x sin y, -cos x sin y); the head sits ~1.7u out from the fists.
+  const ex = batHeld.rotation.x, ey = batHeld.rotation.y;
+  const uy = Math.sin(ex) * Math.sin(ey), uz = -Math.cos(ex) * Math.sin(ey);
+  return {
+    az: uz, // > 0 = the blade points UP
+    y: batHeld.position.y + 1.7 * uy, // the blade tip's side (y+ = HIS LEFT, y- = HIS RIGHT)
+    z: batHeld.position.z + 1.7 * uz, // the blade tip's height
+  };
 };
 S6.poseShovel(0);
-const dipAx = batAxis(), dipArm = S6_ARMR.rotation.x;
-const batOut = S6.poseShovel(SHOVEL_READY_KEY);
-const batAx = batAxis(), batArm = S6_ARMR.rotation.x;
-check('the ready stance is ' + SHOVEL_READY_KEY + ' ON THE SWING CURVE ITSELF — no extra geometry, no second shovel, the strike path untouched',
-  SHOVEL_READY_KEY > 0 && SHOVEL_READY_KEY < 1 && !!batOut && !!S6.poseShovel(0) &&
+const dipTip = tipOf();
+const batOut = S6.poseShovelReady();
+const batTip = tipOf();
+const batArms = { rx: S6_ARMR.rotation.x, ry: S6_ARMR.rotation.y, lx: S6_ARML.rotation.x, ly: S6_ARML.rotation.y };
+S6.poseShovel(0.3); // the coil pose the old stance rode (the left-shoulder carry)
+const coilTip = tipOf();
+const SHOVEL_HOLD30 = S6.hold;
+function SH15bKeys() {
+  const K = SHOVEL_HOLD30 && SHOVEL_HOLD30.keys, Rd = SHOVEL_HOLD30 && SHOVEL_HOLD30.ready;
+  if (!K || K.length !== 5 || SHOVEL_HOLD30.max !== 1.22 || !Rd) return false;
+  return Rd.r.length === 2 && Rd.l.length === 2 && SHOVEL_READY_KEY > 1.22;
+}
+check('the stance is a pose of its own (SHOVEL_HOLD.ready, solved by poseShovelReady) — the swing curve keeps its five keys and its 1.22 top amplitude, so NO swing frame ever samples the stance, and the stance marker rides past the swing (key ' + SHOVEL_READY_KEY + ')',
+  SH15bKeys() && !!batOut && batOut.twist === 0 && batOut.lean === 0 &&
     html.includes('if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06)'));
-check('AT THE READY HE CARRIES THE SHOVEL UP IN THE AIR LIKE A BASEBALL BAT — the blade RIDES UP (his shipped carry points it at the ground), both fists stay on the wood',
-  batAx.az > 0.4 && dipAx.az < -0.3 && batArm > 0.5,
-  'blade axis ' + dipAx.az.toFixed(2) + ' -> ' + batAx.az.toFixed(2) + ' arm ' + dipArm.toFixed(2) + ' -> ' + batArm.toFixed(2));
-check('THE PLAY LOOP RUNS IT: no swing = the ready key, and the stance adds no twist and no lean (he stands square to where he faces)',
+check('THE SHOVEL NOW RIDES OVER HIS RIGHT SHOULDER — the blade tip flipped from HIS LEFT side (the old carry, what looked wrong) to his RIGHT side',
+  coilTip.y > 0.3 && batTip.y < -0.02,
+  'blade tip side y ' + coilTip.y.toFixed(2) + ' (LEFT) -> ' + batTip.y.toFixed(2) + ' (RIGHT)');
+check('AND IT IS STILL HELD UP LIKE A BASEBALL BAT, NOT LOW AT THE GROUND: the blade stands near-vertical with its tip ABOVE his head (his shipped walking carry aims it at the asphalt)',
+  batTip.az > 0.85 && batTip.z > 2.1 && dipTip.az < -0.3 && dipTip.z < 1.8,
+  'rise ' + batTip.az.toFixed(2) + ' tip z ' + batTip.z.toFixed(2) + ' (head top ~1.95); walking carry rise ' + dipTip.az.toFixed(2) + ' tip z ' + dipTip.z.toFixed(2));
+check('BOTH FISTS STAY ON THE WOOD IN THE STANCE: the right hand down on the butt at his right hip, the left crossed onto the shaft in front of the chest — each a true 0.52u arm out of its own shoulder, head clear of his head',
+  batArms.rx === 0 && batArms.ry === 0 &&
+    Math.abs(batArms.lx + 1.5708) < 1e-4 && batArms.ly === 0,
+  'armR ' + batArms.rx.toFixed(3) + '/' + batArms.ry.toFixed(3) +
+  ' armL ' + batArms.lx.toFixed(3) + '/' + batArms.ly.toFixed(3));
+check('THE PLAY LOOP RUNS IT: no swing = the right-shoulder ready pose; the moment a swing is live the curve takes the tool back, and the stance adds no twist and no lean (he stands square to where he faces)',
   html.includes('const batUp = !(p.shovelT > 0);') &&
-    html.includes('if (batUp) sw = SHOVEL_READY_KEY;') &&
+    html.includes('const hold = batUp ? poseShovelReady() : poseShovel(sw);') &&
     html.includes('shovelTwist = 0; // the stance is SQUARE: no twist, no lean over the blade'));
 // NO BIRDS
 check('NO BIRDS ON MIDNIGHT: the pigeon flocks are seeded at zero, the seed-birds never come in, and the blue jay and her nest never exist',

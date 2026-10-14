@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.506</div>
+          <div id="app-version" class="menu-version">v1.0.507</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.506';
+      const APP_VERSION = '1.0.507';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28146,12 +28146,7 @@
       // every bird exactly as shipped).
       const NIGHT_CASH_NAME = "HELL NOTES";
       const NIGHT_NO_BIRDS = true;
-      // THE READY STANCE: standing and walking, he carries the shovel the way a batter
-      // carries a bat — up in the air over the shoulder, blade raised, loaded for the next
-      // swing — NOT dragging along the ground. The pose IS a key of the swing curve (the coil,
-      // where the tool is wound up with the head in the air), so the tool stays welded to the
-      // same two fists, the handle keeps its real length, and nothing about the swing moves.
-      const SHOVEL_READY_KEY = 0.3;
+      const SHOVEL_READY_KEY = 1.45; // the mirrored bat-ready key on the curve (see SHOVEL_HOLD)
       function cashName() {
         return typeof isNightShift === "function" && isNightShift()
           ? NIGHT_CASH_NAME
@@ -28802,6 +28797,15 @@
           { k: 1.0, r: [0.62, -1.06], l: [-0.16, -0.86], lean: 0.3, twist: 1.16 },
           { k: 1.22, r: [0.95, -0.45], l: [0.2, -0.95], lean: 0.1, twist: 1.5 },
         ],
+        // THE BAT READY POSE (the stance, NOT a swing frame — the swing curve tops out at
+        // max 1.22 and never touches this): THE SHOVEL OVER THE RIGHT SHOULDER, the way a
+        // right-handed batter carries the bat. The RIGHT hand keeps the butt down at his
+        // right hip; the LEFT hand is crossed over onto the shaft in front of the chest;
+        // the whole tool stands UP past the face with the scoop in the air over the right
+        // shoulder — the side the swing launches from, so the press flows out of the carry.
+        // Every fist is a true 0.52u arm out of its own shoulder, so the tool never leaves
+        // his hands and no arm passes through his head. Solved by poseShovelReady().
+        ready: { r: [0, 0], l: [-1.5708, 0] },
         max: 1.22,
       };
       // k is the swing's clock (0 = the press, 1 = SHOVEL_SWING_DUR later): LOADED 0.1s
@@ -28866,6 +28870,29 @@
           lean: A.lean + (B.lean - A.lean) * t,
           twist: A.twist + (B.twist - A.twist) * t,
         };
+      }
+      // THE BAT READY POSE: SHOVEL OVER THE RIGHT SHOULDER, blade in the air. Same solver,
+      // same fists on the same wood, same handle — only the SHOVEL_HOLD.ready arm pair, the
+      // mirror of the coil pose. The play loop runs this whenever no swing is live.
+      function poseShovelReady() {
+        if (!shovelGroup || !wparts || !wparts.armR || !wparts.armL) return null;
+        const P = SHOVEL_HOLD.ready;
+        wparts.armR.rotation.set(P.r[0], P.r[1], 0); // his RIGHT arm: the rear hand
+        wparts.armL.rotation.set(P.l[0], P.l[1], 0); // his LEFT arm: the forward hand
+        const rf = shovelFist(-1, P.r[0], P.r[1]),
+          lf = shovelFist(1, P.l[0], P.l[1]),
+          dx = lf.x - rf.x,
+          dy = lf.y - rf.y,
+          dz = lf.z - rf.z,
+          dm = Math.hypot(dx, dy, dz) || 1;
+        const e = shovelShaftEuler(dx, dy, dz);
+        shovelGroup.rotation.set(e.x, e.y, 0);
+        shovelGroup.position.set(
+          rf.x - (dx / dm) * 0.14, // a hand and a half of handle behind his rear fist
+          rf.y - (dy / dm) * 0.14,
+          rf.z - (dz / dm) * 0.14,
+        );
+        return { lean: 0, twist: 0 }; // the stance is square: no body twist, no lean
       }
       // Hand him the shovel (or take it back). It rides the worker ROOT, not an arm — one
       // arm would mean one hand, and nobody digs with one hand. Only the night shift ever
@@ -42878,8 +42905,8 @@
             shovelDeliverStrike();
           }
           shovelStride = sw > 1 ? 1 : sw; // the body runs the same amplitude, capped at 1
-          if (batUp) sw = SHOVEL_READY_KEY; // THE BAT READY STANCE: no swing = the shovel rides UP over the shoulder like a bat, not dragged on the ground
-          const hold = poseShovel(sw);
+          if (batUp) sw = SHOVEL_READY_KEY; // THE BAT READY STANCE: the marker key; the pose itself is SHOVEL_HOLD.ready, over the RIGHT shoulder
+          const hold = batUp ? poseShovelReady() : poseShovel(sw);
           if (hold) {
             shovelTwist = shovelStride > 0.66 ? -hold.twist : hold.twist;
             shovelLean = hold.lean;
