@@ -259,6 +259,10 @@ const HORROR_STUN_T = srcNum('HORROR_STUN_T'), NIGHT_HIT_GRACE = srcNum('NIGHT_H
 const HORROR_HUNTERS_MAX = srcNum('HORROR_HUNTERS_MAX'), SHOVEL_GUARD = srcNum('SHOVEL_GUARD');
 const SHOVEL_BUTT = srcNum('SHOVEL_BUTT'), SHOVEL_BLADE_R = srcNum('SHOVEL_BLADE_R');
 const SHOVEL_FACE_RULE = srcBool('SHOVEL_FACE_RULE'), SHOVEL_FACE_ARC = srcNum('SHOVEL_FACE_ARC');
+// THE HELL NOTES (Midnight's joss-money cash finds): the layout numbers, read from the ship
+const NIGHT_HELL_NOTE_PICKS = srcNum('NIGHT_HELL_NOTE_PICKS');
+const HELL_NOTE_WALK_Y0 = srcNum('HELL_NOTE_WALK_Y0'), HELL_NOTE_WALK_Y1 = srcNum('HELL_NOTE_WALK_Y1');
+const HELL_NOTE_ROAD_Y0 = srcNum('HELL_NOTE_ROAD_Y0'), HELL_NOTE_ROAD_Y1 = srcNum('HELL_NOTE_ROAD_Y1');
 // Midnight's own word for the cash tally + the no-birds law + the bat-ready pose key
 const NIGHT_CASH_NAME = (html.match(/const NIGHT_CASH_NAME = "([^"]*)"/) || [])[1];
 const NIGHT_NO_BIRDS = srcBool('NIGHT_NO_BIRDS');
@@ -942,17 +946,21 @@ const S5 = new Function(
   // has to prove it lays the boss down and walls the street off).
   'playerSpawnX', 'routeDir', 'clearNightBoss', 'spawnNightBoss', 'buildNightCemetery',
   'makeTentacleBoss',
+  // THE HELL NOTES: tonight's street cash, laid by the spawner's own layout code
+  'NIGHT_HELL_NOTE_PICKS', 'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1',
+  'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
   // THE SPECTRAL BLOCK WARDS: the spawner lays the curtains through the harness's own ward code
   'buildNightGates', 'nightGateClear',
-  srcFn('spawnStolenGargoyle') + '\n' + srcFn('spawnNightShift') +
-  '\nconst spawned = [], treasures = [];' +
+  srcFn('spawnStolenGargoyle') + '\n' + srcFn('spawnHellNotes') + '\n' + srcFn('spawnNightShift') +
+  '\nconst spawned = [], treasures = [], notes = [];' +
   '\nlet nightGhostCursor = 0, nightGhoulTier = 0, nightSurgeT = 0, nightSurgeSpawned = 0, nightHauntT = 0;' +
   '\nfunction spawnGhostTreasure(wx, wy) { treasures.push({ wx, wy }); }' +
+  '\nfunction spawnCash(wx, wy) { notes.push({ wx, wy }); }' +
   '\nlet stolenGargoyle = null;' +
   '\nfunction nightHpBarsClear() {}' +
   '\nfunction updateGhoulHpBars() {}' +
   '\nfunction nightArmSpook(c, band) {}' +
-  '\nreturn { spawnNightShift, spawned, treasures, getStolen: () => stolenGargoyle };'
+  '\nreturn { spawnNightShift, spawned, treasures, notes, getStolen: () => stolenGargoyle };'
 )(
   THREE, M, MS, BX, CY, SP, SPH, R, clamp, GZ, 80, () => 4.8, () => 4.4,
   ROUTE_START_X, ROUTE_FINISH_X, ROUTE_END_X, GARGOYLE_VALUE, GARGOYLE_CAMP_X_OFF,
@@ -966,6 +974,8 @@ const S5 = new Function(
   nightBlockPack, nightBlockFamilies, nightBlockQuota, nightBlockOrder, NIGHT_BLOCKS, IW,
   () => S2_BOSS_SPAWN.push(p.wx), () => (S2_ROUTE_DIR = -1), () => S2_BOSS_CLEAR.push(1),
   () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => mkObj('tentboss'),
+  NIGHT_HELL_NOTE_PICKS, HELL_NOTE_WALK_Y0, HELL_NOTE_WALK_Y1,
+  HELL_NOTE_ROAD_Y0, HELL_NOTE_ROAD_Y1,
   H.gateBuild, H.gateClear
 );
 // a CLEAN SLATE on the shared stub world, then build the haunted street once
@@ -978,6 +988,12 @@ p.wx = 449; p.wy = 2.5; // the haunted shift clocks in at the TOP of the dead-en
 let s5Threw = null;
 try { S5.spawnNightShift(); } catch (e) { s5Threw = e; }
 check('the whole haunted street builds without throwing' + (s5Threw ? '  [' + s5Threw.message + ']' : ''), !s5Threw);
+check('TONIGHT THE STREET IS PAVED WITH HELL NOTES: the build lays ' + NIGHT_HELL_NOTE_PICKS +
+  ' cash finds across the route — half on the sidewalk, half out in the roadway',
+  S5.notes.length === NIGHT_HELL_NOTE_PICKS &&
+    S5.notes.filter((n) => n.wy >= HELL_NOTE_WALK_Y0 && n.wy <= HELL_NOTE_WALK_Y1).length === NIGHT_HELL_NOTE_PICKS / 2 &&
+    S5.notes.filter((n) => n.wy >= HELL_NOTE_ROAD_Y0 && n.wy <= HELL_NOTE_ROAD_Y1).length === NIGHT_HELL_NOTE_PICKS / 2,
+  'notes=' + S5.notes.length);
 const s5Haz = [];
 for (const r of S2_BLOCKS) for (const h of r.hazards) s5Haz.push(h);
 const kindCount = (t) => s5Haz.filter((h) => h.type === t).length;
@@ -4042,6 +4058,71 @@ nightOn = false;
 check('the seven weekdays keep every bird they have (flocks, seed pigeons, the Staten Island jay)',
   H.nightBirdsBanned() === false);
 nightOn = true;
+
+console.log("[30] THE HELL NOTES: Midnight pays in Chinese joss money, laid on the walk and in the road");
+// (a) THE WIRING IN THE SHIP
+check("Midnight's cash find is JOSS PAPER, and the seven weekdays keep the American bill (one switch, at the source of every cash find)",
+  srcFn('makeCashPickup').includes('? makeHellNote()') &&
+    srcFn('makeCashPickup').includes(': makeCash();') &&
+    srcFn('spawnCash').includes('const g = makeCashPickup();') &&
+    srcFn('spawnBonus').includes('g = makeCashPickup(); // Midnight: a pair of HELL NOTES, not American paper'));
+check('the night lays its notes at the source of the haunted street (spawnNightShift runs spawnHellNotes on the bands)',
+  srcFn('spawnNightShift').includes('spawnHellNotes(bands)'));
+check('the notes run the SAME payout pipeline as street cash — $100 per find into the cash tally, which is what feeds the healer power-ups',
+  srcFn('spawnCash').includes('val: 100,') && srcFn('spawnCash').includes('type: "cash",') &&
+    html.includes('const POWERUP_CASH_STEP = 5000') &&
+    /if \(state === "play" && bonusTally >= healerNextAt\)[\s\S]{0,140}spawnHealerNearPlayer\(\)/.test(html));
+// (b) THE MODEL, BUILT BY THE GAME'S OWN CODE
+const HN30 = new Function('THREE', 'M', 'BX', 'R', 'isNightShift', 'makeCash',
+  srcFn('makeHellNote') + '\n' + srcFn('makeCashPickup') +
+  '\nreturn { makeHellNote, makeCashPickup };')(
+  THREE, M, BX, R, () => nightOn, () => mkObj('usaBills'));
+nightOn = true;
+const note = HN30.makeHellNote();
+const note1 = note.children[0];
+const parts = note1.children.map((c) => (c.material && c.material.color ? c.material.color.hex : -1));
+check('THE HELL NOTE is joss money, not USA paper: gold-yellow ceremonial paper, a red block frame, a round vermilion seal, the spirit-bank plate, a column of square ink characters, the big value character and the gilt fold',
+  note.children.length === 2 && note.userData.hellNote.notes === 2 &&
+    note1.children.length >= 11 &&
+    parts.indexOf(0xf2c94c) === 0 && // the paper is joss gold, first part of the note
+    parts.filter((p) => p === 0xba2b1e).length >= 5 && // the printed red frame + plate
+    parts.indexOf(0xc33a22) >= 0 && // the vermilion seal
+    parts.filter((p) => p === 0x231d18).length >= 4, // the ink characters
+  'note1 parts=' + note1.children.length + ' colors=' + JSON.stringify(parts.map(p => p.toString(16))));
+check('the note carries the same footprint as a cash find (a wide flat paper note, two of them fanned), so pickup, flight, hopper and payout all read it as cash',
+  note1.children[0].position.z === 0.01 && note.children[1].position.z > note.children[0].position.z &&
+    Math.abs(note.children[0].position.x) <= 0.06 && Math.abs(note.children[1].position.y) <= 0.06);
+check('midnight cash picks the JOSS model, weekday cash keeps the American bill',
+  !!HN30.makeCashPickup().userData.hellNote &&
+    (nightOn = false, HN30.makeCashPickup().userData.hellNote === undefined) && (nightOn = true, true));
+// (c) THE PLACEMENT: the game's own laying-out code, run on tonight's bands
+const NIGHT_HELL_NOTE_PICKS30 = srcNum('NIGHT_HELL_NOTE_PICKS');
+const W0 = srcNum('HELL_NOTE_WALK_Y0'), W1 = srcNum('HELL_NOTE_WALK_Y1');
+const RD0 = srcNum('HELL_NOTE_ROAD_Y0'), RD1 = srcNum('HELL_NOTE_ROAD_Y1');
+check('the bands of the layout are real: a sidewalk spread and a roadway spread (the walk ' + W0 + '..' + W1 + ', the road ' + RD0 + '..' + RD1 + '), and a per-night count of ' + NIGHT_HELL_NOTE_PICKS30,
+  NIGHT_HELL_NOTE_PICKS30 >= 8 && W0 > 1 && W1 <= 5 && RD0 < -1 && RD1 < 0);
+const laid30 = [];
+const spawnHellNotes30 = new Function('R', 'BLOCK_W', 'NIGHT_HELL_NOTE_PICKS',
+  'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1', 'spawnCash',
+  srcFn('spawnHellNotes') + '\nreturn spawnHellNotes;')(
+  R, 80, NIGHT_HELL_NOTE_PICKS30, W0, W1, RD0, RD1, (wx, wy) => laid30.push({ wx: wx, wy: wy }));
+const bands30 = [{ x0: 384 }, { x0: 288 }, { x0: 192 }, { x0: 96 }];
+let laidN = 0;
+for (let run = 0; run < 8; run++) {
+  laid30.length = 0;
+  laidN = spawnHellNotes30(bands30);
+  if (!laid30.every((l) => bands30.some((b) => l.wx >= b.x0 + 8 && l.wx <= b.x0 + 72))) laidN = -1;
+  const onWalk = laid30.filter((l) => l.wy >= W0 && l.wy <= W1).length;
+  const inRoad = laid30.filter((l) => l.wy >= RD0 && l.wy <= RD1).length;
+  if (onWalk + inRoad !== laid30.length || onWalk === 0 || inRoad === 0) laidN = -1;
+  if (run === 0) var walkN = onWalk, roadN = inRoad, totalN = laid30.length;
+}
+check('TONIGHT THE STREET PAYS: ' + totalN + ' HELL NOTES laid down — ' + walkN + ' on the sidewalk and ' + roadN +
+  ' out in the roadway, every one inside a block of the haunted route, on every run of the roll',
+  laidN === NIGHT_HELL_NOTE_PICKS30 && totalN === NIGHT_HELL_NOTE_PICKS30 &&
+    walkN === NIGHT_HELL_NOTE_PICKS30 / 2 && roadN === NIGHT_HELL_NOTE_PICKS30 / 2,
+  'laid=' + totalN + ' walk=' + walkN + ' road=' + roadN);
+check('an empty route lays nothing (no crash, no notes in the fog)', spawnHellNotes30([]) === 0);
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

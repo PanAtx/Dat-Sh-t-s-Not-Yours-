@@ -37,8 +37,13 @@ const bonuses = [];
 
 eval(extract('makeCopper'));
 eval(extract('makeCash'));
+eval(extract('makeHellNote'));
+eval(extract('makeCashPickup'));
 eval(extract('makeTreasure'));
 eval(extract('spawnBonus'));
+// THE SUITE RUNS THE WEEKDAY WORLD (the day suite's own footing): on the seven weekdays
+// a cash find is the American bill; the midnight level swaps it for joss HELL NOTES.
+global.isNightShift = () => false;
 
 const PAINTERS = new Set(['Picasso!', 'Rembrandt!', 'Michelangelo!', 'Thomas Kinkade!']);
 const NAMED = new Set(['Baseball cards!', 'Comic book!', 'Playboy!', 'Pokemon cards!', 'Record player!', 'iPod!', 'Old laptop!']);
