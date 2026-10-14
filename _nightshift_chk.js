@@ -462,6 +462,9 @@ const NK_ON = /const NIGHT_KILL_NOTE = true/.test(html);
 const NK_FACE = srcNum('NIGHT_START_FACING'); // the Midnight clock-in facing (radians)
 const NK_WARD_SPAN = srcNum('NIGHT_WARD_SPAN_R'); // the ward curtain's extra reach onto the sidewalk
 const NK_WARD_PANELS = srcNum('NIGHT_WARD_PANELS'); // panels laid across the full street
+const NK_WARD_SPAN_L = srcNum('NIGHT_WARD_SPAN_L'); // extra reach past the far gutter (screen right)
+const NK_STREET_Y = srcNum('HORROR_STREET_Y'); // the parked-car lane / far gutter line
+const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -521,7 +524,7 @@ const H = new Function(
   'spawnCash', 'bonuses', 'NIGHT_KILL_NOTE', 'NIGHT_KILL_NOTE_CAP',
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
-  'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS',
+  'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -688,7 +691,7 @@ const H = new Function(
   // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
   NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
-  NK_WARD_SPAN, NK_WARD_PANELS
+  NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4319,10 +4322,10 @@ check('THE FIRST SWING IS AIMED WHERE HE IS LOOKING: at the clock-in facing the 
   'ahead=' + aheadDownLeft + ' behind=' + deadBehind + ' right=' + squareRight);
 p.facing = 0;
 
-console.log("\n[33] THE CURTAIN FULLY BLOCKS THE STREET: the ward reaches onto the sidewalk at the screen's right");
-// THE GAME'S OWN WARD BUILDER, measured against tonight's lane edges. The suite's THREE
-// mock keeps positions (not box dims), so the panel/bead POSITIONS carry the measurement
-// and the source carries the rail / core / glow lengths that ride with them.
+console.log("\n[33] THE CURTAIN SPANS THE WHOLE STREET: from the building line on the screen's left to the far edge of the screen's right");
+// THE GAME'S OWN WARD BUILDER, measured against tonight's BUILDING LINES. The suite's THREE
+// mock keeps positions (not box dims), so the panel/bead POSITIONS carry the measurement and
+// the source carries the rail / core / glow lengths that ride with them.
 const w33 = H.makeSpectralWard();
 const wSrc33 = srcFn('makeSpectralWard');
 const wPanels = w33.children.filter((c) => c.kind === 'box' && Math.abs(c.position.z - 2.0) < 1e-9);
@@ -4331,22 +4334,29 @@ const wBeads = w33.children.filter((c) => c.kind === 'sph');
 const wGlow = w33.children.filter((c) => c.kind === 'light');
 const wLo = Math.min(...wPanels.map((c) => c.position.y)) - 0.45; // panel half-width
 const wHi = Math.max(...wPanels.map((c) => c.position.y)) + 0.45;
-check('THE CURTAIN IS WIDENED BY DESIGN: ' + NK_WARD_PANELS + ' panels (was 12) with ' + NK_WARD_SPAN + 'u of extra reach onto the sidewalk side — the built curtain lays ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' across the lane',
-  NK_WARD_PANELS === 14 && NK_WARD_SPAN >= 1.5 && wPanels.length === NK_WARD_PANELS &&
-    wBeads.length === NK_WARD_PANELS && wRails.length === 2 && wGlow.length === 1 &&
+const wMid = -8.5 + NK_WARD_SPAN - NK_WARD_SPAN_L + ((NK_WARD_PANELS - 1) * 1.45) / 2;
+check('THE CURTAIN IS BUILT FOR THE FULL STREET: ' + NK_WARD_PANELS + ' panels (was 12) spanning ' + NK_WARD_SPAN + 'u onto the stoop line and ' + NK_WARD_SPAN_L + 'u past the far gutter — the built curtain lays ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' across the lane',
+  NK_WARD_PANELS >= 17 && NK_WARD_SPAN >= 1.5 && NK_WARD_SPAN_L >= 3 &&
+    wPanels.length === NK_WARD_PANELS && wBeads.length === NK_WARD_PANELS &&
+    wRails.length === 2 && wGlow.length === 1 &&
     wHi - wLo >= (NK_WARD_PANELS - 1) * 1.45,
   'panels=' + wPanels.length + ' span=' + wLo.toFixed(2) + '..' + wHi.toFixed(2));
-check('IT READS AS A WALL THAT FULLY BLOCKS THE STREET: the light covers the roadway past its left edge (' + wLo.toFixed(2) + ', the asphalt ends at -6.2) and runs CLEAR ONTO AND PAST THE SIDEWALK on the screen-right side (' + wHi.toFixed(2) + ', the walkway ends at 4.4) — no gap left between the last panel and the building line',
-  wLo <= -6.9 && wHi >= 4.4 + 7.0,
-  'wall covers ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' (road -6.2..-1.6, walk 1.6..4.4)');
-check('EVERY PART OF THE CURTAIN REACHES WITH IT: the binding rails, the core wisp and the lantern glow are all lengthed with the panel run (WSPAN-derived rails and core, a glow radius widened by the span) — the curtain is one wall, not a picket line with a tail',
+check('IT RUNS THE FULL LENGTH, BUILDING LINE TO BUILDING LINE: past the roadway\'s far gutter on the RIGHT of the screen (' + wLo.toFixed(2) + ', the parked-car lane sits at ' + NK_STREET_Y + ') and past the stoop / lawn line on the LEFT (' + wHi.toFixed(2) + ', the lawn line sits at ' + NK_LAWN_Y + ') — the light is off-screen at BOTH edges, so the street is completely blocked',
+  wLo <= NK_STREET_Y - 1.5 && wHi >= NK_LAWN_Y + 5.5,
+  'wall covers ' + wLo.toFixed(2) + ' .. ' + wHi.toFixed(2) + ' (far gutter ' + NK_STREET_Y + ', stoop line ' + NK_LAWN_Y + ')');
+check('EVERY PART OF THE CURTAIN REACHES WITH IT: the binding rails, the core wisp, the lantern beads and the glow are all hung on the full panel run (WSPAN-derived lengths, a glow radius grown to reach both ends, every part centred on the run\'s middle at ' + wMid.toFixed(2) + ') — one wall, not a picket line with a tail',
   /BX\(0\.14, WSPAN \+ 1\.5, 0\.16/.test(wSrc33) &&
     /CY\(WID \* 0\.4, WID \* 0\.4, WSPAN \+ 1\.3/.test(wSrc33) &&
     /WSPAN = \(NP - 1\) \* 1\.45/.test(wSrc33) &&
-    /PointLight\(0x36f2cf, 0\.55, 9 \+ SPAN \* 2\)/.test(wSrc33) &&
-    /bead\.position\.set\(0, -8\.4 \+ k \* 1\.45 \+ SPAN/.test(wSrc33) &&
-    Math.abs(wRails[0].position.y - NK_WARD_SPAN) < 1e-9 &&
-    Math.abs(wGlow[0].position.y - NK_WARD_SPAN) < 1e-9);
+    /MID = P0 \+ WSPAN \/ 2/.test(wSrc33) &&
+    /const P0 = -8\.5 \+ SPAN - SPANL/.test(wSrc33) &&
+    /PointLight\(0x36f2cf, 0\.55, WSPAN \/ 2 \+ 4\)/.test(wSrc33) &&
+    /panel\.position\.set\(0, P0 \+ k \* 1\.45/.test(wSrc33) &&
+    /bead\.position\.set\(0, P0 \+ 0\.1 \+ k \* 1\.45/.test(wSrc33) &&
+    Math.abs(wRails[0].position.y - wMid) < 1e-9 &&
+    Math.abs(wRails[1].position.y - wMid) < 1e-9 &&
+    Math.abs(wGlow[0].position.y - wMid) < 1e-9 &&
+    wGlow[0].distance >= wMid - wLo + 3 && wGlow[0].distance >= wHi - wMid + 3);
 check('THE GAMEPLAY LINE IS UNTOUCHED: the ward stands, stops and works exactly on its shipped numbers (the same x line, the 0.34 stop, the 2.5 birth room, the 0.35 work box) — only the LIGHT got wider, never the wall',
   NIGHT_GATE_INSET === 2 && NIGHT_GATE_STOP === 0.34 && NIGHT_GATE_ROOM === 2.5 &&
     NIGHT_GATE_WORK === 0.35 &&
