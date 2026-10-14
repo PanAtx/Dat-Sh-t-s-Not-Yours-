@@ -459,6 +459,7 @@ const NK_W0 = srcNum('HELL_NOTE_WALK_Y0'), NK_W1 = srcNum('HELL_NOTE_WALK_Y1');
 const NK_R0 = srcNum('HELL_NOTE_ROAD_Y0'), NK_R1 = srcNum('HELL_NOTE_ROAD_Y1');
 const NK_CAP = srcNum('NIGHT_KILL_NOTE_CAP');
 const NK_ON = /const NIGHT_KILL_NOTE = true/.test(html);
+const NK_FACE = srcNum('NIGHT_START_FACING'); // the Midnight clock-in facing (radians)
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -517,7 +518,7 @@ const H = new Function(
   // counts against, and the two bands the note is allowed to land in
   'spawnCash', 'bonuses', 'NIGHT_KILL_NOTE', 'NIGHT_KILL_NOTE_CAP',
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
-  'noteSpy', 'bonusSpy',
+  'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -587,6 +588,7 @@ const H = new Function(
   ' bossShovelHit, bossShovelTargetable, bossShovelRange, grabBossGargoyle,' +
   ' nightWallX, workerEndLimitX, workerTopLimitX, creatureLimitMinX, creatureLimitMaxX,' +
   ' routeDir, routeFarX, routeNearX, playerSpawnX, truckSpawnX, routeProgressFrac,' +
+  ' playerSpawnFacing, NIGHT_START_FACING,' +
  ' truckTargetGap, truckBackGap, truckStandOffset,' +
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
   ' getFireballs: () => bossFireballs, getBossWin: () => bossWin, setBossWin: (v) => { bossWin = v; },' +
@@ -681,7 +683,7 @@ const H = new Function(
   NIGHT_SPEECH_BANNED, NIGHT_SPEECH_ALLOW,
   // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
-  NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES
+  NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4270,6 +4272,33 @@ check('THE KILL NOTE FEEDS THE SAME ECONOMY AS THE STREET\u0027S OWN NOTES — b
     srcFn('cashName').includes('NIGHT_CASH_NAME') && NIGHT_CASH_NAME === 'HELL NOTES');
 check('THE NOTE IS MADE OF THE SAME JOSS PAPER as the ones laid at clock-in (the pickup swap is one door: makeCashPickup), so the kill drop and the street spread look identical',
   srcFn('makeCashPickup').includes('? makeHellNote()'));
+
+console.log("\n[32] THE CLOCK-IN LOOK: at Midnight he faces DOWN the street and to the LEFT");
+nightOn = true;
+const faceNight = H.playerSpawnFacing();
+nightOn = false;
+const faceDay = H.playerSpawnFacing();
+nightOn = true;
+check('HE CLOCK IN FACING DOWN-AND-LEFT: the night spawn facing is ' + NK_FACE + ' rad — downhill (' + Math.cos(NK_FACE).toFixed(2) + ' on the route axis) tilted to the LEFT (' + Math.sin(NK_FACE).toFixed(2) + ' on the lane axis), NOT straight up the screen',
+  faceNight === NK_FACE && Math.cos(NK_FACE) < -0.7 && Math.sin(NK_FACE) > 0.3,
+  'facing=' + NK_FACE + ' vector=(' + Math.cos(NK_FACE).toFixed(2) + ',' + Math.sin(NK_FACE).toFixed(2) + ')');
+check('...and he faces the way the shift RUNS: the dead-end route runs downhill (routeDir ' + H.routeDir() + '), so the clock-in facing points DOWN the route, shouldered toward the sidewalk side',
+  H.routeDir() < 0 && Math.cos(NK_FACE) * H.routeDir() > 0.7);
+check('the seven weekdays clock in facing UP the street exactly as shipped (the tilt is tonight\u0027s look alone)',
+  faceDay === 0 && Math.cos(faceDay) === 1);
+check('THE SPAWN CODE WEARS IT: the shift reset hands his facing to the worker and the rig draws him from that facing (the shovel twist rides on top of it, never replacing it)',
+  srcFn('resetWorldState').includes('p.facing = playerSpawnFacing();') &&
+    html.includes('worker.group.rotation.z = p.facing - shovelTwist;'));
+// THE SHOVEL LAW AIMED WITH HIM: standing at the clock-in facing, the front arc is the
+// down-and-left half of the street
+p.wx = 449; p.wy = 2.5; p.facing = faceNight;
+const aheadDownLeft = H.shovelFacingOK(p.wx + Math.cos(faceNight) * 3, p.wy + Math.sin(faceNight) * 3);
+const deadBehind = H.shovelFacingOK(p.wx - Math.cos(faceNight) * 3, p.wy - Math.sin(faceNight) * 3);
+const squareRight = H.shovelFacingOK(p.wx, p.wy - 5);
+check('THE FIRST SWING IS AIMED WHERE HE IS LOOKING: at the clock-in facing the shovel bites a spook straight down-and-left of him, NOT one standing behind him, and NOT one out on his right (the 210° facing law rides the same number)',
+  aheadDownLeft === true && deadBehind === false && squareRight === false,
+  'ahead=' + aheadDownLeft + ' behind=' + deadBehind + ' right=' + squareRight);
+p.facing = 0;
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

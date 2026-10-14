@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.509</div>
+          <div id="app-version" class="menu-version">v1.0.510</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.509';
+      const APP_VERSION = '1.0.510';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19671,8 +19671,15 @@
       function truckStandOffset() {
         return truckTargetGap("none") + 4.3;
       }
+      // THE CLOCK-IN LOOK (Midnight): he clocks in at the TOP of the dead-end street, and he
+      // stands facing DOWN IT AND TO THE LEFT — down the hill toward the pit, shouldered
+      // toward the sidewalk side, the way a man turns his feet to a hill he is about to
+      // walk down. 0.62 rad of left tilt off straight downhill; the facing law, the shovel
+      // arc, the pack's approach math and the mirrored route all read this same number, so
+      // the very first swing he can throw is aimed exactly where he is looking.
+      const NIGHT_START_FACING = 2.5216; // = PI - 0.62 rad: straight downhill, tilted to the left
       function playerSpawnFacing() {
-        return isNightShift() ? Math.PI : 0; // he clocks in FACING DOWNHILL
+        return isNightShift() ? NIGHT_START_FACING : 0; // he clocks in FACING DOWN-AND-LEFT
       }
       // The truck's parking anchor at the clock-in: by day it sits BEHIND the worker
       // (the -X side, so he walks up onto it); at night he starts at the top of the
