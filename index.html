@@ -4462,7 +4462,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.521</div>
+          <div id="app-version" class="menu-version">v1.0.522</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4720,7 +4720,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.521';
+      const APP_VERSION = '1.0.522';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28327,21 +28327,16 @@
       // from any side. No new blocks scroll: this is walking room inside the same view.
       const NIGHT_BOSS_ROOM_X = 8; // u of bottom strip handed to the worker around the beast
       // ==================== PLAYTEST SWITCH: MIDNIGHT AT THE FINAL BOSS ====================
-      // Flips the haunted shift's clock-in straight onto the GRAVE BLOCK with every ward
-      // above stamped as ALREADY CLEARED: each ledger is paid in full (sent/yield at the
-      // lock-in bill), every curtain drops, the fog sweep takes the whole street roster, and
-      // the worker lands at the open grave ward, three paces above the cross-street that
-      // wakes the beast — two steps downhill and the fight starts. Nothing else about the
-      // shift changes: same wards, same law, same boss, same drive-off.
-      // TO TURN IT OFF — the Midnight shift begins at the FIRST block, exactly as shipped:
-      //   * play without "?testboss" in the page URL (plain index.html), AND
-      //   * leave window.NIGHT_TEST_BOSS_START unset (to kill it mid-session from the
-      //     console: window.NIGHT_TEST_BOSS_START = false — then reload the level).
-      // With neither flag set the value is FALSE: the shipped full shift, untouched (and
-      // every automated suite runs exactly that law).
-      const NIGHT_TEST_BOSS_START =
-        (typeof window !== "undefined" && window.NIGHT_TEST_BOSS_START === true) ||
-        (typeof location !== "undefined" && /[?&]testboss\b/.test(location.search || ""));
+      // CURRENT STATE: **LIT** — hard-coded to the playtest doorway, NO URL needed.
+      // Midnight clocks in AT THE FINAL BOSS: every ward ledger on the four blocks above
+      // is stamped paid and open, the curtains drop, the fog sweep clears the street's
+      // roster, and the worker lands ON THE GRAVE BLOCK, three paces above the
+      // cross-street that wakes the beast — two steps downhill and the fight starts.
+      // Nothing else changes: same ward lines, same boss ring floor, same drive-off,
+      // same boss mechanics. Weekdays never touch any of it.
+      // TO REVERT (the Midnight shift begins at the FIRST block, exactly as shipped):
+      // change the ONE line below from `true` to `false`. Nothing else needs touching.
+      const NIGHT_TEST_BOSS_START = true;
       const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
       const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
       // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so

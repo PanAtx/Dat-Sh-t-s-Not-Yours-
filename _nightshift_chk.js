@@ -4660,34 +4660,24 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
       H.workerEndLimitX() > wall35);
 })();
 
-console.log("\n[36] THE PLAYTEST DOORWAY: ?testboss drops the haunted shift straight at the final boss — wards stamped clear, and the switch is a FLAG, never a hard-code");
+console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL needed) — Midnight clocks in at the final boss, wards stamped clear — and the whole doorway is ONE line that flips back");
 (function () {
   nightOn = true;
   s7Reset();
-  // (a) THE LAW IS A FLAG: read the shipped expression out of the game and run it cold
-  const lawStmt = (html.match(/const NIGHT_TEST_BOSS_START =\s*([\s\S]*?);\r?\n/) || [])[1] || "";
-  const lawOf = (win, loc) =>
-    new Function('window', 'location', 'return (' + lawStmt + ');')(win, loc);
-  check("IT READS ONLY THE FLAGS, NEVER A BAKED-IN true: plain page (no window flag, empty URL) = OFF; ?testboss in the URL = ON; window.NIGHT_TEST_BOSS_START === true = ON; window.NIGHT_TEST_BOSS_START = false = OFF (the console kill-switch)",
-    /\bwindow\.NIGHT_TEST_BOSS_START === true\b/.test(lawStmt) &&
-      /\[\?&\]testboss\b/.test(lawStmt) &&
-      lawOf({}, { search: "" }) === false &&
-      lawOf({ NIGHT_TEST_BOSS_START: false }, { search: "" }) === false &&
-      lawOf({ NIGHT_TEST_BOSS_START: true }, { search: "" }) === true &&
-      lawOf({}, { search: "/index.html?testboss" }) === true &&
-      lawOf({}, { search: "/index.html?a=1&testboss&z=2" }) === true &&
-      lawOf({}, { search: "/index.html?x=testbosses" }) === false,
-    'law=' + lawStmt.slice(0, 120));
-  check("SWITCH OFF — THE SHIPPED LAW (the suites and a plain index.html): the clock-in stays at the TOP of the dead end, playerSpawnX() = " + H.playerSpawnX() + "u, " + (H.playerSpawnX() - NIGHT_BOSS_TRIGGER_X) + "u uphill of the waking line",
-    H.playerSpawnX() === NIGHT_START_X && H.playerSpawnX() > NIGHT_BOSS_TRIGGER_X);
+  // (a) THE SWITCH IS A SINGLE VALUE IN THE BUILD, and every doorway branch keys off it
   const spawnDoor = (flag) =>
     new Function('isNightShift', 'NIGHT_TEST_BOSS_START', 'NIGHT_BOSS_TRIGGER_X', 'NIGHT_START_X', 'PLAYER_START_X',
       srcFn('playerSpawnX') + '\nreturn playerSpawnX();')(() => true, flag, NIGHT_BOSS_TRIGGER_X, NIGHT_START_X, PLAYER_START_X);
   const doorOn = spawnDoor(true), doorOff = spawnDoor(false);
-  check("SWITCH ON — THE DOORWAY: the flagged clock-in lands ON the grave block at trigger+3 = " + doorOn + "u, below the grave ward line and " + (doorOn - NIGHT_BOSS_TRIGGER_X) + "u above the cross-street that wakes the beast — and flipping the flag back off returns it to " + doorOff + "u, the top of the street, exactly as shipped",
-    doorOn === NIGHT_BOSS_TRIGGER_X + 3 &&
-      doorOn < NIGHT_BOSS_TRIGGER_X + 6 && doorOn > NIGHT_BOSS_TRIGGER_X &&
-      doorOff === NIGHT_START_X);
+  check("THE SWITCH IS LIT RIGHT NOW — THE PLAYTEST BUILD, AS REQUESTED: index.html carries the hard-coded line const NIGHT_TEST_BOSS_START = true (no URL, no window flag involved). To send Midnight back to opening at the FIRST block the value flips to false — one line, and nothing in the code keys off anything else",
+    /const NIGHT_TEST_BOSS_START = true;/.test(html) &&
+      !/window\.NIGHT_TEST_BOSS_START/.test(html) &&
+      srcFn('playerSpawnX').includes('NIGHT_TEST_BOSS_START') &&
+      srcFn('spawnNightShift').includes('nightTestClockInAtBoss'));
+  check("REVERT PROOF, RUN LIVE BOTH WAYS FROM THE GAME'S OWN playerSpawnX: the value OFF (the state the suites' harnesses inject, and the revert state) answers the shipped clock-in at the TOP of the street — " + doorOff + "u, " + (doorOff - NIGHT_BOSS_TRIGGER_X) + "u uphill of the waking line; the value ON opens the doorway — " + doorOn + "u, between the ward line (118u) and the cross-street (112u) that wakes the beast",
+    doorOff === NIGHT_START_X && doorOff > NIGHT_BOSS_TRIGGER_X &&
+      doorOn === NIGHT_BOSS_TRIGGER_X + 3 &&
+      doorOn < NIGHT_BOSS_TRIGGER_X + 6 && doorOn > NIGHT_BOSS_TRIGGER_X);
   check("THE SPAWNER WIRES IT: spawnNightShift ends with the stamp running behind a typeof-guarded look at the switch (a world that never declared it — every suite, any harness — simply never touches the branch), through its own helper nightTestClockInAtBoss",
     /typeof NIGHT_TEST_BOSS_START !== "undefined" && NIGHT_TEST_BOSS_START\)\s*\r?\n\s*nightTestClockInAtBoss\(\);/.test(srcFn('spawnNightShift')) &&
       /function nightTestClockInAtBoss\(\)/.test(html) &&
