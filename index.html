@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.516</div>
+          <div id="app-version" class="menu-version">v1.0.517</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.516';
+      const APP_VERSION = '1.0.517';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29155,6 +29155,7 @@
       // THE STRIKE: it's on the shovel. The creature stops being an AI and becomes a
       // projectile — it rides an arc into the rear hopper (shovelFlight).
       function shovelStrike(c) {
+        nightBloodClear(c); // the strike flight is not a scurry: no wound-light on a thing already going IN THE TRUCK
         // MIDNIGHT: a swing is a WOUND. The blow spends one swing of the spook's own pool,
         // knocks it back and sends it walking off; only the blow that empties the pool turns
         // it into the projectile below (and the parry path runs through here too, so the
@@ -29430,6 +29431,17 @@
       const NIGHT_WARD_PANELS = 19; // panels laid across the FULL street (was 12)
       const NIGHT_WARD_DEATH_BAND = 0.62; // fraction of the fall a panel may lag its neighbour: the tear sweeps
       const NIGHT_GO_FLASH = 3.4; // s the red "GO!" arrow stands after a ward falls
+      // SPECTRAL BLOOD (Midnight): a shovel wound SHOWS. The struck creature burns red —
+      // its own skins tinted toward spilt ghost-light, a red aura standing on it, and a
+      // red spray thrown at the blow — for exactly the length of its scurry window, so the
+      // player can see WHICH animal the blade opened up as it scurries for the fog. The
+      // tint fades out with the run; the killing blow clears it on the spot (the thing is
+      // in the air heading for the hopper, not walking anything).
+      const NIGHT_BLOOD_C = 0xd8233a; // the red of spilt ghost-light
+      const NIGHT_BLOOD_LITE = 0xff8a90; // the bright flecks in the spray
+      const NIGHT_BLOOD_TINT = 0.72; // full-wound tint applied to the creature's own colors
+      const NIGHT_BLOOD_AURA = 0.3; // peak opacity of the aura riding the creature group
+      const NIGHT_BLOOD_SPRAY = 5; // red droplets thrown by the blow
       const HORROR_SURGE_LOAD = 22; // a surge feeds the flood block this many MORE to shovel
       const HORROR_SURGE_LOAD_TIERS = 3; // ...and it stops stacking after this many surges
       const NIGHT_GATE_LINES = [
@@ -29666,6 +29678,7 @@
         spawnEctoSplat(c.wx, c.wy, 0.3); // the hit splash: light, not volume
         if (c.hp <= 0) {
           c.backoffT = 0; // the last blow does not send it walking off: it goes IN THE TRUCK
+          nightBloodClear(c); // ...and the wound-light goes out with it, mid-air, on the blow
           return false;
         }
         // ...and it SCURRIES: knockback off the tool, hunt broken, no bite while it goes, and
@@ -29679,6 +29692,7 @@
           c.touchCd = Math.max(c.touchCd || 0, c.cd + HORROR_TOUCH_CD);
           c.backoffT = c.cd;
           c.flinchT = Math.max(c.flinchT || 0, FLINCH_T);
+          nightBloodArm(c); // SPECTRAL BLOOD: the ducking tentacle burns red all the way down
           if (nightSayOk())
             Voice.say(
               pick(NIGHT_SCURRY_LINES),
@@ -29702,6 +29716,7 @@
         c.huntT = 0; // the charge is BROKEN — it must look at him again to start it
         c.backoffT = NIGHT_BACKOFF_T + NIGHT_BACKOFF_EXTRA * c.hp;
         c.touchCd = Math.max(c.touchCd || 0, c.backoffT + HORROR_TOUCH_CD); // NO BITE for the whole run
+        nightBloodArm(c); // SPECTRAL BLOOD: it glows red for exactly the scurry window
         if (nightSayOk())
           Voice.say(
             pick(NIGHT_SCURRY_LINES),
@@ -29717,6 +29732,98 @@
       function nightGateSay(line) {
         if (nightSayOk())
           Voice.say(line, 2.3, 1.05, p.wx, p.wy, WORKER_GENDER, "worker");
+      }
+      // ---- SPECTRAL BLOOD: the wound the shovel leaves on a Midnight spook ----
+      // Channel-wise mix of two hex colors (the night sandbox's THREE mock has no
+      // Color.lerp, so the tint is computed by hand and pushed through setHex).
+      function nightBloodMix(a, b, k) {
+        const mr = (((a >> 16) & 255) * (1 - k) + ((b >> 16) & 255) * k) | 0;
+        const mg = (((a >> 8) & 255) * (1 - k) + ((b >> 8) & 255) * k) | 0;
+        const mb = ((a & 255) * (1 - k) + (b & 255) * k) | 0;
+        return (mr << 16) | (mg << 8) | mb;
+      }
+      function nightBloodHex(m) {
+        return typeof m.getHex === "function" ? m.getHex() : m.hex;
+      }
+      function spawnBloodSpray(wx, wy) {
+        for (let i = 0; i < NIGHT_BLOOD_SPRAY; i++)
+          spawnEctoSplat(wx + R(-0.45, 0.45), wy + R(-0.45, 0.45), 0.3, NIGHT_BLOOD_C);
+      }
+      function nightBloodArm(c) {
+        if (!c || !c.g) return;
+        c.bloodDur = Math.max(HORROR_STUN_T, c.backoffT || NIGHT_BACKOFF_T);
+        c.bloodT = c.bloodDur;
+        c.bloodBleed = 1;
+        if (!c.bloodParts) {
+          c.bloodParts = [];
+          c.g.traverse(function (o) {
+            const ms = o.material;
+            if (!ms) return;
+            const list = ms.length ? ms : [ms];
+            for (let mi = 0; mi < list.length; mi++) {
+              const mm = list[mi];
+              if (!mm || !mm.color) continue;
+              c.bloodParts.push(mm);
+              mm.__bcHex = nightBloodHex(mm.color);
+              mm.__bcEm = mm.emissive ? nightBloodHex(mm.emissive) : null;
+            }
+          });
+        }
+        if (!c.bloodAura) {
+          // THE AURA: a red glow standing on the creature — transparent skin, no depth
+          // write, the same ghostly rules as every other light on this street.
+          const ag = new THREE.Group();
+          const am = new THREE.MeshBasicMaterial({
+            color: NIGHT_BLOOD_C,
+            transparent: true,
+            fog: false,
+            depthWrite: false,
+            opacity: 0,
+          });
+          const shell = new THREE.Mesh(new THREE.SphereGeometry(0.78, 8, 6), am);
+          shell.position.z = 0.55;
+          ag.add(shell);
+          ag.visible = false;
+          c.g.add(ag);
+          c.bloodAura = { g: ag, mat: am };
+        }
+        spawnBloodSpray(c.wx, c.wy);
+      }
+      function nightBloodTick(c, dt) {
+        if (!c || !c.g || (c.bloodT || 0) <= 0) return;
+        c.bloodT = Math.max(0, c.bloodT - dt);
+        const k = c.bloodT / (c.bloodDur || 1); // 1 fresh in the wound, 0 as it recovers
+        const pulse = 0.62 + 0.38 * Math.sin(c.phase * 9.4);
+        const amt = NIGHT_BLOOD_TINT * k * pulse;
+        const parts = c.bloodParts || [];
+        for (let mi = 0; mi < parts.length; mi++) {
+          const mm = parts[mi];
+          mm.color.setHex(nightBloodMix(mm.__bcHex, NIGHT_BLOOD_C, amt));
+          if (mm.emissive && mm.__bcEm != null)
+            mm.emissive.setHex(nightBloodMix(mm.__bcEm, NIGHT_BLOOD_C, amt * 0.75));
+        }
+        if (c.bloodAura) {
+          c.bloodAura.g.visible = true;
+          c.bloodAura.mat.opacity = NIGHT_BLOOD_AURA * k * pulse;
+          const s = 1 + 0.22 * pulse * k;
+          c.bloodAura.g.scale.set(s, s, s);
+        }
+        if (c.bloodT <= 0) nightBloodClear(c);
+      }
+      function nightBloodClear(c) {
+        if (!c) return;
+        c.bloodT = 0;
+        c.bloodBleed = 0;
+        const parts = c.bloodParts || [];
+        for (let mi = 0; mi < parts.length; mi++) {
+          const mm = parts[mi];
+          if (mm.__bcHex != null) mm.color.setHex(mm.__bcHex);
+          if (mm.emissive && mm.__bcEm != null) mm.emissive.setHex(mm.__bcEm);
+        }
+        if (c.bloodAura) {
+          c.bloodAura.mat.opacity = 0;
+          c.bloodAura.g.visible = false;
+        }
       }
 
       function nightGateYieldOf(ref) {
@@ -30141,6 +30248,7 @@
       // worker was walking back up the street could never close its load, and its ghostly
       // wall would stand up FOREVER over an empty block (and the GO! arrow would never light).
       function cullHorror(c) {
+        nightBloodClear(c); // the fog takes it back whole: no wound-light follows a culled animal
         if (nightGateOn()) nightGateCredit(c); // the fog pays, once — the shovel already got it if it did
         const i = creatures.indexOf(c);
         if (i >= 0) creatures.splice(i, 1);
@@ -30700,7 +30808,7 @@
       // ==================== ECOPLASM (what five shoveled spooks compress into) =====
       // A wet greenish-blue splatter: where the shovel connected, and again where the
       // thing lands in the scoop. Rides the dust pipeline, glowing on its own.
-      function spawnEctoSplat(wx, wy, scale) {
+      function spawnEctoSplat(wx, wy, scale, bloodHex) {
         scale = scale == null ? 1 : scale;
         const ek = nightEctoK(); // midnight: the goo is a LIGHT source, so it burns bright
         const es = nightEctoSize(); // ...and it lands SUBTLE: a splash of light, not green blobs
@@ -30714,8 +30822,15 @@
             new THREE.Mesh(
               new THREE.SphereGeometry(s, 6, 6),
               new THREE.MeshLambertMaterial({
-                color: pick([0x3ff0d2, 0x2ee6b0, 0x66fff0, 0x49d8f0]),
-                emissive: 0x18c9a8,
+                // SPECTRAL BLOOD: the shovel-wound spray runs red (the blood red plus a
+                // bright salmon fleck); every other splat on the street stays green.
+                color:
+                  bloodHex != null
+                    ? i % 2
+                      ? bloodHex
+                      : nightBloodMix(bloodHex, NIGHT_BLOOD_LITE, 0.4)
+                    : pick([0x3ff0d2, 0x2ee6b0, 0x66fff0, 0x49d8f0]),
+                emissive: bloodHex != null ? bloodHex : 0x18c9a8,
                 emissiveIntensity: 1.1 * ek,
                 transparent: true,
                 opacity: 0.95,
@@ -30892,6 +31007,7 @@
         const backing = (c.backoffT || 0) > 0;
         if (backing) {
           c.backoffT = Math.max(0, c.backoffT - dt);
+          nightBloodTick(c, dt); // SPECTRAL BLOOD: the wounded one burns red while it runs
           const bx = c.wx - p.wx,
             by = c.wy - p.wy;
           const bd = Math.hypot(bx, by) || 0.001;
@@ -31082,6 +31198,7 @@
       }
       // A horror creature re-enters the street ahead of the worker, out of the fog.
       function respawnHorror(c) {
+        nightBloodClear(c); // out of the fog it comes whole: a re-entering spook carries no old wound
         // A FLOOD spook re-enters out of the fog INSIDE the flood band (it does not leave the
         // last block to loiter up the route); everything else re-takes a spot ahead of him.
         // MIDNIGHT: "ahead of him" is DOWN the dead-end street, so a spook that wanders too

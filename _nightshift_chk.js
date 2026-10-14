@@ -450,7 +450,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
   // THE SPOOK PAYS WHERE IT STOOD (the HELL NOTE a banished spook drops on the ground)
   'hellNoteDropY', 'dropShovelHellNote',
-  'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount'].map(srcFn).join('\n');
+  'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount',
+  // SPECTRAL BLOOD (the shovel wound the player can SEE on Midnight)
+  'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex'].map(srcFn).join('\n');
 // THE KILL DROP: the door the note goes through, spied on right here, and the bands it
 // must land in — injected into the haunt sandbox exactly like every other number.
 const NK_NOTES = [];
@@ -467,6 +469,11 @@ const NK_STREET_Y = srcNum('HORROR_STREET_Y'); // the parked-car lane / far gutt
 const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
 const NK_WARD_BAND = srcNum('NIGHT_WARD_DEATH_BAND'); // how far a panel may lag the fall: the tear sweeps
 const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
+const NK_BLOOD_C = parseInt((html.match(/const NIGHT_BLOOD_C = (0x[0-9a-f]+)/) || [0, '0xd8233a'])[1], 16);
+const NK_BLOOD_LITE = parseInt((html.match(/const NIGHT_BLOOD_LITE = (0x[0-9a-f]+)/) || [0, '0xff8a90'])[1], 16);
+const NK_BLOOD_TINT = srcNum('NIGHT_BLOOD_TINT');
+const NK_BLOOD_AURA = srcNum('NIGHT_BLOOD_AURA');
+const NK_BLOOD_SPRAY = srcNum('NIGHT_BLOOD_SPRAY');
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -527,6 +534,7 @@ const H = new Function(
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
   'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L', 'NIGHT_WARD_DEATH_BAND',
+  'NIGHT_BLOOD_C', 'NIGHT_BLOOD_LITE', 'NIGHT_BLOOD_TINT', 'NIGHT_BLOOD_AURA', 'NIGHT_BLOOD_SPRAY',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -598,6 +606,7 @@ const H = new Function(
   ' routeDir, routeFarX, routeNearX, playerSpawnX, truckSpawnX, routeProgressFrac,' +
   ' playerSpawnFacing, NIGHT_START_FACING,' +
   ' makeSpectralWard, NIGHT_WARD_SPAN_R, NIGHT_WARD_PANELS,' +
+  ' nightBloodArm, nightBloodTick, nightBloodClear, spawnBloodSpray,' +
  ' truckTargetGap, truckBackGap, truckStandOffset,' +
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
   ' getFireballs: () => bossFireballs, getBossWin: () => bossWin, setBossWin: (v) => { bossWin = v; },' +
@@ -693,7 +702,8 @@ const H = new Function(
   // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
   NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
-  NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L, NK_WARD_BAND
+  NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L, NK_WARD_BAND,
+  NK_BLOOD_C, NK_BLOOD_LITE, NK_BLOOD_TINT, NK_BLOOD_AURA, NK_BLOOD_SPRAY
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4442,6 +4452,98 @@ check('THE GAMEPLAY LINE IS UNTOUCHED: the ward stands, stops and works exactly 
     NIGHT_GATE_WORK === 0.35 &&
     srcFn('buildNightGates').includes('g.position.set(led.x, 0, GZ)') &&
     srcFn('nightGateWall').length > 0 && srcFn('nightGateOn').includes('isNightShift'));
+
+console.log("\n[34] SPECTRAL BLOOD: a shovel wound GLOWS RED while the creature scurries away");
+(function () {
+  nightOn = true;
+  p.wx = 449; p.wy = 2.5; p.shovelT = 0; p.shovelCd = 0; p.stunT = 0; p.facing = 0; // the ghoul stands in front of him, in the 210-degree bite arc
+  const bands34 = H.nightBands();
+  const HOME34 = bands34.filter((b) => b.x0 === 384)[0];
+  const bScore = (h) => ((h >> 16) & 255) - (((h >> 8) & 255) + (h & 255)) / 2; // how RED a color is
+  const gh = mkC("ghoul", 3, { home: HOME34 });
+  gh.g = H.makeGhoul(); gh.g.position.set(gh.wx, gh.wy, 0.3); // the REAL rig: the blood tints its own skins
+  creatures.length = 0; creatures.push(gh);
+  const dynBefore = dynamicChildren.length;
+  p.shovelCd = 0;
+  H.swing(); // THE BLOW
+  const armed34 = {
+    t: gh.bloodT, dur: gh.bloodDur, bleed: gh.bloodBleed, back: gh.backoffT,
+    parts: (gh.bloodParts || []).length, aura: !!gh.bloodAura, hp: gh.hp, max: gh.hpMax,
+  };
+  H.updateHorrorCreature(gh, 1 / 60);
+  const parts34 = gh.bloodParts || [];
+  const lifts34 = parts34.map((mm) => bScore(mm.color.hex) - bScore(mm.__bcHex));
+  const aura34 = gh.bloodAura || { g: {}, mat: {} };
+  const added34 = dynamicChildren.slice(dynBefore);
+  const splats34 = added34.filter((o) => o.children && o.children[0] && o.children[0].material);
+  const redSplats34 = splats34.filter((o) => bScore(o.children[0].material.color.hex) > 90).length;
+  check("THE WOUND BURNS RED THE INSTANT THE BLADE LANDS: bloodT armed with the scurry window (" + armed34.t.toFixed(2) + "s over the " + armed34.back.toFixed(2) + "s back-off, floor HORROR_STUN_T " + HORROR_STUN_T + "), the creature's own skins (" + armed34.parts + " materials) collected and tinted toward the blood red 0x" + NK_BLOOD_C.toString(16) + " — every one measurably redder than its base colors, and it is a WOUND, not a banishment (hp spent, no hook)",
+    armed34.parts >= 5 && armed34.bleed === 1 && armed34.t === armed34.dur &&
+      armed34.t >= HORROR_STUN_T && armed34.t <= armed34.back &&
+      lifts34.length === armed34.parts && lifts34.every((v) => v > 25) &&
+      armed34.hp < armed34.max && gh.hooked !== true &&
+      srcFn("nightBloodArm").includes("bloodParts") && /---- SPECTRAL BLOOD/.test(html),
+    "bloodT=" + armed34.t.toFixed(2) + " back=" + armed34.back.toFixed(2) +
+      " parts=" + armed34.parts + " minLift=" + Math.min.apply(null, lifts34).toFixed(1));
+  check("THE AURA STANDS ON THE CREATURE: a red glow shell riding the creature's OWN group (transparent, no depth write — the ghost-skin law), visible and lit while it runs, colored exactly the blood red and swelled past its rest size",
+    armed34.aura && aura34.g.parent === gh.g && aura34.g.visible === true &&
+      aura34.mat.transparent === true && aura34.mat.depthWrite !== true &&
+      aura34.mat.color.hex === NK_BLOOD_C && aura34.mat.opacity > 0 &&
+      aura34.g.scale.x > 1,
+    "aura op=" + aura34.mat.opacity.toFixed(3) + " scale=" + aura34.g.scale.x.toFixed(2));
+  check("THE BLOW THROWS SPECTRAL BLOOD: the hit sprays red droplets at the spot it landed (blood red + the light salmon fleck, glowing), the ordinary ecoplasm splash stays green — the player SEES the hit; no additive-blending trick anywhere in the blood kit",
+    redSplats34 >= NK_BLOOD_SPRAY && splats34.length >= redSplats34 &&
+      splats34.some((o) => bScore(o.children[0].material.color.hex) < 90) &&
+      srcFn("spawnBloodSpray").includes("NIGHT_BLOOD_C") &&
+      srcFn("spawnEctoSplat").includes("bloodHex") &&
+      srcFn("nightBloodArm").indexOf("AdditiveBlending") < 0 &&
+      srcFn("nightBloodTick").indexOf("AdditiveBlending") < 0);
+  // THE RUN: tick the scurry out frame by frame, then verify the dry-up
+  let frames34 = 0;
+  while (gh.backoffT > 0 && frames34++ < 1200) H.updateHorrorCreature(gh, 1 / 60);
+  const clean34 =
+    gh.bloodT === 0 && gh.bloodBleed === 0 &&
+    (gh.bloodParts || []).every((mm) => mm.color.hex === mm.__bcHex) &&
+    (!gh.bloodAura || (gh.bloodAura.g.visible === false && gh.bloodAura.mat.opacity === 0));
+  // redness still on NEAR THE END of a fresh window (the glow reads for the whole run)
+  p.shovelCd = 0; p.stunT = 0;
+  const g2 = mkC("ghoul", 3, { home: HOME34 });
+  g2.g = H.makeGhoul(); g2.g.position.set(g2.wx, g2.wy, 0.3);
+  creatures.length = 0; creatures.push(g2);
+  H.swing();
+  H.updateHorrorCreature(g2, 1 / 60);
+  const half34 = Math.max(1, Math.round((g2.bloodT - g2.bloodDur * 0.25) / (1 / 60)));
+  for (let i = 0; i < half34 && g2.bloodT > 0; i++) H.updateHorrorCreature(g2, 1 / 60);
+  const late34 = (g2.bloodParts || []).length > 0 &&
+    (g2.bloodParts || []).every((mm) => bScore(mm.color.hex) > bScore(mm.__bcHex));
+  const fading34 = g2.bloodT > 0 && g2.bloodT < g2.bloodDur;
+  check("IT GLOWS WHILE IT SCURRIES AND DRIES UP AS IT GETS AWAY: the full scurry window runs (" + frames34 + " frames of real flee), the tint is STILL red a quarter from the end of a fresh window, and the frame the scurry is over every material sits on its own base color, bloodBleed is 0, bloodT is 0 and the aura is off and invisible",
+    frames34 > 5 && late34 && fading34 && clean34,
+    "frames=" + frames34 + " lateRed=" + late34 + " fading=" + fading34 + " restored=" + clean34);
+  // THE KILLING BLOW: no wound-light rides a thing already in the air
+  p.shovelCd = 0; p.stunT = 0;
+  const kd = mkC("ghoul", 3, { home: HOME34 });
+  kd.g = H.makeGhoul(); kd.g.position.set(kd.wx, kd.wy, 0.3);
+  creatures.length = 0; creatures.push(kd);
+  let kills34 = 0;
+  // THE SUITE'S OWN KILL RECIPE: pull it onto the blade, clear the scurry, swing — until
+  // the pool is spent and the thing is packed into the hopper
+  kills34 = shovelDown(kd);
+  check("THE LAST BLOW CLEARS IT ON THE SPOT: on the swing that empties the pool the wound-light is zeroed (bloodT 0, bleed 0, skins restored, aura off) — the glow belongs to the SCURRY, never to the banishment flight",
+    (kd.hooked === true || kd.hookLanded === true) && kd.bloodT === 0 && kd.bloodBleed === 0 &&
+      (kd.bloodParts || []).every((mm) => mm.color.hex === mm.__bcHex) &&
+      (!kd.bloodAura || kd.bloodAura.g.visible === false) &&
+      srcFn("nightWoundShovel").includes("nightBloodClear(c);"),
+    "swings=" + kills34 + " inTruck=" + (kd.hooked === true || kd.hookLanded === true) + " bloodT=" + kd.bloodT);
+  check("IT IS MIDNIGHT-ONLY LAW: the wound path (and with it the blood) sits behind isNightShift, the tick runs only INSIDE the Midnight back-off block, and every exit from the street clears the wound-light (strike flight, fog cull, fog respawn)",
+    srcFn("nightWoundShovel").includes("isNightShift") &&
+      /nightBloodTick\(c, dt\)/.test(srcFn("updateHorrorCreature")) &&
+      srcFn("updateHorrorCreature").indexOf("nightBloodTick(c, dt);") >
+        srcFn("updateHorrorCreature").indexOf("if (backing) {") &&
+      srcFn("cullHorror").includes("nightBloodClear(c);") &&
+      srcFn("respawnHorror").includes("nightBloodClear(c);") &&
+      srcFn("shovelStrike").includes("nightBloodClear(c);"));
+})();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 
