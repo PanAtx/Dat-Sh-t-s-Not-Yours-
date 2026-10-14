@@ -567,21 +567,30 @@
       }
       /* ===== THE MIDNIGHT "GO!" ARROW (the 16-bit way-out cue) ======================
          The instant the ghostly ward of the block he just emptied comes down, a red arrow
-         SLAMS into the LOWER-LEFT corner of the screen — the direction he walks on the
-         dead-end street (he shovels his way down toward the graves) — with GO! burned into
-         it and the block's own name over it. Blinking line, chunky arrow, hard drop shadow:
-         the "the way is open, MOVE" cue straight out of the 16-bit beat-'em-ups. It burns
-         on its own clock (NIGHT_GO_FLASH), blinks out over its last second, and the centre
-         of the screen never carries it (the centre is the pickups' language). */
+         SLAMS INTO THE DEAD CENTRE OF THE SCREEN — the one place the eye is already looking,
+         and on a phone the only spot that clears the thumb-stick, the touch buttons and the
+         worker's own sprite — with GO! burned into it and the block's own name over it
+         ("THE FOG GANG WALL IS DOWN!"). The arrow points down-left: the way out of every
+         block on tonight's dead-end street (he shovels his way down toward the graves).
+         Blinking line, chunky arrow, hard drop shadow: the "the way is open, MOVE" cue
+         straight out of the 16-bit beat-'em-ups. It burns on its own clock (NIGHT_GO_FLASH),
+         blinks out over its last second, never eats a tap (pointer-events: none), and it is
+         the only thing the centre of the screen carries on a ward drop — the pickups keep
+         POWER UP! / RUN IT UP! to themselves. */
       #night-go {
         position: fixed;
-        bottom: calc(128px + env(safe-area-inset-bottom, 0px));
-        left: calc(24px + env(safe-area-inset-left, 0px));
+        /* DEAD CENTRE OF THE SCREEN. The cue is only useful if the eye is already on it:
+           on a phone a lower-left corner sits under the thumb-stick and behind the worker's
+           own sprite, so the way-out flash has to land in the middle of the view. */
+        inset: 0;
+        box-sizing: border-box;
+        padding: 0 12px;
         z-index: 26;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
         pointer-events: none;
         user-select: none;
         -webkit-user-select: none;
@@ -835,9 +844,8 @@
           gap: 4px;
         }
         #night-go {
-          bottom: calc(112px + env(safe-area-inset-bottom, 0px));
-          left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 6px;
+          padding: 0 8px;
         }
         #night-go-msg {
           font-size: 12px;
@@ -4325,9 +4333,10 @@
     </div>
     <!-- THE MIDNIGHT "GO!" ARROW (the 16-bit beat-'em-up way-out cue): the instant the
          ghostly ward of the block he just shovels empty comes down, this red arrow lights
-         in the lower-left corner — the way he walks — with GO! burned into it and the
-         block's name over it ("THE FOG GANG WALL IS DOWN!"). It burns for
-         NIGHT_GO_FLASH seconds and goes out on its own clock. -->
+         in the DEAD CENTRE of the screen — where the eye already is, and on a phone clear of
+         the thumb-stick and touch buttons — with GO! burned into it and the block's name
+         over it ("THE FOG GANG WALL IS DOWN!"). It burns for NIGHT_GO_FLASH seconds and
+         goes out on its own clock, and it never swallows a tap. -->
     <div id="night-go" class="hidden">
       <div id="night-go-msg">THE WALL IS DOWN!</div>
       <div id="night-go-arrow">GO!</div>
@@ -4442,7 +4451,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.500</div>
+          <div id="app-version" class="menu-version">v1.0.501</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4700,7 +4709,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.500';
+      const APP_VERSION = '1.0.501';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29512,7 +29521,7 @@
         led.fade = NIGHT_GATE_FADE;
         announcePower(led.name + " IS CLEAR — THE WARD FALLS!", "pop-power"); // (swallowed on Midnight: no big text; the arrow says it)
         nightGateSay(pick(NIGHT_GATE_OPEN_LINES));
-        nightGoFlash(led); // THE WALL IS GONE — the red GO! arrow lights in the way-out corner
+        nightGoFlash(led); // THE WALL IS GONE — the red GO! arrow lights dead centre
         if (typeof SFX.playBansheeWail === "function") SFX.playBansheeWail();
         spawnEctoBurst(led.x, 0, 1.5);
         p.shake = Math.max(p.shake || 0, 0.55);
@@ -50315,9 +50324,9 @@
           }
         }
         // THE "GO!" ARROW (the 16-bit way-out cue): lit the instant a block's ghostly wall
-        // falls, it burns in the lower-left corner — the direction he walks — for
-        // NIGHT_GO_FLASH seconds, naming the block whose wall came down. It shares nothing
-        // with the centre screen (that belongs to POWER UP! / RUN IT UP!) and it goes out on
+        // falls, it burns in the DEAD CENTRE of the screen — the one spot the eye is already
+        // on, and the only one clear of the phone's thumb-stick and touch buttons — for
+        // NIGHT_GO_FLASH seconds, naming the block whose wall came down. It goes out on
         // its own clock; nightGateClear() kills it with the old street.
         const goPanel = $("night-go");
         if (goPanel) {

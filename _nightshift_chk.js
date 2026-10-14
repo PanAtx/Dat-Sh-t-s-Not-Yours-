@@ -3716,7 +3716,7 @@ console.log('\n[26] NO WALL OVER AN EMPTY BLOCK: THE WARD\u2019S DEBT IS WHAT TH
   console.log('  DIAG ' + log26.join('  ·  '));
 })();
 
-console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT — THE 16-BIT WAY-OUT CUE IN THE LOWER-LEFT CORNER');
+console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT — THE 16-BIT WAY-OUT CUE AT THE DEAD CENTRE OF THE SCREEN');
 (function () {
   s7Reset();
   const bands25 = H.nightBands();
@@ -3769,13 +3769,17 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
   check('THE MARKUP IS ON THE SCREEN: the panel, the line and the arrow',
     html.includes('id="night-go" class="hidden"') && html.includes('id="night-go-msg"') &&
       html.includes('id="night-go-arrow">GO!<'));
-  const goCss = (html.match(/#night-go \{[\s\S]{0,560}?\}/) || [''])[0];
+  const goCss = (html.match(/#night-go \{[\s\S]{0,900}?\}/) || [''])[0];
+  const goRules = html.match(/#night-go \{[^}]*\}/g) || [];
   const goArrow = (html.match(/#night-go-arrow \{[\s\S]{0,900}?\}/) || [''])[0];
-  check('IT SITS IN THE LOWER-LEFT CORNER (bottom + left, safe-area aware) and goes hidden with the panel',
-    /bottom: calc\(128px \+ env\(safe-area-inset-bottom, 0px\)\)/.test(goCss) &&
-      /left: calc\(24px \+ env\(safe-area-inset-left, 0px\)\)/.test(goCss) &&
-      /z-index: 26/.test(goCss) && /#night-go\.hidden \{\s*display: none;/.test(html),
-    'bottom=' + /bottom: calc\(128px/.test(goCss) + ' left=' + /left: calc\(24px/.test(goCss));
+  check('IT STANDS AT THE DEAD CENTRE OF THE SCREEN (full-viewport panel, flex-centred, taps pass through it) and goes hidden with the panel',
+    /position: fixed/.test(goCss) && /inset: 0/.test(goCss) &&
+      /align-items: center/.test(goCss) && /justify-content: center/.test(goCss) &&
+      /pointer-events: none/.test(goCss) && /z-index: 26/.test(goCss) &&
+      !/bottom: calc/.test(goCss) && !/left: calc/.test(goCss) &&
+      /#night-go\.hidden \{\s*display: none;/.test(html),
+    'inset=' + /inset: 0/.test(goCss) + ' hcentre=' + /justify-content: center/.test(goCss) +
+      ' corner=' + /bottom: calc/.test(goCss));
   check('THE ARROW IS A RED 16-BIT CHUNK POINTING BOTTOM-LEFT: down-pointing clip-path, rotated onto the way out, GO! lettering',
     /clip-path: polygon\(\s*50% 100%,/.test(goArrow) && /transform: rotate\(40deg\)/.test(goArrow) &&
       /background: #ff3b4a/.test(goArrow) && /"Bangers"/.test(goArrow));
@@ -3784,9 +3788,12 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
       /animation: goBlink 0\.72s/.test(html) && /@keyframes goBlink/.test(html) &&
       /animation: goNudge 0\.52s/.test(goArrow) && /@keyframes goNudge/.test(html) &&
       /#night-go\.go-out \{/.test(html) && /@keyframes goOut/.test(html));
-  check('THE PHONES GET THE SAME ARROW IN THE SAME CORNER (smaller: 56px, 12px inset, 112px bottom)',
-    /#night-go \{\s*bottom: calc\(112px \+ env\(safe-area-inset-bottom, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html) &&
-      /#night-go-arrow \{\s*width: 56px;\s*height: 56px;\s*font-size: 21px;/.test(html));
+  check('THE PHONES GET THE SAME CENTRE, NOT A CORNER: the small-screen block moves nothing (no bottom/left), the arrow stays 56px / GO! 21px',
+    goRules.length >= 2 &&
+      goRules.every((r) => !/bottom:/.test(r) && !/left:/.test(r)) &&
+      (html.match(/#night-go-arrow \{[^}]*\}/g) || []).some((r) => /width: 56px/.test(r) && /font-size: 21px/.test(r)) &&
+      /#night-go-msg \{[^}]*max-width: 58vw/.test(html),
+    'rules=' + goRules.length + ' corners=' + goRules.filter((r) => /bottom:|left:/.test(r)).length);
   // (f) ONLY THE NIGHT HUD LIGHTS IT, AND THE HUD RIDES ITS CLOCK (never on a weekday,
   //     never when the flash is out, never on the win screen)
   check('THE HUD DRIVES IT OFF THE CLOCK AND THE SHIFT, AND NOTHING ELSE',
