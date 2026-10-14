@@ -2328,6 +2328,20 @@ check('the blade reaches the beast\u2019s hide (the whole tool, shaft AND head s
   while (H.getBossWin() && guard < 900) { H.updateNightBossFight(1 / 60); guard++; }
   check('THE BOSS IS THE END OF THE LEVEL: the win beat drives the rig off the dead end',
     H.routeEnds().length === 1 && H.getBossWin() === false, 'driveOffs=' + H.routeEnds().length);
+  // THE GATE ORDER (boss-stage crash: "null.t" in updateRouteEnd). The night's drive-off
+  // hard gate runs BEFORE the "routeend" state flips, and the cinematic tick guards its
+  // own sequencer — a blocked clock-out can never leave the flag up with no object.
+  check('THE DRIVE-OFF GATE RUNS BEFORE THE STATE FLIPS: in startRouteEnd, the isNightShift gate (reclaim + beast-standing bail) sits ABOVE the state = "routeend" line — a blocked night drive-off stays a pure no-op',
+    (() => {
+      const s = srcFn('startRouteEnd');
+      const gate = s.indexOf('isNightShift === "function" && isNightShift()');
+      const bail = s.indexOf('bossShovelTargetable() || bossGargoyle) return');
+      const flip = s.indexOf('state = "routeend"; //'); // THE REAL FLIP LINE (skips the mention in the fix comment)
+      return gate >= 0 && bail >= 0 && flip >= 0 && gate < flip && bail < flip;
+    })(),
+    (() => { const s = srcFn('startRouteEnd'); return 'gate@' + s.indexOf('isNightShift === "function"') + ' flip@' + s.indexOf('state = "routeend"; //'); })());
+  check('THE CINEMATIC GUARDS ITS SEQUENCER: updateRouteEnd opens with if (!routeEnd) return; — a frame that finds the flag up and the sequencer gone steps aside instead of dereferencing a null (the exact boss-stage crash path)',
+    /^function updateRouteEnd\(dt\) \{\s*(\/\/[^\n]*\n\s*)*if \(!routeEnd\) return;/.test(srcFn('updateRouteEnd')));
   check('the fight is night-only: updateNightBossFight bails off the haunted level',
   (function () {
     nightOn = false;

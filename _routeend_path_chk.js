@@ -93,7 +93,29 @@ function harness(world){
     updateBlocks: world.updateBlocks, updateFootprints: world.updateFootprints, updateHUD: world.updateHUD,
     clamp: world.clamp, camera: world.camera, finishRouteEnd: world.finishRouteEnd,
     WORKER_GENDER: 'male',
+    // THE DRIVE-OFF'S OWN DEPS (it routes the mirrored axis, throws confetti and drives
+    // the rig out): inert mocks on the weekday scenarios, overridable per test world.
+    routeDir: world.routeDir || function () { return 1; },
+    startConfetti: world.startConfetti || function () { world.H.confetti = (world.H.confetti || 0) + 1; },
+    confettiCannon: world.confettiCannon || function () { world.H.cannon = (world.H.cannon || 0) + 1; },
+    updateTruck: world.updateTruck || function () {},
+    truckMeshYaw: world.truckMeshYaw || function () { return 0; },
+    positionCamera: world.positionCamera || function () {},
+    blinkHazardLights: world.blinkHazardLights || function () {},
+    routeComplete: world.routeComplete || function () { world.H.completed = (world.H.completed || 0) + 1; },
+    updateDroppedSlices: world.updateDroppedSlices || function () {},
+    updateFlecks: world.updateFlecks || function () {},
+    // THE MIDNIGHT DRIVE-OFF GATE (startRouteEnd's night branch): supplied as plain
+    // globals; on the weekday scenarios isNightShift stays UNDEFINED and the gate skips.
+    isNightShift: world.isNightShift,
+    bossShovelTargetable: world.bossShovelTargetable || function () { return false; },
+    reclaimStolenGargoyle: world.reclaimStolenGargoyle || function () { world.H.reclaims = (world.H.reclaims || 0) + 1; },
+    bossGargoyle: world.bossGargoyle || null,
     workerMaxY: () => 8.0, // Flatbush cap — index.html's workerMaxY() (Manhattan levels cap at 5.0)
+    workerMaxY: () => 8.0, // Flatbush cap — index.html's workerMaxY() (Manhattan levels cap at 5.0)
+    // THE DRIVE-OFF'S CAMERA MATH (the rig rolls out when its rear clears the screen edge)
+    CAM_PIVOT_WORKER: true, CAM_Y: -6, camFollow: 0, CAM_LANE_FOLLOW: 1, CAM_PAN_MAX: 3,
+    CAM_ANGLE_OFFSET: 0,
     RE_CHEER: grabConst('RE_CHEER'), RE_WALK_SP: grabConst('RE_WALK_SP'),
     RE_DRIVE_SP: grabConst('RE_DRIVE_SP'), RE_DRIVE_MAX: grabConst('RE_DRIVE_MAX'),
     Math: Math
@@ -148,8 +170,8 @@ function simWalk(p0, truck, hopperLoad){
   check('route-end (curb side): worker never clips the truck body', !r.clipped, 'minClear=' + r.minClear.toFixed(3) + 'u, clipT=' + r.firstClipT);
   check('route-end (curb side): reaches the cab door', r.reached, 'phase=' + r.phase);
   check('route-end (curb side): walk completes within the 12s safety window', r.reached && r.walkT < 12, 'walkT=' + r.walkT.toFixed(2) + 's');
-  check('route-end (curb side): 2-leg path, rear waypoint first', r.pts.length === 2 && r.pts[0].x < r.pts[1].x, JSON.stringify(r.pts.map(q => q.x.toFixed(1))));
-  check('route-end (curb side): rear waypoint is BEHIND the hopper', r.pts[0].x <= truck.wx - boxL - 0.7, 'x=' + r.pts[0].x.toFixed(2) + ' vs rear=' + (truck.wx - boxL).toFixed(2));
+  check('route-end (curb side): 2-leg path, the FAR-SIDE entry waypoint leads (the RT-mirrored drive-off law: the rig leaves from the end it faces, and the entry beat stands 0.8u clear of the front face)', r.pts.length === 2 && r.pts[0].x > r.pts[1].x, JSON.stringify(r.pts.map(q => q.x.toFixed(1))));
+  check('route-end (curb side): entry waypoint stands 0.8u off the FRONT face, fully clear of the hopper and the body', Math.abs(r.pts[0].x - (truck.wx + boxL + 0.8)) < 1e-6, 'x=' + r.pts[0].x.toFixed(2) + ' front=' + (truck.wx + boxL).toFixed(2));
   check('route-end (curb side): door waypoint is beside the cab', Math.abs(r.pts[1].x - (truck.wx + cabOff * 0.55)) < 1e-6 && Math.abs(r.pts[1].y - (TRUCK_CY + boxW + 0.8)) < 1e-6, JSON.stringify(r.pts[1]));
   check('route-end (curb side): door stays OUTSIDE the body (0.8u off the panel)', r.pts[1].y > TRUCK_CY + boxW + 0.79, 'y=' + r.pts[1].y.toFixed(2) + ' panel=' + (TRUCK_CY + boxW).toFixed(2));
 }
@@ -159,7 +181,7 @@ function simWalk(p0, truck, hopperLoad){
   const r = simWalk({ wx: 656, wy: -9.0, facing: 0, phase: 0 }, truck);
   check('route-end (road side): worker never clips the truck body', !r.clipped, 'minClear=' + r.minClear.toFixed(3) + 'u');
   check('route-end (road side): reaches the cab door', r.reached, 'phase=' + r.phase);
-  check('route-end (road side): 2-leg path, rear waypoint first', r.pts.length === 2 && r.pts[0].x < r.pts[1].x, JSON.stringify(r.pts.map(q => q.x.toFixed(1))));
+  check('route-end (road side): 2-leg path, the FAR-SIDE entry waypoint leads (same mirrored-axis law on the road side)', r.pts.length === 2 && r.pts[0].x > r.pts[1].x, JSON.stringify(r.pts.map(q => q.x.toFixed(1))));
   check('route-end (road side): path runs on the ROAD side of the truck', r.pts.every(q => q.y < TRUCK_CY - boxW + 0.01), JSON.stringify(r.pts.map(q => q.y.toFixed(2))));
 }
 // 3) test-mode L mid-route, on the curb side
@@ -250,6 +272,51 @@ function simWalk(p0, truck, hopperLoad){
   check('compactor cycle: after the cycle he reaches the cab door, never clipping', r.reached && !r.clipped, 'phase=' + r.phase + ' minClear=' + r.minClear.toFixed(2) + 'u');
   const r2 = simWalk({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck, 0);
   check('compactor cycle: an EMPTY hopper skips the beat (straight to the cab)', !r2.sawCycle && r2.reached, 'phase=' + r2.phase);
+}
+
+// 8) THE MIDNIGHT DRIVE-OFF GATE (boss-stage crash: "Cannot read properties of null
+//    (reading 't')" at updateRouteEnd). The night's hard gate must NEVER arm the
+//    cinematic state without building its sequencer: a blocked clock-out leaves the
+//    shift in "play", and a frame that finds the flag up with no sequencer steps aside.
+{
+  const truck = { wx: 654.5, boxL, boxW, cabOff, hopperOff: -boxL + 1.6, g: null, hidden: 0 };
+  const w = mkWorld({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck);
+  w.routeDir = () => -1;                      // the dead-end street: the drive-off runs REVERSED
+  w.isNightShift = () => true;                // MIDNIGHT
+  w.bossShovelTargetable = () => true;        // THE BEAST IS STILL STANDING in the grave yard
+  const gate = harness(w);
+  gate.startRouteEnd();
+  check('midnight gate: a drive-off trigger with the beast standing leaves the shift EXACTLY where it was — state stays "play", the sequencer stays unarmed (null), and the treasure pay-out still fires',
+    gate.ctx.state === 'play' && gate.ctx.routeEnd === null && w.H.reclaims === 1,
+    'state=' + gate.ctx.state + ' routeEnd=' + gate.ctx.routeEnd + ' claims=' + w.H.reclaims);
+  let threw = false;
+  try { gate.updateRouteEnd(1 / 60); gate.updateRouteEnd(1 / 60); } catch (e) { threw = true; }
+  check('midnight gate: a "routeend" frame that finds no sequencer is a GUARDED NO-OP — updateRouteEnd never dereferences a null routeEnd (the exact boss-stage crash path)',
+    !threw && gate.ctx.state === 'play' && gate.ctx.routeEnd === null, threw ? 'threw' : 'no-op');
+  // THE SAME TRIGGER AFTER THE WIN: beast in the hopper, gargoyle in hand — the gate opens
+  w.bossShovelTargetable = () => false;
+  const win = harness(w);
+  win.ctx.finishRouteEnd = function () { win.ctx.routeEnd = null; win.finishCount = (win.finishCount || 0) + 1; };
+  win.startRouteEnd();
+  check('midnight gate: once the beast is banished and the Gargoyle is taken the SAME trigger clocks out for real — state flips, the sequencer is BUILT, and the cinematic can run to the cab',
+    win.ctx.state === 'routeend' && !!win.ctx.routeEnd && win.ctx.routeEnd.phase === 'cheer',
+    'phase=' + (win.ctx.routeEnd && win.ctx.routeEnd.phase));
+  let dthrew = false, sawDrive = false, lastPhase = '';
+  try {
+    for (let i = 0; i < 2000 && win.ctx.routeEnd; i++) {
+      if (win.ctx.routeEnd.phase === 'drive') sawDrive = true;
+      lastPhase = win.ctx.routeEnd.phase;
+      win.updateRouteEnd(0.05);
+    }
+  } catch (e) { dthrew = true; lastPhase += ' THREW ' + e.message; }
+  check('midnight gate: the cleared-night cinematic drives out clean (cheer -> walk -> board -> drive, never a null deref, the rig ends with ONE finishRouteEnd and the sequencer disarmed)',
+    !dthrew && sawDrive && win.finishCount === 1 && win.ctx.routeEnd === null,
+    'finishes=' + win.finishCount + ' drive=' + sawDrive + ' last=' + lastPhase);
+  // the weekday street NEVER sees the gate (isNightShift absent) — scenario 1's contract
+  const wd = harness(mkWorld({ wx: 656, wy: 0.6, facing: 0, phase: 0 }, truck));
+  wd.startRouteEnd();
+  check('midnight gate is a NIGHT branch: on a weekday street the gate variables being absent changes NOTHING — the drive-off arms on the spot',
+    wd.ctx.state === 'routeend' && !!wd.ctx.routeEnd && wd.ctx.routeEnd.phase === 'cheer');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');

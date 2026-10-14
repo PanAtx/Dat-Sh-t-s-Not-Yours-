@@ -4462,7 +4462,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.519</div>
+          <div id="app-version" class="menu-version">v1.0.520</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4720,7 +4720,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.519';
+      const APP_VERSION = '1.0.520';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -51394,8 +51394,6 @@
       const RE_DRIVE_MAX = 11; // hard cap on the drive-off, so it can never hang (11s: at 7u/s the rear travels ~77u along the rotated screen axis -- fully past the off-screen edge at the current 0deg base orbit, where all of local-x progress counts)
       function startRouteEnd() {
         if (state !== "play") return;
-        state = "routeend"; // worker is OFF LIMITS: cinematic, no input, no damage
-        if (carried) dropCarried(); // hands are free for the fist pump
         // THE NIGHT SHIFT: if he reached the end of the route WITHOUT cornering the
         // many-eyed beast, it is still standing there holding his Ruby-Plated Gargoyle.
         // The shift is over, so the thief spits it out at his feet rather than the night
@@ -51404,10 +51402,16 @@
         // the HARD GATE on the level: the night does not clock out with the TENTACLE BEAST
         // still standing in the grave yard — the drive-off only fires once the beast is in
         // the hopper and the Gargoyle is in the worker's hands.
+        // THE GATE RUNS BEFORE THE STATE FLIPS (boss-stage crash fix): a BLOCKED drive-off
+        // now leaves the shift exactly where it was — state "play", sequencer unarmed. The
+        // old order flipped state = "routeend" first, then returned past the gate, leaving
+        // the frame loop calling updateRouteEnd() on a null routeEnd (null.t TypeError).
         if (typeof isNightShift === "function" && isNightShift()) {
           reclaimStolenGargoyle();
           if (bossShovelTargetable() || bossGargoyle) return; // the night is NOT over yet
         }
+        state = "routeend"; // worker is OFF LIMITS: cinematic, no input, no damage
+        if (carried) dropCarried(); // hands are free for the fist pump
         // The fist-pump cinematic owns the body now: end any in-flight hit gag + reseat the cap.
         p.gagT = 0;
         p.gagHard = 0;
@@ -51484,6 +51488,10 @@
         );
       }
       function updateRouteEnd(dt) {
+        // THE SEQUENCER IS ITS OBJECT: no routeEnd, no show. The cinematic is driven by
+        // the state flag, so a frame that ever finds the flag up and the sequencer gone
+        // must step aside quietly — never dereference a null (boss-stage crash: null.t).
+        if (!routeEnd) return;
         const g = worker.group;
         routeEnd.t += dt;
         // The worker's body blinks frame-to-frame while he is immune ("RUN IT UP!") or
