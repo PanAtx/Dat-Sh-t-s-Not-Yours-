@@ -448,7 +448,17 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
   'nightBlockDepth', 'nightGhoulHits', 'nightGhoulFloorHits', 'nightArmSpook', 'nightWoundShovel',
   'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
+  // THE SPOOK PAYS WHERE IT STOOD (the HELL NOTE a banished spook drops on the ground)
+  'hellNoteDropY', 'dropShovelHellNote',
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount'].map(srcFn).join('\n');
+// THE KILL DROP: the door the note goes through, spied on right here, and the bands it
+// must land in — injected into the haunt sandbox exactly like every other number.
+const NK_NOTES = [];
+const NK_BONUSES = [];
+const NK_W0 = srcNum('HELL_NOTE_WALK_Y0'), NK_W1 = srcNum('HELL_NOTE_WALK_Y1');
+const NK_R0 = srcNum('HELL_NOTE_ROAD_Y0'), NK_R1 = srcNum('HELL_NOTE_ROAD_Y1');
+const NK_CAP = srcNum('NIGHT_KILL_NOTE_CAP');
+const NK_ON = /const NIGHT_KILL_NOTE = true/.test(html);
 const H = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'pick', 'clamp',
   'GZ', 'CURB_LIFT', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X', 'PLAYER_START_X',
@@ -503,6 +513,11 @@ const H = new Function(
   'NIGHT_WOUND_PUSH', 'NIGHT_EXTRA_HITS', 'NIGHT_HP_Z_PROP', 'NIGHT_SCURRY_LINES',
   // THE SILENT STREET (Midnight): the speech gate's own knobs, injected like the rest
   'NIGHT_SPEECH_BANNED', 'NIGHT_SPEECH_ALLOW',
+  // THE KILL DROP: the cash door a banished spook pays through, the live-pickup list it
+  // counts against, and the two bands the note is allowed to land in
+  'spawnCash', 'bonuses', 'NIGHT_KILL_NOTE', 'NIGHT_KILL_NOTE_CAP',
+  'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1',
+  'noteSpy', 'bonusSpy',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -595,6 +610,9 @@ const H = new Function(
   ' goFlash: (led) => nightGoFlash(led), goTick: (dt) => nightGoTick(dt),' +
   ' gateCredit: (c) => nightGateCredit(c), gateStanding: b => nightGateStanding(b), gateCrew: b => nightGateLive(b),' +
   ' gateDebt: b => nightGateDebt(b), cull: (c) => cullHorror(c),' +
+  // THE KILL DROP (the note a banished spook drops, the band it lands in, the spy lists)
+  ' dropNote: (wx, wy) => dropShovelHellNote(wx, wy), dropY: (wy) => hellNoteDropY(wy),' +
+  ' dropNotes: () => noteSpy(), dropBonuses: () => bonusSpy(),' +
   ' getGoT: () => nightGoT, setGoT: (v) => { nightGoT = v; }, getGoMsg: () => nightGoMsg,' +
   ' ghHits: (b, k) => nightGhoulHits(b, k), ghFloor: b => nightGhoulFloorHits(b), depth: b => nightBlockDepth(b),' +
   ' armSpook: (c, b) => nightArmSpook(c, b), woundShovel: (c) => nightWoundShovel(c),' +
@@ -660,7 +678,10 @@ const H = new Function(
   GHOUL_HITS, NIGHT_WOUND_LINES, NIGHT_BLOCK_HARDEN, NIGHT_WAVE_HARDEN, NIGHT_SURGE_HARDEN,
   GHOUL_HITS_MAX, GHOUL_HITS_MIN, NIGHT_BACKOFF_T, NIGHT_BACKOFF_EXTRA, NIGHT_BACKOFF_SP,
   NIGHT_WOUND_PUSH, NIGHT_EXTRA_HITS, NIGHT_HP_Z_PROP, NIGHT_SCURRY_LINES,
-  NIGHT_SPEECH_BANNED, NIGHT_SPEECH_ALLOW
+  NIGHT_SPEECH_BANNED, NIGHT_SPEECH_ALLOW,
+  // THE KILL DROP: the spy door + the counted pickup list + the bands + the list spies
+  (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
+  NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -4169,6 +4190,86 @@ check('TONIGHT THE STREET PAYS: ' + totalN + ' HELL NOTES laid down — ' + walk
     walkN === NIGHT_HELL_NOTE_PICKS30 / 2 && roadN === NIGHT_HELL_NOTE_PICKS30 / 2,
   'laid=' + totalN + ' walk=' + walkN + ' road=' + roadN);
 check('an empty route lays nothing (no crash, no notes in the fog)', spawnHellNotes30([]) === 0);
+
+console.log("\n[31] THE SPOOK PAYS WHERE IT STOOD: a shoveled creature drops a HELL NOTE on the ground");
+// (a) THE WIRING IN THE SHIP
+check('the drop is wired at the moment the spook lands in the hopper (landSpookInHopper) — the banishment itself lays the note down',
+  srcFn('landSpookInHopper').includes('dropShovelHellNote(') && NK_ON === true && NK_CAP >= 4);
+check('the note goes in through the ONE cash door the street already uses (spawnCash -> makeCashPickup -> $100 "cash" bonus), so a kill-drop is an ordinary collectible find, and the door itself is untouched',
+  srcFn('dropShovelHellNote').includes('spawnCash(') &&
+    srcFn('spawnCash').includes('const g = makeCashPickup();') &&
+    srcFn('spawnCash').includes('val: 100,') && srcFn('spawnCash').includes('type: "cash",'));
+check('the drop is NIGHT-ONLY and kill-ONLY: the wound path (a blow that leaves the spook walking) and the weekday shovel code never touch it, the boss fight pays through its own gargoyle path, and the parry route pays the same way a strike does (through the landing)',
+  srcFn('nightWoundShovel').includes('dropShovelHellNote') === false &&
+    srcFn('bossTakeShovelSwing').includes('dropShovelHellNote') === false &&
+    srcFn('shovelStrike').includes('dropShovelHellNote') === false &&
+    srcFn('shovelParry').includes('shovelStrike(c)') &&
+    srcFn('dropShovelHellNote').includes('isNightShift()'));
+// (b) THE DROP ITSELF: the game's own functions, running on the night
+nightOn = true;
+NK_NOTES.length = 0;
+const payRoad = H.dropNote(300, -3.5), payWalk = H.dropNote(320, 2.5), payCurb = H.dropNote(340, 0.6),
+  payFar = H.dropNote(360, 9), payDeep = H.dropNote(380, -9);
+check('EVERY BANISHED SPOOK PAYS: one NOTE per kill, dropped where the spook stood — roadway kill, sidewalk kill, curb-strip kill, a spook killed out past the curb or past the road all drop, and the sandbox saw 5 kills, 5 notes',
+  NK_NOTES.length === 5 && [payRoad, payWalk, payCurb, payFar, payDeep].every(Boolean),
+  'notes=' + NK_NOTES.length);
+check('AND THE NOTE ALWAYS LANDS WHERE HE CAN WALK TO IT: every drop is inside the sidewalk band ' + NK_W0 + '..' + NK_W1 + ' or the roadway band ' + NK_R0 + '..' + NK_R1 + ' — the curb strip and out-of-bounds kills get CLAMPED to the nearest band, never left in no-man\u0027s-land',
+  NK_NOTES.every((n) => (n.wy >= NK_W0 && n.wy <= NK_W1) || (n.wy >= NK_R0 && n.wy <= NK_R1)) &&
+    NK_NOTES.every((n) => Math.abs(n.wy) > 1.0),
+  'drops=' + NK_NOTES.map((n) => n.wy.toFixed(2)).join(','));
+nightOn = false;
+const nkBefore = NK_NOTES.length;
+const nkWk = H.dropNote(300, 2.5);
+check('THE SEVEN WEEKDAYS PAY IN NOTHING: the kill-drop is gated to the haunted street (no notes on a weekday shift, no crash)',
+  nkWk === false && NK_NOTES.length === nkBefore);
+nightOn = true;
+for (let i = 0; i < NK_CAP; i++) NK_BONUSES.push({ type: 'cash', wx: 0, wy: 0 });
+const nkBefore2 = NK_NOTES.length;
+const nkCapped = H.dropNote(300, 2.5);
+check('NO CASH BLIZZARD: with ' + NK_CAP + ' pickups already lying on the street, a kill drops nothing (the street stays legible, the pile stays worth walking to)',
+  nkCapped === false && NK_NOTES.length === nkBefore2);
+NK_BONUSES.length = 0;
+// (c) THE FULL KILL, START TO FINISH: strike, arc, land — and the note on the ground
+const nkEcto0 = H.getEcto(), nkNotes0 = NK_NOTES.length;
+const nkPaid = mkC('specter', 4, { hooked: true, hookT: 0, fx0: p.wx + 5, fy0: 3.0, fz0: GZ + 0.5 });
+let nkP = 0;
+while (!nkPaid.hookLanded && nkP++ < 600) H.shovelFlight(nkPaid, 1 / 60);
+check('A SPOOK SHOVELED INTO THE HOPPER DROPS EXACTLY ONE HELL NOTE ON THE SPOT IT STOOD — one note, at the strike point, and the eco/score payout is unchanged',
+  nkPaid.hookLanded === true && H.getEcto() === nkEcto0 + 1 &&
+    NK_NOTES.length === nkNotes0 + 1 &&
+    Math.abs(NK_NOTES[NK_NOTES.length - 1].wx - (p.wx + 5)) <= 0.71 &&
+    NK_NOTES[NK_NOTES.length - 1].wy >= NK_W0 && NK_NOTES[NK_NOTES.length - 1].wy <= NK_W1,
+  'notes=' + (NK_NOTES.length - nkNotes0) + ' at ' + (NK_NOTES[NK_NOTES.length - 1] || {}).wx);
+const nkWound = mkC('ghoul', 3, { fx0: p.wx + 3, fy0: 2.2 });
+const nkHits = H.ghHits(900, 'ghoul');
+const nkNotesA = H.dropNotes().length;
+creatures.length = 0; creatures.push(nkWound);
+let nkSwings = 0, nkWoundPaid = false, nkKilled = false;
+while (nkSwings < 40 && !nkWound.hookLanded) {
+  p.shovelCd = 0; p.facing = 0;
+  // the wound knocks it back and it walks off — stand it back in front of the blade
+  nkWound.wx = p.wx + 3; nkWound.wy = 2.2;
+  if (nkWound.g) nkWound.g.position.set(nkWound.wx, nkWound.wy, GZ);
+  if (H.swing() !== true) break;
+  nkSwings++;
+  if (H.dropNotes().length > nkNotesA) nkWoundPaid = true; // a wound paid out: the bug we are hunting
+  if (nkWound.hooked) {
+    let g = 0;
+    while (!nkWound.hookLanded && g++ < 600) H.shovelFlight(nkWound, 1 / 60);
+    nkKilled = true;
+  }
+}
+check('A WOUND PAYS NOTHING: ' + nkSwings + ' BLOWS on one ghoul (' + nkHits + ' in its pool), ZERO notes for the wounds — the single note lands when the last blow puts it in the scoop, every banishment paid exactly once',
+  nkSwings === nkHits && nkKilled === true && nkWound.hookLanded === true &&
+    nkWoundPaid === false && H.dropNotes().length === nkNotesA + 1,
+  'swings=' + nkSwings + ' hits=' + nkHits + ' killed=' + nkKilled + ' notes=' + (H.dropNotes().length - nkNotesA));
+// (d) THE PAYCHAIN: the note is street cash, and street cash is what buys the healers
+check('THE KILL NOTE FEEDS THE SAME ECONOMY AS THE STREET\u0027S OWN NOTES — banked HELL NOTES drive the coffee / BEC drops on the same cash step',
+  /const POWERUP_CASH_STEP = (\d+)/.test(html) &&
+    html.includes('if (state === "play" && bonusTally >= healerNextAt)') &&
+    srcFn('cashName').includes('NIGHT_CASH_NAME') && NIGHT_CASH_NAME === 'HELL NOTES');
+check('THE NOTE IS MADE OF THE SAME JOSS PAPER as the ones laid at clock-in (the pickup swap is one door: makeCashPickup), so the kill drop and the street spread look identical',
+  srcFn('makeCashPickup').includes('? makeHellNote()'));
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

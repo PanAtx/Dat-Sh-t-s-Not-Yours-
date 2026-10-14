@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.508</div>
+          <div id="app-version" class="menu-version">v1.0.509</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.508';
+      const APP_VERSION = '1.0.509';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29212,6 +29212,13 @@
           if (typeof disposeObj === "function") disposeObj(c.g); // banished: it is GONE
         }
         shovelBanish(SHOVEL_POINTS, HORROR_NAMES[horrorKey(c)] || "SPOOK", c);
+        // THE SPOOK PAYS WHERE IT STOOD: the HELL NOTE it was standing on drops onto the
+        // spot it was banished from, for the worker to walk over and bank (Midnight only,
+        // through the normal cash pickup — see dropShovelHellNote).
+        dropShovelHellNote(
+          typeof c.fx0 === "number" ? c.fx0 : c.wx,
+          typeof c.fy0 === "number" ? c.fy0 : c.wy,
+        );
         // NO CENTRE-SCREEN TEXT PER BANISHMENT (that is what power-ups get). The pay is the
         // jingle, the ecoplasm splat, the score bubble and the HUD meter — the player keeps
         // his view of the horde.
@@ -32036,6 +32043,36 @@
           laid++;
         }
         return laid;
+      }
+      // THE SPOOK PAYS WHERE IT STOOD: every spook the shovel packs into the hopper drops
+      // the HELL NOTE it was standing on, right on the spot it was banished from, so the
+      // kill itself lays a joss-money find on the street for the worker to walk over and
+      // bank. It goes in through the ONE cash-pickup door (spawnCash -> makeCashPickup =
+      // the joss note on tonight's street), so it pays into the same street-cash tally
+      // that feeds the power-up economy — banishing the block is how he EARNS his coffee.
+      // Only the blow that LANDS in the scoop pays: a wound that leaves the thing walking
+      // drops nothing. And the note always lands in a band he can stand in — the sidewalk
+      // or the roadway — never on a roof, in a wall, or out in the fog past the wards.
+      const NIGHT_KILL_NOTE = true; // every shoveled spook drops its note
+      const NIGHT_KILL_NOTE_CAP = 12; // notes lying on the street at once: no cash blizzard
+      function hellNoteDropY(wy) {
+        if (wy >= HELL_NOTE_ROAD_Y0 && wy <= HELL_NOTE_ROAD_Y1) return wy; // already in the roadway
+        if (wy >= HELL_NOTE_WALK_Y0 && wy <= HELL_NOTE_WALK_Y1) return wy; // already on the walk
+        // the strip in between (the curb lip, the berm) or past both bands: the nearest band
+        return wy > (HELL_NOTE_ROAD_Y1 + HELL_NOTE_WALK_Y0) / 2
+          ? clamp(wy, HELL_NOTE_WALK_Y0, HELL_NOTE_WALK_Y1)
+          : clamp(wy, HELL_NOTE_ROAD_Y0, HELL_NOTE_ROAD_Y1);
+      }
+      function dropShovelHellNote(wx, wy) {
+        if (!NIGHT_KILL_NOTE) return false;
+        if (typeof isNightShift !== "function" || !isNightShift()) return false; // weekdays pay in trash, not notes
+        let live = 0;
+        for (let i = 0; i < bonuses.length; i++) {
+          if (bonuses[i] && bonuses[i].type === "cash") live++;
+        }
+        if (live >= NIGHT_KILL_NOTE_CAP) return false; // the street is already paved in notes
+        spawnCash(wx + R(-0.7, 0.7), hellNoteDropY(wy));
+        return true;
       }
       function spawnNightShift() {
         clearNightBoss(); // a fresh shift: no beast, no ghost fire, no fight in flight
