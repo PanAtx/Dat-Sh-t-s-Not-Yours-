@@ -327,12 +327,15 @@ check('THE DIGGERS keep the ghouls, the red-eyed dead, the hounds and the lanter
   !['fangspider', 'ratking', 'goulra', 'specter'].some((f) => famFn(bandOfX(192)).indexOf(f) >= 0));
 check('THE GRAVE WATCH (the flood block) keeps the heavy end, incl. the nine-eyed goulra',
   ['pitfiend', 'demon', 'devil', 'eyecrawler', 'goulra', 'lich', 'reaper'].every((f) => famFn(bandOfX(96)).indexOf(f) >= 0));
-check('the flood block runs its OWN heavier table, and it is the heaviest band on the street',
+check('the flood block runs its OWN table (heavier than its plain block table) and the street stays capped; THE GRAVE WATCH BILL WAS CUT to 20 — at or below the opening blocks, because the last fight is the beast',
   (() => {
     const floodTotal = famFn(bandOfX(96)).reduce((s, f) => s + blockQuota(f, { x0: 96, x1: 176, flood: true }), 0);
     const others = ACTIVE_XS.filter((x) => x !== 96).map((x) =>
       famFn(bandOfX(x)).reduce((s, f) => s + blockQuota(f, bandOfX(x)), 0));
-    return floodTotal > Math.max.apply(null, others) && floodTotal >= 30 && others.every((n) => n >= 18);
+    const e = NIGHT_BLOCKS.filter((x) => x.x === 96)[0];
+    const packTotal = Object.keys(e.pack).reduce((s, k) => s + e.pack[k], 0);
+    return floodTotal === 20 && floodTotal > packTotal &&
+      floodTotal <= Math.max.apply(null, others) && others.every((n) => n >= 18);
   })(),
   'flood=' + famFn(bandOfX(96)).reduce((s, f) => s + blockQuota(f, { x0: 96, x1: 176, flood: true }), 0) +
   ' others=' + ACTIVE_XS.filter((x) => x !== 96).map((x) =>
@@ -422,8 +425,10 @@ check('a band with no entry of its own still lands on a pack (no block can ever 
       return setOf.every((s) => s.size >= 4);
     })(),
     ACTIVE_XS.map((x) => (byBand[x] || []).length + ':' + new Set(byBand[x] || []).size).join(' '));
-  check('the flood block carries the biggest seeded horde (' + (byBand[96] || []).length + ')',
-    ACTIVE_XS.every((x) => (byBand[96] || []).length >= (byBand[x] || []).length));
+  check('THE GRAVE WATCH carries a real seeded horde (' + (byBand[96] || []).length + ' animals standing) — every family of its pack on the ground — AND IT IS NOW THE LIGHTEST BLOCK ON THE STREET: no block seeds fewer than it, and its bill is the cut 20, not the old 30-animal farm',
+    (byBand[96] || []).length === 20 &&
+      new Set(byBand[96]).size >= 4 &&
+      ACTIVE_XS.filter((x) => x !== 96).every((x) => (byBand[96] || []).length <= (byBand[x] || []).length));
   check('the wave tier raises a block\u2019s OWN families and never hands it a stranger',
     (() => {
       nightGhoulTier = 4;

@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.517</div>
+          <div id="app-version" class="menu-version">v1.0.518</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.517';
+      const APP_VERSION = '1.0.518';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19628,7 +19628,10 @@
       function nightWallX() {
         const yardOpen = NIGHT_GRAVE_X - 8; // the gate at the graves (past the treasure spot)
         if (nightBoss && nightBoss.awake && !nightBoss.hooked)
-          return Math.max(NIGHT_BOSS_X - 0.6, yardOpen);
+          // THE BEAST IS NO LONGER THE WALL AT ITS BACK. The worker gets the bottom of
+          // the street as his ring: gate minus the boss room, never below the cemetery
+          // mouth — past the rise point, around under the beast, fighting from any side.
+          return Math.max(NIGHT_END_X + NIGHT_MOUTH_X, yardOpen - NIGHT_BOSS_ROOM_X);
         return yardOpen;
       }
       function workerEndLimitX() {
@@ -28271,6 +28274,12 @@
       const NIGHT_END_X = 30; // the graveyard's back wall: he can't walk past the dead
       const NIGHT_BOSS_TRIGGER_X = 112; // step into this cross-street and the beast wakes
       const NIGHT_BOSS_X = 74; // ...and this is where it rises out of the yard
+      // MORE RING AT THE BOTTOM (Midnight): with the beast awake the worker used to be
+      // pinned behind it (the beast WAS the wall at its own back, x 73.4). The last fight
+      // needs street to move in: he may now walk the bottom strip — past the rise point,
+      // around under the beast, down to the cul-de-sac mouth — so he can take the fight
+      // from any side. No new blocks scroll: this is walking room inside the same view.
+      const NIGHT_BOSS_ROOM_X = 8; // u of bottom strip handed to the worker around the beast
       const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
       const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
       // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so
@@ -29339,8 +29348,14 @@
         {
           x: NIGHT_BEAT_GRAVE_X, // THE FLOOD BLOCK: the top of the graves (St Basuras) — the heavy end
           name: "THE GRAVE WATCH",
-          pack: { pitfiend: 4, demon: 3, devil: 3, eyecrawler: 3, goulra: 3, lich: 2, reaper: 2 },
-          flood: { pitfiend: 6, demon: 5, devil: 5, eyecrawler: 4, goulra: 4, lich: 3, reaper: 3 },
+          // THE BILL COMES DOWN (the last fight is the BEAST, not a 30-animal trench):
+          // this block's own load was 30 animals — the heaviest ward on the street and
+          // harder than the first two blocks. Both tables drop to 20 / 18: every family
+          // of the pack is still there, the flood table is still heavier than the block
+          // table, and ~1/3 fewer creatures have to be packed into the hopper before the
+          // grave ward falls and the beast is fought.
+          pack: { pitfiend: 4, demon: 3, devil: 3, eyecrawler: 2, goulra: 3, lich: 2, reaper: 1 },
+          flood: { pitfiend: 4, demon: 4, devil: 3, eyecrawler: 3, goulra: 3, lich: 2, reaper: 1 },
         },
       ];
       function nightBlockPack(band) {

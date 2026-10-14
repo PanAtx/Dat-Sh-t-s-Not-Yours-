@@ -468,6 +468,7 @@ const NK_WARD_SPAN_L = srcNum('NIGHT_WARD_SPAN_L'); // extra reach past the far 
 const NK_STREET_Y = srcNum('HORROR_STREET_Y'); // the parked-car lane / far gutter line
 const NK_LAWN_Y = srcNum('HORROR_LAWN_Y'); // the stoop / lawn (building) line
 const NK_WARD_BAND = srcNum('NIGHT_WARD_DEATH_BAND'); // how far a panel may lag the fall: the tear sweeps
+const NK_BOSS_ROOM_X = srcNum('NIGHT_BOSS_ROOM_X'); // u of bottom strip handed to the worker around the beast
 const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
 const NK_BLOOD_C = parseInt((html.match(/const NIGHT_BLOOD_C = (0x[0-9a-f]+)/) || [0, '0xd8233a'])[1], 16);
 const NK_BLOOD_LITE = parseInt((html.match(/const NIGHT_BLOOD_LITE = (0x[0-9a-f]+)/) || [0, '0xff8a90'])[1], 16);
@@ -535,6 +536,7 @@ const H = new Function(
   'noteSpy', 'bonusSpy', 'NIGHT_START_FACING',
   'NIGHT_WARD_SPAN_R', 'NIGHT_WARD_PANELS', 'NIGHT_WARD_SPAN_L', 'NIGHT_WARD_DEATH_BAND',
   'NIGHT_BLOOD_C', 'NIGHT_BLOOD_LITE', 'NIGHT_BLOOD_TINT', 'NIGHT_BLOOD_AURA', 'NIGHT_BLOOD_SPRAY',
+  'NIGHT_BOSS_ROOM_X',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -703,7 +705,8 @@ const H = new Function(
   (wx, wy) => NK_NOTES.push({ wx: wx, wy: wy }), NK_BONUSES, NK_ON, NK_CAP,
   NK_W0, NK_W1, NK_R0, NK_R1, () => NK_NOTES, () => NK_BONUSES, NK_FACE,
   NK_WARD_SPAN, NK_WARD_PANELS, NK_WARD_SPAN_L, NK_WARD_BAND,
-  NK_BLOOD_C, NK_BLOOD_LITE, NK_BLOOD_TINT, NK_BLOOD_AURA, NK_BLOOD_SPRAY
+  NK_BLOOD_C, NK_BLOOD_LITE, NK_BLOOD_TINT, NK_BLOOD_AURA, NK_BLOOD_SPRAY,
+  NK_BOSS_ROOM_X
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -1264,11 +1267,11 @@ check('and the block at the BOTTOM (the flood) is held to its OWN ward bill: its
   'flood live = ' + floodGhoulsAtEnd + ' ward bill = ' + H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
 check('the horde fills to its ward bill — a block runs the whole load of its OWN pack and no more (' +
   floodGhoulsAtEnd + ' spooks standing on the graves)',
-  floodGhoulsAtEnd >= 20 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
+  floodGhoulsAtEnd >= 14 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
   'flood live at the end = ' + floodGhoulsAtEnd + ' ward bill=' +
   H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
-check('the ABYSS FLOOD block is the heaviest end of the street: a deep pack stands on it and its reapers are out',
-  floodGhoulsAtEnd >= 20 &&
+check('the ABYSS FLOOD block is a deep pack through and through: its reapers are out and the block is fought, not farmed',
+  floodGhoulsAtEnd >= 14 &&
   creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10 &&
   keyAt([96, 176], 'reaper') >= 1,
   'deep=' + creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length +
@@ -2159,8 +2162,13 @@ check('it LUNGES at the worker (it drags itself toward him, not away)',
 check('it never leaves the cemetery: the lunge is clamped to its own yard',
   boss.wx >= NIGHT_GRAVE_X - 6 - 1e-6 && boss.wx <= NIGHT_BOSS_TRIGGER_X + 8 + 1e-6,
   'x=' + boss.wx.toFixed(1));
-check('while the beast stands, THE BEAST IS THE WALL of the dead end',
-  H.workerEndLimitX() >= NIGHT_BOSS_X - 0.6, 'wall=' + H.workerEndLimitX());
+check('while the beast stands, THE BOTTOM IS HIS RING — the beast is NOT a wall at its back: his floor is the cul-de-sac mouth, below the beast\'s rise point and below the sealed gate, so he can walk around under it and fight from any side without leaving the street',
+  Math.abs(H.workerEndLimitX() - Math.max(NIGHT_END_X + NIGHT_MOUTH_X, NIGHT_GRAVE_X - 8 - NK_BOSS_ROOM_X)) < 1e-9 &&
+    H.workerEndLimitX() < NIGHT_BOSS_X - 0.6 &&
+    H.workerEndLimitX() >= NIGHT_END_X + NIGHT_MOUTH_X &&
+    H.workerEndLimitX() < NIGHT_GRAVE_X - 8 &&
+    srcFn('nightWallX').includes('NIGHT_BOSS_ROOM_X'),
+  'wall=' + H.workerEndLimitX());
 check('the body is SOLID: it crowds him into the headstones and a crush costs a hit',
   (function () {
     p.wx = boss.wx + 0.8; p.wy = boss.wy; p.nightHitT = 0; boss.bodyCd = 0;
@@ -2805,15 +2813,17 @@ console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall —
     H.gateX(GRAVEB) === NIGHT_BOSS_TRIGGER_X + 6 &&
     H.gateX(GRAVEB) > NIGHT_BOSS_TRIGGER_X,
     [384, 288, 192, 96].map((x) => H.gateX(bandOfX(x))).join("/"));
-  check("THE SET NUMBER OF CREATURES PER BLOCK = that block's own pack table (flood table on the heavy end)",
+  check("THE SET NUMBER OF CREATURES PER BLOCK = that block's own pack table (flood table on the heavy end), AND THE GRAVES' BILL CAME DOWN to 20 — the last ward is a gate, not a 30-animal trench",
     bands.every((b) => H.gateLedger(b).load === baseOf(b)) &&
-    H.gateLedger(GRAVEB).load === 30 &&
-    [TOPB, VERMB, DIGB].every((b) => H.gateLedger(b).load >= 20),
+    H.gateLedger(GRAVEB).load === 20 &&
+    [TOPB, VERMB, DIGB].every((b) => H.gateLedger(b).load >= 18),
     [384, 288, 192, 96].map((x) => H.gateLedger(bandOfX(x)).load).join("/"));
-  check("GRAVE WATCH is the heaviest end of the street, and the whole street's load fits the roster cap",
-    [TOPB, VERMB, DIGB].every((b) => H.gateLedger(GRAVEB).load > H.gateLedger(b).load) &&
+  check("THE GRAVES ARE NO LONGER THE HEAVIEST FIGHT ON THE STREET: the bottom block's bill sits AT OR BELOW every opening block's — the last fight is the beast, not a 30-animal trench — and the whole street still fits the roster cap",
+    H.gateLedger(GRAVEB).load <= Math.min(H.gateLedger(TOPB).load, H.gateLedger(VERMB).load, H.gateLedger(DIGB).load) &&
+    H.gateLedger(GRAVEB).load >= 7 &&
     bands.reduce((s, b) => s + H.gateLedger(b).load, 0) <= HORROR_ROSTER_CAP,
-    "street=" + bands.reduce((s, b) => s + H.gateLedger(b).load, 0) + " cap=" + HORROR_ROSTER_CAP);
+    "grave=" + H.gateLedger(GRAVEB).load + " others=" + [TOPB, VERMB, DIGB].map((b) => H.gateLedger(b).load).join("/") +
+      " street=" + bands.reduce((s, b) => s + H.gateLedger(b).load, 0) + " cap=" + HORROR_ROSTER_CAP);
   check("the block's own animals never stand behind its curtain: every ward-bound spook is between the light and the worker",
     bands.every((b) => hordes(b).every((c) => c.wx >= H.gateX(b) + NIGHT_GATE_ROOM - 0.001)),
     "floors " + [384, 288, 192, 96].map((x) => H.gateFloorX(bandOfX(x))).join("/"));
@@ -4543,6 +4553,60 @@ console.log("\n[34] SPECTRAL BLOOD: a shovel wound GLOWS RED while the creature 
       srcFn("cullHorror").includes("nightBloodClear(c);") &&
       srcFn("respawnHorror").includes("nightBloodClear(c);") &&
       srcFn("shovelStrike").includes("nightBloodClear(c);"));
+})();
+
+console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill is cut, and the bottom strip is the worker's ring");
+(function () {
+  nightOn = true;
+  s7Reset();
+  const bands35 = H.nightBands();
+  const grave35 = bands35.filter((b) => b.x0 === NIGHT_BEAT_GRAVE_X)[0];
+  const others35 = bands35.filter((b) => b.x0 !== NIGHT_BEAT_GRAVE_X);
+  const street35 = bands35.reduce((s, b) => s + H.gateLedger(b).load, 0);
+  check("THE GRAVE WARD IS A GATE NOW, NOT THE STREET'S FARM: its bill is 20 shovelfuls where it used to be 30 (a full third of the fighting gone), it is the lightest ward on the street, and the whole street fits the roster cap (" + street35 + " / " + HORROR_ROSTER_CAP + ")",
+    !!grave35 && H.gateLedger(grave35).load === 20 &&
+      others35.every((b) => H.gateLedger(b).load >= 20) &&
+      street35 <= HORROR_ROSTER_CAP &&
+      /THE BILL COMES DOWN/.test(srcFn('nightBlockPack')) === false &&
+      NIGHT_BLOCKS.filter((e) => e.x === NIGHT_BEAT_GRAVE_X)[0].flood.reaper === 1,
+    "grave=" + (grave35 ? H.gateLedger(grave35).load : -1) +
+      " others=" + others35.map((b) => H.gateLedger(b).load).join("/") + " street=" + street35);
+  check("THE SURGE STILL STACKS ON THE FLOOD BLOCK — from its CUT base (20 + " + HORROR_SURGE_LOAD + " x " + HORROR_SURGE_LOAD_TIERS + ")",
+    grave35 && (() => {
+      H.setSurgeTier(0);
+      const base35 = H.gateLoad(grave35) === 20;
+      H.setSurgeTier(HORROR_SURGE_LOAD_TIERS);
+      const full35 = H.gateLoad(grave35) === 20 + HORROR_SURGE_LOAD * HORROR_SURGE_LOAD_TIERS;
+      H.setSurgeTier(0);
+      return base35 && full35;
+    })());
+  // THE RING, WALKED LIVE: with the beast awake, how far down-and-left does the street let him go?
+  H.clearNightBoss(); H.spawnNightBoss();
+  const boss35 = H.getBoss();
+  p.wx = 200; p.wy = 2.5; p.stunT = 0;
+  H.startBossFight();
+  boss35.riseT = 0;
+  const wall35 = H.workerEndLimitX();
+  let walk35 = 200, steps35 = 0;
+  while (steps35++ < 4000) {
+    const w = H.workerEndLimitX(); // THE LIVE LINE: a lookup every frame, not a constant
+    walk35 = Math.max(w, walk35 - 0.2);
+    if (Math.abs(walk35 - w) < 1e-9) break; // standing on the floor, face to face with it
+  }
+  check("WITH THE BEAST AWAKE HE WALKS THE WHOLE BOTTOM STRIP: his floor is the cul-de-sac mouth at " + wall35 + "u — " + (NIGHT_BOSS_X - wall35).toFixed(0) + "u BELOW the beast's rise point (" + NIGHT_BOSS_X + "u) and 2u past the sealed graves gate (" + (NIGHT_GRAVE_X - 8) + "u), so he can circle under the monster and swing at it from below; walking him down the street live lands him exactly on that floor (" + walk35.toFixed(2) + "u after " + steps35 + " steps)",
+    boss35.awake === true && boss35.hooked !== true &&
+      Math.abs(walk35 - wall35) < 1e-9 && wall35 === NIGHT_END_X + NIGHT_MOUTH_X &&
+      NIGHT_BOSS_X - wall35 >= 30 && (NIGHT_GRAVE_X - 8) - wall35 === 2,
+    "wall=" + wall35 + " walk=" + walk35.toFixed(2) + " steps=" + steps35);
+  check("THE STREET DOES NOT GROW FOR IT — no new blocks scroll: the ring lives inside the SAME anchors (near end " + H.routeNearX() + ", far end " + H.routeFarX() + ", uphill wall " + H.workerTopLimitX() + "), his floor never drops past the cemetery mouth, and the grave ward still stands above him",
+    H.routeNearX() === NIGHT_END_X && H.routeFarX() === NIGHT_TOP_X &&
+      H.workerTopLimitX() === NIGHT_TOP_X - NIGHT_TRAIL_X &&
+      wall35 >= NIGHT_END_X + NIGHT_MOUTH_X &&
+      grave35 && H.gateX(grave35) > wall35);
+  H.clearNightBoss();
+  check("WHEN THE BEAST IS DOWN THE GATE STANDS AS SHIPPED (" + (NIGHT_GRAVE_X - 8) + "u): the ring is the fight's opening, not a loosening of the sealed end — the awake floor is never further up the street than the asleep floor",
+    Math.abs(H.workerEndLimitX() - (NIGHT_GRAVE_X - 8)) < 1e-9 &&
+      H.workerEndLimitX() > wall35);
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
