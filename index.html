@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.511</div>
+          <div id="app-version" class="menu-version">v1.0.512</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.511';
+      const APP_VERSION = '1.0.512';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19672,14 +19672,15 @@
         return truckTargetGap("none") + 4.3;
       }
       // THE CLOCK-IN LOOK (Midnight): he clocks in at the TOP of the dead-end street, and he
-      // stands facing BACK UP IT AND TO THE RIGHT — nose of the street uphill, shouldered
-      // toward the roadway side, the way a man clocks in facing the shift he is about to
-      // work. 0.62 rad of right tilt off straight uphill. The facing law, the shovel arc,
-      // the pack's approach math and the mirrored route all read this same number, so the
-      // very first swing he can throw is aimed exactly where he is looking.
-      const NIGHT_START_FACING = 5.6616; // = 2PI - 0.62: straight uphill, tilted to the right (the exact 180 flip of down-and-left)
+      // stands facing DOWN IT AND TO THE LEFT — down the hill toward the pit, shouldered
+      // toward the sidewalk side, the way a man turns his feet to the hill he is about to
+      // walk down. 0.62 rad of left tilt off straight downhill, and the exact 180° flip of
+      // the up-and-right face he used to clock in with. The facing law, the shovel arc, the
+      // pack's approach math and the mirrored route all read this same number, so the very
+      // first swing he can throw is aimed exactly where he is looking.
+      const NIGHT_START_FACING = 2.5216; // = PI - 0.62: straight downhill, tilted to the left (the 180 flip of up-and-right)
       function playerSpawnFacing() {
-        return isNightShift() ? NIGHT_START_FACING : 0; // he clocks in FACING UP-AND-RIGHT
+        return isNightShift() ? NIGHT_START_FACING : 0; // he clocks in FACING DOWN-AND-LEFT
       }
       // The truck's parking anchor at the clock-in: by day it sits BEHIND the worker
       // (the -X side, so he walks up onto it); at night he starts at the top of the
@@ -36461,7 +36462,7 @@
         }
         p.wx = playerSpawnX(); // the weekday street: PLAYER_START_X. MIDNIGHT: the TOP of
         // the dead-end street — the whole shift runs DOWNHILL from here
-        p.facing = playerSpawnFacing(); // ...and he clocks in facing UP the street, tilted to the right
+        p.facing = playerSpawnFacing(); // ...and he clocks in facing DOWN the street, tilted to the left
         p.wy = 2.5;
         camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; // the camera's follow state resets with the worker (no stale lag/velocity leaking into the new shift)
         camZoom = CAM_ZOOM_IN; _camZoomApplied = 0; camXSmooth = 0; // fresh shift starts at the truck: reset the hopper zoom + drift (force a frustum rewrite next frame)

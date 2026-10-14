@@ -4273,34 +4273,34 @@ check('THE KILL NOTE FEEDS THE SAME ECONOMY AS THE STREET\u0027S OWN NOTES — b
 check('THE NOTE IS MADE OF THE SAME JOSS PAPER as the ones laid at clock-in (the pickup swap is one door: makeCashPickup), so the kill drop and the street spread look identical',
   srcFn('makeCashPickup').includes('? makeHellNote()'));
 
-console.log("\n[32] THE CLOCK-IN LOOK: at Midnight he faces UP the street and to the RIGHT");
+console.log("\n[32] THE CLOCK-IN LOOK: at Midnight he faces DOWN the street and to the LEFT");
 nightOn = true;
 const faceNight = H.playerSpawnFacing();
 nightOn = false;
 const faceDay = H.playerSpawnFacing();
 nightOn = true;
-check('HE CLOCK IN FACING UP-AND-RIGHT: the night spawn facing is ' + NK_FACE + ' rad — uphill (' + Math.cos(NK_FACE).toFixed(2) + ' on the route axis) tilted to the RIGHT (' + Math.sin(NK_FACE).toFixed(2) + ' on the lane axis), toward the roadway side, NOT down into the pit',
-  faceNight === NK_FACE && Math.cos(NK_FACE) > 0.7 && Math.sin(NK_FACE) < -0.3,
+check('HE CLOCK IN FACING DOWN-AND-LEFT: the night spawn facing is ' + NK_FACE + ' rad — downhill (' + Math.cos(NK_FACE).toFixed(2) + ' on the route axis) tilted to the LEFT (' + Math.sin(NK_FACE).toFixed(2) + ' on the lane axis), toward the sidewalk side, NOT up at the truck',
+  faceNight === NK_FACE && Math.cos(NK_FACE) < -0.7 && Math.sin(NK_FACE) > 0.3,
   'facing=' + NK_FACE + ' vector=(' + Math.cos(NK_FACE).toFixed(2) + ',' + Math.sin(NK_FACE).toFixed(2) + ')');
-check('...and the mirror holds: the dead-end route runs DOWNHILL (routeDir ' + H.routeDir() + '), so his clock-in facing looks BACK UP the street he is about to walk down — the EXACT 180° opposite of the down-and-left face (2.5216) he clocked in with before',
-  H.routeDir() < 0 && Math.cos(NK_FACE) * H.routeDir() < -0.7 &&
-    Math.abs(NK_FACE - (2 * Math.PI - 0.62)) < 0.01 &&
-    Math.abs(NK_FACE - 2.5216 - Math.PI) < 0.02);
+check('...and the flip is exact: the dead-end route runs DOWNHILL (routeDir ' + H.routeDir() + '), so he now clock-ins facing THE WAY THE SHIFT RUNS — the EXACT 180° opposite of the up-and-right face (5.6616) he clocked in with before',
+  H.routeDir() < 0 && Math.cos(NK_FACE) * H.routeDir() > 0.7 &&
+    Math.abs(NK_FACE - (Math.PI - 0.62)) < 0.01 &&
+    Math.abs(NK_FACE - (5.6616 - Math.PI)) < 0.02);
 check('the seven weekdays clock in facing UP the street exactly as shipped (the night face is the tilt alone)',
   faceDay === 0 && Math.cos(faceDay) === 1);
 check('THE SPAWN CODE WEARS IT: the shift reset hands his facing to the worker and the rig draws him from that facing (the shovel twist rides on top of it, never replacing it)',
   srcFn('resetWorldState').includes('p.facing = playerSpawnFacing();') &&
     html.includes('worker.group.rotation.z = p.facing - shovelTwist;') &&
-    html.includes('p.facing = playerSpawnFacing(); // ...and he clocks in facing UP the street, tilted to the right'));
+    html.includes('p.facing = playerSpawnFacing(); // ...and he clocks in facing DOWN the street, tilted to the left'));
 // THE SHOVEL LAW AIMED WITH HIM: standing at the clock-in facing, the front arc is the
-// up-and-right half of the street
+// down-and-left half of the street
 p.wx = 449; p.wy = 2.5; p.facing = faceNight;
-const aheadUpRight = H.shovelFacingOK(p.wx + Math.cos(faceNight) * 3, p.wy + Math.sin(faceNight) * 3);
+const aheadDownLeft = H.shovelFacingOK(p.wx + Math.cos(faceNight) * 3, p.wy + Math.sin(faceNight) * 3);
 const deadBehind = H.shovelFacingOK(p.wx - Math.cos(faceNight) * 3, p.wy - Math.sin(faceNight) * 3);
-const squareLeft = H.shovelFacingOK(p.wx, p.wy + 5);
-check('THE FIRST SWING IS AIMED WHERE HE IS LOOKING: at the clock-in facing the shovel bites a spook straight up-and-right of him, NOT one standing behind him in the pit, and NOT one out on his left (the 210° facing law rides the same number)',
-  aheadUpRight === true && deadBehind === false && squareLeft === false,
-  'ahead=' + aheadUpRight + ' behind=' + deadBehind + ' left=' + squareLeft);
+const squareRight = H.shovelFacingOK(p.wx, p.wy - 5);
+check('THE FIRST SWING IS AIMED WHERE HE IS LOOKING: at the clock-in facing the shovel bites a spook straight down-and-left of him, NOT one standing behind him at the truck end, and NOT one out on his right in the roadway (the 210° facing law rides the same number)',
+  aheadDownLeft === true && deadBehind === false && squareRight === false,
+  'ahead=' + aheadDownLeft + ' behind=' + deadBehind + ' right=' + squareRight);
 p.facing = 0;
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
