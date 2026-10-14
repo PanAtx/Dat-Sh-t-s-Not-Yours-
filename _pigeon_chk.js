@@ -17,7 +17,10 @@ m.forEach((s, i) => {
 console.log(bad ? "SYNTAX FAIL" : "SYNTAX OK (" + m.length + " scripts)");
 const has = (s) => h.includes(s);
 const checks = [
-  ["flock count (Manhattan 3, else 2)", 'const flockCount = borough === "MANHATTAN" ? 3 : 2;'],
+  ["flock count (Manhattan 3, else 2) — with the Midnight NO-BIRDS gate in front of it", 'const flockCount = nightBirdsBanned()'],
+  ["the weekday counts themselves are intact (Manhattan 3, else 2)", ': borough === "MANHATTAN"'],
+  ["MIDNIGHT: nothing with wings — the seed birds never come in", "if (nightBirdsBanned()) return; // MIDNIGHT: no birds on the dead street"],
+  ["MIDNIGHT: the Staten Island jay and her nest never exist on the haunted street", "if (isStatenIslandLevel() && !nightBirdsBanned()) {"],
   ["flock size 2-4 birds", "const flock = 2 + ((Math.random() * 3) | 0);"],
   ["flock seeded ahead of the worker", "const fpx = p.wx + R(-15, 45),"],
   ["seed scatter pile per flock", "makeSeedScatter()"],

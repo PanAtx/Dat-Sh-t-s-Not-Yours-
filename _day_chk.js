@@ -114,14 +114,22 @@ const dayStatsMock = { bags:{got:15,total:20}, cans:{got:10,total:12}, baskets:{
 const levelName = new Function(extractFn('levelName') + '\n; return levelName;')();
 check('levelName: a weekday is its plain day, and the haunted shift is named by its own field',
   levelName(LEVEL_DAYS[0]) === 'MONDAY' && levelName(LEVEL_DAYS[7]) === 'MIDNIGHT * DEAD END');
-const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats','routeFailed','clearTimeout','writeUpDimTimer','clearAdvancePressed','levelName',
-  extractFn('showDayStats') + '\n; return showDayStats;')($, LEVEL_DAYS, lv, LEVEL_DAYS.length, dayStatsMock, 1234, 9999, pad, setTxt, statRow, newDayStats, false, () => 0, 0, () => {}, levelName);
+const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats','routeFailed','clearTimeout','writeUpDimTimer','clearAdvancePressed','levelName','cashName',
+  extractFn('showDayStats') + '\n; return showDayStats;')($, LEVEL_DAYS, lv, LEVEL_DAYS.length, dayStatsMock, 1234, 9999, pad, setTxt, statRow, newDayStats, false, () => 0, 0, () => {}, levelName,
+  // THE LEVEL'S OWN WORD FOR THE CASH TALLY (the game reads isNightShift() at report time):
+  // Midnight banks HELL NOTES, the seven weekdays bank STREET CASH.
+  () => (lv === LEVEL_DAYS.length ? 'HELL NOTES' : 'STREET CASH'));
 makeShowDayStats(3)();
 check('showDayStats titles the day (WEDNESDAY)', els['day-stats-title'].textContent.indexOf('WEDNESDAY') >= 0);
 makeShowDayStats(8)();
 check('...and titles the haunted shift by its LEVEL NAME — "MIDNIGHT * DEAD END", not a long street caption',
   els['day-stats-title'].textContent.indexOf('MIDNIGHT * DEAD END') >= 0,
   els['day-stats-title'].textContent);
+check('on Midnight the report calls the money HELL NOTES, while the weekdays keep STREET CASH',
+  (els['day-stats-grid'] || {}).innerHTML.indexOf('HELL NOTES') >= 0 &&
+    (makeShowDayStats(3)(), (els['day-stats-grid'] || {}).innerHTML.indexOf('STREET CASH') >= 0 &&
+      (els['day-stats-grid'] || {}).innerHTML.indexOf('HELL NOTES') < 0),
+  ((els['day-stats-grid'] || {}).innerHTML || '').slice(0, 160));
 makeShowDayStats(3)();
 const grid = els['day-stats-grid'].innerHTML;
 check('showDayStats renders all 6 breakdown rows', ['GARBAGE BAGS','GARBAGE CANS','LITTER BASKETS','MONGO HAULED','TREASURES','STREET CASH'].every(l => grid.indexOf(l) >= 0));

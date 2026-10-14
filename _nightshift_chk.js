@@ -259,6 +259,10 @@ const HORROR_STUN_T = srcNum('HORROR_STUN_T'), NIGHT_HIT_GRACE = srcNum('NIGHT_H
 const HORROR_HUNTERS_MAX = srcNum('HORROR_HUNTERS_MAX'), SHOVEL_GUARD = srcNum('SHOVEL_GUARD');
 const SHOVEL_BUTT = srcNum('SHOVEL_BUTT'), SHOVEL_BLADE_R = srcNum('SHOVEL_BLADE_R');
 const SHOVEL_FACE_RULE = srcBool('SHOVEL_FACE_RULE'), SHOVEL_FACE_ARC = srcNum('SHOVEL_FACE_ARC');
+// Midnight's own word for the cash tally + the no-birds law + the bat-ready pose key
+const NIGHT_CASH_NAME = (html.match(/const NIGHT_CASH_NAME = "([^"]*)"/) || [])[1];
+const NIGHT_NO_BIRDS = srcBool('NIGHT_NO_BIRDS');
+const SHOVEL_READY_KEY = srcNum('SHOVEL_READY_KEY');
 const NIGHT_SAY_GAP = srcNum('NIGHT_SAY_GAP'), NIGHT_BUBBLE_GAP = srcNum('NIGHT_BUBBLE_GAP');
 const NIGHT_POP_GAP = srcNum('NIGHT_POP_GAP');
 const HORROR_STREET_Y = srcNum('HORROR_STREET_Y'), HORROR_LAWN_Y = srcNum('HORROR_LAWN_Y');
@@ -415,7 +419,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   // FAIR FIGHT (the shield, the swarm cap, the whole-tool hit envelope)
   'shovelToolReach', 'shovelFacingOK', 'horrorHunterCount', 'shoveSpookOff', 'shovelParry',
   'nightSayOk', 'nightBubbleOk', 'nightPopOk', 'horrorMaxY', 'levelName',
-  'nightSpeechOk', 'nightSpeechAllowed',
+  'nightSpeechOk', 'nightSpeechAllowed', 'cashName', 'nightBirdsBanned',
   // THE MIDNIGHT DEAD END (the mirrored route's anchors) + THE FINAL BOSS (the
   // cemetery fight, the shovel on the beast, the hopper suction and the win)
   'routeDir', 'routeFarX', 'routeNearX', 'nightWallX', 'workerEndLimitX', 'workerTopLimitX',
@@ -468,6 +472,7 @@ const H = new Function(
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
   'SHOVEL_BLADE_R', 'SHOVEL_FACE_RULE', 'SHOVEL_FACE_ARC',
+  'NIGHT_CASH_NAME', 'NIGHT_NO_BIRDS', 'SHOVEL_READY_KEY',
   'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
   'creatureMaxY', 'HORROR_STREET_Y', 'HORROR_LAWN_Y', 'nightEctoKUnused', 'nightEctoSize',
   'NIGHT_GLOW_ECTO', 'NIGHT_ECTO_SIZE',
@@ -524,6 +529,7 @@ const H = new Function(
   '\nfunction swingNow() { const r = tryShovelSwing(); shovelDeliverStrike(); return r; }' +
   '\nreturn { makeSpecter, makeGhoul, makeHellhound, makeManyEyedBeast, makeRubyGargoyle,' +
   ' makeShovelProp, canShovel, tryShovelSwing, shovelDeliverStrike, shovelFacingOK, swing: swingNow,' +
+  ' cashName, nightBirdsBanned, SHOVEL_READY_KEY, NIGHT_CASH_NAME, NIGHT_NO_BIRDS,' +
   ' shovelFlight, landSpookInHopper,' +
   ' updateHorrorCreature, updateThief, reclaimStolenGargoyle, spawnEctoSplat,' +
   ' makeWraith, makePoltergeist, makeImp, makeDemon, makeHexbeast, makeAbyssal, makeLich,' +
@@ -626,6 +632,7 @@ const H = new Function(
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
   SHOVEL_BLADE_R, SHOVEL_FACE_RULE, SHOVEL_FACE_ARC,
+  NIGHT_CASH_NAME, NIGHT_NO_BIRDS, SHOVEL_READY_KEY,
   PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
   () => 4.8, HORROR_STREET_Y, HORROR_LAWN_Y, () => 0, () => NIGHT_ECTO_SIZE, NIGHT_GLOW_ECTO,
   NIGHT_ECTO_SIZE,
@@ -3989,6 +3996,52 @@ check('THE ARC, AS THE GAME COMPUTES IT: 100° off his facing is ON the swing, 1
     H.shovelFacingOK(300 + Math.cos(2.27) * 2.5, 2.5 + Math.sin(2.27) * 2.5) === false);
 check('a ghoul standing straight behind him (180° off) is OUTSIDE the tool entirely',
   H.shovelFacingOK(298, 2.5) === false);
+
+console.log("[29] MIDNIGHT: HELL NOTES, THE BAT-READY SHOVEL, and NOTHING WITH WINGS ON THE DEAD STREET");
+nightOn = true;
+check('THE MIDNIGHT WORD: the cash tally is HELL NOTES, and it reaches every surface — the HUD line (bonus-label), the pickup pill, the reward popup, the shift report',
+  NIGHT_CASH_NAME === "HELL NOTES" && H.cashName() === "HELL NOTES" &&
+    html.includes('<span id="bonus-label">STREET CASH</span>') &&
+    srcFn('updateHUD').includes('cashLbl.textContent !== wantCash') &&
+    html.includes('cash: { text: cashName() + "!", cls: "pop-cash" }') &&
+    html.includes('const kindLabel = kind === "cash" ? cashName() : meta.label;') &&
+    html.includes('statRow(cashName(), s.cash.got, s.cash.total, true, idx++)'),
+  'name=' + JSON.stringify(NIGHT_CASH_NAME) + ' H=' + JSON.stringify(H.cashName && H.cashName()));
+nightOn = false;
+check('the seven weekdays keep STREET CASH everywhere (HUD, popup, pill, report)',
+  H.cashName() === "STREET CASH");
+nightOn = true;
+// THE BAT-READY SHOVEL (sampled off the game's own pose curve, with the tool IN HIS HANDS)
+S6.equipShovel(true);
+const batHeld = S6.getShovel();
+const batAxis = () => {
+  const dx = batHeld.rotation.x, dy = batHeld.rotation.y;
+  return { az: -Math.cos(dx) * Math.sin(dy), z: batHeld.position.z }; // az > 0 = the blade points UP
+};
+S6.poseShovel(0);
+const dipAx = batAxis(), dipArm = S6_ARMR.rotation.x;
+const batOut = S6.poseShovel(SHOVEL_READY_KEY);
+const batAx = batAxis(), batArm = S6_ARMR.rotation.x;
+check('the ready stance is ' + SHOVEL_READY_KEY + ' ON THE SWING CURVE ITSELF — no extra geometry, no second shovel, the strike path untouched',
+  SHOVEL_READY_KEY > 0 && SHOVEL_READY_KEY < 1 && !!batOut && !!S6.poseShovel(0) &&
+    html.includes('if (shovelArm >= 0 && sw >= 1.06 && swPrev < 1.06)'));
+check('AT THE READY HE CARRIES THE SHOVEL UP IN THE AIR LIKE A BASEBALL BAT — the blade RIDES UP (his shipped carry points it at the ground), both fists stay on the wood',
+  batAx.az > 0.4 && dipAx.az < -0.3 && batArm > 0.5,
+  'blade axis ' + dipAx.az.toFixed(2) + ' -> ' + batAx.az.toFixed(2) + ' arm ' + dipArm.toFixed(2) + ' -> ' + batArm.toFixed(2));
+check('THE PLAY LOOP RUNS IT: no swing = the ready key, and the stance adds no twist and no lean (he stands square to where he faces)',
+  html.includes('const batUp = !(p.shovelT > 0);') &&
+    html.includes('if (batUp) sw = SHOVEL_READY_KEY;') &&
+    html.includes('shovelTwist = 0; // the stance is SQUARE: no twist, no lean over the blade'));
+// NO BIRDS
+check('NO BIRDS ON MIDNIGHT: the pigeon flocks are seeded at zero, the seed-birds never come in, and the blue jay and her nest never exist',
+  NIGHT_NO_BIRDS === true && H.nightBirdsBanned() === true &&
+    html.includes('const flockCount = nightBirdsBanned()') &&
+    srcFn('spawnSeedBirds').includes('if (nightBirdsBanned()) return;') &&
+    html.includes('if (isStatenIslandLevel() && !nightBirdsBanned()) {'));
+nightOn = false;
+check('the seven weekdays keep every bird they have (flocks, seed pigeons, the Staten Island jay)',
+  H.nightBirdsBanned() === false);
+nightOn = true;
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

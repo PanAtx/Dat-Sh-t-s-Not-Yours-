@@ -4361,7 +4361,7 @@
           ><div class="distbar" id="distbar"
             ><div class="distfill" id="distfill"></div></div></div
         ><div>SCORE $<span id="score">000000</span></div
-        ><div class="sub">STREET CASH $<span id="bonus">000000</span></div></div
+        ><div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span></div></div
       >
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
       <div id="tr" class="hudbox"
@@ -4460,7 +4460,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.504</div>
+          <div id="app-version" class="menu-version">v1.0.505</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4718,7 +4718,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.504';
+      const APP_VERSION = '1.0.505';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7077,7 +7077,7 @@
         const money = val ? "+$" + val : null; // show the actual payout (treasure value now varies)
         const cfg = {
           mongo: { text: "MONGO!", cls: "pop-mongo" },
-          cash: { text: "STREET CASH!", cls: "pop-cash" },
+          cash: { text: cashName() + "!", cls: "pop-cash" },
           treasure: { text: "TREASURE!", cls: "pop-treasure" },
         }[kind] || { text: "BONUS!", cls: "pop-mongo" };
         const el = document.createElement("div");
@@ -7121,8 +7121,11 @@
       }
       function flyPickupToCounter(kind, val, name, wx, wy, wz) {
         const meta = PICKUP_META[kind] || PICKUP_META.mongo;
+        // Midnight calls the money HELL NOTES — the pill that flashes on a pickup uses the
+        // level's own word, the weekdays keep "STREET CASH".
+        const kindLabel = kind === "cash" ? cashName() : meta.label;
         const dispName =
-          (name || meta.label).replace(/[!?.\s]+$/g, "").trim().toUpperCase() || meta.label;
+          (name || kindLabel).replace(/[!?.\s]+$/g, "").trim().toUpperCase() || kindLabel;
         const dispVal = "+$" + Math.round(val || 0);
 
         // Start point: the item's projected screen spot (fall back to lower-center if off-screen).
@@ -22044,6 +22047,7 @@
       }
       // Call in a couple of pigeons to come eat the fresh pile (capped so they never spam).
       function spawnSeedBirds(c, n) {
+        if (nightBirdsBanned()) return; // MIDNIGHT: no birds on the dead street
         const pile = c.seeds[c.seeds.length - 1];
         for (let k = 0; k < n; k++) {
           if (c.birds.length >= 4) break;
@@ -28058,6 +28062,28 @@
       // the direction he was pointing in, exactly as he walked it.
       const SHOVEL_FACE_RULE = true; // the swing is directional
       const SHOVEL_FACE_ARC = 210; // ...on this front arc in degrees (±105° from his facing)
+      // ===== MIDNIGHT ONLY: THE STREET CASH IS "HELL NOTES", AND NOTHING FLIES HERE ======
+      // Tonight's pay is not street money, it's notes from the other side: every cash
+      // readout on this one level — the HUD line, the pickup pill, the reward popup, the
+      // shift report — uses the midnight word. And a dead street has no birds: no pigeon
+      // flocks, no roosting pigeons, no seed-birds, no blue jay (the seven weekdays keep
+      // every bird exactly as shipped).
+      const NIGHT_CASH_NAME = "HELL NOTES";
+      const NIGHT_NO_BIRDS = true;
+      // THE READY STANCE: standing and walking, he carries the shovel the way a batter
+      // carries a bat — up in the air over the shoulder, blade raised, loaded for the next
+      // swing — NOT dragging along the ground. The pose IS a key of the swing curve (the coil,
+      // where the tool is wound up with the head in the air), so the tool stays welded to the
+      // same two fists, the handle keeps its real length, and nothing about the swing moves.
+      const SHOVEL_READY_KEY = 0.3;
+      function cashName() {
+        return typeof isNightShift === "function" && isNightShift()
+          ? NIGHT_CASH_NAME
+          : "STREET CASH";
+      }
+      function nightBirdsBanned() {
+        return NIGHT_NO_BIRDS && typeof isNightShift === "function" && isNightShift();
+      }
       // (it tracks the wide scoop head in makeShovelProp: what the player SEES sweep is what
       // the swing actually catches, so a ghoul standing next to the blade is ON the swing)
       // EVERYTHING THE BLADE CAN CATCH ON THE HAUNTED STREET HAS A POOL OF SWINGS — the animals
@@ -34867,8 +34893,8 @@
         // climbs back to the babies, squawks, and repeats while he's around. If her
         // swoops put him down the write-up reads "Feathered Aggression
         // Non-Compliance". She and the nest are world objects for the whole shift —
-        // no recycling.
-        if (isStatenIslandLevel()) {
+        // no recycling. MIDNIGHT: no birds, so the jay and her nest never exist here.
+        if (isStatenIslandLevel() && !nightBirdsBanned()) {
           // ONE random GARBAGE block that has a REAL sidewalk tree to nest in. b.trees
           // holds BOTH sidewalk trees AND USPS collection boxes (mailboxes) — the blue jay
           // must nest in an actual TREE, so drop any entry tagged kind:"mailbox" and only
@@ -35715,7 +35741,13 @@
 
         // pigeon flocks: more flocks on busy Manhattan sidewalks — seeded mostly
         // AHEAD of the worker so you actually see them pecking as you walk
-        const flockCount = borough === "MANHATTAN" ? 3 : 2;
+        // MIDNIGHT: NO BIRDS. Tonight's dead street has nothing with wings on it — the
+        // flocks, the seed birds and the blue jay are all gated at the source.
+        const flockCount = nightBirdsBanned()
+          ? 0
+          : borough === "MANHATTAN"
+            ? 3
+            : 2;
         for (let fI = 0; fI < flockCount; fI++) {
           const flock = 2 + ((Math.random() * 3) | 0);
           const fpx = p.wx + R(-15, 45),
@@ -42707,6 +42739,11 @@
         // already resolved the frame the button went down (see tryShovelSwing) — this is
         // the follow-through.
         if (p.shovelCd > 0) p.shovelCd = Math.max(0, p.shovelCd - dt);
+        // THE BAT READY STANCE (the key is the arc's OWN finish pose, so fists, joints, the
+        // real handle length and the strike path are untouched): with no swing running the
+        // shovel rides UP over the shoulder like a bat — head in the air, loaded — instead of
+        // hanging low at the ground, and the stance adds no twist and no lean.
+        const batUp = !(p.shovelT > 0);
         if (shovelGroup) {
           let sw = 0;
           if (p.shovelT > 0) {
@@ -42730,10 +42767,15 @@
             shovelDeliverStrike();
           }
           shovelStride = sw > 1 ? 1 : sw; // the body runs the same amplitude, capped at 1
+          if (batUp) sw = SHOVEL_READY_KEY; // THE BAT READY STANCE: no swing = the shovel rides UP over the shoulder like a bat, not dragged on the ground
           const hold = poseShovel(sw);
           if (hold) {
             shovelTwist = shovelStride > 0.66 ? -hold.twist : hold.twist;
             shovelLean = hold.lean;
+            if (batUp) {
+              shovelTwist = 0; // the stance is SQUARE: no twist, no lean over the blade
+              shovelLean = 0;
+            }
           }
         } else {
           shovelTwist = 0;
@@ -50320,6 +50362,13 @@
         }
       }
       function updateHUD() {
+        // THE MIDNIGHT WORD: on tonight's level the cash line reads HELL NOTES, everywhere
+        // else it stays STREET CASH. One string compare per frame, no allocations.
+        const cashLbl = document.getElementById("bonus-label");
+        if (cashLbl) {
+          const wantCash = cashName();
+          if (cashLbl.textContent !== wantCash) cashLbl.textContent = wantCash;
+        }
         // health bar (top-left, above the score): green -> amber -> red as it drains
         const hpBar = $("hpbar"),
           hpFill = $("hpfill");
@@ -50795,7 +50844,7 @@
             ),
             statRow("MONGO HAULED", s.mongo.got, s.mongo.total, true, idx++),
             statRow("TREASURES", s.treasure.got, s.treasure.total, true, idx++),
-            statRow("STREET CASH", s.cash.got, s.cash.total, true, idx++),
+            statRow(cashName(), s.cash.got, s.cash.total, true, idx++),
           );
           g.innerHTML = parts.join("");
           // Animate the stat numbers counting up (guarded for Node test)
