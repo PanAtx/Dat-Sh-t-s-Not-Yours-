@@ -442,10 +442,16 @@ check('a band with no entry of its own still lands on a pack (no block can ever 
       return v <= HORROR_QUOTA_CEIL.ghoul;
     })(),
     (() => { nightGhoulTier = 6; const v = blockQuota('ghoul', bandOfX(192)); nightGhoulTier = 0; return 'tier6=' + v; })());
-  check('A CLEARED BLOCK IS A BLOCK THAT OPENS: the ward gate is a per-block test — its own live animals, its own load',
+  check('A CLEARED BLOCK IS A BLOCK THAT OPENS: the ward gate is a per-block test — its own live animals, and its own account (what it SENT out, settled by shovel or fog)',
     /if \(nightGateLive\(band\) > 0\) continue;/.test(srcFn('nightGateCheck')) &&
-      /if \(led\.yield < nightGateLoad\(band\)\) continue;/.test(srcFn('nightGateCheck')) &&
-      /nightGateOpenLedger\(led\);/.test(srcFn('nightGateCheck')));
+      /if \(led\.sent < nightGateLoad\(band\)\) continue;/.test(srcFn('nightGateCheck')) &&
+      /if \(led\.yield < led\.sent\) continue;/.test(srcFn('nightGateCheck')) &&
+      /nightGateOpenLedger\(led\);/.test(srcFn('nightGateCheck')) &&
+      /const NIGHT_PACK_ESCALATE = true/.test(html));
+  check('AND NOTHING LEAVES THE STREET UNACCOUNTED: the fog takes an animal back, its block gets the credit (the walk-back stall)',
+    /if \(nightGateOn\(\)\) nightGateYieldOf\(c && \(c\.home \|\| c\.band\)\);/.test(srcFn('cullHorror')) &&
+      /ledS\.sent\+\+/.test(srcFn('nightSpawnHorror')) &&
+      /nightGateBaseLoad\(band\)/.test(srcFn('nightGateLedger')) && /sent: 0,/.test(srcFn('nightGateLedger')));
   check('AND THE WARD DROP LIGHTS THE "GO!" ARROW (the flash is the night\u2019s own cue, and the ward code fires it on the fall)',
     /nightGoFlash\(led\);/.test(srcFn('nightGateOpenLedger')) &&
       /const NIGHT_GO_FLASH =[\s\d.]+;/.test(html) &&
@@ -550,7 +556,7 @@ const STRIPPED = (() => {
   const lines = STRIPPED.split('\n');
   const want = ['makeGrubsquat', 'makeRatking', 'makeLanternfang', 'makeGoulra', 'makeFangspider', 'makeEyecrawler', 'makePitfiend', 'makeWraith', 'makeSpecter', 'nightBandPack', 'nightBlockOf', 'nightBlockOwns', 'nightBlockQuota', 'nightBlockFamilies', 'nightBlockOrder', 'horrorWorkLimits', 'horrorRespawnX', 'nightSpawnHorror', 'addCreature', 'updateHorrorCreature', 'spawnNightShift', 'advanceGame',
     // THE SPECTRAL BLOCK WARDS (the same nesting tripwire covers the gate system)
-    'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateWall', 'nightGateSurgeAdd', 'nightGateBaseLoad', 'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive', 'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateHolds', 'nightGateFloorX', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger', 'nightGoFlash', 'nightGoTick', 'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText', 'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount', 'nightBlockBandXs', 'shovelBanish', 'landSpookInHopper', 'updateNightHaunt', 'updatePlayer'];
+    'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateWall', 'nightGateSurgeAdd', 'nightGateBaseLoad', 'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive', 'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateHolds', 'nightGateFloorX', 'nightGateDebt', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger', 'nightGoFlash', 'nightGoTick', 'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText', 'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount', 'nightBlockBandXs', 'shovelBanish', 'landSpookInHopper', 'updateNightHaunt', 'updatePlayer'];
   const depthOf = {};
   let depth = 0;
   for (let k = 0; k < lines.length; k++) {

@@ -430,6 +430,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightGateOn', 'nightBlockName', 'nightGateX', 'nightGateSurgeAdd', 'nightGateBaseLoad',
   'nightGateLedger', 'nightGateLedgerOf', 'nightGateBandOf', 'nightGateLoad', 'nightGateLive',
   'nightGateLeft', 'nightGateRoom', 'nightGateClosedAt', 'nightGateFloorX', 'nightGateHolds',
+  'nightGateDebt',
   'nightGateWall', 'nightGateFrontLedger', 'nightGateSay', 'nightGateYieldOf', 'nightGateOpenLedger',
   'nightGoFlash', 'nightGoTick',
   'nightGateCheck', 'nightGateAnimate', 'nightGateProgress', 'nightGateHudText',
@@ -575,6 +576,7 @@ const H = new Function(
   ' gateFront: () => nightGateFrontLedger(), gateWall: (a, b) => nightGateWall(a, b), gateProgress: () => nightGateProgress(),' +
   ' gateHud: () => nightGateHudText(), gateBuild: bs => buildNightGates(bs), gateClear: () => nightGateClear(),' +
   ' goFlash: (led) => nightGoFlash(led), goTick: (dt) => nightGoTick(dt),' +
+  ' gateDebt: b => nightGateDebt(b), cull: (c) => cullHorror(c),' +
   ' getGoT: () => nightGoT, setGoT: (v) => { nightGoT = v; }, getGoMsg: () => nightGoMsg,' +
   ' ghHits: (b, k) => nightGhoulHits(b, k), ghFloor: b => nightGhoulFloorHits(b), depth: b => nightBlockDepth(b),' +
   ' armSpook: (c, b) => nightArmSpook(c, b), woundShovel: (c) => nightWoundShovel(c),' +
@@ -849,7 +851,14 @@ check('the compactor still cycles at FIVE loads (the night par comes free)',
   /const HOPPER_CYCLE_AT = 5/.test(html));
 check('the eco lump glows greenish-blue inside the scoop', /if \(type === "ecto"\) \{[\s\S]{0,260}0x3ff0d2/.test(html));
 check('a cycle BLOWS glowing ecoplasm out of the tailgate', /isNightShift\(\)\) \{\r?\n\s*spillEcoPlasm\(\);/.test(html));
-check('the spill lingers as glowing puddles on the asphalt', /hopperResidue\.push\(\{ g: g, t: 24 \}\)/.test(html));
+check('the spill lingers as TINY glowing drops on the asphalt (a scattering of small puddles, never a lake)',
+  /const NIGHT_ECO_SPILL_DROPS = (\d+);/.test(html) && Number(RegExp.$1) >= 8 &&
+    /const NIGHT_ECO_SPILL_R = \[[\d.]+, [\d.]+\];/.test(html) &&
+    Number((html.match(/const NIGHT_ECO_SPILL_R = \[[\d.]+, ([\d.]+)\];/) || [0, 9])[1]) <= 0.4 &&
+    /new THREE\.CircleGeometry\(R\(NIGHT_ECO_SPILL_R\[0\], NIGHT_ECO_SPILL_R\[1\]\)/.test(html) &&
+    /hopperResidue\.push\(\{ g: g, t: R\(14, 24\) \}\)/.test(html) &&
+    !/CircleGeometry\(R\(0\.5, 1\.15\)/.test(html),
+  (html.match(/const NIGHT_ECO_SPILL_DROPS = (\d+);/) || [0, '?'])[1] + ' drops');
 check('a horror touch costs health and is NOT solid (a corner can never weld into a wall)',
   /if \(HORROR_TYPES\[c\.type\][^\n]*\) \{[\s\S]{0,2400}hurtNPC\(HORROR_HITS\[cause\]/.test(html) &&
   html.includes('return; // NOT solid'));
@@ -3506,6 +3515,98 @@ check('...and on the phones it lands on the CHIP\\u2019S mobile slot (146px, the
     /#boss-goal \{\s*width: min\(78vw, 300px\);\s*top: calc\(146px \+ env\(safe-area-inset-top, 0px\)\);\s*left: calc\(12px \+ env\(safe-area-inset-left, 0px\)\);/.test(html));
   check('WHILE THE BEAST IS UP, THE BLOCK NAME STEPS ASIDE: the ward chip is hidden in the very slot the bar takes',
     /NIGHT_BOSS_BAR_IN_CHIP_SLOT && nightBoss && nightBoss\.awake && nightBoss\.hp > 0/.test(srcFn('updateHUD')));
+})();
+
+console.log('\n[26] NO WALL OVER AN EMPTY BLOCK: THE WARD\u2019S DEBT IS WHAT THE BLOCK SENT OUT, AND THE FOG PAYS IT TOO (the walk-back-up stall)');
+(function () {
+  s7Reset();
+  const bands26 = H.nightBands();
+  const bAt = (x) => bands26.filter((b) => b.x0 === x)[0];
+  const DIG26 = bAt(192), VER26 = bAt(288);
+  const load26 = H.gateLoad(DIG26);
+  const fams26 = H.nightBlockFamilies(DIG26);
+  const led26 = H.gateLedger(DIG26);
+  const seedIn = (band, fams, cap) => {
+    const room = Math.min(H.gateRoom(band), cap);
+    for (let i = 0; i < room; i++) {
+      const c = H.nightSpawnHorror(fams[i % fams.length], band);
+      if (!c) continue;
+      c.wx = band.x0 + 6 + (i % 8) * 9; c.wy = 2.5; c.fade = 0; c.huntT = 3;
+      c.g.position.set(c.wx, c.wy, GZ);
+    }
+  };
+  const shovelCrew = (band, count) => {
+    let killed = 0;
+    creatures.slice().forEach((c) => {
+      if (killed >= count) return;
+      if (!c.home || c.home.i !== band.i) return;
+      c.hooked = true; c.hookT = 0; c.hookLanded = false;
+      c.fx0 = c.wx; c.fy0 = c.wy; c.fz0 = GZ;
+      let g = 0;
+      while (!c.hookLanded && g++ < 400) H.shovelFlight(c, 1 / 60);
+      const hi = creatures.indexOf(c);
+      if (hi >= 0) creatures.splice(hi, 1);
+      killed++;
+    });
+    return killed;
+  };
+  const info = (tag) =>
+    tag + '[sent=' + led26.sent + ' yield=' + led26.yield + '/' + load26 +
+    ' live=' + H.gateLive(DIG26) + ' left=' + H.gateLeft(DIG26) +
+    ' open=' + led26.open + ' goT=' + H.getGoT().toFixed(2) + ']';
+  const log26 = [];
+  // (a) THE BLOCK IS EMPTIED THE NORMAL WAY, AND THE BLOCK KEEPS BOOK OF WHAT IT SENT
+  p.wx = 250;
+  let guard = 0;
+  while (!led26.open && guard++ < 12) { seedIn(DIG26, fams26, 12); shovelCrew(DIG26, 99); H.gateCheck(1 / 60); }
+  log26.push(info('shoveled in the block'));
+  check('THE BLOCK PUTS ITS PACK ON THE BEAT AND THE SHOVEL PAYS FOR IT: sent=' + led26.sent +
+      ' of ' + load26 + ', every account settled, the ward is DOWN in ' + guard + ' sweeps',
+    led26.open === true && led26.sent >= load26 && led26.yield >= led26.sent &&
+      H.gateLive(DIG26) === 0 && H.gateLeft(DIG26) === 0,
+    info('a'));
+  check('...AND THE GO! ARROW LIT WITH IT: "' + H.getGoMsg() + '" at ' + H.getGoT().toFixed(2) + 's',
+    H.getGoT() > 0 && /WALL IS DOWN!/.test(H.getGoMsg()));
+  // (b) THE REPORTED STALL: an animal the fog takes back while he walks UP the street
+  //     used to leave the block owing a spook it can never pay — the wall stood over an
+  //     empty block forever. The fog-taken animal now settles the account.
+  s7Reset();
+  const led27 = H.gateLedger(VER26);
+  const fams27 = H.nightBlockFamilies(VER26);
+  const load27 = H.gateLoad(VER26);
+  p.wx = 330; // standing in the VERMIN block
+  seedIn(VER26, fams27, 12);
+  const crew27 = creatures.filter((c) => c.home && c.home.i === VER26.i);
+  const taken = crew27.slice(0, Math.min(3, crew27.length));
+  const y0 = led27.yield;
+  taken.forEach((c) => H.cull(c)); // the fog takes them back (the walk-up cull)
+  log26.push(info('fog took ' + taken.length));
+  check('THE FOG PAYS THE BLOCK TOO: ' + taken.length +
+      ' animal(s) taken back while he was walking up the street settle ' +
+      (led27.yield - y0) + ' of the debt (yield ' + led27.yield + '/' + load27 + ')',
+      led27.yield === y0 + taken.length, info('b'));
+  // (c) THE FULL WALK-BACK SCENARIO: clear a block, walk UP two blocks, let the street
+  //     run — the cleared block must NOT be standing with a wall over an empty street
+  s7Reset();
+  const led28 = H.gateLedger(DIG26);
+  p.wx = 250; seedIn(DIG26, fams26, 12); shovelCrew(DIG26, 99);
+  const sent28 = led28.sent, yield28 = led28.yield;
+  p.wx = 330; // he walks back UP into the VERMIN block
+  for (let i = 0; i < 60 * 30; i++) H.updateNightHaunt(1 / 60); // 30s of the street running above it
+  log26.push(info('30s up the street'));
+  check('A BLOCK HE CLEARED IS NOT LEFT WEARING ITS WALL: after walking back up the street for 30s (sent ' +
+      sent28 + ', shoveled ' + yield28 + '), its block is empty (' + H.gateLive(DIG26) +
+      ' standing) and the ward is DOWN',
+    H.gateLive(DIG26) === 0 && led28.open === true,
+    info('c'));
+  // (d) THE CHIP TELLS THE TRUTH ON A PAID-UP BLOCK: nothing standing, nothing owed
+  check('THE CHIP SAYS THE TRUTH ON A PAID-UP BLOCK: ' + led28.name + " · " + H.gateLeft(DIG26) +
+      " LEFT, ward down, nothing standing (the chip he is standing in — " + H.gateHud() + " — is the NEXT ward owed)",
+    H.gateLeft(DIG26) === 0 && led28.open === true && H.gateLive(DIG26) === 0 &&
+      /^[A-Z ’]+ · \d+ LEFT$/.test(H.gateHud()),
+    H.gateHud());
+  s7Reset();
+  console.log('  DIAG ' + log26.join('  ·  '));
 })();
 
 console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT — THE 16-BIT WAY-OUT CUE IN THE LOWER-LEFT CORNER');

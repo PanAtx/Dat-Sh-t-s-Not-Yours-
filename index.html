@@ -4442,7 +4442,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.498</div>
+          <div id="app-version" class="menu-version">v1.0.499</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4700,7 +4700,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.498';
+      const APP_VERSION = '1.0.499';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29230,7 +29230,8 @@
             x: nightGateX(band),
             name: nightBlockName(band),
             load: nightGateBaseLoad(band), // LOCKED at clock-in — the block's whole horde
-            yield: 0, // spooks of THIS block sent into the hopper
+            sent: 0, // how many of ITS animals the street has actually put on the beat
+            yield: 0, // spooks of THIS block sent into the hopper (shoveled OR taken by the fog)
             open: false, // every ward starts UP: he works the blocks one at a time
             fade: 0,
             t: 0,
@@ -29268,14 +29269,26 @@
         }
         return n;
       }
+      function nightGateDebt(band) {
+        // WHAT THE BLOCK STILL OWES THE SHOVEL: the greater of its pack (the number locked at
+        // clock-in, surges included) and the number of its animals actually on the beat.
+        const led = nightGateLedger(band);
+        if (!led) return 0;
+        return Math.max(nightGateLoad(band), led.sent);
+      }
       function nightGateLeft(band) {
         const led = nightGateLedger(band);
         if (!led) return 0;
-        return Math.max(0, nightGateLoad(band) - led.yield);
+        return Math.max(0, nightGateDebt(band) - led.yield);
       }
       function nightGateRoom(band) {
-        // HOW MANY of this block's horde the haunt may put on the street right now
-        return Math.max(0, nightGateLeft(band) - nightGateLive(band));
+        // HOW MANY of this block's horde the haunt may put on the street right now: the
+        // block's own LOAD, minus what he has already accounted for, minus what is standing.
+        // (The spawn cap runs on the PACK, never on the running debt — a block seeds exactly
+        // its own set of animals and no more. The debt is what nightGateCheck closes on.)
+        const led = nightGateLedger(band);
+        if (!led) return 0;
+        return Math.max(0, nightGateLoad(band) - led.yield - nightGateLive(band));
       }
       function nightGateClosedAt(band) {
         const led = nightGateLedger(band);
@@ -29482,7 +29495,14 @@
           const led = nightGateLedger(band);
           if (!led || led.open) continue;
           if (nightGateLive(band) > 0) continue; // its animals are still on the street
-          if (led.yield < nightGateLoad(band)) continue; // its load is not in the hopper
+          // THE WARD'S DEBT IS WHAT THIS BLOCK ACTUALLY SENT OUT, and an animal leaves the
+          // debt whether the SHOVEL took it or the FOG took it back (see cullHorror). Counting
+          // the debt against the animals on the beat — not against a number locked at
+          // clock-in — is what makes a ward that can never be paid impossible: an empty block
+          // that has accounted for every animal it put out ALWAYS comes down, so walking back
+          // up the street can never strand a wall over a cleared block.
+          if (led.sent < nightGateLoad(band)) continue; // the block has not put out its pack yet
+          if (led.yield < led.sent) continue; // ...and every animal it put out is not accounted for
           // THE BLOCK IS EMPTY AND ITS LOAD IS IN THE HOPPER: the ward comes down. It is
           // HIS block's ward — the curtain at the low edge of the beat he is standing in —
           // so breaking it is what lets him walk down into the next block's wave.
@@ -29718,7 +29738,13 @@
       }
       // A spook that has fallen far behind him dissolves into the fog. Its mesh goes with it
       // (the old build left landed/culled spooks parked invisible in the dynamic group).
+      // THE BLOCK GETS CREDIT FOR IT: the ward runs on the block's animals LEAVING the
+      // street, however they leave — an animal the fog takes back counts exactly like an
+      // animal the shovel took. Without this a block that lost animals to the fog while the
+      // worker was walking back up the street could never close its load, and its ghostly
+      // wall would stand up FOREVER over an empty block (and the GO! arrow would never light).
       function cullHorror(c) {
+        if (nightGateOn()) nightGateYieldOf(c && (c.home || c.band));
         const i = creatures.indexOf(c);
         if (i >= 0) creatures.splice(i, 1);
         if (c.g) {
@@ -29773,6 +29799,10 @@
         // horde of a block he has already walked never drifts up into the next one.
         c.home = { x0: band.x0, x1: band.x1, i: band.i };
         c.shockT = 0;
+        // THE BLOCK KEEPS BOOK OF WHAT IT PUT ON THE STREET: the ward's debt is counted
+        // against the animals this block has actually sent out (see nightGateCheck).
+        const ledS = nightGateLedger(band);
+        if (ledS) ledS.sent++;
         // ITS OWN TOUGHNESS (Midnight): the swings it takes, locked at birth from its family
         // AND its block — the farther down the dead-end street, the harder it is to kill.
         nightArmSpook(c, band);
@@ -30354,26 +30384,37 @@
       }
       // THE SPILL: after a cycle the scoop leaks. Glowing puddles down the tailgate
       // that LINGER — hopperResidue dries out on a timer, ecoplasm takes its time.
+      // TINY PUDDLES, NOT A GREEN LAKE: the goo comes out in a scattering of small
+      // drops the size of a boot splash, dotted over the asphalt behind the truck —
+      // enough to light the ground under them, never enough to carpet the street.
+      const NIGHT_ECO_SPILL_DROPS = 14; // ...a scattering of little ones
+      const NIGHT_ECO_SPILL_R = [0.1, 0.26]; // the radius of a drop, in world units
+      const NIGHT_ECO_SPILL_SPREAD = [1.9, 1.3]; // how wide behind the tailgate it dots
       function spillEcoPlasm() {
-        const ek = nightEctoK();
+        const ek = nightEctoK(); // the glow, NOT the size: light scales, puddles don't
         const wx = hopperAimX(),
           wy = hopperWorldY();
-        spawnEctoBurst(wx, wy, 1.0);
-        for (let i = 0; i < 4; i++) {
+        spawnEctoBurst(wx, wy, 0.55); // the leak is a thin spew, not a geyser
+        for (let i = 0; i < NIGHT_ECO_SPILL_DROPS; i++) {
           const g = new THREE.Mesh(
-            new THREE.CircleGeometry(R(0.5, 1.15) * ek, 12),
+            new THREE.CircleGeometry(R(NIGHT_ECO_SPILL_R[0], NIGHT_ECO_SPILL_R[1]), 10),
             new THREE.MeshBasicMaterial({
-              color: 0x2fe8c4,
+              color: pick([0x2fe8c4, 0x3ff0d2, 0x49d8f0]),
               transparent: true,
-              opacity: 0.5 * ek,
+              opacity: 0.42 * ek,
               fog: false,
               depthWrite: false,
             }),
           );
-          // world is Z-up: a plain plane faces up — flat on the asphalt behind the truck
-          g.position.set(wx + R(-1.8, 0.7), wy + R(-1.3, 1.3), 0.31);
+          // world is Z-up: a plain plane faces up — dots of goo on the asphalt behind the truck
+          g.position.set(
+            wx - R(0, NIGHT_ECO_SPILL_SPREAD[0]),
+            wy + R(-NIGHT_ECO_SPILL_SPREAD[1], NIGHT_ECO_SPILL_SPREAD[1]),
+            0.31,
+          );
+          g.rotation.z = R(0, Math.PI);
           worldGroup.add(g);
-          hopperResidue.push({ g: g, t: 24 }); // long-lived, still glowing
+          hopperResidue.push({ g: g, t: R(14, 24) }); // long-lived, still glowing
         }
       }
 
