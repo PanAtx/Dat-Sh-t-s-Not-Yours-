@@ -4292,6 +4292,17 @@ check('THE SPAWN CODE WEARS IT: the shift reset hands his facing to the worker a
   srcFn('resetWorldState').includes('p.facing = playerSpawnFacing();') &&
     html.includes('worker.group.rotation.z = p.facing - shovelTwist;') &&
     html.includes('p.facing = playerSpawnFacing(); // ...and he clocks in facing DOWN the street, tilted to the left'));
+const RWS32 = srcFn('resetWorldState').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+check('AND NOTHING ERASES IT ANYMORE: the start routine that sets his clock-in facing used to END with a hard zero snap that silently overwrote the night face on EVERY start (the reason the level kept opening facing the wrong way). The reset now assigns his facing exactly twice, both from the spawn source, and carries NO hardcoded zero',
+  RWS32.indexOf('p.facing = 0;') < 0 &&
+    RWS32.split('p.facing =').length - 1 === 2 &&
+    RWS32.split('p.facing =').every((chunk, i) => i === 0 || chunk.trim().indexOf('playerSpawnFacing();') === 0) &&
+    RWS32.indexOf('p.wx = playerSpawnX();') < RWS32.indexOf('p.facing = playerSpawnFacing();'));
+check('the facing law, the bat-ready stance and the shovel kit all read p.facing from the same source — the clock-in number is the ONLY number the swing aims by',
+  srcFn('shovelFacingOK').includes('p.facing') &&
+    srcFn('nearestShovelHazard').includes('shovelFacingOK(hz.wx, hz.wy)') &&
+    srcFn('tryShovelSwing').indexOf('p.facing =') < 0 &&
+    html.includes('const hold = batUp ? poseShovelReady() : poseShovel(sw);'));
 // THE SHOVEL LAW AIMED WITH HIM: standing at the clock-in facing, the front arc is the
 // down-and-left half of the street
 p.wx = 449; p.wy = 2.5; p.facing = faceNight;
