@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.542</div>
+          <div id="app-version" class="menu-version">v1.0.543</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.542';
+      const APP_VERSION = '1.0.543';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28665,7 +28665,12 @@
       //     the way to the end of the route. Reach it and it's yours again.
       const HP_HIT_SPECTER = 8; // a specter's chill grip — colder and heavier than a cemetery ghost's brush
       const HP_HIT_BANSHEE = 9; // her fingers go through you like an ice pick
-      const HP_HIT_GHOUL = 13; // hook-claws and a raking bite - the pack he meets MOST wears the
+      const HP_HIT_GHOUL = 15; // hook-claws and a raking bite - the pack he meets MOST is the pack that
+      // hurts him MOST: 15 HP of the 100 pool per brush - the night's second-heaviest touch, level with
+      // the devil (15), a step under the reaper's scythe (16), and a third over the hellhound snap (11).
+      // The swarm cap stays honest at 15 / 1.25 = 12.0 HP/s, so a ghoul pile is a real threat and never a
+      // grinder: ONE bite per grace window, and the blade parries whatever comes into his facing.
+      // Ladder: specter 8 < banshee 9 < hellhound 11 < ghoul 15 = devil 15 < reaper 16.
       const HP_HIT_HOUND = 11; // a hellhound snap — a hair under the manhole tentacle's grab
       // ...and the ABYSS ROSTER (the families added for the ghoul-horde night shift).
       const HP_HIT_IMP = 6; // tiny, knee-high, and in a swarm of them
