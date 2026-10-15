@@ -2977,6 +2977,25 @@ check('THE NIGHT TITLE STILL FITS THE PHONE CARD (it scales down and may break l
   /#day-intro\.night \.day \{[^}]*font-size: clamp\(23px, 6\.2vw, 58px\)/.test(html) &&
     /#day-intro\.night \.day \{[^}]*max-width: 94vw/.test(html) &&
     /#day-intro\.night \.day \{[^}]*overflow-wrap: anywhere/.test(html));
+check('THE NIGHT CARD IS TWO SIMPLE SENTENCES — the briefing sits on top of the BEGIN button inside a fixed-height panel, so a long one pushes the button out of reach',
+  (() => {
+    const m = html.match(/obj\.innerHTML = d\.night\s*\?\s*"([^"]+)"/);
+    const t = m ? m[1] : '';
+    return t.length > 0 && t.length <= 340 &&
+      (t.match(/<br\s*\/>/g) || []).length <= 1 &&
+      t.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY') &&
+      t.includes('SHOVEL OUT THE <b>SLUG DEMON\'S HEART</b>') &&
+      t.includes('IT GLOWS <b>RED</b> WHEN IT IS OPEN') &&
+      t.includes('GRAB THE <b>RUBY-PLATED GARGOYLE</b>') &&
+      t.includes('TOUCHING THE SLUG DEMON HURTS') &&
+      t.includes('<b>IT NEVER SHOVES YOU</b>') &&
+      !/THE GHOST FENCE CLOSES THE STREET BEHIND YOU/.test(t) &&
+      !/WALK AROUND IT/.test(t);
+  })(),
+  'night objective=' + (((html.match(/obj\.innerHTML = d\.night\s*\?\s*"([^"]+)"/) || [])[1] || '').length) + ' chars');
+check('EVERY MODAL CAN SCROLL TO ITS OWN BUTTON (the overlay scrolls; the panel centers by auto margin, so a tall card never eats its control)',
+  /\.modal\s*\{[^}]*overflow-y:\s*auto/.test(html) &&
+    /\.panel\s*\{[^}]*margin:\s*auto/.test(html));
 check('THE SPEECH IS OFF ON THE NIGHT BY THE CONSTANTS (NIGHT_SPEECH_BANNED with an empty allow-list: NOTHING is said)',
   NIGHT_SPEECH_BANNED === true && Array.isArray(NIGHT_SPEECH_ALLOW) && NIGHT_SPEECH_ALLOW.length === 0 &&
     /const NIGHT_SPEECH_BANNED = true;/.test(html) && /const NIGHT_SPEECH_ALLOW = \[\];/.test(html) &&

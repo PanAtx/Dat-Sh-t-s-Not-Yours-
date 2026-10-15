@@ -1215,9 +1215,17 @@
         align-items: center;
         justify-content: center;
         padding: 10px;
+        /* A card that stacks taller than the screen must never eat its own button: the
+           overlay scrolls, so the control at the bottom of any panel is always reachable. */
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
         background: rgba(3, 7, 10, 0.82);
       }
       .panel {
+        /* auto margins keep the panel centered when it fits AND scrollable from its top
+           edge when it does not (centered flex items overflow their top off-screen). */
+        margin: auto;
         border: 3px solid #2ee090;
         border-radius: 12px;
         background:
@@ -4546,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.536</div>
+          <div id="app-version" class="menu-version">v1.0.537</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4804,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.536';
+      const APP_VERSION = '1.0.537';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6729,7 +6737,10 @@
       // THE GHOST IRON OF THE BOSS RING (Midnight): the spectral fence that closes the
       // street behind the worker the moment he walks below the line where the cemetery fence
       // begins. `nightSeal` is the live ring, armed when the beast wakes, CLOSED once he has
-      // crossed the line, and dissolving the instant the beast is banished.
+      // crossed the line, and dissolving the instant the beast is banished. The fight is
+      // fought in front of the iron — the wall's law, taught at the wake and on the HUD:
+      // IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT, so the worker
+      // can pin himself on the fence and make the beast come to him.
       let nightSeal = null; // null | { x, armed, closed, t, rise, drop }
       let routeIdx = 0,
         routeDist = 0;
@@ -53781,10 +53792,15 @@
         // restore it, or every day after the bonus — Sunday above all — would keep showing the
         // overtime objective. Bed-Stuy (the special storm-debris day) gets its own: 2x pay +
         // the four haul types. Every other day gets the standard shift objective.
+        // THE NIGHT CARD IS TWO SENTENCES, NOT A MANUAL: the objective sits directly on top of
+        // the BEGIN button inside a fixed-height panel, so a long briefing pushes the button out
+        // of the panel and the shift cannot be started. The play rules (the fence as cover, the
+        // no-push law, the scurry and the burst) are taught by the worker's spoken lines at the
+        // wake (startBossFight) and by the HUD callouts — the card only says WHERE and WHAT.
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT</b><br/>TOUCHING THE SLUG DEMON HURTS &middot; <b>IT NEVER SHOVES YOU</b> &middot; WALK AROUND IT &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY AND SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &mdash; IT GLOWS <b>RED</b> WHEN IT IS OPEN.<br/>GRAB THE <b>RUBY-PLATED GARGOYLE</b> AND DRIVE OFF &mdash; TOUCHING THE SLUG DEMON HURTS, <b>IT NEVER SHOVES YOU</b>"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";
