@@ -2966,7 +2966,7 @@ check('the shift is NAMED LIKE EVERY SHIFT AND REPORTED THAT WAY: "MIDNIGHT" ove
     srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + levelLoc(d)') &&
     srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + levelLoc(d)') &&
     html.includes('THE BEAST SLEEPS IN THE CEMETERY!') &&
-    html.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY'));
+    html.includes('WAS STOLEN FROM THE SIDE BIN'));
 check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (DEAD END is the night\u2019s own place line)',
   srcFn('showDayIntro').includes('d.borough + " \\u00b7 " + d.area + " \\u00b7 " + WEATHERS[weather].label') &&
     srcFn('resetWorldState').includes('" \\u00b7 " + levelLoc(_d)') &&
@@ -2983,10 +2983,11 @@ check('THE NIGHT CARD IS TWO SIMPLE SENTENCES — the briefing sits on top of th
     const t = m ? m[1] : '';
     return t.length > 0 && t.length <= 340 &&
       (t.match(/<br\s*\/>/g) || []).length <= 1 &&
-      t.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY') &&
+      t.includes('YOUR <b>RUBY-PLATED GARGOYLE</b> WAS STOLEN FROM THE SIDE BIN') &&
+      t.includes('THAT\'S WORTH <b>$50,000</b> ON EBAY! GET IT BACK!') &&
       t.includes('SHOVEL OUT THE <b>SLUG DEMON\'S HEART</b>') &&
       t.includes('IT GLOWS <b>RED</b> WHEN IT IS OPEN') &&
-      t.includes('GRAB THE <b>RUBY-PLATED GARGOYLE</b>') &&
+      srcFn('showDayIntro').includes('"Dead end street. Who you gonna call?"') &&
       t.includes('TOUCHING THE SLUG DEMON HURTS') &&
       t.includes('<b>IT NEVER SHOVES YOU</b>') &&
       !/THE GHOST FENCE CLOSES THE STREET BEHIND YOU/.test(t) &&

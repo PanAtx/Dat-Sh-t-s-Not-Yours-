@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.537</div>
+          <div id="app-version" class="menu-version">v1.0.538</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.537';
+      const APP_VERSION = '1.0.538';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -53759,7 +53759,11 @@
           : d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
         // The forecast panel: the day's icon + rolled temperature + the sky's line.
         $("day-intro-forecast").textContent =
-          weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine;
+          d.night
+            ? // THE NIGHT CARD's line above the briefing is no forecast — a cul-de-sac
+              // signs itself, Ghostbusters-style. (The storm is still real on the street.)
+              "Dead end street. Who you gonna call?"
+            : weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine;
         // Dusk shift: one golden-hour line to set the mood (the porch bulbs light after the street rebuilds)
         if (weather === "dusk") {
           Voice.say(
@@ -53797,10 +53801,12 @@
         // of the panel and the shift cannot be started. The play rules (the fence as cover, the
         // no-push law, the scurry and the burst) are taught by the worker's spoken lines at the
         // wake (startBossFight) and by the HUD callouts — the card only says WHERE and WHAT.
+        // WHAT IT SAYS (the heist hook): the worker's OWN ruby-plated gargoyle has been lifted
+        // out of the side bin — a $50,000 eBay score sitting in the graveyard, behind the demon.
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY AND SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &mdash; IT GLOWS <b>RED</b> WHEN IT IS OPEN.<br/>GRAB THE <b>RUBY-PLATED GARGOYLE</b> AND DRIVE OFF &mdash; TOUCHING THE SLUG DEMON HURTS, <b>IT NEVER SHOVES YOU</b>"
+            ? "YOUR <b>RUBY-PLATED GARGOYLE</b> WAS STOLEN FROM THE SIDE BIN &mdash; THAT'S WORTH <b>$50,000</b> ON EBAY! GET IT BACK!<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &mdash; IT GLOWS <b>RED</b> WHEN IT IS OPEN, TOUCHING THE SLUG DEMON HURTS, <b>IT NEVER SHOVES YOU</b>"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";
