@@ -4476,7 +4476,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.527</div>
+          <div id="app-version" class="menu-version">v1.0.528</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4734,7 +4734,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.527';
+      const APP_VERSION = '1.0.528';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19744,6 +19744,18 @@
         const top = isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
         return nightSealClosed() ? Math.min(top, NIGHT_SEAL_X + NIGHT_SEAL_STOP) : top;
       }
+      // THE RING'S LAW FOR ANY BODY THE BEAST TOUCHES. Every placement a boss hit makes — the
+      // solid body setting him out of the crush, a cold-fire burst, a tentacle lash — runs
+      // through this one clamp, so a boss hit can NEVER walk a man through the cemetery fence at
+      // his back (workerEndHardX: the iron with NO standoff subtracted), never put him past the
+      // ghost iron (workerCeilX: the sealed ceiling, with NO +2 leash the old knock-backs used),
+      // and never leave his lane. On a weekday street these are the route's own walls.
+      function bossRingClamp(wx, wy) {
+        return {
+          x: clamp(wx, workerEndHardX(), workerCeilX()),
+          y: clamp(wy, -9.4, workerMaxY()),
+        };
+      }
       // The rig's FLOOR: the line the truck stops on and never backs past. It floors with its
       // whole self UP-street of the ghost iron — the collision nose clear of the line AND the
       // open scoop NIGHT_TRUCK_SEAL_CLEAR up the street — so the hopper never clips the spectral
@@ -28066,8 +28078,18 @@
         }
         chest.add(spikes);
         const heart = new THREE.Group();
-        const heartRed = M(0xd42a2a, { emissive: 0xff3417, emissiveIntensity: 1.1 });
-        const heartDk = M(0x8c1526, { emissive: 0x94100c, emissiveIntensity: 0.7 });
+        // THE HIDDEN HEART: while the shell is shut there is NO heart to see — a dark, unlit mass
+        // the eye slides off, buried behind the lids. animateNightBoss is what turns it on, and
+        // it turns it on BLAZING BRIGHT RED: the red burn IS the "shovel it NOW" signal, and it
+        // dies in the same frame the shell slides back over the gut.
+        const heartRed = M(BOSS_HEART_DARK, {
+          emissive: BOSS_HEART_HOT,
+          emissiveIntensity: 0,
+        });
+        const heartDk = M(BOSS_HEART_DARK, {
+          emissive: BOSS_HEART_HOT,
+          emissiveIntensity: 0,
+        });
         const mass = SPH(0.27, heartRed, 16, 12);
         mass.scale.set(0.9, 1.1, 1.3);
         const atria = SPH(0.2, heartRed, 14, 10);
@@ -28081,11 +28103,12 @@
         vein.position.set(-0.12, -0.05, 0.16);
         heart.add(mass, atria, aorta, vein);
         heart.position.set(0.1, 0, 0);
+        heart.visible = false; // SHUT SHELL: nothing to hit, and nothing to see
         const aura = SP(
           0.46,
           M(0xffb27a, {
-            emissive: 0xff5522,
-            emissiveIntensity: 2.4,
+            emissive: BOSS_HEART_HOT,
+            emissiveIntensity: 0,
             transparent: true,
             opacity: 0,
             depthWrite: false,
@@ -28093,7 +28116,7 @@
           16,
         );
         aura.position.set(0.12, 0, 0);
-        const light = new THREE.PointLight(0xff5a2a, 0, 6.5);
+        const light = new THREE.PointLight(BOSS_HEART_HOT, 0, 6.5);
         light.position.set(0.36, 0, 0);
         chest.add(heart, aura, light);
         const flaps = [];
@@ -28662,20 +28685,28 @@
       const BOSS_SEE_R = 12; // the yard it keeps: it will not leave the cemetery
       const BOSS_BODY_R = 1.75; // the body is solid: he walks AROUND the beast
       const BOSS_BODY_CD = 2.2; // body-brush cooldown
-      const BOSS_HP_BODY = 12; // being crushed by it
+      const BOSS_HP_BODY = 5; // being crushed by it — a BRUISING SHOVE of the gut, not a kill
       const BOSS_WHIP_TELEGRAPH = 0.52; // the tentacles load first — this is the tell
       const BOSS_WHIP_STRIKE = 0.42; // ...then the lash comes through
       const BOSS_WHIP_R = 5.9; // the lash's reach
       const BOSS_WHIP_ARC = 2.6; // rad of sweep
-      const BOSS_HP_WHIP = 14; // a full tentacle across the ribs
+      const BOSS_HP_WHIP = 6; // a full tentacle across the ribs — it STINGS him
       const BOSS_WHIP_CD = [1.9, 3.0]; // seconds between lashes
       const BOSS_FIRE_CD = [2.7, 4.3]; // seconds between ghost-fire volleys
       const BOSS_SHOTS = 1; // ...and how many fireballs per volley
       const BOSS_SHOTS_RAGE = 2; // at half health it spits TWO
       const BOSS_FIRE_SP = 8.2; // ghost fireball speed (u/s)
       const BOSS_FIRE_R = 1.0; // the blast radius on the worker
-      const BOSS_HP_FIRE = 11; // cold fire straight through the hi-vis
+      const BOSS_HP_FIRE = 3; // MINOR: cold fire through the hi-vis — a frostburn, he keeps working
       const BOSS_FIRE_LIFE = 3.4; // a fireball that misses burns out in the fog
+      // NO PUSH, EVER (the beast's ring law): a boss hit — ghost fire, lash, or the crushing
+      // body — STINGS the worker where he stands and NEVER relocates him. The solid body only
+      // sets him back OUT of the beast, and every one of those placements runs through the
+      // ring's walls (bossRingClamp), so a boss hit can never shove a man through the bottom
+      // cemetery fence, through the ghost iron, or out of the fight zone.
+      const BOSS_HEART_HOT = 0xff2200; // the open heart's BRIGHT RED (the hittable tell)
+      const BOSS_HEART_DARK = 0x2a0a08; // ...and the colour of a heart NO blade can reach (shut)
+      const BOSS_HEART_EMISS = 3.6; // how hard the open heart BLAZES (emissive, 0 on a shut shell)
       // ============== THE SLUG DEMON'S HEART (the ONLY soft spot) =====================
       // The chest is ARMOUR the whole fight: a pair of skin flaps seals a spiked cavity with
       // the heart hanging in it. The shell CRACKS (the tell), the flaps SLEET apart and the
@@ -31969,7 +32000,7 @@
         p.shake = Math.max(p.shake, 1.15);
         Voice.say(pick(BOSS_LINES), 3.0, 0.82, b.wx, b.wy, "neutral", "ghost");
         Voice.say(
-          "THE SHOVEL ONLY BITES THE HEART! WATCH THE CHEST!",
+          "THE HEART GLOWS RED — SHOVEL IT WHEN IT GLOWS!",
           2.9,
           1.1,
           p.wx,
@@ -32064,18 +32095,17 @@
           f.g.scale.setScalar(1 + Math.sin((BOSS_FIRE_LIFE - f.life) * 14) * 0.12);
           const d = Math.hypot(p.wx - f.wx, p.wy - f.wy);
           if (d < BOSS_FIRE_R + 0.5) {
-            // COLD FIRE: it burns through the hi-vis and hits like a specter on ice
+            // MINOR COLD FIRE: a frostburn through the hi-vis — light damage, a stagger, and NO
+            // SHOVE. He keeps the ground under his own boots; the burst only re-seats him with
+            // bossRingClamp (the ring's own walls, with no +2 leash), so a fireball can never
+            // push a man through the ghost iron or the cemetery fence.
             hurtNPC(BOSS_HP_FIRE, "beast", false, false);
             doStun(HORROR_STUN_T + 0.06, "scare");
             p.nightHitT = NIGHT_HIT_GRACE; // one fireball, ONE hit — never a per-frame drain
-            const kd = Math.hypot(p.wx - f.wx, p.wy - f.wy) || 1;
-            p.wx = clamp(
-              p.wx + ((p.wx - f.wx) / kd) * 1.8,
-              workerEndHardX(),
-              workerCeilX() + 2,
-            );
-            p.wy = clamp(p.wy + ((p.wy - f.wy) / kd) * 1.4, -9.4, workerMaxY());
-            p.shake = Math.max(p.shake, 0.7);
+            const fireSeat = bossRingClamp(p.wx, p.wy);
+            p.wx = fireSeat.x;
+            p.wy = fireSeat.y;
+            p.shake = Math.max(p.shake, 0.5);
             if (nightSayOk())
               Voice.say(
                 "COLD FIRE! IT'S BURNIN' COLD!",
@@ -32115,13 +32145,16 @@
         hurtNPC(BOSS_HP_WHIP, "beast", false, false);
         doStun(HORROR_STUN_T, "scare"); // a fifth of a second — a lash, never a pin
         p.nightHitT = NIGHT_HIT_GRACE;
-        p.wx = clamp(
-          p.wx + (kx / d) * 2.4,
-          workerEndHardX(),
-          workerCeilX() + 2,
+        // NO SHOVE: a tentacle across the ribs STINGS him where he stands. It never throws him
+        // down the street and never walks him through a fence — the lash only re-seats him inside
+        // the ring's walls (bossRingClamp), and the body radius keeps him clear of the crush.
+        const lashSeat = bossRingClamp(
+          p.wx + (kx / d) * Math.max(0, BOSS_BODY_R + 0.35 - d),
+          p.wy + (ky / d) * Math.max(0, BOSS_BODY_R + 0.35 - d),
         );
-        p.wy = clamp(p.wy + (ky / d) * 2.0, -9.4, workerMaxY());
-        p.shake = Math.max(p.shake, 0.9);
+        p.wx = lashSeat.x;
+        p.wy = lashSeat.y;
+        p.shake = Math.max(p.shake, 0.55);
         SFX.playSquelch();
         spawnEctoSplat(p.wx, p.wy, 0.7);
         if (nightSayOk())
@@ -32509,25 +32542,38 @@
     t.drool[i].scale.y = 1 + Math.sin(b.phase * 1.4 + i) * 0.22;
   for (let i = 0; i < t.drips.length; i++)
     t.drips[i].scale.y = 1 + Math.sin(b.phase * 1.1 + i * 1.7) * 0.36;
-  // THE HEART: the flaps SLEET apart, the cavity flushes, the heart beats faster the
-  // meaner it gets — and the open window is the ONLY time the blade ever bites.
+  // THE HEART: HIDDEN behind the shell while it is shut — NO heart to see and NOTHING to hit.
+  // The shell cracks, the flaps sleet apart and the heart comes out of the chest BLAZING BRIGHT
+  // RED; that red burn is the whole "shovel it NOW" signal, it thumps on the beast's own beat,
+  // and it dies in the frame the shell slides back over the gut.
   const op = clamp(b.heartOpen || 0, 0, 1);
+  const hot = op * op * (3 - 2 * op); // the smooth burn of an OPENING shell (0 = a wall of hide)
+  const thump = Math.sin(b.phase * (6.4 + fury * 6));
+  const beat = 1 + thump * 0.14;
+  const crackShiver = b.heartState === "crack" ? Math.sin(b.phase * 27) * 0.05 : 0; // the seam TREMBLES open
   for (let i = 0; i < t.flaps.length; i++) {
     const fl = t.flaps[i];
     const s = fl.side || 1;
-    fl.position.y = (fl.baseY || 0) + s * op * 0.78;
+    fl.position.y = (fl.baseY || 0) + s * op * 0.78 + s * crackShiver;
     fl.rotation.x = -s * op * 0.34;
   }
-  const thump = Math.sin(b.phase * (6.4 + fury * 6));
-  const beat = 1 + thump * 0.14;
-  t.heart.scale.set(beat, beat * 1.06, beat);
-  t.aura.material.opacity = 0.08 + op * 0.5;
-  t.aura.material.emissiveIntensity = 0.5 + op * 2.6;
-  t.aura.scale.setScalar(0.82 + op * 0.4 + beat * 0.1);
-  t.light.intensity = op * 2.6;
+  t.heart.visible = hot > 0.06; // SHUT SHELL = NO HEART ON SCREEN AT ALL
+  const hgrow = 0.42 + hot * 0.72; // ...and it grows OUT of the cavity as the shell opens
+  t.heart.scale.set(beat * hgrow, beat * 1.06 * hgrow, beat * hgrow);
+  t.aura.material.opacity = hot * 0.62;
+  t.aura.material.emissiveIntensity = hot * BOSS_HEART_EMISS;
+  t.aura.scale.setScalar(0.72 + hot * 0.5 + beat * 0.08);
+  t.light.intensity = hot * 3.4; // a red flare thrown on the graves when the gut is open
   t.spikes.rotation.x = op * 0.55;
-  for (let i = 0; i < t.heartMats.length; i++)
-    t.heartMats[i].emissiveIntensity = 0.75 + op * 1.9 + thump * 0.25;
+  for (let i = 0; i < t.heartMats.length; i++) {
+    const hm = t.heartMats[i];
+    hm.color.setHex(hot > 0.45 ? BOSS_HEART_HOT : BOSS_HEART_DARK);
+    hm.emissiveIntensity = hot > 0.02
+      ? hot * BOSS_HEART_EMISS + Math.max(0, thump) * hot
+      : b.heartState === "crack"
+        ? 0.55 + Math.max(0, thump) * 0.4 // the crack leaks a first red seam: the tell
+        : 0.02;
+  }
   // the body: it breathes, and it FLINCHES back on a shovel hit
   const breathe = 1 + Math.sin(b.phase * 1.9) * 0.035;
   const flinch = b.hurtT > 0 ? b.hurtT / 0.5 : 0;
@@ -32675,12 +32721,20 @@
       Voice.say(pick(BOSS_FIRE_LINES), 2.5, 0.95, b.wx, b.wy, "neutral", "ghost");
   }
   b.armCharge = Math.max(0, b.armCharge - dt * 1.9);
-  // ---- THE BODY IS SOLID: it crowds him into the headstones ----
+  // ---- THE BODY IS SOLID: it crowds him into the headstones, and it NEVER shoves him ----
   if (d < BOSS_BODY_R + 1.5) {
     const nx = dx / d,
       ny = dy / d;
-    p.wx += nx * (BOSS_BODY_R + 1.5 - d);
-    p.wy = clamp(p.wy + ny * (BOSS_BODY_R + 1.5 - d), -9.4, workerMaxY());
+    // A solid body may only SET HIM BACK OUT of the crush — the exact displacement that clears
+    // the radius — and the placement runs through the ring's walls (bossRingClamp). The beast can
+    // never walk a man through the bottom cemetery fence, through the ghost iron, off his lane,
+    // or out of the fight zone: a boss hit costs him his footing, never his position.
+    const crowd = bossRingClamp(
+      p.wx + nx * (BOSS_BODY_R + 1.5 - d),
+      p.wy + ny * (BOSS_BODY_R + 1.5 - d),
+    );
+    p.wx = crowd.x;
+    p.wy = crowd.y;
     if (b.bodyCd <= 0 && (p.nightHitT || 0) <= 0) {
       b.bodyCd = BOSS_BODY_CD;
       hurtNPC(BOSS_HP_BODY, "beast", true, false);
@@ -52918,7 +52972,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

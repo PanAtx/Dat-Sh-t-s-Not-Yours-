@@ -92,6 +92,20 @@ const BOSS_ROAM_R = srcNum("BOSS_ROAM_R");
 const BOSS_LUNGE_SP = srcNum("BOSS_LUNGE_SP");
 const BOSS_LUNGE_SP_RAGE = srcNum("BOSS_LUNGE_SP_RAGE");
 const BOSS_FIRE_TINTS = srcArr("BOSS_FIRE_TINTS");
+// THE HEART'S BURN, mirrored out of index.html: the BRIGHT RED of an open, hittable heart, the
+// dark of a shut shell, and how hard the open heart blazes
+function hexLit(name) {
+  const m = html.match(new RegExp("const\\s+" + name + "\\s*=\\s*(0x[0-9a-fA-F]+)"));
+  if (!m) throw new Error("hex constant not found in index.html: " + name);
+  return m[1];
+}
+const NK_HEART_HOT = parseInt(hexLit("BOSS_HEART_HOT"), 16);
+const NK_HEART_DARK = parseInt(hexLit("BOSS_HEART_DARK"), 16);
+const NK_HEART_EMISS = srcNum("BOSS_HEART_EMISS");
+// THE DAMAGE THE BEAST DEALS (mirrored): cold fire, the crush, the lash — all MINOR now
+const NK_HP_FIRE = srcNum("BOSS_HP_FIRE");
+const NK_HP_WHIP = srcNum("BOSS_HP_WHIP");
+const NK_HP_BODY = srcNum("BOSS_HP_BODY");
 
 // ---- the rig, built with the SHIPPED three.js (the same primitives the game builds with) ----
 const M = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
@@ -102,9 +116,9 @@ const SP = (r, m, s) => new THREE.Mesh(new THREE.SphereGeometry(r, s || 8, s || 
 const SPH = (r, m, ws, hs) => new THREE.Mesh(new THREE.SphereGeometry(r, ws || 14, hs || 10), m);
 const R = (a, b) => a + Math.random() * (b - a);
 const makeBoss = new Function(
-  "THREE", "M", "BX", "CY", "SP", "SPH", "R",
+  "THREE", "M", "BX", "CY", "SP", "SPH", "R", "BOSS_HEART_HOT", "BOSS_HEART_DARK",
   srcFn("makeTentacleBoss") + "\nreturn makeTentacleBoss;",
-)(THREE, M, BX, CY, SP, SPH, R);
+)(THREE, M, BX, CY, SP, SPH, R, NK_HEART_HOT, NK_HEART_DARK);
 
 console.log("[1] THE RIG: a slug the size of a car, a toothed grin, TWO arms, and a heart");
 const g = makeBoss();
@@ -133,10 +147,14 @@ check("SHARP TEETH in two rows: the upper row points DOWN into the grin, the low
 check("THE GRIN FACES THE WORKER: the maw stands forward of the mantle and above the chest",
   t.maw.position.x > 1.2 && t.maw.position.z > 1.2 && !!t.jawT && !!t.jawB,
   "maw x=" + t.maw.position.x.toFixed(2) + " z=" + t.maw.position.z.toFixed(2));
-check("THE HEART CAVITY: a spiked rim, a beating red heart, an aura, its own light, TWO skin flaps",
+check("THE HEART CAVITY: a spiked rim, the heart HIDDEN in a shut shell, an aura, its own light, TWO skin flaps",
   !!t.heart && !!t.aura && !!t.light && !!t.spikes && !!t.flaps && t.flaps.length === 2 &&
     t.spikes.children.length >= 10 &&
-    t.heartMats.every((m) => m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0),
+    t.heart.visible === false && // a shut shell shows NO heart to hit
+    t.heartMats.every((m) => m.emissive && m.emissive.getHex() === NK_HEART_HOT &&
+      m.emissiveIntensity === 0) && // ...and it burns DARK until the shell opens
+    t.aura.material.emissiveIntensity === 0 && t.aura.material.opacity === 0 &&
+    t.light.intensity === 0,
   "spikes=" + t.spikes.children.length);
 check("THE LIDS SLEET APART ON THE WINDOW: one flap rides up, one rides down off the shut line",
   t.flaps.every((f) => f.baseY !== 0 && f.side !== 0) &&
@@ -147,28 +165,39 @@ check("THE CAVITY SITS ON THE FRONT OF THE GUT (the side the worker walks in on)
   t.chest.position.x > 0.5 && t.chest.position.x < t.maw.position.x &&
     t.chest.position.z < t.maw.position.z,
   "chest x=" + t.chest.position.x.toFixed(2) + " z=" + t.chest.position.z.toFixed(2));
-check("THE RIG ANIMATES CLEAN AND THE OPEN HEART GLOWS: lids slide, aura burns, its lamp comes on",
+check("THE RIG ANIMATES CLEAN, AND THE HEART ONLY EXISTS TO BE SEEN WHEN IT CAN BE HIT",
   (function () {
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
     const animate = new Function(
-      "clamp", "bossFuryOf",
+      "clamp", "bossFuryOf", "BOSS_HEART_HOT", "BOSS_HEART_DARK", "BOSS_HEART_EMISS",
       srcFn("animateNightBoss") + "\nreturn animateNightBoss;",
-    )(clamp, (b) => Math.max(0, Math.min(1, 1 - b.hp / b.maxHp)));
+    )(clamp, (b) => Math.max(0, Math.min(1, 1 - b.hp / b.maxHp)),
+      NK_HEART_HOT, NK_HEART_DARK, NK_HEART_EMISS);
     const b = {
       g: g, phase: 0, hp: 6, maxHp: BOSS_MAX_HP, rage: 1, fury: 1, hits: 4, mawOpen: 0.8,
       armCharge: 1, armSide: 1, whipState: "idle", whipSide: 1, whipSwing: 0, heartOpen: 0, hurtT: 0,
+      heartState: "shut",
     };
     const lidY = t.flaps[0].position.y, hs = t.heart.scale.x;
     animate(b, 1 / 60, "fight");
     const moved = t.flaps[0].position.y !== lidY || t.heart.scale.x !== hs;
+    // SHUT: the heart is off the screen and dark
+    const shutVis = t.heart.visible, shutEmit = t.heartMats[0].emissiveIntensity, shutLamp = t.light.intensity;
+    // OPEN: bright red, lit, and grown out of the cavity
+    b.heartState = "open";
     b.heartOpen = 1;
     const before = JSON.stringify([t.flaps[0].position.y, t.flaps[1].position.y,
       t.aura.material.opacity, t.light.intensity]);
     for (let i = 0; i < 20; i++) animate(b, 1 / 60, "fight");
     const after = JSON.stringify([t.flaps[0].position.y, t.flaps[1].position.y,
       t.aura.material.opacity, t.light.intensity]);
+    const openEmit = Math.max.apply(null, t.heartMats.map((m) => m.emissiveIntensity));
     return moved && before !== after && t.flaps[0].position.y > lidY &&
-      t.light.intensity > 0 && t.aura.material.opacity > 0.2;
+      shutVis === false && shutEmit <= 0.1 && shutLamp === 0 &&
+      t.heart.visible === true && openEmit >= 2.5 &&
+      t.heartMats.every((m) => m.color.getHex() === NK_HEART_HOT &&
+        m.emissive.getHex() === NK_HEART_HOT) &&
+      t.light.intensity > 1.5 && t.aura.material.opacity > 0.3 && t.heart.scale.x > 0.7;
   })());
 
 // ---- [2] THE HEART WINDOW + THE FURY RAMP (the pure math, run on mock bars) ----
@@ -285,7 +314,7 @@ check("THE HUD NAME IS THE SLUG DEMON, and the goal card says SHOVEL OUT ITS HEA
     /SHOVEL OUT THE <b>SLUG DEMON'S HEART<\/b>/.test(html) &&
     srcFn("clearNightBoss").includes('bar.classList.remove("heart")'));
 check("THE WAKE TEACHES THE RULE before the first swing",
-  srcFn("startBossFight").includes("THE SHOVEL ONLY BITES THE HEART! WATCH THE CHEST!") &&
+  srcFn("startBossFight").includes("THE HEART GLOWS RED — SHOVEL IT WHEN IT GLOWS!") &&
     srcFn("startBossFight").includes('announcePower("THE SLUG DEMON!", "pop-power")') &&
     srcFn("spawnNightBoss").includes('heartState: "shut"') &&
     srcFn("spawnNightBoss").includes("hits: 0"));
@@ -492,6 +521,37 @@ check(
   })(),
 );
 check(
+  "NO BEAST HIT SHOVES ANYBODY THROUGH A FENCE: the ghost fire, the lash and the crushing body all re-seat the worker through bossRingClamp (the ring's own walls, floor to ghost iron) and NO knock-back carries the +2 leash past the iron",
+  srcFn("bossRingClamp").includes("clamp(wx, workerEndHardX(), workerCeilX())") &&
+    srcFn("updateBossFireballs").includes("bossRingClamp(p.wx, p.wy)") &&
+    srcFn("bossWhipStrike").includes("bossRingClamp(") &&
+    srcFn("updateNightBoss").includes("const crowd = bossRingClamp(") &&
+    !srcFn("updateBossFireballs").includes("workerCeilX() + 2") &&
+    !srcFn("bossWhipStrike").includes("workerCeilX() + 2") &&
+    (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0,
+);
+check(
+  "THE FIREBALL AND THE LASH DO NOT MOVE HIM AT ALL — the burst keeps his exact ground",
+  srcFn("updateBossFireballs").includes("const fireSeat = bossRingClamp(p.wx, p.wy);") &&
+    srcFn("updateBossFireballs").includes("p.wx = fireSeat.x;") &&
+    srcFn("updateBossFireballs").includes("p.wy = fireSeat.y;") &&
+    !/p\.wx \+= \(\(p\.wx - f\.wx\)/.test(srcFn("updateBossFireballs")) &&
+    srcFn("bossWhipStrike").includes("const lashSeat = bossRingClamp(") &&
+    srcFn("bossWhipStrike").includes("p.wx = lashSeat.x;"),
+);
+check(
+  "EVERY BEAST HIT IS MINOR ON THE 100-POINT POOL: a fireball " + NK_HP_FIRE + ", a crush " + NK_HP_BODY +
+    ", a lash " + NK_HP_WHIP + " (was 11 / 12 / 14) — the fire is a frostburn, not a killer",
+  NK_HP_FIRE >= 1 && NK_HP_FIRE <= 4 && NK_HP_BODY <= 6 && NK_HP_WHIP <= 7 &&
+    NK_HP_FIRE + NK_HP_BODY + NK_HP_WHIP <= 20,
+  'fire=' + NK_HP_FIRE + ' crush=' + NK_HP_BODY + ' lash=' + NK_HP_WHIP,
+);
+check(
+  "THE GOAL CARD AND THE WAKE BOTH TEACH THE RED WINDOW",
+  /IT GLOWS <b>RED<\/b> WHEN IT IS OPEN/.test(html) &&
+    srcFn("startBossFight").includes("THE HEART GLOWS RED"),
+);
+check(
   "THE BEAST IS WALLED INTO THE RING: its roam clamp runs the graves gate up to just below the ghost iron",
   srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2)") &&
     NK_GRAVE - 6 > NK_FENCE + NK_STANDOFF &&
@@ -543,9 +603,10 @@ check(
     srcFn("nightSealArm").includes("buildNightSeal()"),
 );
 check(
-  "EVERY KNOCK-BACK AND EVERY GHOST-FIRE SHOT STOPS AT THE IRON (a flung body never lands past the seal)",
+  "EVERY GHOST-FIRE SHOT CULLS AT THE IRON, AND NO KNOCK-BACK CARRIES A BODY PAST IT",
   srcFn("updateBossFireballs").includes("f.wx > workerCeilX() + 8") &&
-    (html.match(/workerCeilX\(\) \+ 2/g) || []).length >= 2,
+    (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0 &&
+    srcFn("bossRingClamp").includes("workerCeilX()"),
 );
 
 console.log("\n" + pass + " slug-demon checks passed" + (fail ? ", " + fail + " FAILED" : " \u2014 all OK"));

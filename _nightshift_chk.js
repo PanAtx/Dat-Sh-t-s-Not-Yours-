@@ -459,6 +459,8 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
   'bossLandedInHopper', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
   'updateNightBoss', 'updateNightBossFight',
+  // THE BEAST'S RING CLAMP (no boss hit may cross a fence: the bottom iron, the ghost iron)
+  'bossRingClamp',
   // THE SLUG DEMON'S HEART (the window math, the fury ramp, the armour clang, the muzzle)
   'bossFuryOf', 'bossIsFurious', 'bossHeartOpen', 'bossHeartOpenT', 'bossHeartCloseT',
   'bossFireShots', 'bossFireGap', 'bossArmMuzzle', 'bossTakeArmourSwing', 'bossArmourBite',
@@ -511,6 +513,10 @@ const NK_TRUCK_NOSE = srcNum('NIGHT_TRUCK_NOSE_L');
 const NK_TRUCK_CLEAR = srcNum('NIGHT_TRUCK_SEAL_CLEAR');
 const NK_WALK_MIN = (html.match(/clamp\(p\.wy[^,]+, (-[0-9.]+), workerMaxY\(\)/) || [0, '-9.4'])[1]; // his absolute lane floor
 const NK_BLOOD_C = parseInt((html.match(/const NIGHT_BLOOD_C = (0x[0-9a-f]+)/) || [0, '0xd8233a'])[1], 16);
+// THE HEART'S RED BURN (the open heart's BRIGHT RED, the shut heart's dark) — mirrored from the game
+const NK_HEART_HOT = parseInt((html.match(/const BOSS_HEART_HOT = (0x[0-9a-f]+)/) || [0, '0xff2200'])[1], 16);
+const NK_HEART_DARK = parseInt((html.match(/const BOSS_HEART_DARK = (0x[0-9a-f]+)/) || [0, '0x2a0a08'])[1], 16);
+const NK_HEART_EMISS = srcNum('BOSS_HEART_EMISS');
 const NK_BLOOD_LITE = parseInt((html.match(/const NIGHT_BLOOD_LITE = (0x[0-9a-f]+)/) || [0, '0xff8a90'])[1], 16);
 const NK_BLOOD_TINT = srcNum('NIGHT_BLOOD_TINT');
 const NK_BLOOD_AURA = srcNum('NIGHT_BLOOD_AURA');
@@ -583,6 +589,8 @@ const H = new Function(
   'BOSS_HEART_CD', 'BOSS_HEART_CD_RAGE', 'BOSS_FURY_HITS', 'BOSS_FURY_MUL',
   'BOSS_FIRE_CD_FLOOR', 'BOSS_SHOTS_FURY', 'BOSS_ROAM_R', 'BOSS_FIRE_TINTS',
   'BOSS_CRACK_LINES', 'BOSS_HEART_LINES', 'BOSS_ARMOUR_LINES', 'BOSS_ROAM_LINES',
+  // THE HEART'S RED BURN (the hittable tell) — injected like every other number
+  'BOSS_HEART_HOT', 'BOSS_HEART_DARK', 'BOSS_HEART_EMISS',
   // THE BOSS RING (Midnight): the seal line, the respect off the ghost iron, the rig's nose
   'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_SEAL_INNER', 'NIGHT_TRUCK_NOSE_L',
   'NIGHT_TRUCK_SEAL_CLEAR', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
@@ -667,6 +675,7 @@ const H = new Function(
   // THE BOSS RING: the rig's fence floor, the ring's ceiling, the live ghost iron
   ' getSeal: () => nightSeal, sealClosed: () => nightSealClosed(),' +
   ' ceilX: () => workerCeilX(), truckFloorX: () => truckFenceFloorX(),' +
+  ' ringClamp: (x, y) => bossRingClamp(x, y),' +
   ' sealBuild: () => buildNightSeal(), sealArm: () => nightSealArm(),' +
   ' sealClose: () => nightSealClose(), sealDrop: () => nightSealDrop(),' +
   ' sealTick: (dt) => updateNightSeal(dt), sealClear: () => nightSealClear(),' +
@@ -775,6 +784,9 @@ const H = new Function(
     BOSS_HEART_CD, BOSS_HEART_CD_RAGE, BOSS_FURY_HITS, BOSS_FURY_MUL,
     BOSS_FIRE_CD_FLOOR, BOSS_SHOTS_FURY, BOSS_ROAM_R, BOSS_FIRE_TINTS,
     BOSS_CRACK_LINES, BOSS_HEART_LINES, BOSS_ARMOUR_LINES, BOSS_ROAM_LINES,
+    // THE HEART'S RED BURN (the names sit in the parameter list at THIS point — the values
+    // must ride the same slot)
+    NK_HEART_HOT, NK_HEART_DARK, NK_HEART_EMISS,
     NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_TRUCK_NOSE, NK_TRUCK_CLEAR,
     srcNum('NIGHT_SEAL_RISE_T'),
     ['THE FENCE’S UP — NO WAY BACK UP THE STREET!']
@@ -2206,8 +2218,11 @@ check('HE KEEPS HIS DISTANCE FROM THE IRON (Midnight): the floor of the street i
     H.creatureMinX() >= NK_FLOOR &&
     srcFn('nightWallX').includes('NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF') &&
     srcFn('workerEndHardX').includes('isNightShift() ? nightWallX() : workerEndLimitX() - 2') &&
-    srcFn('updateBossFireballs').includes('workerEndHardX()') &&
-    srcFn('bossWhipStrike').includes('workerEndHardX()'),
+    srcFn('bossRingClamp').includes('clamp(wx, workerEndHardX(), workerCeilX())') &&
+    srcFn('updateBossFireballs').includes('bossRingClamp(p.wx, p.wy)') &&
+    srcFn('bossWhipStrike').includes('bossRingClamp(') &&
+    srcFn('updateNightBoss').includes('const crowd = bossRingClamp(') &&
+    !/workerCeilX\(\) \+ 2/.test(html),
   'floor=' + NK_FLOOR);
 // THE SWEPT BOSS FIELD (Midnight): the final-boss block carries no haunt at all. The block
 // the beast is fought on is the near end of the dead-end street (x 0..NIGHT_BEAT_GRAVE_X);
@@ -2336,6 +2351,124 @@ check('the lash goes through the arc in ONE beat and it is a real hit — a stag
   })(), 'hits=' + H.hurtLog().map(h => h.a + '/' + h.c).join(','));
 check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
   p.nightHitT >= NIGHT_HIT_GRACE - 1e-9);
+// --- THE BEAST'S RING LAW, WALKED LIVE: NO PUSH through any fence, MINOR damage, and a heart
+// --- that is HIDDEN in a shut shell and BLAZES BRIGHT RED when the shell opens ---
+(function () {
+  const b = H.getBoss();
+  const tent = b.g && b.g.userData ? b.g.userData.tent : null;
+  const quiet = () => { b.whipT = 999; b.fireT = 999; b.heartT = 999; b.bodyCd = 999; b.invulnT = 999; };
+  const floor = H.workerEndLimitX(); // the ring's BOTTOM wall: the cemetery fence + standoff
+  quiet();
+  b.hp = BOSS_MAX_HP; b.hits = 0; b.wx = floor + 2.6; b.wy = 0; b.bodyCd = 0;
+  p.wx = floor + 1.0; p.wy = 0; p.gatePrev = floor + 1.0; p.nightHitT = 0; p.stunT = 0;
+  H.hurtLog().length = 0;
+  H.updateNightBoss(b, 1 / 60);
+  const crushX = p.wx, crushY = p.wy;
+  check('THE BODY CRUSH CANNOT SHOVE HIM THROUGH THE CEMETERY FENCE: crowding him downhill, the set-back stops ON the bottom fence floor (' + floor + 'u) at ' + crushX.toFixed(2) + 'u — OUT of the beast\'s radius, never under the iron',
+    crushX >= floor - 1e-9 && Math.hypot(crushX - b.wx, crushY - b.wy) >= BOSS_BODY_R - 1e-9 &&
+      crushY >= -9.4 && crushY <= 5.0 && crushX < floor + 2.6,
+    'x=' + crushX.toFixed(2) + ' floor=' + floor);
+  // THE GHOST IRON: with the ring sealed, the same crush uphill must stop ON the spectral fence.
+  H.sealArm(); p.wx = 74; p.gatePrev = 74; H.sealClose();
+  const ceil = H.ceilX();
+  b.wx = ceil - 2.6; b.wy = 0; b.bodyCd = 0;
+  p.wx = ceil - 1.0; p.wy = 0; p.nightHitT = 0; p.stunT = 0;
+  H.updateNightBoss(b, 1 / 60);
+  check('THE BODY CRUSH CANNOT SHOVE HIM THROUGH THE GHOST IRON either: crowding him uphill, the set-back stops ON the sealed ceiling (' + ceil + 'u) at ' + p.wx.toFixed(2) + 'u — inside the ring, never past the spectral fence',
+    Math.abs(p.wx - ceil) < 1e-9 && Math.hypot(p.wx - b.wx, p.wy - b.wy) >= BOSS_BODY_R - 1e-9,
+    'x=' + p.wx.toFixed(2) + ' ceil=' + ceil);
+  H.sealDrop();
+  for (let i = 0; i < 220; i++) H.sealTick(1 / 60);
+  H.sealClear();
+  // NO SHOVE from the cold fire: the burst stings where he stands and leaves his feet alone.
+  quiet();
+  b.hp = BOSS_MAX_HP; b.wx = 74; b.wy = 0;
+  p.wx = b.wx + 6; p.wy = b.wy; p.nightHitT = 0; p.stunT = 0; // OUT of the crush radius
+  const px0 = p.wx, py0 = p.wy;
+  H.getFireballs().length = 0;
+  b.fireT = 0.01;
+  H.updateNightBoss(b, 1 / 60); // one volley
+  const fb = H.getFireballs()[H.getFireballs().length - 1];
+  fb.wx = p.wx + 0.2; fb.wy = p.wy;
+  H.hurtLog().length = 0;
+  H.updateBossFireballs(1 / 60);
+  check('COLD FIRE IS A MINOR STING AND NEVER A SHOVEL: ' + BOSS_HP_FIRE + ' HP of the 100 pool and a stagger — he stands on EXACTLY the same ground (' + px0.toFixed(2) + ', ' + py0.toFixed(1) + ') after the burst',
+    H.hurtLog().length === 1 && H.hurtLog()[0].a === BOSS_HP_FIRE && BOSS_HP_FIRE <= 4 &&
+      Math.abs(p.wx - px0) < 1e-9 && Math.abs(p.wy - py0) < 1e-9 && H.stunLog().length >= 1,
+    'dmg=' + H.hurtLog().map((h) => h.a).join(',') + ' x=' + p.wx.toFixed(2));
+  // THE LASH: a sting, and the same law — no launch down the street.
+  b.wx = 74; b.wy = 0; b.whipState = 'wind'; b.whipT = 0; b.fireT = 999; b.heartT = 999;
+  p.wx = b.wx + 4.2; p.wy = b.wy + 0.4; p.nightHitT = 0; p.stunT = 0;
+  const lx0 = p.wx, ly0 = p.wy;
+  H.hurtLog().length = 0;
+  b.facing = Math.atan2(p.wy - b.wy, p.wx - b.wx);
+  // It holds its rise point for the lash (no fury yet: the run would close the distance).
+  b.hits = 0;
+  for (let i = 0; i < 160 && b.whipState !== 'idle'; i++) { b.bodyCd = 999; b.fireT = 999; H.updateNightBoss(b, 1 / 60); }
+  check('THE TENTACLE LASH STINGS (' + BOSS_HP_WHIP + ' HP) AND DOES NOT THROW HIM: the whole lash moved him ' +
+      Math.hypot(p.wx - lx0, p.wy - ly0).toFixed(3) + 'u — no boss hit launches a man through a fence',
+    H.hurtLog().length === 1 && H.hurtLog()[0].a === BOSS_HP_WHIP && BOSS_HP_WHIP <= 7 &&
+      Math.hypot(p.wx - lx0, p.wy - ly0) < 0.5,
+    'dmg=' + H.hurtLog().map((h) => h.a).join(',') + ' moved=' + Math.hypot(p.wx - lx0, p.wy - ly0).toFixed(3));
+  check('EVERY BEAST HIT IS MINOR ON THE 100-POINT POOL: fire ' + BOSS_HP_FIRE + ' + crush ' + BOSS_HP_BODY +
+      ' + lash ' + BOSS_HP_WHIP + ' = ' + (BOSS_HP_FIRE + BOSS_HP_BODY + BOSS_HP_WHIP) +
+      ' — the whole fight takes a fraction of him, not twice his life',
+    BOSS_HP_FIRE + BOSS_HP_BODY + BOSS_HP_WHIP <= 20);
+  // THE HEART: SHUT = nothing to see; CRACK = a red seam; OPEN = a bright-red blaze to shovel.
+  if (tent) {
+    b.hp = BOSS_MAX_HP; b.hits = 0; b.heartState = 'shut'; b.heartOpen = 0;
+    quiet();
+    for (let i = 0; i < 40; i++) { b.heartT = 99; H.updateNightBoss(b, 1 / 60); }
+    const shutVis = tent.heart.visible;
+    const shutEmit = Math.max.apply(null, tent.heartMats.map((m) => m.emissiveIntensity));
+    const shutLight = tent.light.intensity;
+    const shutAura = tent.aura.material.opacity; // measured WHILE the shell is shut
+    // CRACK on its own clock (the shell cracks, the lids tremble, a first red seam leaks)
+    b.heartT = 0.001;
+    for (let i = 0; i < 40 && b.heartState === 'shut'; i++) H.updateNightBoss(b, 1 / 60);
+    const cracked = b.heartState;
+    const crackEmit = Math.max.apply(null, tent.heartMats.map((m) => m.emissiveIntensity));
+    // OPEN on the telegraph's own clock, and ride the window with the flaps fully out
+    for (let i = 0; i < 200 && b.heartState !== 'open'; i++) H.updateNightBoss(b, 1 / 60);
+    for (let i = 0; i < 40; i++) H.updateNightBoss(b, 1 / 60);
+    const openEmit = Math.max.apply(null, tent.heartMats.map((m) => m.emissiveIntensity));
+    const openColor = tent.heartMats[0].color.hex;
+    const openScale = tent.heart.scale.x;
+    check('A SHUT SHELL HIDES THE HEART OUTRIGHT: no heart on screen, no burn, no lamp (emissive ' +
+        shutEmit.toFixed(2) + ', light ' + shutLight.toFixed(2) + ', aura ' + shutAura.toFixed(2) +
+        ') — there is NOTHING on the beast to hit',
+      shutVis === false && shutEmit <= 0.1 && shutLight <= 0.1 && shutAura <= 0.05,
+      'vis=' + shutVis + ' emit=' + shutEmit.toFixed(2));
+    check('THE CRACK TELLS IT FIRST: the seam bleeds a first dim red glow (' + crackEmit.toFixed(2) +
+        ') while the lids tremble — the tell that the window is coming',
+      cracked === 'crack' && crackEmit > 0.4 && crackEmit < openEmit,
+      'state=' + cracked + ' emit=' + crackEmit.toFixed(2));
+    check('THE OPEN HEART BLAZES BRIGHT RED — emissive ' + openEmit.toFixed(2) + ' on 0x' +
+        NK_HEART_HOT.toString(16) + ', lamp ' + tent.light.intensity.toFixed(2) +
+        ': the red burn IS the shovel-it signal, and it grows out of the cavity (' +
+        openScale.toFixed(2) + 'u)',
+      b.heartState === 'open' && tent.heart.visible === true && openEmit >= 2.5 &&
+        openColor === NK_HEART_HOT && tent.light.intensity > 1.5 &&
+        tent.aura.material.opacity > 0.3 && openScale > 0.7,
+      'emit=' + openEmit.toFixed(2) + ' lamp=' + tent.light.intensity.toFixed(2) +
+        ' scale=' + openScale.toFixed(2));
+    for (let i = 0; i < 260 && b.heartState === 'open'; i++) { b.heartT = 0; H.updateNightBoss(b, 1 / 60); }
+    for (let i = 0; i < 40; i++) { b.heartT = 99; H.updateNightBoss(b, 1 / 60); }
+    check('THE SHELL SLIDING BACK KILLS THE LIGHT: the heart is hidden and dark again the frame it is unhittable',
+      b.heartState === 'shut' && tent.heart.visible === false &&
+        Math.max.apply(null, tent.heartMats.map((m) => m.emissiveIntensity)) <= 0.1,
+      'state=' + b.heartState);
+  }
+  quiet();
+  H.getFireballs().length = 0;
+  // THE RIDE-OFF OF THIS SECTION: the beast goes back to its rise point on a full, unstruck
+  // bar with a shut shell, the seal is cleared, so the shipped tests downstream run on the
+  // rig they expect.
+  b.wx = NIGHT_BOSS_X; b.wy = 0; b.hp = BOSS_MAX_HP; b.hits = 0; b.rage = 0;
+  b.heartState = 'shut'; b.heartOpen = 0; b.heartT = 2.2; b.whipState = 'idle'; b.invulnT = 0;
+  b.bodyCd = 0; b.whipT = 1.5; b.fireT = 2.5;
+  H.sealClear();
+})();
 check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
   (function () {
     p.nightHitT = 0; H.hurtLog().length = 0; H.stunLog().length = 0;

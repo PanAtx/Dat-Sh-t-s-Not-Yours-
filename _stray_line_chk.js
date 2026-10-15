@@ -183,6 +183,7 @@ const BOSS_FNS = [
   "bossShovelTargetable", "bossShovelRange", "bossTakeShovelSwing", "bossTakeArmourSwing",
   "bossArmourBite", "bossShovelHit", "bossAngryTarget", "bossFuryOf", "bossIsFurious",
   "bossHeartOpen", "bossHeartOpenT", "bossHeartCloseT", "bossFireShots", "bossFireGap",
+  "bossRingClamp",
   "bossArmMuzzle", "killNightBoss", "bossLandedInHopper", "spawnNightBoss", "clearNightBoss",
   "startBossFight", "grabBossGargoyle", "spawnBossGargoyle",
   // THE BOSS RING: the rig's fence floor, the ghost iron, and its whole lifecycle
