@@ -2512,9 +2512,10 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
       NK_BRUSH_LINES.some((l) => /NEVER SHOVES/.test(l)) &&
       srcFn('updateNightBoss').includes('pick(BOSS_BRUSH_LINES)'),
     'gut=' + NK_GUT_R + ' brush=' + NK_BRUSH_R);
-  check('THE HUD PHASE FOR THE GUT EXISTS: IN THE GUT! reads off bossBrushed, and the helper measures the worker against the beast with the shipped radii',
-    srcFn('updateHUD').includes('"  IN THE GUT!"') &&
-      srcFn('updateHUD').includes('bossBrushed(b)') &&
+  check('THE GUT IS TAUGHT BY THE BEAST, NOT BY THE PLATE: the sting helpers measure the worker against the shipped radii, and the HUD writes NOTHING into the plate tail',
+    !srcFn('updateHUD').includes('"  IN THE GUT!"') &&
+      srcFn('updateHUD').includes('setTxt($("boss-goal-phase"), "");') &&
+      !srcFn('updateHUD').includes('bossBrushed(b)') &&
       srcFn('bossBrushed').includes('BOSS_BRUSH_R') &&
       srcFn('bossGutDistance').includes('Math.hypot(p.wx - b.wx, p.wy - b.wy)'),
   );
@@ -5427,6 +5428,23 @@ console.log("\n[39] THE HELL NOTE BANKS ITS FACE VALUE (a Midnight note is 100, 
   check("the Beast law from v1.0.541 stands: a heart strike still pays addScoreFlat(BOSS_POINTS, true) and BOSS_POINTS is 2500", srcFn("bossShovelHit").includes("addScoreFlat(BOSS_POINTS, true)") && srcNum("BOSS_POINTS") === 2500);
   check("the night economy after the note fix: banking every laid note is 12 x 100 = 1200 of street cash at face value, not the 2400 the double paid", srcNum("NIGHT_HELL_NOTE_PICKS") * 100 === 1200, "notes=" + srcNum("NIGHT_HELL_NOTE_PICKS"));
   check("addScoreFlat pays exactly the number it is handed - no scoreMultiplier inside the flat path, and addScore still delegates n x scoreMultiplier()", !srcFn("addScoreFlat").includes("scoreMultiplier(") && srcFn("addScore").includes("addScoreFlat(n * scoreMultiplier(), isBonus)"));
+})();
+
+console.log("\n[40] THE SLUG DEMON PLATE IS SIMPLE: the name, and the hearts left");
+(function () {
+  const hud = srcFn("updateHUD");
+  const Q = String.fromCharCode(34);
+  const at = html.indexOf('<div id="boss-goal-name">');
+  const plate = html.slice(at, html.indexOf('<div id="boss-hpbar">', at));
+  check("the name plate is THE SLUG DEMON with an EMPTY span beside it - the label carries no mode word", plate.includes("THE SLUG DEMON<span id=\"boss-goal-phase\"></span>") && !/FURY|ENRAGED|REGAINING|HEART|GUT|FENCE|SCURRY|ARMOUR|GHOST FIRE|LASH|BURSTING/.test(plate));
+  check("the bar text is the hearts left and nothing else (dispHp / maxHp - 10 / 10, 3 / 10)", hud.includes('setTxt($("boss-hpeye"), dispHp + " / " + b.maxHp);'));
+  check("NO mode word survives in the HUD writer at all: FURY n, ENRAGED, REGAINING, HEART — SHOVEL IT!, SHELL CRACKING, ARMOUR UP, GHOST FIRE, LASH COMING, IN THE GUT!, AT THE FENCE!, SCURRYIN'!, BURSTING! are all gone", ["  FURY ", "  ENRAGED", "  REGAINING", "  HEART — SHOVEL IT!", "  SHELL CRACKING", "  ARMOUR UP", "  GHOST FIRE", "  LASH COMING", "  IN THE GUT!", "  AT THE FENCE!", "  SCURRYIN'!", "  BURSTING!"].every(function (w) { return hud.indexOf(Q + w) < 0; }));
+  check("the plate tail is written EMPTY on every frame the beast stands (the span stays in the DOM for the CSS hooks)", hud.includes('setTxt($("boss-goal-phase"), "");'));
+  check("the STATE rides the light instead: the open heart pulses the frame (.heart off bossHeartOpen), a strike kicks the bar (.boom), the last quarter burns (.low), the write-up rebound climbs in mint (.recover)", hud.includes("const heartUp = bossHeartOpen();") && hud.includes('bossPanel.classList.toggle("heart", heartUp);') && hud.includes('bossPanel.classList.toggle("recover", rec);') && hud.includes('bossPanel.classList.add("boom");') && hud.includes('bossPanel.classList.add("low");'));
+  check("every light hook the plate leans on exists in the CSS (heart pulse, hit kick, low burn, mint rebound climb, heart-red name, mint rebound name)", /#boss-goal\.heart #boss-hpbar \{/.test(html) && /#boss-goal\.boom #boss-hpbar \{/.test(html) && /#boss-goal\.low #boss-hpbar \{/.test(html) && /#boss-goal\.recover #boss-hpfill \{/.test(html) && /#boss-goal\.heart #boss-goal-name \{/.test(html) && /#boss-goal\.recover #boss-goal-name/.test(html));
+  check("the demon teaches out loud what the plate no longer spells (the rise line and the brush lines carry the gut, the no-push law and the chase)", srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") && srcFn("startBossFight").includes("TOUCHING THE SLUG HURTS") && NK_BRUSH_LINES.some((l) => /TOUCHING THE SLUG DEMON HURTS/.test(l)) && NK_BRUSH_LINES.some((l) => /IT NEVER SHOVES/.test(l)));
+  check("the fight under the simple plate is unchanged: 10 hearts, one strike per heart cut, the shell window, the fury gate at 3 strikes and the 2500 purse", srcNum("BOSS_MAX_HP") === 10 && hud.includes("BOSS_MAX_HP") === false && srcFn("bossShovelHit").includes("b.hits++;") && srcNum("BOSS_FURY_HITS") === 3 && srcNum("BOSS_POINTS") === 2500 && srcFn("bossHeartOpen").includes("heartState"));
+  check("nothing else on the night HUD regressed with it: the hearts bar still shows ONLY with a standing beast, and the plate is hidden on every other level", /const showBoss =/.test(hud) && hud.includes("isNightShift() &&") && hud.includes("b.awake === true") && hud.includes("b.hp > 0"));
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));

@@ -9,7 +9,7 @@
 // back to 10 / 10 is ANIMATED both on the rig (the body swells off the graves in cold mint
 // light, its own eyes relight one at a time, ecto sheets fly off it, the street shakes) and on
 // the HUD (the fill walks back up in mint under a shine that sweeps the bar; the plate reads
-// REGAINING STRENGTH!).
+// the mint climb and its shine - the plate keeps saying THE SLUG DEMON and the bar keeps
 //
 // [1] THE LAW, IN THE CODE (the rebound fires only from the write-up that continues the shift,
 //     and only on Midnight; the HUD, the CSS, the rig and the shift teardown all know the beat)
@@ -237,13 +237,13 @@ check(
     anim.includes("t.eyes[i].scale.setScalar(i === lit - 1 ? knPop : 1);"),
 );
 check(
-  "THE HUD BAR CLIMBS ON THE DRAWN COUNT, THE PLATE READS REGAINING STRENGTH! AND THE EYE TALLY READS REGAINING (the shipped width line stays the beast's real bar)",
+  "THE HUD BAR CLIMBS ON THE DRAWN COUNT AND THE PLATE STAYS CLEAN: the rebound is the mint climb and its sweeping shine, not a caption (the shipped width line stays the beast's real bar)",
   html.includes("const rec = b.recoverT > 0;") &&
     html.includes("const dispHp = rec && b.dispHp > 0 ? b.dispHp : b.hp;") &&
     html.includes('const wDraw = rec ? ((dispHp / b.maxHp) * 100).toFixed(1) + "%" : w;') &&
     html.includes('bossPanel.classList.toggle("recover", rec);') &&
-    html.includes('"  REGAINING STRENGTH!"') &&
-    html.includes('"  REGAINING"') &&
+    !html.includes("REGAINING STRENGTH") &&
+    srcFn("updateHUD").includes('setTxt($("boss-hpeye"), dispHp + " / " + b.maxHp);') &&
     html.includes('const w = ((b.hp / b.maxHp) * 100).toFixed(1) + "%";'),
 );
 check(

@@ -280,11 +280,11 @@ check("THE SPECTRAL FIRE rides " + BOSS_FIRE_TINTS.length + " grave-fire colours
 
 // ---- [3] the wiring the fight depends on ----
 console.log("\n[3] THE WIRING: the shovel, the shell and the bar");
-check("THE BAR TELLS THE BEAT: HEART — SHOVEL IT! / SHELL CRACKING / ARMOUR UP, and it pulses on the window",
-  srcFn("updateHUD").includes('"  HEART — SHOVEL IT!"') &&
-    srcFn("updateHUD").includes('"  SHELL CRACKING"') &&
-    srcFn("updateHUD").includes('"  ARMOUR UP"') &&
+check("THE BAR TELLS THE BEAT IN LIGHT, NOT IN WORDS: the open heart pulses the frame (the .heart class rides bossHeartOpen) and the plate carries no mode string at all",
+  srcFn("updateHUD").includes("const heartUp = bossHeartOpen();") &&
     srcFn("updateHUD").includes('bossPanel.classList.toggle("heart", heartUp)') &&
+    !/HEART — SHOVEL IT|SHELL CRACKING|ARMOUR UP|GHOST FIRE|LASH COMING|AT THE FENCE|SCURRYIN/.test(srcFn("updateHUD")) &&
+    srcFn("updateHUD").includes('setTxt($("boss-goal-phase"), "");') &&
     /#boss-goal\.heart #boss-hpbar \{/.test(html) &&
     /#boss-goal\.heart #boss-goal-name \{/.test(html));
 check("THE SHOVEL CONTRACT: the open heart is a bite, a shut shell is a spent CLANG",
@@ -725,8 +725,8 @@ check(
   })(),
 );
 check(
-  "THE HUD TELLS HIM WHEN HE IS IN THE GUT, AND THE WAKE AND THE BRUSH TEACH THE NO-PUSH LAW",
-  srcFn("updateHUD").includes('"  IN THE GUT!"') &&
+  "THE GUT IS TAUGHT BY THE BEAST, NOT BY THE PLATE: the wake line, the brush line and the splat carry the no-push law, and the HUD names no mode",
+  !srcFn("updateHUD").includes('"  IN THE GUT!"') &&
     srcFn("updateNightBoss").includes("spawnEctoSplat(p.wx, p.wy, 0.5)") &&
     srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") &&
     srcFn("startBossFight").includes("TOUCHING THE SLUG HURTS") &&

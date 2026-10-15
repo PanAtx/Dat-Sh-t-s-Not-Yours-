@@ -811,10 +811,11 @@
          every eye the shovel knocked out: the bar climbs ALL THE WAY BACK to a FULL 10 / 10
          and the fight restarts at the top of it (the same ten swings, over again). The HUD
          rides the climb: the fill walks back up in grave mint, the frame burns mint and
-         pulses under a shine that sweeps its whole length, the name plate flickers
-         REGAINING STRENGTH! — and the rig re-knits on screen (the rebound beat in
-         updateNightBoss: the body swells, cold mint light pours off it, its eyes relight one
-         at a time as the count walks up). */
+         pulses under a shine that sweeps its whole length — the plate keeps saying THE SLUG
+         DEMON and the bar keeps saying the hearts left, all through the climb, in light only
+         (no caption) — and the rig re-knits on screen (the rebound beat in updateNightBoss:
+         the body swells, cold mint light pours off it, its eyes relight one at a time as the
+         count walks up). */
       #boss-goal.recover #boss-hpfill {
         background: linear-gradient(180deg, #b9ffe4, #2affc0 55%, #0f9b78);
         box-shadow: 0 0 22px rgba(42, 255, 192, 0.95);
@@ -4554,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.544</div>
+          <div id="app-version" class="menu-version">v1.0.545</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.544';
+      const APP_VERSION = '1.0.545';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19996,7 +19997,10 @@
       function bossGutDistance(b) {
         return !b ? 999 : Math.hypot(p.wx - b.wx, p.wy - b.wy);
       }
-      // Is he inside the sting band around the slug (touching it, no swing needed)?
+      // Is he inside the sting band around the slug (touching it, no swing needed)? THE BAND'S
+      // OWN MEASURER: the beat is played by updateNightBoss / updatePlayer (d < BOSS_BRUSH_R, the
+      // bruise, the splat and BOSS_BRUSH_LINES), and the boss PLATE reads none of it — the plate
+      // is THE SLUG DEMON and the hearts left, nothing more.
       function bossBrushed(b) {
         return !!b && b.awake === true && b.hp > 0 && !b.hooked && bossGutDistance(b) < BOSS_BRUSH_R;
       }
@@ -52968,8 +52972,9 @@
             // THE WRITE-UP REBOUND: while a stamped beast is knitting its bar back, the HUD
             // draws the CLIMB (b.dispHp) instead of the snap — the fill walks all the way back
             // up to 10 / 10 in grave mint, the frame burns mint under a shine that sweeps the
-            // bar, and the plate reads REGAINING STRENGTH! (see .recover CSS + the rebound
-            // beat in updateNightBoss). The real bar is already full; the bar SHOWS the climb.
+            // bar, and the hearts tally counts the climb. The plate says nothing about it (see
+            // the .recover CSS + the rebound beat in updateNightBoss). The real bar is already
+            // full; the bar SHOWS the climb.
             const rec = b.recoverT > 0;
             const dispHp = rec && b.dispHp > 0 ? b.dispHp : b.hp;
             const wDraw = rec ? ((dispHp / b.maxHp) * 100).toFixed(1) + "%" : w;
@@ -52985,45 +52990,18 @@
             }
             if (b.hp <= Math.ceil(b.maxHp / 4)) bossPanel.classList.add("low");
             else bossPanel.classList.remove("low");
-            setTxt(
-              $("boss-hpeye"),
-              dispHp +
-                " / " +
-                b.maxHp +
-                (rec
-                  ? "  REGAINING"
-                  : b.hits >= 2
-                    ? "  FURY " + Math.min(4, b.hits)
-                    : b.rage
-                      ? "  ENRAGED"
-                      : ""),
-            );
-            // THE PHASE: the window IS the fight — the bar pulses on the open heart, and the
-            // player is told which beat the beast is on the rest of the time.
+            // THE SIMPLE BAR: the plate says THE SLUG DEMON and the bar says how many hearts are
+            // left - "10 / 10", "3 / 10". Nothing next to either. A player in a fight is not
+            // reading a status page, so what the beast is DOING is shown, not spelled: the open
+            // heart pulses the frame (.heart, straight off bossHeartOpen), a landed strike kicks
+            // the bar (.boom), the last quarter burns (.low), the write-up rebound climbs in mint
+            // under its own sweeping shine (.recover), the shell opens and shuts in full view on
+            // the beast, and the demon says out loud what it is doing (startBossFight, the wake
+            // line and BOSS_BRUSH_LINES).
+            setTxt($("boss-hpeye"), dispHp + " / " + b.maxHp);
             const heartUp = bossHeartOpen();
             bossPanel.classList.toggle("heart", heartUp);
-            setTxt(
-              $("boss-goal-phase"),
-              rec
-                ? "  REGAINING STRENGTH!" // the write-up rebound: the bar is walking back to 10 / 10
-                : b.hooked
-                ? "  BURSTING!" // the kill swing landed: the body is blowing up
-                : bossBrushed(b)
-                  ? "  IN THE GUT!" // he is inside the sting band: touching it hurts, it never shoves
-                  : nightSealClosed() && p.wx >= sealStandX() - 0.35
-                    ? "  AT THE FENCE!" // he is pinned on the ghost iron: shove off it and fight
-                    : b.recoilT > 0
-                  ? "  SCURRYIN'!" // struck: it is slipping off the blade, give him chase
-                  : heartUp
-                  ? "  HEART — SHOVEL IT!"
-                  : b.heartState === "crack"
-                    ? "  SHELL CRACKING"
-                    : b.whipState === "wind"
-                      ? "  LASH COMING"
-                      : b.mawOpen > 0.35
-                        ? "  GHOST FIRE"
-                        : "  ARMOUR UP",
-            );
+            setTxt($("boss-goal-phase"), ""); // NO MODE WORD, EVER (the span survives for the CSS hooks)
           }
         }
       }
