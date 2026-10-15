@@ -4480,7 +4480,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.531</div>
+          <div id="app-version" class="menu-version">v1.0.532</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4738,7 +4738,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.531';
+      const APP_VERSION = '1.0.532';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19768,17 +19768,19 @@
         const top = isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
         return nightSealClosed() ? Math.min(top, sealStandX()) : top;
       }
-      // THE RING'S LAW FOR ANY BODY THE BEAST TOUCHES. Every placement a boss hit makes — the
-      // solid body setting him out of the crush, a cold-fire burst, a tentacle lash — runs
-      // through this one clamp, so a boss hit can NEVER walk a man through the cemetery fence at
-      // his back (workerEndHardX: the iron with NO standoff subtracted), never put him past the
-      // ghost iron (workerCeilX: the sealed ceiling, with NO +2 leash the old knock-backs used),
-      // and never leave his lane. On a weekday street these are the route's own walls.
-      function bossRingClamp(wx, wy) {
-        return {
-          x: clamp(wx, workerEndHardX(), workerCeilX()),
-          y: clamp(wy, -9.4, workerMaxY()),
-        };
+      // THE RING'S LAW FOR ANY BODY THE BEAST TOUCHES IS NOW: THE BEAST TOUCHES, IT NEVER MOVES.
+      // No boss contact — the solid body, a cold-fire burst, a tentacle lash — writes p.wx / p.wy
+      // any more (the old bossRingClamp placements are gone). Every wall on the street is the
+      // worker's own clamp: the bottom fence (workerEndLimitX / workerEndHardX), the sealed ghost
+      // iron (workerCeilX -> sealStandX), his lane, the block wards, the rig, and the solid gut
+      // (BOSS_GUT_R, refused by his own step in updatePlayer). A boss hit costs him footing,
+      // never ground.
+      function bossGutDistance(b) {
+        return !b ? 999 : Math.hypot(p.wx - b.wx, p.wy - b.wy);
+      }
+      // Is he inside the sting band around the slug (touching it, no swing needed)?
+      function bossBrushed(b) {
+        return !!b && b.awake === true && b.hp > 0 && !b.hooked && bossGutDistance(b) < BOSS_BRUSH_R;
       }
       // The rig's FLOOR: the line the truck stops on and never backs past. It floors with its
       // whole self UP-street of the ghost iron — the collision nose clear of the line AND the
@@ -28727,8 +28729,20 @@
       const BOSS_LUNGE_SP_RAGE = 3.6; // ...and a lot faster with one eye left
       const BOSS_SEE_R = 12; // the yard it keeps: it will not leave the cemetery
       const BOSS_BODY_R = 1.75; // the body is solid: he walks AROUND the beast
+      // THE NO-PUSH LAW (three radii, one rule — the beast never moves him, his own step does):
+      //   BOSS_BRUSH_R = the sting band. Standing/touching inside it HURTS him (no swing needed).
+      //   BOSS_GUT_R   = THE SOLID GUT. His own step may never land inside it: updatePlayer
+      //                  cancels the step (axis by axis, so he slides around the flank instead of
+      //                  being frozen). The beast has NO hand on his position at all.
+      const BOSS_BRUSH_R = 3.25; // u — his centre this close to the slug gets bruised (BOSS_BODY_R + 1.5)
+      const BOSS_GUT_R = 2.2; // u — the solid body: HIS STEP is cancelled, he is never displaced
       const BOSS_BODY_CD = 2.2; // body-brush cooldown
-      const BOSS_HP_BODY = 5; // being crushed by it — a BRUISING SHOVE of the gut, not a kill
+      const BOSS_HP_BODY = 5; // touching/crowding the gut — a BRUISE, not a kill, and not a shove
+      const BOSS_BRUSH_LINES = [
+        "IT'S SOLID — TOUCHING IT HURTS!",
+        "IT NEVER SHOVES ME — I'LL WALK AROUND IT!",
+        "THE GUT'S A WALL! USE THE HEART!",
+      ];
       const BOSS_WHIP_TELEGRAPH = 0.52; // the tentacles load first — this is the tell
       const BOSS_WHIP_STRIKE = 0.42; // ...then the lash comes through
       const BOSS_WHIP_R = 5.9; // the lash's reach
@@ -28743,10 +28757,11 @@
       const BOSS_HP_FIRE = 3; // MINOR: cold fire through the hi-vis — a frostburn, he keeps working
       const BOSS_FIRE_LIFE = 3.4; // a fireball that misses burns out in the fog
       // NO PUSH, EVER (the beast's ring law): a boss hit — ghost fire, lash, or the crushing
-      // body — STINGS the worker where he stands and NEVER relocates him. The solid body only
-      // sets him back OUT of the beast, and every one of those placements runs through the
-      // ring's walls (bossRingClamp), so a boss hit can never shove a man through the bottom
-      // cemetery fence, through the ghost iron, or out of the fight zone.
+      // body — STINGS the worker where he stands and NEVER relocates him. No contact of the beast
+      // writes p.wx / p.wy any more: the solid body is HIS STEP's wall (BOSS_GUT_R is cancelled by
+      // his own movement in updatePlayer), the band around it (BOSS_BRUSH_R) is what bruises him,
+      // and every wall on the street is the worker's own clamp — the bottom cemetery fence, the
+      // ghost iron, his lane, the block wards and the rig. A boss hit costs footing, never ground.
       const BOSS_HEART_HOT = 0xff2200; // the open heart's BRIGHT RED (the hittable tell)
       const BOSS_HEART_DARK = 0x2a0a08; // ...and the colour of a heart NO blade can reach (shut)
       const BOSS_HEART_EMISS = 3.6; // how hard the open heart BLAZES (emissive, 0 on a shut shell)
@@ -32088,6 +32103,16 @@
           "worker",
           "burst",
         );
+        Voice.say(
+          "TOUCHING THE SLUG HURTS — IT NEVER SHOVES YOU. WALK AROUND IT!",
+          3.0,
+          1.08,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
         // THE RING: say what just closed behind him, so the player knows the fight is down
         // here with the rig parked at the iron and no running back up the street.
         Voice.say(
@@ -32175,15 +32200,14 @@
           const d = Math.hypot(p.wx - f.wx, p.wy - f.wy);
           if (d < BOSS_FIRE_R + 0.5) {
             // MINOR COLD FIRE: a frostburn through the hi-vis — light damage, a stagger, and NO
-            // SHOVE. He keeps the ground under his own boots; the burst only re-seats him with
-            // bossRingClamp (the ring's own walls, with no +2 leash), so a fireball can never
-            // push a man through the ghost iron or the cemetery fence.
+            // SHOVE OF ANY KIND. He keeps the ground under his own boots: the burst writes nothing
+            // to p.wx / p.wy, and the ring's walls are HIS clamps, so a fireball can never push a
+            // man through the ghost iron or the cemetery fence.
             hurtNPC(BOSS_HP_FIRE, "beast", false, false);
             doStun(HORROR_STUN_T + 0.06, "scare");
             p.nightHitT = NIGHT_HIT_GRACE; // one fireball, ONE hit — never a per-frame drain
-            const fireSeat = bossRingClamp(p.wx, p.wy);
-            p.wx = fireSeat.x;
-            p.wy = fireSeat.y;
+            // NO SHOVE, NO PLACEMENT: the cold fire stings him EXACTLY where he stands. The beast
+            // never writes his position — the ring's walls are handled by his own clamps.
             p.shake = Math.max(p.shake, 0.5);
             if (nightSayOk())
               Voice.say(
@@ -32224,15 +32248,9 @@
         hurtNPC(BOSS_HP_WHIP, "beast", false, false);
         doStun(HORROR_STUN_T, "scare"); // a fifth of a second — a lash, never a pin
         p.nightHitT = NIGHT_HIT_GRACE;
-        // NO SHOVE: a tentacle across the ribs STINGS him where he stands. It never throws him
-        // down the street and never walks him through a fence — the lash only re-seats him inside
-        // the ring's walls (bossRingClamp), and the body radius keeps him clear of the crush.
-        const lashSeat = bossRingClamp(
-          p.wx + (kx / d) * Math.max(0, BOSS_BODY_R + 0.35 - d),
-          p.wy + (ky / d) * Math.max(0, BOSS_BODY_R + 0.35 - d),
-        );
-        p.wx = lashSeat.x;
-        p.wy = lashSeat.y;
+        // NO SHOVE, NO PLACEMENT: a tentacle across the ribs STINGS him where he stands. It never
+        // throws him down the street, never walks him through the ghost iron, never sets him in the
+        // graves — the beast has NO hand on his position. His own clamps own his ground.
         p.shake = Math.max(p.shake, 0.55);
         SFX.playSquelch();
         spawnEctoSplat(p.wx, p.wy, 0.7);
@@ -32969,25 +32987,30 @@
       Voice.say(pick(BOSS_FIRE_LINES), 2.5, 0.95, b.wx, b.wy, "neutral", "ghost");
   }
   b.armCharge = Math.max(0, b.armCharge - dt * 1.9);
-  // ---- THE BODY IS SOLID: it crowds him into the headstones, and it NEVER shoves him ----
-  if (d < BOSS_BODY_R + 1.5) {
-    const nx = dx / d,
-      ny = dy / d;
-    // A solid body may only SET HIM BACK OUT of the crush — the exact displacement that clears
-    // the radius — and the placement runs through the ring's walls (bossRingClamp). The beast can
-    // never walk a man through the bottom cemetery fence, through the ghost iron, off his lane,
-    // or out of the fight zone: a boss hit costs him his footing, never his position.
-    const crowd = bossRingClamp(
-      p.wx + nx * (BOSS_BODY_R + 1.5 - d),
-      p.wy + ny * (BOSS_BODY_R + 1.5 - d),
-    );
-    p.wx = crowd.x;
-    p.wy = crowd.y;
+  // ---- THE BODY IS SOLID AND IT NEVER SHOVES: touching the slug HURTS, it moves nobody ----
+  // BOSS_BRUSH_R is the sting band (no swing needed — walking into the slug bruises him),
+  // BOSS_GUT_R inside it is solid: HIS OWN STEP is what refuses the gut (see updatePlayer's
+  // step-cancel), so he walks around the beast. The beast writes nothing to p.wx / p.wy.
+  if (d < BOSS_BRUSH_R) {
     if (b.bodyCd <= 0 && (p.nightHitT || 0) <= 0) {
       b.bodyCd = BOSS_BODY_CD;
       hurtNPC(BOSS_HP_BODY, "beast", true, false);
       doStun(HORROR_STUN_T, "scare");
       p.nightHitT = NIGHT_HIT_GRACE;
+      p.shake = Math.max(p.shake || 0, 0.45);
+      SFX.playSquelch(); // the wet grind of the gut against him
+      spawnEctoSplat(p.wx, p.wy, 0.5);
+      if (nightSayOk())
+        Voice.say(
+          pick(BOSS_BRUSH_LINES),
+          2.4,
+          1.12,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
     }
   }
   if (b.bodyCd > 0) b.bodyCd = Math.max(0, b.bodyCd - dt);
@@ -44149,6 +44172,49 @@
           // the pre-snap position here leaks the worker past the curtain a frame later.
           p.gatePrev = p.wx;
         }
+        // === THE SLUG DEMON'S GUT IS A SOLID WALL (Midnight): he walks AROUND it ==============
+        // The beast has NO hand on his position — no contact of its ever sets p.wx / p.wy. The
+        // solidity is HIS step's own refusal: if THIS frame's step took his centre inside the gut
+        // (BOSS_GUT_R), that step is cancelled on the axis that did it, so he slides along the
+        // flank and goes round the beast instead of through it. Cancelling his own step (never
+        // displacing a body) is what keeps him out of the gut, out of the seal and out of a trap:
+        // a step cancelled against a wall he is already clear of cannot pin him, and pressing away
+        // frees him on the very next frame. The brush band outside the gut is what stings him
+        // (updateNightBoss), the gut itself he simply cannot enter.
+        if (
+          RT < 0 &&
+          state === "play" &&
+          nightBoss &&
+          nightBoss.awake === true &&
+          nightBoss.hp > 0 &&
+          !nightBoss.hooked
+        ) {
+          const inGut = (x, y) => Math.hypot(x - nightBoss.wx, y - nightBoss.wy) < BOSS_GUT_R;
+          if (inGut(p.wx, p.wy)) {
+            if (!inGut(prevWx, p.wy)) p.wx = prevWx; // the X step entered the gut: cancel it
+            else if (!inGut(p.wx, prevWy)) p.wy = prevWy; // the Y step entered it: slide on X
+            else {
+              p.wx = prevWx; // a head-on step into the body: the whole step is refused
+              p.wy = prevWy;
+            }
+            p.gutT = Math.max(0, (p.gutT || 0) - dt);
+            if (p.gutT <= 0) {
+              p.gutT = 2.4; // one line per ~2s of pressing at the gut
+              p.shake = Math.max(p.shake || 0, 0.3);
+              if (nightSayOk())
+                Voice.say(
+                  pick(BOSS_BRUSH_LINES),
+                  2.3,
+                  1.12,
+                  p.wx,
+                  p.wy,
+                  WORKER_GENDER,
+                  "worker",
+                  "burst",
+                );
+            }
+          }
+        }
         if (RT < 0 && state === "play" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X) {
           // THE CROSS-STREET: walking into the cemetery's mouth is the boss's trigger. This
           // level has NO finish line, NO stripe and NO timer — going DOWN the dead-end street
@@ -52345,9 +52411,11 @@
               $("boss-goal-phase"),
               b.hooked
                 ? "  BURSTING!" // the kill swing landed: the body is blowing up
-                : nightSealClosed() && p.wx >= sealStandX() - 0.35
-                  ? "  AT THE FENCE!" // he is pinned on the ghost iron: shove off it and fight
-                  : b.recoilT > 0
+                : bossBrushed(b)
+                  ? "  IN THE GUT!" // he is inside the sting band: touching it hurts, it never shoves
+                  : nightSealClosed() && p.wx >= sealStandX() - 0.35
+                    ? "  AT THE FENCE!" // he is pinned on the ghost iron: shove off it and fight
+                    : b.recoilT > 0
                   ? "  SCURRYIN'!" // struck: it is slipping off the blade, give him chase
                   : heartUp
                   ? "  HEART — SHOVEL IT!"
@@ -53282,7 +53350,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT</b> &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT</b><br/>TOUCHING THE SLUG DEMON HURTS &middot; <b>IT NEVER SHOVES YOU</b> &middot; WALK AROUND IT &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

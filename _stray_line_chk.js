@@ -183,7 +183,7 @@ const BOSS_FNS = [
   "bossShovelTargetable", "bossShovelRange", "bossTakeShovelSwing", "bossTakeArmourSwing",
   "bossArmourBite", "bossShovelHit", "bossAngryTarget", "bossFuryOf", "bossIsFurious",
   "bossHeartOpen", "bossHeartOpenT", "bossHeartCloseT", "bossFireShots", "bossFireGap",
-  "bossRingClamp",
+  "bossGutDistance", "bossBrushed",
   "bossArmMuzzle", "killNightBoss", "bossBlownUp", "spawnNightBoss", "clearNightBoss",
   // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up, the goop it leaves)
   "nightSlimeBlob", "spawnBossSlime", "coatInSlime", "nightSlimeClear",

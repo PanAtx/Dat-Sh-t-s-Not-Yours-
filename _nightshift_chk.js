@@ -369,6 +369,10 @@ const NK_BOOM_ROAR = srcNum('BOSS_BOOM_ROAR'), NK_BOOM_R = srcNum('BOSS_BOOM_R')
 const NK_BOOM_COAT = srcNum('BOSS_BOOM_COAT'), NK_BOOM_SLIME_KEEP = srcNum('BOSS_BOOM_SLIME_KEEP'), NK_WIN_JUMP_T = srcNum('BOSS_WIN_JUMP_T');
 const NK_BOOM_LINES = eval('(' + srcLiteral('BOSS_BOOM_LINES', '[', ']') + ')');
 const NK_SLIME_LINES = eval('(' + srcLiteral('BOSS_SLIME_LINES', '[', ']') + ')');
+// THE NO-PUSH LAW (mirrored straight out of the game's own radii and lines)
+const NK_BRUSH_R = srcNum('BOSS_BRUSH_R');
+const NK_GUT_R = srcNum('BOSS_GUT_R');
+const NK_BRUSH_LINES = eval('(' + srcLiteral('BOSS_BRUSH_LINES', '[', ']') + ')');
 const NK_SCURRY_LINES = eval('(' + srcLiteral('BOSS_SCURRY_LINES', '[', ']') + ')');
 const HORROR_SEE_R_X = HORROR_SEE_R;
 const SHOVEL_LINES = ['GET IN THE TRUCK!'];
@@ -471,8 +475,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
   'bossBlownUp', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
   'updateNightBoss', 'updateNightBossFight',
-  // THE BEAST'S RING CLAMP (no boss hit may cross a fence: the bottom iron, the ghost iron)
-  'bossRingClamp',
+  // THE NO-PUSH LAW HELPERS (the beast never writes the worker's position: the gut is his step's
+  // wall, the brush band is the sting, and the HUD reads the band off these two)
+  'bossGutDistance', 'bossBrushed',
   // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up, the goop it leaves)
   'nightSlimeBlob', 'spawnBossSlime', 'coatInSlime', 'nightSlimeClear',
   // THE SLUG DEMON'S HEART (the window math, the fury ramp, the armour clang, the muzzle)
@@ -613,6 +618,8 @@ const H = new Function(
   'BOSS_SCURRY_T', 'BOSS_SCURRY_SP', 'BOSS_SCURRY_MIN', 'BOSS_BOOM_ROAR', 'BOSS_BOOM_R',
   'BOSS_BOOM_SPLATS', 'BOSS_BOOM_COAT', 'BOSS_BOOM_SLIME_KEEP', 'BOSS_WIN_JUMP_T',
   'BOSS_BOOM_LINES', 'BOSS_SLIME_LINES', 'BOSS_SCURRY_LINES',
+  // THE NO-PUSH LAW (the sting band, the solid gut, and what he says about touching it)
+  'BOSS_BRUSH_R', 'BOSS_GUT_R', 'BOSS_BRUSH_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -697,7 +704,6 @@ const H = new Function(
   ' getSeal: () => nightSeal, sealClosed: () => nightSealClosed(),' +
   ' sealFace: () => sealFaceX(), sealStand: () => sealStandX(),' +
   ' ceilX: () => workerCeilX(), truckFloorX: () => truckFenceFloorX(),' +
-  ' ringClamp: (x, y) => bossRingClamp(x, y),' +
   ' sealBuild: () => buildNightSeal(), sealArm: () => nightSealArm(),' +
   ' sealClose: () => nightSealClose(), sealDrop: () => nightSealDrop(),' +
   ' sealTick: (dt) => updateNightSeal(dt), sealClear: () => nightSealClear(),' +
@@ -819,7 +825,9 @@ const H = new Function(
     // values must ride the same slots)
     NK_SCURRY_T, NK_SCURRY_SP, NK_SCURRY_MIN, NK_BOOM_ROAR, NK_BOOM_R, NK_BOOM_SPLATS,
     NK_BOOM_COAT, NK_BOOM_SLIME_KEEP, NK_WIN_JUMP_T,
-    NK_BOOM_LINES, NK_SLIME_LINES, NK_SCURRY_LINES
+    NK_BOOM_LINES, NK_SLIME_LINES, NK_SCURRY_LINES,
+    // THE NO-PUSH LAW rides the SAME slots as the names above
+    NK_BRUSH_R, NK_GUT_R, NK_BRUSH_LINES
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -2248,10 +2256,15 @@ check('HE KEEPS HIS DISTANCE FROM THE IRON (Midnight): the floor of the street i
     H.creatureMinX() >= NK_FLOOR &&
     srcFn('nightWallX').includes('NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF') &&
     srcFn('workerEndHardX').includes('isNightShift() ? nightWallX() : workerEndLimitX() - 2') &&
-    srcFn('bossRingClamp').includes('clamp(wx, workerEndHardX(), workerCeilX())') &&
-    srcFn('updateBossFireballs').includes('bossRingClamp(p.wx, p.wy)') &&
-    srcFn('bossWhipStrike').includes('bossRingClamp(') &&
-    srcFn('updateNightBoss').includes('const crowd = bossRingClamp(') &&
+    // THE NO-PUSH LAW: no boss contact of any kind writes the worker's position any more, and
+    // no knock-back has ever carried a body past the sealed ceiling with a +2 leash.
+    !/\bbossRingClamp\(/.test(html) &&
+    !/p\.wx\s*=/.test(srcFn('updateBossFireballs')) &&
+    !/p\.wy\s*=/.test(srcFn('updateBossFireballs')) &&
+    !/p\.wx\s*=/.test(srcFn('bossWhipStrike')) &&
+    !/p\.wy\s*=/.test(srcFn('bossWhipStrike')) &&
+    !/p\.wx\s*=/.test(srcFn('updateNightBoss')) &&
+    !/p\.wy\s*=/.test(srcFn('updateNightBoss')) &&
     !/workerCeilX\(\) \+ 2/.test(html),
   'floor=' + NK_FLOOR);
 // THE SWEPT BOSS FIELD (Midnight): the final-boss block carries no haunt at all. The block
@@ -2352,14 +2365,22 @@ check('THE FENCE IS THE BORDER, NOT THE DECORATION: the iron across the road sta
     srcFn('creatureLimitMinX').includes('Math.max(nightWallX(), NIGHT_FENCE_X)') &&
     srcFn('nightWallX').includes('Math.max(NIGHT_GRAVE_X - 8, fenceLine)'),
   'fence=' + NIGHT_FENCE_X);
-check('the body is SOLID: it crowds him into the headstones and a crush costs a hit',
+check('THE BODY IS SOLID, IT STINGS WITH NO SWING, AND IT NEVER SHOVES: crowding him with its gut, he is bruised on the band and his ground is untouched',
   (function () {
     p.wx = boss.wx + 0.8; p.wy = boss.wy; p.nightHitT = 0; boss.bodyCd = 0;
+    const bx = p.wx, by = p.wy;
     H.hurtLog().length = 0;
+    H.stunLog().length = 0;
     H.updateNightBoss(boss, 1 / 60);
-    return p.wx > boss.wx && H.hurtLog().length === 1 && H.hurtLog()[0].c === 'beast' &&
-      H.hurtLog()[0].a === BOSS_HP_BODY;
-  })(), 'pushed to ' + p.wx.toFixed(2));
+    return (
+      p.wx === bx &&
+      p.wy === by &&
+      H.hurtLog().length === 1 &&
+      H.hurtLog()[0].c === 'beast' &&
+      H.hurtLog()[0].a === BOSS_HP_BODY &&
+      H.stunLog().length === 1
+    );
+  })(), 'x=' + p.wx.toFixed(2) + ' hits=' + H.hurtLog().length);
 // --- THE LASH: a telegraph, then the sweep, then a real hit ---
 p.wx = boss.wx + 3.2; p.wy = boss.wy; p.stunT = 0; p.nightHitT = 0;
 boss.whipT = 0.01; boss.whipState = 'idle';
@@ -2394,18 +2415,21 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
   H.hurtLog().length = 0;
   H.updateNightBoss(b, 1 / 60);
   const crushX = p.wx, crushY = p.wy;
-  check('THE BODY CRUSH CANNOT SHOVE HIM THROUGH THE CEMETERY FENCE: crowding him downhill, the set-back stops ON the bottom fence floor (' + floor + 'u) at ' + crushX.toFixed(2) + 'u — OUT of the beast\'s radius, never under the iron',
-    crushX >= floor - 1e-9 && Math.hypot(crushX - b.wx, crushY - b.wy) >= BOSS_BODY_R - 1e-9 &&
-      crushY >= -9.4 && crushY <= 5.0 && crushX < floor + 2.6,
-    'x=' + crushX.toFixed(2) + ' floor=' + floor);
-  // THE GHOST IRON: with the ring sealed, the same crush uphill must stop ON the spectral fence.
+  const crushHurt = H.hurtLog().length;
+  check('THE GHOST FENCE SIDE, DOWNHILL: the body crush crowds him at the bottom fence and he keeps EXACTLY his ground (' + crushX.toFixed(2) + 'u, floor ' + floor + 'u) — the beast never carries a man under the cemetery fence, it only bruises him',
+    crushX === floor + 1.0 && crushY === 0 && crushHurt >= 1,
+    'x=' + crushX.toFixed(2) + ' floor=' + floor + ' hurt=' + crushHurt);
+  // THE GHOST IRON: with the ring sealed, the same crush uphill must leave him ON the sealed ceiling.
   H.sealArm(); p.wx = 74; p.gatePrev = 74; H.sealClose();
   const ceil = H.ceilX();
   b.wx = ceil - 2.6; b.wy = 0; b.bodyCd = 0;
   p.wx = ceil - 1.0; p.wy = 0; p.nightHitT = 0; p.stunT = 0;
+  const upX = p.wx, upY = p.wy;
+  H.hurtLog().length = 0;
   H.updateNightBoss(b, 1 / 60);
-  check('THE BODY CRUSH CANNOT SHOVE HIM THROUGH THE GHOST IRON either: crowding him uphill, the set-back stops ON the sealed ceiling (' + ceil + 'u) at ' + p.wx.toFixed(2) + 'u — inside the ring, never past the spectral fence',
-    Math.abs(p.wx - ceil) < 1e-9 && Math.hypot(p.wx - b.wx, p.wy - b.wy) >= BOSS_BODY_R - 1e-9,
+  check('THE GHOST FENCE SIDE, UPHILL: the seal is shut, the beast crowds him AT the ghost iron, and his centre is BYTE-IDENTICAL (' + p.wx.toFixed(2) + 'u, the ceiling ' + ceil + 'u) — the belly may rest on him (' + Math.hypot(p.wx - b.wx, p.wy - b.wy).toFixed(2) + 'uinside the body radius), it bruises him, and it moves him NOWHERE',
+    p.wx === upX && p.wy === upY && p.wx <= ceil &&
+      H.hurtLog().length === 1 && H.hurtLog()[0].a === BOSS_HP_BODY,
     'x=' + p.wx.toFixed(2) + ' ceil=' + ceil);
   H.sealDrop();
   for (let i = 0; i < 220; i++) H.sealTick(1 / 60);
@@ -2444,6 +2468,49 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
       ' + lash ' + BOSS_HP_WHIP + ' = ' + (BOSS_HP_FIRE + BOSS_HP_BODY + BOSS_HP_WHIP) +
       ' — the whole fight takes a fraction of him, not twice his life',
     BOSS_HP_FIRE + BOSS_HP_BODY + BOSS_HP_WHIP <= 20);
+  // THE NO-PUSH LAW, WALKED THROUGH THE WHOLE FIGHT: fireball, lash, crush, scurry and the
+  // burst — the beast NEVER writes his position, in any of its contacts.
+  check('THE BEAST NEVER TOUCHES HIS GROUND, BEAT AFTER BEAT: a volley, a lash, a crush and a scurry all leave p.wx and p.wy EXACTLY where he stood',
+    (function () {
+      b.hp = BOSS_MAX_HP; b.hits = 0; b.wx = 74; b.wy = 0;
+      b.burst = false; b.burstT = 0; b.dead = false; b.hooked = false;
+      b.scurryT = 0; b.scurry = false; b.whipState = 'idle';
+      p.wx = 78; p.wy = 1.4; p.nightHitT = 0; p.stunT = 0; p.gatePrev = p.wx;
+      const gx = p.wx, gy = p.wy;
+      H.hurtLog().length = 0; H.stunLog().length = 0;
+      for (let i = 0; i < 420; i++) {
+        b.bodyCd = 0; b.fireT = 0.01; b.invulnT = 0;
+        p.nightHitT = 0;
+        H.updateNightBoss(b, 1 / 60);
+        H.updateBossFireballs(1 / 60);
+        if (p.wx !== gx || p.wy !== gy) return false;
+      }
+      // and a wound puts it into the scurry — the run never drags him along
+      b.hp = BOSS_MAX_HP - 20; b.hits = BOSS_FURY_HITS; b.scurryT = 0;
+      for (let i = 0; i < 120; i++) { b.bodyCd = 0; p.nightHitT = 0; H.updateNightBoss(b, 1 / 60); }
+      return (
+        p.wx === gx &&
+        p.wy === gy &&
+        H.hurtLog().length >= 1 &&
+        H.hurtLog().every((h) => h.c === 'beast')
+      );
+    })(), 'x=' + p.wx.toFixed(2) + ' hurt=' + H.hurtLog().length);
+  check('THE GUT IS SOLID AND THE BAND STINGS: BOSS_GUT_R sits inside BOSS_BRUSH_R, the beast is walled out of the ghost iron by its OWN bulk radius, and touching it is taught out loud (the wake line, the brush line, the card)',
+    NK_GUT_R < NK_BRUSH_R &&
+      NK_GUT_R > BOSS_BODY_R &&
+      srcFn('updateNightBoss').includes('d < BOSS_BRUSH_R') &&
+      srcFn('updateNightBoss').includes('sealFaceX() - BOSS_BODY_R') &&
+      srcFn('updatePlayer').includes('nightBoss.wx, y - nightBoss.wy) < BOSS_GUT_R') &&
+      srcFn('startBossFight').includes('IT NEVER SHOVES YOU. WALK AROUND IT!') &&
+      NK_BRUSH_LINES.some((l) => /NEVER SHOVES/.test(l)) &&
+      srcFn('updateNightBoss').includes('pick(BOSS_BRUSH_LINES)'),
+    'gut=' + NK_GUT_R + ' brush=' + NK_BRUSH_R);
+  check('THE HUD PHASE FOR THE GUT EXISTS: IN THE GUT! reads off bossBrushed, and the helper measures the worker against the beast with the shipped radii',
+    srcFn('updateHUD').includes('"  IN THE GUT!"') &&
+      srcFn('updateHUD').includes('bossBrushed(b)') &&
+      srcFn('bossBrushed').includes('BOSS_BRUSH_R') &&
+      srcFn('bossGutDistance').includes('Math.hypot(p.wx - b.wx, p.wy - b.wy)'),
+  );
   // THE HEART: SHUT = nothing to see; CRACK = a red seam; OPEN = a bright-red blaze to shovel.
   if (tent) {
     b.hp = BOSS_MAX_HP; b.hits = 0; b.heartState = 'shut'; b.heartOpen = 0;
@@ -3399,8 +3466,11 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
 
   // (g) THE WORKER'S CLAMP AT A CLOSED CURTAIN (the real updatePlayer snippet, in a harness)
   const clampStart = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
-  const Trig = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X)');
-  const clampSrc = html.slice(clampStart, Trig);
+  const Trig = html.indexOf("if (RT < 0 && state === \"play\" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X)");
+  // The extraction is the WARD clamp only — it ends at the slug's solid-gut step-cancel, which
+  // is the beast's own law (it runs on the boss, not on a ward) and belongs to no ward harness.
+  const GutStart = html.indexOf("// === THE SLUG DEMON'S GUT IS A SOLID WALL");
+  const clampSrc = html.slice(clampStart, Math.min(GutStart < 0 ? Trig : GutStart, Trig));
   const runClamp = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
     'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
     'nightGateSay', 'spawnEctoBurst', clampSrc);
@@ -3488,7 +3558,10 @@ console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — pre
   // the REAL clamp, extracted from updatePlayer (v1.0.491: fire on crossing, snap ON the line)
   const w0 = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
   const w1 = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X)');
-  const wardSrc = html.slice(w0, w1);
+  // The ward clamp ends where the slug's solid-gut step-cancel begins: that block is the beast's
+  // law (it reads the boss), and it belongs to no ward harness.
+  const wGut = html.indexOf("// === THE SLUG DEMON'S GUT IS A SOLID WALL");
+  const wardSrc = html.slice(w0, wGut < 0 ? w1 : Math.min(wGut, w1));
   const wall = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
     'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
     'nightGateSay', 'spawnEctoBurst', wardSrc);

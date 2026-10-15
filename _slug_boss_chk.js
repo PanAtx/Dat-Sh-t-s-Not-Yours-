@@ -105,6 +105,11 @@ const NK_HEART_EMISS = srcNum("BOSS_HEART_EMISS");
 // THE DAMAGE THE BEAST DEALS (mirrored): cold fire, the crush, the lash — all MINOR now
 const NK_HP_FIRE = srcNum("BOSS_HP_FIRE");
 const NK_HP_WHIP = srcNum("BOSS_HP_WHIP");
+const NK_BRUSH_R = srcNum("BOSS_BRUSH_R");
+const NK_GUT_R = srcNum("BOSS_GUT_R");
+const NK_BODY_R = srcNum("BOSS_BODY_R");
+const NK_BODY_CD = srcNum("BOSS_BODY_CD");
+const NK_BRUSH_LINES = eval("(" + srcLiteral("BOSS_BRUSH_LINES", "[", "]") + ")");
 const NK_HP_BODY = srcNum("BOSS_HP_BODY");
 
 // ---- the rig, built with the SHIPPED three.js (the same primitives the game builds with) ----
@@ -642,24 +647,92 @@ check(
   JSON.stringify(global.__wallSpikeDbg || {}),
 );
 check(
-  "NO BEAST HIT SHOVES ANYBODY THROUGH A FENCE: the ghost fire, the lash and the crushing body all re-seat the worker through bossRingClamp (the ring's own walls, floor to ghost iron) and NO knock-back carries the +2 leash past the iron",
-  srcFn("bossRingClamp").includes("clamp(wx, workerEndHardX(), workerCeilX())") &&
-    srcFn("updateBossFireballs").includes("bossRingClamp(p.wx, p.wy)") &&
-    srcFn("bossWhipStrike").includes("bossRingClamp(") &&
-    srcFn("updateNightBoss").includes("const crowd = bossRingClamp(") &&
-    !srcFn("updateBossFireballs").includes("workerCeilX() + 2") &&
-    !srcFn("bossWhipStrike").includes("workerCeilX() + 2") &&
-    (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0,
+  "NO BEAST CONTACT MOVES THE WORKER AT ALL: the ring has no boss-side placement helper any more — the ghost fire, the lash and the crushing body hurt, stun, shake, squelch and speak, and write NOTHING to p.wx / p.wy (bossRingClamp is deleted, the +2 leashes are gone)",
+  (function () {
+    const fire = srcFn("updateBossFireballs"),
+      lash = srcFn("bossWhipStrike"),
+      body = srcFn("updateNightBoss");
+    return (
+      !/function bossRingClamp/.test(html) &&
+      !/\bbossRingClamp\(/.test(html) &&
+      !/p\.wx\s*=/.test(fire) &&
+      !/p\.wy\s*=/.test(fire) &&
+      !/p\.wx\s*=/.test(lash) &&
+      !/p\.wy\s*=/.test(lash) &&
+      !/p\.wx\s*=/.test(body) &&
+      !/p\.wy\s*=/.test(body) &&
+      !/workerCeilX\(\) \+ 2/.test(html) &&
+      fire.includes("hurtNPC(BOSS_HP_FIRE,") &&
+      lash.includes("hurtNPC(BOSS_HP_WHIP,") &&
+      body.includes("hurtNPC(BOSS_HP_BODY,")
+    );
+  })(),
 );
 check(
-  "THE FIREBALL AND THE LASH DO NOT MOVE HIM AT ALL — the burst keeps his exact ground",
-  srcFn("updateBossFireballs").includes("const fireSeat = bossRingClamp(p.wx, p.wy);") &&
-    srcFn("updateBossFireballs").includes("p.wx = fireSeat.x;") &&
-    srcFn("updateBossFireballs").includes("p.wy = fireSeat.y;") &&
-    !/p\.wx \+= \(\(p\.wx - f\.wx\)/.test(srcFn("updateBossFireballs")) &&
-    srcFn("bossWhipStrike").includes("const lashSeat = bossRingClamp(") &&
-    srcFn("bossWhipStrike").includes("p.wx = lashSeat.x;"),
+  "THE SLUG'S BODY IS SOLID AND IT STINGS WITHOUT A SWING: BOSS_BRUSH_R (the band his centre gets bruised in) sits outside BOSS_GUT_R (the solid wall his own step may never enter); the crush band, the cooldown and the hit grace all ride on it",
+  NK_BRUSH_R > NK_GUT_R &&
+    NK_GUT_R >= NK_BODY_R &&
+    NK_BODY_CD > 1 &&
+    NK_HP_BODY >= 1 &&
+    NK_HP_BODY <= 6 &&
+    srcFn("updateNightBoss").includes("if (d < BOSS_BRUSH_R) {") &&
+    srcFn("updateNightBoss").includes("if (b.bodyCd <= 0 && (p.nightHitT || 0) <= 0)") &&
+    srcFn("updateNightBoss").includes("p.nightHitT = NIGHT_HIT_GRACE;") &&
+    srcFn("updateNightBoss").includes("SFX.playSquelch()") &&
+    srcFn("updateNightBoss").includes("BOSS_BRUSH_LINES"),
+  "brush=" + NK_BRUSH_R + " gut=" + NK_GUT_R + " body=" + NK_BODY_R,
 );
+check(
+  "THE NO-PUSH LAW IS TAUGHT OUT LOUD: the wake says it, the brush says it, and the goal card prints it",
+  srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") &&
+    srcFn("updateNightBoss").includes("pick(BOSS_BRUSH_LINES)") &&
+    NK_BRUSH_LINES.some((l) => /NEVER SHOVES/.test(l)) &&
+    /TOUCHING THE SLUG DEMON HURTS/.test(html) &&
+    /<b>IT NEVER SHOVES YOU<\/b>/.test(html),
+);
+
+check(
+  "THE GUT IS CANCELLED BY THE WORKER'S OWN STEP (the solid-body recipe): updatePlayer measures the gut on the step IT made this frame and cancels it axis by axis — cancel X, else slide on X, else refuse the head-on step — pressing away frees him next frame, the beast is never the mover",
+  (function () {
+    const src = srcFn("updatePlayer");
+    return (
+      src.includes("Math.hypot(x - nightBoss.wx, y - nightBoss.wy) < BOSS_GUT_R") &&
+      src.includes("if (!inGut(prevWx, p.wy)) p.wx = prevWx;") &&
+      src.includes("else if (!inGut(p.wx, prevWy)) p.wy = prevWy;") &&
+      src.includes("p.wx = prevWx;") &&
+      src.includes("p.wy = prevWy;") &&
+      src.includes("BOSS_BRUSH_LINES") &&
+      // the step-cancel runs on the worker's own pre-move spot (the truck push-out's history)
+      src.includes("const prevWx = p.wx,") &&
+      // and the beast is only read, never written, by the movement code
+      !/nightBoss\.wx\s*=/.test(src) &&
+      !/nightBoss\.wy\s*=/.test(src)
+    );
+  })(),
+);
+check(
+  "THE FIREBALL AND THE LASH KEEP HIS EXACT GROUND (LIVE): a shot on him and a lash through him hurt, stun and say — and not one unit of his position moves",
+  (function () {
+    const fire = srcFn("updateBossFireballs"),
+      lash = srcFn("bossWhipStrike");
+    return (
+      !fire.includes("fireSeat") &&
+      !lash.includes("lashSeat") &&
+      fire.includes("p.nightHitT = NIGHT_HIT_GRACE;") &&
+      lash.includes("p.nightHitT = NIGHT_HIT_GRACE;")
+    );
+  })(),
+);
+check(
+  "THE HUD TELLS HIM WHEN HE IS IN THE GUT, AND THE WAKE AND THE CARD TEACH THE NO-PUSH LAW",
+  srcFn("updateHUD").includes('"  IN THE GUT!"') &&
+    srcFn("updateNightBoss").includes("spawnEctoSplat(p.wx, p.wy, 0.5)") &&
+    srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") &&
+    /TOUCHING THE SLUG DEMON HURTS/.test(html) &&
+    /<b>IT NEVER SHOVES YOU<\/b>/.test(html) &&
+    /WALK AROUND IT/.test(html),
+);
+// --- THE SCURRY, THE BOOM, THE SLIME AND THE WIN BEAT (the fight's last three beats) ---
 check(
   "EVERY BEAST HIT IS MINOR ON THE 100-POINT POOL: a fireball " + NK_HP_FIRE + ", a crush " + NK_HP_BODY +
     ", a lash " + NK_HP_WHIP + " (was 11 / 12 / 14) — the fire is a frostburn, not a killer",
@@ -732,10 +805,13 @@ check(
     srcFn("updateNightSeal").includes("nightSeal.prevWx = p.wx;"),
 );
 check(
-  "EVERY GHOST-FIRE SHOT CULLS AT THE IRON, AND NO KNOCK-BACK CARRIES A BODY PAST IT",
+  "EVERY GHOST-FIRE SHOT CULLS AT THE IRON, AND NO BEAST CONTACT CARRIES A BODY PAST IT (the beast writes nothing to the worker's position at all)",
   srcFn("updateBossFireballs").includes("f.wx > workerCeilX() + 8") &&
     (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0 &&
-    srcFn("bossRingClamp").includes("workerCeilX()"),
+    !/\bbossRingClamp\(/.test(html) &&
+    !/p\.wx\s*=/.test(srcFn("updateBossFireballs")) &&
+    !/p\.wy\s*=/.test(srcFn("updateBossFireballs")) &&
+    srcFn("updateNightBoss").includes("sealFaceX() - BOSS_BODY_R"),
 );
 check(
   "STANDING AT THE WALL IS FIGHTING GROUND, NOT A PUNISHING NOOK: from the sealed ceiling the beast's rise point is inside lash reach, its roam ceiling keeps its bulk below the ghost fence, and the ring below him is his floor — the fight is winnable from where the wall stops him",

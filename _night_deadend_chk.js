@@ -253,12 +253,14 @@ check('no manhole (and no pothole, hydrant, bottle pile, wrapper or pile) is lai
     srcFn('makeBlockContents').includes('if (hr < 0.28 && !siClean) addBottles(b, hzX(1), R(1.5, 4.5));'));
 check('the manhole tentacle rises out of a manhole ON THE STREET: on Midnight a draw that lands below the border is pushed onto open street',
   srcFn('spawnWorld').includes('if (isNightShift() && za.wx < workerEndLimitX() + 2) za.wx = workerEndLimitX() + 2;'));
-check('a flung body stops ON the floor: the beast re-seats every body it touches through bossRingClamp, which clamps on the hard floor helper and the sealed ceiling — never floor minus 2, never ceiling plus 2 on the night',
+check('a flung body keeps its own ground: NO boss contact writes p.wx / p.wy any more (the old bossRingClamp placements are gone), the hard floor helper stays a floor line for the route, and no knock-back carries the +2 leash past the sealed ceiling',
   srcFn('workerEndHardX').includes('isNightShift() ? nightWallX() : workerEndLimitX() - 2') &&
-    srcFn('bossRingClamp').includes('clamp(wx, workerEndHardX(), workerCeilX())') &&
-    srcFn('updateBossFireballs').includes('bossRingClamp(') &&
-    srcFn('bossWhipStrike').includes('bossRingClamp(') &&
-    srcFn('updateNightBoss').includes('bossRingClamp('));
+    !/\bbossRingClamp\(/.test(html) &&
+    !/p\.wx\s*=/.test(srcFn('updateBossFireballs')) &&
+    !/p\.wy\s*=/.test(srcFn('updateBossFireballs')) &&
+    !/p\.wx\s*=/.test(srcFn('bossWhipStrike')) &&
+    !/p\.wx\s*=/.test(srcFn('updateNightBoss')) &&
+    !/workerCeilX\(\) \+ 2/.test(html));
 // ---- THE SWEPT BOSS BLOCK (Midnight): the final-boss block carries no haunt ----
 // NK_BOSS_X (74u, the rise point) is declared with the border law above; block 0 IS the
 // cemetery block, and BLOCK_W is this suite's block width (80u).
