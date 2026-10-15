@@ -189,7 +189,7 @@ const BOSS_FNS = [
   "nightSlimeBlob", "spawnBossSlime", "coatInSlime", "nightSlimeClear",
   "startBossFight", "grabBossGargoyle", "spawnBossGargoyle",
   // THE BOSS RING: the rig's fence floor, the ghost iron, and its whole lifecycle
-  "nightSealClosed", "workerCeilX", "truckFenceFloorX", "makeGhostIronFence", "buildNightSeal",
+  "nightSealClosed", "sealFaceX", "sealStandX", "workerCeilX", "truckFenceFloorX", "makeGhostIronFence", "buildNightSeal",
   "nightSealClear", "nightSealArm", "nightSealClose", "nightSealDrop", "nightSealSay",
   "updateNightSeal",
 ];

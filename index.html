@@ -4480,7 +4480,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.529</div>
+          <div id="app-version" class="menu-version">v1.0.530</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4738,7 +4738,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.529';
+      const APP_VERSION = '1.0.530';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19739,19 +19739,32 @@
         return isNightShift() ? nightWallX() : ROUTE_START_X;
       }
       // ==================== THE GHOST IRON (Midnight): the ring's ceiling ================
-      // Is the grave ring shut? TRUE from the frame the worker has walked BELOW the seal line
-      // (x 80, where the first cemetery fence begins) with the beast standing, to the frame the
-      // beast is banished. Weekdays, and every night frame before the wake, answer false.
+      // Is the grave ring shut? TRUE the instant the worker's centre crosses the iron's own FACE
+      // (NIGHT_SEAL_X - NIGHT_SEAL_INNER — the deepest point the ghost fence's light reaches down
+      // the road) with the beast standing, to the frame the beast is banished. Weekdays, and every
+      // night frame before that crossing, answer false.
       function nightSealClosed() {
         return !!(isNightShift() && nightSeal && nightSeal.armed && nightSeal.closed);
+      }
+      // THE Iron's face, measured off the fence mesh itself (the pool / light sheets of
+      // makeGhostIronFence reach 1.55u down the road from the fence line).
+      function sealFaceX() {
+        return NIGHT_SEAL_X - NIGHT_SEAL_INNER;
+      }
+      // THE worker's standing point at the wall: a body-width of respect DOWN the road from the
+      // iron's face. This is his sealed ceiling, and it is where the wall pushes him to — always
+      // fully inside the fight zone, never inside the iron's own footprint.
+      function sealStandX() {
+        return sealFaceX() - NIGHT_SEAL_STOP;
       }
       // The worker's UPSLOPE wall: the cul-de-sac tail by day and on an open street, and THE
       // GHOST IRON the moment the ring has shut behind him. Every clamp, knock-back and cull
       // that keeps a body on the street reads this one number, so a flung body can never land
-      // past spectral wrought iron (it stops on it, exactly like the bottom fence).
+      // past spectral wrought iron (it stops on it, exactly like the bottom fence) and never
+      // stands in it.
       function workerCeilX() {
         const top = isNightShift() ? NIGHT_TOP_X - NIGHT_TRAIL_X : ROUTE_END_X;
-        return nightSealClosed() ? Math.min(top, NIGHT_SEAL_X + NIGHT_SEAL_STOP) : top;
+        return nightSealClosed() ? Math.min(top, sealStandX()) : top;
       }
       // THE RING'S LAW FOR ANY BODY THE BEAST TOUCHES. Every placement a boss hit makes — the
       // solid body setting him out of the crush, a cold-fire burst, a tentacle lash — runs
@@ -28631,19 +28644,30 @@
       // (road, curb, walk and lawn) and drawn in cold spectral blue — rises up out of the
       // asphalt on that exact line and he cannot walk up the street again while the beast is
       // standing. The last fight is therefore fought in THE RING: the bottom cemetery fence
-      // (x 39.6, his floor) up to the ghost iron (x 96.6, his ceiling) — the beast's own yard,
-      // the truck parked at its top edge. Banish the beast and the ghost iron tears panel by
+      // (x 39.6, his floor) up to the ghost iron's FACE (his sealed ceiling = sealStandX(), a
+      // body-width below where the fence's light reaches down the road) — the beast's own yard,
+      // the truck parked at its top edge. He walks into the ring; the iron comes up on the frame
+      // he crosses its face, so he is never inside the wall and never up the street of it.
+      // Banish the beast and the ghost iron tears panel by
       // panel and lifts off the road, the street opens back up, and he walks up to the scoop.
       const NIGHT_SEAL_X = 80; // the seal line: where the first cemetery fence begins (the graves block's near edge = NIGHT_GRAVE_BLOCK_X + BLOCK_W)
       const NIGHT_SEAL_STOP = 0.6; // a body-width of respect off the ghost iron (his sealed ceiling)
-      const NIGHT_SEAL_INNER = 5.0; // u he must be INSIDE the ring before the iron is allowed to rise
+      const NIGHT_SEAL_INNER = 4.0; // u the iron's OWN FACE sits this far down from its line: the ghost pool /
+      // light sheets of makeGhostIronFence reach 1.55u down the road, so a body is only fully clear of the iron
+      // at line minus this. THE FIGHT-ZONE LAW: this one number is BOTH the line the seal closes on (the frame
+      // his centre crosses it, going down) AND his sealed ceiling (going up). A centre can never stand inside
+      // the iron's footprint — the wall is not walkable and cannot hold a man inside it.
       const NIGHT_TRUCK_NOSE_L = 4.0; // the rig's collision nose ahead of its centre (truck.boxL)
       const NIGHT_TRUCK_SEAL_CLEAR = 5.0; // u the rig's open scoop keeps UP-street of the ghost iron (the fence's own glow pool is ~1.3u deep in the road)
       const NIGHT_SEAL_RISE_T = 0.55; // s the ghost iron takes to rise out of the asphalt
+      const NIGHT_SEAL_HOLD_T = 1.6; // s the rise may wait for a body to clear the fence's footprint
+      const NIGHT_SEAL_MESH_DOWN = 1.55; // u the ghost fence's light reaches DOWN the road from its line
+      const NIGHT_SEAL_MESH_UP = 1.05; // ...and u it reaches UP the road (makeGhostIronFence's own mesh)
       const NIGHT_SEAL_LINES = [
         "THE FENCE'S UP — NO WAY BACK UP THE STREET!",
         "IT SEALED THE STREET BEHIND ME!",
         "ONLY THE SHOVEL OPENS THIS ONE!",
+        "THE FIGHT'S IN FRONT OF THE IRON — NOT IN IT!",
       ];
       // MORE RING AT THE BOTTOM (Midnight): with the beast awake the worker used to be
       // pinned behind it (the beast WAS the wall at its own back, x 73.4). The last fight
@@ -32883,8 +32907,11 @@
     }
   }
   // ...it keeps the RING it lives in: the graves below it, the ghost iron above it. It never
-  // runs out of the dead-end street, and it never crosses the seal line into the truck's lane.
-  b.wx = clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2);
+  // runs out of the dead-end street, and its bulk never crosses the iron's FACE into the fence's
+  // own light — the face minus its body radius is its ceiling, so the beast can press a man
+  // against the ghost wall, but NEITHER beast nor man may cross it, walk through it, or stand
+  // inside it.
+  b.wx = clamp(b.wx, NIGHT_GRAVE_X - 6, sealFaceX() - BOSS_BODY_R);
   b.wy = clamp(b.wy, -7.4, 6.2);
   // The scurry is SCUTTLE, not flight (the ring clamp above is what keeps it off every fence):
   // the body pitches along the run, and the pitch is applied on the rig at the frame's end.
@@ -33150,7 +33177,9 @@
           x: NIGHT_SEAL_X, // the fence line it stands on
           g: g,
           armed: false, // the beast is standing: the line is live
-          closed: false, // ...and the worker has walked below it
+          closed: false, // ...and the worker has crossed the iron's face
+          prevWx: 0, // THE SEAL'S OWN crossing history (never the ward's shared p.gatePrev)
+          holdT: 0, // s left the rise may wait for a body to clear the fence's footprint
           t: 0,
           rise: 0, // 0..1 the iron's rise out of the asphalt
           drop: 0, // >0 the falling tear is running
@@ -33164,26 +33193,34 @@
         }
         nightSeal = null;
       }
-      // THE WAKE ARMS THE LINE (startBossFight): the ring is live the instant the beast is up,
-      // and if he is already standing in the yard (the playtest doorway) it closes on him.
+      // THE WAKE ARMS THE LINE (startBossFight): the ring is live the instant the beast is up, and
+      // the seal owns its own crossing history from this frame (prevWx — never the ward's shared
+      // p.gatePrev, whose writer goes quiet the moment the fight starts). If he is already standing
+      // fully below the iron's face (the playtest doorway) it closes on him; a wake uphill of the
+      // face leaves the road open until he crosses it.
       function nightSealArm() {
         if (!isNightShift()) return false;
         if (!nightSeal) buildNightSeal();
         if (!nightSeal) return false;
         nightSeal.armed = true;
         nightSeal.drop = 0;
-        nightSeal.closed = p.wx < NIGHT_SEAL_X;
+        nightSeal.prevWx = p.wx;
+        nightSeal.holdT = NIGHT_SEAL_HOLD_T; // the rise may wait for a body, never forever
+        nightSeal.closed = p.wx < sealFaceX();
         if (nightSeal.closed) nightSeal.rise = 0;
         return nightSeal.closed;
       }
-      // THE CLOSE (updatePlayer, on the crossing frame): the ghost iron rises out of the road
-      // on the fence line, the street shudders, and the way back up is gone for the fight.
+      // THE CLOSE (updatePlayer, on the crossing frame): the ghost iron rises out of the road on its
+      // own face line, the street shudders, and the way back up the street is gone for the fight. He
+      // is closed IN the fight zone, with the iron standing uphill of him — never inside it.
       function nightSealClose() {
         if (!nightSeal || !nightSeal.armed || nightSeal.closed) return false;
         nightSeal.closed = true;
         nightSeal.drop = 0;
         nightSeal.rise = 0;
         nightSeal.t = 0;
+        nightSeal.prevWx = p.wx;
+        nightSeal.holdT = NIGHT_SEAL_HOLD_T;
         nightSeal.g.visible = true;
         nightSeal.g.position.z = GZ;
         nightSeal.g.scale.z = 0.2;
@@ -33212,6 +33249,11 @@
         const g = nightSeal.g;
         const ward = g.userData.ward;
         if (!ward) return;
+        // THE SEAL OWNS ITS OWN CROSSING HISTORY, rolled at the foot of every night frame from the
+        // worker's RESOLVED centre. It used to borrow the ward's shared p.gatePrev — whose writer
+        // goes quiet the very frame the boss fight starts — and a wall running on a dead history
+        // is a wall a body walks straight through. That bookkeeping belongs to the iron now.
+        if (p && typeof p.wx === "number") nightSeal.prevWx = p.wx;
         nightSeal.t += dt;
         if (nightSeal.drop > 0) {
           // THE FALLING TEAR (the ward's own recipe): panel by panel, gutter end first.
@@ -33235,7 +33277,17 @@
           return;
         }
         if (!nightSeal.closed) {
-          if (g.visible) {
+          // THE ARMED LINE SHOWS ITSELF: once the beast is up, the ghost fence stands dim and low
+          // on its line — a wall the eye can see before the physics ever catches a body in it.
+          // Walking down through it is the way INTO the ring; the frame he crosses its face it
+          // closes and comes fully up.
+          if (nightSeal.armed) {
+            g.visible = true;
+            g.position.z = GZ - 2.4;
+            g.scale.z = 0.45;
+            const whisper = 0.24 + Math.sin(nightSeal.t * 2.3 + ward.phase) * 0.07;
+            for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m] * whisper;
+          } else if (g.visible) {
             g.visible = false;
             g.position.z = GZ;
             for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m];
@@ -33243,6 +33295,21 @@
           return;
         }
         if (nightSeal.rise < 1) {
+          // THE IRON NEVER RISES THROUGH A BODY. While his centre stands inside the fence's own
+          // mesh footprint the iron holds at the asphalt line and glows — it comes up IN FRONT of
+          // him, never on top of him. The hold is BOUNDED (it cannot stall the wall forever): the
+          // hard stop has already put him a body-width below the iron's face, which is clear of
+          // this band, so by the time the hold runs out he is out of the mesh and the rise is
+          // purely cosmetic.
+          if (nightSeal.holdT > 0 && state === "play" && p.wx > NIGHT_SEAL_X - NIGHT_SEAL_MESH_DOWN && p.wx < NIGHT_SEAL_X + NIGHT_SEAL_MESH_UP) {
+            nightSeal.holdT = Math.max(0, nightSeal.holdT - dt);
+            nightSeal.prevWx = Math.max(nightSeal.prevWx, sealFaceX()); // the crossing re-arms
+            g.visible = true;
+            g.position.z = GZ - 3.1;
+            g.scale.z = 0.16;
+            for (let m = 0; m < ward.mats.length; m++) ward.mats[m].opacity = ward.base[m] * 0.5;
+            return;
+          }
           // THE RISE: the iron comes up out of the road in NIGHT_SEAL_RISE_T seconds.
           nightSeal.rise = Math.min(1, nightSeal.rise + dt / NIGHT_SEAL_RISE_T);
           const k = nightSeal.rise;
@@ -44007,30 +44074,27 @@
           if (p.wx > workerCeilX()) {
             p.wx = workerCeilX(); // the top of the cul-de-sac — or THE GHOST IRON of the ring
           }
-          // THE GHOST FENCE CLOSES THE STREET (the boss ring): the seal line is armed by the
-          // wake, and the iron rises the frame he is FULLY INSIDE the ring — a full
-          // NIGHT_SEAL_INNER past the line where the first cemetery fence begins (the line the
-          // rig parked on). It never rises in the fence's own footprint, so it can't shove him
-          // back out of the fight zone: at the close he has a night of open asphalt between him
-          // and the wall, and his sealed ceiling (the iron + a body-width) sits behind him,
-          // clear of the rig's collision box. The crossing is measured on the segment his centre
-          // travelled (the ward's own recipe), so the wall bites on the frame he is past it.
-          if (bossFightOn && nightSeal && nightSeal.armed && !nightSeal.closed) {
-            const prevSeal = p.gatePrev == null ? p.wx : p.gatePrev;
-            const sealInner = NIGHT_SEAL_X - NIGHT_SEAL_INNER;
-            if (prevSeal >= sealInner && p.wx < sealInner) nightSealClose();
+          // THE GHOST FENCE CLOSES THE STREET (the boss ring): the seal line is armed by the wake and
+          // the iron rises the frame his centre crosses THE IRON'S OWN FACE (sealFaceX — the deepest
+          // point the fence's light reaches down the road), measured on the seal's OWN per-frame
+          // history. It closes with him fully IN the fight zone and the iron standing uphill of him:
+          // the wall is never walkable and never rises in the fence's footprint on top of a body.
+          if (nightSeal && nightSeal.armed && !nightSeal.closed && state === "play") {
+            const prevSeal = nightSeal.prevWx == null ? p.wx : nightSeal.prevWx;
+            if (prevSeal >= sealFaceX() && p.wx < sealFaceX()) nightSealClose();
           }
-          if (nightSealClosed() && p.wx >= NIGHT_SEAL_X - 0.001 && state === "play") {
-            // He is standing IN the iron (walked back up onto it, or flung at it): the wall
-            // pushes him back INSIDE the ring — the same hard stop the spectral ward uses, and
-            // the same one-line-per-2s of pressing, never a tow-rope pull.
-            p.wx = NIGHT_SEAL_X + NIGHT_SEAL_STOP; // hard stop on the ghost iron
+          if (nightSealClosed() && p.wx > sealStandX() && state === "play") {
+            // He is standing in the iron (walked up onto it, flung at it, or a fat frame that jumped
+            // the crossing): the wall puts him back OUT of it, on the fight-zone side, a body-width
+            // below its face — the same hard stop the spectral ward uses, one line per 2s of pressing,
+            // a stable dead stop on the line and instant release pressing away (no pin pocket).
+            p.wx = sealStandX(); // hard stop out of the ghost iron, inside the ring
             p.sealT = Math.max(0, (p.sealT || 0) - dt);
             if (p.sealT <= 0) {
               p.sealT = 2.2; // one line per ~2s of pressing at the iron
               p.shake = Math.max(p.shake || 0, 0.42);
               nightSealSay(pick(NIGHT_SEAL_LINES));
-              spawnEctoBurst(NIGHT_SEAL_X, p.wy, 0.6); // the light flares where he hits it
+              spawnEctoBurst(sealFaceX(), p.wy, 0.6); // the light flares where he hits it
             }
           }
         }
@@ -52275,7 +52339,9 @@
               $("boss-goal-phase"),
               b.hooked
                 ? "  BURSTING!" // the kill swing landed: the body is blowing up
-                : b.recoilT > 0
+                : nightSealClosed() && p.wx >= sealStandX() - 0.35
+                  ? "  AT THE FENCE!" // he is pinned on the ghost iron: shove off it and fight
+                  : b.recoilT > 0
                   ? "  SCURRYIN'!" // struck: it is slipping off the blade, give him chase
                   : heartUp
                   ? "  HEART — SHOVEL IT!"
@@ -53210,7 +53276,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL: WALKING INTO IT STOPS YOU, YOU NEVER END INSIDE IT</b> &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

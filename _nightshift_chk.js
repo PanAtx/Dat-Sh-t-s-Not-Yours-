@@ -498,7 +498,7 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex',
   'nightTestClockInAtBoss',
   // THE BOSS RING (Midnight): the rig's fence floor + the ghost iron's ceiling
-  'nightSealClosed', 'workerCeilX', 'truckFenceFloorX', 'makeCemeteryFence',
+  'nightSealClosed', 'sealFaceX', 'sealStandX', 'workerCeilX', 'truckFenceFloorX', 'makeCemeteryFence',
   'makeGhostIronFence', 'buildNightSeal', 'nightSealClear', 'nightSealArm',
   'nightSealClose', 'nightSealDrop', 'nightSealSay', 'updateNightSeal'].map(srcFn).join('\n');
 // THE KILL DROP: the door the note goes through, spied on right here, and the bands it
@@ -607,7 +607,8 @@ const H = new Function(
   'BOSS_HEART_HOT', 'BOSS_HEART_DARK', 'BOSS_HEART_EMISS',
   // THE BOSS RING (Midnight): the seal line, the respect off the ghost iron, the rig's nose
   'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_SEAL_INNER', 'NIGHT_TRUCK_NOSE_L',
-  'NIGHT_TRUCK_SEAL_CLEAR', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
+  'NIGHT_TRUCK_SEAL_CLEAR', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_HOLD_T',
+  'NIGHT_SEAL_MESH_DOWN', 'NIGHT_SEAL_MESH_UP', 'NIGHT_SEAL_LINES',
   // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up beat, the goop, the hop)
   'BOSS_SCURRY_T', 'BOSS_SCURRY_SP', 'BOSS_SCURRY_MIN', 'BOSS_BOOM_ROAR', 'BOSS_BOOM_R',
   'BOSS_BOOM_SPLATS', 'BOSS_BOOM_COAT', 'BOSS_BOOM_SLIME_KEEP', 'BOSS_WIN_JUMP_T',
@@ -694,6 +695,7 @@ const H = new Function(
   ' getBoss: () => nightBoss, setBoss: (v) => { nightBoss = v; },' +
   // THE BOSS RING: the rig's fence floor, the ring's ceiling, the live ghost iron
   ' getSeal: () => nightSeal, sealClosed: () => nightSealClosed(),' +
+  ' sealFace: () => sealFaceX(), sealStand: () => sealStandX(),' +
   ' ceilX: () => workerCeilX(), truckFloorX: () => truckFenceFloorX(),' +
   ' ringClamp: (x, y) => bossRingClamp(x, y),' +
   ' sealBuild: () => buildNightSeal(), sealArm: () => nightSealArm(),' +
@@ -810,6 +812,8 @@ const H = new Function(
     NK_HEART_HOT, NK_HEART_DARK, NK_HEART_EMISS,
     NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_TRUCK_NOSE, NK_TRUCK_CLEAR,
     srcNum('NIGHT_SEAL_RISE_T'),
+    srcNum('NIGHT_SEAL_HOLD_T'),
+    srcNum('NIGHT_SEAL_MESH_DOWN'), srcNum('NIGHT_SEAL_MESH_UP'),
     ['THE FENCE’S UP — NO WAY BACK UP THE STREET!'],
     // THE SCURRY, THE BOOM AND THE SLIME (the names sit at THIS point of the list, so the
     // values must ride the same slots)
@@ -5140,13 +5144,16 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
     x36 = Math.min(x36, H.ceilX()); // ...and after the close he has a new ceiling
     if (x36 <= wall + 1e-9) break; // he is standing on the floor of the ring
   }
-  check("HE WALKS INTO THE GRAVE RING AND THE GHOST IRON SHUTS BEHIND HIM at the FIRST CEMETERY FENCE LINE " +
-      NK_SEAL_X + "u — and ONLY once he is fully inside it (" + closedAt36 + "u, a " +
-      (closedAt36 == null ? 0 : (NK_SEAL_X - closedAt36).toFixed(1)) + "u pocket INSIDE the iron), so the wall never rises in the fence's own footprint and never shoves him back out of the fight",
+  check("HE WALKS INTO THE GRAVE RING AND THE GHOST IRON SHUTS BEHIND HIM at the iron's FACE (" +
+      H.sealFace() + "u = the fence line " + NK_SEAL_X + "u minus the " + NK_SEAL_INNER +
+      "u its light reaches down the road) — the wall closes on the crossing frame at " + closedAt36 +
+      "u, his sealed ceiling (" + ceilAt36 + "u) sits BEHIND him, and a body never stands inside the fence's own mesh",
     closedAt36 != null && closedAt36 <= ringInner + 0.5 &&
       NK_SEAL_X - closedAt36 >= NK_SEAL_INNER &&
-      Math.abs(ceilAt36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 &&
-      ceilAt36 > closedAt36 + NK_SEAL_INNER && H.sealClosed() === true,
+      Math.abs(ceilAt36 - H.sealStand()) < 1e-9 &&
+      Math.abs(ceilAt36 - (NK_SEAL_X - NK_SEAL_INNER - NK_SEAL_STOP)) < 1e-9 &&
+      ceilAt36 < ringInner && // the standing point is DOWN the road of the wall: never in the mesh
+      H.sealClosed() === true,
     "cross=" + closedAt36 + " ceil=" + ceilAt36 + " inner=" + ringInner);
   // Press him UP the street from deep in the ring: the iron stops him on the line, every frame,
   // and he is never yanked across it (the sealed ceiling is a wall, not a tow rope).
@@ -5158,8 +5165,10 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
     if (up36 >= ceil36 - 1e-9) break;
   }
   check("THE FENCE IS A SOLID WALL FROM INSIDE THE RING: pressing up the street from " + 45 + "u stops him on the ghost iron at " +
-      up36.toFixed(2) + "u and he never gets past it (" + press36 + " frames of walking)",
-    pastIron === false && Math.abs(up36 - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 && H.sealClosed() === true,
+      up36.toFixed(2) + "u — a body-width below its face, inside the fight zone — and he never gets past it (" + press36 + " frames of walking)",
+    pastIron === false && Math.abs(up36 - H.sealStand()) < 1e-9 &&
+      up36 < NK_SEAL_X - NK_SEAL_INNER && // he is never standing in the wall's own footprint
+      H.sealClosed() === true,
     "at=" + up36.toFixed(2) + " steps=" + press36);
   check("THE RING HE IS SHUT INTO IS THE BEAST'S OWN YARD: " + (up36 - ringFloor).toFixed(1) +
       "u of street between the bottom fence (" + ringFloor + "u) and the ghost iron (" + up36.toFixed(1) + "u), the rise point " +

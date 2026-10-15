@@ -305,10 +305,10 @@ check("THE FIGHT LOOP RUNS THE HEART CYCLE (shut \u2192 crack \u2192 open) and t
     srcFn("updateNightBoss").includes("bossFireGap(b)") &&
     srcFn("updateNightBoss").includes("bossFireShots(b)") &&
     srcFn("spawnBossFireball").includes("bossArmMuzzle(b, side)"));
-check("THE BEAST ONLY LEAVES ITS RISE POINT ONCE FURIOUS, and never runs out of its block",
+check("THE BEAST ONLY LEAVES ITS RISE POINT ONCE FURIOUS, and never runs out of its block (its ceiling is the ghost iron's FACE minus its body)",
   srcFn("updateNightBoss").includes("const furious = bossIsFurious(b);") &&
     srcFn("updateNightBoss").includes("if (furious && !scurrying)") &&
-    srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2)"));
+    srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, sealFaceX() - BOSS_BODY_R)"));
 check("THE HUD NAME IS THE SLUG DEMON, and the goal card says SHOVEL OUT ITS HEART",
   html.includes("THE SLUG DEMON<span") &&
     /SHOVEL OUT THE <b>SLUG DEMON'S HEART<\/b>/.test(html) &&
@@ -333,6 +333,12 @@ const NK_TRUCK_NOSE = srcNum("NIGHT_TRUCK_NOSE_L");
 const NK_NOSE = NK_TRUCK_NOSE; // the sandbox injection's short name
 const NK_TRUCK_CLEAR = srcNum("NIGHT_TRUCK_SEAL_CLEAR");
 const NK_RISE_T = srcNum("NIGHT_SEAL_RISE_T");
+const NK_HOLD_T = srcNum("NIGHT_SEAL_HOLD_T");
+// THE FENCE'S OWN GEOMETRY (measured off makeGhostIronFence): its ghost pool / light sheet mesh
+// reaches 1.55u down the road from the fence line and 1.05u up it. A worker centre inside this
+// band is standing IN the wall.
+const NK_MESH_DN = srcNum("NIGHT_SEAL_MESH_DOWN"), NK_MESH_UP = srcNum("NIGHT_SEAL_MESH_UP");
+const NK_MESH_LO = srcNum("NIGHT_SEAL_X") - NK_MESH_DN, NK_MESH_HI = srcNum("NIGHT_SEAL_X") + NK_MESH_UP;
 const NK_TOP_X = srcNum("NIGHT_TOP_X"), NK_TRAIL = srcNum("NIGHT_TRAIL_X");
 const NK_FENCE = srcNum("NIGHT_FENCE_X"), NK_STANDOFF = srcNum("NIGHT_FENCE_STANDOFF");
 const NK_BOSS_X = srcNum("NIGHT_BOSS_X"), NK_GRAVE = srcNum("NIGHT_GRAVE_X");
@@ -357,28 +363,32 @@ const RING = new Function(
   "S", "p", "isNightShift", "THREE", "M", "BX", "CY", "SP", "SPH", "R", "pick", "clamp", "GZ",
   "dynamicGroup", "disposeObj", "spawnEctoBurst", "Voice", "SFX", "WORKER_GENDER",
   "NIGHT_SEAL_X", "NIGHT_SEAL_STOP", "NIGHT_SEAL_INNER", "NIGHT_TRUCK_NOSE_L",
-  "NIGHT_TRUCK_SEAL_CLEAR", "NIGHT_SEAL_RISE_T", "NIGHT_SEAL_LINES",
+  "NIGHT_TRUCK_SEAL_CLEAR", "NIGHT_SEAL_RISE_T", "NIGHT_SEAL_HOLD_T", "NIGHT_SEAL_LINES",
+  "NIGHT_SEAL_MESH_DOWN", "NIGHT_SEAL_MESH_UP",
   "NIGHT_TOP_X", "NIGHT_TRAIL_X", "ROUTE_END_X", "NIGHT_GATE_FADE", "NIGHT_GATE_LIFT",
   "NIGHT_WARD_PANELS", "NIGHT_WARD_SPAN_R", "NIGHT_WARD_SPAN_L", "NIGHT_WARD_DEATH_BAND",
-  "makeCemeteryFence",
-  sealSrc("nightSealClosed") + sealSrc("workerCeilX") + sealSrc("truckFenceFloorX") +
+  "makeCemeteryFence", "state",
+  sealSrc("nightSealClosed") + sealSrc("sealFaceX") + sealSrc("sealStandX") +
+    sealSrc("workerCeilX") + sealSrc("truckFenceFloorX") +
     srcFn("makeGhostIronFence") + sealSrc("buildNightSeal") + sealSrc("nightSealClear") +
     sealSrc("nightSealArm") + sealSrc("nightSealClose") + sealSrc("nightSealDrop") +
     sealSrc("nightSealSay") + sealSrc("updateNightSeal") +
-    "\nreturn { nightSealClosed, workerCeilX, truckFenceFloorX, makeGhostIronFence, buildNightSeal, nightSealArm," +
+    "\nreturn { nightSealClosed, sealFaceX, sealStandX, workerCeilX, truckFenceFloorX, makeGhostIronFence, buildNightSeal, nightSealArm," +
     " nightSealClose, nightSealDrop, updateNightSeal, nightSealClear };",
 )(
   S4, p4, () => night4, THREE, M, BX, CY, SP, SPH, R, pick, clampFn, GZ,
   dyn4, (o) => disposed4.push(o), (x, y, s) => bursts4.push({ x, y, s }),
   { say: (t) => said4.push(t) }, { playThunder() {} }, "male",
-  NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_NOSE, NK_TRUCK_CLEAR, NK_RISE_T,
+  NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_NOSE, NK_TRUCK_CLEAR, NK_RISE_T, NK_HOLD_T,
   ["THE FENCE'S UP — NO WAY BACK UP THE STREET!"],
+  NK_MESH_DN, NK_MESH_UP,
   NK_TOP_X, NK_TRAIL, 560, NK_GATE_FADE, NK_GATE_LIFT,
   NK_PANELS, srcNum("NIGHT_WARD_SPAN_R"), srcNum("NIGHT_WARD_SPAN_L"), NK_BAND,
   new Function(
     "THREE", "BX", "CY", "SP", "R", "M", "GZ", "MS",
     srcFn("makeCemeteryFence") + "\nreturn makeCemeteryFence;",
   )(THREE, BX, CY, SP, R, M, GZ, MS),
+  "play",
 );
 
 check(
@@ -438,56 +448,84 @@ check(
   })(),
 );
 check(
-  "WAKING THE BEAST ARMS THE LINE, AND THE FENCE ONLY SHUTS WHEN HE WALKS BELOW IT",
+  "WAKING THE BEAST ARMS THE LINE, AND THE FENCE SHUTS ON THE FRAME HE CROSSES THE IRON'S FACE",
   (function () {
     p4.wx = 449;
+    RING.buildNightSeal();
     RING.nightSealArm();
     const armedAbove = S4.seal.armed === true && S4.seal.closed === false && RING.nightSealClosed() === false;
-    p4.wx = 85;
+    RING.updateNightSeal(1 / 60); // the armed line shows itself low on the road
+    const armedMesh =
+      S4.seal.g.visible === true && S4.seal.g.scale.z < 1 && S4.seal.g.userData.ward.mats[0].opacity > 0; // the armed line shows itself
+    S4.seal.rise = 0;
+    S4.seal.holdT = 0; // the rise-hold has run out: the wall is rising
+    p4.wx = 70; // he is fully below the iron's face: the crossing closes the ring in the fight zone
     const closed = RING.nightSealClose();
     return (
       armedAbove &&
+      armedMesh &&
       closed === true &&
       RING.nightSealClosed() === true &&
       S4.seal.g.visible === true &&
-      said4.length > 0
+      S4.seal.prevWx === 70 && // the seal's own history rides the crossing frame
+      said4.length > 0 &&
+      bursts4.some((b) => b.x === NK_SEAL_X)
     );
   })(),
 );
 check(
-  "THE SEALED CEILING IS THE GHOST IRON (line + a body-width of respect), and the ring it closes is a real fighting ring",
+  "THE SEALED CEILING IS A BODY-WIDTH BELOW THE IRON'S FACE (sealStandX = line - inner - stop), and the ring it closes is a real fighting ring",
   (function () {
     const ceil = RING.workerCeilX();
     const floor = NK_FENCE + NK_STANDOFF; // the bottom cemetery fence: his shipped floor
+    const face = RING.sealFaceX();
     return (
-      Math.abs(ceil - (NK_SEAL_X + NK_SEAL_STOP)) < 1e-9 &&
+      Math.abs(ceil - (NK_SEAL_X - NK_SEAL_INNER - NK_SEAL_STOP)) < 1e-9 &&
+      Math.abs(ceil - RING.sealStandX()) < 1e-9 &&
+      ceil < face && // the standing point is DOWN the road of the iron: never inside the wall
+      ceil < NK_MESH_LO - 1 && // ...a full body clear of the fence mesh's own footprint
       ceil > floor + 20 &&
       ceil < RING.truckFenceFloorX() && // he is sealed BELOW the parked rig, at the graves
-      NK_BOSS_X > floor && NK_BOSS_X < NK_SEAL_X && // the beast rises inside the ring
-      NK_GRAVE > floor && NK_GRAVE < NK_SEAL_X // ...and its treasure lands inside the ring
+      NK_BOSS_X > floor && NK_BOSS_X < ceil && // the beast rises inside the ring, below the wall
+      NK_GRAVE > floor && NK_GRAVE < ceil // ...and its treasure lands inside the ring
     );
   })(),
-  "ceil=" + RING.workerCeilX() + " floor=" + (NK_FENCE + NK_STANDOFF),
+  "ceil=" + RING.workerCeilX() + " face=" + RING.sealFaceX() + " floor=" + (NK_FENCE + NK_STANDOFF),
 );
 
 check(
   "THE RISE IS AN ANIMATION, NOT A SNAP: " + NK_RISE_T + "s out of the asphalt, its light ramping in as it comes up, ending square on the road",
   (function () {
     S4.seal.rise = 0;
+    S4.seal.holdT = NK_HOLD_T; // the hold budget the close hands the rise
     const z0 = S4.seal.g.position.z;
-    RING.updateNightSeal(1 / 60);
-    const zStep = S4.seal.g.position.z, o1 = S4.seal.g.userData.ward.mats[0].opacity;
+    const inMesh = (RING.sealStandX() + NK_SEAL_STOP + 2.4) >= 0; // readability: the stand is BELOW the mesh
+    // STANDING IN THE FENCE'S MESH FOOTPRINT (the old bug's shape — the wall coming up on a body
+    // inside it): the iron must NOT rise. It glows low at the asphalt and the crossing re-arms.
+    p4.wx = NK_SEAL_X - 0.5; // a centre squarely inside the mesh band
+    for (let i = 0; i < 8; i++) RING.updateNightSeal(1 / 60);
+    const heldRise = S4.seal.rise, heldZ = S4.seal.g.position.z, heldWx = S4.seal.prevWx;
+    // Fully clear BELOW the iron's face: the same frames now bring the wall up.
+    p4.wx = RING.sealStandX() - 2;
+    const zStep = S4.seal.g.position.z;
+    const o1 = S4.seal.g.userData.ward.mats[0].opacity;
     for (let i = 0; i < Math.ceil(NK_RISE_T * 60) + 1; i++) RING.updateNightSeal(1 / 60);
     const ward = S4.seal.g.userData.ward;
+    global.__riseDbg = { heldRise, heldZ, heldWx, face: RING.sealFaceX(), rise: S4.seal.rise };
     return (
-      S4.seal.rise === 1 &&
+      inMesh &&
+      heldRise === 0 && // the wall waited for the body to clear its own mesh
+      Math.abs(heldZ - (GZ - 3.1)) < 1e-9 && // it showed itself low at the asphalt line
+      heldWx >= RING.sealFaceX() && // and the crossing re-armed while it waited
       zStep < z0 && // it starts BELOW the road and rises into frame
+      S4.seal.rise === 1 &&
       o1 > 0 &&
       S4.seal.g.position.z === GZ &&
       S4.seal.g.scale.z === 1 &&
       ward.mats.every((m, i) => m.opacity > 0.2 * ward.base[i])
     );
   })(),
+  JSON.stringify(global.__riseDbg || {}),
 );
 check(
   "THE RIG PARKS AHEAD OF THE GHOST IRON, NEVER IN IT: its fence floor sets the collision nose and the OPEN SCOOP up-street of the line, clear of the iron's own glow footprint, and clear of the worker's sealed ceiling (a sealed worker standing at the iron is never standing in the truck's collision box)",
@@ -495,7 +533,7 @@ check(
     const floor = RING.truckFenceFloorX(); // the rig's centre floor
     const nose = floor - NK_TRUCK_NOSE; // its collision box edge (down-street, truck.boxL)
     const scoop = floor - 4.3; // its open hopper mouth
-    const ceil = NK_SEAL_X + NK_SEAL_STOP; // the worker's sealed ceiling
+    const ceil = RING.sealStandX(); // the worker's sealed ceiling: below the iron's face
     return (
       floor === NK_SEAL_X + NK_TRUCK_NOSE + NK_TRUCK_CLEAR &&
       scoop > NK_SEAL_X + 1 && // the hopper stands CLEAR of the ghost fence
@@ -506,19 +544,101 @@ check(
   "floor=" + RING.truckFenceFloorX() + " nose=" + (RING.truckFenceFloorX() - 4),
 );
 check(
-  "THE IRON RISES ONLY ON A WORKER FULLY INSIDE THE RING: the crossing is measured on the INNER line (the fence line minus " + NK_SEAL_INNER + "u) — walking him down from the street, the wall never rises in the fence's own footprint, his sealed ceiling sits BEHIND him, and updatePlayer's hard stop pushes a man standing in the iron back INTO the fight",
+  "THE GHOST FENCE IS A WALL AT ITS OWN FACE: updatePlayer closes the seal on the frame his centre crosses sealFaceX (measured on the SEAL'S OWN history, never the ward's p.gatePrev), and its hard stop puts him at sealStandX — out of the iron, in the fight zone",
   (function () {
     const src = srcFn("updatePlayer");
     return (
-      /const sealInner = NIGHT_SEAL_X - NIGHT_SEAL_INNER/.test(src) &&
-      src.includes("if (prevSeal >= sealInner && p.wx < sealInner)") &&
-      src.includes('if (nightSealClosed() && p.wx >= NIGHT_SEAL_X - 0.001 && state === "play")') &&
-      src.includes("p.wx = NIGHT_SEAL_X + NIGHT_SEAL_STOP;") &&
-      NK_SEAL_INNER >= 3 &&
-      NK_SEAL_X - NK_SEAL_INNER > NK_FENCE + NK_STANDOFF + 20 && // the inner line is INSIDE the ring
-      NK_SEAL_X + NK_SEAL_STOP > NK_SEAL_X - NK_SEAL_INNER + NK_SEAL_INNER // ceiling clear of the crossing spot
+      src.includes("nightSeal.prevWx == null ? p.wx : nightSeal.prevWx") &&
+      src.includes("if (prevSeal >= sealFaceX() && p.wx < sealFaceX()) nightSealClose();") &&
+      src.includes("if (nightSealClosed() && p.wx > sealStandX() && state === \"play\")") &&
+      src.includes("p.wx = sealStandX();") &&
+      src.includes("spawnEctoBurst(sealFaceX(), p.wy, 0.6)") &&
+      src.includes("const prevSeal = nightSeal.prevWx == null ? p.wx : nightSeal.prevWx")
     );
   })(),
+);
+check(
+  "THE WALL IS NOT WALKABLE AND NOT HABITABLE (LIVE): walking down from the boss trigger, the seal closes ON the crossing frame of the iron's face with his centre in the RING; no frame stands him inside the fence mesh; pressing uphill pins him at the sealed ceiling and he can never end past it",
+  (function () {
+    const face = RING.sealFaceX(), stand = RING.sealStandX();
+    const meshIn = (x) => x >= NK_MESH_LO - 0.45 && x <= NK_MESH_HI + 0.45;
+    RING.buildNightSeal();
+    p4.wx = 115; p4.wy = 2.5; p4.shake = 0; p4.sealT = 0;
+    RING.nightSealArm();
+    if (!(S4.seal.armed === true && S4.seal.closed === false)) return false;
+    const step = 8.5 * (1 / 60) * 0.75; // his real downhill pace
+    let closedAt = -1, closedWx = 0, walkThrough = 0, stuck = 0, prevWx = p4.wx;
+    for (let i = 0; i < 420; i++) {
+      p4.wx -= step;
+      if (p4.wx < 39.6) p4.wx = 39.6;
+      const ceil = RING.nightSealClosed() ? Math.min(NK_TOP_X - NK_TRAIL, stand) : NK_TOP_X - NK_TRAIL;
+      if (p4.wx > ceil) p4.wx = ceil;
+      if (S4.seal.armed && !S4.seal.closed && prevWx >= face && p4.wx < face) RING.nightSealClose();
+      if (RING.nightSealClosed() && p4.wx > stand) p4.wx = stand;
+      RING.updateNightSeal(1 / 60);
+      prevWx = p4.wx;
+      if (meshIn(p4.wx) && !RING.nightSealClosed()) walkThrough++;
+      if (meshIn(p4.wx) && RING.nightSealClosed()) stuck++;
+      if (closedAt < 0 && RING.nightSealClosed()) { closedAt = i; closedWx = p4.wx; }
+      if (closedAt >= 0 && i > closedAt + 90) break;
+    }
+    global.__wallDbg = { face, stand, closedAt, closedWx, walkThrough, stuck, end: p4.wx };
+    return (
+      closedAt >= 0 && closedWx < face && closedWx <= stand + 1e-6 && // sealed on the crossing, IN the ring
+      stuck === 0 && // he never stands inside the standing wall
+      RING.nightSealClosed() === true
+    );
+  })(),
+  JSON.stringify(global.__wallDbg || {}),
+);
+check(
+  "HE CANNOT BE TRAPPED OUTSIDE THE FIGHT ZONE (LIVE): from the middle of the ring he walks UPHILL into the standing iron — pinned at the sealed ceiling, a body-width below the iron's face, NEVER past the wall, never inside its mesh, with the beast's rise point reachable from where he stands",
+  (function () {
+    const face = RING.sealFaceX(), stand = RING.sealStandX();
+    const meshIn = (x) => x >= NK_MESH_LO - 0.45 && x <= NK_MESH_HI + 0.45;
+    p4.wx = 60; p4.wy = 0; p4.sealT = 0;
+    RING.buildNightSeal();
+    RING.nightSealArm(); // the wake happened with him inside the ring: sealed on the spot
+    if (!RING.nightSealClosed()) return false;
+    const step = 8.5 / 60; // his real uphill pace
+    let pinned = 0, over = 0, stuck = 0, maxWx = 0;
+    for (let i = 0; i < 420; i++) {
+      p4.wx += step;
+      if (RING.nightSealClosed() && p4.wx > stand) p4.wx = stand;
+      RING.updateNightSeal(1 / 60);
+      maxWx = Math.max(maxWx, p4.wx);
+      if (Math.abs(p4.wx - stand) < 1e-6) pinned++;
+      if (p4.wx > stand + 1e-6) over++;
+      if (meshIn(p4.wx)) stuck++;
+    }
+    for (let i = 0; i < Math.ceil(NK_RISE_T * 60) + 2; i++) RING.updateNightSeal(1 / 60);
+    global.__wallUpDbg = { face, stand, pinned, over, stuck, maxWx: +maxWx.toFixed(3), rise: S4.seal.rise };
+    return pinned > 200 && over === 0 && stuck === 0 && maxWx <= stand + 1e-6 && S4.seal.rise === 1;
+  })(),
+  JSON.stringify(global.__wallUpDbg || {}),
+);
+check(
+  "A FAT LAG FRAME CANNOT SLIP HIM THROUGH: a 21-frame step past the iron's face still closes the seal, and the hard stop lands him at the wall's fight-side point (the close is measured on the travelled segment, so a skipped crossing frame is a CLOSED frame)",
+  (function () {
+    const face = RING.sealFaceX(), stand = RING.sealStandX();
+    p4.wx = 100; p4.sealT = 0;
+    RING.buildNightSeal();
+    RING.nightSealArm();
+    let prevWx = p4.wx, closed = false, pos = [];
+    for (let i = 0; i < 400; i++) {
+      p4.wx -= 8.5 * (i % 40 === 0 ? 21 : 1) * (1 / 60) * 0.75;
+      if (p4.wx < 39.6) p4.wx = 39.6;
+      const ceil = RING.nightSealClosed() ? Math.min(NK_TOP_X - NK_TRAIL, stand) : NK_TOP_X - NK_TRAIL;
+      if (p4.wx > ceil) p4.wx = ceil;
+      if (!closed && prevWx >= face && p4.wx < face) { RING.nightSealClose(); closed = true; }
+      if (RING.nightSealClosed() && p4.wx > stand) p4.wx = stand;
+      prevWx = p4.wx;
+      if (closed) pos.push(+p4.wx.toFixed(2)); // the street is SHUT from the crossing frame on
+    }
+    global.__wallSpikeDbg = { closed, end: p4.wx, max: pos.length ? Math.max.apply(null, pos) : -1, stand, frames: pos.length };
+    return closed && pos.length > 120 && Math.max.apply(null, pos) <= stand + 1e-6;
+  })(),
+  JSON.stringify(global.__wallSpikeDbg || {}),
 );
 check(
   "NO BEAST HIT SHOVES ANYBODY THROUGH A FENCE: the ghost fire, the lash and the crushing body all re-seat the worker through bossRingClamp (the ring's own walls, floor to ghost iron) and NO knock-back carries the +2 leash past the iron",
@@ -552,10 +672,17 @@ check(
     srcFn("startBossFight").includes("THE HEART GLOWS RED"),
 );
 check(
-  "THE BEAST IS WALLED INTO THE RING: its roam clamp runs the graves gate up to just below the ghost iron",
-  srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2)") &&
-    NK_GRAVE - 6 > NK_FENCE + NK_STANDOFF &&
-    NK_SEAL_X - 2 < NK_SEAL_X + NK_SEAL_STOP,
+  "THE BEAST IS WALLED INTO THE RING — AND OUT OF THE GHOST FENCE: its roam clamp runs the graves gate up to the iron's FACE minus its own body radius (NEITHER beast nor man may stand inside the wall), and the gate line stays above the bottom fence",
+  (function () {
+    const bodyR = srcNum("BOSS_BODY_R");
+    return (
+      srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, sealFaceX() - BOSS_BODY_R)") &&
+      NK_GRAVE - 6 > NK_FENCE + NK_STANDOFF &&
+      NK_SEAL_X - NK_SEAL_INNER - bodyR < NK_SEAL_X - NK_SEAL_INNER && // its ceiling is BELOW the iron's face
+      NK_SEAL_X - NK_SEAL_INNER - bodyR > NK_FENCE + NK_STANDOFF + 20 // ...and deep inside the ring
+    );
+  })(),
+  "beast ceiling=" + (NK_SEAL_X - NK_SEAL_INNER - srcNum("BOSS_BODY_R")),
 );
 check(
   "THE BANISH TEARS THE IRON DOWN: the ward's own gutter-first sweep over " + NK_GATE_FADE + "s, lifting off the road, and the street's ceiling opens back up to the cul-de-sac wall",
@@ -579,7 +706,7 @@ check(
     };
     return (
       visBefore === true &&
-      ceilSealed === NK_SEAL_X + NK_SEAL_STOP &&
+      ceilSealed === RING.sealStandX() &&
       RING.nightSealClosed() === false &&
       RING.workerCeilX() === NK_TOP_X - NK_TRAIL && // the street is HIS again
       S4.seal.g.visible === false &&
@@ -597,16 +724,34 @@ check(
     srcFn("updateNightBossFight").includes("updateNightSeal(dt);") &&
     srcFn("updatePlayer").includes("p.wx > workerCeilX()") &&
     srcFn("updatePlayer").includes("nightSealClose()") &&
-    srcFn("updatePlayer").includes("NIGHT_SEAL_X + NIGHT_SEAL_STOP") &&
+    srcFn("updatePlayer").includes("p.wx = sealStandX();") &&
     srcFn("updateTruck").includes("truckFenceFloorX()") &&
     srcFn("nightSealClose").includes("spawnEctoBurst(NIGHT_SEAL_X, p.wy") &&
-    srcFn("nightSealArm").includes("buildNightSeal()"),
+    srcFn("nightSealArm").includes("buildNightSeal()") &&
+    srcFn("updateNightSeal").includes("nightSeal.prevWx = p.wx;"),
 );
 check(
   "EVERY GHOST-FIRE SHOT CULLS AT THE IRON, AND NO KNOCK-BACK CARRIES A BODY PAST IT",
   srcFn("updateBossFireballs").includes("f.wx > workerCeilX() + 8") &&
     (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0 &&
     srcFn("bossRingClamp").includes("workerCeilX()"),
+);
+check(
+  "STANDING AT THE WALL IS FIGHTING GROUND, NOT A PUNISHING NOOK: from the sealed ceiling the beast's rise point is inside lash reach, its roam ceiling keeps its bulk below the ghost fence, and the ring below him is his floor — the fight is winnable from where the wall stops him",
+  (function () {
+    const stand = RING.sealStandX();
+    const bodyR = srcNum("BOSS_BODY_R");
+    const lashR = srcNum("BOSS_WHIP_R");
+    const beastCeil = NK_SEAL_X - NK_SEAL_INNER - bodyR;
+    return (
+      NK_BOSS_X < stand && // the beast rises DOWN the road of the wall: inside the ring with him
+      Math.abs(stand - NK_BOSS_X) <= lashR && // ...close enough to trade from the wall
+      beastCeil < NK_SEAL_X - NK_MESH_DN && // its bulk never stands in the fence's light
+      beastCeil > NK_FENCE + NK_STANDOFF && // ...and never runs out of its yard
+      NK_FENCE + NK_STANDOFF < stand // his floor is under him: the ring, not a pocket
+    );
+  })(),
+  "stand=" + RING.sealStandX() + " boss=" + NK_BOSS_X + " beastCeil=" + (NK_SEAL_X - NK_SEAL_INNER - srcNum("BOSS_BODY_R")),
 );
 // --- THE SCURRY, THE BOOM, THE SLIME AND THE WIN BEAT (the fight's last three beats) ---
 check(

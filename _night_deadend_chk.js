@@ -329,6 +329,36 @@ check('MIDNIGHT paves the five removed intersections (2 curb stones + the paint 
 check('the paved gaps are exactly the removed intersection gaps',
   gapCenters(nt.gapX).join() === NIGHT_GAP_XS.map(function (x) { return x + IW / 2; }).join(),
   nt.gapX.join());
+// ---- THE GHOST FENCE IS A WALL (the walk-through / stuck-inside law) -------------------
+const SEAL_X = srcNum('NIGHT_SEAL_X'), SEAL_STOP = srcNum('NIGHT_SEAL_STOP');
+const SEAL_INNER = srcNum('NIGHT_SEAL_INNER'), MESH_DN = srcNum('NIGHT_SEAL_MESH_DOWN');
+const FACE = SEAL_X - SEAL_INNER, STAND = FACE - SEAL_STOP;
+check("the seal closes on the iron's OWN FACE line and the worker's sealed ceiling is a body-width BELOW it",
+  srcFn('sealFaceX').indexOf('NIGHT_SEAL_X - NIGHT_SEAL_INNER') >= 0 &&
+    srcFn('sealStandX').indexOf('sealFaceX() - NIGHT_SEAL_STOP') >= 0 &&
+    srcFn('workerCeilX').indexOf('Math.min(top, sealStandX())') >= 0 &&
+    STAND < FACE && STAND < SEAL_X - MESH_DN, // the standing point is out of the fence mesh
+  'face=' + FACE + ' stand=' + STAND + ' mesh face=' + (SEAL_X - MESH_DN));
+check("updatePlayer's wall closes on the seal's own history and snaps a body out of the iron, into the fight zone",
+  srcFn('updatePlayer').indexOf('nightSeal.prevWx') >= 0 &&
+    srcFn('updatePlayer').indexOf('if (prevSeal >= sealFaceX() && p.wx < sealFaceX()) nightSealClose();') >= 0 &&
+    srcFn('updatePlayer').indexOf('p.wx = sealStandX();') >= 0);
+check("the wall's crossing is measured on the travelled segment (a big frame cannot skip the close) and the pressed-into-iron line teaches the ring",
+  srcFn('updateNightSeal').indexOf('nightSeal.prevWx = p.wx;') >= 0 &&
+    /THE FIGHT'S IN FRONT OF THE IRON/.test(html) &&
+    /IT IS A WALL: WALKING INTO IT STOPS YOU, YOU NEVER END INSIDE IT/.test(html));
+check("neither beast nor man has a standing point inside the ghost fence: the beast's ceiling is the face minus its body, the man's is the face minus a body-width",
+  srcFn('updateNightBoss').indexOf('sealFaceX() - BOSS_BODY_R') >= 0 &&
+    STAND < FACE && SEAL_X - SEAL_INNER - srcNum('BOSS_BODY_R') < SEAL_X - MESH_DN);
+check("the fence's mesh footprint is measured, not guessed: the ghost pool reaches NIGHT_SEAL_MESH_DOWN down the road from the line and the constants carry that",
+  srcFn('makeGhostIronFence').indexOf('BX(2.6, WSPAN + 1.7, 0.04, poolM)') >= 0 &&
+    srcFn('makeGhostIronFence').indexOf('pool.position.set(-0.25, MID,') >= 0 &&
+    MESH_DN >= 1.3 && MESH_DN <= 1.9 && srcNum('NIGHT_SEAL_MESH_UP') >= 0.9 &&
+    srcFn('buildNightSeal').indexOf('g.position.set(NIGHT_SEAL_X, 0, GZ)') >= 0,
+  'mesh down=' + MESH_DN + ' up=' + srcNum('NIGHT_SEAL_MESH_UP'));
+check("the wall's bite line is DEEPER into the fight zone than the ghost fence's own light reaches (sealFaceX below the mesh face) — a body clamped at the wall is never under the mesh",
+  FACE < SEAL_X - MESH_DN && STAND < SEAL_X - MESH_DN && SEAL_INNER > MESH_DN,
+  'face=' + FACE + ' mesh face=' + (SEAL_X - MESH_DN) + ' stand=' + STAND);
 
 console.log('\n' + pass + ' checks passed, ' + fail + ' failed');
 if (fail) { console.log(failures.map(function (f) { return ' - ' + f; }).join('\n')); process.exit(1); }
