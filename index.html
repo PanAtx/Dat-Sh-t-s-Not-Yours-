@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.540</div>
+          <div id="app-version" class="menu-version">v1.0.541</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.540';
+      const APP_VERSION = '1.0.541';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28941,7 +28941,9 @@
       const BOSS_DMG = 1; // one plain swing
       const BOSS_DMG_CONS = 2; // ...a CONSECRATED swing
       const BOSS_INVULN_T = 0.36; // one hit can land per swing arc
-      const BOSS_POINTS = 2500; // the banishment purse
+      const BOSS_POINTS = 2000; // THE BANISHMENT PURSE, PAID FLAT: the night economy
+      // is its own, so the Beast cuts are never doubled by the street it borrows its buildings
+      // from. ONE HEART STRIKE = 2,000 of score AND 2,000 of street cash; ten strikes = 20,000.
       const BOSS_RISE_T = 1.35; // it climbs out of the ground
       const BOSS_LUNGE_SP = 2.4; // it DRAGS itself at him; it never sprints away
       const BOSS_LUNGE_SP_RAGE = 3.6; // ...and a lot faster with one eye left
@@ -32763,7 +32765,10 @@
         spawnEctoSplat(b.wx, b.wy, 0.6); // the wake it scurries out of
         if (nightSayOk())
           Voice.say(pick(BOSS_SCURRY_LINES), 2.4, 1.05, b.wx, b.wy, "neutral", "ghost");
-        addScore(BOSS_POINTS, true);
+        // ONE HEART STRIKE ON THE BEAST = $2,000. The strike pays on the FLAT road (addScoreFlat
+        // + BOSS_POINTS), NEVER through the street double: ten strikes on the bar (BOSS_DMG x BOSS_MAX_HP)
+        // = 20,000 for the whole fight.
+        addScoreFlat(BOSS_POINTS, true);
         // (The boss does NOT feed the shift report's spook PAR: the par is the 14 spooks of
         // the horde. The beast is scored on its own bar and its own purse.)
         SFX.playHopperJingle();
@@ -38758,7 +38763,13 @@
         return isBedStuyLevel() ? 2 : 1;
       }
       function addScore(n, isBonus) {
-        const v = n * scoreMultiplier();
+        addScoreFlat(n * scoreMultiplier(), isBonus);
+      }
+      // THE FLAT PATH: the street double (scoreMultiplier) is a property of the DAY. Every weekday
+      // payer keeps calling addScore, so the bags, cans, baskets, treasures and bonus pickups are
+      // byte-identical. Only the FINAL BOSS pays on the flat road below - the night economy (the
+      // score, the bonus tally, the healer milestones and the $30,000 Monster step) is the same.
+      function addScoreFlat(v, isBonus) {
         score += v;
         dayScore += v; // today's tally (shown on the day-end report)
         weekScore += v; // running total across all 7 days (the hi-score candidate)

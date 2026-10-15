@@ -553,7 +553,7 @@ const H = new Function(
   'SPOOK_LINES', 'SHOVEL_LINES', 'NIGHT_SCARE_LINES', 'NIGHT_START_LINES',
   'HP_HIT_SPECTER', 'HP_HIT_BANSHEE', 'HP_HIT_GHOUL', 'HP_HIT_HOUND',
   'state', 'p', 'creatureOnScreen', 'creatureMaxY', 'hopperAimX', 'hopperWorldY', 'hopperTopZ',
-  'hopperDeposit', 'addScore', 'recordDayGot', 'announcePower', 'showPopup', 'Voice', 'SFX',
+  'hopperDeposit', 'addScore', 'addScoreFlat', 'recordDayGot', 'announcePower', 'showPopup', 'Voice', 'SFX',
   'dynamicGroup', 'dustParticles', 'isNightShift', 'dayStats', 'creatures', 'worker', 'wparts',
   'WORKER_GENDER',
   // THE ABYSS ROSTER + THE HOLY WEAPON (the numbers, the graveyard, the live haunt)
@@ -757,7 +757,7 @@ const H = new Function(
   'play', p,
   (c) => onScreen && !!c && Math.abs(c.wx - p.wx) < 46 && Math.abs(c.wy - 3.2) < 12.5,
   () => 4.8, () => 3, () => -4.5, () => 2.4,
-  t => deposited.push(t), (n, b) => scored.push({ n, bonus: b }),
+  t => deposited.push(t), (n, b) => scored.push({ n, bonus: b }), (v, b) => scored.push({ n: v, bonus: b }),
   k => { if (dayStats[k]) dayStats[k].got++; }, t => announced.push(t),
   (kind, val, name) => popped.push({ kind, val, name }), Voice, SFX,
   dyn, { push: o => dust.push(o) }, () => nightOn, dayStats, creatures,
@@ -5379,6 +5379,20 @@ console.log("\n[36] THE PLAYTEST DOORWAY: the switch is DARK in the code (no URL
       Math.abs(H.workerEndLimitX() - NK_FLOOR) < 1e-9);
 })();
 
+console.log("\n[37] THE HEART STRIKE PAYS 2000 FLAT - the night purse, never double-timed");
+(function () {
+  check("the purse is exactly 2000 a heart strike (BOSS_POINTS === 2000)", BOSS_POINTS === 2000, "BOSS_POINTS=" + BOSS_POINTS);
+  const hit37 = srcFn("bossShovelHit");
+  check("the banishment pays through addScoreFlat(BOSS_POINTS, true) - a FLAT purse", hit37.includes("addScoreFlat(BOSS_POINTS, true)") && !hit37.includes("addScore(BOSS_POINTS"));
+  check("addScore keeps the street double: it delegates addScoreFlat(n * scoreMultiplier(), isBonus)", srcFn("addScore").includes("addScoreFlat(n * scoreMultiplier(), isBonus)"));
+  const af37 = srcFn("addScoreFlat");
+  check("addScoreFlat pays the number it is handed - no scoreMultiplier() inside the flat path", !af37.includes("scoreMultiplier("));
+  check("the flat path keeps every ledger: score, dayScore, weekScore, bonusTally, the healer milestone and the 30k Monster step", af37.includes("score += v") && af37.includes("dayScore += v") && af37.includes("weekScore += v") && af37.includes("bonusTally += v") && af37.includes("checkHealerMilestone()") && af37.includes("monsterNextAt += MONSTER_SCORE_STEP"));
+  check("the flat payer is EXACTLY one site in the shipped game (definition + addScore delegate + boss strike)", (html.match(/addScoreFlat\(/g) || []).length === 3);
+  check("weekday money is untouched: the gargoyle keeps its 5000 purse through the multiplying addScore", GARGOYLE_VALUE === 5000 && srcFn("reclaimStolenGargoyle").includes("addScore(val, true)"));
+  check("POWERUP_CASH_STEP is still the shipped 5000 - the healer milestone step never moved", srcNum("POWERUP_CASH_STEP") === 5000);
+  check("the night bar math: 10 plain strikes x 2000 = 20000 for the whole fight (BOSS_MAX_HP x BOSS_POINTS x BOSS_DMG)", BOSS_MAX_HP * BOSS_POINTS * BOSS_DMG === 20000, "bar pays " + BOSS_MAX_HP * BOSS_POINTS * BOSS_DMG);
+})();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

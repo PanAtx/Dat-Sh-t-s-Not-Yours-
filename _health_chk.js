@@ -41,6 +41,11 @@ const LEVEL_BLOCKS = [
   { x: 576, garbage: true }, { x: 672, garbage: false }
 ];
 const ROUTE_START_X = 80, ROUTE_FINISH_X = 656;   // match index.html route bounds (spawn placement checks)
+// routeDir()/routeNearX()/routeFarX() - mirrors index.html for the WEEKDAY axis the harness runs
+// (level 3 is Flatbush: routeDir() is +1 and the route anchors ARE the two constants above).
+function routeDir(){ return 1; }
+function routeNearX(){ return ROUTE_START_X; }
+function routeFarX(){ return ROUTE_FINISH_X; }
 
 // ---- constants under test (read straight from the game so we never drift) ----
 const POWERUP_HEAL_COFFEE = getNumConst('POWERUP_HEAL_COFFEE');
@@ -401,11 +406,13 @@ check('spawnPowerups pre-places NOTHING (the coffee seen mid-route was the old p
 check('healer milestone: every $5,000 street cash drops a coffee/BEC near the worker (shared check)',
   src.indexOf('function checkHealerMilestone()') >= 0 &&
   /function checkHealerMilestone\(\)\s*\{[\s\S]{0,200}bonusTally >= healerNextAt[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,80}healerNextAt \+= POWERUP_CASH_STEP;/.test(src));
-check('healer milestone fires from BOTH addScore (mongo/cash/treasure) and addStreetCash (pranks)',
+check('healer milestone fires from BOTH addScore (which delegates to addScoreFlat: mongo/cash/treasure) and addStreetCash (pranks)',
   (function(){
-    const as = src.slice(src.indexOf('function addScore('), src.indexOf('function ', src.indexOf('function addScore(') + 12));
-    const ac = src.slice(src.indexOf('function addStreetCash('), src.indexOf('function ', src.indexOf('function addStreetCash(') + 16));
-    return as.indexOf('checkHealerMilestone()') >= 0 && ac.indexOf('checkHealerMilestone()') >= 0;
+    const seg = (n) => src.slice(src.indexOf("function " + n + "("), src.indexOf("function ", src.indexOf("function " + n + "(") + 10));
+    const as = seg("addScore");
+    const af = seg("addScoreFlat");
+    const ac = seg("addStreetCash");
+    return as.indexOf("addScoreFlat(n * scoreMultiplier(), isBonus)") >= 0 && af.indexOf("checkHealerMilestone()") >= 0 && ac.indexOf("checkHealerMilestone()") >= 0;
   })());
 check('healers spawn ONLY via spawnHealerNearPlayer (coffee/BEC, never pre-placed)',
   /function spawnHealerNearPlayer\(\)[\s\S]{0,300}"coffee" : "bec"/.test(src) && src.indexOf('const POWERUP_CASH_STEP = 5000') >= 0);
