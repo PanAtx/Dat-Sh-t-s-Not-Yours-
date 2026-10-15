@@ -807,6 +807,71 @@
       #boss-goal.heart #boss-goal-name {
         color: #b9ffe4;
       }
+      /* ===== THE WRITE-UP REBOUND (a LODI IN the boss's own ring FEEDS the beast) ====
+         Written up DURING the final fight and the shift goes on — the Slug Demon takes back
+         every eye the shovel knocked out: the bar climbs ALL THE WAY BACK to a FULL 10 / 10
+         and the fight restarts at the top of it (the same ten swings, over again). The HUD
+         rides the climb: the fill walks back up in grave mint, the frame burns mint and
+         pulses under a shine that sweeps its whole length, the name plate flickers
+         REGAINING STRENGTH! — and the rig re-knits on screen (the rebound beat in
+         updateNightBoss: the body swells, cold mint light pours off it, its eyes relight one
+         at a time as the count walks up). */
+      #boss-goal.recover #boss-hpfill {
+        background: linear-gradient(180deg, #b9ffe4, #2affc0 55%, #0f9b78);
+        box-shadow: 0 0 22px rgba(42, 255, 192, 0.95);
+        transition: width 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+      }
+      #boss-goal.recover #boss-hpbar {
+        border-color: rgba(120, 255, 195, 0.98);
+        box-shadow:
+          0 0 26px rgba(42, 255, 192, 0.72),
+          inset 0 0 12px rgba(120, 255, 195, 0.55);
+        animation: goalPulse 0.38s infinite;
+      }
+      #boss-goal.recover #boss-hpbar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -46%;
+        width: 42%;
+        background: linear-gradient(
+          100deg,
+          rgba(255, 255, 255, 0) 0%,
+          rgba(157, 255, 233, 0.82) 46%,
+          rgba(255, 255, 255, 0) 92%
+        );
+        animation: bossHealSweep 0.8s linear infinite;
+      }
+      #boss-goal.recover #boss-goal-name,
+      #boss-goal.recover #boss-goal-phase,
+      #boss-goal.recover #boss-hpeye {
+        color: #9dffe9;
+        animation: bossHealName 0.6s infinite;
+      }
+      @keyframes bossHealSweep {
+        0% {
+          left: -46%;
+        }
+        100% {
+          left: 110%;
+        }
+      }
+      @keyframes bossHealName {
+        0%,
+        100% {
+          transform: scale(1);
+          text-shadow:
+            0 0 8px rgba(214, 40, 96, 0.9),
+            0 2px 0 rgba(0, 0, 0, 0.85);
+        }
+        50% {
+          transform: scale(1.1);
+          text-shadow:
+            0 0 16px rgba(42, 255, 192, 0.98),
+            0 2px 0 rgba(0, 0, 0, 0.85);
+        }
+      }
       @keyframes bossPop {
         0% {
           transform: scale(0.35);
@@ -4480,7 +4545,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.532</div>
+          <div id="app-version" class="menu-version">v1.0.533</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4738,7 +4803,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.532';
+      const APP_VERSION = '1.0.533';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -31995,6 +32060,41 @@
         "IT'S SCURRYIN' OFF THE BLADE! IT CAN'T TAKE NO MORE!",
         "IT'S SLIPPIN' BACK TO ITS GRAVE! GO ON IT!",
       ];
+      // ============== THE WRITE-UP REBOUND (a LODI IN the ring FEEDS the beast) =========
+      // THE NIGHT'S CRUELTY — the reason Midnight is won in ONE run down the ring: a write-up
+      // taken on the fight's OWN floor with the shift carrying on under it (strike 1 of 3, or
+      // 2 of 3 — the 3rd is a suspension and the beast stays where it fell) hands the bar BACK
+      // to the Slug Demon. Every eye the shovel knocked out comes back: 10 / 10, the FULL
+      // strength it rose out of the graves with. The fight restarts at the TOP of the bar, and
+      // by the beast's own math that means the whole package comes back with it — the fire
+      // cadence, the volley size, the heart window and the armour gap all read the bar, the
+      // rage flag drops at half the bar, and the fury gate (BOSS_FURY_HITS strikes) is counted
+      // in strikes, so a rebounded beast goes back to holding its rise point and spits on the
+      // full-bar rhythm. The climb back is ANIMATED: BOSS_RECOVER_T of cold mint light, the
+      // body swelling, its eyes relighting one at a time, the HUD bar walking up under a
+      // sweeping shine. The blade SKIDS OFF the knitting hide for the whole beat, so the
+      // rebound cannot be clawed back with a lucky swing in its first frame.
+      const BOSS_RECOVER_T = 2.05; // seconds the bar takes to climb back to a FULL 10 / 10
+      const BOSS_RECOVER_SWELL = 0.24; // the body's swell at the top of the knit
+      const BOSS_RECOVER_LIFT = 0.34; // ...and how far the knit light lifts it off the graves
+      const BOSS_RECOVER_GLOW = 3.1; // ...and how hard the mint knit-light burns
+      const BOSS_RECOVER_INVULN = 2.9; // the knitting hide: the blade skids off it
+      const BOSS_RECOVER_MINT = 0x2affc0; // the cold mint of a beast taking its strength back
+      const BOSS_RECOVER_INVULN_END = 0.6; // the hide stays hard a beat after the bar lands
+      const BOSS_RECOVER_HEART_T = 2.2; // ...and a fresh bar means a FRESH full armour gap
+      const BOSS_RECOVER_LINES = [
+        "THE STAMP FEEDS THE BEAST!",
+        "WRITE HIM UP! I GROW WHOLE!",
+        "EVERY EYE COMIN' BACK TO ME!",
+      ];
+      const BOSS_RECOVER_WORKER_LINES = [
+        "IT'S TAKIN' EVERY EYE BACK! THE WRITE-UP FED IT!",
+        "THE STAMP MADE IT WHOLE! TEN OUT OF TEN!",
+      ];
+      const BOSS_RECOVER_LANDED_LINES = [
+        "IT'S FULL STRENGTH AGAIN! SHOVEL IT FROM THE TOP!",
+        "THE HEART'S DEEP IN AGAIN — CRACK IT OPEN!",
+      ];
 
       // The beast, asleep under the grave yard: built with the FULL bar, buried, invisible,
       // and a statue until the worker walks into its cross-street.
@@ -32044,6 +32144,15 @@
           fy0: 0,
           fz0: 0,
           hurtT: 0,
+          // THE WRITE-UP REBOUND (the beast's own bar-knit, see bossRegainFullStrength):
+          // recoverT is the climb's clock (0 = whole), recoverT0 / recoverFrom the beat it is
+          // climbing over and the eye count it starts from, and dispHp the count the HUD bar
+          // and the eyes on its stalks DRAW (the real hp is FULL from the rebound's first frame
+          // — the fight is truly back at the top while the bar is animated walking up to it).
+          recoverT: 0,
+          recoverT0: 0,
+          recoverFrom: 0,
+          dispHp: BOSS_MAX_HP,
         };
       }
       function clearNightBoss() {
@@ -32067,6 +32176,7 @@
             bar.classList.remove("low");
             bar.classList.remove("boom");
             bar.classList.remove("heart");
+            bar.classList.remove("recover"); // a rebound mid-flight dies with the shift
             bar._w = null;
           }
         }
@@ -32127,6 +32237,88 @@
           "worker",
           "burst",
         );
+      }
+      // ============== THE WRITE-UP REBOUND (the LODI that FEEDS the beast) ==============
+      // THE FINAL BOSS'S CRUELTY, fired from the LODI hand-off (see finishDying): a write-up
+      // taken inside the boss ring on a shift that CARRIES ON (strike 1 of 3, or 2 of 3 — the
+      // 3rd is the suspension and never reaches this) hands the Slug Demon back every eye the
+      // shovel knocked out. The bar goes straight back to the FULL maxHp — 10 / 10 — and the
+      // whole fury package comes back with it, because all of it reads off the bar: the rage
+      // (half the bar) drops out, the fire cadence and the volley size return to the full-bar
+      // rhythm, the heart window opens for its full length again and the strike count shuts the
+      // fury gate, so the beast goes back to HOLDING ITS RISE POINT instead of running the
+      // block. Its shell seals over the gut, the ghost fire in the air is drawn back into the
+      // knit, and it is INVULNERABLE while it re-knits — the rebound cannot be clawed back with
+      // a lucky swing in its first frame. The climb back is ANIMATED by the rebound beat in
+      // updateNightBoss (the body swells off the graves in cold mint light, its eyes relight
+      // one at a time, ecto sheets fly off it, the street shakes) and by the HUD's .recover
+      // class (the fill walks back up in mint under a shine that sweeps the bar). The worker
+      // has to shovel the same ten swings out of it — ALL of them, over from the top.
+      function bossRegainFullStrength() {
+        if (typeof isNightShift === "function" && !isNightShift()) return false; // night's own beast
+        const b = nightBoss;
+        if (!bossFightOn) return false; // the stamp landed on a yard that is already cleared
+        if (!b || !b.awake || b.hooked || b.hp <= 0) return false; // ...or on nothing living
+        const from = Math.max(0, Math.min(b.hp, b.maxHp));
+        if (from >= b.maxHp && b.recoverT <= 0) return false; // a FULL bar takes back nothing
+        // THE BAR, back to the top — with the climb DRAWN over the rebound beat
+        b.hp = b.maxHp; // 10 / 10: the fight is at FULL STRENGTH again from this frame
+        b.recoverT = BOSS_RECOVER_T;
+        b.recoverT0 = BOSS_RECOVER_T;
+        b.recoverFrom = from;
+        b.dispHp = from; // ...and the bar / the rig's eyes walk up from the count that was left
+        // THE FURY PACKAGE, knitted back into the fresh full-bar beast
+        b.rage = 0; // it is no longer under half the bar: no paired fire, no harder run
+        b.fury = 0; // ...no fury: the strikes are counted from the top again
+        b.hits = 0; // ...so the gate is shut and it holds its grave
+        b.invulnT = Math.max(b.invulnT, BOSS_RECOVER_INVULN); // the knitting hide
+        b.recoilT = 0; // it stops running off the blade: it plants itself on the graves
+        b.recoilDir = -1;
+        b.whipState = "idle"; // it is knitting, not lashing
+        b.whipT = Math.max(b.whipT, BOSS_WHIP_CD[0] + 1.6);
+        b.fireT = Math.max(b.fireT, BOSS_FIRE_CD[0] + 1.2); // ...and its volley waits on the bar
+        b.heartState = "shut"; // the shell seals over the gut while it re-knits
+        b.heartT = bossHeartCloseT(b);
+        b.heartOpen = 0;
+        b.hurtT = 0; // the flinch is off — it is standing UP, not taking a hit
+        b.suckT = 0;
+        b.armCharge = 0;
+        b.mawOpen = 1; // the grin blown wide with the cold light in it
+        for (let i = 0; i < bossFireballs.length; i++) killBossFireball(bossFireballs[i], false);
+        bossFireballs.length = 0; // the fire it had in the air goes back into the knit
+        // THE HUD: the bar climbs in mint behind the sweeping shine (see the .recover CSS)
+        if (typeof $ === "function") {
+          const bar = $("boss-goal");
+          if (bar) bar.classList.add("recover");
+        }
+        // THE BEAT: the stamp comes down and the ground answers it
+        p.shake = Math.max(p.shake || 0, 1.2);
+        SFX.playThunder();
+        SFX.playBansheeWail();
+        SFX.playZombieGrab(); // the wet tear of the wounds knitting closed
+        spawnEctoBurst(b.wx, b.wy, 1.7);
+        if (nightPopOk()) announcePower("THE BEAST IS WHOLE!", "pop-power");
+        if (nightSayOk())
+          Voice.say(
+            pick(BOSS_RECOVER_LINES),
+            2.6,
+            0.86,
+            b.wx,
+            b.wy,
+            "neutral",
+            "ghost",
+          );
+        Voice.say(
+          pick(BOSS_RECOVER_WORKER_LINES),
+          3.0,
+          1.12,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
+        return true;
       }
       // GHOST FIRE — the beast's ranged attack: a ball of cold grave fire that flies at
       // the worker and bursts on him, or burns out in the fog.
@@ -32813,9 +33005,17 @@
   const flinch = b.hurtT > 0 ? b.hurtT / 0.5 : 0;
   t.body.scale.set(1.64 * breathe, 1.18 * breathe, 1.12 * breathe);
   b.g.rotation.x = flinch * -0.1;
-  // THE BAR, ON THE BEAST: every lost eye goes dark, so the bar reads on the rig
-  const lit = Math.max(0, Math.ceil((b.hp / b.maxHp) * t.eyes.length));
-  for (let i = 0; i < t.eyes.length; i++) t.eyes[i].visible = i < lit;
+  // THE BAR, ON THE BEAST: every lost eye goes dark, so the bar reads on the rig. During a
+  // WRITE-UP REBOUND it reads on the DRAWN count (b.dispHp) — the climb walks the beast's own
+  // eyes back up one at a time, and each one FLARES as it comes back.
+  const knKnit = b.recoverT > 0 && b.recoverT0 > 0 ? clamp(1 - b.recoverT / b.recoverT0, 0, 1) : 0;
+  const knHp = knKnit > 0 && b.dispHp > 0 ? b.dispHp : b.hp;
+  const lit = Math.max(0, Math.ceil((knHp / b.maxHp) * t.eyes.length));
+  const knPop = 1 + Math.sin(knKnit * Math.PI) * 0.55; // the swell of the relighting
+  for (let i = 0; i < t.eyes.length; i++) {
+    t.eyes[i].visible = i < lit;
+    t.eyes[i].scale.setScalar(i === lit - 1 ? knPop : 1); // ...and the newest eye POPS back on
+  }
   if (b.hurtT > 0) b.hurtT = Math.max(0, b.hurtT - dt);
 }
       // THE FIGHT, per frame: waking, rising, lunging, lashing, spitting, the scurry off the
@@ -32858,6 +33058,91 @@
     dy = p.wy - b.wy;
   const d = Math.hypot(dx, dy) || 0.001;
   if (b.invulnT > 0) b.invulnT = Math.max(0, b.invulnT - dt);
+  // ---- THE WRITE-UP REBOUND: the stamped bar CLIMBS back to a FULL 10 / 10 ----
+  // The boss's own punishment for a write-up taken in its ring (see bossRegainFullStrength /
+  // the LODI hand-off in finishDying): the beast is not fighting here, it is KNITTING. It
+  // plants itself on its rise point, rears up, SWELLS, pours cold mint light off the knit in
+  // sheets of ectoplasm and shakes the street, and the count the bar DRAWs (b.dispHp) walks
+  // from the eyes it had left all the way back up to the top — the eyes on its stalks relight
+  // one at a time on that same count, and the HUD bar climbs the climb under its shine. The
+  // REAL bar has been full since the frame the stamp landed (the fight is genuinely back at
+  // the top), the hide is hard for the whole beat, and NOTHING is fired while it knits.
+  if (b.recoverT > 0) {
+    const knitT0 = b.recoverT0 > 0 ? b.recoverT0 : 1;
+    b.recoverT = Math.max(0, b.recoverT - dt);
+    const knK = clamp(1 - b.recoverT / knitT0, 0, 1); // 0..1: how much of the climb is done
+    const knFrom = b.recoverFrom > 0 ? b.recoverFrom : 0;
+    b.dispHp = Math.round(knFrom + (b.maxHp - knFrom) * knK); // ...and the count it DRAWs
+    const knit = Math.sin(knK * Math.PI); // 0 -> 1 -> 0: the swell of the knit
+    b.facing = Math.atan2(dy, dx); // it stays turned on the man who is shovelling at it
+    b.wx = clamp(b.wx, NIGHT_GRAVE_X - 6, sealFaceX() - BOSS_BODY_R); // ...inside the same ring
+    b.wy = clamp(b.wy, -7.4, 6.2);
+    b.g.visible = true;
+    b.g.position.set(
+      b.wx,
+      b.wy,
+      GZ + knK * BOSS_RECOVER_LIFT + Math.sin(b.phase * 8.4) * 0.09, // it rears UP into the light
+    );
+    b.g.rotation.z = b.facing;
+    b.g.rotation.x = -0.12 * knit; // ...and pitches back as the wounds close
+    b.g.scale.setScalar(1 + BOSS_RECOVER_SWELL * knit); // ...and SWELLS with the climbing bar
+    b.mawOpen = Math.max(b.mawOpen, 0.5 + 0.5 * knit); // the grin blown wide with the light in it
+    animateNightBoss(b, dt, "calm"); // the slow churn: it is knitting, not fighting
+    const knRig = b.g && b.g.userData ? b.g.userData.tent : null;
+    if (knRig) {
+      if (b.recoverColor == null) b.recoverColor = knRig.light.color.getHex();
+      knRig.light.color.setHex(BOSS_RECOVER_MINT); // the knit burns COLD MINT, not heart-red
+      knRig.light.intensity = Math.max(knRig.light.intensity, knit * BOSS_RECOVER_GLOW);
+      knRig.aura.material.opacity = Math.max(knRig.aura.material.opacity, knit * 0.55);
+      knRig.aura.material.emissiveIntensity = Math.max(
+        knRig.aura.material.emissiveIntensity,
+        knit * BOSS_RECOVER_GLOW * 0.7,
+      );
+    }
+    if (Math.random() < dt * 18) {
+      const knX = b.wx + R(-2.2, 2.2),
+        knY = b.wy + R(-1.5, 1.5); // the shed lands all over its own graves
+      spawnEctoSplat(knX, knY, 0.5); // the sheets of cold light it sheds while it knits
+    }
+    if (Math.random() < dt * 6) spawnEctoBurst(b.wx, b.wy, 0.95);
+    p.shake = Math.max(p.shake || 0, 0.3 + knit * 0.5); // ...and it rattles the graves
+    if (b.recoverT <= 0) {
+      // THE BAR IS WHOLE: full strength, a fresh armour gap, and the blade skids off it a beat longer
+      b.hp = b.maxHp;
+      b.dispHp = b.maxHp;
+      b.recoverT0 = 0;
+      b.recoverFrom = 0;
+      b.g.scale.setScalar(1); // the swell settles back down onto the bar
+      b.invulnT = Math.max(b.invulnT, BOSS_RECOVER_INVULN_END);
+      b.heartState = "shut";
+      b.heartT = bossHeartCloseT(b);
+      b.heartOpen = 0;
+      if (knRig) {
+        knRig.light.color.setHex(b.recoverColor == null ? knRig.light.color.getHex() : b.recoverColor);
+        b.recoverColor = null; // the heart's own red is back on the rig's light
+      }
+      if (typeof $ === "function") {
+        const bar = $("boss-goal");
+        if (bar) bar.classList.remove("recover"); // the shine goes out with the climb
+      }
+      SFX.playSqueal();
+      SFX.playZombieGroan();
+      spawnEctoBurst(b.wx, b.wy, 1.35);
+      if (nightSayOk())
+        Voice.say(
+          pick(BOSS_RECOVER_LANDED_LINES),
+          2.8,
+          1.1,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
+    }
+    return;
+  }
+  b.dispHp = b.hp; // no rebound running: the drawn count follows the real bar
   if (bossAngryTarget(b)) b.rage = 1; // HALF THE BAR: pairs of fire, a harder run
   const fury = bossFuryOf(b); // the anger RAMP: 0 on a full bar, 1 on the last heart
   // ---- rising out of the grave yard ----
@@ -40895,6 +41180,19 @@
         wparts.legR.rotation.set(0, 0, 0);
         wparts.armL.rotation.set(0, 0, 0);
         wparts.armR.rotation.set(0, 0, 0);
+        // THE WRITE-UP REBOUND (the fight's cruelty): a LODI taken INSIDE THE SLUG DEMON'S OWN
+        // RING on a shift that carries on under it (strike 1 of 3, or 2 of 3 — the 3rd is the
+        // suspension, which returned above) FEEDS THE BEAST: it takes back every eye the shovel
+        // knocked out and its bar climbs all the way back to a FULL 10 / 10, ANIMATED (see
+        // bossRegainFullStrength + the rebound beat in updateNightBoss). The worker comes up
+        // whole on the sidewalk and has to shovel the same ten swings out of it all over again.
+        if (
+          typeof bossRegainFullStrength === "function" &&
+          typeof bossFightOn === "boolean" &&
+          bossFightOn &&
+          (typeof isNightShift !== "function" || isNightShift())
+        )
+          bossRegainFullStrength();
         showWriteUpText(n);
         Voice.say(
           n === 1
@@ -41218,6 +41516,13 @@
           "Failure to clear the cemetery watch post",
           "Contact with a multi-eyed entity (nine-eye class)",
           "Failure to report a fence-line sentinel",
+        ],
+        // --- THE MIDNIGHT FINAL BOSS's own ring: a LODI here FEEDS the beast (the write-up
+        //     rebound — see bossRegainFullStrength — hands its FULL 10 / 10 bar right back) ---
+        beast: [
+          "Failure to shovel a licensed community demon",
+          "Contact with an unpermitted nine-eye entity",
+          "Working the grave yard without an exorcist escort",
         ],
         // --- the street itself: the hydrant and friends ---
         hazard: [
@@ -52387,10 +52692,19 @@
           if (showBoss) {
             const bf = $("boss-hpfill");
             const w = ((b.hp / b.maxHp) * 100).toFixed(1) + "%";
-            if (bossPanel._w !== w) {
-              bossPanel._w = w;
-              if (bf) bf.style.width = w;
-              bossPanel.classList.add("boom"); // the hit makes the bar kick
+            // THE WRITE-UP REBOUND: while a stamped beast is knitting its bar back, the HUD
+            // draws the CLIMB (b.dispHp) instead of the snap — the fill walks all the way back
+            // up to 10 / 10 in grave mint, the frame burns mint under a shine that sweeps the
+            // bar, and the plate reads REGAINING STRENGTH! (see .recover CSS + the rebound
+            // beat in updateNightBoss). The real bar is already full; the bar SHOWS the climb.
+            const rec = b.recoverT > 0;
+            const dispHp = rec && b.dispHp > 0 ? b.dispHp : b.hp;
+            const wDraw = rec ? ((dispHp / b.maxHp) * 100).toFixed(1) + "%" : w;
+            bossPanel.classList.toggle("recover", rec);
+            if (bossPanel._w !== wDraw) {
+              bossPanel._w = wDraw;
+              if (bf) bf.style.width = wDraw;
+              bossPanel.classList.add("boom"); // the hit makes the bar kick — and so does every knot of the climb
               clearTimeout(bossPanel._boomT);
               bossPanel._boomT = setTimeout(function () {
                 bossPanel.classList.remove("boom");
@@ -52400,8 +52714,16 @@
             else bossPanel.classList.remove("low");
             setTxt(
               $("boss-hpeye"),
-              b.hp + " / " + b.maxHp +
-                (b.hits >= 2 ? "  FURY " + Math.min(4, b.hits) : b.rage ? "  ENRAGED" : ""),
+              dispHp +
+                " / " +
+                b.maxHp +
+                (rec
+                  ? "  REGAINING"
+                  : b.hits >= 2
+                    ? "  FURY " + Math.min(4, b.hits)
+                    : b.rage
+                      ? "  ENRAGED"
+                      : ""),
             );
             // THE PHASE: the window IS the fight — the bar pulses on the open heart, and the
             // player is told which beat the beast is on the rest of the time.
@@ -52409,7 +52731,9 @@
             bossPanel.classList.toggle("heart", heartUp);
             setTxt(
               $("boss-goal-phase"),
-              b.hooked
+              rec
+                ? "  REGAINING STRENGTH!" // the write-up rebound: the bar is walking back to 10 / 10
+                : b.hooked
                 ? "  BURSTING!" // the kill swing landed: the body is blowing up
                 : bossBrushed(b)
                   ? "  IN THE GUT!" // he is inside the sting band: touching it hurts, it never shoves
