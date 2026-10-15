@@ -77,6 +77,8 @@ check('the night level is the LAST one (right after Sunday)', nightIdx === LEVEL
 const NIGHT = LEVEL_DAYS[nightIdx];
 check('it has NO weekday name (the card reads MIDNIGHT)', NIGHT.day === 'MIDNIGHT' && NIGHT.day.indexOf('DAY') < 0);
 check('it borrows the Bed-Stuy brownstones (BROOKLYN / BED-STUY)', NIGHT.borough === 'BROOKLYN' && NIGHT.area === 'BED-STUY');
+check('it is named like every other shift — DAY "MIDNIGHT" + STREET "DEAD END", and NO compound name field',
+  NIGHT.name === undefined && NIGHT.place === 'DEAD END');
 check('exactly ONE level is flagged night:true (Sunday is untouched)', LEVEL_DAYS.filter(d => !!d.night).length === 1);
 check('the night card carries a warning + its own special line', !!NIGHT.warning && !!NIGHT.special);
 const NIGHT_LEVEL = nightIdx + 1;
@@ -1802,11 +1804,12 @@ check('the haunt refill, the flights and the severed-hand pass all run off the n
 check('the night state resets with the shift (no carry-over consecration, flights, waves)',
   /shovelCharge = 0;\r?\n\s*shovelCharged = false;/.test(html) &&
   html.includes('ectoFlights.length = 0;') && html.includes('GHOST_HANDS.length = 0;'));
-check('the HUD chip shows the shovel charge and the route banner is the level NAME ALONE (no Bed-Stuy, no cemetery caption on the night)',
+check('the HUD chip shows the shovel charge and the route banner is NAME · STREET like every shift (the night reads "MIDNIGHT · DEAD END": no Bed-Stuy, no cemetery caption)',
   /shovelCharged\r?\n\s*\? "  • HOLY SHOVEL!"/.test(html) &&
     srcFn('resetWorldState').includes('levelName(_d)') &&
-    /isNightShift\(\)\s*\?\s*""/.test(srcFn('resetWorldState')) &&
-    html.includes('name: "MIDNIGHT * DEAD END"') &&
+    srcFn('resetWorldState').includes('" \\u00b7 " + levelLoc(_d)') &&
+    html.includes('place: "DEAD END"') &&
+    !html.includes('name: "MIDNIGHT * DEAD END"') &&
     !/CEMETERY AT THE BOTTOM/.test(srcFn('resetWorldState')) &&
     !/BED-STUY · CEMETERY/.test(html));
 check('MASPETH Cemetery is untouched: its own slot grid, cap and ghost exchanges are unchanged',
@@ -2947,23 +2950,30 @@ check('the drive-off leaves the way the RIG ROLLS: by day the cinematic follows 
   srcFn('updateRouteEnd').includes('isNightShift() ? 1 : RT') &&
     srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * driveDir * dt') &&
     srcFn('updateRouteEnd').includes('sx * driveDir > halfW + 1.0'));
-check('the shift reports the dead end: the LEVEL IS NAMED "MIDNIGHT * DEAD END" AND NOTHING ELSE — no Bed-Stuy, no cemetery caption on the night',
-  html.includes('name: "MIDNIGHT * DEAD END"') &&
+check('the shift is NAMED LIKE EVERY SHIFT AND REPORTED THAT WAY: "MIDNIGHT" over "DEAD END" on the card, the banner and the report — no Bed-Stuy, no cemetery caption on the night',
+  html.includes('day: "MIDNIGHT",') &&
+    html.includes('place: "DEAD END",') &&
+    !html.includes('name: "MIDNIGHT * DEAD END"') &&
     /function levelName\(d\)/.test(html) &&
+    /function levelLoc\(d\)/.test(html) &&
+    srcFn('levelName').includes('d.name ? d.name : d.day') &&
     srcFn('showDayIntro').includes('$("day-intro-day").textContent = levelName(d);') &&
     srcFn('showDayIntro').includes('$("day-intro-loc").textContent = d.night') &&
+    srcFn('showDayIntro').includes('levelLoc(d) + " \\u00b7 " + WEATHERS[weather].label') &&
     srcFn('resetWorldState').includes('levelName(_d)') &&
-    /isNightShift\(\)\s*\?\s*""/.test(srcFn('resetWorldState')) &&
+    srcFn('resetWorldState').includes('" \\u00b7 " + levelLoc(_d)') &&
     srcFn('showDayStats').includes('d.night') &&
-    srcFn('showDayStats').includes('levelName(d)') &&
+    srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + levelLoc(d)') &&
+    srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + levelLoc(d)') &&
     html.includes('THE BEAST SLEEPS IN THE CEMETERY!') &&
     html.includes('RUN THE DEAD-END STREET DOWN TO THE CEMETERY'));
-check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (the trim is night-only)',
+check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (DEAD END is the night\u2019s own place line)',
   srcFn('showDayIntro').includes('d.borough + " \\u00b7 " + d.area + " \\u00b7 " + WEATHERS[weather].label') &&
-    srcFn('resetWorldState').includes('" \\u00b7 " + _d.borough + " / " + _d.area') &&
+    srcFn('resetWorldState').includes('" \\u00b7 " + levelLoc(_d)') &&
+    srcFn('levelLoc').includes('d.borough + " / " + (d.area || "")') &&
     srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + d.borough') &&
     srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + d.borough + " / " + d.area'));
-check('THE NAME IS SHORT AND IT FITS THE PHONE CARD (the night title scales down and may break lines)',
+check('THE NIGHT TITLE STILL FITS THE PHONE CARD (it scales down and may break lines)',
   /#day-intro\.night \.day \{[^}]*font-size: clamp\(23px, 6\.2vw, 58px\)/.test(html) &&
     /#day-intro\.night \.day \{[^}]*max-width: 94vw/.test(html) &&
     /#day-intro\.night \.day \{[^}]*overflow-wrap: anywhere/.test(html));

@@ -685,10 +685,9 @@
         }
       }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
-         violet-glowing instead of the usual borough amber. Its NAME is two words and a
-         star ("MIDNIGHT * DEAD END"), longer than any weekday's, so the night title scales
-         down to fit a phone and is allowed to break onto a second line — the card must never
-         be wider than the screen that shows it. */
+         violet-glowing instead of the usual borough amber. Its title scales down to fit a
+         phone and is allowed to break onto a second line — the card must never be wider
+         than the screen that shows it (the same rule the long weekday titles ride). */
       #day-intro.night .day {
         color: #d9c9ff;
         font-size: clamp(23px, 6.2vw, 58px);
@@ -4547,7 +4546,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.534</div>
+          <div id="app-version" class="menu-version">v1.0.535</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4805,7 +4804,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.534';
+      const APP_VERSION = '1.0.535';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6801,11 +6800,13 @@
     // animals, no cars, no bins — see isNightShift(), which zeroes the whole Sunday
     // roster, and spawnNightShift(), which puts the horror out in their place.
     day: "MIDNIGHT",
-    // LEVEL 8 HAS A NAME OF ITS OWN, and it is short on purpose: the street IS the level,
-    // and the street is a dead end. Every place the game speaks the level's name — the day
-    // card, the HUD route line, the shift report — goes through levelName(d), so the
-    // weekdays keep their plain "MONDAY" and this one reads "MIDNIGHT * DEAD END".
-    name: "MIDNIGHT * DEAD END",
+    // THE NIGHT IS NAMED THE WAY EVERY OTHER SHIFT IS: its DAY (MIDNIGHT) and the STREET it
+    // is played on (DEAD END). No star and no compound title — the card, the HUD route banner
+    // and the shift report read "MIDNIGHT · DEAD END" exactly like "WEDNESDAY · BROOKLYN".
+    place: "DEAD END", // the location the menus print (levelLoc(d))
+    // The pair UNDER the hood stays BROOKLYN / BED-STUY: tonight's street IS the Bed-Stuy
+    // brownstone row and the world builders gate on it (isBedStuyLevel, the lit porch bulbs,
+    // the store rules). It is never printed on the night's card, banner or report.
     borough: "BROOKLYN",
     area: "BED-STUY",
     night: true,
@@ -6823,13 +6824,22 @@
       // 0 (never a real level) if the night entry is ever removed, so nothing silently
       // starts treating Sunday as haunted.
       const NIGHT_LEVEL = LEVEL_DAYS.findIndex(function (d) { return !!d.night; }) + 1;
-      // THE LEVEL'S NAME, SAID THE SAME WAY EVERYWHERE. A weekday is just its day ("MONDAY");
-      // the haunted shift has its own short name ("MIDNIGHT * DEAD END") and it is the only
-      // level that carries one. The day card, the HUD route line and the shift report all
-      // call this — one string, one place, so the night is never labelled three ways.
+      // THE LEVEL'S NAME, SAID THE SAME WAY EVERYWHERE: every level is its day — "MONDAY" on
+      // Monday, "MIDNIGHT" on the haunted shift. d.name is kept for a level that ever needs to
+      // say something other than its day. The day card, the HUD route banner and the shift
+      // report all call this — one string, one place, so a level is never labelled three ways.
       function levelName(d) {
         if (!d) return "";
         return d.name ? d.name : d.day || "";
+      }
+      // THE LEVEL'S STREET, SAID THE SAME WAY EVERYWHERE: a weekday names its borough and its
+      // neighborhood ("BROOKLYN / FLATBUSH"); the haunted shift is played on a cul-de-sac, so
+      // its place line reads just "DEAD END" (its d.place). Same three menus read it — the day
+      // card, the HUD route banner and the shift report.
+      function levelLoc(d) {
+        if (!d) return "";
+        if (d.place) return d.place;
+        return d.borough ? d.borough + " / " + (d.area || "") : "";
       }
 
       // >>> TEMP TEST BUILD: the game STARTS ON THE MIDNIGHT (haunted) LEVEL so the night
@@ -38573,12 +38583,10 @@
         const _d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         $("route").textContent =
           levelName(_d) +
-          // THE NIGHT SHIFT SAYS ITS OWN NAME AND NOTHING ELSE: "MIDNIGHT * DEAD END" is the
-          // whole banner — no borough, no area, no extra caption. The seven weekdays keep
-          // their full MONDAY · MANHATTAN / GRAMMERCY PARK strip.
-          (typeof isNightShift === "function" && isNightShift()
-            ? ""
-            : " \u00b7 " + _d.borough + " / " + _d.area);
+          // THE BANNER IS THE SAME SHAPE ON EVERY SHIFT — the name, then the street: the
+          // weekdays read "MONDAY · MANHATTAN / GRAMMERCY PARK" and the haunted one reads
+          // "MIDNIGHT · DEAD END". No special case for the night any more.
+          " \u00b7 " + levelLoc(_d);
         worker.group.rotation.set(0, 0, 0);
         wparts.legL.rotation.set(0, 0, 0);
         wparts.legR.rotation.set(0, 0, 0);
@@ -53125,13 +53133,14 @@
           p0.style.opacity = "1";
         }
         if (writeUpDimTimer) clearTimeout(writeUpDimTimer);
-        // THE NIGHT'S REPORT IS TITLED BY ITS NAME ALONE — "MIDNIGHT * DEAD END", no borough
-        // line under it. Weekdays keep "WEDNESDAY · BROOKLYN" + the street caption.
+        // THE REPORT LINES READ LIKE EVERY OTHER SHIFT: the night rides "MIDNIGHT · DEAD END"
+        // over "SHIFT REPORT — DEAD END", exactly the way a weekday rides
+        // "WEDNESDAY · BROOKLYN" over "SHIFT REPORT — BROOKLYN / FLATBUSH".
         $("day-stats-title").textContent = d.night
-          ? levelName(d)
+          ? levelName(d) + " \u00b7 " + levelLoc(d)
           : levelName(d) + " \u00b7 " + d.borough;
         $("day-stats-loc").textContent = d.night
-          ? "SHIFT REPORT \u2014 THE DEAD-END STREET"
+          ? "SHIFT REPORT \u2014 " + levelLoc(d)
           : "SHIFT REPORT \u2014 " + d.borough + " / " + d.area;
         const g = $("day-stats-grid");
         if (g) {
@@ -53731,10 +53740,11 @@
           ? "BEGIN THE NIGHT SHIFT"
           : "START THE SHIFT";
         // The day card names the weather too — the light / fog / rain match the words.
-        // THE NIGHT CARD IS THE NAME ALONE: "MIDNIGHT * DEAD END" on top and no street caption
-        // underneath it (no BROOKLYN, no BED-STUY, no weather label — the sky line is enough).
+        // THE NIGHT CARD IS A PLAIN CARD LIKE EVERY OTHER ONE: MIDNIGHT on top and its street
+        // underneath — "DEAD END · <weather>", the same shape as "BROOKLYN · BED-STUY · RAIN".
+        // No BROOKLYN and no BED-STUY on the night's card: its place line IS the dead end.
         $("day-intro-loc").textContent = d.night
-          ? ""
+          ? levelLoc(d) + " \u00b7 " + WEATHERS[weather].label
           : d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
         // The forecast panel: the day's icon + rolled temperature + the sky's line.
         $("day-intro-forecast").textContent =
