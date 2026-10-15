@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.538</div>
+          <div id="app-version" class="menu-version">v1.0.539</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.538';
+      const APP_VERSION = '1.0.539';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6822,11 +6822,12 @@
     area: "BED-STUY",
     night: true,
     // Card copy stays SHORT on purpose: this card must fit a phone screen, so the
-    // banner is one punchy line and the objective two — the flavor lives in the
-    // worker's spoken NIGHT_START_LINES, not on the panel. (The street's own line,
-    // DEAD END, carries the name of the place; the banner does not have to shout it.)
+    // banner is one punchy line and the objective ONE sentence — the flavor lives in
+    // the worker's spoken NIGHT_START_LINES, not on the panel. BANNERS ARE WHERE THE
+    // NAME GOES, NOT THE WEATHER: the night's banner IS its own street sign, cut the
+    // Ghostbusters way; the forecast stays the day's plain forecast like every shift.
     special: "THE NIGHT SHIFT!",
-    warning: "THE BEAST SLEEPS IN THE CEMETERY!",
+    warning: "DEAD END STREET. WHO YOU GONNA CALL?",
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -28832,6 +28833,7 @@
         "IT'S SOLID — TOUCHING IT HURTS!",
         "IT NEVER SHOVES ME — I'LL WALK AROUND IT!",
         "THE GUT'S A WALL! USE THE HEART!",
+        "TOUCHING THE SLUG DEMON HURTS — IT NEVER SHOVES YOU!",
       ];
       const BOSS_WHIP_TELEGRAPH = 0.52; // the tentacles load first — this is the tell
       const BOSS_WHIP_STRIKE = 0.42; // ...then the lash comes through
@@ -53758,12 +53760,10 @@
           ? levelLoc(d) + " \u00b7 " + WEATHERS[weather].label
           : d.borough + " \u00b7 " + d.area + " \u00b7 " + WEATHERS[weather].label;
         // The forecast panel: the day's icon + rolled temperature + the sky's line.
+        // The night CARD reads a plain forecast like every other shift — the street's
+        // own sign line lives on the banner (the day's warning), not in this slot.
         $("day-intro-forecast").textContent =
-          d.night
-            ? // THE NIGHT CARD's line above the briefing is no forecast — a cul-de-sac
-              // signs itself, Ghostbusters-style. (The storm is still real on the street.)
-              "Dead end street. Who you gonna call?"
-            : weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine;
+          weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine;
         // Dusk shift: one golden-hour line to set the mood (the porch bulbs light after the street rebuilds)
         if (weather === "dusk") {
           Voice.say(
@@ -53796,17 +53796,18 @@
         // restore it, or every day after the bonus — Sunday above all — would keep showing the
         // overtime objective. Bed-Stuy (the special storm-debris day) gets its own: 2x pay +
         // the four haul types. Every other day gets the standard shift objective.
-        // THE NIGHT CARD IS TWO SENTENCES, NOT A MANUAL: the objective sits directly on top of
-        // the BEGIN button inside a fixed-height panel, so a long briefing pushes the button out
-        // of the panel and the shift cannot be started. The play rules (the fence as cover, the
-        // no-push law, the scurry and the burst) are taught by the worker's spoken lines at the
-        // wake (startBossFight) and by the HUD callouts — the card only says WHERE and WHAT.
-        // WHAT IT SAYS (the heist hook): the worker's OWN ruby-plated gargoyle has been lifted
-        // out of the side bin — a $50,000 eBay score sitting in the graveyard, behind the demon.
+        // THE NIGHT CARD IS ONE SENTENCE, NOT A MANUAL: the objective sits directly on top
+        // of the BEGIN button inside a fixed-height panel, so a long briefing pushes the
+        // button out of the panel and the shift cannot be started. WHAT IT SAYS (the heist
+        // hook): the worker's OWN ruby-plated gargoyle has been lifted out of the side bin —
+        // a $50,000 eBay score sitting in the graveyard, behind the demon. The play rules
+        // (the red heart window, the fence as cover, the no-push law, the scurry and the
+        // burst) are taught by the worker's spoken lines at the wake (startBossFight), the
+        // brush lines and the HUD callouts — they are NOT printed on the card.
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "YOUR <b>RUBY-PLATED GARGOYLE</b> WAS STOLEN FROM THE SIDE BIN &mdash; THAT'S WORTH <b>$50,000</b> ON EBAY! GET IT BACK!<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &mdash; IT GLOWS <b>RED</b> WHEN IT IS OPEN, TOUCHING THE SLUG DEMON HURTS, <b>IT NEVER SHOVES YOU</b>"
+            ? "YOUR <b>RUBY-PLATED GARGOYLE</b> WAS STOLEN FROM THE SIDE BIN &mdash; THAT'S WORTH <b>$50,000</b> ON EBAY! GET IT BACK!"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

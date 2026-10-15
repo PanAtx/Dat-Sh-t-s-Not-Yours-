@@ -314,9 +314,9 @@ check("THE BEAST ONLY LEAVES ITS RISE POINT ONCE FURIOUS, and never runs out of 
   srcFn("updateNightBoss").includes("const furious = bossIsFurious(b);") &&
     srcFn("updateNightBoss").includes("if (furious && !scurrying)") &&
     srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, sealFaceX() - BOSS_BODY_R)"));
-check("THE HUD NAME IS THE SLUG DEMON, and the goal card says SHOVEL OUT ITS HEART",
+check("THE HUD NAME IS THE SLUG DEMON, and the WAKE teaches SHOVEL OUT ITS HEART (the goal card carries only the heist hook)",
   html.includes("THE SLUG DEMON<span") &&
-    /SHOVEL OUT THE <b>SLUG DEMON'S HEART<\/b>/.test(html) &&
+    srcFn("startBossFight").includes("SHOVEL IT WHEN IT GLOWS") &&
     srcFn("clearNightBoss").includes('bar.classList.remove("heart")'));
 check("THE WAKE TEACHES THE RULE before the first swing",
   srcFn("startBossFight").includes("THE HEART GLOWS RED — SHOVEL IT WHEN IT GLOWS!") &&
@@ -683,12 +683,12 @@ check(
   "brush=" + NK_BRUSH_R + " gut=" + NK_GUT_R + " body=" + NK_BODY_R,
 );
 check(
-  "THE NO-PUSH LAW IS TAUGHT OUT LOUD: the wake says it, the brush says it, and the goal card prints it",
+  "THE NO-PUSH LAW IS TAUGHT OUT LOUD: the wake says it, the brush says it (the card prints only the heist hook)",
   srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") &&
     srcFn("updateNightBoss").includes("pick(BOSS_BRUSH_LINES)") &&
     NK_BRUSH_LINES.some((l) => /NEVER SHOVES/.test(l)) &&
-    /TOUCHING THE SLUG DEMON HURTS/.test(html) &&
-    /<b>IT NEVER SHOVES YOU<\/b>/.test(html),
+    NK_BRUSH_LINES.some((l) => /TOUCHING THE SLUG DEMON HURTS/.test(l)) &&
+    NK_BRUSH_LINES.some((l) => /IT NEVER SHOVES YOU/.test(l)),
 );
 
 check(
@@ -724,13 +724,14 @@ check(
   })(),
 );
 check(
-  "THE HUD TELLS HIM WHEN HE IS IN THE GUT, AND THE WAKE AND THE CARD TEACH THE NO-PUSH LAW",
+  "THE HUD TELLS HIM WHEN HE IS IN THE GUT, AND THE WAKE AND THE BRUSH TEACH THE NO-PUSH LAW",
   srcFn("updateHUD").includes('"  IN THE GUT!"') &&
     srcFn("updateNightBoss").includes("spawnEctoSplat(p.wx, p.wy, 0.5)") &&
     srcFn("startBossFight").includes("IT NEVER SHOVES YOU. WALK AROUND IT!") &&
-    /TOUCHING THE SLUG DEMON HURTS/.test(html) &&
-    /<b>IT NEVER SHOVES YOU<\/b>/.test(html) &&
-    /WALK AROUND IT/.test(html),
+    srcFn("startBossFight").includes("TOUCHING THE SLUG HURTS") &&
+    NK_BRUSH_LINES.some((l) => /TOUCHING THE SLUG DEMON HURTS/.test(l)) &&
+    NK_BRUSH_LINES.some((l) => /IT NEVER SHOVES YOU/.test(l)) &&
+    srcFn("startBossFight").includes("WALK AROUND IT"),
 );
 // --- THE SCURRY, THE BOOM, THE SLIME AND THE WIN BEAT (the fight's last three beats) ---
 check(
@@ -741,9 +742,9 @@ check(
   'fire=' + NK_HP_FIRE + ' crush=' + NK_HP_BODY + ' lash=' + NK_HP_WHIP,
 );
 check(
-  "THE GOAL CARD AND THE WAKE BOTH TEACH THE RED WINDOW",
-  /IT GLOWS <b>RED<\/b> WHEN IT IS OPEN/.test(html) &&
-    srcFn("startBossFight").includes("THE HEART GLOWS RED"),
+  "THE WAKE TEACHES THE RED WINDOW (the heist card does not)",
+  srcFn("startBossFight").includes("THE HEART GLOWS RED") &&
+    srcFn("startBossFight").includes("SHOVEL IT WHEN IT GLOWS"),
 );
 check(
   "THE BEAST IS WALLED INTO THE RING — AND OUT OF THE GHOST FENCE: its roam clamp runs the graves gate up to the iron's FACE minus its own body radius (NEITHER beast nor man may stand inside the wall), and the gate line stays above the bottom fence",

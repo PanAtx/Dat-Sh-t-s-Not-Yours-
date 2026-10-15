@@ -2965,7 +2965,7 @@ check('the shift is NAMED LIKE EVERY SHIFT AND REPORTED THAT WAY: "MIDNIGHT" ove
     srcFn('showDayStats').includes('d.night') &&
     srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + levelLoc(d)') &&
     srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + levelLoc(d)') &&
-    html.includes('THE BEAST SLEEPS IN THE CEMETERY!') &&
+    html.includes('DEAD END STREET. WHO YOU GONNA CALL?') &&
     html.includes('WAS STOLEN FROM THE SIDE BIN'));
 check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (DEAD END is the night\u2019s own place line)',
   srcFn('showDayIntro').includes('d.borough + " \\u00b7 " + d.area + " \\u00b7 " + WEATHERS[weather].label') &&
@@ -2977,21 +2977,23 @@ check('THE NIGHT TITLE STILL FITS THE PHONE CARD (it scales down and may break l
   /#day-intro\.night \.day \{[^}]*font-size: clamp\(23px, 6\.2vw, 58px\)/.test(html) &&
     /#day-intro\.night \.day \{[^}]*max-width: 94vw/.test(html) &&
     /#day-intro\.night \.day \{[^}]*overflow-wrap: anywhere/.test(html));
-check('THE NIGHT CARD IS TWO SIMPLE SENTENCES — the briefing sits on top of the BEGIN button inside a fixed-height panel, so a long one pushes the button out of reach',
+check('THE NIGHT CARD IS ONE SENTENCE — the briefing is the heist hook and NOTHING else, so it sits on top of the BEGIN button inside a fixed-height panel, and the street signs itself on the banner (the day\'s warning), never in the forecast slot',
   (() => {
     const m = html.match(/obj\.innerHTML = d\.night\s*\?\s*"([^"]+)"/);
     const t = m ? m[1] : '';
     return t.length > 0 && t.length <= 340 &&
-      (t.match(/<br\s*\/>/g) || []).length <= 1 &&
+      !/<br\s*\/>/.test(t) &&
       t.includes('YOUR <b>RUBY-PLATED GARGOYLE</b> WAS STOLEN FROM THE SIDE BIN') &&
       t.includes('THAT\'S WORTH <b>$50,000</b> ON EBAY! GET IT BACK!') &&
-      t.includes('SHOVEL OUT THE <b>SLUG DEMON\'S HEART</b>') &&
-      t.includes('IT GLOWS <b>RED</b> WHEN IT IS OPEN') &&
-      srcFn('showDayIntro').includes('"Dead end street. Who you gonna call?"') &&
-      t.includes('TOUCHING THE SLUG DEMON HURTS') &&
-      t.includes('<b>IT NEVER SHOVES YOU</b>') &&
-      !/THE GHOST FENCE CLOSES THE STREET BEHIND YOU/.test(t) &&
-      !/WALK AROUND IT/.test(t);
+      !/SHOVEL OUT/.test(t) &&
+      !/TOUCHING THE SLUG DEMON HURTS/.test(t) &&
+      !/IT NEVER SHOVES YOU/.test(t) &&
+      !/IT GLOWS/.test(t) &&
+      !/DEAD END/.test(t) &&
+      (html.match(/const LEVEL_DAYS = \[[\s\S]*?\n      \];/) || [''])[0]
+        .includes('warning: "DEAD END STREET. WHO YOU GONNA CALL?"') &&
+      !/THE BEAST SLEEPS IN THE CEMETERY/.test(html) &&
+      !/Dead end street\. Who you gonna call/.test(srcFn('showDayIntro'));
   })(),
   'night objective=' + (((html.match(/obj\.innerHTML = d\.night\s*\?\s*"([^"]+)"/) || [])[1] || '').length) + ' chars');
 check('EVERY MODAL CAN SCROLL TO ITS OWN BUTTON (the overlay scrolls; the panel centers by auto margin, so a tall card never eats its control)',
