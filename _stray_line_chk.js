@@ -184,7 +184,9 @@ const BOSS_FNS = [
   "bossArmourBite", "bossShovelHit", "bossAngryTarget", "bossFuryOf", "bossIsFurious",
   "bossHeartOpen", "bossHeartOpenT", "bossHeartCloseT", "bossFireShots", "bossFireGap",
   "bossRingClamp",
-  "bossArmMuzzle", "killNightBoss", "bossLandedInHopper", "spawnNightBoss", "clearNightBoss",
+  "bossArmMuzzle", "killNightBoss", "bossBlownUp", "spawnNightBoss", "clearNightBoss",
+  // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up, the goop it leaves)
+  "nightSlimeBlob", "spawnBossSlime", "coatInSlime", "nightSlimeClear",
   "startBossFight", "grabBossGargoyle", "spawnBossGargoyle",
   // THE BOSS RING: the rig's fence floor, the ghost iron, and its whole lifecycle
   "nightSealClosed", "workerCeilX", "truckFenceFloorX", "makeGhostIronFence", "buildNightSeal",

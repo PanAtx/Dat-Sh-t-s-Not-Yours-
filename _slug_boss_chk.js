@@ -307,7 +307,7 @@ check("THE FIGHT LOOP RUNS THE HEART CYCLE (shut \u2192 crack \u2192 open) and t
     srcFn("spawnBossFireball").includes("bossArmMuzzle(b, side)"));
 check("THE BEAST ONLY LEAVES ITS RISE POINT ONCE FURIOUS, and never runs out of its block",
   srcFn("updateNightBoss").includes("const furious = bossIsFurious(b);") &&
-    srcFn("updateNightBoss").includes("if (furious)") &&
+    srcFn("updateNightBoss").includes("if (furious && !scurrying)") &&
     srcFn("updateNightBoss").includes("clamp(b.wx, NIGHT_GRAVE_X - 6, NIGHT_SEAL_X - 2)"));
 check("THE HUD NAME IS THE SLUG DEMON, and the goal card says SHOVEL OUT ITS HEART",
   html.includes("THE SLUG DEMON<span") &&
@@ -590,9 +590,9 @@ check(
   JSON.stringify(global.__ringDbg || {}),
 );
 check(
-  "THE RING IS WIRED INTO THE FIGHT: the wake arms it, the crossing closes it, the hopper opens it, the shift clears it, the frame hook runs it",
+  "THE RING IS WIRED INTO THE FIGHT: the wake arms it, the crossing closes it, the BLOW-UP opens it, the shift clears it, the frame hook runs it",
   srcFn("startBossFight").includes("nightSealArm();") &&
-    srcFn("bossLandedInHopper").includes("nightSealDrop();") &&
+    srcFn("bossBlownUp").includes("nightSealDrop();") &&
     srcFn("clearNightBoss").includes("nightSealClear();") &&
     srcFn("updateNightBossFight").includes("updateNightSeal(dt);") &&
     srcFn("updatePlayer").includes("p.wx > workerCeilX()") &&
@@ -607,6 +607,98 @@ check(
   srcFn("updateBossFireballs").includes("f.wx > workerCeilX() + 8") &&
     (html.match(/workerCeilX\(\) \+ 2/g) || []).length === 0 &&
     srcFn("bossRingClamp").includes("workerCeilX()"),
+);
+// --- THE SCURRY, THE BOOM, THE SLIME AND THE WIN BEAT (the fight's last three beats) ---
+check(
+  "A HEART STRIKE SCURRIES IT OFF THE BLADE: the wound arms the run, cuts the lash, slams the shell, and says so",
+  srcFn("bossShovelHit").includes("b.recoilT = Math.max(BOSS_SCURRY_T, BOSS_SCURRY_MIN / (BOSS_SCURRY_SP * 0.7))") &&
+    srcFn("bossShovelHit").includes("b.recoilDir = scurryDir") &&
+    srcFn("bossShovelHit").includes('b.heartState = "shut"') &&
+    srcFn("bossShovelHit").includes("BOSS_SCURRY_LINES") &&
+    srcFn("spawnNightBoss").includes("recoilT: 0") &&
+    srcFn("updateNightBoss").includes("const scurrying = b.recoilT > 0;"),
+);
+check(
+  "THE SCURRY IS ITS OWN GAIT: the run is applied on the beast only, the rig scuddes and hops on it, and the furious chase is suspended for the beat",
+  srcFn("updateNightBoss").includes("b.wx += b.recoilDir * sp * dt") &&
+    srcFn("updateNightBoss").includes("const scurryRoll = b.recoilT > 0") &&
+    srcFn("updateNightBoss").includes('animateNightBoss(b, dt, scurryRoll ? "scurry" : "fight")') &&
+    srcFn("animateNightBoss").includes('mode === "scurry" ? 2.15 : 0.45') &&
+    srcFn("updateNightBoss").includes("if (furious && !scurrying)"),
+);
+check(
+  "THE KILL IS A BLOW-UP, NOT A RIDE: the dying frame inflates the body on the spot it died on and the boom beat runs to the burst — no suction, no hopper ride",
+  srcFn("killNightBoss").includes("THE BOOM") &&
+    srcFn("killNightBoss").includes("b.hooked = true") &&
+    srcFn("killNightBoss").includes("nightBossBanished = true") &&
+    !srcFn("killNightBoss").includes("hopperDeposit") &&
+    srcFn("updateNightBoss").includes("b.g.scale.setScalar(1 + k * (BOSS_BOOM_ROAR - 1))") &&
+    srcFn("updateNightBoss").includes("bossBlownUp(b)") &&
+    srcFn("updateNightBoss").includes("bossLandedInHopper") === false,
+);
+check(
+  "THE BURST COATS EVERYTHING IN ECTOPLASMIC SLUG SLIME: pools on the street, drapes on the props, curtains, the ghost iron and the worker, and the goop rides out with him",
+  srcFn("bossBlownUp").includes("spawnBossSlime(b.wx, b.wy, BOSS_BOOM_R)") &&
+    srcFn("bossBlownUp").includes("coatInSlime(hz.g, 0.7)") &&
+    srcFn("bossBlownUp").includes("coatInSlime(wd.g, 1.1)") &&
+    srcFn("bossBlownUp").includes("coatInSlime(nightSeal.g, 1.1)") &&
+    srcFn("bossBlownUp").includes("coatInSlime(worker && worker.group, 1.15)") &&
+    srcFn("bossBlownUp").includes("p.slimeT = 1") &&
+    srcFn("bossBlownUp").includes("p.pickleSteps = Math.max(p.pickleSteps || 0, BOSS_BOOM_SLIME_KEEP)") &&
+    srcFn("nightSlimeBlob").includes("emissive: 0x1ec98f") &&
+    srcFn("nightSlimeBlob").includes("g.scale.set(1, 0.74, 0.22)") &&
+    srcFn("nightSlimeBlob").includes("nightBossSlime.push(g)") &&
+    srcFn("nightSlimeClear").includes("nightBossSlime.length = 0") &&
+    srcFn("clearNightBoss").includes("nightSlimeClear()"),
+);
+check(
+  "THE SLUG DEMON DOES NOT RESPAWN: the banished flag is raised on the kill, the cross-street's wake runs past it, and a new shift (spawnNightBoss / clearNightBoss) resets it",
+  srcFn("updatePlayer").includes("!bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X") &&
+    srcFn("clearNightBoss").includes("nightBossBanished = false") &&
+    srcFn("spawnNightBoss").includes("nightBossBanished = false") &&
+    srcFn("bossBlownUp").includes("nightBoss = null"),
+);
+check(
+  "THE GARGOYLE LANDS BESIDE THE WORKER, NEVER ON HIM: it spawns off his own position, downhill of him and off his lane, and the clamp keeps it inside the ring",
+  srcFn("bossBlownUp").includes("spawnBossGargoyle(p.wx, p.wy)") &&
+    srcFn("spawnBossGargoyle").includes("function spawnBossGargoyle(nearX, nearY)") &&
+    srcFn("spawnBossGargoyle").includes("nearX - 5.5") &&
+    srcFn("spawnBossGargoyle").includes("clamp(nearX - 5.5, workerEndLimitX() + 2, workerCeilX() - 2)") &&
+    srcFn("spawnBossGargoyle").includes("nearY - 1.6") &&
+    srcFn("spawnBossGargoyle").includes("clamp(nearY - 1.6, -4.2, 4.2)") &&
+    srcFn("spawnBossGargoyle").includes("IT'S RIGHT BESIDE YOU"),
+);
+check(
+  "THE WIN BEAT IS THE CELEBRATION: the grab arms the hop, tears the ghost fence, and hands off to the drive-off (which is the week's report)",
+  srcFn("grabBossGargoyle").includes("bossWinT = BOSS_WIN_JUMP_T") &&
+    srcFn("grabBossGargoyle").includes("p.winJumpT = BOSS_WIN_JUMP_T") &&
+    srcFn("grabBossGargoyle").includes("nightSealDrop();") &&
+    srcFn("grabBossGargoyle").includes("I'M WALKIN' TO MY TRUCK") &&
+    srcFn("updateNightBossFight").includes("startRouteEnd();") &&
+    srcFn("updatePlayer").includes("let winHop = 0;") &&
+    srcFn("updatePlayer").includes("if (p.winJumpT > 0)") &&
+    srcFn("updatePlayer").includes("wparts.armR.rotation.set(-2.26, 0, 0.3 * _sg);") &&
+    srcFn("updatePlayer").includes("GZ) + winHop,"),
+  (() => {
+    const g = srcFn("grabBossGargoyle"), u = srcFn("updatePlayer");
+    return [
+      "bossWinT " + g.includes("bossWinT = BOSS_WIN_JUMP_T"),
+      "winJumpT " + g.includes("p.winJumpT = BOSS_WIN_JUMP_T"),
+      "seal " + g.includes("nightSealDrop();"),
+      "line " + g.includes("I'M WALKIN' TO MY TRUCK"),
+      "route " + srcFn("updateNightBossFight").includes("startRouteEnd();"),
+      "hop " + u.includes("let winHop = 0;"),
+      "arm " + u.includes("wparts.armR.rotation.set(-2.26, 0, 0.3 * _sg);"),
+      "z " + u.includes("GZ + winHop,"),
+    ].join(" | ");
+  })(),
+);
+check(
+  "THE SLIME AND THE SCURRY ARE SLUG-DEMON LAW ONLY (the weekday never sees a goblin)",
+  srcFn("killNightBoss").includes("nightBossBanished") &&
+    srcFn("bossBlownUp").includes("nightSealDrop") &&
+    srcFn("spawnBossSlime").includes("BOSS_BOOM_SPLATS") &&
+    srcFn("coatInSlime").includes("o.add(g)"),
 );
 
 console.log("\n" + pass + " slug-demon checks passed" + (fail ? ", " + fail + " FAILED" : " \u2014 all OK"));

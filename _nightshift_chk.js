@@ -15,9 +15,14 @@
 // a heart hanging in a spiked chest cavity. The heart is the ONLY soft spot — the shell cracks
 // open on its own beat and a shovel inside that window is the only cut on the bar (10 heart
 // strikes; a consecrated swing lands TWO), the fire comes faster and thicker as the bar drains,
-// and the beast only leaves its rise point once it has been hit BOSS_FURY_HITS times. At ZERO
-// the compactor SUCKS the whole beast into the hopper, the Gargoyle drops on the grave yard,
-// and walking onto IT wins the night.
+// and the beast only leaves its rise point once it has been hit BOSS_FURY_HITS times. Every
+// heart strike makes it SCURRY a few paces off the blade (the worker gets room to step clear),
+// and at ZERO the body INFLATES AND BURSTS — it never rides into the hopper and it never comes
+// back: the cross-street has banished its only Slug Demon. The blast leaves ECTOPLASMIC SLUG
+// SLIME on everything (pools on the asphalt, a drape on every prop in the blast, the worker
+// coated head to boots), the Ruby-Plated Gargoyle lands BESHIDE the worker (near him, never on
+// him), and walking onto IT wins the night: he jumps up in celebration, the ghostly cemetery
+// fence is gone, he walks to the truck's door and the rig drives off into the shift report.
 //
 // PART 1 the level table + the emptied roster (real npcCounts, real LEVEL_DAYS)
 // PART 2 the monsters + the shovel + the hopper, SIMULATED against stub world callbacks
@@ -358,6 +363,13 @@ const BOSS_FIRE_LINES = eval('(' + srcLiteral('BOSS_FIRE_LINES', '[', ']') + ')'
 const BOSS_HIT_LINES = eval('(' + srcLiteral('BOSS_HIT_LINES', '[', ']') + ')');
 const BOSS_DYING_LINES = eval('(' + srcLiteral('BOSS_DYING_LINES', '[', ']') + ')');
 const BOSS_WIN_LINES = eval('(' + srcLiteral('BOSS_WIN_LINES', '[', ']') + ')');
+// THE SCURRY, THE BOOM AND THE SLIME (mirrored straight out of the game's own numbers)
+const NK_SCURRY_T = srcNum('BOSS_SCURRY_T'), NK_SCURRY_SP = srcNum('BOSS_SCURRY_SP'), NK_SCURRY_MIN = srcNum('BOSS_SCURRY_MIN');
+const NK_BOOM_ROAR = srcNum('BOSS_BOOM_ROAR'), NK_BOOM_R = srcNum('BOSS_BOOM_R'), NK_BOOM_SPLATS = srcNum('BOSS_BOOM_SPLATS');
+const NK_BOOM_COAT = srcNum('BOSS_BOOM_COAT'), NK_BOOM_SLIME_KEEP = srcNum('BOSS_BOOM_SLIME_KEEP'), NK_WIN_JUMP_T = srcNum('BOSS_WIN_JUMP_T');
+const NK_BOOM_LINES = eval('(' + srcLiteral('BOSS_BOOM_LINES', '[', ']') + ')');
+const NK_SLIME_LINES = eval('(' + srcLiteral('BOSS_SLIME_LINES', '[', ']') + ')');
+const NK_SCURRY_LINES = eval('(' + srcLiteral('BOSS_SCURRY_LINES', '[', ']') + ')');
 const HORROR_SEE_R_X = HORROR_SEE_R;
 const SHOVEL_LINES = ['GET IN THE TRUCK!'];
 const NIGHT_SCARE_LINES = ['MAMA!'];
@@ -457,10 +469,12 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'clearNightBoss', 'startBossFight', 'bossAngryTarget', 'spawnBossFireball',
   'killBossFireball', 'updateBossFireballs', 'bossWhipStrike', 'bossShovelTargetable',
   'bossShovelRange', 'bossTakeShovelSwing', 'bossShovelHit', 'killNightBoss',
-  'bossLandedInHopper', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
+  'bossBlownUp', 'spawnBossGargoyle', 'grabBossGargoyle', 'animateNightBoss',
   'updateNightBoss', 'updateNightBossFight',
   // THE BEAST'S RING CLAMP (no boss hit may cross a fence: the bottom iron, the ghost iron)
   'bossRingClamp',
+  // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up, the goop it leaves)
+  'nightSlimeBlob', 'spawnBossSlime', 'coatInSlime', 'nightSlimeClear',
   // THE SLUG DEMON'S HEART (the window math, the fury ramp, the armour clang, the muzzle)
   'bossFuryOf', 'bossIsFurious', 'bossHeartOpen', 'bossHeartOpenT', 'bossHeartCloseT',
   'bossFireShots', 'bossFireGap', 'bossArmMuzzle', 'bossTakeArmourSwing', 'bossArmourBite',
@@ -594,6 +608,10 @@ const H = new Function(
   // THE BOSS RING (Midnight): the seal line, the respect off the ghost iron, the rig's nose
   'NIGHT_SEAL_X', 'NIGHT_SEAL_STOP', 'NIGHT_SEAL_INNER', 'NIGHT_TRUCK_NOSE_L',
   'NIGHT_TRUCK_SEAL_CLEAR', 'NIGHT_SEAL_RISE_T', 'NIGHT_SEAL_LINES',
+  // THE SCURRY, THE BOOM AND THE SLIME (the wound's run, the blow-up beat, the goop, the hop)
+  'BOSS_SCURRY_T', 'BOSS_SCURRY_SP', 'BOSS_SCURRY_MIN', 'BOSS_BOOM_ROAR', 'BOSS_BOOM_R',
+  'BOSS_BOOM_SPLATS', 'BOSS_BOOM_COAT', 'BOSS_BOOM_SLIME_KEEP', 'BOSS_WIN_JUMP_T',
+  'BOSS_BOOM_LINES', 'BOSS_SLIME_LINES', 'BOSS_SCURRY_LINES',
   // THE SPECTRAL BLOCK WARDS: the ward ledger lives in the module with the haunt state
   '\nconst nightGates = {};' +
   '\nlet nightGoT = 0, nightGoMsg = "";' +
@@ -613,6 +631,8 @@ const H = new Function(
   '\nlet nightBoss = null, bossFireballs = [], bossFightOn = false, bossWin = false,' +
   ' bossWinT = 0, bossGargoyle = null, hopperCycling = false, hopperCycleT = 0,' +
   ' bossDeposits = 0;' +
+  // THE SCURRY, THE BOOM AND THE SLIME: the goop the burst leaves, and the banished flag
+  '\nlet nightBossSlime = [], nightBossBanished = false;' +
   // THE GHOST IRON OF THE BOSS RING: the live ring (armed / closed / tearing down)
   '\nlet nightSeal = null;' +
   '\nconst hurtLog = [], stunLog = [], routeEnds = [], confettiLog = [], bossBursts = [];' +
@@ -690,6 +710,7 @@ const H = new Function(
   ' clearRouteEnds: () => { routeEnds.length = 0; },' +
   ' clearConfettiLog: () => { confettiLog.length = 0; },' +
   ' clearBossBursts: () => { bossBursts.length = 0; },' +
+  ' getBossSlime: () => nightBossSlime, getBanished: () => nightBossBanished,' +
   ' getHopperCycling: () => hopperCycling, getHopperCycleT: () => hopperCycleT,' +
   // THE SPECTRAL BLOCK WARDS: the harness drives the ward system through these
   ' gateOn: () => nightGateOn(), gates: () => nightGates, gateLedger: b => nightGateLedger(b),' +
@@ -789,7 +810,12 @@ const H = new Function(
     NK_HEART_HOT, NK_HEART_DARK, NK_HEART_EMISS,
     NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_TRUCK_NOSE, NK_TRUCK_CLEAR,
     srcNum('NIGHT_SEAL_RISE_T'),
-    ['THE FENCE’S UP — NO WAY BACK UP THE STREET!']
+    ['THE FENCE’S UP — NO WAY BACK UP THE STREET!'],
+    // THE SCURRY, THE BOOM AND THE SLIME (the names sit at THIS point of the list, so the
+    // values must ride the same slots)
+    NK_SCURRY_T, NK_SCURRY_SP, NK_SCURRY_MIN, NK_BOOM_ROAR, NK_BOOM_R, NK_BOOM_SPLATS,
+    NK_BOOM_COAT, NK_BOOM_SLIME_KEEP, NK_WIN_JUMP_T,
+    NK_BOOM_LINES, NK_SLIME_LINES, NK_SCURRY_LINES
 );
 // The block-pack quota rides the SAME night quota the haunt runs on (wave tiers included)
 nightQuotaForPacks = H.nightQuota;
@@ -2621,27 +2647,73 @@ check('WITH THE SHELL SHUT THERE IS NO TARGET — the heart is the only window t
   check('every cut on the bar pays (the banishment purse is scored on the hits)',
     scored.reduce((a, s) => a + s.n, 0) - scoreBefore >= BOSS_POINTS * BOSS_DMG,
     'scored=' + (scored.reduce((a, s) => a + s.n, 0) - scoreBefore));
-  check('its dying frame HOOKS the whole beast for the hopper',
+  check('its dying frame HOOKS the body for the BLOW-UP (the boom beat is armed on the beast)',
     boss.hooked === true && boss.suckT === 0 && H.getFightOn() === true);
+  check('THE BEAST IS BANISHED THE FRAME IT DIES (nightBossBanished: it does not come back)',
+    H.getBanished() === true, 'banished=' + H.getBanished());
+  check('the boom inflates the body on the spot it died on (fx0/fy0 pin the burst patch)',
+    boss.fx0 === boss.wx && boss.fy0 === boss.wy);
 })();
-// --- THE SUCTION: the whole beast goes IN THE HOPPER, the Gargoyle comes out of it ---
+// --- THE BLOW-UP: the body bursts, the street is COATED, the Gargoyle lands beside him ---
 (function () {
   const dep0 = deposited.length;
-  const steps = Math.ceil(BOSS_SUCTION_T / (1 / 60)) + 6;
+  const workerG = H.getBoss() ? H.getBoss().g : null;
+  const sl0 = H.getBossSlime().length;
+  const steps = Math.ceil(BOSS_SUCTION_T / (1 / 60)) + 12;
   for (let i = 0; i < steps && H.getBoss(); i++) H.updateNightBoss(H.getBoss(), 1 / 60);
-  check('it is SUCKED INTO THE HOPPER: the compactor cycles on the whole beast',
-    H.getBoss() === null && H.getFightOn() === false && H.getHopperCycling() === true &&
+  check('IT BLOWS UP ON ITS OWN GRAVES: the body is gone off the street for good',
+    H.getBoss() === null && H.getFightOn() === false && (workerG === null || !workerG.parent),
+    'mesh=' + (workerG ? (workerG.parent ? 'on street' : 'off street') : 'gone'));
+  check('the blast is a geyser — the burst fires the ecto AND the compactor cycles the slime up',
+    H.bossBursts().length > 0 && H.getHopperCycling() === true &&
       deposited.length - dep0 >= HOPPER_CYCLE_AT,
     'deposits=' + (deposited.length - dep0));
-  check('the hopper BURSTS on the kill, and the beast is off the street for good',
-    H.bossBursts().length > 0 && H.getFightOn() === false);
+  const slime = H.getBossSlime();
+  const pools = slime.filter(g => g.parent === dyn); // the gobs laid on the asphalt
+  const drapes = slime.filter(g => g.parent && g.parent !== dyn); // ...and the films ON things
+  check('ECTOPLASMIC SLUG SLIME ON EVERYTHING: the blast floor is paved in pools',
+    slime.length - sl0 >= NK_BOOM_SPLATS, 'gobs=' + (slime.length - sl0));
+  check('...and the drape is ON the props, the ghost iron and the worker himself',
+    drapes.length >= 2 && !!p.slimeT && p.pickleSteps >= NK_BOOM_SLIME_KEEP,
+    'drapes=' + drapes.length + ' steps=' + p.pickleSteps);
+  check('the SLIME marker is set: he walks out of the graveyard wearing the beast',
+    p.slimeT === 1);
   const gg = H.getBossGargoyle();
-  check('THE RUBY-PLATED GARGOYLE drops on the grave yard where the beast was hoarding it',
-    !!gg && Math.abs(gg.wx - NIGHT_GRAVE_X) < 1e-9 && gg.val === GARGOYLE_VALUE,
-    'x=' + (gg && gg.wx));
+  const dg = gg ? Math.hypot(p.wx - gg.wx, p.wy - gg.wy) : -1;
+  check('THE RUBY-PLATED GARGOYLE lands BESIDE the worker — near him, and NOT on him',
+    !!gg && gg.val === GARGOYLE_VALUE && dg > 2.5 && dg < 8,
+    'd=' + dg.toFixed(2) + 'u at x=' + (gg && gg.wx.toFixed(1)) + ' y=' + (gg && gg.wy.toFixed(1)));
+  check('...and it is inside the ring he is standing in, on a lane of its own',
+    !!gg && gg.wx >= NK_FLOOR + 2 - 1e-9 && gg.wx <= NK_SEAL_X - 2 + 1e-9 &&
+      gg.wy >= -9 && gg.wy <= 5 && Math.abs(gg.wy - p.wy) <= 4,
+    'x=' + (gg && gg.wx.toFixed(1)) + ' y=' + (gg && gg.wy.toFixed(1)));
+  check('THE SLUG DEMON DOES NOT RESPAWN: the banished flag stands after the burst',
+    H.getBanished() === true && H.getBoss() === null);
   check('the wall DROPS behind the graves once the beast is gone (the yard opens, and he still keeps the standoff off the iron)',
     H.workerEndLimitX() === NK_FLOOR, 'wall=' + H.workerEndLimitX());
 })();
+// --- THE WIN: the hop, the ghost fence gone, then he walks to the truck's door ---
+check('THE CELEBRATION HOP IS ARMED IN THE GAME: grabBossGargoyle sets p.winJumpT = BOSS_WIN_JUMP_T ' +
+  '(updatePlayer hops the worker up, arms over, knees tucked) and drops the ghost iron on the grab',
+  srcFn('grabBossGargoyle').includes('p.winJumpT = BOSS_WIN_JUMP_T') &&
+    srcFn('grabBossGargoyle').includes('nightSealDrop();') &&
+    srcFn('updatePlayer').includes('winHop') &&
+    srcFn('updatePlayer').includes('p.winJumpT'));
+check('THE WORKER WALKS TO THE TRUCK\u2019S DOOR AND THE RIG DRIVES OFF, THEN THE REPORT SCREEN SHOWS: ' +
+  'the win beat hands off to startRouteEnd (cheer -> walk-around to the cab door -> board -> drive), ' +
+  'and the drive-off ends the route into the day-end / WEEK COMPLETE menu',
+  srcFn('startRouteEnd').includes('phase: "cheer"') &&
+    srcFn('startRouteEnd').includes('pts: pts') &&
+    srcFn('startRouteEnd').includes('cabX') &&
+    srcFn('updateRouteEnd').includes('routeEnd.phase === "board"') &&
+    srcFn('updateRouteEnd').includes('"drive"') &&
+    srcFn('updateRouteEnd').includes('finishRouteEnd()') &&
+    srcFn('finishRouteEnd').includes('routeComplete()') &&
+    srcFn('routeComplete').includes('state = "dayend"') &&
+    srcFn('routeComplete').includes('"week-complete"'));
+check('THE GHOSTLY CEMETERY FENCE COMES DOWN ON THE BANISH (the seal tears, the ring\u2019s ceiling goes)',
+  srcFn('nightSealDrop').includes('nightSeal.armed = false') &&
+    srcFn('nightSealDrop').includes('nightSeal.drop = NIGHT_GATE_FADE'));
 // --- THE WIN: walk onto the Gargoyle, take it, and the night ends ---
 (function () {
   H.setReclaimed(false);
@@ -2688,6 +2760,52 @@ check('WITH THE SHELL SHUT THERE IS NO TARGET — the heart is the only window t
     nightOn = true;
     return same;
   })());
+})();
+// --- THE SCURRY: a heart strike makes the beast slip OFF THE BLADE (the worker gets room) ---
+(function () {
+  // A clean fight, run for real: the beast up, the worker up-hill of it, the heart taken.
+  H.clearNightBoss();
+  H.resetNight();
+  H.spawnNightBoss();
+  H.startBossFight();
+  const b = H.getBoss();
+  for (let i = 0; i < 400 && b.riseT > 0; i++) H.updateNightBoss(b, 1 / 60);
+  p.wx = b.wx + 2.4; p.wy = b.wy; p.facing = Math.PI; p.stunT = 0; p.nightHitT = 0; // he stands UP-hill of it, facing down at the beast
+  b.invulnT = 0; b.heartState = 'open'; b.heartOpen = 1; b.heartT = 99;
+  const wx0 = p.wx, wy0 = p.wy, bx0 = b.wx;
+  const d0 = Math.hypot(b.wx - p.wx, b.wy - p.wy);
+  H.bossShovelHit(false); // the heart is taken: a wound, not the kill
+  b.fireT = 99; b.whipT = 99; b.invulnT = 0; // ...and the beat is measured clean, with no fire
+  check('the wound arms the SCURRY: recoil on the beast, the lash cut off, the shell slammed shut',
+    b.recoilT > 0 && b.hp === BOSS_MAX_HP - BOSS_DMG && b.whipState === 'idle' && b.heartState === 'shut',
+    'recoilT=' + b.recoilT.toFixed(3) + ' hp=' + b.hp);
+  check('it flees AWAY from the worker (he stands up-hill of it, so it runs down at its graves)',
+    b.recoilDir === -1 && b.wx - bx0 < 0.0001);
+  const guardMax = Math.ceil((b.recoilT + 0.05) / (1 / 60));
+  for (let i = 0; i < guardMax; i++) H.updateNightBoss(b, 1 / 60);
+  const ran = bx0 - b.wx;
+  const d1 = Math.hypot(b.wx - p.wx, b.wy - p.wy);
+  const surc = srcFn('updateNightBoss');
+  const s0 = surc.indexOf('const scurrying = b.recoilT > 0;');
+  const s1 = surc.indexOf('if (furious && !scurrying)');
+  check('the SCURRY CODE WRITES THE BEAST ONLY — not one worker position is touched (it gives ground, it takes none)',
+    s0 > 0 && s1 > s0 && !/p\.(wx|wy)\s*=[^=]/.test(surc.slice(s0, s1)));
+  check('it runs the ground off the blade (at least NK_SCURRY_MIN of it, easing out)',
+    b.recoilT === 0 && ran >= NK_SCURRY_MIN - 0.25 && ran <= NK_SCURRY_SP * (NK_SCURRY_T + 0.2),
+    'ran=' + ran.toFixed(2) + 'u');
+  check('THE WORKER KEEPS THE ROOM: the gap between them opened by more than the scurry ran',
+    d1 > d0 + 3, 'd ' + d0.toFixed(2) + ' -> ' + d1.toFixed(2));
+  check('...and the scurry never puts him through a fence: he stands the ring he stood (floor, iron, lane)',
+    p.wx >= H.workerEndLimitX() + 2 - 1e-9 && p.wx <= H.ceilX() && p.wy >= -9.4 && p.wy <= 5,
+    'p=' + p.wx.toFixed(2) + ',' + p.wy.toFixed(2) +
+      ' ring=' + (H.workerEndLimitX() + 2).toFixed(1) + '..' + H.ceilX().toFixed(1));
+  check('...and the run stays INSIDE the ring: over the grave fence floor, under the ghost iron, on its lane',
+    b.wx >= NIGHT_GRAVE_X - 6 - 1e-9 && b.wx <= NK_SEAL_X - 2 + 1e-9 &&
+      b.wy >= -7.4 - 1e-9 && b.wy <= 6.2 + 1e-9,
+    'wx=' + b.wx.toFixed(1) + ' wy=' + b.wy.toFixed(1));
+  check('while it scurries it does NOT close on him: the furious run is suspended for the beat',
+    srcFn('updateNightBoss').includes('if (furious && !scurrying)'));
+  H.clearNightBoss();
 })();
 // --- the wiring the dead-end shift depends on elsewhere in the game (greps) ---
 check('the beast is SPAWNED BY THE SHIFT (and the day\u2019s thief heist is retired off it)',
@@ -3277,7 +3395,7 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
 
   // (g) THE WORKER'S CLAMP AT A CLOSED CURTAIN (the real updatePlayer snippet, in a harness)
   const clampStart = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
-  const Trig = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X)');
+  const Trig = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X)');
   const clampSrc = html.slice(clampStart, Trig);
   const runClamp = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
     'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
@@ -3365,7 +3483,7 @@ console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — pre
 
   // the REAL clamp, extracted from updatePlayer (v1.0.491: fire on crossing, snap ON the line)
   const w0 = html.indexOf('// === THE SPECTRAL WARD (Midnight)');
-  const w1 = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && p.wx <= NIGHT_BOSS_TRIGGER_X)');
+  const w1 = html.indexOf('if (RT < 0 && state === "play" && !bossFightOn && !nightBossBanished && p.wx <= NIGHT_BOSS_TRIGGER_X)');
   const wardSrc = html.slice(w0, w1);
   const wall = new Function('isNightShift', 'NIGHT_BLOCK_GATES', 'state', 'bossFightOn', 'dt', 'p',
     'nightGateFrontLedger', 'nightGateWall', 'NIGHT_GATE_REACH', 'NIGHT_GATE_STOP', 'pick', 'NIGHT_GATE_LINES',
@@ -4352,7 +4470,7 @@ check('THE GATE SITS INSIDE announcePower ITSELF, and it ONLY bites on the night
   };
   const shout = ['CONSECRATED!', 'SHOVEL TRIAD!', 'ABYSS SURGE!', 'THE BEAST IS UP!',
     'THE SLUG DEMON!', 'THE HEART IS OPEN!', 'THE BEAST IS LOOSE ON THE BLOCK!',
-    'THE BEAST IS ANGRY!', 'THE BEAST IS IN THE TRUCK!',
+    'THE BEAST IS ANGRY!', 'THE BEAST IS BURSTING!', 'SLIME EVERYWHERE!',
     'RUBY-PLATED GARGOYLE! TAKE IT!', 'MIDNIGHT CLEARED!', 'THE FOG GANG IS CLEAR \u2014 THE WARD FALLS!'];
   check('ON MIDNIGHT the battle\u2019s big words are GONE from the centre of the screen (points, sound and meters still land): ' +
     shout.map((t) => t.split('!')[0] + '\u2192' + popWith(true, t)).join(' \u00b7 '),
