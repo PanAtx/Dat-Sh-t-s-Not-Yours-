@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.539</div>
+          <div id="app-version" class="menu-version">v1.0.540</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.539';
+      const APP_VERSION = '1.0.540';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7400,8 +7400,27 @@
       // (540P -> 720P -> NATIVE -> 320P -> ATARI 2600); persisted in localStorage.
       const RES_CYCLE = [540, 720, 0, 320, 240];
       const RES_NAMES = { 320: "320P", 240: "ATARI 2600" };
+      // ==================== THE MOBILE PROFILE (LOW-SPEC FIRST RUN) ====================
+      // The first run on a COARSE-POINTER, LOW-MEMORY device picks the sane settings itself:
+      // 320P buffer (a phone's full window at ~2.5x fewer pixels), LO shadow map, 30 fps cap.
+      // A CHOSEN value always wins: if the player ever set the key, the stored pick is used
+      // verbatim and the profile is sealed — nothing here rewrites a menu choice, ever.
+      const PROFILE_KEYS = { res: "dsnysweep_render_h", shadow: "dsnysweep_shadow", fps: "dsnysweep_fps", profile: "dsnysweep_profile" };
+      let MOBILE_LOW_PROFILE = false;
+      try {
+        MOBILE_LOW_PROFILE =
+          !localStorage.getItem(PROFILE_KEYS.profile) && // sealed once: the first verdict stands
+          typeof matchMedia === "function" &&
+          matchMedia("(pointer: coarse)").matches && // a finger device (phones, tablets)
+          !(parseInt(localStorage.getItem(PROFILE_KEYS.res), 10) >= 0) && // a chosen RES wins
+          !(parseInt(localStorage.getItem(PROFILE_KEYS.shadow), 10) >= 0) &&
+          !(parseInt(localStorage.getItem(PROFILE_KEYS.fps), 10) >= 0) &&
+          (navigator.deviceMemory === undefined || navigator.deviceMemory <= 4 || navigator.hardwareConcurrency <= 4);
+      } catch (e) { MOBILE_LOW_PROFILE = false; }
       const _storedRes = parseInt(localStorage.getItem("dsnysweep_render_h"), 10);
-      let RENDER_H = RES_CYCLE.includes(_storedRes) ? _storedRes : 540;
+      let RENDER_H = RES_CYCLE.includes(_storedRes)
+        ? _storedRes
+        : MOBILE_LOW_PROFILE ? 320 : 540;
       function applyRenderSize() {
         const h = Math.max(2, RENDER_H > 0 ? Math.min(RENDER_H, innerHeight) : innerHeight);
         const w = Math.max(2, Math.round(h * (innerWidth / innerHeight)));
@@ -7421,7 +7440,9 @@
       // Persisted; initThree applies it at startup, the menu button at runtime.
       const SHADOW_SIZES = [2048, 1024];
       const _storedShadow = parseInt(localStorage.getItem("dsnysweep_shadow"), 10);
-      let SHADOW_SIZE = SHADOW_SIZES.includes(_storedShadow) ? _storedShadow : 2048;
+      let SHADOW_SIZE = SHADOW_SIZES.includes(_storedShadow)
+        ? _storedShadow
+        : MOBILE_LOW_PROFILE ? 1024 : 2048;
       function applyShadowQuality() {
         if (!dirLight) return;
         dirLight.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
@@ -7438,8 +7459,114 @@
       // stays exactly right; the 0.05s dt clamp covers any long gap.
       const FPS_CAPS = [60, 30];
       const _storedFps = parseInt(localStorage.getItem("dsnysweep_fps"), 10);
-      let FPS_CAP = FPS_CAPS.includes(_storedFps) ? _storedFps : 60;
+      let FPS_CAP = FPS_CAPS.includes(_storedFps)
+        ? _storedFps
+        : MOBILE_LOW_PROFILE ? 30 : 60;
       let lastRenderT = 0;
+      if (MOBILE_LOW_PROFILE) {
+        // Seal the verdict in the keys the menu reads, label the buttons with it, and tell
+        // the player WHY, right on the settings page.
+        try {
+          localStorage.setItem(PROFILE_KEYS.res, String(RENDER_H));
+          localStorage.setItem(PROFILE_KEYS.shadow, String(SHADOW_SIZE));
+          localStorage.setItem(PROFILE_KEYS.fps, String(FPS_CAP));
+          localStorage.setItem(PROFILE_KEYS.profile, "low");
+        } catch (e) {}
+        MOBILE_LOW_PROFILE = true;
+        try {
+          var __lp = document.createElement("div");
+          __lp.id = "autoLowNote";
+          __lp.textContent = "\u26A1 SMALL DEVICE MODE: 320P \u00b7 30 FPS \u00b7 LO SHADOWS \u2014 change any of them below and this phone will remember YOUR pick from now on.";
+          if (typeof $ === "function" && $("settingsBox")) $("settingsBox").appendChild(__lp);
+        } catch (e) {}
+      }
+      // ==================== THE RENDER GOVERNOR (mobile frame-time hysteresis) ==========
+      // A shovel-timing game is only FAIR while it draws: a 24 fps midnight reads as a broken
+      // game, not a hard one. The governor watches the RENDERED frame times (the ones the cap
+      // let through - the honest ones) and rules in VERDICTS of GOV_WINDOW frames: a row of
+      // GOV_HI_VERDICTS slow verdicts steps the buffer ONE RUNG DOWN the biggest-first ladder
+      // GOV_LADDER (720 -> 540 -> 320) - about 2 s of slow frames; GOV_OK_VERDICTS clean verdicts
+      // (about 8 s) climb the single drop back UP the ladder, and every step pays a GOV_LOCK
+      // verdict lockout (about 5 s) so one noisy second can never trigger the next.
+      // THE LADDER ORDER IS EXPLICIT AND BIGGEST-FIRST - never the RES_CYCLE press order, so a
+      // NATIVE buffer enters at the TOP rung (720) and walks 720 -> 540 -> 320: it can no longer
+      // skip 540 on its way down. 320P is the phone FLOOR (the ladder last rung) and the most
+      // the governor may ever take is two drops; 240P (ATARI 2600) is a hand-picked menu choice
+      // that sits off the ladder entirely. Menu, pause, portrait, dying and the cinematics are
+      // skipped - frame cost there is not the fight. Weekdays pay one Math pair per drawn frame.
+      let _govMsSum = 0,
+        _govMsN = 0,
+        _govPrevNow = 0,
+        _govHi = 0,
+        _govOk = 0,
+        _govLocked = 0,
+        _govDrops = 0;
+      const GOV_WINDOW = 12,
+        GOV_HI_MS = 24,
+        GOV_OK_MS = 17.5,
+        GOV_HI_VERDICTS = 5,
+        GOV_OK_VERDICTS = 40,
+        GOV_LOCK = 15, GOV_LADDER = [720, 540, 320]; // biggest-first: one rung at a time
+      function _govRung(h) {
+        return GOV_LADDER.indexOf(h === 0 ? 720 : h); // NATIVE enters at the top rung; 240P is off it
+      }
+      function mobileGovernorTick(now) {
+        if (!renderer) return;
+        if (state !== "play" || paused) {
+          _govPrevNow = 0;
+          _govHi = _govOk = 0;
+          return;
+        }
+        const d = now - _govPrevNow;
+        _govPrevNow = now;
+        if (d <= 0 || d > 500) return; // first frame after any freeze
+        _govMsSum += d;
+        _govMsN++;
+        if (_govMsN < GOV_WINDOW) return; // warmup: no verdict on a handful of frames
+        const med = _govMsSum / _govMsN;
+        _govMsSum = 0;
+        _govMsN = 0;
+        _govLocked = Math.max(0, _govLocked - 1);
+        if (_govLocked) return;
+        if (med > GOV_HI_MS) {
+          _govHi++;
+          _govOk = 0;
+        } else if (med < GOV_OK_MS) {
+          _govOk++;
+          _govHi = 0;
+        } else {
+          _govHi = _govOk = 0;
+        }
+        const rung = _govRung(RENDER_H);
+        if (rung < 0) return; // a hand-picked buffer (ATARI 2600) is never rewritten
+        const top = GOV_LADDER.length - 1
+        if (_govHi >= GOV_HI_VERDICTS && _govDrops < top && rung < top) {
+          RENDER_H = GOV_LADDER[rung + 1];
+          applyRenderSize();
+          if (typeof setResLabel === "function") setResLabel();
+          _govDrops++;
+          _govLocked = GOV_LOCK;
+          _govHi = _govOk = 0;
+        } else if (_govOk >= GOV_OK_VERDICTS && _govDrops === 1 && rung > 0) {
+          RENDER_H = GOV_LADDER[rung - 1]; // recovery walks BACK UP the ladder (540 -> 720)
+          applyRenderSize();
+          if (typeof setResLabel === "function") setResLabel();
+          _govDrops = 0;
+          _govLocked = GOV_LOCK;
+          _govHi = _govOk = 0;
+        }
+      }
+      // ==================== THE FX TIER (midnight FX, spent on RATES not on new systems) ===
+      // 1 (LOW) on the small-phone profile or a 30 fps cap; 2 (FULL) otherwise. The boss's
+      // slime FX and the rebound's knit are dt-probability SPAWN RATES — on LOW the storms
+      // halve and the timing windows widen a hair (a thumb deserves the same parry a mouse
+      // gets). New systems NEVER get added behind this flag; it only gates what exists.
+      function fxTier() {
+        return MOBILE_LOW_PROFILE || FPS_CAP === 30 ? 1 : 2;
+      }
+      function fxRate(m) {
+        return fxTier() === 1 ? m * 0.55 : m;
+      }
       // ---- CRT OVERLAY toggle: the #scanlines + #vignette divs are the
       // always-on CRT look (scanline stripes + slow flicker + vignette).
       // Toggle them off for a cleaner image. Persisted.
@@ -28775,16 +28902,16 @@
       // from any side. No new blocks scroll: this is walking room inside the same view.
       const NIGHT_BOSS_ROOM_X = 8; // u of bottom strip handed to the worker around the beast
       // ==================== PLAYTEST SWITCH: MIDNIGHT AT THE FINAL BOSS ====================
-      // CURRENT STATE: **LIT** — hard-coded to the playtest doorway, NO URL needed.
+      // CURRENT STATE: **DARK** — the playtest doorway is ONE line: no URL, no window flag.
       // Midnight clocks in AT THE FINAL BOSS: every ward ledger on the four blocks above
       // is stamped paid and open, the curtains drop, the fog sweep clears the street's
       // roster, and the worker lands ON THE GRAVE BLOCK, three paces above the
       // cross-street that wakes the beast — two steps downhill and the fight starts.
       // Nothing else changes: same ward lines, same boss ring floor, same drive-off,
       // same boss mechanics. Weekdays never touch any of it.
-      // TO REVERT (the Midnight shift begins at the FIRST block, exactly as shipped):
-      // change the ONE line below from `true` to `false`. Nothing else needs touching.
-      const NIGHT_TEST_BOSS_START = true;
+      // TO PLAYTEST (Midnight clocks in AT THE FINAL BOSS, every ward ledger stamped clear):
+      // change the ONE line below from `false` to `true`. Nothing else needs touching.
+      const NIGHT_TEST_BOSS_START = false; // false = the shipped law
       const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
       const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
       // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so
@@ -29666,7 +29793,7 @@
         p.shovelT = SHOVEL_SWING_DUR;
         // THE BLADE STAYS UP: for the swipe AND its tail, any spook that comes into the tool
         // is parried into the hopper (see the contact pass) — this is the defence window.
-        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;
+        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD + (fxTier() === 1 ? SHOVEL_GUARD * 0.15 : 0); // LOW tier: a thumb deserves the same parry a mouse gets
         p.shovelCd = SHOVEL_COOLDOWN;
         shovelCharged = false; // the charge is SPENT on this swing
         const targets = charged
@@ -32504,9 +32631,10 @@
         return !!b && b.awake && !b.hooked && b.hp > 0 && b.heartState === "open";
       }
       function bossHeartOpenT(b) {
+        // THE OPEN WINDOW (LOW mobile tier: a thumb deserves a hair more room — +15%).
         return Math.max(
           BOSS_HEART_OPEN_MIN,
-          BOSS_HEART_OPEN_T * (1 - BOSS_HEART_RAGE * bossFuryOf(b)),
+          BOSS_HEART_OPEN_T * (1 - BOSS_HEART_RAGE * bossFuryOf(b)) * (fxTier() === 1 ? 1.15 : 1),
         );
       }
       function bossHeartCloseT(b) {
@@ -32557,7 +32685,7 @@
         // the beast is what turns its face INTO the incoming blow.
         b.facing = (p.facing || 0) + Math.PI;
         p.shovelT = SHOVEL_SWING_DUR;
-        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;
+        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD + (fxTier() === 1 ? SHOVEL_GUARD * 0.15 : 0); // LOW tier: a thumb deserves the same parry a mouse gets
         p.shovelCd = SHOVEL_COOLDOWN;
         shovelCharged = false;
         shovelArm = 0;
@@ -32577,7 +32705,7 @@
         if (!shovelFacingOK(b.wx, b.wy)) return false;
         b.facing = (p.facing || 0) + Math.PI; // ...and it turns its face INTO the blow
         p.shovelT = SHOVEL_SWING_DUR;
-        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;
+        p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD + (fxTier() === 1 ? SHOVEL_GUARD * 0.15 : 0); // LOW tier: the armour swing raises the blade just as long
         p.shovelCd = SHOVEL_COOLDOWN;
         shovelCharged = false;
         shovelArm = 0;
@@ -33152,12 +33280,12 @@
     b.fireT = Math.max(b.fireT, 9);
     b.mawOpen = 1; // the grin is blown wide open with the light in it
     animateNightBoss(b, dt, "fight");
-    if (Math.random() < dt * (7 + k * 26)) {
+    if (Math.random() < dt * fxRate(7 + k * 26)) {
       const gx = b.wx + R(-1.6, 1.6),
         gy = b.wy + R(-1.6, 1.6);
-      spawnEctoSplat(gx, gy, 0.42); // slime comes off the inflating body in sheets
+      spawnEctoSplat(gx, gy, 0.42); // slime comes off the inflating body in sheets (LOW tier: half the sheets)
     }
-    if (Math.random() < dt * 9) spawnEctoBurst(b.wx, b.wy, 1.05);
+    if (Math.random() < dt * fxRate(9)) spawnEctoBurst(b.wx, b.wy, 1.05);
     if (Math.random() < dt * 9) p.shake = Math.max(p.shake, 0.55 + k * 0.75); // it rattles the street
     b.g.rotation.y = Math.sin(b.suckT * 12) * 0.42 * k; // ...and it quivers whole
     if (Math.random() < dt * 2.4)
@@ -33210,12 +33338,12 @@
         knit * BOSS_RECOVER_GLOW * 0.7,
       );
     }
-    if (Math.random() < dt * 18) {
+    if (Math.random() < dt * fxRate(18)) {
       const knX = b.wx + R(-2.2, 2.2),
         knY = b.wy + R(-1.5, 1.5); // the shed lands all over its own graves
-      spawnEctoSplat(knX, knY, 0.5); // the sheets of cold light it sheds while it knits
+      spawnEctoSplat(knX, knY, 0.5); // the sheets of cold light it sheds while it knits (LOW tier: half)
     }
-    if (Math.random() < dt * 6) spawnEctoBurst(b.wx, b.wy, 0.95);
+    if (Math.random() < dt * fxRate(6)) spawnEctoBurst(b.wx, b.wy, 0.95);
     p.shake = Math.max(p.shake || 0, 0.3 + knit * 0.5); // ...and it rattles the graves
     if (b.recoverT <= 0) {
       // THE BAR IS WHOLE: full strength, a fresh armour gap, and the blade skids off it a beat longer
@@ -33265,7 +33393,7 @@
     b.g.scale.setScalar(Math.max(0.12, k)); // and it swells as it comes
     b.g.rotation.z = Math.atan2(dy, dx);
     animateNightBoss(b, dt, "calm");
-    if (Math.random() < dt * 12) {
+    if (Math.random() < dt * fxRate(12)) {
       const sxp = b.wx + R(-1.2, 1.2);
       const syp = b.wy + R(-1.2, 1.2);
       spawnEctoSplat(sxp, syp, 0.5);
@@ -33314,8 +33442,8 @@
     const sp = BOSS_SCURRY_SP * (0.4 + 0.6 * (b.recoilT / BOSS_SCURRY_T));
     b.wx += b.recoilDir * sp * dt;
     b.wy += Math.sin(b.phase * 13) * 0.12 * sp * dt;
-    if (Math.random() < dt * 9)
-      spawnEctoSplat(b.wx - b.recoilDir * 1.2, b.wy, 0.3); // the slime wake it drags
+    if (Math.random() < dt * fxRate(9))
+      spawnEctoSplat(b.wx - b.recoilDir * 1.2, b.wy, 0.3); // the slime wake it drags (LOW tier: half the prints)
   }
   if (furious && !scurrying) {
     if (d > 2.6 && d < BOSS_ROAM_R) {
@@ -56001,6 +56129,7 @@
         lastT = now;
         if (dt > 0.05) dt = 0.05;
         if (dt < 0) dt = 0;
+        mobileGovernorTick(now); // RENDER_H steps down on a device that cannot keep up (hysteresis, state === "play" only)
         updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
         pollGamepad(); // cheap input poll: on the menu, gamepad START / ACT still begins the shift
         updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)

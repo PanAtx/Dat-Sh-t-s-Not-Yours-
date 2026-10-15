@@ -56,6 +56,7 @@ const suites = [
   ['route-end cinematic walk-around path (no truck clipping) + THE MIDNIGHT DRIVE-OFF GATE (a blocked clock-out stays a no-op, never a null-sequencer crash)', 'node', '_routeend_path_chk.js'],
   ['hazard lights (the rear DSNY blink: 1s outer pair / 1s middle, and the midnight beacon in beat)', 'node', '_hazlights_chk.js'],
   ['radio station e2e (the weekday rotation excludes the midnight-only set; the night shift rotates its own four songs; offline cache)', 'node', '_radio_e2e.js'],
+  ['THE MOBILE BUDGET (low-spec first-run profile: 320P/LO/30 with a chosen-key-wins law; the render governor stepping RENDER_H on frame time with hysteresis; the FX tier halving the boss storm and widening the parry/heart windows for thumbs)', 'node', '_mobile_perf_chk.js'],
 ];
 
 let allPass = true;

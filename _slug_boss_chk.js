@@ -212,7 +212,7 @@ const FN = new Function(
   "clamp", "R", "BOSS_MAX_HP", "BOSS_HEART_TELEGRAPH", "BOSS_HEART_OPEN_T",
   "BOSS_HEART_OPEN_MIN", "BOSS_HEART_RAGE", "BOSS_HEART_CD", "BOSS_HEART_CD_RAGE",
   "BOSS_FURY_HITS", "BOSS_FURY_MUL", "BOSS_FIRE_CD", "BOSS_FIRE_CD_FLOOR",
-  "BOSS_SHOTS", "BOSS_SHOTS_RAGE", "BOSS_SHOTS_FURY",
+  "BOSS_SHOTS", "BOSS_SHOTS_RAGE", "BOSS_SHOTS_FURY", "fxTier",
   srcFn("bossFuryOf") + srcFn("bossIsFurious") + srcFn("bossHeartOpenT") +
   srcFn("bossHeartCloseT") + srcFn("bossFireShots") + srcFn("bossFireGap") +
   "\nreturn { bossFuryOf, bossIsFurious, bossHeartOpenT, bossHeartCloseT," +
@@ -221,6 +221,7 @@ const FN = new Function(
   clampFn, R, BOSS_MAX_HP, BOSS_HEART_TELEGRAPH, BOSS_HEART_OPEN_T, BOSS_HEART_OPEN_MIN,
   BOSS_HEART_RAGE, BOSS_HEART_CD, BOSS_HEART_CD_RAGE, BOSS_FURY_HITS, BOSS_FURY_MUL,
   BOSS_FIRE_CD, BOSS_FIRE_CD_FLOOR, BOSS_SHOTS, BOSS_SHOTS_RAGE, BOSS_SHOTS_FURY,
+  () => 2, // FULL tier: the suite numbers are the shipped desktop law (_mobile_perf_chk owns the LOW-tier law)
 );
 const full = { hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP, awake: true, hooked: false, hits: 0 };
 const half = { hp: Math.ceil(BOSS_MAX_HP / 2), maxHp: BOSS_MAX_HP, awake: true, hooked: false, hits: 5, rage: 1 };

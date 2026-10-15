@@ -570,6 +570,7 @@ const H = new Function(
   'GHOST_HANDS', 'ghostSlotX', 'disposeObj', 'spawnEctoBurst', 'spawnBubble', 'addCreature',
   'makeGhostArm', 'makeGhostHeadstone', 'makeSkullPile', 'makeGhostObjectMat', 'addGhostAura',
   'HORROR_STUN_T', 'NIGHT_HIT_GRACE', 'HORROR_HUNTERS_MAX', 'SHOVEL_GUARD', 'SHOVEL_BUTT',
+  'fxTier', 'fxRate', // THE FX TIER: the harness runs the FULL tier — the suites' numbers are the shipped desktop law
   'SHOVEL_BLADE_R', 'SHOVEL_FACE_RULE', 'SHOVEL_FACE_ARC',
   'NIGHT_CASH_NAME', 'NIGHT_NO_BIRDS', 'SHOVEL_READY_KEY',
   'PARRY_LINES', 'NIGHT_SAY_GAP', 'NIGHT_BUBBLE_GAP', 'NIGHT_POP_GAP',
@@ -778,6 +779,7 @@ const H = new Function(
   S2_ADD_CREATURE, () => mkObj('arm'), () => mkObj('stone'), () => mkObj('skulls'),
   () => ({ color: {}, opacity: 0.62, transparent: true, emissiveIntensity: 0.15 }), () => {},
   HORROR_STUN_T, NIGHT_HIT_GRACE, HORROR_HUNTERS_MAX, SHOVEL_GUARD, SHOVEL_BUTT,
+  () => 2, (m) => m, // fxTier / fxRate — the harness runs the FULL tier: the suites' numbers are the shipped desktop law
   SHOVEL_BLADE_R, SHOVEL_FACE_RULE, SHOVEL_FACE_ARC,
   NIGHT_CASH_NAME, NIGHT_NO_BIRDS, SHOVEL_READY_KEY,
   PARRY_LINES, NIGHT_SAY_GAP, NIGHT_BUBBLE_GAP, NIGHT_POP_GAP,
@@ -1836,8 +1838,8 @@ check('inside the grace a brush is cold air: the beast is shoved off him and its
 check('the parry + grace live INSIDE the night-only horror gate (Maspeth ghosts keep their rules)',
   FFS.includes('c.type !== "ghost" || isNightShift()') &&
     FFS.indexOf('shovelParry(') > FFS.indexOf('isNightShift()'));
-check('the blade stays UP for the swipe + ' + SHOVEL_GUARD + 's tail, and the window ticks on the night gate',
-  swingSrc.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;') &&
+check('the blade stays UP for the swipe + ' + SHOVEL_GUARD + 's tail (FULL tier; the LOW tier widens it by 15% for thumbs), and the window ticks on the night gate',
+  swingSrc.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD + (fxTier() === 1 ? SHOVEL_GUARD * 0.15 : 0);') &&
     html.includes('p.shovelGuardT = Math.max(0, (p.shovelGuardT || 0) - dt)') &&
     html.includes('p.nightHitT = Math.max(0, (p.nightHitT || 0) - dt)'));
 check('guard + grace reset with the shift, and the HUD says SHOVEL UP while the blade is up',
@@ -2161,7 +2163,7 @@ check('the tool is driven BY THE HANDS the swing poses (re-laid on both fists ev
   srcFn('poseShovel').includes('torque * 0.6'));
 check('the swing is long enough to read as a swing and its guard covers the whole arc',
   SHOVEL_SWING_DUR >= 0.4 && SHOVEL_COOLDOWN >= 0.25 && SHOVEL_COOLDOWN <= SHOVEL_SWING_DUR &&
-  html.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD;'),
+  html.includes('p.shovelGuardT = SHOVEL_SWING_DUR + SHOVEL_GUARD + (fxTier() === 1 ? SHOVEL_GUARD * 0.15 : 0);'),
   SHOVEL_SWING_DUR + 's swing / ' + SHOVEL_COOLDOWN + 's cooldown / ' + SHOVEL_GUARD + 's guard tail');
 check('the WHOLE BODY is in the swing: the stride rides the GAIT axis (leg rotation.y = fore/aft in this rig), the weight moves FORWARD (local +x) onto the planted foot, the chest tips over the blade',
   html.includes('lead.rotation.y += 0.46 * swS') && html.includes('trail.rotation.y -= 0.34 * swS') &&
@@ -5322,7 +5324,7 @@ console.log("\n[35] THE LAST BLOCK IS A FIGHT, NOT A FARM: the grave ward's bill
     H.getSeal() === null);
 })();
 
-console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL needed) — Midnight clocks in at the final boss, wards stamped clear — and the whole doorway is ONE line that flips back");
+console.log("\n[36] THE PLAYTEST DOORWAY: the switch is DARK in the code (no URL needed) — Midnight clocks in at the final boss, wards stamped clear — and the whole doorway is ONE line that flips back");
 (function () {
   nightOn = true;
   s7Reset();
@@ -5331,8 +5333,8 @@ console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL 
     new Function('isNightShift', 'NIGHT_TEST_BOSS_START', 'NIGHT_BOSS_TRIGGER_X', 'NIGHT_START_X', 'PLAYER_START_X',
       srcFn('playerSpawnX') + '\nreturn playerSpawnX();')(() => true, flag, NIGHT_BOSS_TRIGGER_X, NIGHT_START_X, PLAYER_START_X);
   const doorOn = spawnDoor(true), doorOff = spawnDoor(false);
-  check("THE SWITCH IS LIT RIGHT NOW — THE PLAYTEST BUILD, AS REQUESTED: index.html carries the hard-coded line const NIGHT_TEST_BOSS_START = true (no URL, no window flag involved). To send Midnight back to opening at the FIRST block the value flips to false — one line, and nothing in the code keys off anything else",
-    /const NIGHT_TEST_BOSS_START = true;/.test(html) &&
+  check("THE SWITCH IS DARK RIGHT NOW — THE SHIPPED LAW, SWITCH OFF: index.html carries the hard-coded line const NIGHT_TEST_BOSS_START = true (no URL, no window flag involved). To clock in AT THE FINAL BOSS the value flips to true — one line, and nothing in the code keys off anything else",
+    /const NIGHT_TEST_BOSS_START = false;/.test(html) &&
       !/window\.NIGHT_TEST_BOSS_START/.test(html) &&
       srcFn('playerSpawnX').includes('NIGHT_TEST_BOSS_START') &&
       srcFn('spawnNightShift').includes('nightTestClockInAtBoss'));
@@ -5376,6 +5378,7 @@ console.log("\n[36] THE PLAYTEST DOORWAY: the switch is LIT in the code (no URL 
       H.routeNearX() === NIGHT_END_X && H.routeFarX() === NIGHT_TOP_X &&
       Math.abs(H.workerEndLimitX() - NK_FLOOR) < 1e-9);
 })();
+
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));
 

@@ -383,6 +383,10 @@ const NK = new Function(
   "sealFaceX",
   "isNightShift",
   "hurtNPC",
+  // THE FX TIER: the rebound suite runs the FULL tier — the knit storm rates it asserts
+  // are the shipped desktop law (_mobile_perf_chk owns the LOW-tier halving).
+  "fxTier",
+  "fxRate",
   srcFn("makeTentacleBoss") +
     srcFn("bossFuryOf") +
     srcFn("bossIsFurious") +
@@ -446,6 +450,8 @@ const NK = new Function(
   sealFaceX,
   () => night.on,
   (hp, cause) => hurtSpy.push(cause),
+  () => 2,
+  (m) => m,
 );
 
 
