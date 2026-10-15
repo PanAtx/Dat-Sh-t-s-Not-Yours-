@@ -168,7 +168,7 @@ const HORROR_SEE_R = 13, HORROR_TOUCH_CD = 1.5, SHOVEL_REACH = 3.4;
 const SHOVEL_SWING_DUR = srcNum('SHOVEL_SWING_DUR'), SHOVEL_COOLDOWN = srcNum('SHOVEL_COOLDOWN');
 const HORROR_FLY_DUR = 0.85;
 const GARGOYLE_CAMP_X_OFF = 9;
-const HP_HIT_SPECTER = 8, HP_HIT_BANSHEE = 9, HP_HIT_GHOUL = 15, HP_HIT_HOUND = 11;
+const HP_HIT_SPECTER = 12, HP_HIT_BANSHEE = 14, HP_HIT_GHOUL = 20, HP_HIT_HOUND = 15;
 const HORROR_TYPES = {
   specter: 1, ghoul: 1, hound: 1, banshee: 1, imp: 1, wraith: 1, poltergeist: 1, demon: 1,
   hexbeast: 1, abyssal: 1, lich: 1, reaper: 1, ghost: 1,
@@ -185,10 +185,10 @@ const HORROR_ALL = {
   grubsquat: 1, ratking: 1, lanternfang: 1, goulra: 1,
 };
 const HORROR_HITS = {
-  specter: 8, banshee: 9, ghoul: 15, hound: 11, imp: 6, wraith: 9, poltergeist: 8,
-  demon: 14, hexbeast: 9, abyssal: 12, lich: 12, reaper: 16, ghost: 10,
-  gremlin: 7, goblin: 11, devil: 15, fangspider: 10, eyecrawler: 9, skeleton: 12, pitfiend: 13,
-  grubsquat: 8, ratking: 9, lanternfang: 10, goulra: 14,
+  specter: 12, banshee: 14, ghoul: 20, hound: 15, imp: 9, wraith: 13, poltergeist: 12,
+  demon: 19, hexbeast: 14, abyssal: 17, lich: 17, reaper: 22, ghost: 12,
+  gremlin: 10, goblin: 16, devil: 21, fangspider: 14, eyecrawler: 13, skeleton: 17, pitfiend: 18,
+  grubsquat: 11, ratking: 12, lanternfang: 14, goulra: 19,
 };
 const HORROR_NAMES = {
   specter: 'SPECTER', banshee: 'BANSHEE', ghoul: 'GHOUL', hound: 'HELLHOUND', imp: 'IMP',
@@ -1891,7 +1891,7 @@ for (const fam of Object.keys(HORROR_HITS)) {
 }
 check('the whole pack can drain at most ' + worstDps.toFixed(1) + ' HP/s (worst family ' + worstFam +
   '): 100 HP buys ' + Math.floor(100 / worstDps) + 's of standing INSIDE the horde',
-  worstDps <= 13);
+  worstDps <= 18);
 check('he is stunned for at most ' + Math.round((HORROR_STUN_T / NIGHT_HIT_GRACE) * 100) +
   '% of a besieged second', HORROR_STUN_T / NIGHT_HIT_GRACE <= 0.2);
 // --- THE SWARM CAP, THROUGH THE REAL AI ---
@@ -5388,23 +5388,45 @@ console.log("\n[37] THE HEART STRIKE PAYS 2000 FLAT - the night purse, never dou
   const af37 = srcFn("addScoreFlat");
   check("addScoreFlat pays the number it is handed - no scoreMultiplier() inside the flat path", !af37.includes("scoreMultiplier("));
   check("the flat path keeps every ledger: score, dayScore, weekScore, bonusTally, the healer milestone and the 30k Monster step", af37.includes("score += v") && af37.includes("dayScore += v") && af37.includes("weekScore += v") && af37.includes("bonusTally += v") && af37.includes("checkHealerMilestone()") && af37.includes("monsterNextAt += MONSTER_SCORE_STEP"));
-  check("the flat payer is EXACTLY one site in the shipped game (definition + addScore delegate + boss strike)", (html.match(/addScoreFlat\(/g) || []).length === 3);
+  check("the flat payer is EXACTLY three call sites on top of its definition (the addScore delegate, the Beast strike and the midnight cash find)", (html.match(/addScoreFlat\(/g) || []).length === 4, "flat sites=" + (html.match(/addScoreFlat\(/g) || []).length);
   check("weekday money is untouched: the gargoyle keeps its 5000 purse through the multiplying addScore", GARGOYLE_VALUE === 5000 && srcFn("reclaimStolenGargoyle").includes("addScore(val, true)"));
   check("POWERUP_CASH_STEP is still the shipped 5000 - the healer milestone step never moved", srcNum("POWERUP_CASH_STEP") === 5000);
   check("the night bar math: 10 plain strikes x 2500 = 25000 for the whole fight (BOSS_MAX_HP x BOSS_POINTS x BOSS_DMG)", BOSS_MAX_HP * BOSS_POINTS * BOSS_DMG === 25000, "bar pays " + BOSS_MAX_HP * BOSS_POINTS * BOSS_DMG);
 })();
 
-console.log("\n[38] THE GHOUL IS THE NIGHT HEAVIEST BRUSH: 15 HP A BITE (the pack he meets MOST hurts MOST)");
+console.log("\n[38] THE WHOLE NIGHT ROSTER HITS HARDER (24 families, one rank order, FAIR FIGHT intact)");
 (function () {
-  check("the ghoul brush costs 15 HP of the 100 pool (HP_HIT_GHOUL === 15)", srcNum("HP_HIT_GHOUL") === 15, "HP_HIT_GHOUL=" + srcNum("HP_HIT_GHOUL"));
-  check("the harness mirror agrees - no drift: HORROR_HITS.ghoul === HP_HIT_GHOUL === 15", HORROR_HITS.ghoul === 15 && HP_HIT_GHOUL === 15);
-  check("the ghoul out-bites every family of the opening four (specter 8, banshee 9, hound 11, ghoul 15)", srcNum("HP_HIT_SPECTER") === 8 && srcNum("HP_HIT_BANSHEE") === 9 && srcNum("HP_HIT_HOUND") === 11 && srcNum("HP_HIT_GHOUL") > srcNum("HP_HIT_HOUND"));
-  check("the horde ceiling stands: ONLY the reaper (16) out-bites the ghoul (15), the devil (15) is level with it, the demon (14) is under it, and the reaper stays the heaviest brush of the night", srcNum("HP_HIT_REAPER") === 16 && srcNum("HP_HIT_DEVIL") === 15 && srcNum("HP_HIT_DEMON") === 14 && srcNum("HP_HIT_GHOUL") === 15 && srcNum("HP_HIT_REAPER") > srcNum("HP_HIT_GHOUL") && srcNum("HP_HIT_GHOUL") >= srcNum("HP_HIT_DEVIL") && srcNum("HP_HIT_GHOUL") > srcNum("HP_HIT_DEMON"));
-  check("FAIR FIGHT survives the harder bite: a brush is still a 0.18s stagger and ONE hit per 1.25s grace", HORROR_STUN_T === 0.18 && NIGHT_HIT_GRACE === 1.25);
-  check("the pack drain cap holds with the 15 HP ghoul: worst family is 16 / 1.25 = 12.8 HP/s, the ghoul drinks 15 / 1.25 = 12.0", Math.max.apply(null, Object.keys(HORROR_HITS).map(function (k) { return HORROR_HITS[k] / NIGHT_HIT_GRACE; })) <= 13, "worst dps=" + Math.max.apply(null, Object.keys(HORROR_HITS).map(function (k) { return HORROR_HITS[k] / NIGHT_HIT_GRACE; })).toFixed(1));
-  check("the bite pays its own constant through the night gate (hurtNPC with HORROR_HITS[cause] is the ONLY damage line of a horror brush)", /hurtNPC\(HORROR_HITS\[cause\] \|\| HP_HIT_SPECTER, cause\)/.test(html));
-  check("the rest of the roster is untouched: night ghost 10, imp 6, gremlin 7, goulra 14, specter 8, banshee 9", srcNum("HP_HIT_NIGHT_GHOST") === 10 && srcNum("HP_HIT_IMP") === 6 && srcNum("HP_HIT_GREMLIN") === 7 && srcNum("HP_HIT_GOULRA") === 14 && srcNum("HP_HIT_SPECTER") === 8 && srcNum("HP_HIT_BANSHEE") === 9);
-  check("100 HP buys 6 ghoul brushes at 15 HP (hard, not lethal - the 7th brush is the one that drops him)", Math.floor(100 / srcNum("HP_HIT_GHOUL")) === 6, "brushes=" + Math.floor(100 / srcNum("HP_HIT_GHOUL")));
+  const hh = srcLiteral("HORROR_HITS", "{", "}");
+  const fams = Object.keys(HORROR_HITS);
+  const drift = fams.filter(function (k) { const m = hh.match(new RegExp("\\b" + k + ":\\s*(HP_HIT_[A-Z_]+)")); return !(m && srcNum(m[1]) === HORROR_HITS[k]); });
+  check("every family bites with its OWN named HP_HIT constant and the harness mirror equals the game for all " + fams.length + " (no drift, no hard-coded bite)", drift.length === 0, "drift=" + drift.join(","));
+  check("NO brush is free any more: the lightest touch of the night is 9 HP (the knee-high swarm imp)", Math.min.apply(null, fams.map(function (k) { return HORROR_HITS[k]; })) === 9);
+  check("the ghoul - the family the night throws at him MOST - takes 20 HP of the 100 pool (HP_HIT_GHOUL === 20)", srcNum("HP_HIT_GHOUL") === 20, "HP_HIT_GHOUL=" + srcNum("HP_HIT_GHOUL"));
+  check("rank order lifted one tier everywhere: imp 9 < specter 12 < banshee 14 < hellhound 15 < ghoul 20 < devil 21 < reaper 22", srcNum("HP_HIT_IMP") === 9 && srcNum("HP_HIT_SPECTER") === 12 && srcNum("HP_HIT_BANSHEE") === 14 && srcNum("HP_HIT_HOUND") === 15 && srcNum("HP_HIT_GHOUL") === 20 && srcNum("HP_HIT_DEVIL") === 21 && srcNum("HP_HIT_REAPER") === 22);
+  check("the reaper (22) stays the deepest brush, the ghoul (20) sits under it, above the demon (19), the goulra (19) and the pitfiend (18)", srcNum("HP_HIT_REAPER") > srcNum("HP_HIT_GHOUL") && srcNum("HP_HIT_GHOUL") > srcNum("HP_HIT_DEMON") && srcNum("HP_HIT_DEMON") === srcNum("HP_HIT_GOULRA") && srcNum("HP_HIT_GHOUL") > srcNum("HP_HIT_PITFIEND"));
+  check("FAIR FIGHT is UNTOUCHED: HORROR_STUN_T 0.18, NIGHT_HIT_GRACE 1.25 (ONE hit per window), HORROR_HUNTERS_MAX 6", HORROR_STUN_T === 0.18 && NIGHT_HIT_GRACE === 1.25 && HORROR_HUNTERS_MAX === 6);
+  check("the shovel is still the answer: the night gate parries what comes into his facing and the bite pays its own constant", /shovelParry\(c\)/.test(html) && /hurtNPC\(HORROR_HITS\[cause\] \|\| HP_HIT_SPECTER, cause\)/.test(html) && /p\.nightHitT = NIGHT_HIT_GRACE/.test(html));
+  check("100 HP buys 5 ghoul brushes at 20 HP - the 6th drops him (it was 10 on the old ladder)", Math.floor(100 / srcNum("HP_HIT_GHOUL")) === 5, "brushes=" + Math.floor(100 / srcNum("HP_HIT_GHOUL")));
+  const dps = Math.max.apply(null, fams.map(function (k) { return HORROR_HITS[k] / NIGHT_HIT_GRACE; }));
+  check("the new pack cap: the ghoul drinks 20 / 1.25 = 16.0 HP/s, the worst family is the reaper at 17.6 - inside the 18 HP/s cap", dps <= 18, "worst=" + dps.toFixed(1));
+  const LADDER = { HP_HIT_IMP: 9, HP_HIT_GREMLIN: 10, HP_HIT_GRUBSQUAT: 11, HP_HIT_SPECTER: 12, HP_HIT_POLTER: 12, HP_HIT_RATKING: 12, HP_HIT_NIGHT_GHOST: 12, HP_HIT_WRAITH: 13, HP_HIT_EYECRAWLER: 13, HP_HIT_BANSHEE: 14, HP_HIT_HEX: 14, HP_HIT_FANGSPIDER: 14, HP_HIT_LANTERNFANG: 14, HP_HIT_HOUND: 15, HP_HIT_GOBLIN: 16, HP_HIT_SKELETON: 17, HP_HIT_LICH: 17, HP_HIT_ABYSS: 17, HP_HIT_PITFIEND: 18, HP_HIT_DEMON: 19, HP_HIT_GOULRA: 19, HP_HIT_GHOUL: 20, HP_HIT_DEVIL: 21, HP_HIT_REAPER: 22 };
+  const offLadder = Object.keys(LADDER).filter(function (k) { return srcNum(k) !== LADDER[k]; });
+  check("the ladder is EXACT family by family (" + Object.keys(LADDER).length + " constants pinned)", offLadder.length === 0, "off=" + offLadder.join(","));
+})();
+
+console.log("\n[39] THE HELL NOTE BANKS ITS FACE VALUE (a Midnight note is 100, never the street double)");
+(function () {
+  const ub = srcFn("updateBonuses");
+  const FLAT = 'b.type === "cash" && isNightShift() ? addScoreFlat(v, true) : addScore(v, true);';
+  const PILL = 'b.type === "cash" && isNightShift() ? v : v * scoreMultiplier(),';
+  check("a cash find on the haunted block goes through addScoreFlat, not the doubling addScore - the joss note pays what it says it pays", ub.includes(FLAT));
+  check("the number that flies to the HELL NOTES counter is the money that actually landed - face value on the night, the day double on a weekday", ub.includes(PILL));
+  check("the face value is 100 at both cash doors (spawnCash, and the cash branch of spawnBonus)", srcFn("spawnCash").includes("val: 100") && srcFn("spawnBonus").includes("val = 100"));
+  check("the law is night-only - a weekday cash find still rides the multiplying addScore, so Sunday double time is untouched", srcFn("scoreMultiplier").includes("isBedStuyLevel() ? 2 : 1") && ub.indexOf("addScore(v, true)") > 0);
+  check("only the cash find is flat on the night - mongo and treasure keep the multiplying road", (ub.match(/addScoreFlat\(v, true\)/g) || []).length === 1);
+  check("the Beast law from v1.0.541 stands: a heart strike still pays addScoreFlat(BOSS_POINTS, true) and BOSS_POINTS is 2500", srcFn("bossShovelHit").includes("addScoreFlat(BOSS_POINTS, true)") && srcNum("BOSS_POINTS") === 2500);
+  check("the night economy after the note fix: banking every laid note is 12 x 100 = 1200 of street cash at face value, not the 2400 the double paid", srcNum("NIGHT_HELL_NOTE_PICKS") * 100 === 1200, "notes=" + srcNum("NIGHT_HELL_NOTE_PICKS"));
+  check("addScoreFlat pays exactly the number it is handed - no scoreMultiplier inside the flat path, and addScore still delegates n x scoreMultiplier()", !srcFn("addScoreFlat").includes("scoreMultiplier(") && srcFn("addScore").includes("addScoreFlat(n * scoreMultiplier(), isBonus)"));
 })();
 
 console.log("\n" + pass + " night-shift checks passed" + (fail ? " — " + fail + " FAILED" : " — all OK"));

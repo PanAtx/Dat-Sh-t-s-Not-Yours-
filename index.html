@@ -4554,7 +4554,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.543</div>
+          <div id="app-version" class="menu-version">v1.0.544</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4812,7 +4812,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.543';
+      const APP_VERSION = '1.0.544';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -28663,40 +28663,48 @@
       //     greenish-blue ECOPLASM out of the scoop down the tailgate.
       //   * The many-eyed beast that stole the truck's Ruby-Plated Gargoyle runs ALL
       //     the way to the end of the route. Reach it and it's yours again.
-      const HP_HIT_SPECTER = 8; // a specter's chill grip — colder and heavier than a cemetery ghost's brush
-      const HP_HIT_BANSHEE = 9; // her fingers go through you like an ice pick
-      const HP_HIT_GHOUL = 15; // hook-claws and a raking bite - the pack he meets MOST is the pack that
-      // hurts him MOST: 15 HP of the 100 pool per brush - the night's second-heaviest touch, level with
-      // the devil (15), a step under the reaper's scythe (16), and a third over the hellhound snap (11).
-      // The swarm cap stays honest at 15 / 1.25 = 12.0 HP/s, so a ghoul pile is a real threat and never a
-      // grinder: ONE bite per grace window, and the blade parries whatever comes into his facing.
-      // Ladder: specter 8 < banshee 9 < hellhound 11 < ghoul 15 = devil 15 < reaper 16.
-      const HP_HIT_HOUND = 11; // a hellhound snap — a hair under the manhole tentacle's grab
+      // THE NIGHT LADDER IS RAISED (the balance pass: the game played too easy). Every number below
+      // is the HP one brush takes out of the 100 pool, and the whole roster went up a tier together
+      // so the pack's RANK ORDER survives: specter 12 < banshee 14 < hellhound 15 < ghoul 20 <
+      // devil 21 < reaper 22, with the ghoul — the family every block throws at him — sitting over
+      // the demon (19), the goulra (19) and the pitfiend (18). THE FAIR FIGHT LAW IS UNTOUCHED ON
+      // PURPOSE: HORROR_STUN_T 0.18 (a stutter-step, never a pin), NIGHT_HIT_GRACE 1.25 (ONE hit per
+      // window, every other brush is cold air), HORROR_HUNTERS_MAX 6, the wounded back-off lockout,
+      // and the shovel as the defence — a spook that comes into the swinging blade in his facing is
+      // parried into the hopper, untouched. A harder pack is a scarier walk, never a grinder.
+      const HP_HIT_SPECTER = 12; // a specter's chill grip — colder and heavier than a cemetery ghost's brush
+      const HP_HIT_BANSHEE = 14; // her fingers go through you like an ice pick
+      const HP_HIT_GHOUL = 20; // hook-claws and a raking bite - the pack he meets MOST is the pack
+      // that hurts him MOST: 20 HP of the 100 pool per brush, the night's third-deepest touch under
+      // the devil's pitchfork (21) and the reaper's scythe (22), and a third over the hellhound snap
+      // (15). Five brushes empty a full pool - and it is still a fair fight at 20 / 1.25 = 16.0 HP/s
+      // of drain: ONE bite per grace window, and the blade parries whatever comes into his facing.
+      const HP_HIT_HOUND = 15; // a hellhound snap — over the manhole tentacle's grab (11) now
       // ...and the ABYSS ROSTER (the families added for the ghoul-horde night shift).
-      const HP_HIT_IMP = 6; // tiny, knee-high, and in a swarm of them
-      const HP_HIT_WRAITH = 9; // a cold glide that takes his breath out
-      const HP_HIT_POLTER = 8; // poltergeist rage: the trash itself hits him
-      const HP_HIT_HEX = 9; // the six-legged thing's mandibles
-      const HP_HIT_LICH = 12; // a lich's touch is frostbite
-      const HP_HIT_DEMON = 14; // a demon is the heaviest thing out here
-      const HP_HIT_REAPER = 16; // the reaper's scythe-hand (the flood block only)
-      const HP_HIT_ABYSS = 12; // the abyssal mass drags him down
-      const HP_HIT_NIGHT_GHOST = 10; // a night-shift ghost brush — Maspeth's 6 plus the 4 the
-      // cemetery street adds on top (HP_HIT_GHOST + HP_GHOST_STREET), stated HERE so the night
-      // constants never reach forward to the Maspeth block (TDZ: const used before declaration).
+      const HP_HIT_IMP = 9; // tiny, knee-high — and a swarm of them, so its bite stays the lightest out here
+      const HP_HIT_WRAITH = 13; // a cold glide that takes his breath out
+      const HP_HIT_POLTER = 12; // poltergeist rage: the trash itself hits him
+      const HP_HIT_HEX = 14; // the six-legged thing's mandibles
+      const HP_HIT_LICH = 17; // a lich's touch is frostbite
+      const HP_HIT_DEMON = 19; // horns, hooves, a pitchfork — the heavy of the abyss roster
+      const HP_HIT_REAPER = 22; // the reaper's scythe-hand: the deepest brush of the night (the flood block only)
+      const HP_HIT_ABYSS = 17; // the abyssal mass drags him down, tentacle by tentacle
+      const HP_HIT_NIGHT_GHOST = 12; // a night-shift ghost brush — Maspeth's 6 plus the 6 the
+      // haunted street adds on top, stated HERE so the night constants never reach forward to the
+      // Maspeth block (TDZ: const used before declaration). The cemetery dead bite DEEPER on Midnight.
       // ...and THE BLOCK PACKS (the per-block horrors of tonight's dead-end street).
-      const HP_HIT_GREMLIN = 7; // small, green, and it goes for the ankles
-      const HP_HIT_GOBLIN = 11; // a goblin rakes with grave-dirt claws
-      const HP_HIT_DEVIL = 15; // the devil: a notch under the reaper, a notch over the demon
-      const HP_HIT_FANGSPIDER = 10; // the fangs, in a pair
-      const HP_HIT_EYECRAWLER = 9; // six legs and a maw of needles
-      const HP_HIT_SKELETON = 12; // bone hands, cold as the lich's
-      const HP_HIT_PITFIEND = 13; // the brine ring drags at him all at once
+      const HP_HIT_GREMLIN = 10; // small, green, and it goes for the ankles
+      const HP_HIT_GOBLIN = 16; // a goblin rakes with grave-dirt claws
+      const HP_HIT_DEVIL = 21; // the devil: a notch under the reaper, two notches over the demon
+      const HP_HIT_FANGSPIDER = 14; // the fangs, in a pair
+      const HP_HIT_EYECRAWLER = 13; // six legs and a maw of needles
+      const HP_HIT_SKELETON = 17; // bone hands, as cold as the lich's
+      const HP_HIT_PITFIEND = 18; // the brine ring drags at him all at once
       // ...and THE BLOCK-OWN ANIMALS (the families no OTHER block of tonight's street has).
-      const HP_HIT_GRUBSQUAT = 8; // the beak-maw, in a snap of hooked mandibles
-      const HP_HIT_RATKING = 9; // a rat king goes for the hands and the haul
-      const HP_HIT_LANTERNFANG = 10; // the hook-jaw, and the lamp it bricks with
-      const HP_HIT_GOULRA = 14; // the eye-knot's hug: the heaviest block animal out here
+      const HP_HIT_GRUBSQUAT = 11; // the beak-maw, in a snap of hooked mandibles
+      const HP_HIT_RATKING = 12; // a rat king goes for the hands and the haul
+      const HP_HIT_LANTERNFANG = 14; // the hook-jaw, and the lamp it bricks with
+      const HP_HIT_GOULRA = 19; // the eye-knot's hug: the heaviest block animal out here
       const HORROR_TOUCH_CD = 1.5; // per-creature contact cooldown (one brush, not a per-frame drain)
       // ============ FAIR FIGHT (a horde must be survivable) ============
       // A spook's brush may NEVER pin him. The stagger is a fifth of a second, only ONE hit
@@ -40289,7 +40297,12 @@
           );
           if (state === "play" && dist(b.wx, b.wy) < 1.8) {
             const v = b.val * (BONUS ? BONUS_CASH_MULT : 1); // overtime loot is worth 2x -> the $3000 goal stays reachable
-            addScore(v, true);
+            // THE HELL NOTE LAW (Midnight): a joss note banks its FACE VALUE — $100. The street double
+            // is a property of the DAY (scoreMultiplier is 2 because Midnight borrows Bed-Stuy's
+            // geometry), and the night is not Bed-Stuy: a note picked up on the haunted block pays
+            // 100 of score AND 100 of street cash, exactly like the Beast's purse (v1.0.541). The
+            // mongo/treasure finds and every weekday pickup keep the doubling road untouched.
+            b.type === "cash" && isNightShift() ? addScoreFlat(v, true) : addScore(v, true);
             if (typeof recordDayGot === "function") recordDayGot(b.type);
             if (BONUS) {
               const earned = overtimeCashEarned(); // the overtime street-cash counter (this round's banked $)
@@ -40304,10 +40317,11 @@
             // Fly the item to the STREET CASH counter (or the overtime CASH goal counter)
             // and flash what was picked up + its value on the PAUSE / QUIT pill — instead
             // of the old big center popup. `v * scoreMultiplier()` is the exact amount that
-            // just landed in the street-cash tally (2x in Bed-Stuy), so it matches the counter.
+            // just landed in the street-cash tally (2x in Bed-Stuy), so it matches the counter —
+            // and on the haunted block a HELL NOTE banks flat, so the pill must read its face value.
             flyPickupToCounter(
               b.type || "mongo",
-              v * scoreMultiplier(),
+              b.type === "cash" && isNightShift() ? v : v * scoreMultiplier(),
               b.type === "treasure" || b.type === "mongo" ? b.voice || "" : undefined,
               b.wx,
               b.wy,
@@ -40853,7 +40867,7 @@
       // aimed past the foe by a GUN_MISS offset, and a bullet can ONLY hit the worker):
       //   - a graze = HP_HIT_BULLET (a real chunk of health) + "That bullet grazed me!"
       //   - touching either of them = HP_HIT_SHOOTOUT_TOUCH (minor) + "Interfering with NYPD duty"
-      const HP_HIT_BULLET = 18; // one big health damage: the heaviest single hit in the game
+      const HP_HIT_BULLET = 18; // one big health damage: the heaviest single hit of the week (the night's reaper, 22, is worse)
       const HP_HIT_SHOOTOUT_TOUCH = 3; // a minor nick for shoving past a crouching cop/crook
       const GUN_TOUCH_CD = 2.0; // per-NPC cooldown so one touch isn't a per-frame drain
       const GUN_AGGRO_R = 34; // the duel only runs while the worker is this close (no off-screen ammo)
