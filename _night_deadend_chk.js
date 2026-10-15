@@ -346,7 +346,7 @@ check("updatePlayer's wall closes on the seal's own history and snaps a body out
 check("the wall's crossing is measured on the travelled segment (a big frame cannot skip the close) and the pressed-into-iron line teaches the ring",
   srcFn('updateNightSeal').indexOf('nightSeal.prevWx = p.wx;') >= 0 &&
     /THE FIGHT'S IN FRONT OF THE IRON/.test(html) &&
-    /IT IS A WALL: WALKING INTO IT STOPS YOU, YOU NEVER END INSIDE IT/.test(html));
+    /IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT/.test(html));
 check("neither beast nor man has a standing point inside the ghost fence: the beast's ceiling is the face minus its body, the man's is the face minus a body-width",
   srcFn('updateNightBoss').indexOf('sealFaceX() - BOSS_BODY_R') >= 0 &&
     STAND < FACE && SEAL_X - SEAL_INNER - srcNum('BOSS_BODY_R') < SEAL_X - MESH_DN);
@@ -354,10 +354,13 @@ check("the fence's mesh footprint is measured, not guessed: the ghost pool reach
   srcFn('makeGhostIronFence').indexOf('BX(2.6, WSPAN + 1.7, 0.04, poolM)') >= 0 &&
     srcFn('makeGhostIronFence').indexOf('pool.position.set(-0.25, MID,') >= 0 &&
     MESH_DN >= 1.3 && MESH_DN <= 1.9 && srcNum('NIGHT_SEAL_MESH_UP') >= 0.9 &&
-    srcFn('buildNightSeal').indexOf('g.position.set(NIGHT_SEAL_X, 0, GZ)') >= 0,
+    srcFn('buildNightSeal').indexOf('g.position.set(NIGHT_SEAL_X, 0, GZ)') >= 0 &&
+    SEAL_INNER === MESH_DN, // the wall's face IS the measured mesh edge — one number, no drift
   'mesh down=' + MESH_DN + ' up=' + srcNum('NIGHT_SEAL_MESH_UP'));
-check("the wall's bite line is DEEPER into the fight zone than the ghost fence's own light reaches (sealFaceX below the mesh face) — a body clamped at the wall is never under the mesh",
-  FACE < SEAL_X - MESH_DN && STAND < SEAL_X - MESH_DN && SEAL_INNER > MESH_DN,
+check("the wall's bite line IS the ghost fence's own light edge, and the worker's standing point is a single body-width out of it — close enough to use the fence as cover, never inside the mesh",
+  Math.abs(FACE - (SEAL_X - MESH_DN)) < 1e-9 && STAND < FACE &&
+    FACE - STAND <= SEAL_STOP + 1e-6 &&
+    Math.abs(STAND - (FACE - SEAL_STOP)) < 1e-9,
   'face=' + FACE + ' mesh face=' + (SEAL_X - MESH_DN) + ' stand=' + STAND);
 
 console.log('\n' + pass + ' checks passed, ' + fail + ' failed');

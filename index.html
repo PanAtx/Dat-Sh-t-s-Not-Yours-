@@ -4480,7 +4480,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.530</div>
+          <div id="app-version" class="menu-version">v1.0.531</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4738,7 +4738,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.530';
+      const APP_VERSION = '1.0.531';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -19747,13 +19747,15 @@
         return !!(isNightShift() && nightSeal && nightSeal.armed && nightSeal.closed);
       }
       // THE Iron's face, measured off the fence mesh itself (the pool / light sheets of
-      // makeGhostIronFence reach 1.55u down the road from the fence line).
+      // makeGhostIronFence reach NIGHT_SEAL_MESH_DOWN down the road from the fence line). This is
+      // the line the wall closes ON.
       function sealFaceX() {
         return NIGHT_SEAL_X - NIGHT_SEAL_INNER;
       }
       // THE worker's standing point at the wall: a body-width of respect DOWN the road from the
-      // iron's face. This is his sealed ceiling, and it is where the wall pushes him to — always
-      // fully inside the fight zone, never inside the iron's own footprint.
+      // iron's face — he stands in the ghost light, right up at the fence, which is the whole point
+      // of the wall: THE FENCE IS HIS COVER. It is his sealed ceiling, and where the wall pushes
+      // him to: fully inside the fight zone, a body out of the iron's mesh, never inside it.
       function sealStandX() {
         return sealFaceX() - NIGHT_SEAL_STOP;
       }
@@ -28644,30 +28646,34 @@
       // (road, curb, walk and lawn) and drawn in cold spectral blue — rises up out of the
       // asphalt on that exact line and he cannot walk up the street again while the beast is
       // standing. The last fight is therefore fought in THE RING: the bottom cemetery fence
-      // (x 39.6, his floor) up to the ghost iron's FACE (his sealed ceiling = sealStandX(), a
-      // body-width below where the fence's light reaches down the road) — the beast's own yard,
-      // the truck parked at its top edge. He walks into the ring; the iron comes up on the frame
-      // he crosses its face, so he is never inside the wall and never up the street of it.
+      // (x 39.6, his floor) up to the ghost iron's FACE — the deepest point the fence's own light
+      // reaches down the road — with his sealed ceiling a single body-width below that face, right
+      // in the iron's glow. Close enough to make the wall his cover from the beast and its ghost
+      // fire; never close enough to be inside the wall or up the street of it.
+      // The truck parks at its top edge. He walks into the ring; the iron comes up on the frame
+      // he crosses its face, so he is never inside it and never past it.
       // Banish the beast and the ghost iron tears panel by
       // panel and lifts off the road, the street opens back up, and he walks up to the scoop.
       const NIGHT_SEAL_X = 80; // the seal line: where the first cemetery fence begins (the graves block's near edge = NIGHT_GRAVE_BLOCK_X + BLOCK_W)
+      const NIGHT_SEAL_MESH_DOWN = 1.55; // u the ghost fence's light reaches DOWN the road from its line
+      const NIGHT_SEAL_MESH_UP = 1.05; // ...and u it reaches UP the road (makeGhostIronFence's own mesh)
       const NIGHT_SEAL_STOP = 0.6; // a body-width of respect off the ghost iron (his sealed ceiling)
-      const NIGHT_SEAL_INNER = 4.0; // u the iron's OWN FACE sits this far down from its line: the ghost pool /
-      // light sheets of makeGhostIronFence reach 1.55u down the road, so a body is only fully clear of the iron
-      // at line minus this. THE FIGHT-ZONE LAW: this one number is BOTH the line the seal closes on (the frame
-      // his centre crosses it, going down) AND his sealed ceiling (going up). A centre can never stand inside
-      // the iron's footprint — the wall is not walkable and cannot hold a man inside it.
+      const NIGHT_SEAL_INNER = 1.55; // = NIGHT_SEAL_MESH_DOWN: the iron's OWN FACE sits this far down
+      // line — the deepest point the ghost fence's light reaches into the road, measured off its mesh.
+      // THE FIGHT-ZONE LAW: this line is BOTH where the seal closes (the frame his centre crosses it
+      // going down) and the wall he stops against (going up, minus a body-width), so he can stand in
+      // the iron's light, right up at the fence, and never be inside the wall or past it. The old
+      // published clearance (4u) pushed him 2.45u back out of reach of his own cover.
       const NIGHT_TRUCK_NOSE_L = 4.0; // the rig's collision nose ahead of its centre (truck.boxL)
       const NIGHT_TRUCK_SEAL_CLEAR = 5.0; // u the rig's open scoop keeps UP-street of the ghost iron (the fence's own glow pool is ~1.3u deep in the road)
       const NIGHT_SEAL_RISE_T = 0.55; // s the ghost iron takes to rise out of the asphalt
       const NIGHT_SEAL_HOLD_T = 1.6; // s the rise may wait for a body to clear the fence's footprint
-      const NIGHT_SEAL_MESH_DOWN = 1.55; // u the ghost fence's light reaches DOWN the road from its line
-      const NIGHT_SEAL_MESH_UP = 1.05; // ...and u it reaches UP the road (makeGhostIronFence's own mesh)
       const NIGHT_SEAL_LINES = [
         "THE FENCE'S UP — NO WAY BACK UP THE STREET!",
         "IT SEALED THE STREET BEHIND ME!",
         "ONLY THE SHOVEL OPENS THIS ONE!",
         "THE FIGHT'S IN FRONT OF THE IRON — NOT IN IT!",
+        "THE IRON'S LIGHT IS MY COVER — GET IN IT!",
       ];
       // MORE RING AT THE BOTTOM (Midnight): with the beast awake the worker used to be
       // pinned behind it (the beast WAS the wall at its own back, x 73.4). The last fight
@@ -53276,7 +53282,7 @@
         const obj = document.querySelector("#day-intro .obj");
         if (obj) {
           obj.innerHTML = d.night
-            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL: WALKING INTO IT STOPS YOU, YOU NEVER END INSIDE IT</b> &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
+            ? "RUN THE DEAD-END STREET DOWN TO THE CEMETERY<br/>SHOVEL OUT THE <b>SLUG DEMON'S HEART</b> &middot; IT GLOWS <b>RED</b> WHEN IT IS OPEN &middot; TAKE THE <b>RUBY-PLATED GARGOYLE</b><br/>THE GHOST FENCE CLOSES THE STREET BEHIND YOU &mdash; <b>IT IS A WALL YOU CAN STAND AGAINST: THE BEAST NEVER COMES THROUGH IT</b> &middot; STRUCK, IT SCURRIES &middot; KILLED, IT <b>BURSTS IN SLIME</b><br/>GRAB THE GARGOYLE &middot; JUMP &mdash; THE FENCE IS DOWN &middot; WALK TO THE TRUCK AND DRIVE OFF"
             : d.special
               ? "EVERYTHING PAYS <b>2x</b> &middot; DOUBLE TIME<br/>HAUL: LITTER BASKETS &middot; GARBAGE BAGS &middot; GARBAGE CANS &middot; STORM DEBRIS<br/>3 WRITE-UPS = SUSPENDED"
               : "CLEAN EVERY CURB &middot; HAUL THE MONGO &middot; DODGE THE CROWD<br/>WORKER DOWN = WRITE-UP &middot; 3 WRITE-UPS = SUSPENDED";

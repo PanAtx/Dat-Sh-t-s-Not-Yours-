@@ -483,8 +483,9 @@ check(
       Math.abs(ceil - (NK_SEAL_X - NK_SEAL_INNER - NK_SEAL_STOP)) < 1e-9 &&
       Math.abs(ceil - RING.sealStandX()) < 1e-9 &&
       ceil < face && // the standing point is DOWN the road of the iron: never inside the wall
-      ceil < NK_MESH_LO - 1 && // ...a full body clear of the fence mesh's own footprint
-      ceil > floor + 20 &&
+      ceil < NK_MESH_LO && // ...and clean out of the fence mesh's own footprint
+      NK_MESH_LO - ceil <= NK_SEAL_STOP + 0.05 && // ...by barely a body — the wall IS his cover
+      ceil > floor + 30 && // ...with real street under him to fight on
       ceil < RING.truckFenceFloorX() && // he is sealed BELOW the parked rig, at the graves
       NK_BOSS_X > floor && NK_BOSS_X < ceil && // the beast rises inside the ring, below the wall
       NK_GRAVE > floor && NK_GRAVE < ceil // ...and its treasure lands inside the ring
@@ -748,7 +749,11 @@ check(
       Math.abs(stand - NK_BOSS_X) <= lashR && // ...close enough to trade from the wall
       beastCeil < NK_SEAL_X - NK_MESH_DN && // its bulk never stands in the fence's light
       beastCeil > NK_FENCE + NK_STANDOFF && // ...and never runs out of its yard
-      NK_FENCE + NK_STANDOFF < stand // his floor is under him: the ring, not a pocket
+      NK_FENCE + NK_STANDOFF < stand && // his floor is under him: the ring, not a pocket
+      // THE WALL IS COVER, NOT A SENTENCE: he can stand in the iron's light, a body off the
+      // mesh, and the beast's bulk stops a full body SHORT of where he is standing.
+      NK_MESH_LO - stand <= NK_SEAL_STOP + 0.05 && // he is in the ghost light at the fence
+      NK_MESH_LO - beastCeil >= bodyR - 1e-9 // the beast's bulk stops AT the wall face, never through it
     );
   })(),
   "stand=" + RING.sealStandX() + " boss=" + NK_BOSS_X + " beastCeil=" + (NK_SEAL_X - NK_SEAL_INNER - srcNum("BOSS_BODY_R")),
