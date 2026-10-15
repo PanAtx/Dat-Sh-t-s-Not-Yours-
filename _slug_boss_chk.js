@@ -863,12 +863,12 @@ check(
     srcFn("updateNightBoss").includes("bossLandedInHopper") === false,
 );
 check(
-  "THE BURST COATS EVERYTHING IN ECTOPLASMIC SLUG SLIME: pools on the street, drapes on the props, curtains, the ghost iron and the worker, and the goop rides out with him",
+  "THE BURST SHOVELS ECTOPLASMIC SLUG SLIME OVER THE STREET: pools on the asphalt, drapes on the props, the ward curtains and the ghost iron — nothing attached to the worker, so no puddle circles his boots as he walks out",
   srcFn("bossBlownUp").includes("spawnBossSlime(b.wx, b.wy, BOSS_BOOM_R)") &&
     srcFn("bossBlownUp").includes("coatInSlime(hz.g, 0.7)") &&
     srcFn("bossBlownUp").includes("coatInSlime(wd.g, 1.1)") &&
     srcFn("bossBlownUp").includes("coatInSlime(nightSeal.g, 1.1)") &&
-    srcFn("bossBlownUp").includes("coatInSlime(worker && worker.group, 1.15)") &&
+    !srcFn("bossBlownUp").includes("coatInSlime(worker") &&
     srcFn("bossBlownUp").includes("p.slimeT = 1") &&
     srcFn("bossBlownUp").includes("p.pickleSteps = Math.max(p.pickleSteps || 0, BOSS_BOOM_SLIME_KEEP)") &&
     srcFn("nightSlimeBlob").includes("emissive: 0x1ec98f") &&
@@ -918,6 +918,25 @@ check(
       "z " + u.includes("GZ + winHop,"),
     ].join(" | ");
   })(),
+);
+check(
+  "THE SHOVEL IS THROWN DOWN ON THE WIN BEAT (he don't need it no more): the grab hurls it off the worker root, its flight is ticked on the night clock, CLATTERS flat on the street where it LAYS THE REST OF THE NIGHT (empty hands walk to the truck), and a fresh shift retires it",
+  srcFn("grabBossGargoyle").includes("tossShovelDown();") &&
+    srcFn("tossShovelDown").includes("shovelGroup = null") &&
+    srcFn("tossShovelDown").includes("sh.parent.remove(sh)") &&
+    srcFn("tossShovelDown").includes("dynamicGroup.add(sh)") &&
+    srcFn("tossShovelDown").includes("I DON'T NEED YOU NO MORE") &&
+    srcFn("updateShovelToss").includes("s.landed = true") &&
+    srcFn("updateShovelToss").includes("s.g.rotation.set(0, 0,") &&
+    srcFn("clearNightBoss").includes("shovelTossClear()"),
+);
+check(
+  "MIDNIGHT'S DRIVE-OFF GOES UP, NOT DOWN: the rig rolls nose-forward (+X, up-hill) out of the dead-end street; the off-screen check rides the SAME drive direction; and the WEEK COMPLETE report (GAME OVER — THE PLAYER WINS) follows the drive",
+  srcFn("updateRouteEnd").includes('isNightShift() ? 1 : RT') &&
+    srcFn("updateRouteEnd").includes("truck.wx += RE_DRIVE_SP * driveDir * dt") &&
+    srcFn("updateRouteEnd").includes("if (sx * driveDir > halfW + 1.0") &&
+    !srcFn("updateRouteEnd").includes("truck.wx += RE_DRIVE_SP * RT * dt") &&
+    srcFn("updateRouteEnd").includes("driveDir"),
 );
 check(
   "THE SLIME AND THE SCURRY ARE SLUG-DEMON LAW ONLY (the weekday never sees a goblin)",

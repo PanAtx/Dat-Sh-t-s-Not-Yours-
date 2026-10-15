@@ -19,8 +19,9 @@
 // heart strike makes it SCURRY a few paces off the blade (the worker gets room to step clear),
 // and at ZERO the body INFLATES AND BURSTS — it never rides into the hopper and it never comes
 // back: the cross-street has banished its only Slug Demon. The blast leaves ECTOPLASMIC SLUG
-// SLIME on everything (pools on the asphalt, a drape on every prop in the blast, the worker
-// coated head to boots), the Ruby-Plated Gargoyle lands BESHIDE the worker (near him, never on
+// SLIME on everything it hits (pools on the asphalt and a drape on every prop in the blast —
+// NEVER on the worker, who walks out clean-footed with no ring of goop circling his boots),
+// the Ruby-Plated Gargoyle lands BESHIDE the worker (near him, never on
 // him), and walking onto IT wins the night: he jumps up in celebration, the ghostly cemetery
 // fence is gone, he walks to the truck's door and the rig drives off into the shift report.
 //
@@ -381,6 +382,7 @@ const NIGHT_START_LINES = ['Where is everybody?'];
 // ---- the spies + the mutable world the extracted code drives ----
 const log = [], deposited = [], scored = [], announced = [], popped = [], sayings = [];
 const dynamicChildren = [], dust = [];
+const NK_WORKER_STUB = { group: mkObj('workerGroup') }; // his own rig: nothing slimy may be added to it
 const dyn = {
   add: (o) => { dynamicChildren.push(o); if (o) o.parent = dyn; },
   remove: (o) => { const k = dynamicChildren.indexOf(o); if (k >= 0) dynamicChildren.splice(k, 1); if (o) o.parent = null; },
@@ -756,7 +758,7 @@ const H = new Function(
   k => { if (dayStats[k]) dayStats[k].got++; }, t => announced.push(t),
   (kind, val, name) => popped.push({ kind, val, name }), Voice, SFX,
   dyn, { push: o => dust.push(o) }, () => nightOn, dayStats, creatures,
-  { group: mkObj('group') }, { armR: mkObj('armR') }, 'male',
+  NK_WORKER_STUB, { armR: mkObj('armR') }, 'male',
   HORROR_ALL, HORROR_QUOTA, HORROR_QUOTA_FLOOD, HORROR_QUOTA_CEIL,
   HORROR_ROSTER_CAP, HORROR_SCREEN_CAP, NIGHT_FILL_TICK, NIGHT_FILL_BURST,
   HORROR_WAVE_AT, HORROR_SURGE_AT, HORROR_SURGE_DUR, NIGHT_CULL_BEHIND,
@@ -1901,7 +1903,7 @@ const hunting = creatures.filter((c) => c.huntT > 0).length;
 check('a block of NINE ghouls does not all charge at once: ' + hunting + ' hunting, cap ' + HORROR_HUNTERS_MAX,
   hunting <= HORROR_HUNTERS_MAX && hunting > 0);
 check('the guard/grace timers tick ONLY behind the night gate (weekday stun is untouched)',
-  /if \(typeof isNightShift === "function" && isNightShift\(\)\) \{[\s\S]{0,400}p\.shovelGuardT = Math\.max/.test(html));
+  /if \(typeof isNightShift === "function" && isNightShift\(\)\) \{[\s\S]{0,600}p\.shovelGuardT = Math\.max/.test(html));
 check('the night stagger is defined and used ONLY in the night kit (never in a weekday stun)',
   (html.match(/HORROR_STUN_T/g) || []).length >= 4 &&
     /doStun\(HORROR_STUN_T, "scare"\)/.test(FFS) &&
@@ -2744,11 +2746,14 @@ check('WITH THE SHELL SHUT THERE IS NO TARGET — the heart is the only window t
   const drapes = slime.filter(g => g.parent && g.parent !== dyn); // ...and the films ON things
   check('ECTOPLASMIC SLUG SLIME ON EVERYTHING: the blast floor is paved in pools',
     slime.length - sl0 >= NK_BOOM_SPLATS, 'gobs=' + (slime.length - sl0));
-  check('...and the drape is ON the props, the ghost iron and the worker himself',
-    drapes.length >= 2 && !!p.slimeT && p.pickleSteps >= NK_BOOM_SLIME_KEEP,
-    'drapes=' + drapes.length + ' steps=' + p.pickleSteps);
-  check('the SLIME marker is set: he walks out of the graveyard wearing the beast',
-    p.slimeT === 1);
+  check('...and the drape is ON the props and the ghost iron — NEVER on the worker',
+    drapes.length >= 2 && !slime.some((g) => g.parent === NK_WORKER_STUB.group) &&
+      NK_WORKER_STUB.group.children.length === 0 && !!p.slimeT &&
+      p.pickleSteps >= NK_BOOM_SLIME_KEEP,
+    'drapes=' + drapes.length + ' steps=' + p.pickleSteps +
+      ' workerKids=' + NK_WORKER_STUB.group.children.length);
+  check('NO ECTOPLASM IS ATTACHED TO HIM: his clean feet walk out, the goop only leaves shoe prints on the asphalt',
+    p.slimeT === 1 && NK_WORKER_STUB.group.children.length === 0);
   const gg = H.getBossGargoyle();
   const dg = gg ? Math.hypot(p.wx - gg.wx, p.wy - gg.wy) : -1;
   check('THE RUBY-PLATED GARGOYLE lands BESIDE the worker — near him, and NOT on him',
@@ -2801,6 +2806,12 @@ check('THE GHOSTLY CEMETERY FENCE COMES DOWN ON THE BANISH (the seal tears, the 
     H.getBossWin() === true && H.getBossWinT() > 0 &&
       H.confettiLog().indexOf('confetti') >= 0 && popped.some(pp => pp.kind === 'treasure') &&
       H.routeEnds().length === 0);
+  check('THE SHOVEL IS THROWN DOWN OF HIS HANDS ON THE GRAB: tossShovelDown empties his fists, the flight lands flat, and the laid tool goes with the shift',
+    srcFn('grabBossGargoyle').includes('tossShovelDown();') &&
+      srcFn('tossShovelDown').includes('shovelGroup = null') &&
+      srcFn('tossShovelDown').includes('dynamicGroup.add(sh)') &&
+      srcFn('updateShovelToss').includes('s.landed = true') &&
+      srcFn('clearNightBoss').includes('shovelTossClear()'));
   let guard = 0;
   while (H.getBossWin() && guard < 900) { H.updateNightBossFight(1 / 60); guard++; }
   check('THE BOSS IS THE END OF THE LEVEL: the win beat drives the rig off the dead end',
@@ -2932,9 +2943,10 @@ check('MIDNIGHT: a scoop that overshot down the street climbs back UPSLOPE in fo
     const back = runTruckAI(-1, 400, 384, "follow", 420);
     return back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5;
   })());
-check('the drive-off leaves the way the route runs (the cinematic mirrors, the day stays put)',
-  srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * RT * dt;') &&
-    srcFn('updateRouteEnd').includes('sx * routeDir() > halfW + 1.0'));
+check('the drive-off leaves the way the RIG ROLLS: by day the cinematic follows routeDir, MIDNIGHT DRIVES UP — nose-forward, up-hill on driveDir 1 — and the off-screen check rides the SAME direction (the day stays put)',
+  srcFn('updateRouteEnd').includes('isNightShift() ? 1 : RT') &&
+    srcFn('updateRouteEnd').includes('truck.wx += RE_DRIVE_SP * driveDir * dt') &&
+    srcFn('updateRouteEnd').includes('sx * driveDir > halfW + 1.0'));
 check('the shift reports the dead end: the LEVEL IS NAMED "MIDNIGHT * DEAD END" AND NOTHING ELSE — no Bed-Stuy, no cemetery caption on the night',
   html.includes('name: "MIDNIGHT * DEAD END"') &&
     /function levelName\(d\)/.test(html) &&

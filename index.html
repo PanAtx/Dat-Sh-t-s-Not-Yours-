@@ -4414,8 +4414,10 @@
          updateHUD() drives --boss-hp; SHOVEL THE BAR is the level's win condition. A heart
          strike makes it SCURRY off the blade; the bar at zero BLOWS THE BEAST UP in
          ectoplasmic slug slime (it never comes back), and the Ruby-Plated Gargoyle that
-         lands beside the worker is the night's end: he jumps, the ghost fence is gone, he
-         walks to the truck's door and the rig drives off into the report. -->
+         lands beside the worker is the night's end: he picks it up, THROWS HIS SHOVEL DOWN
+         (he don't need it no more — it just lays on the ground), jumps, the ghost fence is
+         gone, he walks to the truck's door and the rig drives UP the street and away into
+         the report — GAME OVER, THE PLAYER WINS. -->
     <div id="boss-goal" class="hidden">
       <div id="boss-goal-name">
         THE SLUG DEMON<span id="boss-goal-phase"></span>
@@ -4545,7 +4547,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.533</div>
+          <div id="app-version" class="menu-version">v1.0.534</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4803,7 +4805,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.533';
+      const APP_VERSION = '1.0.534';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6718,6 +6720,8 @@
       let bossWin = false;
       let bossWinT = 0;
       let bossGargoyle = null; // the Ruby-Plated Gargoyle sitting on the grave yard
+      let shovelToss = null; // the thrown-down Holy Weapon (Midnight win beat): in its flight
+      // record, then the mesh LAID FLAT on the street for the rest of the night
       // THE SCURRY AND THE BOOM: the slime the exploded beast leaves on the street (its own
       // mesh records, disposed on the next shift) and the banished flag — a Slug Demon that
       // burst STAYS burst: the cross-street never wakes another one on that shift.
@@ -32036,8 +32040,9 @@
       // A heart strike WOUNDS the beast and it SCURRIES: it slips a few paces off the blade
       // toward its own graves — the worker gets breathing room and can step clear. The final
       // strike does not hook it for the hopper: the body INFLATES WITH GHOST LIGHT and BURSTS,
-      // and the blast leaves ECTOPLASMIC SLUG SLIME on everything — pools on the asphalt, a
-      // drape on every prop in the blast, a slick coat on the worker. The banished beast is
+      // and the blast leaves ECTOPLASMIC SLUG SLIME on everything it hits — pools on the
+      // asphalt and a drape on every prop in the blast, NEVER on the worker: he walks out of
+      // the graveyard clean-footed, with no ring of goop circling his boots. The banished beast is
       // gone for good (nightBossBanished: the cross-street never wakes another one). Its
       // Ruby-Plated Gargoyle lands BESHIDE the worker — near him, never on him — and taking
       // it ends the night: the man jumps up, the ghost iron tears down, he walks to the
@@ -32054,7 +32059,7 @@
       const BOSS_BOOM_LINES = ["IT'S GONNA BLOW! GET CLEAR!", "THE WHOLE BEAST IS COMIN' APART!"];
       const BOSS_SLIME_LINES = [
         "SLIME ON EVERYTHING! EVERY INCH OF THE STREET!",
-        "IT'S COVERED ME! SLUG GOOP FROM HEAD TO BOOTS!",
+        "SLUG GOOP ON EVERY GRAVE IN THE YARD! LOOK AT IT!",
       ];
       const BOSS_SCURRY_LINES = [
         "IT'S SCURRYIN' OFF THE BLADE! IT CAN'T TAKE NO MORE!",
@@ -32168,6 +32173,7 @@
         bossGargoyle = null;
         nightBossBanished = false; // a NEW night: the cross-street may wake a Slug Demon again
         nightSlimeClear(); // ...and the last beast's slime goes with the last shift
+        if (typeof shovelTossClear === "function") shovelTossClear(); // ...and so does the shovel he threw down on the win beat
         nightSealClear(); // a fresh shift: the ring's ghost iron goes with the beast
         if (typeof $ === "function") {
           const bar = $("boss-goal");
@@ -32662,8 +32668,9 @@
       // ==================== THE SLUG DEMON'S SLIME (what the burst leaves behind) =========
       // Ectoplasmic slug goop, laid PERSISTENT — spawnEctoSplat rides the dust pipeline and
       // fades in under a second, so the blast's slime has its own gobs: flat glowing puddles
-      // on the street, a drape standing on every prop caught in the blast, and a coat on the
-      // worker. Everything is recorded in `nightBossSlime` and goes with the shift teardown.
+      // on the street and a drape standing on every prop caught in the blast. The worker is
+      // NEVER coated — a drape parented to his own group would walk with him as a puddle
+      // circling his boots. Everything is recorded in `nightBossSlime`, goes with the teardown.
       function nightSlimeBlob(wx, wy, wz, r, op) {
         const g = new THREE.Group();
         g.add(
@@ -32752,8 +32759,8 @@
         b.whipState = "idle";
         spawnEctoBurst(b.wx, b.wy, 2.6); // THE BLOW-UP: the body leaves in a geyser of slime
         spawnBossSlime(b.wx, b.wy, BOSS_BOOM_R); // ...and the goop it lays on the asphalt
-        // EVERYTHING in the blast wears a slime drape for the rest of the night: every prop on
-        // the blocks, the ward curtains, the ghost iron, and the worker himself.
+        // EVERY PROP in the blast wears a slime drape for the rest of the night: every prop on
+        // the blocks, the ward curtains and the ghost iron — the worker himself is NEVER coated.
         const cx = b.wx;
         if (typeof blocks !== "undefined" && blocks && blocks.length) {
           for (let bi = 0; bi < blocks.length; bi++) {
@@ -32775,8 +32782,10 @@
           }
         }
         if (nightSeal && nightSeal.g && nightSeal.g.visible) coatInSlime(nightSeal.g, 1.1);
-        coatInSlime(worker && worker.group, 1.15); // the goop is ON him — head to boots
-        p.slimeT = 1; // ...and he rides in it: green prints the whole way out
+        // NO SLIME IS LAID ON THE WORKER: a drape parented to his own group would ride with
+        // him all shift as a glowing puddle circling his boots. The beast's goop stays on the
+        // street and the props it landed on.
+        p.slimeT = 1; // he walks out of it: green prints dropped ON THE ASPHALT, nothing on him
         p.pickleSteps = Math.max(p.pickleSteps || 0, BOSS_BOOM_SLIME_KEEP);
         b.bodyCd = 0;
         hopperCycling = true; // the compactor cycles on what the burst left to sweep up
@@ -32870,6 +32879,9 @@
         bossWin = true;
         bossWinT = BOSS_WIN_JUMP_T; // the celebration hop, then the walk to the truck's door
         p.winJumpT = BOSS_WIN_JUMP_T; // ...the hop itself lives on the worker (updatePlayer)
+        // THE SHOVEL COMES DOWN OF HIS HANDS: the beast is burst, the Gargoyle is back and
+        // the night's digging is DONE — he hurls the Holy Weapon away and it lays on the street.
+        if (typeof tossShovelDown === "function") tossShovelDown();
         nightSealDrop(); // THE GHOSTLY CEMETERY FENCE IS GONE: nothing stands on the street now
         if (worker && worker.group) worker.group.position.z = GZ; // the hop owns the body from here
         announcePower("MIDNIGHT CLEARED!", "pop-power");
@@ -32897,6 +32909,82 @@
         confettiCannon();
         if (gg && gg.parent) gg.parent.remove(gg);
         disposeObj(gg);
+      }
+      // THE SHOVEL THROWN DOWN — "I DON'T NEED YOU NO MORE!" (the Midnight win beat): the
+      // frame he takes the Gargoyle back, the DSNY shovel leaves his hands FOR GOOD. It comes
+      // off the worker root (the play loop's shovel posing sees NO tool in hand and goes
+      // quiet — he walks to the truck EMPTY-HANDED), flies a short tumbling arc out in front
+      // of him, CLATTERS down flat on the asphalt and just LAYS THERE for the rest of the
+      // night. The mesh rides the dynamic group, so the shift's own teardown clears it.
+      function tossShovelDown() {
+        if (typeof shovelGroup === "undefined" || !shovelGroup || !shovelGroup.parent) return;
+        const sh = shovelGroup;
+        shovelGroup = null; // his hands are EMPTY from this frame
+        shovelTwist = 0;
+        shovelStride = 0;
+        shovelLean = 0;
+        shovelArm = -1;
+        pendingStrike = null; // a swing mid-arc dies with the tool: nothing is owed
+        sh.parent.remove(sh);
+        const dir = p.facing;
+        sh.position.set(p.wx + Math.cos(dir) * 0.7, p.wy + Math.sin(dir) * 0.7, GZ + 1.35);
+        sh.rotation.set(0.45, 0, dir);
+        dynamicGroup.add(sh);
+        shovelToss = {
+          g: sh,
+          dir: dir,
+          wx: sh.position.x,
+          wy: sh.position.y,
+          z: GZ + 1.35,
+          vx: Math.cos(dir) * 4.4,
+          vy: Math.sin(dir) * 4.4,
+          vz: 2.2,
+          spin: Math.random() * 12 - 6,
+          t: 0,
+          landed: false,
+        };
+        SFX.playSwoosh(); // the tool whistles out of his grip
+        Voice.say(
+          "I DON'T NEED YOU NO MORE — SHOVEL STAYS!",
+          2.4,
+          1.06,
+          p.wx,
+          p.wy,
+          WORKER_GENDER,
+          "worker",
+          "burst",
+        );
+      }
+      // The thrown shovel's own clock (updateCreatures' night block, so the street keeps
+      // ticking it through the win beat AND the whole route-end cinematic): gravity pulls it
+      // down onto the pavement, where it lands FLAT — shaft along the street, pan and edge
+      // on the ground — and stays laid.
+      function updateShovelToss(dt) {
+        if (typeof shovelToss === "undefined" || shovelToss === null || shovelToss.landed)
+          return;
+        const s = shovelToss;
+        s.t += dt;
+        s.vz -= 13.5 * dt;
+        s.wx += s.vx * dt;
+        s.wy += s.vy * dt;
+        s.z += s.vz * dt;
+        s.g.rotation.x += s.spin * dt; // the tumble in the air
+        const restZ = GZ + 0.07; // the pan and the flat edge ON the asphalt
+        if (s.z <= restZ || s.t > 2.5) {
+          s.z = restZ;
+          s.g.rotation.set(0, 0, s.dir + (Math.random() * 0.4 - 0.2)); // laid FLAT, done
+          s.landed = true;
+          SFX.playCanDropSound(); // the steel CLATTER of the drop — then silence
+        }
+        s.g.position.set(s.wx, s.wy, s.z);
+      }
+      // A fresh shift retires the laid shovel with the last night's beast.
+      function shovelTossClear() {
+        if (typeof shovelToss === "undefined" || shovelToss === null) return;
+        const g = shovelToss.g;
+        if (g && g.parent) g.parent.remove(g);
+        if (typeof disposeObj === "function") disposeObj(g);
+        shovelToss = null;
       }
       // THE RIG: eyes scanning on their own axes, tentacles waving (and LASHING), the maw
       // opening on the ghost fire, the body swelling, the flinch when the blade lands.
@@ -33331,8 +33419,9 @@
           bossWinT -= dt;
           if (bossWinT <= 0) {
             bossWin = false;
-            // THE DRIVE-OFF off the end of a DEAD-END street: the rig rolls downhill and
-            // the shift report fires — and MIDNIGHT's report is the WEEK COMPLETE screen.
+            // THE DRIVE-OFF off the end of a DEAD-END street: the rig drives UP out of the
+            // graves and the shift report fires — and MIDNIGHT's report is the WEEK COMPLETE
+            // screen: GAME OVER, THE PLAYER WINS.
             startRouteEnd();
           }
         }
@@ -46443,6 +46532,7 @@
           updateEctoFlights(dt);
           updateGhoulHpBars(dt); // the bars over the horde AND the grave furniture: DOM, pooled
           nightGoTick(dt); // the "GO!" arrow's clock after a ward falls
+          updateShovelToss(dt); // the thrown shovel: flight, clatter, laid flat
           // FAIR FIGHT timers: the blade's guard window and the hit grace tick away.
           p.shovelGuardT = Math.max(0, (p.shovelGuardT || 0) - dt);
           p.nightHitT = Math.max(0, (p.nightHitT || 0) - dt);
@@ -53122,9 +53212,11 @@
       //              garbage into the truck (the pile's shrink/slide/fade + spew burst),
       //              pumped with the arms — skipped when the hopper is already empty;
       //   3) BOARD — he steps into the cab from the side and sinks out of sight;
-      //   4) DRIVE — the truck rolls off down the street. The camera stays LOCKED on the
-      //              boarding spot (p.wx/p.wy are frozen), so the playfield holds still
-      //              while the truck drives off screen with the worker aboard.
+      //   4) DRIVE — the truck rolls off. MIDNIGHT drives UP-hill, nose-forward, away off
+      //              the top of the dead-end street (the shovel he threw down on the win beat
+      //              stays laid on the street — he don't need it no more). The camera stays
+      //              LOCKED on the boarding spot (p.wx/p.wy are frozen), so the playfield
+      //              holds still while the truck drives off screen with the worker aboard.
       // Once the truck is fully out of frame, the day-end report takes over.
       const RE_CHEER = 1.5; // fist-pump beat (seconds)
       const RE_WALK_SP = 4.0; // stroll speed to the cab (u/s)
@@ -53173,10 +53265,11 @@
         // mid-route), the direct line is clear of the body and we skip the rear waypoint.
         const boxW = (truck && truck.boxW) || 2.25;
         const boxL = (truck && truck.boxL) || 4.0;
-        // MIDNIGHT runs the drive-off on the MIRRORED axis only in TRAVEL: the rig keeps its
+        // MIDNIGHT runs the walk-around on the MIRRORED axis only in TRAVEL: the rig keeps its
         // normal facing (cab and hood toward +X, the open hopper toward -X, the ramp and the
         // boarding spot at the -X end — the SAME geometry as every weekday), and it leaves a
-        // dead-end street the way it came: REVERSED, downhill, out of the -X edge of frame.
+        // dead-end street the way it rode IN: nose-forward, UP-hill, out of the +X edge of
+        // frame (the drive-off itself runs on driveDir 1 — no reversing downhill).
         // RT is that travel axis (1 on every weekday, -1 on the dead-end street).
         const RT = routeDir();
         // The cab-door stop point is model-specific: the GLB truck carries a measured
@@ -53444,11 +53537,17 @@
           g.position.set(p.wx, p.wy, GZ);
           return;
         }
-        // ---- Phase 4: the truck drives off down the street. p.wx/p.wy are FROZEN at the
-        // boarding spot, and positionCamera() is locked to the worker, so the playfield
-        // holds perfectly still while the truck (worker aboard) rolls out of frame.
-        const RT = routeDir(); // the drive-off axis (1 by day, -1 down the dead-end street)
-        truck.wx += RE_DRIVE_SP * RT * dt; // MIDNIGHT: nose points up-hill, so this is REVERSE
+        // ---- Phase 4: the truck drives off. p.wx/p.wy are FROZEN at the boarding spot, and
+        // positionCamera() is locked to the worker, so the playfield holds perfectly still
+        // while the truck (worker aboard) rolls out of frame.
+        const RT = routeDir(); // the route's travel axis (1 by day, -1 down the dead-end street)
+        // THE DRIVE-OFF direction: by day the rig rolls out the way the route ran. MIDNIGHT
+        // DRIVES UP — nose-forward, up-hill, away off the top of the dead-end street (he rode
+        // it DOWN into the graves; he rides it back UP out of them). The shovel he threw down
+        // stays laid on the grave grass; he don't need it no more.
+        const driveDir =
+          typeof isNightShift === "function" && isNightShift() ? 1 : RT;
+        truck.wx += RE_DRIVE_SP * driveDir * dt;
         // updateTruck() is NOT running during the cinematic (its auto-follow AI would yank
         // the truck back to the worker), so we must sync the truck's MESH to its logic
         // position ourselves — otherwise the model stays parked while truck.wx moves.
@@ -53476,9 +53575,10 @@
         const camX = Math.SQRT1_2 * (p.wx - camFollowY);
         const camY = Math.SQRT1_2 * (p.wx + camFollowY);
         const sx = (rearWx - camX) * Math.cos(CAM_ANGLE_OFFSET) + (rearWy - camY) * Math.sin(CAM_ANGLE_OFFSET);
-        // The truck leaves the frame in the direction the route runs: by day that is the
-        // +screen-x edge, on the dead-end street it is the -screen-x edge (routeDir()).
-        if (sx * routeDir() > halfW + 1.0 || routeEnd.driveT >= RE_DRIVE_MAX)
+        // The truck leaves the frame in the direction IT ROLLS: the +screen-x edge by day,
+        // and on the dead-end street the rig now drives UP-hill, nose-first — its rear backs
+        // out of the SAME +screen-x edge (driveDir 1).
+        if (sx * driveDir > halfW + 1.0 || routeEnd.driveT >= RE_DRIVE_MAX)
           finishRouteEnd();
       }
       function finishRouteEnd() {
