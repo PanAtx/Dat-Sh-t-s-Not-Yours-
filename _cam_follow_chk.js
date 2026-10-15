@@ -48,8 +48,20 @@ check('routeEnd truck off-screen test reads the LIVE camFollowY (recomputed loca
 check('camFollow declared ONCE + reset on shift start/quit (resetWorldState)',
   (h.match(/let camFollow = 0;/g) || []).length === 1 && h.indexOf('camFollow = 0; // fresh shift') >= 0);
 check('old inline camera line is gone (no 1.4142 * ISO_A at the call site)', h.indexOf('camTY - 1.4142 * ISO_A') === -1);
-const pcSrcRaw = grab('function positionCamera(dt) {', 'function loop(now) {');
-const pcSrc = pcSrcRaw.slice(0, pcSrcRaw.lastIndexOf('function loop(now) {')); // drop the marker text
+// The camera slice MUST end at the trainer block: the trainer's builders
+// (new WebGLRenderer, CHEAT.startLevel = START_LEVEL, new CanvasTexture) live
+// between positionCamera and the loop, and a slice that sweeps them in reads
+// as "per-frame allocations inside positionCamera" and dies on START_LEVEL.
+const camEndAnchor = "function trainerBlip(";
+const camEndAlt = "function loop(now) {";
+const pcStart = h.indexOf('function positionCamera(dt) {');
+const pcEnd = Math.min(
+  ...[camEndAnchor, camEndAlt]
+    .map((a) => h.indexOf(a, pcStart))
+    .filter((n) => n > 0),
+);
+const pcSrcRaw = h.slice(pcStart, pcEnd);
+const pcSrc = pcSrcRaw.slice(0, pcSrcRaw.lastIndexOf('function loop(now) {')); // drop the marker text if the loop anchor landed inside
 check('no per-frame allocations inside positionCamera (no new THREE.*)', pcSrc.indexOf('new THREE.') === -1);
 check('pan + yaw are hard-capped (CAM_PAN_MAX / CAM_YAW_MAX, velocity lead added on top)',
   pcSrc.indexOf('clamp(camFollow * CAM_LANE_FOLLOW, -CAM_PAN_MAX, CAM_PAN_MAX)') >= 0 &&
@@ -137,7 +149,7 @@ const groundGroup = new THREE.Group();
 const p = { wx: 0, wy: 2.0 };
 const api = new Function(
   'THREE', 'camera', 'dirLight', 'groundGroup', 'p', 'clamp', 'ISO_A', 'CAM_Y',
-  'let state = "play";\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
+  'let state = "play"; let START_LEVEL = 1; let level = START_LEVEL; function routeDir(){ return 1; } /* the MIDNIGHT dolly term rides the route axis; the suite asserts the WEEKDAY axis (the main sandbox skips it entirely: truck is undefined) */\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
   '\nreturn { positionCamera, getCamFollow: () => camFollow, setCamFollow: v => { camFollow = v; }, ' +
   'getCamFollowX: () => camFollowX, getLaneVel: () => laneVel, ' +
   'resetFollow: () => { camFollowX = p.wx; laneVel = 0; _lanePrevWy = p.wy; }, ' +
@@ -333,7 +345,7 @@ check('dt=0: camera holds perfectly still AND camFollow does not settle',
   const zoomApi = new Function(
     'THREE', 'camera', 'dirLight', 'groundGroup', 'p', 'clamp', 'ISO_A', 'CAM_Y',
     'truck', 'hopperAimX', 'hopperWorldY', 'routeEnd',
-    'let state = "play";\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
+    'let state = "play"; let START_LEVEL = 1; let level = START_LEVEL; function routeDir(){ return 1; }\n' + snapCode + '\n' + camConsts + '\n' + pcSrc +
     '\nreturn { positionCamera, setBaseFrustum: f => { _baseFrustum = f; }, getCamXSmooth: () => camXSmooth, getCamZoom: () => camZoom, getCamFollowX: () => camFollowX, setState: s => { state = s; } };',
   )(THREE, camera, dirLight, groundGroup, p, (v, lo, hi) => Math.min(hi, Math.max(lo, v)), 26, 2.0,
     truck2,

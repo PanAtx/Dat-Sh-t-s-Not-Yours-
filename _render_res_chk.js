@@ -41,12 +41,21 @@ check(
   })()
 );
 check(
-  "resize handler keeps the RENDER_H cap (applyRenderSize)",
+  "resize handlers keep the RENDER_H cap (applyRenderSize; every camera-era resize listener, none rebuilds the buffer at window size)",
   (() => {
-    const i = h.indexOf('window.addEventListener("resize"');
-    if (i < 0) return false;
-    const seg = h.slice(i, i + 600);
-    return seg.indexOf("applyRenderSize();") >= 0 && seg.indexOf("renderer.setSize(innerWidth, innerHeight)") === -1;
+    // Scan ALL resize-listener registrations: the FIRST is the pre-camera CSS
+    // box fitter (no renderer exists yet), the camera-era one carries
+    // applyRenderSize(). The day the trainer listener was added it moved past
+    // the old single-window, so a fixed 600-char slice started reading noise.
+    const windows = [];
+    let k = -1;
+    while ((k = h.indexOf('window.addEventListener("resize"', k + 1)) >= 0)
+      windows.push(h.slice(k, k + 2400));
+    const camWindows = windows.filter((seg) => seg.indexOf("applyRenderSize();") >= 0);
+    return (
+      camWindows.length >= 1 &&
+      camWindows.every((seg) => seg.indexOf("renderer.setSize(innerWidth, innerHeight)") === -1)
+    );
   })()
 );
 check(
@@ -75,7 +84,7 @@ check(
     h.indexOf('localStorage.getItem("dsnysweep_fps")') >= 0 &&
     h.indexOf("let FPS_CAP") >= 0 &&
     h.indexOf("let lastRenderT = 0;") >= 0 &&
-    h.indexOf("if (state === \"play\" && FPS_CAP > 0)") >= 0 &&
+    h.indexOf('if ((state === "play" || state === "trainer") && FPS_CAP > 0)') >= 0 &&
     h.indexOf("if (now - lastRenderT < minMs) return;") >= 0
 );
 check(

@@ -62,15 +62,29 @@ check('WRITEUP_REASONS has a "delivery" entry (courier lines)',
 }
 {
   const grab = (name) => { const s = h.indexOf('const ' + name + ' ='); return h.slice(s, h.indexOf('};', s) + 2); };
-  const fn = h.slice(
-    h.indexOf('function npcCounts('),
-    h.indexOf('}\n', h.indexOf('return c;', h.indexOf('function npcCounts('))) + 2,
-  );
+  // Brace-matched extract: npcCounts grew the MIDNIGHT branch ("return none;" before the
+  // weekday tail), so the old 'return c;' closing anchor sliced the function to nothing.
+  const extractFn = (name) => {
+    const s = h.indexOf('function ' + name + '(');
+    if (s < 0) throw new Error(name + ' not found in index.html');
+    let d = 0, i = h.indexOf('{', s);
+    for (; i < h.length; i++) { if (h[i] === '{') d++; else if (h[i] === '}') { d--; if (!d) { i++; break; } } }
+    return h.slice(s, i);
+  };
+  const fn = extractFn('npcCounts');
+  // The night branch reads LEVEL_DAYS (the suite asserts WEEKDAYS: the array must exist
+  // in scope; the level 8 entry lives in the shipped table, untouched here).
+  // The table ends at the night entry's closing brace + the array literal's "];" two lines down.
+  const sN = h.indexOf('const LEVEL_DAYS = [');
+  const nightEnd = h.indexOf('},', h.indexOf('warning:', h.indexOf('day: "MIDNIGHT"')));
+  const eN = h.indexOf('];', nightEnd) + 2;
+  const daysSrc = h.slice(sN, eN).replace('const', 'var');
   eval(
     grab('BASE_NPC_COUNTS').replace('const', 'var') + ';' +
     grab('SCALING_NPC').replace('const', 'var') + ';' +
-    grab('GATED_NPC').replace('const', 'var') +
-    '; var level = 1; function isQueensLevel(){return false}; ' + fn +
+    grab('GATED_NPC').replace('const', 'var') + ';' +
+    daysSrc + ' ' +
+    'var level = 1; function isQueensLevel(){return false}; ' + fn +
     '; var _r1 = npcCounts(1), _r6 = npcCounts(6);',
   );
   check('dynamic: day 1 (Gramercy) keeps its 3 cyclists', _r1.bike === 3);

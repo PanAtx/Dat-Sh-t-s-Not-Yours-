@@ -37,9 +37,13 @@ const SFX = { playPickupSound(){}, playCanDropSound(){}, playTossSound(){}, play
 const Voice = { say(){} };
 const BONUS = true, BONUS_BASKET_COUNT = 6;
 const fns = ['computeNormalLitterBasketHomes','nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets','resetLitterBaskets','placeLitterBasket','dropCarried','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
+// Mirror the shipped LEVEL_BLOCKS -> ACTIVE_BLOCKS pair (the overtime corner layout and the
+// normal layout both derive their route length from it).
+const blockSrc = html.slice(html.indexOf('const LEVEL_BLOCKS = ['), html.indexOf('];', html.indexOf('const LEVEL_BLOCKS = [')) + 2).replace(/const/g,'var');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE','CROSS_W','IW','LEVEL_XS','R','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','dist','SFX','Voice','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT','isBedStuyLevel',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[]; var bagStack=[]; const MAX_SMALL_BAGS=3;\n'+
+  blockSrc + 'var ACTIVE_BLOCKS = LEVEL_BLOCKS.filter(function(b){return b.garbage;});\n'+
   'function tossBag(){} function dumpCan(){} function speakBagType(){} function attachStacked(it,slot){ worker.group.add(it.g); } function addScore(){} function hopperDeposit(){} function disposeObj(){}\n'+
   fns + '\n'+
   'return { dumpLitterBasket, updateFlyingBaskets, placeLitterBasket, baskets:()=>litterBaskets, flying:()=>flyingBaskets, setCarried:function(c,i){carry=c;carried=i;} };'
@@ -64,10 +68,10 @@ const assert2 = require('assert');
 check('overtime street spawns baskets to service', ()=>{
   assert2.ok(baskets.length > 0, 'expected overtime baskets, got ' + baskets.length);
 });
-check('baskets sit on Block 2 + the two middle blocks: 94,178 (B2) + 190,274 (B3) + 286,370 (B4)', ()=>{
+check('baskets sit on the TWO MIDDLE blocks of the 4-block overtime street: 94,178 (B2) + 190,274 (B3)', ()=>{
   const xs = baskets.map(b => b.wx).sort((a, b) => a - b);
-  assert2.deepStrictEqual(xs, [94, 178, 190, 274, 286, 370],
-    'expected 6 baskets at 94/178/190/274/286/370, got ' + JSON.stringify(xs));
+  assert2.deepStrictEqual(xs, [94, 178, 190, 274],
+    'expected 4 corner baskets at 94/178/190/274 (the shipped corners list), got ' + JSON.stringify(xs));
 });
 for (const b of baskets) service(b);
 

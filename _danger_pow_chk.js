@@ -34,7 +34,12 @@ console.log('[1] static wiring: the old arcade-voice stack is GONE, the fire ala
   ['arcadeSay', 'voiceBus', 'bub-danger', 'dangerBurst'].forEach(function(g){
     check('old stack removed: no ' + g + ' left in the file', src.indexOf(g) < 0);
   });
-  check('old stack removed: no formant voice engine left in the file', src.toLowerCase().indexOf('formant') < 0 && src.toLowerCase().indexOf('phoneme') < 0);
+  // The FORMANT BAN targets the old voice ENGINE. The night voice pack legitimately says the
+  // word "formants" in comments (the ghost/ped voice skins) — a lowercase word ban reads that
+  // as the engine. Match code identifiers case-sensitively, keep the engine's own name banned.
+  check('old stack removed: no formant voice engine left in the file',
+    src.indexOf('FORMANT') < 0 && src.indexOf('Formant') < 0 && src.indexOf('formantBank') < 0 &&
+    src.indexOf('phoneme') < 0 && src.indexOf('Phoneme') < 0);
   const hn = extractFn('hurtNPC');
   check('hurtNPC: the warning gate (health > 0 && health <= DANGER_HP && !dangerWarned)', hn.indexOf('if (health > 0 && health <= DANGER_HP && !dangerWarned)') >= 0);
   check('hurtNPC: fires the FULL alarm — dingDingDing + dangerBanner + dangerFlash + dangerAlarmOn',

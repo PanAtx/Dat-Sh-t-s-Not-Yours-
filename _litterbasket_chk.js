@@ -61,11 +61,16 @@ function resetCalls(){ calls.score=0; calls.deposit=0; calls.dispose=0; calls.vo
 // ---- build the real logic closure --------------------------------------------------
 const fns = ['computeNormalLitterBasketHomes','nearHopper','nearHopperLitter','attachCarried','speakBoneBasket','pickUp','dumpLitterBasket','updateFlyingBaskets',
   'resetLitterBaskets','placeLitterBasket','dropCarried','tryInteract','buildLitterTrash'].map(n=>extractFn(html,n)).join('\n');
+// The game derives the route from LEVEL_BLOCKS -> ACTIVE_BLOCKS; the night system moved
+// code between them, so the harness mirrors the SHIPPED table verbatim (same count, so
+// the 11-basket / 14-first-corner assertions stay honest).
+const blockSrc = html.slice(html.indexOf('const LEVEL_BLOCKS = ['), html.indexOf('];', html.indexOf('const LEVEL_BLOCKS = [')) + 2).replace(/const/g,'var');
 const api = new Function(
   'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE',
   'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
   'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[]; const MAX_SMALL_BAGS=3; var bagStack=[];\n' +
+  blockSrc + 'var ACTIVE_BLOCKS = LEVEL_BLOCKS.filter(function(b){return b.garbage;});\n' +
   'function tossBag(){} function dumpCan(){} function speakBagType(){} function attachStacked(it,slot){ worker.group.add(it.g); }\n' +
   fns + '\n' +
   'return { nearHopper, pickUp, attachCarried, dumpLitterBasket, updateFlyingBaskets, resetLitterBaskets, placeLitterBasket, dropCarried, tryInteract, buildLitterTrash, ' +
@@ -75,10 +80,10 @@ const api = new Function(
   CROSS_W, IW, LEVEL_XS, R, clamp, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, () => WORKER_MAX_Y,
   dist, SFX, Voice, addScore, hopperDeposit, disposeObj, M, MS, BX, CY, SP, () => false, 384, 96, false, 8);
 // ---- 1) placement ------------------------------------------------------------------
-check('placeLitterBasket -> 11 baskets at corners (very first + last pair skipped), all "placed" on groundGroup, FULL of visible trash', ()=>{
+check('placeLitterBasket -> baskets at every active-route corner (2N-1 = 7 on the shipped 4-active-block route; very first corner skipped), all "placed" on groundGroup, FULL of visible trash', ()=>{
   api.placeLitterBasket();
-  assert.strictEqual(api.baskets().length, 11);
-  assert.strictEqual(api.homes().length, 11);
+  assert.strictEqual(api.baskets().length, 7, 'the route\'s corner count derives from ACTIVE_BLOCKS: 2*4-1 = 7 (the suite mirrors the SHIPPED LEVEL_BLOCKS)');
+  assert.strictEqual(api.homes().length, 7);
   // The VERY FIRST corner (approach of intersection 1, cx + (-6) = 2) is skipped,
   // so the first PLACED basket is the departure corner of intersection 1 (cx + 6 = 14).
   assert.strictEqual(api.homes()[0].wx, 14, 'first placed basket is the departure corner of intersection 1, not the very first corner');
@@ -195,13 +200,13 @@ check('dropCarried (basket) -> stays "placed" and pickable again', ()=>{
   assert.strictEqual(api.carry(), 'litterBasket');
 });
 
-// ---- 7) reset restores all 11 baskets to their corners ----------------------------
-check('resetLitterBaskets -> all 11 restored "placed" on groundGroup, in-flight cleared', ()=>{
+// ---- 7) reset restores every route basket to its corners --------------------------
+check('resetLitterBaskets -> all 7 route baskets restored "placed" on groundGroup, in-flight cleared', ()=>{
   const b3 = api.baskets()[3];
   p.wx = b3.hx; p.wy = b3.hy;
   if (api.carry() !== 'litterBasket') api.tryInteract();
   api.resetLitterBaskets();
-  assert.strictEqual(api.baskets().length, 11);
+  assert.strictEqual(api.baskets().length, 7);
   assert.strictEqual(api.flying().length, 0);
   for (const b of api.baskets()){
     assert.strictEqual(b.state, 'placed');
@@ -249,6 +254,10 @@ check('bone flag -> only the cemetery block\'s own two corners are bones (adjace
     'CROSS_W','IW','LEVEL_XS','R','clamp','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','workerMaxY',
     'dist','SFX','Voice','addScore','hopperDeposit','disposeObj','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT',
     'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[];\n' +
+    // REAL_XS above are the SHIPPED intersections (the full 11-basket Queens route): 6
+    // active blocks -> 2*6-1 = 11 homes, ACTIVE_BLOCKS mirrors the game's filter over it.
+    'var LEVEL_BLOCKS = [80,176,272,368,464,560,656,752].map(function(x,i){ return { x: i*96, garbage: i >= 1 && i <= 6 }; });\n' +
+    'var ACTIVE_BLOCKS = LEVEL_BLOCKS.filter(function(b){return b.garbage;});\n' +
     'function tossBag(){} function dumpCan(){}\n' +
     fns + '\n' +
     'return { resetLitterBaskets, placeLitterBasket, baskets:()=>litterBaskets };'

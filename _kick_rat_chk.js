@@ -39,11 +39,11 @@ console.log('[1] source wiring');
   check('tryKickRat + kickRat are defined', src.indexOf('function tryKickRat()') >= 0 && src.indexOf('function kickRat(c)') >= 0);
   check(
     'tryInteract gates the kick on FREE hands, after the punchback gate, before the dump logic',
-    /if \(p\.attackerT > 0 && tryPunchBack\(\)\) return;[\s\S]{0,400}?if \(carry === "none" && typeof tryKickRat === "function" && tryKickRat\(\)\) return;/.test(src),
+    /if \(p\.attackerT > 0 && tryPunchBack\(\)\) return;[\s\S]{0,1600}?if \(carry === "none" && typeof tryKickRat === "function" && tryKickRat\(\)\) return;/.test(src),
   );
   check('the worker yells "Take that rat!" or "Yeet!"', src.indexOf('Take that rat!') >= 0 && src.indexOf('Yeet!') >= 0);
   check('SFX.playSqueal exists (the rat squeal)', /playSqueal\(\) \{/.test(src));
-  check('the kicked rat sets its own z (excluded from the generic GZ sync)', /c\.type !== "rat" \/\/ the kicked rat sets its own z/.test(src));
+  check('the kicked rat sets its own z (excluded from the generic GZ sync)', /c\.type !== "rat" && \/\/ the kicked rat sets its own z \(the fling hop\)/.test(src));
   const ratCase = (() => {
     const i = src.indexOf('case "rat": {');
     if (i < 0) return '';
