@@ -247,8 +247,15 @@ check('loadCanGltf sharpens the highlights (m.roughness = 0.7) so the ribs catch
   /async function loadCanGltf\(\)[\s\S]{0,2400}?m\.roughness = 0\.7/.test(html));
 check('makeGltfLoader attaches local DRACOLoader (./draco/)',
   /function makeGltfLoader\(\)[\s\S]{0,600}?setDecoderPath\("\.\/draco\/"\)/.test(html));
-check('PRELOAD has truck compressed size', html.includes('url: "nyc_truck-compressed.glb", size: 5295160'));
-check('PRELOAD has can compressed size', html.includes('url: "nyc_can-compressed.glb", size: 3181560'));
+// THE BYTE-ACCURATE PRELOAD LAW: the table's size for each model must equal the file's real
+// bytes (the asset gate's progress + ETA are computed from it), so the suites READ the number off
+// disk instead of freezing a constant - a re-baked model (the v1.0.560 texture budget did exactly
+// that) updates the law with the file, and a stale table still goes red.
+const _sz = (f) => (fs.existsSync(path.join(DIR, f)) ? fs.statSync(path.join(DIR, f)).size : -1);
+check("PRELOAD has the truck's real bytes (the byte-accurate table)",
+  new RegExp('url: "nyc_truck-compressed\\.glb",\\s*size: ' + _sz("nyc_truck-compressed.glb")).test(html));
+check("PRELOAD has the can's real bytes (the byte-accurate table)",
+  new RegExp('url: "nyc_can-compressed\\.glb",\\s*size: ' + _sz("nyc_can-compressed.glb")).test(html));
 check('old nyc_truck.glb no longer loaded/preloaded', !/getModelUrl\("nyc_truck\.glb"\)/.test(html) && !/url: "nyc_truck\.glb"/.test(html));
 check('old nyc_can.glb no longer loaded/preloaded', !/getModelUrl\("nyc_can\.glb"\)/.test(html) && !/url: "nyc_can\.glb"/.test(html));
 

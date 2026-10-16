@@ -5366,7 +5366,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.560</div>
+          <div id="app-version" class="menu-version">v1.0.561</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5673,7 +5673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.560';
+      const APP_VERSION = '1.0.561';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -11586,8 +11586,11 @@
       // (static servers ignore query strings), so we just re-fetch the same file under a new
       // key. To bust a different asset later, add/raise its value here.
       const _modelCacheVersions = {
-        "nyc_truck-compressed.glb": 2, // v2: 31.4MB->5.3MB re-compress (Draco); KHR_texture_transform + EXT_texture_webp preserved
+        "nyc_truck-compressed.glb": 3, // v3: THE TEXTURE BUDGET (v1.0.560) - its 2048² sheets re-baked to 1024² by scripts/shrink-glb-textures.mjs (5.30MB -> 4.66MB, 64MB -> 16MB of GPU texture upload); Draco meshes / materials untouched
         "shovelcompressed.glb": 1, // v1: meshy.ai coal shovel Draco re-compress (19.4MB -> 0.87MB; KHR_draco_mesh_compression + EXT_texture_webp, decimated 59,184->29,592 tris) — same native extents as the DELETED shovel.glb, verified by _shovel_compressed_probe.mjs
+        "bec-compressed.glb": 1, // v1: 2048² -> 1024² texture re-bake (0.62MB -> 0.23MB, 64MB -> 16MB of GPU upload)
+        "nyc_can-compressed.glb": 1, // v1: 2048² -> 1024² texture re-bake (3.18MB -> 0.18MB - its three sheets were most of the can's payload)
+        "red_bull_energy_drink_can-compressed.glb": 1, // v1: its 2048x1024 sheet re-baked to 1024x512 (0.30MB -> 0.23MB)
       };
       function _modelCacheKey(url) {
         const v = _modelCacheVersions[url];
@@ -11797,6 +11800,55 @@
         }
         return gltfLoader;
       }
+      // ==================== THE TEXTURE BUDGET (the GPU-memory ceiling) ==================
+      // THE HOTSPOT THE MOBILE AUDIT FOUND: nine 2048² sheets ride inside the truck / trash-can /
+      // BEC models - 12.6 M texels apiece, ~212 MB of GPU upload on an iPhone - to paint objects
+      // that occupy a few hundred PIXELS of a 320-540p buffer. The phone pays for texels the game
+      // can never show, and it is the single biggest memory number in the shift (iOS jetsam reads
+      // GPU memory, so an oversized texture is not just slow, it is why the tab gets killed).
+      // THE LAW: no model texture is uploaded above MAX_TEX on the side. The clamp runs at the
+      // loader choke - every GLB's materials are re-sampled ONCE at load (a one-time canvas blit
+      // per texture, the model's own pixels are never touched), and the download payload is
+      // re-baked offline by scripts/shrink-glb-textures.mjs so the phone never fetches what it
+      // cannot use. MAX_TEX: 1024² covers a 540p buffer's diagonal with room for the truck's
+      // close-up pass; a hi-end player at NATIVE keeps the source sheets (the clamp only bites
+      // above the ceiling).
+      const MAX_TEX = 1024;
+      function clampTextureToBudget(tex) {
+        // Returns 1 when a sheet was re-sampled, 0 when it was already inside the budget.
+        if (!tex || !tex.image) return 0;
+        var im = tex.image;
+        var w = im.naturalWidth || im.width || 0,
+          h = im.naturalHeight || im.height || 0;
+        if (!w || !h || (w <= MAX_TEX && h <= MAX_TEX)) return 0;
+        var k = MAX_TEX / Math.max(w, h); // the aspect stays exactly as the artist set it
+        var c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(w * k));
+        c.height = Math.max(1, Math.round(h * k));
+        var g = c.getContext("2d");
+        if (!g) return 0;
+        g.drawImage(im, 0, 0, c.width, c.height);
+        tex.image = c;
+        tex.needsUpdate = true; // three uploads the canvas as the new texture, and the big sheet is GC'd
+        return 1;
+      }
+      var TEX_BUDGET_CLAMPS = 0; // what the clamp re-sampled this session (the perf line reports it)
+      function clampGltfTextures(gltf) {
+        if (!gltf || !gltf.scene) return 0;
+        var n = 0;
+        const MAPS = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "alphaMap", "bumpMap", "displacementMap"];
+        gltf.scene.traverse(function (o) {
+          if (!o.isMesh || !o.material) return;
+          var mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (var i = 0; i < mats.length; i++) {
+            for (var j = 0; j < MAPS.length; j++) {
+              if (mats[i][MAPS[j]]) n += clampTextureToBudget(mats[i][MAPS[j]]);
+            }
+          }
+        });
+        TEX_BUDGET_CLAMPS += n;
+        return n;
+      }
       // Load nyc_truck-compressed.glb once and bake it into FBX_TPL.truck (the truck template).
       async function loadTruckGltf() {
         if (FBX_TPL.truck) return Promise.resolve(true);
@@ -11808,7 +11860,8 @@
             res.url,
             (gltf) => {
               try {
-                const scene = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const scene = gltf.scene;
                 scene.updateWorldMatrix(true, true);
                 const tpl = fbxExtract(scene);
                 // nyc_truck(-compressed).glb native space (verified against the GLB's geometry and
@@ -11883,7 +11936,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 model.updateMatrixWorld(true);
                 const box = new THREE.Box3().setFromObject(model);
                 model.traverse((o) => {
@@ -11963,7 +12017,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 const mats = [];
                 model.traverse((o) => {
                   if (!o.isMesh) return;
@@ -12047,7 +12102,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 model.traverse((o) => {
                   if (!o.isMesh) return;
                   o.castShadow = true;
@@ -12259,7 +12315,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 // The Blender export includes a stray default "Cube" (2x2x2 at the origin) as a
                 // second scene root — strip it so only the actual basket renders.
                 const stray = model.getObjectByName("Cube");
@@ -43968,7 +44025,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 model.traverse((o) => {
                   if (!o.isMesh) return;
                   o.castShadow = true;
@@ -44077,7 +44135,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 model.traverse((o) => {
                   if (!o.isMesh) return;
                   o.castShadow = true;
@@ -44202,7 +44261,8 @@
             res.url,
             (gltf) => {
               try {
-                const model = gltf.scene;
+                clampGltfTextures(gltf); // THE TEXTURE BUDGET: no sheet above MAX_TEX reaches the GPU
+              const model = gltf.scene;
                 model.traverse((o) => {
                   if (!o.isMesh) return;
                   o.castShadow = true;
@@ -58554,18 +58614,18 @@
       // them, so they keep their existing "cache as they play" behaviour (see SFX radio
       // code) and are never required before the game can start.
       const PRELOAD_ASSETS = [
-        { url: "nyc_truck-compressed.glb", size: 5295160, label: "DSNY TRUCK" },
+        { url: "nyc_truck-compressed.glb", size: 4890192, label: "DSNY TRUCK" },
         {
           url: "bec-compressed.glb",
-          size: 621776,
+          size: 234148,
           label: "BEC",
         },
         {
           url: "red_bull_energy_drink_can-compressed.glb",
-          size: 300664,
+          size: 227388,
           label: "RUN IT UP",
         },
-        { url: "nyc_can-compressed.glb", size: 3181560, label: "GARBAGE CAN" },
+        { url: "nyc_can-compressed.glb", size: 182944, label: "GARBAGE CAN" },
         { url: "litterReduced2.glb", size: 335980, label: "LITTER BASKET" },
         { url: "car-compressed.glb", size: 15280, label: "CARS" },
         {

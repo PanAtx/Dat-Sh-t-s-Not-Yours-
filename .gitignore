@@ -55,3 +55,6 @@ _site/
 _music_orig/
 _music_enc/
 
+_texbake_tmp/
+_texreport_tmp/
+_texdump/
