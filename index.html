@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.547</div>
+          <div id="app-version" class="menu-version">v1.0.548</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.547';
+      const APP_VERSION = '1.0.548';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -33939,6 +33939,7 @@
           // the wire mesh (a flat plane, semi-transparent for the chain look)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(fenceW, fenceH), meshM);
           mesh.position.set(cx, fenceY, GZ + fenceH / 2 + 0.05);
+          mesh.rotation.x = Math.PI / 2; // stand the plane upright (Z = up in this game)
           g.add(mesh);
           // top rail
           const rail = new THREE.Mesh(new THREE.BoxGeometry(fenceW, 0.08, 0.05), railM);
@@ -33969,7 +33970,7 @@
             const sideMesh = new THREE.Mesh(new THREE.PlaneGeometry(depth - 0.3, fenceH), meshM);
             const sx = s === 0 ? gx + 0.3 : gx + IW - 0.3;
             sideMesh.position.set(sx, (fenceY + backY - 0.3) / 2, GZ + fenceH / 2 + 0.05);
-            sideMesh.rotation.y = Math.PI / 2;
+            sideMesh.rotation.set(Math.PI / 2, 0, Math.PI / 2); // upright, running along Y
             g.add(sideMesh);
           }
         }
