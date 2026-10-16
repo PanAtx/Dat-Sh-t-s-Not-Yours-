@@ -20,6 +20,9 @@
         at ~half on LOW; the heart window and the shovel's parry tail widen
         15% on LOW and stay byte-identical on FULL (the desktop law the night
         suites assert); the governor is the ONLY new per-frame loop cost.
+        THE TRAINER PAYS THE SAME TIER, IN HALVES, ON THE ONE RULE: balls in
+        flight 600 -> 300 (the parked half sits at the deep end, never frozen in
+        the tunnel), marquee chars bent 17 -> 9, ghost-trail arcs 16 -> 8.
    The profile block and the governor run LIVE in vm sandboxes, like the
    layout suites run the street.
    Run: node _mobile_perf_chk.js
@@ -405,6 +408,96 @@ console.log('[4] THE FX TIER — what costs what, per tier');
     loopSrc.includes('mobileGovernorTick(now);') &&
       (src.match(/mobileGovernorTick\(now\);/g) || []).length === 1 &&
       (src.match(/function mobileGovernorTick\(/g) || []).length === 1);
+}
+
+console.log('');
+console.log('[5] THE TRAINER TIER — the demo scene spends itself on the SAME one rule (live sandbox)');
+{
+  const num = (k) => parseFloat(src.split(k + ' = ')[1]);
+  const fn = (name) => extractFn(src, name); // this suite's extractor takes (text, name)
+  const STARS = num('STAR_N'), FAR = num('STAR_FAR'), BH = num('BEND_HALF');
+  const FULL = 2, LOW = 1; // the fxTier() contract: 2 = full desktop tier, 1 = LOW
+
+  // ---- THE STARFIELD, RUN FOR REAL: how many balls does a frame actually move? ----
+  function makeStage(tier) {
+    const body = fn('trainerHalf') + '\n' + fn('starSpawn') + '\n' + fn('trainerRender');
+    const calls = { setXYZ: 0, renders: 0, z: new Array(STARS).fill(0) };
+    const make = new Function(
+      'TRAINER', 'fxTier', 'STAR_N', 'STAR_SPREAD', 'STAR_FAR', 'STAR_SPEED', 'SPIN_MAX', 'SPIN_FREQ', 'calls',
+      body + '\nreturn { render: function (dt) { trainerRender(dt); }, half: function () { return trainerHalf(); } };',
+    );
+    const data = [];
+    for (let i = 0; i < STARS; i++) data.push({ x: i, y: i * 0.5, z: -i * 0.2, size: 1 });
+    const TRAINER = {
+      renderer: { render() { calls.renders++; } }, scene: {}, camera: {},
+      stars: {
+        rotation: { z: 0 },
+        geometry: { attributes: { position: {
+          needsUpdate: false,
+          setXYZ(i, x, y, z) { calls.setXYZ++; calls.z[i] = z; data[i].x = x; data[i].y = y; data[i].z = z; },
+        } } },
+      },
+      starData: data, starMat: null, rotPhase: 0, starActive: 0,
+    };
+    const api = make(TRAINER, () => tier, STARS, num('STAR_SPREAD'), FAR, num('STAR_SPEED'), num('SPIN_MAX'), num('SPIN_FREQ'), calls);
+    return { api, calls, data };
+  }
+  check('the tier is ONE rule for the trainer too (fxTier() === 1 answers the divisor, no second flag, and the star pass never touches fxRate)',
+    fn('trainerHalf').includes('fxTier() === 1 ? 2 : 1') &&
+      !fn('trainerRender').includes('fxTier()') &&
+      !fn('trainerRender').includes('fxRate('),
+    'fxRate sites in trainerRender=' + (fn('trainerRender').match(/fxRate\(/g) || []).length);
+
+  const fullStage = makeStage(FULL);
+  fullStage.api.render(1 / 60);
+  check('FULL tier: every ball flies — a frame writes all ' + STARS + ' positions (the shipped desktop scene)',
+    fullStage.calls.setXYZ === STARS && fullStage.api.half() === 1, 'setXYZ=' + fullStage.calls.setXYZ);
+
+  const low = makeStage(LOW);
+  low.api.render(1 / 60); // transition frame: the far half is PARKED once, out at the deep end
+  const parkedZ = low.calls.z.slice(STARS / 2);
+  const firstActiveZ = low.calls.z.slice(0, STARS / 2);
+  check('LOW tier: the transition frame parks the far half AT THE DEEP END (-STAR_FAR, where every ball spawns) — fewer balls in flight, never frozen balls in the tunnel',
+    low.api.half() === 2 && parkedZ.every((z) => z === -FAR),
+    'parked z=' + parkedZ[0] + ' (spawn depth -' + FAR + ')');
+  low.calls.setXYZ = 0;
+  for (let f = 0; f < 3; f++) low.api.render(1 / 60);
+  check('LOW tier steady: HALF the balls animate per frame (' + (STARS / 2) + ' x 3 frames) and the park cost is paid ONCE, never per frame',
+    low.calls.setXYZ === (STARS / 2) * 3, 'setXYZ=' + low.calls.setXYZ);
+  const moved = low.calls.z.slice(0, STARS / 2).some((z, i) => z !== firstActiveZ[i]);
+  check('the parked half stays parked while the active half keeps flying (the fly/recycle law is untouched)',
+    low.calls.z.slice(STARS / 2).every((z) => z === -FAR) && moved);
+  const backUp = makeStage(FULL);
+  backUp.api.render(1 / 60);
+  check('FULL tier again: the whole field flies back — no half is left stranded (' + STARS + ' writes a frame)',
+    backUp.calls.setXYZ === STARS, 'setXYZ=' + backUp.calls.setXYZ);
+
+  // ---- THE RUBBER BAND: how many characters does one pluck deform? ----
+  function bandChars(tier) {
+    const body = fn('trainerHalf') + '\n' + fn('tbEnsureSpanX') + '\n' +
+      fn('tbCenterIndex') + '\n' + fn('tbPaintText');
+    const make = new Function(
+      'TRAINER', 'TB', 'fxTier', 'BEND_HALF',
+      body + '\nreturn function () { tbPaintText(); return TRAINER.spans.filter((s) => s.style.transform !== "").length; };',
+    );
+    const spans = [];
+    // style.transform starts as the EMPTY string, exactly like the page sets it when it clears a
+    // bent character - a bare {} would read as "already bent" and count the whole strip.
+    for (let i = 0; i < 80; i++) spans.push({ offsetLeft: 40 + i * 12, offsetWidth: 12, style: { transform: "" } });
+    const TRAINER = { spans, scrollX: 0 };
+    const TB = { bend: 22, bendV: 0, lastHitX: 400, bentSpans: [], spanX: null };
+    return make(TRAINER, TB, () => tier, BH)();
+  }
+  const fullChars = bandChars(FULL), lowChars = bandChars(LOW);
+  check('the marquee band bends HALF as many characters on LOW (' + lowChars + ' vs the shipped ' + fullChars + ') — a narrower window, the same pluck + cosine bell',
+    fullChars === BH * 2 + 1 && lowChars === (BH / 2) * 2 + 1,
+    'FULL=' + fullChars + ' LOW=' + lowChars);
+  check('THE STREAK PAYS TOO: the ghost trail keeps 16 arcs on FULL and 8 on LOW (every one is a beginPath + a fill on the 2D layer)',
+    src.includes('if (TB.trail.length > 16 / trainerHalf()) TB.trail.shift();') &&
+      !src.includes('if (TB.trail.length > 16) TB.trail.shift();'));
+  check('THE TRAINER TIER COSTS NOTHING IT DID NOT ALREADY SPEND: no new system behind the flag — it gates exactly three existing sites (balls / band / streak)',
+    (src.match(/trainerHalf\(\)/g) || []).length === 4, // the definition + the three gates
+    'trainerHalf sites=' + (src.match(/trainerHalf\(\)/g) || []).length);
 }
 
 console.log('');

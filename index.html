@@ -5380,7 +5380,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.556</div>
+          <div id="app-version" class="menu-version">v1.0.557</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5689,7 +5689,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.556';
+      const APP_VERSION = '1.0.557';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -57566,6 +57566,7 @@
         TRAINER.renderer = renderer; TRAINER.scene = scene; TRAINER.camera = camera;
         TRAINER.stars = balls; TRAINER.starData = starData; TRAINER.starMat = ballMat;
         TRAINER.rotPhase = Math.random() * Math.PI * 2; // start the spin cycle at a random point
+        TRAINER.starActive = 0; // how many balls are IN FLIGHT (the tier's lever; 0 = recompute on the first frame)
         trainerResize();
       }
       function trainerResize() {
@@ -57589,6 +57590,15 @@
         var dz = STAR_SPEED * dt;
         var data = TRAINER.starData, n = data.length;
         var pos = TRAINER.stars.geometry.attributes.position;
+        // THE DEMO SCENE PAYS THE TIER TOO: on LOW, HALF the balls fly. The parked half is written
+        // ONCE out at the deep end (-STAR_FAR - exactly where every ball spawns), so a halved field
+        // reads as FEWER BALLS IN FLIGHT, never as a cluster of frozen ones hanging in the tunnel.
+        var active = (n / trainerHalf()) | 0;
+        if (active !== TRAINER.starActive) {
+          for (var k = active; k < n; k++) pos.setXYZ(k, data[k].x, data[k].y, (data[k].z = -STAR_FAR));
+          TRAINER.starActive = active;
+        }
+        n = active;
         for (var i = 0; i < n; i++) {
           var d = data[i];
           d.z += dz; // fly toward the camera (+z)
@@ -57817,6 +57827,15 @@
       var BEND_K = BEND_OMEGA * BEND_OMEGA;           // spring stiffness (w^2)
       var BEND_C = 2 * BEND_ZETA * BEND_OMEGA;        // damping coefficient (2*zeta*w)
       var BEND_HALF = 8;      // chars bent to the LEFT and to the RIGHT of the hit (16 total)
+      // THE TRAINER'S FX TIER = THE SAME ONE RULE THE MIDNIGHT FX USES: fxTier() === 1 on the
+      // small-phone profile, and on a loaned 30 fps cap (so the tier engages exactly when the
+      // render governor takes the loan, and disengages when it hands the frames back). The tier
+      // NEVER adds a system - it only spends what already exists, in halves:
+      //   balls in flight 600 -> 300 · marquee chars bent 17 -> 9 · ghost-trail arcs 16 -> 8.
+      // Returns the DIVISOR (2 on LOW, 1 on FULL) so every gate stays a simple division.
+      function trainerHalf() {
+        return typeof fxTier === "function" && fxTier() === 1 ? 2 : 1;
+      }
       // THE TRAINER'S PIXEL SCALE = THE SHIFT'S BUDGET. The star buffer already obeys RENDER_H
       // (see trainerResize); this is the 2D marquee/ball canvas, and it obeys the governor's PIXEL
       // LOAN: while a loan is live the canvas draws at 1x, because clearRect + repaint over a
@@ -57875,7 +57894,8 @@
       // deflection and `bendV` its velocity; together they form a damped harmonic oscillator.
       // On a hit the band is released from rest at BEND_PEAK, then rings: down, up past the
       // level mark, down again — vibrating until it settles straight. `lastHitX` is the
-      // screen-x where the ball hit. Only ~16 characters (BEND_HALF each side) deform.
+      // screen-x where the ball hit. Only ~16 characters (BEND_HALF each side) deform - 9 on the
+      // LOW tier (4 each side), the same window the paint pass uses.
       function tbBend(dt) {
         if (TB.bend !== 0 || TB.bendV !== 0) {
           // symplectic (semi-implicit) Euler — stable + energy-behaved for a spring
@@ -57927,8 +57947,11 @@
         TB.bentSpans.length = 0;
         if (Math.abs(TB.bend) < 0.6) return; // flat -> nothing to bend
         var center = tbCenterIndex(TB.lastHitX);
-        var i0 = Math.max(0, center - BEND_HALF);
-        var i1 = Math.min(n - 1, center + BEND_HALF);
+        // THE TIER SPENDS THE BAND TOO: on LOW, HALF the characters deform (the pluck, the cosine
+        // bell and the settle law are untouched - a narrower window, not a slower string).
+        var half = (BEND_HALF / trainerHalf()) | 0;
+        var i0 = Math.max(0, center - half);
+        var i1 = Math.min(n - 1, center + half);
         var win = (i0 + i1) / 2, spanw = Math.max(1, (i1 - i0) / 2);
         for (var i = i0; i <= i1; i++) {
           var t = (i - win) / spanw; // -1 .. 1 across the window
@@ -57945,7 +57968,9 @@
         var H = TB.h, W = TB.w, R = TB.ballR;
         // record the trail
         TB.trail.push({ x: TB.x, y: TB.y });
-        if (TB.trail.length > 16) TB.trail.shift();
+        // THE TIER SPENDS THE STREAK TOO: on LOW the ghost trail keeps HALF the history, so the
+        // 2D layer paints 8 arcs a frame instead of 16 (every one is a beginPath + a fill).
+        if (TB.trail.length > 16 / trainerHalf()) TB.trail.shift();
         // physics
         TB.vy += TB_G * H * dt;
         TB.x += TB.vx * dt;
