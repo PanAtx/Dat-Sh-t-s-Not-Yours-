@@ -5366,7 +5366,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.558</div>
+          <div id="app-version" class="menu-version">v1.0.560</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5673,7 +5673,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.558';
+      const APP_VERSION = '1.0.560';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -6081,6 +6081,7 @@
           spd: spd, // per-streak fall rates (THE FRAME-RATE LAW)
           drf: drf, // per-streak wind-catch rates
           n: RAIN_N,
+          active: RAIN_N, // the STORM LEVER draws a DRAW RANGE of this pool, never a rebuilt pool
           splashN: RAIN_SPLASH_N,
           life: new Float32Array(RAIN_SPLASH_N), // seconds of burst life left (0 = dead)
           cx: new Float32Array(RAIN_SPLASH_N),
@@ -6189,6 +6190,29 @@
       // The streak field is centered on the worker (pts.position follows him) so the storm
       // stays around him no matter where the route scrolls; each drop slants down-left and
       // respawns at the top of the box when it hits the street.
+      // THE STORM LEVER (the governor's tier ladder): the streak pool is allocated once at RAIN_N
+      // and the density on screen is a DRAW RANGE. Borrowing a lever thins the storm (220 -> 110 ->
+      // 55 streaks, same look, same physics); handing it back gives the whole sheet - the returning
+      // streaks are parked below the kill line, so the next pass re-enters them above the top edge
+      // exactly the way a landed drop does. No allocation, no rebuild, no new system.
+      function rainActiveN() {
+        if (!weatherRain) return 0;
+        return Math.max(24, Math.round(weatherRain.n * (typeof rainScale === "function" ? rainScale() : 1)));
+      }
+      function applyRainDensity() {
+        if (!weatherRain || !weatherRain.streaks) return;
+        const want = rainActiveN();
+        const prev = weatherRain.active > 0 ? weatherRain.active : weatherRain.n;
+        if (want > prev) {
+          const P = weatherRain.pos;
+          for (let i = prev; i < want; i++) {
+            P[i * 6 + 1] = -99; // below the kill line: the next update spawns it fresh at the top
+            P[i * 6 + 4] = -99;
+          }
+        }
+        weatherRain.active = want;
+        weatherRain.streaks.geometry.setDrawRange(0, want * 2); // LineSegments: 2 points per streak
+      }
       function updateWeatherRain(dt) {
         if (!weatherRain) return;
         // The puddle sheen is pinned to the camera at the very bottom edge of the frame, so it
@@ -6266,10 +6290,13 @@
         const SPD = weatherRain.spd;
         const DRF = weatherRain.drf;
         let sub = 0;
+        // The STORM LEVER (applyRainDensity): the sheet is drawn and simulated at the governor's
+        // density; with no lever out, that is the whole pool.
+        const ACTIVE = weatherRain.active > 0 ? weatherRain.active : weatherRain.n;
         while (rainAcc >= RAIN_STEP && sub < RAIN_SUB_MAX) {
           rainAcc -= RAIN_STEP;
           sub++;
-          for (let i = 0; i < weatherRain.n; i++) {
+          for (let i = 0; i < ACTIVE; i++) {
             const o = i * 6;
             const drift = driftRate * DRF[i] * RAIN_STEP; // this streak's share of the wind
             const fall = fallRate * SPD[i] * RAIN_STEP; // ...and of the descent
@@ -8420,18 +8447,118 @@
           if (typeof $ === "function" && $("settingsBox")) $("settingsBox").appendChild(__lp);
         } catch (e) {}
       }
-      // ==================== THE RENDER GOVERNOR (mobile frame-time hysteresis) ==========
+      // ==================== THE DRAW LEDGER (what the game spends per frame) ============
+      // THE MEASUREMENT THE PERFORMANCE WORK IS BUILT ON: the game has never measured itself,
+      // so every optimisation here is instrumented. Two numbers, both cheap:
+      //   perfMarkRender(ms) - the wall time spent INSIDE renderer.render() (the draw+shadow
+      //     pass cost, the honest "work" metric the governor rules on: a frame capped at 30fps
+      //     is not an expensive frame);
+      //   renderer.info - draw calls, triangles, geometries/textures in flight, read for the
+      //     #perfLine HUD (a line the player can turn on with ?perf=1) and the trainer readout.
+      // The HUD costs one string build every 30 frames and nothing in normal play.
+      var _perfT = 0, // 1 once the ledger has measured at least one draw
+        _perfRenderMs = 0, // median draw ms of the frames since the last verdict
+        _perfMsSum = 0,
+        _perfMsN = 0,
+        _perfFrames = 0,
+        _perfLastDraws = 0,
+        _perfLastTris = 0,
+        _perfLastGeo = 0,
+        _perfLastTex = 0;
+      function perfMarkRender(ms) {
+        if (!(ms >= 0) || ms > 1000) return; // a paused tab / clock jump is not a sample
+        _perfMsSum += ms;
+        _perfMsN++;
+        _perfT = 1;
+      }
+      function perfTakeMedian() {
+        // The average cost of ONE draw over every frame since the last verdict.
+        // 0 = nothing measured (a sandbox / a screen that does not draw): the governor then
+        // rules on the frame cadence alone.
+        if (!_perfMsN) return 0;
+        const m = _perfMsSum / _perfMsN;
+        _perfMsSum = 0;
+        _perfMsN = 0;
+        return m;
+      }
+      function perfReadout() {
+        // The raw self-portrait: three's counters + the ledger + the governor's tier.
+        const info = typeof renderer !== "undefined" && renderer && renderer.info ? renderer.info : null;
+        if (info) {
+          _perfLastDraws = info.render.calls;
+          _perfLastTris = info.render.triangles;
+          _perfLastGeo = info.memory.geometries;
+          _perfLastTex = info.memory.textures;
+        }
+        return {
+          draws: _perfLastDraws,
+          tris: _perfLastTris,
+          geo: _perfLastGeo,
+          tex: _perfLastTex,
+          renderMs: Math.round(_perfRenderMs * 10) / 10,
+          tier: govTierLabel(),
+        };
+      }
+      function wirePerfHud() {
+        // The player-facing line: hidden unless ?perf=1 (which seals the key) or the key is set.
+        try {
+          if (/[?&]perf=1(?:&|$)/.test(location.search)) localStorage.setItem("dsnysweep_perf", "1");
+        } catch (e) {}
+        var el = document.createElement("div");
+        el.id = "perfLine";
+        el.className = "hidden";
+        el.style.cssText =
+          "position:fixed;left:12px;bottom:12px;z-index:40;font-size:10px;letter-spacing:2px;" +
+          "color:#9fe8ff;opacity:.85;pointer-events:none;text-shadow:0 1px 2px #000";
+        document.body.appendChild(el);
+        window._perfHudEl = el;
+        try {
+          if (localStorage.getItem("dsnysweep_perf") === "1") el.className = "";
+        } catch (e) {}
+      }
+      function perfHudTick(gapMs) {
+        // Called once per drawn frame; the string is built every 30 frames, not every frame.
+        if (gapMs > 0) window._perfLastGapMs = gapMs;
+        var el = window._perfHudEl;
+        if (!el || el.className !== "") return;
+        _perfFrames++;
+        if (_perfFrames % 30) return;
+        const r = perfReadout();
+        el.textContent =
+          "PERF " +
+          (1000 / Math.max(1, frameGapMs())).toFixed(1) +
+          "fps " + r.draws + "dc " + r.tris + "tri geo" + r.geo + " tex" + r.tex +
+          " draw" + r.renderMs + "ms " + r.tier;
+      }
+      function frameGapMs() {
+        // The cadence the cap is letting through, as last measured by a drawn frame.
+        return window._perfLastGapMs > 0 ? window._perfLastGapMs : 1000 / 60;
+      }
+      // ==================== THE RENDER GOVERNOR (mobile frame-COST hysteresis) ==========
       // A shovel-timing game is only FAIR while it draws: a 24 fps midnight reads as a broken
-      // game, not a hard one. The governor watches the RENDERED frame times (the ones the cap
-      // let through - the honest ones) and rules in VERDICTS of GOV_WINDOW frames: a row of
-      // GOV_HI_VERDICTS slow verdicts steps the buffer ONE RUNG DOWN the biggest-first ladder
-      // GOV_LADDER (720 -> 540 -> 320) - about 2 s of slow frames; once the pixels bottom out on
-      // the 320P FLOOR the same slow row takes the FRAME CAP down with it (GOV_FPS_LADDER: 60 -> 30,
-      // which halves the boss storm through fxTier). Every step pays a GOV_LOCK verdict lockout
-      // (about 5 s) so one noisy second can never trigger the next.
+      // game, not a hard one. The governor watches the frames the cap lets through and rules in
+      // VERDICTS of GOV_WINDOW frames. A row of GOV_HI_VERDICTS EXPENSIVE verdicts borrows ONE
+      // LEVER (GOV_LOCK verdicts of lockout after every step, so one noisy second never chains);
+      // a row of GOV_OK_VERDICTS CLEAN verdicts hands ONE LEVER back, each re-arming the same
+      // GOV_LOCK so the climb out of a loan crawls as steadily as the descent.
+      // THE MEASUREMENT LAW (v1.0.560): a verdict is a RATIO against the frame budget the cap
+      // allows - never an absolute millisecond. THE OLD LAW WAS SELF-REFERENTIAL (a fixed 24 ms
+      // "slow" line against a 33 ms budget): while the cap sat at 30 fps, EVERY frame read as
+      // slow, so a loan's only exit was the rare burst of 17 ms frames and a weak phone kept its
+      // 320P/30fps loan for the whole shift. Under the ratio law a cadence sitting on its own
+      // budget is CLEAN, and half of the verdict is the DRAW LEDGER's own number - how much of
+      // the budget renderer.render() actually ate - so the governor measures the GPU, not its
+      // own frame cap.
+      // THE TIER LADDER (T0 -> T4): T0 is the SETTINGS PAGE. The levers, in borrow order:
+      // buffer RUNGS (720 -> 540 -> 320, biggest-first, ONE rung per verdict row), then the FRAME
+      // CAP (60 -> 30, which halves the boss storm through fxTier), then SHADOWS to LO, shadows
+      // OFF, the CRT overlays OFF, then the storm to half its streaks and to a quarter. The plan
+      // is BUILT FROM THE SETTINGS, so a row the player already owns is never in it, and a
+      // hand-picked 240P (ATARI 2600) buffer sits OFF the ladder entirely - its pixels are the
+      // player's, only its frame time is on the table.
       // THE RETURN LAW — THE SETTINGS PAGE IS THE TARGET, NOT THE LAST VERDICT: _govTargetRes /
-      // _govTargetFps hold what the SETTINGS PAGE says. The governor is a TEMPORARY LOAN of pixels,
-      // never a re-write of the menu: it NEVER touches localStorage, and GOV_OK_VERDICTS clean
+      // _govTargetFps hold what the SETTINGS PAGE says. The governor is a TEMPORARY LOAN of
+      // pixels, never a re-write of the menu: it NEVER touches localStorage, and GOV_OK_VERDICTS clean
       // verdicts (about 8 s) climb the WHOLE way back - the frame cap first (it costs no buffer
       // resize), then rung by rung UP the ladder (320 -> 540 -> 720) and on to a NATIVE target -
       // so the pixelization walks away after a while when the gameplay improves. The climb is
@@ -8459,17 +8586,117 @@
         _govDrops = 0, // ladder rungs of buffer held BELOW the settings pick
         _govNatDropped = 0, // 1 while a NATIVE (0) settings pick is loaned out as 720P
         _govFpsDrops = 0, // 1 while the settings frame cap is loaned down to 30
+        _govShadowLoan = 0, // 1 = shadows borrowed down to LO, 2 = borrowed OFF entirely
+        _govCrtLoan = 0, // 1 while the CRT overlays are borrowed off
+        _govRain = 1, // the storm density on screen (1 / 0.5 / 0.25 - a DRAW RANGE, not a rebuild)
+        _govLent = 0, // how many levers of govPlan() are on loan right now (the tier)
         _govTargetRes = RENDER_H, // what the SETTINGS PAGE says the buffer is: the return address
-        _govTargetFps = FPS_CAP; // what the SETTINGS PAGE says the cap is: the return address
+        _govTargetFps = FPS_CAP, // what the SETTINGS PAGE says the cap is: the return address
+        _govSettingsShadow = typeof SHADOW_SIZE === "undefined" ? 2048 : SHADOW_SIZE, // the player's shadow row
+        _govSettingsCrt = 1; // the player's CRT row; CRT_ON is declared below, so govAdoptSettings reads it live
       const GOV_WINDOW = 12,
-        GOV_HI_MS = 24,
-        GOV_OK_MS = 17.5,
         GOV_HI_VERDICTS = 5,
         GOV_OK_VERDICTS = 40,
         GOV_LOCK = 15, GOV_LADDER = [720, 540, 320]; // biggest-first: one rung at a time
       const GOV_FPS_LADDER = [60, 30]; // the frame-cap half of the loan, same hysteresis
+      // THE RATIOS (the measurement fix): cadence vs the cap's own budget, and the ledger's draw
+      // ms vs the SAME budget. EXPENSIVE = late for the cap AND the draw ate its share of the
+      // budget; CLEAN = on time for the cap AND the draw spent little of it. At a 30 fps cap the
+      // budget is 33.3 ms, so a 33.3 ms cadence reads CLEAN (GOV_OK_RATIO 1.15) - the return path
+      // stays open at the bottom of the ladder, which the old absolute 24 / 17.5 ms lines made
+      // mathematically shut.
+      const GOV_HI_RATIO = 1.45,
+        GOV_OK_RATIO = 1.15,
+        GOV_HI_WORK = 0.6,
+        GOV_OK_WORK = 0.35;
       function _govRung(h) {
         return GOV_LADDER.indexOf(h === 0 ? 720 : h); // NATIVE enters at the top rung; 240P is off it
+      }
+      function govBudgetMs() {
+        return 1000 / (FPS_CAP > 0 ? FPS_CAP : 60); // the budget the CURRENT cap allows
+      }
+      function govPlan() {
+        // THE LEND PLAN, BUILT FROM THE SETTINGS PAGE: every lever appears once, the player's own
+        // pick is T0, and a row the player already owns is never in the plan (a 320P pick has no
+        // buffer rung to lend; a LO pick goes straight to shadows-off; a player with the CRT off
+        // never lends it). THE PLAN IS THE LADDER - its length is the deepest tier.
+        const p = [];
+        const rung = _govRung(_govTargetRes); // -1 for the ATARI hand-pick: off the ladder
+        // The rung levers: ONE per step down. A NATIVE (0) pick needs THREE - 720, 540, 320 -
+        // because NATIVE sits ABOVE the ladder's top rung and comes back as itself at zero levers.
+        const nRungs = rung < 0 ? 0 : _govTargetRes === 0 ? GOV_LADDER.length : GOV_LADDER.length - 1 - rung;
+        for (let i = 0; i < nRungs; i++) p.push("res");
+        if (_govTargetFps > GOV_FPS_LADDER[1]) p.push("cap");
+        if (_govSettingsShadow >= 2048) p.push("shadow");
+        p.push("shadowoff");
+        if (_govSettingsCrt) p.push("crt");
+        p.push("rain", "rainhalf");
+        return p;
+      }
+      function _govIn(plan, name, k) {
+        // How many levers called `name` sit inside the first k of the plan.
+        let n = 0;
+        for (let i = 0; i < k && i < plan.length; i++) if (plan[i] === name) n++;
+        return n;
+      }
+      function govApplyLent(k) {
+        // APPLY A TIER WHOLESALE: every live value is DERIVED from the lever count, so the state is
+        // always exactly the plan's first k levers and can never drift out of order. THE SETTINGS
+        // KEYS ARE NEVER TOUCHED - this is live state, and k = 0 IS the player's own page.
+        const plan = govPlan();
+        _govLent = Math.max(0, Math.min(plan.length, k));
+        const nRes = _govIn(plan, "res", _govLent);
+        const prevH = RENDER_H; // only a BUFFER rung re-sizes what draws; the other levers do not
+        const rung = _govRung(_govTargetRes);
+        if (rung >= 0) {
+          // A NATIVE pick steps NATIVE -> 720 -> 540 -> 320 (one lever each, and back the same way);
+          // every other pick steps its own rung -> the next rung down.
+          const nRung = Math.min(GOV_LADDER.length - 1, _govTargetRes === 0 ? nRes - 1 : rung + nRes);
+          RENDER_H = nRung < 0 ? _govTargetRes : GOV_LADDER[nRung]; // GOV_LADDER[rung + nRes], one lever per rung
+          if (_govTargetRes === 0 && RENDER_H !== 0) _govNatDropped = 1;
+          else _govNatDropped = 0;
+          _govDrops = RENDER_H === _govTargetRes ? 0 : nRes;
+        } else {
+          RENDER_H = _govTargetRes; // the ATARI buffer is the player's pixels, never a target
+          _govNatDropped = 0;
+          _govDrops = 0;
+        }
+        FPS_CAP = _govIn(plan, "cap", _govLent) ? GOV_FPS_LADDER[1] : _govTargetFps;
+        _govFpsDrops = _govIn(plan, "cap", _govLent) ? 1 : 0;
+        const nOff = _govIn(plan, "shadowoff", _govLent);
+        const nSh = _govIn(plan, "shadow", _govLent);
+        if (typeof SHADOW_SIZE !== "undefined") SHADOW_SIZE = nOff ? 0 : nSh ? 1024 : _govSettingsShadow;
+        _govShadowLoan = nOff ? 2 : nSh ? 1 : 0;
+        _govCrtLoan = _govIn(plan, "crt", _govLent) ? 1 : 0;
+        const nRain = _govIn(plan, "rain", _govLent) + _govIn(plan, "rainhalf", _govLent);
+        _govRain = nRain >= 2 ? 0.25 : nRain === 1 ? 0.5 : 1;
+        govDeployDraw(prevH !== RENDER_H);
+      }
+      function govDeployDraw(bufferMoved) {
+        // PUSH THE TIER INTO WHAT DRAWS: the shift buffer, the trainer buffer + its 2D canvas, the
+        // shadow map (its size, and the shadow pass itself), the CRT overlays, and the storm's draw
+        // range. Every setter here is the SAME one the settings rows use - no second system. Only a
+        // BUFFER rung re-sizes the screens that draw (one re-size per loan step, never one per frame).
+        const plan = govPlan();
+        const nSh = _govIn(plan, "shadow", _govLent) + _govIn(plan, "shadowoff", _govLent);
+        if (nSh > 0 && typeof applyShadowQuality === "function") applyShadowQuality();
+        if (nSh > 0 && typeof SHADOW_SIZE !== "undefined" && typeof renderer !== "undefined" && renderer && renderer.shadowMap)
+          renderer.shadowMap.enabled = SHADOW_SIZE > 0;
+        if (typeof applyRainDensity === "function") applyRainDensity();
+        if (typeof applyCrt === "function") applyCrt();
+        if (bufferMoved) {
+          _govResizeAll();
+          if (typeof setResLabel === "function") setResLabel();
+        }
+        if (typeof setFpsLabel === "function") setFpsLabel();
+        if (typeof setShadowLabel === "function") setShadowLabel();
+        if (typeof setScanLabel === "function") setScanLabel();
+      }
+      function govTierLabel() {
+        return "T" + _govLent; // T0 = the settings page, T1.. = the count of borrowed levers
+      }
+      function rainScale() {
+        return typeof _govRain === "number" ? _govRain : 1;
       }
       function _govResizeAll() {
         // THE LOAN TOUCHES EVERY SCREEN THAT DRAWS: the shift's buffer, and - while the trainer is
@@ -8482,8 +8709,9 @@
         }
       }
       function _govManaged() {
-        // True while ANY pixels / frame time are on loan from the player's settings.
-        return _govDrops > 0 || _govNatDropped > 0 || _govFpsDrops > 0;
+        // True while ANY of the player's pixels, frame time, shadows, CRT overlays or storm are on
+        // loan from the settings page.
+        return _govLent > 0;
       }
       function _govLoanRes() {
         return _govManaged() && RENDER_H !== _govTargetRes; // the buffer sits below what SETTINGS says
@@ -8491,15 +8719,27 @@
       function _govLoanFps() {
         return _govManaged() && FPS_CAP !== _govTargetFps; // the cap sits below what SETTINGS says
       }
+      function _govLoanShadow() {
+        return _govShadowLoan > 0; // shadows borrowed to LO (1) or off (2)
+      }
+      function _govLoanCrt() {
+        return _govCrtLoan > 0; // the CRT overlays are borrowed off
+      }
+      function _govLoanRain() {
+        return rainScale() < 1; // the storm is drawn thinner than the weather says
+      }
       function govAdoptSettings() {
         // THE SETTINGS PAGE IS THE LAW. A menu press re-baselines the governor: the player's new
-        // pick becomes the recovery target and every loaned rung / cap is handed straight back.
-        // The governor can never outrank this - it has no source of truth but these two values.
+        // pick becomes the recovery target and every lever is handed straight back. The governor
+        // can never outrank this - it has no source of truth but these values.
         _govTargetRes = RENDER_H;
         _govTargetFps = FPS_CAP;
+        if (typeof SHADOW_SIZE !== "undefined" && SHADOW_SIZE > 0) _govSettingsShadow = SHADOW_SIZE; // a row press sets the player's shadow
+        _govSettingsCrt = typeof CRT_ON === "boolean" && CRT_ON ? 1 : 0; // ...and the player's CRT
         _govDrops = 0;
         _govNatDropped = 0;
         _govFpsDrops = 0;
+        govApplyLent(0); // THE WHOLE LADDER BACK: pixels, cap, shadows, CRT, storm - at once
         _govHi = 0;
         _govOk = 0;
         setResLabel(); // the labels drop their loan arrows with the loan
@@ -8507,85 +8747,70 @@
         if (typeof setGovNote === "function") setGovNote();
       }
       function mobileGovernorTick(now) {
-        if (!renderer) return;
-        // THE LIVE SCREENS: the shift AND the trainer menu. The trainer is a real 3D scene running
-        // the same rAF loop on the same GPU - a phone that cannot hold the midnight frames cannot
-        // hold the starfield either, and the sluggish trainer was the proof. The menu, the pause,
-        // the portrait freeze, the dying sequence and the cinematics stay SKIPPED: their frame cost
-        // is not the fight, and an idle menu must never size the buffer for a shift that is not on.
+        if (!renderer) return; // the shift is not live yet
         if ((state !== "play" && state !== "trainer") || paused) {
           _govPrevNow = 0;
-          _govHi = _govOk = 0;
+          _govHi = 0;
+          _govOk = 0;
+          if (typeof perfTakeMedian === "function") perfTakeMedian(); // stale samples are not a verdict
           return;
         }
         const d = now - _govPrevNow;
         _govPrevNow = now;
-        if (d <= 0 || d > 500) return; // first frame after any freeze
+        if (d <= 0 || d > 500) return; // background tab / long stall: cadence is meaningless
         _govMsSum += d;
         _govMsN++;
         if (_govMsN < GOV_WINDOW) return; // warmup: no verdict on a handful of frames
         const med = _govMsSum / _govMsN;
         _govMsSum = 0;
         _govMsN = 0;
+        // THE VERDICT (the measurement law): TWO ratios against ONE budget - the frame time the cap
+        // allows (1000 / FPS_CAP). The cadence half measures the loop against that budget, so a
+        // 30 fps cadence sitting on its own 33 ms budget reads CLEAN, not slow: at the bottom of
+        // the ladder the return path stays open (the old fixed 24 / 17.5 ms lines shut it - every
+        // frame looked slow once the cap was loaned, and the loan lasted the shift). The work half
+        // measures what renderer.render() itself spent, from the Draw Ledger; with no draw samples
+        // (a sandbox, a screen that does not draw) the cadence rules alone.
+        const work = typeof perfTakeMedian === "function" ? perfTakeMedian() : 0;
+        _perfRenderMs = work; // the HUD / trainer readout shows the last verdict's number
         _govLocked = Math.max(0, _govLocked - 1);
         if (_govLocked) return;
-        if (med > GOV_HI_MS) {
+        const budget = govBudgetMs();
+        const wRatio = work > 0 ? work / (1000 / (_govTargetFps > 0 ? _govTargetFps : 60)) : -1; // THE WORK YARDSTICK IS THE PLAYER'S OWN BUDGET (the settings cap), never the budget of a cap the governor is itself holding down - measuring the device against its own borrowed state is the old law's sin, and a moving yardstick makes a loan that has done its job unreturnable. The cadence half keeps the CURRENT cap's budget, because the cap is what chooses the cadence.
+        const expensive = med > budget * GOV_HI_RATIO && (wRatio < 0 || wRatio > GOV_HI_WORK);
+        // THE TWO HALVES ARE DELIBERATELY UNEQUAL. LENDING needs both - the frames are late for the
+        // cap AND the draw itself ate its share of the budget - so a stutter with a cheap draw (a tab
+        // wake, one fat GC frame) never borrows the player's pixels. RETURNING needs only the GPU's
+        // own truth: a draw that fills a third of the budget has room to spare, and demanding a
+        // cadence the cap itself withholds (a 30 fps device under a 60 cap draws ~33 ms frames that
+        // cost 6 ms each) is the old self-referential trap in a new coat. With no draw samples - the
+        // sandbox, a screen that never marked a render - the cadence carries both halves alone.
+        const clean = wRatio >= 0 ? wRatio < GOV_OK_WORK : med < budget * GOV_OK_RATIO;
+        if (expensive) {
           _govHi++;
-          _govOk = 0;
-        } else if (med < GOV_OK_MS) {
+          _govOk = 0; // a mixed signal resets the row: only a SUSTAINED lean borrows a lever
+        } else if (clean) {
           _govOk++;
           _govHi = 0;
         } else {
           _govHi = _govOk = 0;
         }
-        const rung = _govRung(RENDER_H); // -1: a buffer that lives OFF the ladder (the ATARI hand-pick)
-        const top = GOV_LADDER.length - 1;
+        const plan = govPlan();
         if (_govHi >= GOV_HI_VERDICTS) {
-          // THE LOAN: a rung of pixels first; the frame cap only once the pixels have bottomed out.
-          if (rung >= 0 && rung < top && _govDrops < top) {
-            if (RENDER_H === 0) {
-              _govNatDropped = 1; // NATIVE gives way at the TOP of the ladder: 0 -> 720P
-              RENDER_H = GOV_LADDER[0];
-            } else {
-              _govDrops++;
-              RENDER_H = GOV_LADDER[rung + 1]; // one rung DOWN (720 -> 540 -> 320)
-            }
-            _govResizeAll();
-            if (typeof setResLabel === "function") setResLabel();
-          } else if (_govFpsDrops === 0 && _govTargetFps > GOV_FPS_LADDER[1] && FPS_CAP > GOV_FPS_LADDER[1]) {
-            FPS_CAP = GOV_FPS_LADDER[1]; // 60 -> 30: the GPU idles AND fxTier() halves the storm
-            _govFpsDrops = 1;
-            if (typeof setFpsLabel === "function") setFpsLabel();
+          if (_govLent < plan.length) {
+            govApplyLent(_govLent + 1); // ONE LEVER BORROWED: a rung, the cap, the shadows, the CRT, the storm
+            _govLocked = GOV_LOCK;
+            _govHi = _govOk = 0;
+            if (typeof setGovNote === "function") setGovNote();
           } else {
             _govLocked = 1; // nothing left to lend - the floor IS the floor
             _govHi = _govOk = 0;
-            return;
           }
-          _govLocked = GOV_LOCK;
-          _govHi = _govOk = 0;
-          if (typeof setGovNote === "function") setGovNote();
           return;
         }
-        if (_govOk >= GOV_OK_VERDICTS && _govManaged()) {
-          // THE RETURN: all the way back to the SETTINGS pick - the frame cap first (it costs no
-          // buffer resize), then rung by rung UP the ladder, and NATIVE sits above the top rung.
-          // Repeatable: a slow stretch later in the SAME shift can loan the pixels right back out.
-          if (_govFpsDrops) {
-            FPS_CAP = _govTargetFps; // THE SETTINGS CAP COMES BACK FIRST - it costs no buffer resize
-            _govFpsDrops = 0;
-            if (typeof setFpsLabel === "function") setFpsLabel();
-          } else if (_govNatDropped && rung === 0) {
-            RENDER_H = _govTargetRes; // NATIVE (0) - ABOVE the ladder's top rung
-            _govNatDropped = 0;
-            _govResizeAll();
-            if (typeof setResLabel === "function") setResLabel();
-          } else if (rung > 0 && _govDrops > 0) {
-            RENDER_H = GOV_LADDER[rung - 1]; // recovery walks BACK UP the ladder (320 -> 540 -> 720)
-            _govDrops--;
-            _govResizeAll();
-            if (typeof setResLabel === "function") setResLabel();
-          }
-          _govLocked = GOV_LOCK;
+        if (_govOk >= GOV_OK_VERDICTS && _govLent > 0) {
+          govApplyLent(_govLent - 1); // ONE LEVER HANDED BACK - the ladder climbs toward the SETTINGS pick
+          _govLocked = GOV_LOCK; // a return re-arms the lockout: no one-window yo-yo at the boundary
           _govHi = _govOk = 0;
           if (typeof setGovNote === "function") setGovNote();
         }
@@ -8610,11 +8835,15 @@
         const loans = [];
         if (_govLoanRes()) loans.push(govResName(RENDER_H) + " for " + govResName(_govTargetRes));
         if (_govLoanFps()) loans.push(FPS_CAP + " FPS for " + _govTargetFps);
+        if (_govLoanShadow())
+          loans.push((_govShadowLoan === 2 ? "no shadows" : "LO shadows") + " for " + (_govSettingsShadow >= 2048 ? "HI" : "LO"));
+        if (_govLoanCrt()) loans.push("clean streets for CRT");
+        if (_govLoanRain()) loans.push("storm at " + Math.round(rainScale() * 100) + "%");
         el.className = "";
         el.textContent =
-          "\u26A1 PIXEL LOAN (" + loans.join(" \u00b7 ") + "): the low-res buffer is on a temporary" +
-          " loan while the going is rough. It climbs all the way back to YOUR settings the moment" +
-          " the frames go clean \u2014 nothing here overwrites SETTINGS.";
+          "\u26A1 PIXEL LOAN " + govTierLabel() + " (" + loans.join(" \u00b7 ") + "): the borrow is a" +
+          " TEMPORARY loan while the going is rough. It climbs back to YOUR settings ONE TIER AT A" +
+          " TIME the moment the frames go clean \u2014 nothing here overwrites SETTINGS.";
       }
       setGovNote();
       // ==================== THE FX TIER (midnight FX, spent on RATES not on new systems) ===
@@ -8632,6 +8861,9 @@
       // always-on CRT look (scanline stripes + slow flicker + vignette).
       // Toggle them off for a cleaner image. Persisted.
       let CRT_ON = localStorage.getItem("dsnysweep_crt") !== "0";
+      // THE BOOT SNAPSHOT for the tier ladder: a player who already keeps the streets clean never
+      // has the CRT overlays to lend, so the plan is built from the row as the SETTINGS page has it.
+      _govSettingsCrt = CRT_ON ? 1 : 0;
       // ---- menu buttons (all state above is initialized, safe to label now) ----
       // The option buttons live on the SETTINGS PAGE (gear button next to
       // START SHIFT), where the row label shows the option name — so the
@@ -8645,16 +8877,20 @@
         $("btnRes").textContent = _govLoanRes() ? name + " \u2193" : name;
       }
       function setShadowLabel() {
-        $("btnShadow").textContent = SHADOW_SIZE >= 2048 ? "HI" : "LO";
+        // The row NAMES the player's pick; the arrow is the loan tell (LO, then none at all).
+        var nm = _govSettingsShadow >= 2048 ? "HI" : "LO";
+        $("btnShadow").textContent = nm + (_govLoanShadow() ? " \u2193" : "");
       }
       function setFpsLabel() {
         $("btnFps").textContent = String(FPS_CAP) + (_govLoanFps() ? " \u2193" : "");
       }
       function setScanLabel() {
-        $("btnCrt").textContent = CRT_ON ? "ON" : "OFF";
+        $("btnCrt").textContent = (CRT_ON ? "ON" : "OFF") + (_govLoanCrt() ? " \u2193" : "");
       }
       function applyCrt() {
-        const off = CRT_ON ? "" : "hidden";
+        // A CRT LEVER borrows the overlays off for the tier - the player's OWN row keeps saying ON
+        // and the stripes come straight back with the lever (the key is never touched).
+        const off = CRT_ON && !_govCrtLoan ? "" : "hidden";
         $("scanlines").className = off;
         $("vignette").className = off;
         // THE TRAINER OBEYS THE SAME ROW: the street overlays live UNDER the trainer panel
@@ -8669,14 +8905,17 @@
         govAdoptSettings(); // same law: the chosen cap is the target the governor returns to
       });
       $("btnShadow").addEventListener("click", function () {
-        SHADOW_SIZE = SHADOW_SIZES[(SHADOW_SIZES.indexOf(SHADOW_SIZE) + 1) % SHADOW_SIZES.length];
-        localStorage.setItem("dsnysweep_shadow", String(SHADOW_SIZE));
-        setShadowLabel();
+        // THE ROW CYCLES HI -> LO on the PLAYER'S OWN pick: a shadow lever the governor is holding
+        // is discarded by the press (the player's choice wins), and the key stores the pick.
+        _govSettingsShadow = _govSettingsShadow >= 2048 ? 1024 : 2048;
+        localStorage.setItem("dsnysweep_shadow", String(_govSettingsShadow));
+        govAdoptSettings(); // the press IS the law: every lever back, the new pick is the target
         applyShadowQuality(); // dispose the old map; three rebuilds it at the new size next frame
       });
       $("btnCrt").addEventListener("click", function () {
         CRT_ON = !CRT_ON;
         localStorage.setItem("dsnysweep_crt", CRT_ON ? "1" : "0");
+        govAdoptSettings(); // same law: a hand-picked CRT row is never a lever the governor holds
         setScanLabel();
         applyCrt();
       });
@@ -8684,6 +8923,7 @@
       setShadowLabel();
       setScanLabel();
       applyCrt();
+      wirePerfHud(); // THE DRAW LEDGER HUD: a #perfLine row, off unless ?perf=1 (which seals the key)
       // ---- SETTINGS PAGE: the gear button (next to START SHIFT) opens the
       // #settingsPage overlay; BACK or ESC closes it. It's a child of #menu so
       // it only exists on the start screen.
@@ -57596,7 +57836,10 @@
         TRAINER.rotPhase += dt;
         var omega = SPIN_MAX * Math.sin(TRAINER.rotPhase * SPIN_FREQ);
         TRAINER.stars.rotation.z += omega * dt;
+        const _pT0 = performance.now();
         TRAINER.renderer.render(TRAINER.scene, TRAINER.camera);
+        perfMarkRender(performance.now() - _pT0); // the starfield stage pays the same ledger
+        perfHudTick(frameGapMs());
       }
       // ---- DOM menu: build the rows, paint values, move the BLUE highlight ----
       function rowValueText(r) {
@@ -58112,6 +58355,8 @@
           lastT = now;
           return;
         } // portrait mode: freeze the sim; the CSS overlay prompts the player to rotate to landscape
+        // THE DRAW LEDGER: the cadence the cap lets through, for the #perfLine HUD.
+        const frameGap = now - lastRenderT;
         lastRenderT = now;
         let dt = (now - lastT) / 1000;
         lastT = now;
@@ -58130,7 +58375,10 @@
         // but does NO simulation. Toggling back resumes exactly where the worker stood.
         if (state === "play" && paused) {
           positionCamera(0);
+          const _pT0 = performance.now();
           renderer.render(scene, camera);
+          perfMarkRender(performance.now() - _pT0);
+          perfHudTick(frameGap);
           return;
         }
         updateWeatherRain(dt); // the storm keeps falling in every live state (menu included — it's NYC)
@@ -58140,7 +58388,10 @@
           if (needsIdleRender) {
             needsIdleRender = false;
             positionCamera(0);
+            const _pT0 = performance.now();
             renderer.render(scene, camera);
+            perfMarkRender(performance.now() - _pT0); // a menu backdrop frame is a drawn frame too
+            perfHudTick(frameGap);
           }
           return;
         }
@@ -58219,7 +58470,10 @@
           updateNightLamps(performance.now() / 1000, dt); // midnight lamps, lit windows + the hi-vis sheen
         }
         positionCamera(dt);
+        const _pT0 = performance.now();
         renderer.render(scene, camera);
+        perfMarkRender(performance.now() - _pT0); // THE GOVERNOR'S WORK METRIC: what the draw itself cost
+        perfHudTick(frameGap);
       }
       // ==================== TRUCK ASSET SWAP-IN ====================
       // When the truck GLB finishes loading in the background, swap the live truck (and any

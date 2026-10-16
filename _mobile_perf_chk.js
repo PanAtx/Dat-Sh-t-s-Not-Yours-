@@ -204,7 +204,7 @@ function feed(g, ms, n) { for (let i = 0; i < n; i++) g.api.feed(ms); }
   feed(nat, SLOW, 820); // v5 ->720P, v24 ->540P, v44 ->320P, v64 -> the frame-cap loan
   check('a NATIVE buffer that cannot keep up walks DOWN the whole ladder (720 -> 540 -> 320)' +
     ' and then borrows the frame cap as well',
-    nat.api.getH() === 320 && nat.api.drops() === 2 && nat.api.natLoan() === 1 &&
+    nat.api.getH() === 320 && nat.api.drops() === 3 && nat.api.natLoan() === 1 &&
       nat.api.getFps() === 30 && nat.api.fpsDrops() === 1,
     'RENDER_H=' + nat.api.getH() + ' drops=' + nat.api.drops() + ' fps=' + nat.api.getFps());
   feed(nat, CLEAN, 4200); // the full climb: cap, 320 -> 540 -> 720, then NATIVE
@@ -225,7 +225,11 @@ function feed(g, ms, n) { for (let i = 0; i < n; i++) g.api.feed(ms); }
 }
 {
   const g = makeGov(540, { fps: 30 }); // the player CHOSE the 30 fps cap
-  feed(g, SLOW, 820);
+  // THE MEASUREMENT LAW (v1.0.560): a verdict is a ratio against the budget the cap allows, so the
+  // synthetic "slow" cadence is scaled to the cap: 40 ms is late for a 60 fps cap (2.4x its 16.7 ms
+  // budget) and ON TIME for a 30 fps cap (1.2x its 33.3 ms). A chosen 30 cap is measured against
+  // 33 ms - which is exactly the point of the fix, so the stress stream here runs at 60 ms.
+  feed(g, 60, 820);
   check('a CHOSEN 30 FPS cap is never loaned any lower - the governor lends, it does not punish',
     g.api.getH() === 320 && g.api.getFps() === 30 && g.api.fpsDrops() === 0 && g.st.applied === 1,
     'RENDER_H=' + g.api.getH() + ' fps=' + g.api.getFps());
@@ -315,25 +319,42 @@ console.log("[3b] THE GOVERNOR LAW - the shape of the hysteresis, not only its v
   const num = (k) => parseFloat(gov.split(k + " = ")[1]);
   check("LADDER LAW: the ladder is exactly [720, 540, 320] - biggest-first and explicit, never 240 and never the RES_CYCLE press order",
     gov.includes("GOV_LADDER = [720, 540, 320];") && !gov.includes("RES_CYCLE"));
-  check("NO FILTER STEPPING: no RES_CYCLE.filter stepping remains - the drop walks GOV_LADDER[rung + 1], one rung down",
-    gov.includes("GOV_LADDER[rung + 1]") && gov.includes(".indexOf(h === 0 ? 720 : h)"));
-  check("FLOOR LAW: 320P is the phone floor - the drop is bounded by the ladder top, so the 540 default buffer can step down",
-    !gov.includes("_govBottom") && !gov.includes("Math.min(540") && gov.includes("GOV_LADDER.length - 1") && gov.includes("rung < top"));
-  check("RECOVERY LAW (the new one): a climb walks back UP the ladder via GOV_LADDER[rung - 1]" +
-    " (320 -> 540 -> 720) all the way to the SETTINGS pick - repeatable, never the old one-notch 'once ever'",
-    gov.includes("GOV_LADDER[rung - 1]") && gov.includes("rung > 0 && _govDrops > 0") &&
-      gov.includes("_govTargetRes") && !gov.includes("_govDrops === 1"));
+  check("NO FILTER STEPPING: no RES_CYCLE.filter stepping remains - the drop walks GOV_LADDER[rung + nRes], one rung per lever",
+    gov.includes("GOV_LADDER[rung + nRes]") && gov.includes(".indexOf(h === 0 ? 720 : h)"));
+  check("FLOOR LAW: 320P is the phone floor - the rung is clamped to GOV_LADDER.length - 1, so the 540 default buffer can step down",
+    !gov.includes("_govBottom") && !gov.includes("Math.min(540") && gov.includes("GOV_LADDER.length - 1"));
+  check("RECOVERY LAW (the new one): a climb hands ONE LEVER BACK per verdict row - govApplyLent(_govLent - 1)" +
+    " walks the rungs up all the way to the SETTINGS pick - repeatable, never the old one-notch 'once ever'",
+    gov.includes("govApplyLent(_govLent - 1)") && gov.includes("govApplyLent(_govLent + 1)") &&
+      gov.includes("_govTargetRes") && gov.includes("GOV_LADDER[nRung]"));
   check("SETTINGS-TARGET LAW: the loan is measured against _govTargetRes / _govTargetFps, the frame cap" +
     " lends through GOV_FPS_LADDER, and the governor NEVER touches localStorage",
     gov.includes("_govTargetFps") && gov.includes("GOV_FPS_LADDER[1]") &&
       gov.includes("_govFpsDrops") && !gov.includes("localStorage"));
+  check("THE TIER LAW (v1.0.560): a lever plan is BUILT FROM THE SETTINGS (govPlan) - buffer rungs first," +
+    " then the frame cap, then shadows to LO, shadows OFF, the CRT overlays, then the storm's two" +
+    " density levers; a row the player owns is never in the plan, and the tier is the lever count",
+    gov.includes("function govPlan()") && gov.includes('p.push("res")') && gov.includes('p.push("cap")') &&
+      gov.includes('p.push("shadow")') && gov.includes('p.push("shadowoff")') && gov.includes('p.push("crt")') &&
+      gov.includes('p.push("rain", "rainhalf")') && gov.includes("function govApplyLent(k)") &&
+      gov.includes('_govLent = Math.max(0, Math.min(plan.length, k))') && gov.includes("return \"T\" + _govLent"));
+  check("THE MEASUREMENT LAW (the deadlock fix): a verdict is a RATIO against the cap's own budget" +
+    " (1000 / FPS_CAP), with the Draw Ledger's draw ms as the work half - never an absolute" +
+    " millisecond, which is what made a 30 fps loan unreturnable (every frame read 'slow')",
+    gov.includes("GOV_HI_RATIO = 1.45") && gov.includes("GOV_OK_RATIO = 1.15") &&
+      gov.includes("GOV_HI_WORK = 0.6") && gov.includes("GOV_OK_WORK = 0.35") &&
+      gov.includes("return 1000 / (FPS_CAP > 0 ? FPS_CAP : 60);") &&
+      gov.includes("med > budget * GOV_HI_RATIO") && gov.includes("med < budget * GOV_OK_RATIO") &&
+      gov.includes("wRatio > GOV_HI_WORK") && gov.includes("wRatio < GOV_OK_WORK") &&
+      gov.includes('typeof perfTakeMedian === "function" ? perfTakeMedian() : 0') &&
+      !gov.includes("GOV_HI_MS = 24") && !gov.includes("GOV_OK_MS = 17.5"));
   check("NATIVE LAW: a NATIVE pick sits ABOVE the top rung - it is given up LAST on the way down" +
     " and restored as itself on the way back (RENDER_H = _govTargetRes)",
     gov.includes("_govNatDropped = 1") && gov.includes("RENDER_H = _govTargetRes"));
-  check("TARGET-ADOPTION LAW: a menu press runs govAdoptSettings() in BOTH settings handlers, so the" +
-    " player's pick is always the return address",
+  check("TARGET-ADOPTION LAW: a menu press runs govAdoptSettings() in ALL FOUR settings handlers" +
+    " (RENDER / FPS / SHADOW / CRT), so the player's pick is always the return address",
     gov.includes("function govAdoptSettings()") &&
-      (src.match(/govAdoptSettings\(\);/g) || []).length === 2);
+      (src.match(/govAdoptSettings\(\);/g) || []).length === 4);
   check("NO-REWRITE LAW: the loan is live state only - no setItem, and the settings rows mark it with" +
     " a down arrow instead of storing it",
     !gov.includes("setItem") && src.includes('_govLoanRes() ? name + " \\u2193" : name') &&
@@ -346,12 +367,21 @@ console.log("[3b] THE GOVERNOR LAW - the shape of the hysteresis, not only its v
   check("LIVE-SCREEN LAW: the tick governs the live shift AND the trainer menu, and stays frozen for" +
     " menu / pause (an idle screen must never size the buffer for a shift that is not on)",
     govTick.includes('if ((state !== "play" && state !== "trainer") || paused) {'));
-  check("TRAINER-RESIZE LAW: every loan step runs _govResizeAll() - the shift buffer, the trainer" +
-    " buffer and its 2D marquee canvas - and NOTHING resizes per frame",
+  check("TRAINER-RESIZE LAW: govDeployDraw runs _govResizeAll() - the shift buffer, the trainer" +
+    " buffer and its 2D marquee canvas - exactly ONCE, and only when a BUFFER rung moved (one re-size" +
+    " per buffer step, never one per frame, and the shadow / CRT / storm levers re-size nothing)",
     gov.includes("function _govResizeAll()") && gov.includes("applyRenderSize();") &&
       gov.includes('if (state === "trainer") {') && gov.includes("trainerResize();") &&
-      gov.includes("tbSetSize();") && gov.includes("_govResizeAll();") &&
-      (gov.match(/_govResizeAll\(\);/g) || []).length === 3 && !govTick.includes("applyRenderSize();"));
+      gov.includes("tbSetSize();") && gov.includes("function govDeployDraw(bufferMoved)") &&
+      gov.includes("if (bufferMoved) {") && gov.includes("_govResizeAll();") &&
+      (gov.match(/_govResizeAll\(\);/g) || []).length === 1 && !govTick.includes("applyRenderSize();") &&
+      !govTick.includes("_govResizeAll();"));
+  check("THE TIER REACHES THE DRAW STATE: the deploy pushes the shadow map size and the shadow pass," +
+    " the CRT overlays, and the storm's draw range through the SAME setters the settings rows use" +
+    " (applyShadowQuality / applyCrt / applyRainDensity - every one typeof-guarded for the sandbox)",
+    gov.includes("applyShadowQuality") && gov.includes("renderer.shadowMap.enabled = SHADOW_SIZE > 0") &&
+      gov.includes('typeof applyRainDensity === "function"') &&
+      gov.includes('typeof applyCrt === "function"'));
   check("TRAINER-OBEYS-SETTINGS LAW: the starfield buffer caps at RENDER_H with the pixel ratio" +
     " pinned to 1 (it never rebuilds at window size), and the 2D canvas drops to dpr 1 only under a loan",
     /function trainerResize\(\)[\s\S]{0,700}?Math\.min\(rh, h\)[\s\S]{0,700}?setPixelRatio\(1\)/.test(src) &&
@@ -424,6 +454,9 @@ console.log('[5] THE TRAINER TIER — the demo scene spends itself on the SAME o
     const calls = { setXYZ: 0, renders: 0, z: new Array(STARS).fill(0) };
     const make = new Function(
       'TRAINER', 'fxTier', 'STAR_N', 'STAR_SPREAD', 'STAR_FAR', 'STAR_SPEED', 'SPIN_MAX', 'SPIN_FREQ', 'calls',
+      // THE DRAW LEDGER lives at the starfield renderer call (every draw is timed, page and trainer
+      // alike) - in the sandbox it is stubbed: the suite counts positions, not milliseconds.
+      'performance', 'perfMarkRender', 'perfHudTick', 'frameGapMs',
       body + '\nreturn { render: function (dt) { trainerRender(dt); }, half: function () { return trainerHalf(); } };',
     );
     const data = [];
@@ -439,7 +472,8 @@ console.log('[5] THE TRAINER TIER — the demo scene spends itself on the SAME o
       },
       starData: data, starMat: null, rotPhase: 0, starActive: 0,
     };
-    const api = make(TRAINER, () => tier, STARS, num('STAR_SPREAD'), FAR, num('STAR_SPEED'), num('SPIN_MAX'), num('SPIN_FREQ'), calls);
+    const api = make(TRAINER, () => tier, STARS, num('STAR_SPREAD'), FAR, num('STAR_SPEED'), num('SPIN_MAX'), num('SPIN_FREQ'), calls,
+      { now: () => 0 }, () => {}, () => {}, () => 16.7);
     return { api, calls, data };
   }
   check('the tier is ONE rule for the trainer too (fxTier() === 1 answers the divisor, no second flag, and the star pass never touches fxRate)',

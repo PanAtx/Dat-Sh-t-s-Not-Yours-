@@ -121,8 +121,14 @@ check(
     h.indexOf("TB.dpr = trainerPixelScale();") >= 0
 );
 check(
-  "THE RETURN LAW: the loaned resolution climbs back to the settings pick (the target is never a ladder rung)",
-  h.indexOf("RENDER_H = _govTargetRes;") >= 0 && h.indexOf("FPS_CAP = _govTargetFps;") >= 0
+  "THE RETURN LAW: the tier hands the player's OWN values back verbatim - RENDER_H = _govTargetRes" +
+    " (ATARI / NATIVE sit off the ladder and come back as themselves), FPS_CAP falls back to" +
+    " _govTargetFps whenever the cap lever is not out, and a settings press applies the whole ladder" +
+    " at zero levers (the target is never a ladder rung)",
+  h.indexOf("RENDER_H = _govTargetRes;") >= 0 &&
+    h.indexOf("RENDER_H = nRung < 0 ? _govTargetRes : GOV_LADDER[nRung];") >= 0 &&
+    h.indexOf("GOV_FPS_LADDER[1] : _govTargetFps;") >= 0 &&
+    h.indexOf("govApplyLent(0);") >= 0
 );
 check(
   "shadow quality: HI 2048 / LO 1024 toggle, persisted, map disposed to rebuild at new size",
