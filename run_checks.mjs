@@ -74,6 +74,7 @@ const suites = [
   ['THE RAIN BANDING METER (the streak field keeps a dense height ladder and honest wall-clock time at 12/20/30/60fps — the mobile "horizontal white waves" fix)', 'node', '_rain_band_chk.js'],
   ['OFFLINE COVERAGE (every model + every MP3 — the Midnight songs and the trainer menu track — plus the shell/webfonts is cached for a no-network play)', 'node', '_offline_cache_chk.js'],
   ['THE STATION SHIP CHECK (manifest<->disk parity for Pages, the trainer-track convention, the ID3 credits, the 96 kbps size budget, a real MPEG frame at the audio start)', 'node', '_music_ship_chk.js'],
+  ['THE GATE REGISTRY (every suite npm test names is tracked on main - no .gitignore may swallow a gate, no long-tail entry may duplicate or vanish)', 'node', '_gate_registry_chk.js'],
 ];
 
 // ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----
@@ -90,13 +91,15 @@ if (fs.existsSync(EXTRA_FILE)) {
 
 const queue = [];
 const seen = new Set();
+const dropped = [];
 for (const entry of suites.concat(extra.suites || [])) {
   const [name, cmd, file] = entry;
   if (!file || seen.has(file)) continue;
-  if (!fs.existsSync(path.join(DIR, file))) { console.log('note: ' + file + ' is not in the repo - skipping its gate'); continue; }
+  if (!fs.existsSync(path.join(DIR, file))) { dropped.push(file); continue; }
   seen.add(file);
   queue.push([name, cmd, file]);
 }
+for (const f of dropped) console.log('note: ' + f + ' is not in the repo - its gate is skipped');
 
 let allPass = true;
 for (const [name, cmd, arg] of queue) {
