@@ -5406,7 +5406,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.563</div>
+          <div id="app-version" class="menu-version">v1.0.564</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5713,7 +5713,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.563';
+      const APP_VERSION = '1.0.564';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -8568,11 +8568,43 @@
           "PERF " +
           (1000 / Math.max(1, frameGapMs())).toFixed(1) +
           "fps " + r.draws + "dc " + r.tris + "tri geo" + r.geo + " tex" + r.tex +
-          " draw" + r.renderMs + "ms " + r.tier;
+          " draw" + r.renderMs + "ms " + r.tier + " " + storagePersistLabel();
       }
       function frameGapMs() {
         // The cadence the cap is letting through, as last measured by a drawn frame.
         return window._perfLastGapMs > 0 ? window._perfLastGapMs : 1000 / 60;
+      }
+      // ==================== THE STORAGE PERSIST LEASE (the caches ask to be kept) =========
+      // The game lives in the Cache API three times over: the page shell (the service worker's),
+      // the 3D models (dsnboy-models-v1) and the radio (dsnboy-radio-v1, up to ~150MB). Browser
+      // storage is BEST-EFFORT by default - the phone that needs room evicts it, and the player
+      // wakes up to the "Getting Assets" gate re-downloading the street on a cellular bill (or a
+      // radio that forgot its tracks). The persistence request asks the browser to treat this
+      // origin's storage as PERMANENT: no dialog, no user action, auto-granted on an installed /
+      // engaged app, and a refusal (iOS decides) leaves everything exactly as it was. It costs
+      // one call at boot, and the perf line reports the lease so it can be seen.
+      var _storagePersist = -1; // -1 unknown, 0 refused, 1 granted
+      function storagePersistLabel() {
+        return _storagePersist === 1 ? "lease" : _storagePersist === 0 ? "best-effort" : "lease?";
+      }
+      function requestStoragePersist() {
+        try {
+          const st = typeof navigator !== "undefined" && navigator.storage;
+          if (!st) return false;
+          if (typeof st.persist === "function") {
+            Promise.resolve(st.persist())
+              .then(function (ok) { _storagePersist = ok ? 1 : 0; })
+              .catch(function () { _storagePersist = 0; });
+          }
+          if (typeof st.persisted === "function") {
+            st.persisted()
+              .then(function (ok) { if (ok) _storagePersist = 1; })
+              .catch(function () {});
+          }
+          return true;
+        } catch (e) {
+          return false;
+        }
       }
       // ==================== THE RENDER GOVERNOR (mobile frame-COST hysteresis) ==========
       // A shovel-timing game is only FAIR while it draws: a 24 fps midnight reads as a broken
@@ -8964,6 +8996,7 @@
       setScanLabel();
       applyCrt();
       wirePerfHud(); // THE DRAW LEDGER HUD: a #perfLine row, off unless ?perf=1 (which seals the key)
+      requestStoragePersist(); // THE STORAGE PERSIST LEASE: ask the browser to keep the shell + models + radio caches
       // ---- SETTINGS PAGE: the gear button (next to START SHIFT) opens the
       // #settingsPage overlay; BACK or ESC closes it. It's a child of #menu so
       // it only exists on the start screen.

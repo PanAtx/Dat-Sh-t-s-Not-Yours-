@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.563';
-var APP_VERSION = '1.0.563';
+var CACHE_NAME = 'dsnboy-shell-v1.0.564';
+var APP_VERSION = '1.0.564';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -224,17 +224,32 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // Navigation requests (including index.html): NETWORK-FIRST so we always get
-  // the latest version on reload. Fall back to cache only if offline.
+  // Navigation requests (index.html): THE PAINT LAW (v1.0.563) - STALE-WHILE-REVALIDATE.
+  // The page is ~2.8 MB; the old NETWORK-FIRST rule made every launch on a phone wait for the
+  // whole download before it painted a single pixel - even when the shell sat complete in this
+  // very cache. So: answer from the cache IMMEDIATELY when it is there, and revalidate in the
+  // background so the NEXT launch is the newest file. Deployed updates are not delayed by this:
+  // the cache name carries APP_VERSION, so a new version installs an EMPTY cache, the first
+  // launch after a deploy has no hit and goes to the network, and the version's own reloads
+  // paint instantly from cache. Offline keeps working exactly as before (a miss falls through
+  // to the network, and the network's failure falls back to ./index.html).
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetchTimeout(req).then(function (res) {
-        if (res && res.ok) {
-          var copy = res.clone();
-          caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
-        }
-        return res;
-      }).catch(function () { return caches.match(req).then(function (hit) { return hit || caches.match('./index.html'); }); })
+      caches.match(req).then(function (hit) {
+        var revalidate = fetchTimeout(req)
+          .then(function (res) {
+            if (res && res.ok) {
+              var copy = res.clone();
+              caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+            }
+            return res;
+          })
+          .catch(function () { return null; });
+        if (hit) return hit; // paint NOW; the fresh bytes land in the cache behind the game
+        return revalidate.then(function (res) {
+          return res || caches.match('./index.html');
+        });
+      })
     );
     return;
   }
