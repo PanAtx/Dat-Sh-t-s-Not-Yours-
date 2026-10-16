@@ -51,3 +51,7 @@ _nyc_truck_basecolor*.png
 # the staged GitHub Pages site (built by scripts/ship.mjs) - generated, never committed
 _site/
 
+# originals kept by scripts/compress-music.mjs (the local rollback copy) - never ship
+_music_orig/
+_music_enc/
+
