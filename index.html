@@ -5406,7 +5406,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.562</div>
+          <div id="app-version" class="menu-version">v1.0.563</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5713,7 +5713,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.562';
+      const APP_VERSION = '1.0.563';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -11673,6 +11673,9 @@
       // Turn a template into an independent, oriented, grounded, game-sized instance (origin at
       // center-bottom, local z=0 at the ground). Every mesh gets its own geometry+material so
       // disposeObj() on this instance never touches the shared template.
+      // The caster budget for one GLB instance: above this many triangles an instance casts
+      // through a bounding-box proxy instead of its own meshes (see fbxInstance below).
+      const SHADOW_PROXY_TRIS = 60000;
       function fbxInstance(tpl, scale) {
         const c = tpl.clone();
         const rotGrp = new THREE.Group();
@@ -11699,6 +11702,41 @@
           o.castShadow = true;
           o.receiveShadow = true;
         });
+        // THE SHADOW-CASTER BUDGET (v1.0.562): nyc_truck-compressed.glb is ~284k triangles, and
+        // per-mesh casting means the SHADOW PASS pays all 284k EVERY FRAME for a silhouette the
+        // eye reads as a box. Above this budget an instance opts out of per-mesh casting and
+        // carries ONE colourWrite:false PROXY built from its own bounding box: the light map keeps
+        // its shape and contact shadow, the shadow pass pays 12 triangles, and the shadow lever
+        // (SHADOW_SIZE / shadows-off) works on the proxy exactly like it did on the mesh. Small
+        // models (the can, the shovel, a bottle) stay under the budget and keep casting their
+        // true silhouette - which is what makes a rolling can read on the pavement.
+        let castTris = 0;
+        holder.traverse((o) => {
+          if (!o.isMesh || !o.geometry) return;
+          const g = o.geometry;
+          const n = g.index ? g.index.count : g.attributes && g.attributes.position ? g.attributes.position.count : 0;
+          castTris += n / 3;
+        });
+        if (castTris > SHADOW_PROXY_TRIS) {
+          holder.traverse((o) => {
+            if (o.isMesh) o.castShadow = false; // the caster is the box now, never the 284k
+          });
+          const pb = new THREE.Box3().setFromObject(holder);
+          const psize = pb.getSize(new THREE.Vector3());
+          const pctr = pb.getCenter(new THREE.Vector3());
+          const proxy = new THREE.Mesh(
+            new THREE.BoxGeometry(psize.x, psize.y, psize.z),
+            new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.DoubleSide })
+          );
+          // colourWrite + depthWrite off means the MAIN pass pays nothing for it (it writes no
+          // pixel and no depth); the shadow pass swaps in its own depth material, so the box
+          // casts exactly the shadow the fat mesh was casting - for 12 triangles.
+          proxy.position.copy(holder.worldToLocal(pctr));
+          proxy.castShadow = true;
+          proxy.receiveShadow = false;
+          proxy.name = "shadowProxy";
+          holder.add(proxy);
+        }
         return holder;
       }
 
@@ -40617,6 +40655,26 @@
           if (b.garbage && b.house && p.wx > b.worldX + BW) {
             b.passed = true;
           }
+        }
+        applyBlockViewWindow();
+      }
+      // THE BLOCK WINDOW (v1.0.562): three culls per OBJECT by bounding sphere every frame, so
+      // every mesh of every house, fence, car and tree on the route pays a matrix update and a
+      // sphere test each frame in order to be thrown away - a 9-block Midnight is thousands of
+      // tests for the ONE block the camera can show (blocks sit 96u apart; the ortho frame sees
+      // ~20u of route). Hiding the GROUP short-circuits the whole subtree at once: no matrix
+      // updates, no culling tests, no draw calls, and the frustum maths never runs at all.
+      // The window is deliberately generous - 200u covers two blocks on each side of the worker,
+      // which is more than the widest cinematic pull-back (the route end zooms out by 1.3x), so
+      // nothing the camera can show is ever dropped, and the street looks identical.
+      const BLOCK_VIEW_U = 200;
+      function applyBlockViewWindow() {
+        const at = typeof p !== "undefined" && p ? p.wx : 0;
+        for (var i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (!b || !b.group) continue;
+          const on = Math.abs(b.worldX - at) < BLOCK_VIEW_U;
+          if (b.group.visible !== on) b.group.visible = on; // written only when it changes
         }
       }
       // ==================== CLEAN UP LANDED CANS (OFF-SCREEN RECYCLING) ====================
