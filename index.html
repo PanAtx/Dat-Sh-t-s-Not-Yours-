@@ -1771,6 +1771,46 @@
       #govNote {
         color: #ffd76a;
       }
+      /* THE GPU SAFETY NET (v1.0.561): the #gpuLost card. A WebGL context loss on a phone is
+         silent - the canvas goes black mid-shift. The card names what happened, offers REBUILD
+         (a reload straight back onto the street), and never sits in the way when there is no
+         loss (it ships .hidden; only the context-lost handler shows it). */
+      #gpuLost {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 90;
+        text-align: center;
+      }
+      #gpuLost.hidden {
+        display: none;
+      }
+      #gpuLostBox {
+        min-width: min(78vw, 420px);
+        padding: 14px 16px;
+        border: 2px solid rgba(255, 120, 60, 0.75);
+        background: rgba(10, 13, 18, 0.94);
+        font-size: clamp(10px, 1.9vw, 14px);
+        line-height: 1.6;
+        letter-spacing: 1px;
+        color: #ffd76a;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
+        box-shadow: 0 0 26px rgba(255, 120, 60, 0.35);
+      }
+      #gpuLostBox b {
+        color: #ff7a72;
+        letter-spacing: 2px;
+      }
+      #gpuLostBtn {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 6px 14px;
+        border: 1px solid rgba(92, 240, 173, 0.6);
+        color: #5cf0ad;
+        letter-spacing: 3px;
+        cursor: pointer;
+      }
       .set-foot {
         margin-top: 12px;
         font-size: 10px;
@@ -5366,7 +5406,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.561</div>
+          <div id="app-version" class="menu-version">v1.0.562</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5673,7 +5713,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.561';
+      const APP_VERSION = '1.0.562';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -9010,6 +9050,104 @@
         groundGroup = new THREE.Group();
         worldGroup.add(groundGroup);
         buildGround();
+      }
+      // ==================== THE GPU SAFETY NET (a lost context is a playable street) ======
+      // iOS does not warn you that the street is gone. A jetsam kill (GPU memory is exactly what
+      // it counts - the old 213MB of model textures is why this game earned the risk) or a driver
+      // reset fires webglcontextlost: the canvas goes black, every later render is a silent
+      // no-op, and the shift dies with the score still on screen and no way back. THE NET:
+      //   webglcontextlost     - preventDefault (the browser only offers a restore if asked), the
+      //                          _ctxLost flag goes UP so the loop neither simulates nor draws,
+      //                          the shift auto-pauses, and the #gpuLost card tells the player
+      //                          what happened, with a REBUILD that reloads the street.
+      //   webglcontextrestored - a NEW WebGLRenderer on the SAME canvas. Nothing else has to be
+      //                          rebuilt: the scene graph is plain JS (the textures keep their
+      //                          images, the geometries their arrays, the materials their
+      //                          uniforms), and a fresh renderer re-uploads all of it on its first
+      //                          frame because its property / render-target caches start empty.
+      //                          The shadow map is dropped so three builds it again at the
+      //                          player's own SHADOW_SIZE, and the tier ladder re-deploys.
+      //   visibilitychange     - a phone that leaves the app mid-shift comes back to a PAUSED
+      //                          street, not to a truck that drove 40 blocks while the tab was
+      //                          throttled; the governor's clocks are wiped, so a background tab's
+      //                          frame gaps can never borrow a lever.
+      var _ctxLost = 0, _ctxLosses = 0, _ctxRebuilds = 0;
+      function gpuLostCard(show) {
+        var el = typeof $ === "function" ? $("gpuLost") : null;
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "gpuLost";
+          el.className = "hidden";
+          el.innerHTML =
+            "<div id='gpuLostBox'><b>THE STREET LOST ITS GPU</b><br>The phone took the canvas away" +
+            " (iOS frees GPU memory when it needs it). It usually comes back on its own - if it" +
+            " does not, REBUILD reopens the shift.<br><span id='gpuLostBtn'>REBUILD</span></div>";
+          document.body.appendChild(el);
+          el.addEventListener("click", function () { location.reload(); });
+        }
+        el.className = show ? "" : "hidden";
+      }
+      function rebuildRendererAfterContextLoss() {
+        var cv = renderer && renderer.domElement;
+        if (!cv || typeof THREE === "undefined" || !THREE.WebGLRenderer) return false;
+        try {
+          if (typeof renderer.dispose === "function") renderer.dispose();
+        } catch (e) {}
+        try {
+          renderer = new THREE.WebGLRenderer({ antialias: true, canvas: cv });
+        } catch (e) { return false; }
+        _ctxRebuilds++;
+        applyRenderSize(); // the retro buffer law re-applies to the new context
+        renderer.shadowMap.enabled = typeof SHADOW_SIZE !== "undefined" && SHADOW_SIZE > 0;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        if (typeof dirLight !== "undefined" && dirLight && dirLight.shadow) {
+          if (dirLight.shadow.map) { dirLight.shadow.map.dispose(); dirLight.shadow.map = null; }
+          dirLight.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
+        }
+        _ctxLost = 0;
+        gpuLostCard(false);
+        if (typeof govAdoptSettings === "function") govAdoptSettings(); // THE TIER LADDER RE-DEPLOYS on the new context
+        // The old frames belong to a dead context: they are not evidence about this one.
+        _govPrevNow = 0;
+        _govHi = 0;
+        _govOk = 0;
+        if (typeof perfTakeMedian === "function") perfTakeMedian();
+        return true;
+      }
+      function wireGpuSafetyNet() {
+        var cv = typeof renderer !== "undefined" && renderer ? renderer.domElement : null;
+        if (!cv || typeof cv.addEventListener !== "function") return false;
+        cv.addEventListener(
+          "webglcontextlost",
+          function (e) {
+            e.preventDefault(); // THE ASK: without the default prevented, the browser never fires "restored"
+            _ctxLost = 1;
+            _ctxLosses++;
+            if (typeof state !== "undefined" && state === "play" && !paused && typeof togglePause === "function")
+              togglePause(); // the shift goes on hold while the GPU is chased
+            gpuLostCard(true);
+          },
+          false
+        );
+        cv.addEventListener(
+          "webglcontextrestored",
+          function () {
+            if (_ctxLost) rebuildRendererAfterContextLoss();
+          },
+          false
+        );
+        document.addEventListener("visibilitychange", function () {
+          if (typeof document !== "undefined" && document.hidden) {
+            if (typeof state !== "undefined" && state === "play" && !paused && typeof togglePause === "function")
+              togglePause(); // come back to a PAUSED street, never to a runaway truck
+          } else {
+            _govPrevNow = 0;
+            _govHi = 0;
+            _govOk = 0; // a throttled tab's frame gaps are not a verdict about the device
+            if (typeof perfTakeMedian === "function") perfTakeMedian();
+          }
+        });
+        return true;
       }
       function groundStrip(w, h, d, y, col, cx) {
         const q = new THREE.Mesh(
@@ -58401,6 +58539,7 @@
       })();
       function loop(now) {
         requestAnimationFrame(loop);
+        if (_ctxLost) return; // THE GPU SAFETY NET: no sim, no draw, no verdicts while the canvas has no context
         // FPS cap: skip early rAF callbacks so we draw at most FPS_CAP frames/s.
         // Tolerance = 3ms past the ideal interval so high-refresh tick grids
         // (144/120Hz) land NEAR the cap (144Hz @ 60-cap draws every 2 ticks =
@@ -59194,6 +59333,7 @@
         if (!_preloading) preloadAssets();
       });
       initThree();
+      wireGpuSafetyNet(); // THE GPU SAFETY NET: webglcontextlost/restored + the background-tab law
       worker = buildWorker();
       worldGroup.add(worker.group);
       wparts = worker;

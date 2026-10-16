@@ -92,7 +92,7 @@ check(
   (() => {
     const i = h.indexOf("function loop(now) {");
     if (i < 0) return false;
-    const seg = h.slice(i, i + 1200);
+    const seg = h.slice(i, i + 1700);
     return seg.indexOf("lastRenderT = now;") >= 0 && seg.indexOf("let dt = (now - lastT) / 1000;") >= 0;
   })()
 );

@@ -351,10 +351,10 @@ console.log("[3b] THE GOVERNOR LAW - the shape of the hysteresis, not only its v
   check("NATIVE LAW: a NATIVE pick sits ABOVE the top rung - it is given up LAST on the way down" +
     " and restored as itself on the way back (RENDER_H = _govTargetRes)",
     gov.includes("_govNatDropped = 1") && gov.includes("RENDER_H = _govTargetRes"));
-  check("TARGET-ADOPTION LAW: a menu press runs govAdoptSettings() in ALL FOUR settings handlers" +
-    " (RENDER / FPS / SHADOW / CRT), so the player's pick is always the return address",
+  check("TARGET-ADOPTION LAW: govAdoptSettings() runs in ALL FOUR settings handlers (RENDER / FPS /" +
+    " SHADOW / CRT) AND on a context restore, so the player's pick is always the return address",
     gov.includes("function govAdoptSettings()") &&
-      (src.match(/govAdoptSettings\(\);/g) || []).length === 4);
+      (src.match(/govAdoptSettings\(\);/g) || []).length === 5);
   check("NO-REWRITE LAW: the loan is live state only - no setItem, and the settings rows mark it with" +
     " a down arrow instead of storing it",
     !gov.includes("setItem") && src.includes('_govLoanRes() ? name + " \\u2193" : name') &&
