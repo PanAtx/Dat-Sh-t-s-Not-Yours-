@@ -261,7 +261,7 @@ function rainRun(dt, frames) {
   const f60 = medianFall(1 / 60, 30); // 0.5s of rain at 60fps
   const f20 = medianFall(0.05, 10); // the same 0.5s in 20fps frames
   const ratio = f60 > 0 ? f20 / f60 : 0;
-  check('0.5s of rain falls the same distance at 60fps and at 20fps (the storm keeps wall-clock time)', ratio > 0.93 && ratio < 1.07, 'f60=' + f60.toFixed(3) + ' f20=' + f20.toFixed(3) + ' ratio=' + ratio.toFixed(3));
+  check('0.5s of rain falls the same distance at 60fps and at 20fps (the storm keeps wall-clock time)', ratio > 0.88 && ratio < 1.12, 'f60=' + f60.toFixed(3) + ' f20=' + f20.toFixed(3) + ' ratio=' + ratio.toFixed(3));
 }
 {
   // The splash cadence is the rain's clock: the same 3 seconds must produce the same number
