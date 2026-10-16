@@ -43,12 +43,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Stage the SHIP LIST, not the repo. main is the dev repo (the whole test
+      # harness lives there); _site/ is the game. ship.mjs also FAILS the build if
+      # index.html/sw.js name an asset that isn't on main, so a missing file can
+      # never ship as a silent 404 on the live site. See scripts/ship.mjs.
+      - name: Stage site (scripts/ship.mjs)
+        run: node scripts/ship.mjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Upload site (repo root - the game is a single-folder static site)
+      - name: Upload site (only what the game runs on)
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

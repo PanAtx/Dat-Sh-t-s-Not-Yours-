@@ -48,3 +48,6 @@ _nyc_truck_basecolor*.png
 # local PowerShell / shell audit scratch - never ship
 *.ps1
 
+# the staged GitHub Pages site (built by scripts/ship.mjs) - generated, never committed
+_site/
+
