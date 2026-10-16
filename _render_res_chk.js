@@ -97,6 +97,18 @@ check(
   })()
 );
 check(
+  "the frame cap stays the PLAYER'S setting: the governor lends FPS_CAP as live state only, re-adopts" +
+    " the pick on a menu press, and the stored key is written solely by the settings button",
+  h.indexOf("GOV_FPS_LADDER = [60, 30]") >= 0 &&
+    h.indexOf("_govTargetFps = FPS_CAP") >= 0 &&
+    h.indexOf("govAdoptSettings();") >= 0 &&
+    (h.match(/localStorage\.setItem\("dsnysweep_fps"/g) || []).length === 1
+);
+check(
+  "THE RETURN LAW: the loaned resolution climbs back to the settings pick (the target is never a ladder rung)",
+  h.indexOf("RENDER_H = _govTargetRes;") >= 0 && h.indexOf("FPS_CAP = _govTargetFps;") >= 0
+);
+check(
   "shadow quality: HI 2048 / LO 1024 toggle, persisted, map disposed to rebuild at new size",
   h.indexOf("SHADOW_SIZES = [2048, 1024]") >= 0 &&
     h.indexOf('localStorage.getItem("dsnysweep_shadow")') >= 0 &&

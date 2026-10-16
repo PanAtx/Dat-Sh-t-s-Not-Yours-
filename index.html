@@ -1751,6 +1751,26 @@
       #settingsBox .set-row button:hover {
         background: #5cf0ad;
       }
+      /* THE TWO "WHY IS THIS ROW LIKE THIS?" NOTES on the settings page:
+         #autoLowNote - the phone sealed its own first-run settings (SMALL DEVICE MODE).
+         #govNote     - the render governor is holding a PIXEL LOAN: the buffer / frame cap
+         rides BELOW the player's settings right now and climbs back the moment frames go clean.
+         Both stay short (the card must fit a phone), sit under the rows, and never catch a click. */
+      #autoLowNote,
+      #govNote {
+        margin-top: 10px;
+        padding: 6px 2px 0;
+        border-top: 1px dashed rgba(46, 224, 144, 0.3);
+        font-size: clamp(9px, 1.5vw, 12px);
+        line-height: 1.5;
+        letter-spacing: 1px;
+        color: #9dffe9;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.85);
+        pointer-events: none;
+      }
+      #govNote {
+        color: #ffd76a;
+      }
       .set-foot {
         margin-top: 12px;
         font-size: 10px;
@@ -5323,7 +5343,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.554</div>
+          <div id="app-version" class="menu-version">v1.0.555</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5632,7 +5652,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.554';
+      const APP_VERSION = '1.0.555';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7715,6 +7735,10 @@
     // NAME GOES, NOT THE WEATHER: the night's banner IS its own street sign, cut the
     // Ghostbusters way; the forecast stays the day's plain forecast like every shift.
     special: "THE DEAD END. WHO YOU GONNA CALL?",
+    // THE NIGHT CARD CARRIES A WARNING ROW TOO, exactly like every other shift: the banner joins
+    // the two on ONE line (special · warning), which keeps the card phone-sized. This is also what
+    // the night's own cyan .warning styling (#day-intro.night .warning) is painted for.
+    warning: "THEY'RE AWAKE",
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -8321,7 +8345,9 @@
       $("btnRes").addEventListener("click", function () {
         RENDER_H = RES_CYCLE[(RES_CYCLE.indexOf(RENDER_H) + 1) % RES_CYCLE.length];
         localStorage.setItem("dsnysweep_render_h", String(RENDER_H));
-        setResLabel(); // label lives with the other settings labels (value-only, on the settings page)
+        // THE CHOICE IS NOW THE LAW: this pick becomes the governor's recovery target and every
+        // loaned rung is handed straight back (also re-labels the settings buttons).
+        govAdoptSettings();
         if (renderer) applyRenderSize(); // live-switch, no restart needed
       });
       setResLabel();
@@ -8376,30 +8402,72 @@
       // game, not a hard one. The governor watches the RENDERED frame times (the ones the cap
       // let through - the honest ones) and rules in VERDICTS of GOV_WINDOW frames: a row of
       // GOV_HI_VERDICTS slow verdicts steps the buffer ONE RUNG DOWN the biggest-first ladder
-      // GOV_LADDER (720 -> 540 -> 320) - about 2 s of slow frames; GOV_OK_VERDICTS clean verdicts
-      // (about 8 s) climb the single drop back UP the ladder, and every step pays a GOV_LOCK
-      // verdict lockout (about 5 s) so one noisy second can never trigger the next.
-      // THE LADDER ORDER IS EXPLICIT AND BIGGEST-FIRST - never the RES_CYCLE press order, so a
+      // GOV_LADDER (720 -> 540 -> 320) - about 2 s of slow frames; once the pixels bottom out on
+      // the 320P FLOOR the same slow row takes the FRAME CAP down with it (GOV_FPS_LADDER: 60 -> 30,
+      // which halves the boss storm through fxTier). Every step pays a GOV_LOCK verdict lockout
+      // (about 5 s) so one noisy second can never trigger the next.
+      // THE RETURN LAW — THE SETTINGS PAGE IS THE TARGET, NOT THE LAST VERDICT: _govTargetRes /
+      // _govTargetFps hold what the SETTINGS PAGE says. The governor is a TEMPORARY LOAN of pixels,
+      // never a re-write of the menu: it NEVER touches localStorage, and GOV_OK_VERDICTS clean
+      // verdicts (about 8 s) climb the WHOLE way back - the frame cap first (it costs no buffer
+      // resize), then rung by rung UP the ladder (320 -> 540 -> 720) and on to a NATIVE target -
+      // so the pixelization walks away after a while when the gameplay improves. The climb is
+      // repeatable (no "one recovery ever") and the drops re-arm: a phone that runs hot for two
+      // minutes, cools off, then hits the midnight boss ends the shift exactly where the player set it.
+      // THE LADDER ORDER IS EXPLICIT AND BIGGEST-FIRST - never the menu's press order, so a
       // NATIVE buffer enters at the TOP rung (720) and walks 720 -> 540 -> 320: it can no longer
       // skip 540 on its way down. 320P is the phone FLOOR (the ladder last rung) and the most
-      // the governor may ever take is two drops; 240P (ATARI 2600) is a hand-picked menu choice
-      // that sits off the ladder entirely. Menu, pause, portrait, dying and the cinematics are
-      // skipped - frame cost there is not the fight. Weekdays pay one Math pair per drawn frame.
-      let _govMsSum = 0,
+      // the governor may ever take is two rungs plus the cap; 240P (ATARI 2600) is a hand-picked
+      // menu choice that sits OFF the ladder entirely - its buffer is never rewritten, only its
+      // frame cap is loaned. Menu, pause, portrait, dying and the cinematics are skipped - frame
+      // cost there is not the fight. Weekdays pay one Math pair per drawn frame.
+      // var (not let) ON PURPOSE: the settings labels run at boot, BEFORE this line, and a label
+      // has to ask the loan state without a TDZ crash - undefined reads as "no loan".
+      var _govMsSum = 0,
         _govMsN = 0,
         _govPrevNow = 0,
         _govHi = 0,
         _govOk = 0,
         _govLocked = 0,
-        _govDrops = 0;
+        _govDrops = 0, // ladder rungs of buffer held BELOW the settings pick
+        _govNatDropped = 0, // 1 while a NATIVE (0) settings pick is loaned out as 720P
+        _govFpsDrops = 0, // 1 while the settings frame cap is loaned down to 30
+        _govTargetRes = RENDER_H, // what the SETTINGS PAGE says the buffer is: the return address
+        _govTargetFps = FPS_CAP; // what the SETTINGS PAGE says the cap is: the return address
       const GOV_WINDOW = 12,
         GOV_HI_MS = 24,
         GOV_OK_MS = 17.5,
         GOV_HI_VERDICTS = 5,
         GOV_OK_VERDICTS = 40,
         GOV_LOCK = 15, GOV_LADDER = [720, 540, 320]; // biggest-first: one rung at a time
+      const GOV_FPS_LADDER = [60, 30]; // the frame-cap half of the loan, same hysteresis
       function _govRung(h) {
         return GOV_LADDER.indexOf(h === 0 ? 720 : h); // NATIVE enters at the top rung; 240P is off it
+      }
+      function _govManaged() {
+        // True while ANY pixels / frame time are on loan from the player's settings.
+        return _govDrops > 0 || _govNatDropped > 0 || _govFpsDrops > 0;
+      }
+      function _govLoanRes() {
+        return _govManaged() && RENDER_H !== _govTargetRes; // the buffer sits below what SETTINGS says
+      }
+      function _govLoanFps() {
+        return _govManaged() && FPS_CAP !== _govTargetFps; // the cap sits below what SETTINGS says
+      }
+      function govAdoptSettings() {
+        // THE SETTINGS PAGE IS THE LAW. A menu press re-baselines the governor: the player's new
+        // pick becomes the recovery target and every loaned rung / cap is handed straight back.
+        // The governor can never outrank this - it has no source of truth but these two values.
+        _govTargetRes = RENDER_H;
+        _govTargetFps = FPS_CAP;
+        _govDrops = 0;
+        _govNatDropped = 0;
+        _govFpsDrops = 0;
+        _govHi = 0;
+        _govOk = 0;
+        setResLabel(); // the labels drop their loan arrows with the loan
+        setFpsLabel();
+        if (typeof setGovNote === "function") setGovNote();
       }
       function mobileGovernorTick(now) {
         if (!renderer) return;
@@ -8428,25 +8496,85 @@
         } else {
           _govHi = _govOk = 0;
         }
-        const rung = _govRung(RENDER_H);
-        if (rung < 0) return; // a hand-picked buffer (ATARI 2600) is never rewritten
-        const top = GOV_LADDER.length - 1
-        if (_govHi >= GOV_HI_VERDICTS && _govDrops < top && rung < top) {
-          RENDER_H = GOV_LADDER[rung + 1];
-          applyRenderSize();
-          if (typeof setResLabel === "function") setResLabel();
-          _govDrops++;
+        const rung = _govRung(RENDER_H); // -1: a buffer that lives OFF the ladder (the ATARI hand-pick)
+        const top = GOV_LADDER.length - 1;
+        if (_govHi >= GOV_HI_VERDICTS) {
+          // THE LOAN: a rung of pixels first; the frame cap only once the pixels have bottomed out.
+          if (rung >= 0 && rung < top && _govDrops < top) {
+            if (RENDER_H === 0) {
+              _govNatDropped = 1; // NATIVE gives way at the TOP of the ladder: 0 -> 720P
+              RENDER_H = GOV_LADDER[0];
+            } else {
+              _govDrops++;
+              RENDER_H = GOV_LADDER[rung + 1]; // one rung DOWN (720 -> 540 -> 320)
+            }
+            applyRenderSize();
+            if (typeof setResLabel === "function") setResLabel();
+          } else if (_govFpsDrops === 0 && _govTargetFps > GOV_FPS_LADDER[1] && FPS_CAP > GOV_FPS_LADDER[1]) {
+            FPS_CAP = GOV_FPS_LADDER[1]; // 60 -> 30: the GPU idles AND fxTier() halves the storm
+            _govFpsDrops = 1;
+            if (typeof setFpsLabel === "function") setFpsLabel();
+          } else {
+            _govLocked = 1; // nothing left to lend - the floor IS the floor
+            _govHi = _govOk = 0;
+            return;
+          }
           _govLocked = GOV_LOCK;
           _govHi = _govOk = 0;
-        } else if (_govOk >= GOV_OK_VERDICTS && _govDrops === 1 && rung > 0) {
-          RENDER_H = GOV_LADDER[rung - 1]; // recovery walks BACK UP the ladder (540 -> 720)
-          applyRenderSize();
-          if (typeof setResLabel === "function") setResLabel();
-          _govDrops = 0;
+          if (typeof setGovNote === "function") setGovNote();
+          return;
+        }
+        if (_govOk >= GOV_OK_VERDICTS && _govManaged()) {
+          // THE RETURN: all the way back to the SETTINGS pick - the frame cap first (it costs no
+          // buffer resize), then rung by rung UP the ladder, and NATIVE sits above the top rung.
+          // Repeatable: a slow stretch later in the SAME shift can loan the pixels right back out.
+          if (_govFpsDrops) {
+            FPS_CAP = _govTargetFps; // THE SETTINGS CAP COMES BACK FIRST - it costs no buffer resize
+            _govFpsDrops = 0;
+            if (typeof setFpsLabel === "function") setFpsLabel();
+          } else if (_govNatDropped && rung === 0) {
+            RENDER_H = _govTargetRes; // NATIVE (0) - ABOVE the ladder's top rung
+            _govNatDropped = 0;
+            applyRenderSize();
+            if (typeof setResLabel === "function") setResLabel();
+          } else if (rung > 0 && _govDrops > 0) {
+            RENDER_H = GOV_LADDER[rung - 1]; // recovery walks BACK UP the ladder (320 -> 540 -> 720)
+            _govDrops--;
+            applyRenderSize();
+            if (typeof setResLabel === "function") setResLabel();
+          }
           _govLocked = GOV_LOCK;
           _govHi = _govOk = 0;
+          if (typeof setGovNote === "function") setGovNote();
         }
       }
+      // ---- THE PIXEL LOAN NOTE (settings page): the governor's temporary degrade is announced
+      // right where the player set the numbers, and it says the way BACK out loud. Hidden at rest,
+      // and it never touches localStorage - the rows keep showing the player's OWN picks.
+      var __gn = document.createElement("div");
+      __gn.id = "govNote";
+      __gn.className = "hidden";
+      if (typeof $ === "function" && $("settingsBox")) $("settingsBox").appendChild(__gn);
+      function govResName(h) {
+        return h === 0 ? "NATIVE" : RES_NAMES[h] || h + "P";
+      }
+      function setGovNote() {
+        var el = typeof $ === "function" ? $("govNote") : null;
+        if (!el) return;
+        if (!_govManaged()) {
+          el.className = "hidden";
+          return;
+        }
+        const loans = [];
+        if (_govLoanRes()) loans.push(govResName(RENDER_H) + " for " + govResName(_govTargetRes));
+        if (_govLoanFps()) loans.push(FPS_CAP + " FPS for " + _govTargetFps);
+        el.className = "";
+        el.textContent =
+          "\u26A1 PIXEL LOAN (" + loans.join(" \u00b7 ") + "): the low-res buffer is on a temporary" +
+          " loan while the going is rough. It climbs all the way back to YOUR settings the moment" +
+          " the frames go clean \u2014 nothing here overwrites SETTINGS.";
+      }
+      setGovNote();
       // ==================== THE FX TIER (midnight FX, spent on RATES not on new systems) ===
       // 1 (LOW) on the small-phone profile or a 30 fps cap; 2 (FULL) otherwise. The boss's
       // slime FX and the rebound's knit are dt-probability SPAWN RATES — on LOW the storms
@@ -8467,14 +8595,18 @@
       // START SHIFT), where the row label shows the option name — so the
       // buttons only display the current VALUE.
       function setResLabel() {
-        $("btnRes").textContent =
+        const name =
           RENDER_H === 0 ? "NATIVE" : RES_NAMES[RENDER_H] || RENDER_H + "P";
+        // A down-arrow is the PIXEL LOAN tell: the buffer is riding below the settings pick and
+        // the governor is on its way back up. The row always NAMES the player's choice, never a
+        // stored value - the loan is live state, the key is the player's.
+        $("btnRes").textContent = _govLoanRes() ? name + " \u2193" : name;
       }
       function setShadowLabel() {
         $("btnShadow").textContent = SHADOW_SIZE >= 2048 ? "HI" : "LO";
       }
       function setFpsLabel() {
-        $("btnFps").textContent = String(FPS_CAP);
+        $("btnFps").textContent = String(FPS_CAP) + (_govLoanFps() ? " \u2193" : "");
       }
       function setScanLabel() {
         $("btnCrt").textContent = CRT_ON ? "ON" : "OFF";
@@ -8487,7 +8619,7 @@
       $("btnFps").addEventListener("click", function () {
         FPS_CAP = FPS_CAPS[(FPS_CAPS.indexOf(FPS_CAP) + 1) % FPS_CAPS.length];
         localStorage.setItem("dsnysweep_fps", String(FPS_CAP));
-        setFpsLabel();
+        govAdoptSettings(); // same law: the chosen cap is the target the governor returns to
       });
       $("btnShadow").addEventListener("click", function () {
         SHADOW_SIZE = SHADOW_SIZES[(SHADOW_SIZES.indexOf(SHADOW_SIZE) + 1) % SHADOW_SIZES.length];

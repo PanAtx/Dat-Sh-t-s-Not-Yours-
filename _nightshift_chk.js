@@ -502,6 +502,9 @@ const HORROR_SRC = ['makeSpectralMat', 'makeSpecter', 'makeGhoul', 'makeHellhoun
   'nightShovelableKey', 'nightArmProp', 'nightPlaceProp',
   // THE SPOOK PAYS WHERE IT STOOD (the HELL NOTE a banished spook drops on the ground)
   'hellNoteDropY', 'dropShovelHellNote',
+  // THE FENCE DIG (Midnight's chain-link money): the tool's target test + the strike that
+  // throws the note over the wire. tryShovelSwing / shovelDeliverStrike close over both.
+  'nearestFenceNote', 'shovelFenceNoteStrike',
   'makeSpectralWard', 'nightGateClear', 'buildNightGates', 'nightGateCount',
   // SPECTRAL BLOOD (the shovel wound the player can SEE on Midnight)
   'nightBloodArm', 'nightBloodTick', 'nightBloodClear', 'spawnBloodSpray', 'nightBloodMix', 'nightBloodHex',
@@ -636,6 +639,10 @@ const H = new Function(
   '\nlet nightSayT = 0, nightBubbleT = 0, nightPopT = 0;' +
   '\nlet shovelArm = -1, pendingStrike = null;' +
   '\nconst hpBarLog = { clears: 0, frames: 0 };' +
+  // THE FENCE DIG's two page-level constants (the note's hover height + the dig's shout),
+  // injected like every other number the shovel layer closes over.
+  '\nconst CASH_LIFT = 0.12;' +
+  '\nconst FENCE_DIG_LINES = ["OVER THE WIRE!", "THE DIG GOES OVER THE FENCE!"];' +
   '\nfunction nightHpBarsClear() { hpBarLog.clears++; }' +
   '\nfunction updateGhoulHpBars() { hpBarLog.frames++; }' +
   // THE MIDNIGHT FINAL BOSS state (the beast, its ghost fire, the fight, the treasure)
@@ -737,6 +744,9 @@ const H = new Function(
   ' gateDebt: b => nightGateDebt(b), cull: (c) => cullHorror(c),' +
   // THE KILL DROP (the note a banished spook drops, the band it lands in, the spy lists)
   ' dropNote: (wx, wy) => dropShovelHellNote(wx, wy), dropY: (wy) => hellNoteDropY(wy),' +
+  // THE FENCE DIG: the tool's test, the strike frame, and the live pickup list it reads
+  ' fenceNote: (r) => nearestFenceNote(r), fenceDig: (rec) => shovelFenceNoteStrike(rec),' +
+  ' fenceSpy: () => NK_BONUSES,' +
   ' dropNotes: () => noteSpy(), dropBonuses: () => bonusSpy(),' +
   ' getGoT: () => nightGoT, setGoT: (v) => { nightGoT = v; }, getGoMsg: () => nightGoMsg,' +
   ' ghHits: (b, k) => nightGhoulHits(b, k), ghFloor: b => nightGhoulFloorHits(b), depth: b => nightBlockDepth(b),' +
@@ -896,6 +906,45 @@ check('he cannot swing again inside the cooldown', H.swing() === false);
 p.shovelCd = 0; nightOn = false;
 check('on the seven weekday shifts ACT is NOT a shovel', H.swing() === false);
 nightOn = true;
+// ---- THE FENCE DIG (the Joss money laid BEHIND the chain-link on Midnight) --------------
+// The wire is the worker's hard wall, so fenced money is shovel-only: the tool's target test
+// (nearestFenceNote) ranks it under the beast, under a spook and under the grave furniture, and
+// the strike frame throws it OVER the wire into a lane he can stand in (the note is MOVED).
+{
+  const mkFenceNote = (wx, wy) => ({
+    type: 'cash', val: 100, wx: wx, wy: wy, fence: true, lift: 0.12, g: mkObj('jossNote'),
+  });
+  const toolD = H.shovelToolReach(SHOVEL_REACH) - 0.15; // the blade's edge, in his own lane
+  NK_BONUSES.length = 0;
+  creatures.length = 0;
+  p.wx = 449; p.wy = 2.5; p.shovelCd = 0; p.facing = 0;
+  const fenced = mkFenceNote(p.wx + toolD, p.wy);
+  NK_BONUSES.push(fenced);
+  check('THE TOOL SEES THE FENCED MONEY (the dig answers inside the blade and not past it)',
+    H.fenceNote(SHOVEL_REACH) === fenced && H.fenceNote(0.05) === null,
+    'in=' + (H.fenceNote(SHOVEL_REACH) === fenced) + ' out=' + (H.fenceNote(0.05) === null));
+  H.swing(); // nothing living in the tool: the dig fires
+  check('THE DIG GOES OVER THE WIRE: the strike moves the note into a lane he can stand in, clears the fence flag and banks through the ordinary cash door (the note is MOVED, never destroyed)',
+    fenced.fence === false && fenced.wx >= H.routeNearX() && fenced.wx <= H.routeFarX() &&
+      Math.abs(fenced.wy - H.dropY(2.5)) < 1e-9 && NK_BONUSES.indexOf(fenced) === 0,
+    'wx=' + fenced.wx.toFixed(2) + ' wy=' + fenced.wy.toFixed(2) + ' fence=' + fenced.fence);
+  NK_BONUSES.length = 0;
+  const fenced2 = mkFenceNote(p.wx + toolD, p.wy);
+  NK_BONUSES.push(fenced2);
+  const ghoul2 = mkC('ghoul', toolD, { causeKey: 'ghoul' });
+  creatures.length = 0; creatures.push(ghoul2);
+  p.shovelCd = 0; p.facing = 0;
+  H.swing(); // a REAL catch: the blade wounds the spook and leaves the money lying fenced
+  check('A SWING WITH A REAL CATCH NEVER STEALS A FENCED NOTE (the dig always ranks last in the tool)',
+    ghoul2.hp === ghoul2.hpMax - 1 && fenced2.fence === true,
+    'hp=' + ghoul2.hp + '/' + ghoul2.hpMax + ' fence=' + fenced2.fence);
+  creatures.length = 0;
+  nightOn = false;
+  check('the fence dig NEVER answers on a weekday (the chain-link is Midnight\'s own street)',
+    H.fenceNote(SHOVEL_REACH) === null);
+  nightOn = true;
+  NK_BONUSES.length = 0;
+}
 const thiefC = mkC('eyestalker', 1, { thief: true });
 check('the many-eyed THIEF cannot be shoveled — it has to be run down', H.canShovel(thiefC) === false);
 const mid = mkC('specter', 1, { hooked: true });
