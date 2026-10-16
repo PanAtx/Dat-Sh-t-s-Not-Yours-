@@ -4770,6 +4770,36 @@
       z-index: 1;
     }
     #trainer-ui { z-index: 3; }
+    /* THE TRAINER'S CRT PAIR (see the markup): the same stripes + vignette the street gets,
+       painted INSIDE the panel so the SETTINGS "CRT" row grades the trainer screen too. z6/z7
+       sit above the starfield (1), the menu (3), the marquee (4) and the ball canvas (5), and
+       pointer-events:none keeps the demo scene clickable. The .hidden class is the CRT-OFF state
+       (applyCrt owns all four overlays). */
+    #trainer-scanlines,
+    #trainer-vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    #trainer-scanlines {
+      z-index: 6;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(6, 10, 14, 0.2) 0px,
+        rgba(6, 10, 14, 0.2) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      animation: crt 4s steps(60) infinite;
+    }
+    #trainer-vignette {
+      z-index: 7;
+      background: radial-gradient(
+        ellipse at 50% 45%,
+        transparent 52%,
+        rgba(0, 0, 0, 0.42) 100%
+      );
+    }
     /* per-character spans of the marquee so the ball can bend them like a membrane.
        inline-flex + align-items:center vertically centers the single line of spans
        inside the bar so the text is never clipped by the bar's overflow:hidden. */
@@ -5296,6 +5326,13 @@
         <div class="tr-hint">Amiga tracker music by Romeo Knight/TRSI</div>
       </div>
       <div id="trainer-scroll"><div id="trainer-scroll-inner"></div></div>
+      <!-- THE TRAINER'S OWN CRT PAIR: the street overlays (#scanlines / #vignette) sit at z6/z7,
+           UNDER the full-screen trainer (z45), so they can never grade the trainer's screen. The
+           trainer carries its own pair INSIDE the panel - above the starfield (z1), the DOM menu
+           (z3), the marquee (z4) and the ball canvas (z5) - and the CRT row in SETTINGS flips all
+           four together: one setting, one look, street and trainer alike. -->
+      <div id="trainer-scanlines"></div>
+      <div id="trainer-vignette"></div>
       <!-- shown only in portrait (via CSS media query): tells the user to rotate -->
       <div class="tr-rotate-prompt">
         <div class="tr-rotate-icon">&#128241;</div>
@@ -5343,7 +5380,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.555</div>
+          <div id="app-version" class="menu-version">v1.0.556</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5652,7 +5689,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.555';
+      const APP_VERSION = '1.0.556';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -7735,10 +7772,10 @@
     // NAME GOES, NOT THE WEATHER: the night's banner IS its own street sign, cut the
     // Ghostbusters way; the forecast stays the day's plain forecast like every shift.
     special: "THE DEAD END. WHO YOU GONNA CALL?",
-    // THE NIGHT CARD CARRIES A WARNING ROW TOO, exactly like every other shift: the banner joins
-    // the two on ONE line (special · warning), which keeps the card phone-sized. This is also what
-    // the night's own cyan .warning styling (#day-intro.night .warning) is painted for.
-    warning: "THEY'RE AWAKE",
+    // NO WARNING ROW ON THE NIGHT CARD: the night is introduced by its OWN street sign (the
+    // special line above) and by the worker's spoken lines at the wake - the shop-report style
+    // warning a weekday carries ("WATCH OUT FOR THE EDP!") has nothing to say here, and the card
+    // is deliberately the shortest on the week. The night suite asserts ONE banner line, no more.
   },
       ];
       const MAX_LEVEL = LEVEL_DAYS.length; // 7 weekdays (Mon..Sun) + the NIGHT SHIFT after Sunday
@@ -8419,8 +8456,12 @@
       // skip 540 on its way down. 320P is the phone FLOOR (the ladder last rung) and the most
       // the governor may ever take is two rungs plus the cap; 240P (ATARI 2600) is a hand-picked
       // menu choice that sits OFF the ladder entirely - its buffer is never rewritten, only its
-      // frame cap is loaned. Menu, pause, portrait, dying and the cinematics are skipped - frame
-      // cost there is not the fight. Weekdays pay one Math pair per drawn frame.
+      // frame cap is loaned. THE LIVE SCREENS are the shift AND THE TRAINER MENU: the trainer runs
+      // its own starfield WebGL scene on the same loop and the same GPU, so it is governed too, and
+      // every loan step re-sizes everything that draws (the shift buffer, the trainer buffer - which
+      // sizes itself off RENDER_H - and the trainer's 2D marquee canvas, which drops to dpr 1 under
+      // a loan). Menu, pause, portrait, dying and the cinematics are skipped - frame cost there is
+      // not the fight. Weekdays pay one Math pair per drawn frame.
       // var (not let) ON PURPOSE: the settings labels run at boot, BEFORE this line, and a label
       // has to ask the loan state without a TDZ crash - undefined reads as "no loan".
       var _govMsSum = 0,
@@ -8443,6 +8484,16 @@
       const GOV_FPS_LADDER = [60, 30]; // the frame-cap half of the loan, same hysteresis
       function _govRung(h) {
         return GOV_LADDER.indexOf(h === 0 ? 720 : h); // NATIVE enters at the top rung; 240P is off it
+      }
+      function _govResizeAll() {
+        // THE LOAN TOUCHES EVERY SCREEN THAT DRAWS: the shift's buffer, and - while the trainer is
+        // open - the trainer's starfield buffer (it sizes itself off RENDER_H, see trainerResize)
+        // and its 2D marquee canvas (dpr drops to 1 under a loan, see trainerPixelScale).
+        applyRenderSize();
+        if (state === "trainer") {
+          if (typeof trainerResize === "function") trainerResize();
+          if (typeof tbSetSize === "function") tbSetSize();
+        }
       }
       function _govManaged() {
         // True while ANY pixels / frame time are on loan from the player's settings.
@@ -8471,7 +8522,12 @@
       }
       function mobileGovernorTick(now) {
         if (!renderer) return;
-        if (state !== "play" || paused) {
+        // THE LIVE SCREENS: the shift AND the trainer menu. The trainer is a real 3D scene running
+        // the same rAF loop on the same GPU - a phone that cannot hold the midnight frames cannot
+        // hold the starfield either, and the sluggish trainer was the proof. The menu, the pause,
+        // the portrait freeze, the dying sequence and the cinematics stay SKIPPED: their frame cost
+        // is not the fight, and an idle menu must never size the buffer for a shift that is not on.
+        if ((state !== "play" && state !== "trainer") || paused) {
           _govPrevNow = 0;
           _govHi = _govOk = 0;
           return;
@@ -8508,7 +8564,7 @@
               _govDrops++;
               RENDER_H = GOV_LADDER[rung + 1]; // one rung DOWN (720 -> 540 -> 320)
             }
-            applyRenderSize();
+            _govResizeAll();
             if (typeof setResLabel === "function") setResLabel();
           } else if (_govFpsDrops === 0 && _govTargetFps > GOV_FPS_LADDER[1] && FPS_CAP > GOV_FPS_LADDER[1]) {
             FPS_CAP = GOV_FPS_LADDER[1]; // 60 -> 30: the GPU idles AND fxTier() halves the storm
@@ -8535,12 +8591,12 @@
           } else if (_govNatDropped && rung === 0) {
             RENDER_H = _govTargetRes; // NATIVE (0) - ABOVE the ladder's top rung
             _govNatDropped = 0;
-            applyRenderSize();
+            _govResizeAll();
             if (typeof setResLabel === "function") setResLabel();
           } else if (rung > 0 && _govDrops > 0) {
             RENDER_H = GOV_LADDER[rung - 1]; // recovery walks BACK UP the ladder (320 -> 540 -> 720)
             _govDrops--;
-            applyRenderSize();
+            _govResizeAll();
             if (typeof setResLabel === "function") setResLabel();
           }
           _govLocked = GOV_LOCK;
@@ -8615,6 +8671,11 @@
         const off = CRT_ON ? "" : "hidden";
         $("scanlines").className = off;
         $("vignette").className = off;
+        // THE TRAINER OBEYS THE SAME ROW: the street overlays live UNDER the trainer panel
+        // (z6/z7 vs #trainer z45), so the trainer carries its own pair inside the panel and the
+        // CRT setting flips all four together - one switch, one look, street and trainer alike.
+        $("trainer-scanlines").className = off;
+        $("trainer-vignette").className = off;
       }
       $("btnFps").addEventListener("click", function () {
         FPS_CAP = FPS_CAPS[(FPS_CAPS.indexOf(FPS_CAP) + 1) % FPS_CAPS.length];
@@ -57756,6 +57817,15 @@
       var BEND_K = BEND_OMEGA * BEND_OMEGA;           // spring stiffness (w^2)
       var BEND_C = 2 * BEND_ZETA * BEND_OMEGA;        // damping coefficient (2*zeta*w)
       var BEND_HALF = 8;      // chars bent to the LEFT and to the RIGHT of the hit (16 total)
+      // THE TRAINER'S PIXEL SCALE = THE SHIFT'S BUDGET. The star buffer already obeys RENDER_H
+      // (see trainerResize); this is the 2D marquee/ball canvas, and it obeys the governor's PIXEL
+      // LOAN: while a loan is live the canvas draws at 1x, because clearRect + repaint over a
+      // dpr-3 phone canvas is 9x the pixels of a 1x one EVERY FRAME - that is precisely what makes
+      // the trainer sluggish on phones and older machines. The loan ending hands the crisp 2x back.
+      function trainerPixelScale() {
+        if (typeof _govManaged === "function" && _govManaged()) return 1;
+        return Math.min(window.devicePixelRatio || 1, 2);
+      }
       // Measure once (on open / resize). NEVER call this every frame: it resizes the
       // canvas (which clears it) and forces layout.
       function tbSetSize() {
@@ -57763,7 +57833,7 @@
         TB.w = el ? el.clientWidth : window.innerWidth;
         TB.h = el ? el.clientHeight : window.innerHeight;
         var c = $("trainer-ball-canvas");
-        TB.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        TB.dpr = trainerPixelScale();
         if (c) {
           c.width = Math.round(TB.w * TB.dpr);
           c.height = Math.round(TB.h * TB.dpr);
@@ -58036,7 +58106,7 @@
         lastT = now;
         if (dt > 0.05) dt = 0.05;
         if (dt < 0) dt = 0;
-        mobileGovernorTick(now); // RENDER_H steps down on a device that cannot keep up (hysteresis, state === "play" only)
+        mobileGovernorTick(now); // PIXEL LOAN: RENDER_H / the frame cap step down on a device that cannot keep up and climb back to the settings pick (hysteresis; live shift AND trainer)
         updateBubbles(dt); // speech bubbles always tick so they fade out even on menus / game over
         pollGamepad(); // cheap input poll: on the menu, gamepad START / ACT still begins the shift
         updateVirtualPad(); // keep the on-screen pad mirroring keyboard / gamepad / touch (cheap)

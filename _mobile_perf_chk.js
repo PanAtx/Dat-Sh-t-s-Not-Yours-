@@ -12,8 +12,10 @@
         stretch HANDS IT ALL BACK: the cap first, then every rung, up to the NATIVE pick —
         REPEATABLY, and only ever as far as what the SETTINGS PAGE says. The governor is a
         temporary loan of pixels: it never writes a settings key, and a menu press
-        re-baselines the target. The tick runs ONLY inside a live shift; consts stay
-        declared once.
+        re-baselines the target. THE LIVE SCREENS are the shift AND THE TRAINER MENU (the starfield
+        runs in the same loop on the same GPU: it is governed, its buffers follow RENDER_H + the
+        loan, and its 2D marquee canvas drops to dpr 1 under a loan); the tick runs ONLY inside a
+        live screen; consts stay declared once.
      3) THE FX TIER — the boss's slime rates and the rebound's knit storm run
         at ~half on LOW; the heart window and the shovel's parry tail widen
         15% on LOW and stay byte-identical on FULL (the desktop law the night
@@ -144,7 +146,7 @@ function makeGov(startH, opt) {
   // buttons), which re-baselines the target exactly the way index.html wires govAdoptSettings.
   const make = new Function(
     'RES_CYCLE', 'startH', 'startFps', 'stateIn', 'pausedIn', 'renderer',
-    'applyRenderSize', 'setResLabel', 'setFpsLabel',
+    'applyRenderSize', 'setResLabel', 'setFpsLabel', 'trainerResize', 'tbSetSize',
     'var state = stateIn, paused = pausedIn, RENDER_H = startH, FPS_CAP = startFps;' +
       govConsts + govTick +
       '\nvar _feed = 0; return {' +
@@ -155,7 +157,7 @@ function makeGov(startH, opt) {
       ' targetH(){ return _govTargetRes; }, targetFps(){ return _govTargetFps; },' +
       ' adopt(h, f){ RENDER_H = h; FPS_CAP = f; govAdoptSettings(); } };',
   );
-  const st = { applied: 0, fpsLabelled: 0 };
+  const st = { applied: 0, fpsLabelled: 0, trResizes: 0, tbSizes: 0 };
   const api = make(
     [540, 720, 0, 320, 240], startH, opt.fps === undefined ? 60 : opt.fps,
     opt.state || 'play', !!opt.paused,
@@ -163,6 +165,8 @@ function makeGov(startH, opt) {
     () => { st.applied++; },
     () => {},
     () => { st.fpsLabelled++; },
+    () => { st.trResizes++; },
+    () => { st.tbSizes++; },
   );
   return { api, st };
 }
@@ -267,6 +271,32 @@ function feed(g, ms, n) { for (let i = 0; i < n; i++) g.api.feed(ms); }
     pz.api.getH() === 540 && pz.api.drops() === 0 && pz.api.getFps() === 60);
 }
 {
+  // THE TRAINER MENU IS A GOVERNED SCREEN TOO: it runs its own starfield WebGL scene in the same
+  // rAF loop, so a phone/older PC that dips frames gets the same loan - and the same return.
+  const t = makeGov(540, { state: 'trainer' });
+  feed(t, SLOW, 75); // the starfield is not holding frames
+  const stepped = t.api.getH() === 320 && t.api.drops() === 1 &&
+    t.st.applied === 1 && t.st.trResizes === 1 && t.st.tbSizes === 1;
+  check('THE TRAINER IS GOVERNED: sustained slow frames in the trainer step the buffer down, and every step re-sizes the trainer buffer + its 2D marquee canvas (no per-frame measuring)',
+    stepped,
+    'applied=' + t.st.applied + ' trResizes=' + t.st.trResizes + ' tbSizes=' + t.st.tbSizes);
+  feed(t, CLEAN, 2000); // the frames come back
+  check('THE TRAINER RETURNS: a clean stretch hands the buffer back to the settings pick and re-sizes the trainer to match',
+    t.api.getH() === 540 && t.api.drops() === 0 && !t.api.managed() &&
+      t.st.trResizes === 2 && t.st.tbSizes === 2,
+    'RENDER_H=' + t.api.getH() + ' trResizes=' + t.st.trResizes + ' tbSizes=' + t.st.tbSizes);
+  const tf = makeGov(540, { state: 'trainer', fps: 60 });
+  feed(tf, SLOW, 820); // pixels bottom out, then the cap
+  check('THE FRAME CAP IS GOVERNED IN THE TRAINER TOO (the loop applies FPS_CAP to play AND trainer), and the cap returns with the pixels',
+    tf.api.getH() === 320 && tf.api.getFps() === 30 && tf.api.fpsDrops() === 1 &&
+      tf.st.applied === 1 && tf.st.trResizes === 1 && tf.st.tbSizes === 1,
+    'RENDER_H=' + tf.api.getH() + ' fps=' + tf.api.getFps());
+  feed(tf, CLEAN, 2000);
+  check('and the trainer lands exactly on the settings pick: 540P / 60 FPS',
+    tf.api.getH() === 540 && tf.api.getFps() === 60 && !tf.api.managed(),
+    tf.api.getH() + '/' + tf.api.getFps());
+}
+{
   const g = makeGov(720);
   feed(g, SLOW, 75); // one drop 720 -> 540 (5 verdicts = 60 frames)
   feed(g, CLEAN, 900); // 9s of clean frames: 40 verdicts, past the 15-verdict lockout
@@ -310,6 +340,25 @@ console.log("[3b] THE GOVERNOR LAW - the shape of the hysteresis, not only its v
   check("TDZ LAW: the governor state is var-declared, so the boot-time settings labels can ask its loan" +
     " state before the block runs without crashing the boot",
     gov.includes("var _govMsSum") && !src.includes("let _govMsSum"));
+  check("LIVE-SCREEN LAW: the tick governs the live shift AND the trainer menu, and stays frozen for" +
+    " menu / pause (an idle screen must never size the buffer for a shift that is not on)",
+    govTick.includes('if ((state !== "play" && state !== "trainer") || paused) {'));
+  check("TRAINER-RESIZE LAW: every loan step runs _govResizeAll() - the shift buffer, the trainer" +
+    " buffer and its 2D marquee canvas - and NOTHING resizes per frame",
+    gov.includes("function _govResizeAll()") && gov.includes("applyRenderSize();") &&
+      gov.includes('if (state === "trainer") {') && gov.includes("trainerResize();") &&
+      gov.includes("tbSetSize();") && gov.includes("_govResizeAll();") &&
+      (gov.match(/_govResizeAll\(\);/g) || []).length === 3 && !govTick.includes("applyRenderSize();"));
+  check("TRAINER-OBEYS-SETTINGS LAW: the starfield buffer caps at RENDER_H with the pixel ratio" +
+    " pinned to 1 (it never rebuilds at window size), and the 2D canvas drops to dpr 1 only under a loan",
+    /function trainerResize\(\)[\s\S]{0,700}?Math\.min\(rh, h\)[\s\S]{0,700}?setPixelRatio\(1\)/.test(src) &&
+      src.includes('var rh = (typeof RENDER_H !== "undefined") ? RENDER_H : 0;') &&
+      src.includes("TB.dpr = trainerPixelScale();") &&
+      src.includes("if (typeof _govManaged === \"function\" && _govManaged()) return 1;"));
+  check("FPS CAP LAW (the trainer half): the loop's cap gate covers play AND trainer, so a loaned" +
+    " 30 fps cap idles the GPU between trainer stars exactly like it does between shift frames",
+    src.includes('if ((state === "play" || state === "trainer") && FPS_CAP > 0) {') &&
+      src.includes("if (now - lastRenderT < minMs) return;"));
   check("CADENCE LAW: the hysteresis counts 12-frame VERDICTS - drop ~2 s, recovery ~8 s, lockout ~5 s (seconds, not minutes)",
     num("GOV_WINDOW") >= 8 && num("GOV_HI_VERDICTS") <= 8 && num("GOV_OK_VERDICTS") <= 60 && num("GOV_LOCK") <= 20,
     'HI=' + num('GOV_HI_VERDICTS') + ' OK=' + num('GOV_OK_VERDICTS') + ' LOCK=' + num('GOV_LOCK') + ' WINDOW=' + num('GOV_WINDOW'));

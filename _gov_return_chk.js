@@ -56,8 +56,12 @@ const ctx = {
   innerWidth: 1920, innerHeight: 1080,
   renderer: { setPixelRatio() {}, setSize() {} },
   dirLight: { shadow: { mapSize: { set() {} }, map: null } },
+  // THE TRAINER SCREENS the loan re-sizes (mocked, counted): the starfield buffer + its 2D canvas
+  trainerResize: () => { calls.tr++; },
+  tbSetSize: () => { calls.tb++; },
   state: 'play', paused: false,
 };
+const calls = { tr: 0, tb: 0 };
 vm.runInNewContext(block, ctx); // the boot, in page order
 
 let pass = 0, fail = 0;
@@ -104,6 +108,28 @@ for (let i = 0; i < 5000; i++) { now += 10; q('mobileGovernorTick(' + now + ')')
 check('a NATIVE pick gets NATIVE back (the ladder top is not the goal - the SETTINGS pick is)',
   q('RENDER_H') === 0 && q('FPS_CAP') === 60 && els.btnRes.textContent === 'NATIVE',
   q('RENDER_H') + '/' + els.btnRes.textContent);
+
+// ---- THE TRAINER MENU IS A GOVERNED SCREEN (same block, same tick, state = "trainer") ----
+// The starfield runs in the same rAF loop on the same GPU, so sluggish trainer frames get the
+// same loan - and the same return - and every loan step re-sizes the trainer's own buffers.
+ctx.state = 'menu';
+q('RENDER_H = 540; FPS_CAP = 60; govAdoptSettings();');
+calls.tr = 0; calls.tb = 0;
+ctx.state = 'trainer';
+for (let i = 0; i < 900; i++) { now += 40; q('mobileGovernorTick(' + now + ')'); }
+check('THE TRAINER IS GOVERNED: slow frames in the trainer loan the buffer down and re-size the trainer + its 2D canvas (one re-size per loan step, never one per frame)',
+  q('RENDER_H') === 320 && q('FPS_CAP') === 30 && calls.tr === 1 && calls.tb === 1,
+  'RENDER_H=' + q('RENDER_H') + ' fps=' + q('FPS_CAP') + ' tr=' + calls.tr + ' tb=' + calls.tb);
+for (let i = 0; i < 3000; i++) { now += 10; q('mobileGovernorTick(' + now + ')'); }
+check('THE TRAINER RETURNS: the clean stretch hands the cap and the buffer back to the settings pick, re-sizing the trainer with each rung',
+  q('RENDER_H') === 540 && q('FPS_CAP') === 60 && q('_govManaged()') === false &&
+    calls.tr === 2 && calls.tb === 2,
+  'RENDER_H=' + q('RENDER_H') + ' fps=' + q('FPS_CAP') + ' tr=' + calls.tr + ' tb=' + calls.tb);
+const trFrozen = calls.tr;
+ctx.state = 'menu';
+for (let i = 0; i < 900; i++) { now += 40; q('mobileGovernorTick(' + now + ')'); }
+check('a MENU frame stream never feeds the governor (an idle screen cannot size the buffer)',
+  q('RENDER_H') === 540 && calls.tr === trFrozen, 'tr=' + calls.tr);
 
 console.log('');
 console.log(fail === 0 ? 'BOOT PROOF: ALL ' + pass + ' PASSED' : 'BOOT PROOF FAILED (' + fail + ')');

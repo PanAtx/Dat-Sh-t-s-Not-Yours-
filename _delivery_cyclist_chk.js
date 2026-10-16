@@ -74,9 +74,13 @@ check('WRITEUP_REASONS has a "delivery" entry (courier lines)',
   const fn = extractFn('npcCounts');
   // The night branch reads LEVEL_DAYS (the suite asserts WEEKDAYS: the array must exist
   // in scope; the level 8 entry lives in the shipped table, untouched here).
-  // The table ends at the night entry's closing brace + the array literal's "];" two lines down.
+  // THE ANCHOR IS THE MIDNIGHT ENTRY'S OWN CLOSING BRACE, never a field of it: the night card
+  // deliberately carries NO warning row (its banner is one street sign), so a "warning:" anchor
+  // would skip the entry entirely and sail on into the rest of the file.
   const sN = h.indexOf('const LEVEL_DAYS = [');
-  const nightEnd = h.indexOf('},', h.indexOf('warning:', h.indexOf('day: "MIDNIGHT"')));
+  const iNight = h.indexOf('day: "MIDNIGHT"');
+  if (sN < 0 || iNight < 0) throw new Error('LEVEL_DAYS / the MIDNIGHT entry not found in index.html');
+  const nightEnd = h.indexOf('},', iNight);
   const eN = h.indexOf('];', nightEnd) + 2;
   const daysSrc = h.slice(sN, eN).replace('const', 'var');
   eval(

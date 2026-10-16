@@ -105,6 +105,22 @@ check(
     (h.match(/localStorage\.setItem\("dsnysweep_fps"/g) || []).length === 1
 );
 check(
+  "CRT: the trainer carries its OWN overlay pair inside the panel and the CRT row drives all four",
+  h.indexOf('<div id="trainer-scanlines"></div>') >= 0 &&
+    h.indexOf('<div id="trainer-vignette"></div>') >= 0 &&
+    h.indexOf("#trainer-scanlines {") >= 0 &&
+    h.indexOf("#trainer-vignette {") >= 0 &&
+    h.indexOf('$("trainer-scanlines").className = off') >= 0 &&
+    h.indexOf('$("vignette").className = off') >= 0
+);
+check(
+  "the trainer menu obeys the SETTINGS rows: its buffer caps at RENDER_H (pixel ratio 1, CSS keeps" +
+    " filling the window) and its 2D marquee canvas obeys the governor's loan",
+  h.indexOf('var rh = (typeof RENDER_H !== "undefined") ? RENDER_H : 0;') >= 0 &&
+    h.indexOf("TRAINER.renderer.setSize(bw, bh, false);") >= 0 &&
+    h.indexOf("TB.dpr = trainerPixelScale();") >= 0
+);
+check(
   "THE RETURN LAW: the loaned resolution climbs back to the settings pick (the target is never a ladder rung)",
   h.indexOf("RENDER_H = _govTargetRes;") >= 0 && h.indexOf("FPS_CAP = _govTargetFps;") >= 0
 );

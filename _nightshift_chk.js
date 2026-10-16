@@ -80,7 +80,9 @@ check('it borrows the Bed-Stuy brownstones (BROOKLYN / BED-STUY)', NIGHT.borough
 check('it is named like every other shift — DAY "MIDNIGHT" + STREET "DEAD END", and NO compound name field',
   NIGHT.name === undefined && NIGHT.place === 'DEAD END');
 check('exactly ONE level is flagged night:true (Sunday is untouched)', LEVEL_DAYS.filter(d => !!d.night).length === 1);
-check('the night card carries a warning + its own special line', !!NIGHT.warning && !!NIGHT.special);
+check('the night card carries its OWN special line and NO extra warning row (MIDNIGHT is a street sign, not a shop report - "THEY\'RE AWAKE" and friends stay off it)',
+  !!NIGHT.special && NIGHT.warning === undefined,
+  'special=' + NIGHT.special);
 const NIGHT_LEVEL = nightIdx + 1;
 
 const BASE_NPC_COUNTS = eval('(' + srcLiteral('BASE_NPC_COUNTS', '{', '}') + ')');
