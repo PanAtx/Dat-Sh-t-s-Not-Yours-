@@ -153,7 +153,17 @@ check(
 // ---- [2] the shipped file: every inline script, walked to the end ----
 console.log("\n[2] index.html: every inline script walked brace-by-brace");
 const scripts = [...html.matchAll(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-check("the file still carries its two inline script blocks", scripts.length === 2, "blocks=" + scripts.length);
+// The shipped page has THREE inline scripts: the service-worker registration, the three.js
+// "OFFLINE SAFETY NET" (the local-copy fallback in the head) and the game itself. The count is
+// a floor, not a ceiling: a new inline block must never silently drop the ones that are there.
+check(
+  "the file carries all three inline script blocks (sw-register, three.js net, the game)",
+  scripts.length === 3 &&
+    scripts.some((s) => s.includes("navigator.serviceWorker.register")) &&
+    scripts.some((s) => s.includes("three_r128.min.js")) &&
+    scripts.some((s) => s.includes("const SFX = {")),
+  "blocks=" + scripts.length,
+);
 scripts.forEach((code, i) => {
   const r = scan(code);
   check(
@@ -208,7 +218,8 @@ const fnSrc = (name) => {
   throw new Error("unbalanced: " + name);
 };
 // the whole-file walk, kept so each declaration's DEPTH and indentation can be read back out
-const bigCode = scripts[1];
+// (the GAME script — the biggest block — not the sw-register / three.js net in the head)
+const bigCode = scripts.reduce((a, b) => (b.length > a.length ? b : a), "");
 const codedBig = [];
 {
   let depth = 0,

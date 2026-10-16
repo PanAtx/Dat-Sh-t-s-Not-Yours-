@@ -25,6 +25,7 @@ const suites = [
   ['slapstick + weather (squash-stretch / hat pop / bag cascade / rain)', 'node', '_slapstick_weather_chk.js'],
   ['punchback (retaliation vs the 12 attack NPCs)', 'node', '_punch_back_chk.js'],
   ['write-up stamp fits mobile (CSS invariants)', 'node', '_writeup_mobile_chk.js'],
+  ['ending screens (arcade GAME OVER boot-in-shit + WEEK COMPLETE cash rain: transform/opacity-only loops, phone piece budget, tally + teardown)', 'node', '_ending_screens_chk.js'],
   ['health carry-over (no refill at level start - street-cash healer / write-up restores)', 'node', '_health_carryover_chk.js'],
   ['danger zone POW! + 1980s arcade voice ("San Man Needs Food Badly")', 'node', '_danger_pow_chk.js'],
   ['25 new street treasures (kinds 43-67 + spawnBonus draw)', 'node', '_treasures25_chk.js'],
@@ -51,7 +52,7 @@ const suites = [
   ['THE WRITE-UP REBOUND (a LODI written up DURING the final boss fight, shift continuing, hands the Slug Demon back its FULL 10/10 bar — with the animated climb back)', 'node', '_boss_recover_chk.js'],
   ['STRAY-LINE GUARD (the "b is not defined at load" class: a function-body line stranded at top level parses fine and stops the game booting)', 'node', '_stray_line_chk.js'],
   ['THE MIDNIGHT DEAD END (one cross-street + one corner store at the TOP of the level; the last block is St Basuras Cemetery - no buildings, wrought-iron fence the length of the street, the plaque, the worker iron wall)', 'node', '_night_deadend_chk.js'],
-  ['THE MIDNIGHT FENCED LOTS (the chain-link over the five paved-over intersections: pipe poles standing Z-UP, one alpha-cut woven-weave panel per lot with NO side runs, recessed ON the building line y 7.25, a NO TRESPASSING tin on the wire, the wire as the worker\'s hard wall (no side, no squeeze) with its bump tell, and one Joss note per lot fenced behind the wire — shovel-only)', 'node', '_night_lot_fence_chk.js'],
+  ['THE MIDNIGHT FENCED LOTS (the chain-link over the five paved-over intersections: pipe poles standing Z-UP, one alpha-cut woven-weave panel per lot with NO side runs, recessed ON the building line y 7.25, a NO TRESPASSING tin on the wire, the wire as the worker\'s hard wall (no side, no squeeze) with its bump tell, and one Joss note per lot fenced behind the wire — shovel-only; THE CHAIN-LINK IS MIDNIGHT-ONLY: isNightShift-gated builder on the per-level groundGroup, never the scene root)', 'node', '_night_lot_fence_chk.js'],
   ['THE MIDNIGHT BLOCK PACKS (the hellhound tail rides the rump up-and-back; a DIFFERENT set of horrors on every block - gremlins, goblins, devils, fangspiders, eye crawlers, red-eyed skeletons, pitfiends)', 'node', '_night_packs_chk.js'],
   ['WEEK START (a fresh week boots on MONDAY / level 1; Midnight stays level 8 of 8, reachable by the panel and by clearing Sunday)', 'node', '_week_start_chk.js'],
   ['THE MIDNIGHT LOOK (moonlit darkness, street lamps, lit windows, retro-reflective hi-vis)', 'node', '_midnight_look_chk.js'],
@@ -60,6 +61,7 @@ const suites = [
   ['radio station e2e (the weekday rotation excludes the midnight-only set; the night shift rotates its own four songs; offline cache)', 'node', '_radio_e2e.js'],
   ['THE MOBILE BUDGET (low-spec first-run profile: 320P/LO/30 with a chosen-key-wins law; the render governor stepping RENDER_H on frame time with hysteresis; the FX tier halving the boss storm and widening the parry/heart windows for thumbs)', 'node', '_mobile_perf_chk.js'],
   ['THE RAIN BANDING METER (the streak field keeps a dense height ladder and honest wall-clock time at 12/20/30/60fps — the mobile "horizontal white waves" fix)', 'node', '_rain_band_chk.js'],
+  ['OFFLINE COVERAGE (every model + every MP3 — the Midnight songs and the trainer menu track — plus the shell/webfonts is cached for a no-network play)', 'node', '_offline_cache_chk.js'],
 ];
 
 let allPass = true;

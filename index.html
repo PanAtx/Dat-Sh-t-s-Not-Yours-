@@ -2252,6 +2252,774 @@
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.4s
           both;
       }
+      /* =====================================================================
+         ===== END-OF-RUN ARCADE SCREENS: GAME OVER + WEEK COMPLETE =========
+         Nintendo / SEGA-era ending flair. The player must KNOW, in one glance,
+         whether he won or lost.
+         * GAME OVER (suspended): a cartoon sneaker STOMPS into a pile of dog
+           shit - the splat spreads, a green stink cloud puffs up, flies circle
+           the pile, an "EWWWW!" bubble pops, brown drips rain down the screen
+           and the panel SHAKES. The red "GAME OVER" banner flickers like a
+           dead arcade cabinet.
+         * WEEK COMPLETE (won): cold CASH rains like confetti, a gold sunburst
+           spins behind a bouncing money bag with orbiting coins, a "KA-CHING!"
+           ribbon pops and the gold "YOU WIN!" banner struts. The score TALLIES
+           UP arcade-style and a rank pill crowns the shift.
+         THE MOBILE / CPU-GPU LAW (both screens sit over a live WebGL street):
+           1. Every loop animates transform + opacity ONLY - compositor work,
+              no layout, no repaint, no per-frame JS, no canvas, no 3D meshes.
+           2. The animated scenery (strip, boot, splat, rays, coins, banners) is
+              STATIC markup + CSS keyframes: zero JS per frame, zero allocations.
+           3. Only the rain is built in JS, ONCE per show, with a small
+              viewport-aware count (11 bills / 4 drips on a phone, 20 / 8 on a
+              desktop), and it is cleared when the screen closes.
+           4. Every layer lives INSIDE its modal, so the .hidden (display:none)
+              toggle SWITCHES ALL LOOPS OFF for free - nothing animates behind
+              any other screen.
+           5. prefers-reduced-motion: every loop is off; the scenes stay in a
+              readable static pose.
+         ===================================================================== */
+      /* ---- the full-screen particle layer (rains BEHIND the panel) ---- */
+      .fx-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        overflow: hidden;
+        pointer-events: none;
+        contain: layout style paint;
+        perspective: 900px; /* gives the falling bills their 3D flip */
+      }
+      /* the panel must ride ABOVE its own rain */
+      #over .panel,
+      #week-complete .panel {
+        position: relative;
+        z-index: 2;
+      }
+      /* the GAME OVER veil: a sour green-brown vignette breathing on the screen */
+      .fx-veil {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: radial-gradient(
+          circle at 50% 52%,
+          rgba(0, 0, 0, 0) 24%,
+          rgba(104, 126, 28, 0.34) 66%,
+          rgba(28, 16, 3, 0.66) 100%
+        );
+        animation: fxVeilBreath 3.4s ease-in-out infinite;
+      }
+      @keyframes fxVeilBreath {
+        0%,
+        100% {
+          opacity: 0.5;
+        }
+        44% {
+          opacity: 1;
+        }
+        62% {
+          opacity: 0.7;
+        }
+      }
+      /* ---- the WIN money rain: flying $100 bills (the winner's confetti) ---- */
+      .fx-bill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: clamp(20px, 4.2vw, 32px);
+        height: clamp(11px, 2.1vw, 17px);
+        border: 2px solid #0b3d20;
+        border-radius: 3px;
+        background: linear-gradient(150deg, #d8ffe2, #34bf68 46%, #12763c);
+        box-shadow:
+          0 2px 5px rgba(0, 0, 0, 0.45),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+        font:
+          700 clamp(7px, 1.4vw, 10px) / 1 "Courier New",
+          monospace;
+        letter-spacing: 0.5px;
+        color: #063a1c;
+        animation: fxBill var(--dur, 2.8s) linear var(--dl, 0s) infinite;
+      }
+      .fx-bill::after {
+        content: "$100";
+      }
+      @keyframes fxBill {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, -16vh, 0) rotateZ(0deg) rotateX(0deg)
+            scale(0.85);
+        }
+        9% {
+          opacity: 1;
+        }
+        88% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          transform: translate3d(var(--dx, 8vw), 118vh, 0)
+            rotateZ(var(--rz, 40deg)) rotateX(720deg) scale(1.05);
+        }
+      }
+      /* ---- the GAME OVER shit rain: brown drips falling down the screen ---- */
+      .fx-drip {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: clamp(7px, 1.6vw, 12px);
+        height: clamp(11px, 2.4vw, 19px);
+        border-radius: 50% 50% 46% 46% / 62% 62% 38% 38%;
+        background: radial-gradient(circle at 34% 22%, #c8912f, #5b3609 66%, #2c1903);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        animation: fxDrip var(--dur, 3.2s) linear var(--dl, 0s) infinite;
+      }
+      @keyframes fxDrip {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, -14vh, 0) scale(0.6);
+        }
+        12% {
+          opacity: 0.95;
+        }
+        90% {
+          opacity: 0.8;
+        }
+        100% {
+          opacity: 0;
+          transform: translate3d(var(--dx, 4vw), 116vh, 0) scale(1.15);
+        }
+      }
+      /* ---- the verdict shout: "GAME OVER" / "YOU WIN!" (slams in, then lives) ---- */
+      .arcade-banner {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(27px, 7.8vw, 62px);
+        letter-spacing: 4px;
+        line-height: 1;
+        text-transform: uppercase;
+        margin: 0 auto clamp(6px, 1.2vh, 12px);
+        animation: bannerPop 0.55s cubic-bezier(0.2, 1.7, 0.4, 1) both;
+      }
+      @keyframes bannerPop {
+        0% {
+          opacity: 0;
+          transform: scale(0) rotate(-16deg);
+        }
+        55% {
+          opacity: 1;
+          transform: scale(1.18) rotate(5deg);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1) rotate(-1.5deg);
+        }
+      }
+      .go-banner {
+        color: #ff3b30;
+        text-shadow:
+          2px 2px 0 #000,
+          4px 4px 0 rgba(0, 0, 0, 0.8),
+          0 0 22px rgba(255, 59, 48, 0.85);
+        /* the infinite loop is opacity-ONLY, so it never fights bannerPop's transform */
+        animation:
+          bannerPop 0.55s cubic-bezier(0.2, 1.7, 0.4, 1) both,
+          fxLoseFlicker 1.5s steps(1, end) 0.6s infinite;
+      }
+      @keyframes fxLoseFlicker {
+        0%,
+        70%,
+        100% {
+          opacity: 1;
+        }
+        74% {
+          opacity: 0.2;
+        }
+        78% {
+          opacity: 1;
+        }
+        82% {
+          opacity: 0.35;
+        }
+      }
+      .win-banner {
+        color: #fff3a1;
+        text-shadow:
+          2px 2px 0 #3b2405,
+          4px 4px 0 rgba(0, 0, 0, 0.55),
+          0 0 14px #ffdd55,
+          0 0 34px #ff9d00;
+        animation:
+          bannerPop 0.55s cubic-bezier(0.2, 1.7, 0.4, 1) both,
+          winBannerShine 2.6s ease-in-out 0.6s infinite;
+      }
+      @keyframes winBannerShine {
+        0%,
+        100% {
+          transform: scale(1) rotate(-1.5deg);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.06) rotate(1.5deg);
+          opacity: 0.92;
+        }
+      }
+      /* the arcade "insert coin" prompt under the button */
+      .press-start {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(11px, 2.3vw, 16px);
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: #ffe98a;
+        margin-top: clamp(6px, 1.2vh, 10px);
+        animation: pressBlink 1.2s steps(1, end) 1.7s infinite;
+      }
+      @keyframes pressBlink {
+        0%,
+        52% {
+          opacity: 1;
+        }
+        53%,
+        100% {
+          opacity: 0.12;
+        }
+      }
+      /* the "NEW HIGH SCORE!" ribbon + the week's rank crown */
+      .new-hi {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(12px, 2.6vw, 20px);
+        letter-spacing: 2px;
+        color: #06210f;
+        background: linear-gradient(180deg, #ffee8a, #ffb32a);
+        border: 2px solid #06210f;
+        border-radius: 999px;
+        padding: 2px 12px;
+        margin: 4px auto 0;
+        display: inline-block;
+        box-shadow: 0 0 16px rgba(255, 200, 60, 0.6);
+        animation: newHiPulse 0.9s ease-in-out infinite;
+      }
+      @keyframes newHiPulse {
+        0%,
+        100% {
+          transform: rotate(-2deg) scale(1);
+        }
+        50% {
+          transform: rotate(2deg) scale(1.08);
+        }
+      }
+      .rank-pill {
+        display: inline-block;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(13px, 2.9vw, 22px);
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #2a1500;
+        background: linear-gradient(180deg, #fff1a0, #ffcf4a 55%, #e39a12);
+        border: 2px solid #2a1500;
+        border-radius: 999px;
+        padding: clamp(3px, 0.8vh, 5px) clamp(10px, 2.6vw, 18px);
+        margin: clamp(2px, 0.6vh, 6px) auto 0;
+        box-shadow:
+          0 3px 0 rgba(0, 0, 0, 0.45),
+          0 0 20px rgba(255, 210, 58, 0.55);
+        animation: rankPop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.95s both;
+      }
+      @keyframes rankPop {
+        0% {
+          opacity: 0;
+          transform: scale(0.2) rotate(10deg);
+        }
+        60% {
+          opacity: 1;
+          transform: scale(1.14) rotate(-4deg);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1) rotate(-2deg);
+        }
+      }
+      /* the GAME OVER panel SHAKES once the pop-in lands (the "you got yanked" jolt) */
+      #over.fx-shake .panel {
+        animation:
+          panel-pop-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both,
+          fxPanelShake 0.5s ease-in 0.5s 3;
+      }
+      @keyframes fxPanelShake {
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0) rotate(0deg);
+        }
+        20% {
+          transform: translate3d(-9px, 2px, 0) rotate(-0.8deg);
+        }
+        40% {
+          transform: translate3d(8px, -3px, 0) rotate(0.7deg);
+        }
+        60% {
+          transform: translate3d(-5px, 1px, 0) rotate(-0.4deg);
+        }
+        80% {
+          transform: translate3d(4px, -1px, 0) rotate(0.3deg);
+        }
+      }
+      /* ---- the GAME OVER cartoon strip: the BOOT IN THE DOG SHIT beat -----
+         One 3.4s loop: the sneaker lifts, STOMPS the pile at ~40%, the splat
+         rings out, the stink puffs rise, the "EWWWW!" bubble pops, flies buzz. */
+      .go-scene,
+      .win-scene {
+        position: relative;
+        width: min(100%, 340px);
+        height: clamp(70px, 15vh, 118px);
+        margin: 0 auto clamp(8px, 1.4vh, 14px);
+        /* the cartoon lives INSIDE this strip - nothing it does can push the panel */
+        overflow: hidden;
+      }
+      .go-ground {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 15%;
+        background: linear-gradient(180deg, rgba(150, 116, 52, 0.35), rgba(0, 0, 0, 0.62));
+        border-top: 2px dashed rgba(255, 196, 96, 0.35);
+      }
+      .go-poop {
+        position: absolute;
+        left: 50%;
+        bottom: 12%;
+        width: clamp(34px, 8vw, 58px);
+        height: clamp(24px, 5.6vw, 42px);
+        transform: translateX(-50%);
+        animation: goPoop 3.4s ease-in-out infinite;
+      }
+      .go-poop i {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 50% 50% 42% 42%;
+        background: radial-gradient(circle at 34% 24%, #b9842f, #64400d 62%, #3a2405 100%);
+        box-shadow: inset 0 -3px 4px rgba(0, 0, 0, 0.5);
+      }
+      .go-poop .p1 {
+        bottom: 0;
+        width: 96%;
+        height: 42%;
+      }
+      .go-poop .p2 {
+        bottom: 28%;
+        width: 68%;
+        height: 38%;
+      }
+      .go-poop .p3 {
+        bottom: 56%;
+        width: 40%;
+        height: 34%;
+      }
+      @keyframes goPoop {
+        0%,
+        34% {
+          transform: translateX(-50%) scale(1, 1);
+        }
+        44% {
+          transform: translateX(-50%) scale(1.3, 0.6);
+        }
+        58% {
+          transform: translateX(-50%) scale(0.9, 1.14);
+        }
+        74% {
+          transform: translateX(-50%) scale(1.06, 0.94);
+        }
+        100% {
+          transform: translateX(-50%) scale(1, 1);
+        }
+      }
+      .go-boot {
+        position: absolute;
+        left: 50%;
+        bottom: 30%;
+        font-size: clamp(36px, 9vw, 62px);
+        line-height: 1;
+        transform: translateX(-50%);
+        transform-origin: 50% 92%;
+        filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.65));
+        animation: goStomp 3.4s ease-in-out infinite;
+      }
+      @keyframes goStomp {
+        0% {
+          transform: translateX(-50%) translate3d(0, -78%, 0) rotate(-26deg);
+        }
+        26% {
+          transform: translateX(-50%) translate3d(0, -86%, 0) rotate(-16deg);
+        }
+        40% {
+          transform: translateX(-50%) translate3d(0, 8%, 0) rotate(9deg)
+            scale(1.14, 0.84);
+        }
+        52% {
+          transform: translateX(-50%) translate3d(0, -8%, 0) rotate(0deg)
+            scale(0.98, 1.06);
+        }
+        66% {
+          transform: translateX(-50%) translate3d(0, 3%, 0) rotate(4deg);
+        }
+        100% {
+          transform: translateX(-50%) translate3d(0, -78%, 0) rotate(-26deg);
+        }
+      }
+      .go-splat {
+        position: absolute;
+        left: 50%;
+        bottom: 9%;
+        width: clamp(96px, 25vw, 168px);
+        height: clamp(24px, 7vw, 44px);
+        border-radius: 50%;
+        opacity: 0.72; /* the static pose prefers-reduced-motion leaves on screen */
+        background: radial-gradient(
+          ellipse at center,
+          rgba(122, 82, 16, 0.8) 0 30%,
+          rgba(86, 58, 12, 0.45) 44% 58%,
+          transparent 66%
+        );
+        animation: goSplat 3.4s ease-out infinite;
+      }
+      @keyframes goSplat {
+        0%,
+        36% {
+          opacity: 0;
+          transform: translateX(-50%) scale(0.35);
+        }
+        46% {
+          opacity: 0.95;
+          transform: translateX(-50%) scale(1.1);
+        }
+        68% {
+          opacity: 0.75;
+          transform: translateX(-50%) scale(1.24);
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(-50%) scale(1.42);
+        }
+      }
+      .go-stink i {
+        position: absolute;
+        left: 50%;
+        bottom: 34%;
+        width: clamp(14px, 3.6vw, 26px);
+        height: clamp(14px, 3.6vw, 26px);
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 38% 34%,
+          rgba(176, 240, 110, 0.9),
+          rgba(96, 176, 52, 0.28) 62%,
+          transparent 76%
+        );
+        animation: goStink 3.4s ease-out infinite;
+      }
+      .go-stink .s1 {
+        --sx: -34px;
+      }
+      .go-stink .s2 {
+        --sx: 4px;
+        animation-delay: 0.18s;
+      }
+      .go-stink .s3 {
+        --sx: 34px;
+        animation-delay: 0.34s;
+      }
+      @keyframes goStink {
+        0%,
+        38% {
+          opacity: 0;
+          transform: translate(0, 0) scale(0.4);
+        }
+        52% {
+          opacity: 0.85;
+        }
+        100% {
+          opacity: 0;
+          transform: translate(var(--sx, 0px), -190%) scale(1.7);
+        }
+      }
+      /* the flies circling the pile - plain CSS specks (no emoji dependency) */
+      .go-fly {
+        position: absolute;
+        left: 40%;
+        top: 26%;
+        width: clamp(6px, 1.5vw, 9px);
+        height: clamp(4px, 1.1vw, 7px);
+        border-radius: 50%;
+        background: #14180f;
+        box-shadow: 0 0 0 1px rgba(232, 255, 214, 0.4);
+        animation: goBuzz 1.2s linear infinite;
+      }
+      .go-fly.f2 {
+        left: 58%;
+        top: 18%;
+        animation-duration: 0.95s;
+        animation-delay: -0.4s;
+      }
+      .go-fly.f3 {
+        left: 50%;
+        top: 34%;
+        animation-duration: 1.45s;
+        animation-delay: -0.75s;
+      }
+      @keyframes goBuzz {
+        0% {
+          transform: translate3d(0, 0, 0) rotate(0deg);
+        }
+        25% {
+          transform: translate3d(24px, -14px, 0) rotate(90deg);
+        }
+        50% {
+          transform: translate3d(46px, 6px, 0) rotate(180deg);
+        }
+        75% {
+          transform: translate3d(18px, 16px, 0) rotate(270deg);
+        }
+        100% {
+          transform: translate3d(0, 0, 0) rotate(360deg);
+        }
+      }
+      .go-bubble {
+        position: absolute;
+        right: 1%;
+        top: 3%;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(12px, 2.8vw, 20px);
+        letter-spacing: 1px;
+        color: #12300a;
+        background: #d9ff74;
+        border: 2px solid #12300a;
+        border-radius: 12px 12px 12px 3px;
+        padding: 2px 7px;
+        opacity: 0.9;
+        animation: goBubble 3.4s ease-out infinite;
+      }
+      @keyframes goBubble {
+        0%,
+        40% {
+          opacity: 0;
+          transform: scale(0.3) rotate(-14deg);
+        }
+        54% {
+          opacity: 1;
+          transform: scale(1.2) rotate(5deg);
+        }
+        66% {
+          opacity: 1;
+          transform: scale(0.98) rotate(-3deg);
+        }
+        88% {
+          opacity: 1;
+          transform: scale(1) rotate(0deg);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.06) rotate(0deg);
+        }
+      }
+      /* ---- the WIN stage: the spinning gold sunburst + the bouncing money bag ----
+         Cash rains BEHIND the panel (the .fx-bill layer); this strip is the
+         SEGA-style podium the money lands on. */
+      .win-rays {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 44vmin;
+        height: 44vmin;
+        margin: -22vmin 0 0 -22vmin;
+        border-radius: 50%;
+        opacity: 0.85;
+        background: radial-gradient(circle, rgba(255, 214, 74, 0.2), transparent 62%);
+        animation: winRaySpin 9s linear infinite;
+      }
+      @supports (background: repeating-conic-gradient(from 0deg, #000 0deg 10deg, transparent 10deg 20deg)) {
+        .win-rays {
+          background: repeating-conic-gradient(
+            from 0deg,
+            rgba(255, 214, 74, 0.34) 0deg 7deg,
+            rgba(255, 214, 74, 0) 7deg 20deg
+          );
+        }
+      }
+      @keyframes winRaySpin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .win-bag {
+        position: absolute;
+        left: 50%;
+        top: 22%;
+        font-size: clamp(34px, 8.6vw, 58px);
+        line-height: 1;
+        transform: translateX(-50%);
+        filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.65));
+        animation: winBag 1.9s ease-in-out infinite;
+      }
+      @keyframes winBag {
+        0%,
+        100% {
+          transform: translateX(-50%) translateY(0) rotate(-5deg) scale(1, 1);
+        }
+        30% {
+          transform: translateX(-50%) translateY(-26%) rotate(6deg) scale(1.08, 0.92);
+        }
+        55% {
+          transform: translateX(-50%) translateY(3%) rotate(-2deg) scale(0.94, 1.08);
+        }
+        76% {
+          transform: translateX(-50%) translateY(-12%) rotate(3deg) scale(1.02, 0.98);
+        }
+      }
+      .win-coin {
+        position: absolute;
+        left: 50%;
+        top: 40%;
+        width: clamp(12px, 3vw, 20px);
+        height: clamp(12px, 3vw, 20px);
+        border-radius: 50%;
+        background: radial-gradient(circle at 34% 28%, #fff2ac, #ffce3a 55%, #a86f00);
+        border: 2px solid #7a4d00;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        animation: winCoin 2.6s linear infinite;
+      }
+      .win-coin.c2 {
+        --r: 58px;
+        top: 30%;
+        animation-duration: 2.1s;
+        animation-delay: -0.9s;
+      }
+      .win-coin.c3 {
+        --r: 92px;
+        top: 52%;
+        animation-duration: 3.1s;
+        animation-delay: -1.7s;
+      }
+      @keyframes winCoin {
+        0% {
+          transform: translate(var(--r, 74px), 0) scaleX(1);
+        }
+        25% {
+          transform: translate(0, calc(var(--r, 74px) * -0.55)) scaleX(0.25);
+        }
+        50% {
+          transform: translate(calc(var(--r, 74px) * -1), 0) scaleX(1);
+        }
+        75% {
+          transform: translate(0, calc(var(--r, 74px) * 0.55)) scaleX(0.25);
+        }
+        100% {
+          transform: translate(var(--r, 74px), 0) scaleX(1);
+        }
+      }
+      .win-ching {
+        position: absolute;
+        right: 1%;
+        top: 5%;
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(12px, 2.9vw, 21px);
+        letter-spacing: 1px;
+        color: #3a2400;
+        background: linear-gradient(180deg, #ffee8a, #ffb32a);
+        border: 2px solid #3a2400;
+        border-radius: 14px 14px 14px 3px;
+        padding: 2px 8px;
+        opacity: 0.92;
+        animation: winChing 1.9s ease-out infinite;
+      }
+      @keyframes winChing {
+        0%,
+        34% {
+          opacity: 0;
+          transform: scale(0.3) rotate(12deg);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.22) rotate(-5deg);
+        }
+        68% {
+          opacity: 1;
+          transform: scale(0.98) rotate(3deg);
+        }
+        90% {
+          opacity: 1;
+          transform: scale(1) rotate(0deg);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.05) rotate(0deg);
+        }
+      }
+      /* ===== MOBILE FIT: the ending scenes ride ABOVE the report text inside the
+         panel, so a phone keeps them short and the button stays reachable (the
+         .panel scroll safety net above covers the very shortest screens). ===== */
+      @media (max-width: 640px), (max-height: 500px) {
+        .go-scene,
+        .win-scene {
+          height: clamp(54px, 12vh, 80px);
+          margin-bottom: 6px;
+        }
+        .arcade-banner {
+          letter-spacing: 2px;
+          margin-bottom: 4px;
+        }
+        .press-start {
+          margin-top: 5px;
+          font-size: 10px;
+          letter-spacing: 2px;
+        }
+        .new-hi {
+          font-size: 11px;
+          padding: 2px 9px;
+        }
+        .rank-pill {
+          font-size: 12px;
+          letter-spacing: 1px;
+          padding: 2px 10px;
+        }
+        .fx-bill {
+          width: 20px;
+          height: 11px;
+          font-size: 7px;
+        }
+        .fx-drip {
+          width: 7px;
+          height: 12px;
+        }
+        .go-bubble,
+        .win-ching {
+          top: 0;
+        }
+      }
+      /* ===== REDUCED MOTION: every ending loop is OFF; the scenes stay in a
+         readable static pose (boot on the pile, splat visible, money on stage). ===== */
+      @media (prefers-reduced-motion: reduce) {
+        .fx-bill,
+        .fx-drip,
+        .fx-veil,
+        .arcade-banner,
+        .go-banner,
+        .win-banner,
+        .press-start,
+        .new-hi,
+        .rank-pill,
+        .go-scene *,
+        .go-scene * i,
+        .win-scene *,
+        .win-scene * i,
+        #over.fx-shake .panel {
+          animation: none;
+        }
+      }
       /* ===== MOBILE: keep the level-complete / report panels from clipping the bottom
          button. .panel is max-height:100% + overflow:hidden, so on a short phone
          (portrait) the NEXT DAY / START button gets cut off. Shrink the type + padding
@@ -4555,7 +5323,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.553</div>
+          <div id="app-version" class="menu-version">v1.0.554</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4717,15 +5485,35 @@
         <button id="btnQuit2">QUIT TO MENU</button>
       </div></div
     >
+    <!-- GAME OVER (SUSPENDED): the arcade losing screen. Behind the panel a sour
+         veil breathes + brown drips rain; inside, the cartoon beat plays - a sneaker
+         STOMPS the dog shit pile, the splat rings out, the stink puffs rise, flies
+         circle and the "EWWWW!" bubble pops. The red GAME OVER banner flickers. -->
     <div id="over" class="modal hidden"
+      ><div class="fx-veil" aria-hidden="true"></div
+      ><div class="fx-layer fx-lost" id="fx-lost" aria-hidden="true"></div
       ><div class="panel">
+        <div class="arcade-banner go-banner">Game Over</div>
+        <div class="go-scene" aria-hidden="true">
+          <div class="go-ground"></div>
+          <div class="go-splat"></div>
+          <div class="go-poop"><i class="p1"></i><i class="p2"></i><i class="p3"></i></div>
+          <div class="go-boot">&#128098;</div>
+          <div class="go-stink"><i class="s1"></i><i class="s2"></i><i class="s3"></i></div>
+          <div class="go-fly f1"></div>
+          <div class="go-fly f2"></div>
+          <div class="go-fly f3"></div>
+          <div class="go-bubble">EWWWW!</div>
+        </div>
         <h2 id="over-title">SUSPENDED BY DSNY</h2>
         <div class="tag" id="over-tag">3 WRITE-UPS - SHIFT TERMINATED</div>
         <div class="score"
           >FINAL SCORE $<span id="finalscore">000000</span></div
         >
         <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
+        <div class="new-hi hidden" id="over-newhi">NEW HIGH SCORE!</div>
         <button id="btnRestart">RESTART SHIFT</button>
+        <div class="press-start">Press Start - Clock Back In</div>
       </div></div
     >
     <div id="complete" class="modal hidden"
@@ -4781,16 +5569,47 @@
     >
     <!-- OVERTIME BASKETS: the big GOOD WORK! / YOU FAILED verdict banner (over the 3D world) -->
     <div id="bonus-verdict" class="hidden"><div id="bonus-verdict-text"></div></div>
+    <!-- WEEK COMPLETE (THE WIN): the arcade victory screen. Cold CASH rains like
+         confetti behind the panel, the gold sunburst spins under a bouncing money
+         bag with orbiting coins, the "KA-CHING!" ribbon pops and the week's score
+         TALLIES UP to a rank crown. -->
     <div id="week-complete" class="modal hidden"
+      ><div class="fx-layer fx-won" id="fx-won" aria-hidden="true"></div
       ><div class="panel">
+        <div class="arcade-banner win-banner">You Win!</div>
+        <div class="win-scene" aria-hidden="true">
+          <div class="win-rays"></div>
+          <div class="win-coin c1"></div>
+          <div class="win-coin c2"></div>
+          <div class="win-coin c3"></div>
+          <div class="win-bag">&#128176;</div>
+          <div class="win-ching">KA-CHING!</div>
+        </div>
         <h1 id="week-title">WEEK COMPLETE</h1>
         <div class="tag" id="week-tag">ALL 7 DAYS CLEARED - TOP NOTCH!</div>
+        <div class="rank-pill" id="week-rank">STREET LEGEND</div>
         <div class="score">WEEK TOTAL $<span id="week-score">000000</span></div>
         <div class="score">BEST SHIFT $<span id="week-hi">000000</span></div>
+        <div class="new-hi hidden" id="week-newhi">NEW HIGH SCORE!</div>
         <button id="btnWeekRestart">WORK ANOTHER WEEK</button>
+        <div class="press-start">Press Start - Work Another Week</div>
       </div></div
     >
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      // OFFLINE SAFETY NET (three.js): the CDN copy above is precached by sw.js, but a
+      // shell-cache miss (a CDN blip mid-install, a wiped shell cache) must NOT leave the
+      // game with no THREE at all. Fall back to the LOCAL copy that ships in the repo
+      // (./three_r128.min.js - also in the shell precache). document.write keeps the
+      // parser order, so GLTFLoader.js / DRACOLoader.js always run against a real THREE.
+      if (
+        typeof THREE === "undefined" &&
+        document.readyState === "loading" &&
+        document.currentScript
+      ) {
+        document.write('<script src="three_r128.min.js"><\/script>');
+      }
+    </script>
     <script src="GLTFLoader.js"></script>
     <script src="DRACOLoader.js"></script>
     <script>
@@ -4813,7 +5632,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.553';
+      const APP_VERSION = '1.0.554';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -8473,6 +9292,16 @@
         TRAINER_TRACK: "Romeo Knight - Beat To The Pulp [Remastered].mp3",
         trainerEl: null,
         trainerRadioResumable: false,
+        // ---- TRAINER TRACK OFFLINE CACHE ----
+        // The trainer song lives at the repo root and is played by a plain <audio> element, so it
+        // is NOT part of the music/ rotation and NOT in dsnboy-radio-v1. It gets its OWN cache:
+        // radioScan()'s offline fallback enumerates the RADIO cache keys to rebuild the playlist
+        // when the manifest can't be read, and this track must NEVER join that rotation.
+        trainerCacheName: "dsnboy-trainer-v1",
+        _trainerCache: null, // the opened Cache object (lazy)
+        trainerBlobUrl: null, // the blob URL currently assigned to <audio>.src (revoked on re-warm)
+        trainerSrcSet: "", // the exact src last written: re-pointing src costs a re-buffer
+        trainerGen: 0, // every open is generation-guarded: a late resolve can't hijack a newer open
         ensure() {
           if (this.ctx) {
             if (this.ctx.state === "suspended")
@@ -8757,6 +9586,35 @@
             this.tone("sine", F / 2, n[i][2] / 2, n[i][1] + 0.05, 0.3, n[i][0]);
             this.tone("sawtooth", F, n[i][2], n[i][1], 0.04, n[i][0]);
           }
+        },
+        // ==================== END-OF-RUN ARCADE JINGLES ====================
+        // GAME OVER (the boot-in-dog-shit screen): the heavy STOMP, the wet SQUELCH
+        // of the splat, the low fly BUZZ over the pile and a cartoon slide-whistle
+        // dropping flat - the SEGA "you lost" sting. Short, procedural, one shot.
+        playBootSplat() {
+          this.ensure();
+          this.tone("sine", 168, 44, 0.2, 0.8, 0.0); // the boot STOMP (thud)
+          this.noise(0.18, "lowpass", 300, 0.6, 0.02); // the wet SQUELCH
+          this.noise(0.22, "bandpass", 900, 0.28, 0.08); // the splat spray
+          this.tone("sawtooth", 88, 66, 0.8, 0.26, 0.16); // the fly BUZZ
+          this.tone("triangle", 320, 120, 0.55, 0.3, 0.3); // the cartoon slide DOWN
+          this.tone("square", 110, 82, 0.42, 0.22, 0.55); // the sad tail note
+        },
+        // WEEK COMPLETE (the cash-rain screen): a cash-register CH-CHING, then a
+        // rising coin arpeggio (the arcade coin cascade: two bright notes per step)
+        // with a shimmer of fluttering banknotes on top. The winner's jingle.
+        playCashRain() {
+          this.ensure();
+          this.tone("sine", 96, 60, 0.26, 0.55, 0.0); // the register THUNK
+          this.tone("square", 1760, 1760, 0.09, 0.3, 0.02); // the CHING
+          this.tone("square", 2340, 2340, 0.11, 0.24, 0.08); // the CHING's bell
+          const seq = [1046, 1318, 1568, 2093, 2637, 3136];
+          for (let i = 0; i < seq.length; i++) {
+            this.tone("triangle", seq[i], seq[i], 0.14, 0.4, 0.18 + i * 0.08);
+            this.tone("sine", seq[i] * 2, seq[i] * 2, 0.1, 0.12, 0.18 + i * 0.08);
+          }
+          this.noise(0.55, "highpass", 2800, 0.18, 0.2); // the fluttering BILLS
+          this.tone("square", 3600, 3600, 0.2, 0.16, 0.18 + seq.length * 0.08); // top sparkle
         },
         // --- Health / power-up feedback ---
         playHurtSound() {
@@ -9204,6 +10062,10 @@
         // ---- TRAINER MENU MUSIC: play the trainer's dedicated root-level track (never
         //      part of the music/ rotation) while the trainer is open. If the station
         //      is on air we pause it for the duration and bring it back on exit. ----
+        // OFFLINE: the bytes come from dsnboy-trainer-v1 (see trainerWarm / _trainerResolveSrc),
+        // so the track plays with the network off. trainerWarm() normally pre-points <audio>.src
+        // at the cached blob during the asset gate, which keeps play() inside the tap gesture;
+        // a cold open resolves the src first and plays on the microtask (transient activation).
         trainerPlay() {
           try {
             this.ensure(); // AudioContext ready (resumes a suspended ctx on iOS)
@@ -9215,18 +10077,41 @@
             } else {
               this.trainerRadioResumable = false;
             }
+            const gen = (this.trainerGen = (this.trainerGen | 0) + 1);
             if (!this.trainerEl) {
               const el = (this.trainerEl = new Audio());
-              el.src = encodeURI(this.TRAINER_TRACK);
               el.loop = true; // menu music: keep it going while the trainer is open
             }
-            this.trainerEl.muted = this.radioMuted;
-            this.trainerEl.volume = this.radioMuted ? 0 : 0.9;
-            try {
-              this.trainerEl.currentTime = 0; // start from the top each time we open it
-            } catch (e) {}
-            const p = this.trainerEl.play();
-            if (p && p.catch) p.catch(() => {}); // autoplay blocked: stay silent, never break
+            const el = this.trainerEl;
+            el.muted = this.radioMuted;
+            el.volume = this.radioMuted ? 0 : 0.9;
+            const playIt = () => {
+              if (this.trainerGen !== gen) return; // a newer open took over
+              try {
+                el.currentTime = 0; // start from the top each time we open it
+              } catch (e) {}
+              const p = el.play();
+              if (p && p.catch) p.catch(() => {}); // autoplay blocked: stay silent, never break
+            };
+            if (this.trainerSrcSet) {
+              playIt(); // warm (the usual path): start straight from the cached bytes
+              return;
+            }
+            this._trainerResolveSrc()
+              .then((res) => {
+                if (res && res.src && res.src.indexOf("blob:") === 0)
+                  this.trainerBlobUrl = res.src;
+                if (this.trainerGen !== gen) return;
+                el.src = res.src;
+                this.trainerSrcSet = res.src;
+                playIt();
+              })
+              .catch(() => {
+                if (this.trainerGen !== gen) return;
+                el.src = this.trainerTrackUrl();
+                this.trainerSrcSet = this.trainerTrackUrl();
+                playIt();
+              });
           } catch (e) {}
         },
         trainerStop() {
@@ -9348,6 +10233,122 @@
           const r = await fetch(url);
           if (!r.ok) throw new Error("HTTP " + r.status);
           return "stored";
+        },
+        // ---- OFFLINE CACHE FOR THE TRAINER TRACK (dsnboy-trainer-v1) -----------------
+        // Same shape as the radio cache helpers: store the bytes once, then serve the track
+        // from the Cache API so the trainer menu's music plays with the network off. Every
+        // network pull goes through _radioFetch (the timeout guard the radio uses, because iOS
+        // Safari hangs a bare fetch() INDEFINITELY with the radios off) so a stalled request
+        // can never wedge the download loop.
+        trainerTrackUrl() {
+          return encodeURI(this.TRAINER_TRACK);
+        },
+        async _trainerGetCache() {
+          if (this._trainerCache) return this._trainerCache;
+          if (typeof caches === "undefined" || !caches.open) return null;
+          try {
+            this._trainerCache = await caches.open(this.trainerCacheName);
+            return this._trainerCache;
+          } catch (e) {
+            return null;
+          }
+        },
+        // Download + store the trainer track. 'cached' = already stored (no network touched),
+        // 'stored' = just downloaded. Throws on a hard failure so the caller decides when to
+        // retry (the badge keeps saying CACHING until it lands).
+        async trainerCacheTrack() {
+          const url = this.trainerTrackUrl();
+          const cache = await this._trainerGetCache();
+          if (cache) {
+            try {
+              if (await cache.match(url)) return "cached"; // a hit never touches the network
+            } catch (e) {
+              /* corrupt entry: re-store below */
+            }
+            const r = await this._radioFetch(url, 15000);
+            if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+            const blob = await r.blob();
+            await cache.put(url, new Response(blob));
+            return "stored";
+          }
+          const r0 = await this._radioFetch(url, 15000);
+          if (!r0.ok) throw new Error("HTTP " + r0.status + " for " + url);
+          return "stored"; // no Cache API: reachable + streamed, nothing to persist
+        },
+        // A playable src for the trainer track: cache hit -> blob URL (offline, instant);
+        // miss + online -> fetch, store, blob; miss + offline -> the bare URL, which the
+        // <audio> element errors on at once (a blob-free offline open stays silent, never wedged).
+        async _trainerResolveSrc() {
+          const url = this.trainerTrackUrl();
+          const cache = await this._trainerGetCache();
+          if (cache) {
+            try {
+              const hit = await cache.match(url);
+              if (hit) {
+                const blob = await hit.blob();
+                return { src: URL.createObjectURL(blob), fromCache: true };
+              }
+            } catch (e) {
+              /* corrupt entry: fall through to a fresh fetch */
+            }
+            if (typeof navigator === "undefined" || navigator.onLine !== false) {
+              try {
+                const r = await this._radioFetch(url, 15000);
+                if (r.ok) {
+                  const blob = await r.blob();
+                  try {
+                    await cache.put(url, new Response(blob));
+                  } catch (e) {
+                    /* quota: keep the bytes for this session */
+                  }
+                  return { src: URL.createObjectURL(blob), fromCache: false };
+                }
+              } catch (e) {
+                /* offline / timeout: let the <audio> element try the raw URL */
+              }
+            }
+          }
+          return { src: url, fromCache: false };
+        },
+        // Pre-warm the trainer track the moment the asset gate finishes: cache it, build the
+        // <audio> element and point it at the bytes BEFORE any tap, so opening the trainer is
+        // instant, works offline, and the play() lands squarely inside the tap gesture.
+        async trainerWarm() {
+          try {
+            const res = await this._trainerResolveSrc();
+            if (!res || !res.src) return false;
+            const blobUrl = res.src.indexOf("blob:") === 0 ? res.src : null;
+            const el = (this.trainerEl = this.trainerEl || new Audio());
+            const wasPlaying = !el.paused;
+            const at = el.currentTime || 0;
+            if (blobUrl && this.trainerBlobUrl !== blobUrl) {
+              if (this.trainerBlobUrl) {
+                try {
+                  URL.revokeObjectURL(this.trainerBlobUrl);
+                } catch (e) {}
+              }
+              this.trainerBlobUrl = blobUrl;
+            }
+            el.loop = true;
+            el.muted = this.radioMuted;
+            el.volume = this.radioMuted ? 0 : 0.9;
+            if (this.trainerSrcSet !== res.src) {
+              el.src = res.src;
+              this.trainerSrcSet = res.src;
+              // The trainer may already be on air (an early open, before this warm landed):
+              // keep his loop running at the same spot instead of jumping back to zero.
+              if (wasPlaying) {
+                try {
+                  el.currentTime = at;
+                } catch (e) {}
+                const p = el.play();
+                if (p && p.catch) p.catch(() => {});
+              }
+            }
+            return true;
+          } catch (e) {
+            return false;
+          }
         },
       };
       // ==================== PWA: INSTALL + CONNECTION + iOS FULLSCREEN ====================
@@ -10172,6 +11173,44 @@
       function _modelCacheKey(url) {
         const v = _modelCacheVersions[url];
         return typeof v === "number" && v > 0 ? url + "?v=" + v : url;
+      }
+      // ---- IMAGE ASSETS BY URL (the textures + every <img> in the page) ----
+      // The asset gate caches every PRELOAD_ASSETS entry — models AND images — into
+      // dsnboy-models-v1 through getModelUrl, which hands back a blob: URL. The model
+      // loaders pass that blob straight to GLTFLoader; the url-based callers (THREE.TextureLoader
+      // for the kestgak / chalkoutline decals, and the plain <img> tags: the menu art and the
+      // trainer-menu logo) start from a bare filename, so WITHOUT this registry they would still
+      // reach for the network on an offline run. Every gate download records its blob here, and
+      // offlineImgUrl() gives it back to those callers — cached once, then never fetched again
+      // (the service worker shell precache stays as the second line of defence).
+      const _offlineImgUrls = {}; // "kestgak.png" -> blob: URL of the cached bytes
+      const _isImageUrl = (u) => /\.(png|jpe?g|webp|gif|svg)$/i.test(u || "");
+      function offlineImgUrl(url) {
+        return _offlineImgUrls[url] || null;
+      }
+      function _offlineImgRemember(url, blobUrl) {
+        if (url && blobUrl && blobUrl !== url && blobUrl.indexOf("blob:") === 0)
+          _offlineImgUrls[url] = blobUrl;
+        return _offlineImgUrls[url];
+      }
+      // Repoint every <img> in the page at its cached blob (menu art, the trainer logo). Called
+      // once the asset gate has run (see preloadAssets) so the whole UI paints offline.
+      function applyOfflineImages() {
+        if (typeof document === "undefined" || !document.images) return 0;
+        let n = 0;
+        const imgs = document.images;
+        for (let i = 0; i < imgs.length; i++) {
+          const img = imgs[i];
+          const raw = img.getAttribute("src") || "";
+          if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+            const cached = offlineImgUrl(raw.replace(/^\.?\//, ""));
+            if (cached && img.src !== cached) {
+              img.src = cached;
+              n++;
+            }
+          }
+        }
+        return n;
       }
       // ---- fetchWithTimeout: wrap fetch() so a hung network call (iOS offline / DNS limbo)
       //      can never block the asset gate forever. On iOS Safari in airplane mode,
@@ -17581,12 +18620,17 @@
         if (typeof document === "undefined" || !THREE.TextureLoader) return null;
         if (kestTex) return kestTex;
         if (kestWaiters.length === 0) {
-          // first game: kick off the one-time async load; later builds reuse it
-          new THREE.TextureLoader().load("kestgak.png", (t) => {
-            kestTex = t;
-            for (const w of kestWaiters) w(t);
-            kestWaiters.length = 0;
-          });
+          // first game: kick off the one-time async load; later builds reuse it.
+          // OFFLINE: prefer the blob URL the asset gate cached (see PRELOAD_ASSETS /
+          // preloadAssetsToCache); the bare URL is only the online first-run path.
+          new THREE.TextureLoader().load(
+            offlineImgUrl("kestgak.png") || "kestgak.png",
+            (t) => {
+              kestTex = t;
+              for (const w of kestWaiters) w(t);
+              kestWaiters.length = 0;
+            },
+          );
         }
         return null;
       }
@@ -20523,12 +21567,17 @@
         if (typeof document === "undefined" || !THREE.TextureLoader) return null;
         if (chalkTex) return chalkTex;
         if (chalkWaiters.length === 0) {
-          // first build: kick off the one-time async load; later builds reuse it
-          new THREE.TextureLoader().load("chalkoutline.png", (t) => {
-            chalkTex = t;
-            for (const w of chalkWaiters) w(t);
-            chalkWaiters.length = 0;
-          });
+          // first build: kick off the one-time async load; later builds reuse it.
+          // OFFLINE: prefer the blob URL the asset gate cached (PRELOAD_ASSETS includes
+          // chalkoutline.png), so the cemetery decal paints with no network at all.
+          new THREE.TextureLoader().load(
+            offlineImgUrl("chalkoutline.png") || "chalkoutline.png",
+            (t) => {
+              chalkTex = t;
+              for (const w of chalkWaiters) w(t);
+              chalkWaiters.length = 0;
+            },
+          );
         }
         return null;
       }
@@ -34125,7 +35174,12 @@
         }
         return g;
       }
+      // THE CHAIN-LINK IS MIDNIGHT'S OWN (weekdays never see it): the paved-over intersections
+      // and the fences closing them exist on the haunted shift ALONE — on every other level the
+      // same gaps are live cross-streets with crosswalks, so the builder answers 0 the moment the
+      // shift is not the night.
       function buildNightFencedLots() {
+        if (typeof isNightShift !== "function" || !isNightShift()) return 0;
         const g = new THREE.Group();
         const fenceY = NIGHT_LOT_FENCE_Y; // 7.25 — RECESSED onto the buildings' face line
         const backY = NIGHT_FENCE_Y; // 8.3 — the wrought-iron back fence line
@@ -34210,7 +35264,13 @@
           // NO side fence runs: a lot's sides are the open apron between the gaps, and the
           // single street-facing panel on the building line is the only wall the lot needs.
         }
-        worldGroup.add(g);
+        // THE LOTS RIDE THE LEVEL'S GROUND LAYER, NEVER THE SCENE ROOT: resetWorldState() tears
+        // groundGroup down at every shift boundary and rebuilds it for the new day (the same
+        // layer the night cemetery is built on — see buildNightCemetery), so Midnight's chain-link
+        // dies with Midnight. A parentless group hung on worldGroup would outlive the level and
+        // stand on every weekday street the week after the haunted shift.
+        groundGroup.add(g);
+        return NIGHT_GAP_XS.length;
       }
 
       function buildNightCemetery() {
@@ -54340,8 +55400,20 @@
             localStorage.setItem("dsnysweep_hi", String(hi));
           } catch (e) {}
         }
-        setTxt($("week-score"), pad(weekScore));
-        setTxt($("week-hi"), pad(hi));
+        // THE ARCADE WINNING BEAT: cash rains like confetti, the sunburst spins, the
+        // bag bounces, the KA-CHING pops and the week's score TALLIES UP to a rank.
+        const rank = $("week-rank");
+        if (rank) rank.textContent = weekRankOf(weekScore);
+        const newHi = weekScore > 0 && hi === weekScore; // this week set the record
+        fxShowEl("week-newhi", newHi);
+        if (typeof startEndingFx === "function") startEndingFx("win");
+        if (typeof fxStartTally === "function") {
+          fxStartTally($("week-score"), weekScore);
+          fxStartTally($("week-hi"), hi);
+        } else {
+          setTxt($("week-score"), pad(weekScore));
+          setTxt($("week-hi"), pad(hi));
+        }
         ["over", "complete", "day-intro", "day-stats", "bonus-result"].forEach(function (id) {
           $(id).classList.add("hidden");
         });
@@ -54356,6 +55428,9 @@
         clearAdvancePressed();
       }
       function showDayIntro() {
+        // A new shift card = the ending screens are history: tear down every falling
+        // piece + tally timer so no ending animation is ever left alive off-screen.
+        if (typeof stopEndingFx === "function") stopEndingFx();
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         rollWeather(d); // a new sky for the new shift (Bed-Stuy's special day is always rain)
         $("day-intro-day").textContent = levelName(d);
@@ -55122,6 +56197,7 @@
             $(id).classList.add("hidden");
           },
         );
+        if (typeof stopEndingFx === "function") stopEndingFx(); // QUIT: the ending screens' rain + tallies die with them
         $("menu").classList.remove("hidden");
         state = "menu";
         radioMode(); // dock the NOW PLAYING bar back into the menu
@@ -55134,6 +56210,203 @@
         Voice.cancel();
         needsIdleRender = true; // draw a fresh backdrop frame behind the menu
         exitFullscreen(); // leave fullscreen -> back to the browser window
+      }
+      // ==================== END-OF-RUN ARCADE FX (GAME OVER / WEEK COMPLETE) =====
+      // The winning + losing screens of index.html's CSS block
+      // "END-OF-RUN ARCADE SCREENS": GAME OVER = a boot stomping dog shit while brown
+      // drips rain; WEEK COMPLETE = $100 bills raining like confetti over a spinning
+      // gold sunburst. The scenery itself is pure CSS (static markup + keyframes).
+      // This module NEVER ticks per frame - no rAF, no canvas, no three.js meshes:
+      //   (a) it builds the falling pieces ONCE when a screen opens, in a small
+      //       viewport-aware count (phones pay the phone budget),
+      //   (b) it runs the short arcade score TALLY (a handful of setInterval ticks,
+      //       cleared the moment the screen closes),
+      //   (c) and it tears everything down on close (.hidden = display:none, which
+      //       also switches every CSS loop off by itself).
+      const FX_LAW = {
+        smallW: 700, // a viewport at/below this width pays the PHONE budget
+        smallH: 420, // ... and so does a viewport this short (landscape phones)
+        billsPhone: 11, // the cash rain on a phone (win)
+        billsDesktop: 20, // ... on a desktop
+        dripsPhone: 4, // the shit rain on a phone (lose)
+        dripsDesktop: 8,
+        tallyMsPhone: 1500, tallyStepPhone: 70, // the score tally: fewer, wider ticks
+        tallyMsDesktop: 1300, tallyStepDesktop: 45,
+      };
+      function fxIsSmallScreen(w, h) {
+        const ww = typeof w === "number" ? w : typeof innerWidth === "number" ? innerWidth : 9999;
+        const hh = typeof h === "number" ? h : typeof innerHeight === "number" ? innerHeight : 9999;
+        return (
+          (typeof MOBILE_LOW_PROFILE !== "undefined" && MOBILE_LOW_PROFILE === true) ||
+          ww <= FX_LAW.smallW ||
+          hh <= FX_LAW.smallH
+        );
+      }
+      function fxRainCount(kind, small) {
+        if (kind === "win") return small ? FX_LAW.billsPhone : FX_LAW.billsDesktop;
+        return small ? FX_LAW.dripsPhone : FX_LAW.dripsDesktop;
+      }
+      function fxReducedMotion() {
+        return (
+          typeof matchMedia === "function" &&
+          matchMedia("(prefers-reduced-motion: reduce)").matches
+        );
+      }
+      // One piece's whole "setup" is a left offset + four custom properties that the
+      // CSS keyframes ride (--dur loop length, --dl negative start offset so the
+      // screen is ALREADY full of rain the instant it opens, --dx drift, --rz spin).
+      function fxSetVar(el, k, v) {
+        if (el && el.style && typeof el.style.setProperty === "function")
+          el.style.setProperty(k, v);
+      }
+      function fxBuildRain(layer, kind, count) {
+        if (
+          !layer ||
+          typeof document === "undefined" ||
+          typeof document.createElement !== "function"
+        )
+          return 0;
+        const n = Math.max(0, Math.floor(count) || 0);
+        const cls = kind === "win" ? "fx-bill" : "fx-drip";
+        const frag =
+          typeof document.createDocumentFragment === "function"
+            ? document.createDocumentFragment()
+            : null;
+        for (let i = 0; i < n; i++) {
+          const el = document.createElement("div");
+          el.className = cls;
+          const dur = kind === "win" ? 2.2 + Math.random() * 1.9 : 2.6 + Math.random() * 2.2;
+          fxSetVar(el, "--dur", dur.toFixed(2) + "s");
+          fxSetVar(el, "--dl", (-Math.random() * dur).toFixed(2) + "s");
+          fxSetVar(
+            el,
+            "--dx",
+            (kind === "win" ? Math.random() * 24 - 12 : Math.random() * 10 - 5).toFixed(1) + "vw",
+          );
+          if (kind === "win")
+            fxSetVar(el, "--rz", ((Math.random() * 140 - 70) | 0) + "deg");
+          el.style.left = (Math.random() * 98).toFixed(1) + "vw";
+          if (frag) frag.appendChild(el);
+          else if (layer.appendChild) layer.appendChild(el);
+        }
+        if (frag && layer.appendChild) layer.appendChild(frag);
+        return n;
+      }
+      function fxClearLayer(layer) {
+        if (!layer) return 0;
+        let n = 0;
+        while (layer.firstChild) {
+          if (typeof layer.removeChild !== "function") break;
+          layer.removeChild(layer.firstChild);
+          n++;
+        }
+        return n;
+      }
+      // The arcade score TALLY: the final number counts up like an arcade attract
+      // screen. A short setInterval per number, cleared on fxStopTallies() so a
+      // restart / quit can never leave a stray timer running.
+      const fxTallyTimers = [];
+      function fxStopTallies() {
+        for (let i = 0; i < fxTallyTimers.length; i++)
+          if (typeof clearInterval === "function") clearInterval(fxTallyTimers[i]);
+        fxTallyTimers.length = 0;
+      }
+      function fxStartTally(el, target, durMs) {
+        const total = Math.max(0, Math.floor(target) || 0);
+        if (!el) return 0;
+        if (total <= 0 || typeof setInterval !== "function") {
+          setTxt(el, pad(total));
+          return 0;
+        }
+        const small = fxIsSmallScreen();
+        const step = small ? FX_LAW.tallyStepPhone : FX_LAW.tallyStepDesktop;
+        const frames = Math.max(
+          3,
+          Math.round((durMs || (small ? FX_LAW.tallyMsPhone : FX_LAW.tallyMsDesktop)) / step),
+        );
+        let i = 0;
+        setTxt(el, pad(0)); // the tally always STARTS at zero
+        const id = setInterval(function () {
+          i++;
+          // ease-OUT ramp: the digits spin fast, then settle onto the real number
+          const v =
+            i >= frames ? total : Math.floor(total * (1 - Math.pow(1 - i / frames, 2.4)));
+          setTxt(el, pad(v));
+          if (i >= frames && typeof clearInterval === "function") clearInterval(id);
+        }, step);
+        fxTallyTimers.push(id);
+        return frames;
+      }
+      // The week's arcade rank - the crown the winner takes home. Pure thresholds, easy
+      // to re-tune with the real score curve.
+      const WEEK_RANKS = [
+        [320000, "STREET LEGEND"],
+        [220000, "BOROUGH BOSS"],
+        [140000, "LITTER LEGEND"],
+        [80000, "CURB CRUSHER"],
+        [40000, "STEADY SWEEPER"],
+        [0, "ROOKIE ON THE BLOCK"],
+      ];
+      function weekRankOf(v) {
+        const t = Math.max(0, Math.floor(v) || 0);
+        for (let i = 0; i < WEEK_RANKS.length; i++)
+          if (t >= WEEK_RANKS[i][0]) return WEEK_RANKS[i][1];
+        return WEEK_RANKS[WEEK_RANKS.length - 1][1];
+      }
+      function fxShowEl(id, on) {
+        const el = typeof $ === "function" ? $(id) : null;
+        if (el && el.classList) el.classList.toggle("hidden", !on);
+        return el;
+      }
+      // Arm a whole ending screen. kind: "over" (the LOSE beat) | "win" (the WEEK beat).
+      // Returns how many falling pieces were built (0 = reduced motion / no layer).
+      function startEndingFx(kind) {
+        if (typeof document === "undefined") return 0;
+        const win = kind === "win";
+        const layer = typeof $ === "function" ? $(win ? "fx-won" : "fx-lost") : null;
+        fxStopTallies();
+        fxClearLayer(layer);
+        const over = typeof $ === "function" ? $("over") : null;
+        let pieces = 0;
+        if (!fxReducedMotion()) {
+          const k = win ? "win" : "lose";
+          pieces = fxBuildRain(layer, k, fxRainCount(k, fxIsSmallScreen()));
+        }
+        // The GAME OVER jolt: drop the shake class, flush the layout, re-arm it on the
+        // LOSE beat only, so the panel shakes EVERY time the suspended screen comes up
+        // (and a win never inherits a stale shake).
+        if (over && over.classList) {
+          over.classList.remove("fx-shake");
+          if (!win) {
+            void over.offsetWidth;
+            over.classList.add("fx-shake");
+          }
+        }
+        // The jingle lands a beat AFTER the screen so it reads ON the animation
+        // (the trombone / hopper jingle already rang with the panel).
+        const jingle = function () {
+          if (typeof SFX === "undefined" || !SFX) return;
+          if (win) {
+            if (typeof SFX.playCashRain === "function") SFX.playCashRain();
+          } else if (typeof SFX.playBootSplat === "function") SFX.playBootSplat();
+        };
+        if (typeof setTimeout === "function") setTimeout(jingle, win ? 520 : 460);
+        else jingle();
+        return pieces;
+      }
+      // Tear the ending screens down: every falling piece is removed and every tally
+      // timer is cleared, so no ending animation is ever left alive off-screen.
+      function stopEndingFx() {
+        if (typeof document === "undefined") return 0;
+        let n = 0;
+        if (typeof $ === "function") {
+          n += fxClearLayer($("fx-won"));
+          n += fxClearLayer($("fx-lost"));
+          const over = $("over");
+          if (over && over.classList) over.classList.remove("fx-shake");
+        }
+        fxStopTallies();
+        return n;
       }
       function gameOver(reason) {
         state = "over";
@@ -55158,14 +56431,26 @@
             localStorage.setItem("dsnysweep_hi", String(hi));
           } catch (e) {}
         }
-        setTxt($("finalscore"), pad(weekScore));
-        setTxt($("hiscore2"), pad(hi));
+        // THE ARCADE LOSING BEAT: arm the animated screen (the boot stomping the
+        // pile, the drip rain, the panel jolt, the flickering GAME OVER banner +
+        // the splat sting), then TALLY the score up arcade-style.
+        if (typeof startEndingFx === "function") startEndingFx("over");
+        if (typeof fxShowEl === "function")
+          fxShowEl("over-newhi", weekScore > 0 && hi === weekScore); // NEW HIGH SCORE!
+        if (typeof fxStartTally === "function") {
+          fxStartTally($("finalscore"), weekScore);
+          fxStartTally($("hiscore2"), hi);
+        } else {
+          setTxt($("finalscore"), pad(weekScore));
+          setTxt($("hiscore2"), pad(hi));
+        }
         ["complete", "week-complete", "day-intro", "day-stats"].forEach(
           function (id) {
             $(id).classList.add("hidden");
           },
         );
         $("over").classList.remove("hidden");
+        if (typeof startEndingFx === "function") startEndingFx("over");
         radioMode(); // NOW PLAYING bar parks back in the top-right corner
         $("vpad").classList.remove("on"); // hide the touch pad; drop any held touch state
         vt.f = 0;
@@ -56824,6 +58109,18 @@
         { url: "dsnylogo3.jpg", size: 2619573, label: "TITLE ART" },
         { url: "explicit_logo.webp", size: 20448, label: "TITLE ART" },
         { url: "mmongo.jpg", size: 87497, label: "M RATING" },
+        // THE NIGHT SHIFT'S HOLY WEAPON. shovelcompressed.glb is loaded by buildModelTemplates
+        // (loadShovelGltf) like every other model, so it MUST be in this list: an asset that is
+        // only fetched on its first use is NEVER downloaded on a visit that doesn't play that
+        // level, so a Midnight shift played OFFLINE would fall back to the procedural shovel.
+        { url: "shovelcompressed.glb", size: 896276, label: "HOLY SHOVEL" },
+        // Image assets the game pulls by URL (a can decal, the chalk decal, the trainer-menu
+        // logo). Cached here so the asset gate guarantees them for an offline run; the loaders
+        // read them back out of the cache through offlineImgUrl() (getKestTexture, the chalk
+        // decal, #trainer-logo), so they never need the network again.
+        { url: "kestgak.png", size: 24178, label: "STREET STICKER" },
+        { url: "chalkoutline.png", size: 25621, label: "CHALK OUTLINE" },
+        { url: "atxlogo.png", size: 2514618, label: "TRAINER LOGO" },
       ];
       const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
       let _preloading = false;
@@ -56996,6 +58293,25 @@
             }
           }
         } catch (e) {}
+        // THE TRAINER TRACK COUNTS TOO. The trainer menu's dedicated song is a real MP3 the
+        // player must be able to hear offline, and it is NOT part of the radio rotation, so it
+        // lives in its own cache (dsnboy-trainer-v1). Add it as one extra required track: the
+        // badge only reads OFFLINE READY once the rotation AND the trainer song are stored.
+        try {
+          if (
+            typeof SFX !== "undefined" &&
+            SFX &&
+            SFX.TRAINER_TRACK &&
+            typeof caches !== "undefined" &&
+            caches.open
+          ) {
+            total += 1;
+            const tc = await caches.open(
+              SFX.trainerCacheName || "dsnboy-trainer-v1",
+            );
+            if (tc && (await tc.match(SFX.trainerTrackUrl()))) have += 1;
+          }
+        } catch (e) {}
         return { have: have, total: total };
       }
       function updateCacheBadge() {
@@ -57046,7 +58362,7 @@
             ldResetSpeed();
             ldSetStats("");
             try {
-              await getModelUrl(a.url, (r, t) => {
+              const res = await getModelUrl(a.url, (r, t) => {
                 const p = Math.round(
                   ((got + Math.min(r, a.size)) / PRELOAD_TOTAL) * 100,
                 );
@@ -57056,6 +58372,7 @@
                 ldSampleSpeed(rr); // live MB/s + ETA readout
                 ldSetStats(ldStatsText(a, rr, ai + 1, PRELOAD_ASSETS.length));
               });
+              if (_isImageUrl(a.url)) _offlineImgRemember(a.url, res && res.url);
             } catch (e) {}
             got += a.size;
             ldSetFill(Math.round((got / PRELOAD_TOTAL) * 100));
@@ -57098,6 +58415,7 @@
           } catch (e) {
             res = { error: e };
           } // getModelUrl normally falls back, but record if it throws
+          if (_isImageUrl(a.url)) _offlineImgRemember(a.url, res && res.url); // textures + <img> art read back from the cache offline
           if (cache) {
             // Trust getModelUrl's authoritative report: res.cached says whether the
             // persistent Cache now holds the asset, and res.size is the real byte
@@ -57195,6 +58513,16 @@
           ldSetLabel("RADIO MUSIC " + (i + 1) + " / " + list.length);
           ldSetPct(Math.round(((i + 1) / list.length) * 100));
         }
+        // THE TRAINER TRACK TOO - it is not part of the rotation list, so the gate pulls it
+        // explicitly. A failure here is not fatal (the trainer menu is a hidden bonus screen):
+        // the badge keeps reporting CACHING and the next visit retries it.
+        if (typeof rc.trainerCacheTrack === "function") {
+          try {
+            await rc.trainerCacheTrack();
+          } catch (e) {
+            console.warn("[PRELOAD] trainer track not cached:", e && e.message);
+          }
+        }
       }
       // Per-track checklist for the radio phase (separate from the model checklist).
       function ldBuildRadioList(list) {
@@ -57253,6 +58581,15 @@
             } // offline / network error: stop silently, resume on a later visit
             updateCacheBadge(); // reflect progress -> "OFFLINE READY" once all cached
           }
+          // THE TRAINER TRACK LAST: the rotation is what the player hears first, so the
+          // trainer menu's dedicated 3.5MB song rides at the end of the same skippable stream
+          // (the badge counts it, so OFFLINE READY means every MP3 in the game is stored).
+          if (typeof rc.trainerCacheTrack === "function") {
+            try {
+              await rc.trainerCacheTrack();
+            } catch (e) {}
+            updateCacheBadge();
+          }
         } finally {
           _radioBgRunning = false;
           refreshRadioSkipUi();
@@ -57296,6 +58633,7 @@
         try {
           await preloadAssetsToCache();
           updateCacheBadge(); // now reflects how many assets actually landed in the cache
+          applyOfflineImages(); // the <img> art (menu logo + trainer logo) now paints from the cache
           await buildModelTemplates();
           // FAST LOAD: reveal the menu NOW. The ~150MB offline music rotation streams in
           // in the background (skippable) so a slow connection never delays the first
@@ -57310,6 +58648,10 @@
           radioMode();
           refreshInstallUi(); // surface INSTALL GAME (beforeinstallprompt) / the iOS nudge
           radioBackgroundDownload(); // skippable background download of the full rotation
+          // The trainer menu's own song + the trainer logo are cached here too, so opening the
+          // trainer works offline (see SFX.trainerWarm). Not awaited: the menu is already live.
+          if (typeof SFX !== "undefined" && SFX && typeof SFX.trainerWarm === "function")
+            SFX.trainerWarm();
         } catch (err) {
           console.error(
             "[PRELOAD] asset preload failed:",

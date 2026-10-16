@@ -23,7 +23,8 @@ const paS = html.indexOf('const PRELOAD_ASSETS');
 const paE = html.indexOf('const PRELOAD_TOTAL', paS);
 const paBlock = html.slice(paS, paE);
 const need = ['nyc_truck-compressed.glb', 'nyc_can-compressed.glb', 'car-compressed.glb', 'litterReduced2.glb', 'coffee_shop_cup-compressed.glb',
-  'bec-compressed.glb', 'red_bull_energy_drink_can-compressed.glb', 'dsnylogo3.jpg', 'explicit_logo.webp', 'mmongo.jpg'];
+  'bec-compressed.glb', 'red_bull_energy_drink_can-compressed.glb', 'shovelcompressed.glb', 'dsnylogo3.jpg', 'explicit_logo.webp', 'mmongo.jpg',
+  'kestgak.png', 'chalkoutline.png', 'atxlogo.png'];
 for (const u of need) check('PRELOAD_ASSETS includes ' + u, paBlock.indexOf('"' + u + '"') >= 0);
 
 // ---- (3) getModelUrl streaming support ----
@@ -73,7 +74,9 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const SIZES = { 'nyc_truck-compressed.glb': 10280012, 'nyc_can-compressed.glb': 3181560,
     'bec-compressed.glb': 621776, 'red_bull_energy_drink_can-compressed.glb': 300664,
     'litterReduced2.glb': 335980, 'car-compressed.glb': 15280,
-    'coffee_shop_cup-compressed.glb': 21176, 'dsnylogo3.jpg': 2619573, 'explicit_logo.webp': 20448, 'mmongo.jpg': 87497 };
+    'coffee_shop_cup-compressed.glb': 21176, 'shovelcompressed.glb': 896276,
+    'dsnylogo3.jpg': 2619573, 'explicit_logo.webp': 20448, 'mmongo.jpg': 87497,
+    'kestgak.png': 24178, 'chalkoutline.png': 25621, 'atxlogo.png': 2514618 };
   const store = new Map();
   global.caches = { open: async () => ({
     match: async (u) => { const v = store.get(u); if (!v) return null; return new Response(v); },
@@ -92,7 +95,7 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const b = html.indexOf('// ---MODEL_CACHE_BEGIN---');
   const e = html.indexOf('// ---MODEL_CACHE_END---');
   const mc = html.slice(b, e + '// ---MODEL_CACHE_END---'.length);
-  const MC = new Function('caches', 'fetch', 'URL', 'Response', mc + '\nreturn { getModelUrl: getModelUrl, _modelGetCache: _modelGetCache, _modelMemCache: _modelMemCache };')(global.caches, global.fetch, global.URL, Response);
+  const MC = new Function('caches', 'fetch', 'URL', 'Response', mc + '\nreturn { getModelUrl: getModelUrl, _modelGetCache: _modelGetCache, _modelMemCache: _modelMemCache, _isImageUrl: _isImageUrl, _offlineImgRemember: _offlineImgRemember, offlineImgUrl: offlineImgUrl, applyOfflineImages: applyOfflineImages };')(global.caches, global.fetch, global.URL, Response);
   global.URL.createObjectURL = () => 'blob:x';
   global.URL.revokeObjectURL = () => {};
 
@@ -117,8 +120,8 @@ check('rebuildTruckFromFbx is null-safe (truck ? truck.wx)', /truck \? truck\.wx
   const PRELOAD_TOTAL = PRELOAD_ASSETS.reduce((a, x) => a + x.size, 0);
   let pcts = [];
   const rowCalls = [];   // records the per-asset checklist updates (ldRow)
-  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', '_modelMemCache', 'ldSetLabel', 'ldSetPct', 'ldSetFill', 'ldRow', 'ldResetSpeed', 'ldSetStats', 'ldSampleSpeed', 'ldStatsText',
-    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, MC._modelMemCache, () => {}, (p) => { pcts.push(p); }, () => {}, (url, cls, text) => { rowCalls.push({ url, cls, text }); }, () => {}, () => {}, () => {}, () => '');
+  const preload = new Function('caches', 'fetch', 'URL', 'Response', 'PRELOAD_ASSETS', 'PRELOAD_TOTAL', 'getModelUrl', '_modelGetCache', '_modelMemCache', '_isImageUrl', '_offlineImgRemember', 'ldSetLabel', 'ldSetPct', 'ldSetFill', 'ldRow', 'ldResetSpeed', 'ldSetStats', 'ldSampleSpeed', 'ldStatsText',
+    pcCode + '\nreturn preloadAssetsToCache;')(global.caches, global.fetch, global.URL, Response, PRELOAD_ASSETS, PRELOAD_TOTAL, MC.getModelUrl, MC._modelGetCache, MC._modelMemCache, MC._isImageUrl, MC._offlineImgRemember, () => {}, (p) => { pcts.push(p); }, () => {}, (url, cls, text) => { rowCalls.push({ url, cls, text }); }, () => {}, () => {}, () => {}, () => '');
   await preload();
   check('preload drives the bar to 100%', pcts.length > 0 && pcts[pcts.length - 1] === 100);
   check('all assets are in the cache after preload', store.size === PRELOAD_ASSETS.length);

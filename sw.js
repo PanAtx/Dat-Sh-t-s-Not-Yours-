@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.553';
-var APP_VERSION = '1.0.553';
+var CACHE_NAME = 'dsnboy-shell-v1.0.554';
+var APP_VERSION = '1.0.554';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -35,9 +35,17 @@ var SHELL = [
   './dsnylogo3.jpg',    // menu logo (also preloaded by the game gate)
   './explicit_logo.webp', // "Parental Advisory" gag badge on the logo
   './mmongo.jpg', // "Rated M for Mongo" gag badge on the logo
+  './atxlogo.png',    // TRAINER MENU logo (#trainer-logo): a plain <img>, so it has to be
+                      // precached here to paint with the network off
+  './kestgak.png',    // the "kestgak" truck decal, pulled by THREE.TextureLoader by URL
   './chalkoutline.png', // Staten Island chalk crime-scene outline decal (white chalk star-pose, transparent bg)
   './manifest.json',    // PWA manifest (official title for "Add to Home Screen")
   './dsnyicon.png',     // PWA/app icon (replaces the old icon-*.png / apple-touch-icon set)
+  './icon-192.png',     // the rest of the PWA icon set (the <link rel=icon> tags + manifest.json):
+  './icon-512.png',     // an installed app that can't fetch its own icons looks broken on the
+  './icon-1024.png',    // home screen, so they belong in the shell offline
+  './icon-maskable-512.png',
+  './icon-maskable-1024.png',
   './music/manifest.json', // radio track list (needed OFFLINE so the station can
                            // discover which tracks are in the radio cache)
   // Draco decoder (local copy of the gstatic.com CDN build) - litterReduced2.glb
@@ -50,14 +58,57 @@ var SHELL = [
   './draco/draco_decoder.js',
   './GLTFLoader.js',
   './DRACOLoader.js',
+  // The three.js the page loads, AND the local copy it falls back to: index.html pulls the
+  // cdnjs build and, if THREE is missing (a shell-cache miss on the CDN, a CDN blip), injects
+  // ./three_r128.min.js instead - see the "OFFLINE SAFETY NET" script in the page head. Both
+  // belong in the shell so a game with no network still has a THREE.
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+  './three_r128.min.js'
+  // NOTE: the two Google Fonts stylesheets used to be plain entries here. The CSS alone is
+  // useless offline - it only NAMES the font binaries on fonts.gstatic.com - so they moved to
+  // FONT_CSS / precacheFonts() below, which stores the CSS AND every font file it references.
+];
+
+// The Google Fonts stylesheets the page links (the arcade HUD font + the comic bubble font).
+var FONT_CSS = [
   'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap',
-  'https://fonts.googleapis.com/css2?family=Bangers&display=swap' // comic speech-bubble font
+  'https://fonts.googleapis.com/css2?family=Bangers&display=swap'
 ];
 
 // Request types the SW may cache; anything else (e.g. the 3D models, the radio
 // music, directory listings) is left to the game's own caches.
-var CACHEABLE = ['text/html', 'text/javascript', 'text/css', 'image/png', 'image/jpeg', 'image/webp'];
+// The font/ types are the offline typography fix: without them the runtime handler served the
+// woff2 binaries from the network and THREW THEM AWAY, so an offline visit lost the arcade +
+// comic faces and fell back to the generic system font.
+var CACHEABLE = ['text/html', 'text/javascript', 'text/css', 'image/png', 'image/jpeg', 'image/webp', 'font/woff2', 'font/woff', 'application/font-woff', 'application/font-woff2'];
+
+// ---- precacheFonts: store both stylesheets AND every gstatic font binary they name. The
+//      stylesheet is served cache-first by the fetch handler; the binaries it points at are
+//      stored under their own URLs, so an offline page paints the real fonts with no network.
+function precacheFonts(cache) {
+  return Promise.all(FONT_CSS.map(function (cssUrl) {
+    return fetchTimeout(cssUrl, 30000).then(function (res) {
+      if (!res || !res.ok) return null;
+      var copy = res.clone();
+      return copy.text().then(function (css) {
+        return cache.put(cssUrl, res).then(function () {
+          var urls = [], m;
+          var re = /url\((?:'|")?(https:\/\/fonts\.gstatic\.com\/[^)'"]+)(?:'|")?\)/gi;
+          while ((m = re.exec(css))) { if (urls.indexOf(m[1]) < 0) urls.push(m[1]); }
+          return Promise.all(urls.map(function (u) {
+            return fetchTimeout(u, 30000).then(function (r2) {
+              if (r2 && r2.ok) return cache.put(u, r2);
+            }).catch(function (err) {
+              console.warn('[SW] font precache skipped ' + u + ':', err && err.message);
+            });
+          }));
+        });
+      });
+    }).catch(function (err) {
+      console.warn('[SW] font CSS precache skipped ' + cssUrl + ':', err && err.message);
+    });
+  }));
+}
 
 // iOS Safari can hang a network fetch() INDEFINITELY when the radios are off
 // (wifi + cellular disabled) instead of failing fast - this is the root cause of
@@ -98,7 +149,10 @@ self.addEventListener('install', function (e) {
         }).catch(function (err) {
           console.warn('[SW] precache skipped ' + url + ':', err && err.message);
         });
-      }));
+      })).
+        // Then the webfonts: the two stylesheets AND every font binary they reference, so the
+        // arcade + comic type renders on an offline visit (the CSS alone can never do it).
+        then(function () { return precacheFonts(cache); });
     }).then(function () { return self.skipWaiting(); })
   );
 });

@@ -12,6 +12,10 @@
 //   6) THE TELL AND THE FENCED MONEY: the wire answers his bump (shake + rattle + a budgeted
 //      worker line, first contact only), and each lot hides one Joss note BEHIND the wire —
 //      proximity never banks it, only the shovel dig does (flung into a lane he can stand in)
+//   7) THE CHAIN-LINK IS MIDNIGHT'S ONLY: the builder is gated on isNightShift() (a weekday
+//      build lays nothing) and the lots are parented on the per-level groundGroup, which
+//      resetWorldState() tears down at every shift boundary — so the fences can never leak
+//      onto a weekday street the way a scene-root (worldGroup) group would.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -66,19 +70,19 @@ check('MIDNIGHT IS BED-STUY GEOMETRY: house centre ' + BEDSTUY_HOUSE_Y + ', shel
 // ---- 3) BUILD it with the real THREE and measure every mesh ----
 // The builders run for real: the weave and the tin face fall back to flat materials in node
 // (no canvas), exactly as the game's other texture builders do.
-const worldGroup = new THREE.Group();
-const fn = new Function('THREE', 'worldGroup', 'NIGHT_GAP_XS', 'IW', 'GZ', 'NIGHT_FENCE_Y',
+const lotLayer = new THREE.Group(); // the layer the game parents the lots on (its groundGroup)
+const fn = new Function('THREE', 'groundGroup', 'isNightShift', 'NIGHT_GAP_XS', 'IW', 'GZ', 'NIGHT_FENCE_Y',
   'NIGHT_LOT_FENCE_Y', 'SLAB_FRONT_Y', 'M', 'MS', 'BX',
   extractFn('makeChainLinkWeave') + '\n' + extractFn('makeNoTrespassFace') + '\n' + extractFn('makeNoTrespassSign') + '\n' +
   extractFn('buildNightFencedLots') + '\n;return buildNightFencedLots();');
 const M = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
 const MS = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.5, roughness: 0.5 }, o || {}));
 const BX = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-fn(THREE, worldGroup, NIGHT_GAP_XS, IW, GZ, NIGHT_FENCE_Y, NIGHT_LOT_FENCE_Y, SLAB_FRONT_Y, M, MS, BX);
-worldGroup.updateMatrixWorld(true);
+const lotsBuilt = fn(THREE, lotLayer, () => true, NIGHT_GAP_XS, IW, GZ, NIGHT_FENCE_Y, NIGHT_LOT_FENCE_Y, SLAB_FRONT_Y, M, MS, BX);
+lotLayer.updateMatrixWorld(true);
 const box = (o) => new THREE.Box3().setFromObject(o);
 const kids = [];
-worldGroup.traverse((o) => { if (o.isMesh) kids.push(o); });
+lotLayer.traverse((o) => { if (o.isMesh) kids.push(o); });
 // the panels are the upright wire planes (the pads lie flat at -90deg, the tins are boxes)
 const isPanel = (o) => o.geometry && o.geometry.type === 'PlaneGeometry' &&
   Math.abs((o.rotation ? o.rotation.x : 0) - Math.PI / 2) < 1e-6;
@@ -95,6 +99,26 @@ const tins = kids.filter((o) => {
 
 check('the lots are built for every paved-over intersection (' + NIGHT_GAP_XS.length + ' lots)',
   pads.length === NIGHT_GAP_XS.length, 'pads=' + pads.length);
+
+// ---- 3b) THE CHAIN-LINK IS MIDNIGHT'S ONLY: no other level ever builds it ----
+const LOTS_SRC = extractFn('buildNightFencedLots');
+check('the fence builder is gated on the night shift (its first law: not MIDNIGHT, build nothing)',
+  /function buildNightFencedLots\(\)\s*\{\s*if \(typeof isNightShift !== "function" \|\| !isNightShift\(\)\) return 0;/.test(src));
+check("the gate is the builder's OWN first statement (it asks the shift before it welds a single pipe)",
+  LOTS_SRC.indexOf('if (typeof isNightShift') >= 0 &&
+    LOTS_SRC.indexOf('if (typeof isNightShift') < LOTS_SRC.indexOf('const g = new THREE.Group();'),
+  'gate runs after geometry is built');
+const dayLayer = new THREE.Group();
+const dayLots = fn(THREE, dayLayer, () => false, NIGHT_GAP_XS, IW, GZ, NIGHT_FENCE_Y, NIGHT_LOT_FENCE_Y, SLAB_FRONT_Y, M, MS, BX);
+check('THE SAME BUILDER ON A WEEKDAY SHIFT lays ZERO fence on the street (returned ' + dayLots + ', meshed ' + dayLayer.children.length + ')',
+  dayLots === 0 && dayLayer.children.length === 0);
+check('the Midnight build reports its ' + NIGHT_GAP_XS.length + ' fenced gaps, one pass',
+  lotsBuilt === NIGHT_GAP_XS.length, 'lotsBuilt=' + lotsBuilt);
+check('NO CHAIN-LINK LEAKS PAST THE NIGHT LEVEL: the lots ride the per-level groundGroup, which resetWorldState() tears down at every shift boundary (buildGround() rebuilds it for the new day)',
+  LOTS_SRC.indexOf('groundGroup.add(g)') >= 0 && LOTS_SRC.indexOf('worldGroup.add') < 0 &&
+    /while \(groundGroup\.children\.length\) \{/.test(src));
+check('the night cemetery lies on that same per-level layer (the fenced lots follow its law)',
+  extractFn('buildNightCemetery').indexOf('groundGroup.add(g)') >= 0);
 
 // 1) THE POLES STAND UP
 const flat = posts.filter((p) => { const b = box(p); return b.max.z - b.min.z < 1.5; });
