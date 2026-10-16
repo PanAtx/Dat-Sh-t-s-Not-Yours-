@@ -713,8 +713,10 @@ check('every bulb-flicker frame also pulses the midnight rig (' +
   (html.match(/updateNightLamps\(performance\.now\(\) \/ 1000, dt\);/g) || []).length === 4);
 check('the night shift still ROLLS THE STORM (3 AM lightning is part of the look)',
   /if \(d && d\.night\) applyNightPalette\(\);/.test(html));
-check('the midnight start is still wired (level 8 on a plain START)',
-  /const START_LEVEL = NIGHT_LEVEL;/.test(html));
+check('the haunted shift is still the level AFTER Sunday (level 8 via the night resolver; a plain START boots Monday)',
+  /const NIGHT_LEVEL = LEVEL_DAYS\.findIndex\(function \(d\) \{ return !!d\.night; \}\) \+ 1;/.test(html) &&
+    /const START_LEVEL = 1;/.test(html) &&
+    /const MAX_LEVEL = LEVEL_DAYS\.length;/.test(html));
 
 check('a shovel splat scales SIZE by the size dial and GLOW by the glow dial (bright, thin, settles)',
   srcFn('spawnEctoSplat').includes('const es = nightEctoSize()') &&

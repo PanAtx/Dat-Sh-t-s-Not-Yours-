@@ -53,7 +53,7 @@ const suites = [
   ['THE MIDNIGHT DEAD END (one cross-street + one corner store at the TOP of the level; the last block is St Basuras Cemetery - no buildings, wrought-iron fence the length of the street, the plaque, the worker iron wall)', 'node', '_night_deadend_chk.js'],
   ['THE MIDNIGHT FENCED LOTS (the chain-link over the five paved-over intersections: pipe poles standing Z-UP, one alpha-cut woven-weave panel per lot with NO side runs, recessed ON the building line y 7.25, a NO TRESPASSING tin on the wire, the wire as the worker\'s hard wall (no side, no squeeze) with its bump tell, and one Joss note per lot fenced behind the wire — shovel-only)', 'node', '_night_lot_fence_chk.js'],
   ['THE MIDNIGHT BLOCK PACKS (the hellhound tail rides the rump up-and-back; a DIFFERENT set of horrors on every block - gremlins, goblins, devils, fangspiders, eye crawlers, red-eyed skeletons, pitfiends)', 'node', '_night_packs_chk.js'],
-  ['MIDNIGHT BOOT (the playtest build starts on the haunted shift with NO trainer menu)', 'node', '_midnight_boot_chk.js'],
+  ['WEEK START (a fresh week boots on MONDAY / level 1; Midnight stays level 8 of 8, reachable by the panel and by clearing Sunday)', 'node', '_week_start_chk.js'],
   ['THE MIDNIGHT LOOK (moonlit darkness, street lamps, lit windows, retro-reflective hi-vis)', 'node', '_midnight_look_chk.js'],
   ['route-end cinematic walk-around path (no truck clipping) + THE MIDNIGHT DRIVE-OFF GATE (a blocked clock-out stays a no-op, never a null-sequencer crash)', 'node', '_routeend_path_chk.js'],
   ['hazard lights (the rear DSNY blink: 1s outer pair / 1s middle, and the midnight beacon in beat)', 'node', '_hazlights_chk.js'],

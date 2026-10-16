@@ -2091,9 +2091,9 @@ check('a street-cash healer drops every ' + POWERUP_CASH_STEP + ' = ' +
 check('a CLEANSED FLOOD BLOCK (the ' + HORROR_QUOTA_FLOOD.ghoul + ' ghouls + the reaper) pays ' +
   ((HORROR_QUOTA_FLOOD.ghoul + 2) * SHOVEL_POINTS) + ' — a fraction of one milestone',
   (HORROR_QUOTA_FLOOD.ghoul + 2) * SHOVEL_POINTS < MONSTER_SCORE_STEP / 5);
-// >>> TEMP: the test build starts on MIDNIGHT (flip START_LEVEL back to 1 for release) <<<
-check('TEMP TEST BUILD: the week starts on the MIDNIGHT level (flagged, one line to flip back)',
-  /const START_LEVEL = NIGHT_LEVEL;/.test(html) && /TEMP TEST BUILD/.test(html));
+// --- THE RELEASE LAW: a fresh week begins on MONDAY (the playtest flip is one line) ---
+check('the week starts on MONDAY (START_LEVEL = 1, no playtest flip in the ship)',
+  /const START_LEVEL = 1;/.test(html) && !/TEMP TEST BUILD/.test(html));
 // --- SIM: a full haunted route of banishments = how much score, really? ---
 s7Reset();
 onScreen = true;
@@ -2138,11 +2138,11 @@ check('the gargoyle rides the beast maw when it exists, and lands at the beast w
   /if \(maw\) \{[\s\S]{0,200}maw\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')) &&
     /else \{[\s\S]{0,400}dynamicGroup\.add\(gg\)/.test(srcFn('spawnStolenGargoyle')));
 
-check('A MIDNIGHT BOOT SURVIVES THE TRAINER: the panel default follows START_LEVEL (never silently back to Monday)',
+check('THE TRAINER FOLLOWS THE WEEK START: the panel default is START_LEVEL (a playtest flip is honoured, never silently overridden)',
   /var CHEAT = \{[^}]*startLevel: START_LEVEL \}/.test(html) &&
     /level = START_LEVEL;[\s\S]{0,240}if \(typeof CHEAT !== "undefined" && CHEAT\.startLevel >= 1 && CHEAT\.startLevel <= MAX_LEVEL\)/.test(html));
-check('THE TEST BUILD BOOTS ON THE NIGHT SHIFT: START_LEVEL = NIGHT_LEVEL, and the night resolver points at the LAST day (revert = that one line)',
-  /const START_LEVEL = NIGHT_LEVEL;.*TEMP/.test(html) &&
+check('THE RELEASE BOOTS ON MONDAY and the night resolver still points at the LAST day (the playtest flip = that one line)',
+  /const START_LEVEL = 1;.*MONDAY/.test(html) &&
     LEVEL_DAYS.findIndex(function (d) { return !!d.night; }) + 1 === LEVEL_DAYS.length &&
     LEVEL_DAYS.length === 8 &&
     LEVEL_DAYS[7].day === "MIDNIGHT" && !!LEVEL_DAYS[7].night);

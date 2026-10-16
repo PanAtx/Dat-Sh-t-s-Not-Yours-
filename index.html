@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.552</div>
+          <div id="app-version" class="menu-version">v1.0.553</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.552';
+      const APP_VERSION = '1.0.553';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -6922,10 +6922,14 @@
         return d.borough ? d.borough + " / " + (d.area || "") : "";
       }
 
-      // >>> TEMP TEST BUILD: the game STARTS ON THE MIDNIGHT (haunted) LEVEL so the night
-      // >>> shift can be playtested without walking the whole week. Set this back to 1
-      // >>> (Monday) for the release build — everything else is untouched.
-      const START_LEVEL = NIGHT_LEVEL; // which day a fresh week begins on — TEMP: 8 = MIDNIGHT
+      // THE WEEK START — the shipped release law: a fresh week begins on MONDAY (level 1,
+      // Manhattan / Gramercy Park) and runs Mon -> Fri, the OVERTIME corner after Wednesday,
+      // then the NIGHT SHIFT (level 8) as the last shift of the week.
+      // The playtest doorway stays exactly where it was: flip this ONE line to NIGHT_LEVEL to
+      // boot straight into the haunted shift without walking the week — the trainer's "Starting
+      // Level" panel FOLLOWS START_LEVEL, and startGame() / quitGame() both re-arm this value,
+      // so nothing else in the game needs to change in either direction.
+      const START_LEVEL = 1; // which day a fresh week begins on — 1 = MONDAY (NIGHT_LEVEL = 8 is the playtest flip)
       let level = START_LEVEL; // current day of the week (1..MAX_LEVEL)
       let weekScore = 0; // running score across the whole week
       let dayScore = 0; // score earned today only
@@ -54999,7 +55003,7 @@
         SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
         // TRAINER: honor a chosen "Starting Level" (1..7 = Mon..Sun) when set; otherwise the normal START_LEVEL.
         // (typeof guard keeps the startGame() test harness — which defines no CHEAT — passing.)
-        level = START_LEVEL; // start on the configured first day (START_LEVEL = 6 → Saturday, Manhattan / Harlem)
+        level = START_LEVEL; // start on the configured first day (START_LEVEL = 1 → MONDAY, Manhattan / Gramercy Park)
         if (typeof CHEAT !== "undefined" && CHEAT.startLevel >= 1 && CHEAT.startLevel <= MAX_LEVEL)
           level = CHEAT.startLevel;
         health = maxHealth; // fresh week = a FRESH, healthy worker (health only auto-refills on a brand-new run)
