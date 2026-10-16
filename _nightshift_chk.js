@@ -2968,7 +2968,7 @@ check('the shift is NAMED LIKE EVERY SHIFT AND REPORTED THAT WAY: "MIDNIGHT" ove
     srcFn('showDayStats').includes('d.night') &&
     srcFn('showDayStats').includes('levelName(d) + " \\u00b7 " + levelLoc(d)') &&
     srcFn('showDayStats').includes('"SHIFT REPORT \\u2014 " + levelLoc(d)') &&
-    html.includes('DEAD END STREET. WHO YOU GONNA CALL?') &&
+    html.includes('THE DEAD END. WHO YOU GONNA CALL?') &&
     html.includes('WAS STOLEN FROM THE SIDE BIN'));
 check('THE WEEKDAY CARDS AND BANNERS KEEP THEIR FULL STREET NAMES (DEAD END is the night\u2019s own place line)',
   srcFn('showDayIntro').includes('d.borough + " \\u00b7 " + d.area + " \\u00b7 " + WEATHERS[weather].label') &&
@@ -2994,7 +2994,7 @@ check('THE NIGHT CARD IS ONE SENTENCE — the briefing is the heist hook and NOT
       !/IT GLOWS/.test(t) &&
       !/DEAD END/.test(t) &&
       (html.match(/const LEVEL_DAYS = \[[\s\S]*?\n      \];/) || [''])[0]
-        .includes('warning: "DEAD END STREET. WHO YOU GONNA CALL?"') &&
+        .includes('special: "THE DEAD END. WHO YOU GONNA CALL?"') &&
       !/THE BEAST SLEEPS IN THE CEMETERY/.test(html) &&
       !/Dead end street\. Who you gonna call/.test(srcFn('showDayIntro'));
   })(),
