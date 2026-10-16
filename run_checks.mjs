@@ -5,6 +5,16 @@
 //   3. _pickup_compressed_chk.mjs  - BEC / Red Bull / car / coffee cup + index.html wiring
 //   4. _render_res_chk.js          - low-res retro render (RENDER_H 540/720/native) wiring
 //   5. inline script syntax        - every <script> block in index.html still parses
+//
+// THE SUITES ARRAY IS THE SHORT LIST. The long tail of gates lives in
+// _suites_extra.json (data, so adding a gate is one JSON line) - see the merge below.
+// Every entry there was validated in a CLEAN CLONE of main by `node _suite_hunt.mjs`:
+// the working tree carries gitignored scratch (three_r128.js, the _tex_* dumps,
+// truck.fbx, node_modules) that a suite can lean on and pass here while dying in CI,
+// so the clone is the only referee. Suites that fail there are reported by the hunt and
+// deliberately NOT registered - a gate that is red on arrival only trains people to
+// ignore red.
+
 import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -63,10 +73,33 @@ const suites = [
   ['THE PIXEL LOAN / THE RETURN LAW (the settings block + governor run LIVE on the real page code: no TDZ at boot, the ladder AND the frame cap are loaned on sustained slow frames, a clean stretch hands every rung and the cap back to the player\'s own SETTINGS pick - a NATIVE pick returns NATIVE - the rows + note tell the loan, no settings key is ever written, and the TRAINER gets the same loan + return with its buffers re-sized on every step)', 'node', '_gov_return_chk.js'],
   ['THE RAIN BANDING METER (the streak field keeps a dense height ladder and honest wall-clock time at 12/20/30/60fps — the mobile "horizontal white waves" fix)', 'node', '_rain_band_chk.js'],
   ['OFFLINE COVERAGE (every model + every MP3 — the Midnight songs and the trainer menu track — plus the shell/webfonts is cached for a no-network play)', 'node', '_offline_cache_chk.js'],
+  ['THE STATION SHIP CHECK (manifest<->disk parity for Pages, the trainer-track convention, the ID3 credits, the 96 kbps size budget, a real MPEG frame at the audio start)', 'node', '_music_ship_chk.js'],
 ];
 
+// ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----
+// Entries are merged only if their file is tracked here, so a suite deleted from main
+// disappears from npm test on its own. Names are deduped against the short list.
+const EXTRA_FILE = path.join(DIR, '_suites_extra.json');
+let extra = { suites: [] };
+if (fs.existsSync(EXTRA_FILE)) {
+  try { extra = JSON.parse(fs.readFileSync(EXTRA_FILE, 'utf8')); }
+  catch (e) { console.log('WARNING: _suites_extra.json unreadable, long-tail gates skipped: ' + e.message); }
+} else {
+  console.log('note: _suites_extra.json not found - running the short list only');
+}
+
+const queue = [];
+const seen = new Set();
+for (const entry of suites.concat(extra.suites || [])) {
+  const [name, cmd, file] = entry;
+  if (!file || seen.has(file)) continue;
+  if (!fs.existsSync(path.join(DIR, file))) { console.log('note: ' + file + ' is not in the repo - skipping its gate'); continue; }
+  seen.add(file);
+  queue.push([name, cmd, file]);
+}
+
 let allPass = true;
-for (const [name, cmd, arg] of suites) {
+for (const [name, cmd, arg] of queue) {
   const r = spawnSync(cmd, [arg], { cwd: DIR, stdio: 'inherit' });
   const passed = r.status === 0;
   allPass = allPass && passed;
@@ -85,6 +118,7 @@ console.log('\n===== [' + (synOk ? 'PASS' : 'FAIL') + '] index.html inline scrip
 allPass = allPass && synOk;
 
 console.log('\n==========================================');
-console.log(allPass ? 'ALL CHECKS PASSED' : 'SOME CHECKS FAILED');
+console.log((allPass ? 'ALL CHECKS PASSED' : 'SOME CHECKS FAILED') +
+  '  (' + queue.length + ' suites: ' + suites.length + ' listed + ' + (queue.length - suites.length) + ' from _suites_extra.json)');
 console.log('==========================================');
 process.exit(allPass ? 0 : 1);

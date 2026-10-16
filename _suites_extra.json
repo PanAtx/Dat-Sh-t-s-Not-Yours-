@@ -1,0 +1,380 @@
+{
+  "generated_by": "_suite_hunt.mjs (validated in a clean shallow clone of main)",
+  "suites": [
+    [
+      "test the REAL garbage-bag TYPE logic extracted verbatim",
+      "node",
+      "_bagtype_chk.js"
+    ],
+    [
+      "eyeball the stitching: ASCII-project the REAL makeBaseball()'s ONE",
+      "node",
+      "_baseball_ascii_view.js"
+    ],
+    [
+      "the STATEN ISLAND baseball stitching check.",
+      "node",
+      "_baseball_stitch_chk.js"
+    ],
+    [
+      "bball chk",
+      "node",
+      "_bball_chk.js"
+    ],
+    [
+      "validate Bed-Stuy (BROOKLYN, level 7, Sunday) is its OWN level:",
+      "node",
+      "_bedstuy_chk.js"
+    ],
+    [
+      "smoke-test the rebuilt makeCash() and makeTreasure(2) (oil painting)",
+      "node",
+      "_bonus_chk.js"
+    ],
+    [
+      "verify the worker's pickup line: the easel painting (treasure kind 2)",
+      "node",
+      "_bonus_voice_chk.js"
+    ],
+    [
+      "verify the Bronx-exclusive leashed-dog feature against the",
+      "node",
+      "_bronx_dog_chk.js"
+    ],
+    [
+      "verify the Bronx sanitation-worker / building fix:",
+      "node",
+      "_bronx_wall_chk.js"
+    ],
+    [
+      "minimal DOM",
+      "node",
+      "_bubble_chk.js"
+    ],
+    [
+      "static touchpoints",
+      "node",
+      "_bubble_overlap_chk.js"
+    ],
+    [
+      "verify the COMPRESSED models",
+      "node",
+      "_can_mat_probe.mjs"
+    ],
+    [
+      "the Harlem BIRD-SEED HOMELESS MAN (shopping cart).",
+      "node",
+      "_carthomeless_chk.js"
+    ],
+    [
+      "Bed-Stuy storm-debris fixes:",
+      "node",
+      "_debris_chk.js"
+    ],
+    [
+      "test the REAL deposit logic extracted from index.html",
+      "node",
+      "_deposit_logic_chk.js"
+    ],
+    [
+      "regression check for \"Uncaught ReferenceError: dogSize is not defined\"",
+      "node",
+      "_dogsize_fix_chk.js"
+    ],
+    [
+      "Smoke test for the doormat",
+      "node",
+      "_doormat_chk.js"
+    ],
+    [
+      "Driveway dog-shit check:",
+      "node",
+      "_driveway_poop_chk.js"
+    ],
+    [
+      "proves the carried-item dump fix: when the worker is",
+      "node",
+      "_dump_standoff_chk.js"
+    ],
+    [
+      "verify the Brooklyn/Flatbush doghouse fix:",
+      "node",
+      "_flatbush_doghouse_chk.js"
+    ],
+    [
+      "exactly 2 backing boxes in the darker brick color (0x74482d),",
+      "node",
+      "_flatbush_stoop_chk.js"
+    ],
+    [
+      "validate the Flatbush (BROOKLYN, area FLATBUSH) corner stores:",
+      "node",
+      "_flatbush_store_chk.js"
+    ],
+    [
+      "verify the Brooklyn/Flatbush driveway-tricycle feature:",
+      "node",
+      "_flatbush_tricycle_chk.js"
+    ],
+    [
+      "Runtime sim + syntax check for the ghost-hand clench animation",
+      "node",
+      "_ghost_sim_chk.js"
+    ],
+    [
+      "verify the soccer BOOK-GOAL colored boxes do NOT",
+      "node",
+      "_goalpost_zfight_chk.js"
+    ],
+    [
+      "verify the new health / power-up system extracted verbatim from",
+      "node",
+      "_health_chk.js"
+    ],
+    [
+      "run the EXACT index.html orient/scale helpers (verbatim slice)",
+      "node",
+      "_hopper_aim_probe.mjs"
+    ],
+    [
+      "the GREY bags in the truck's rear scoop must carry the SAME tied top as",
+      "node",
+      "_hopper_bag_chk.js"
+    ],
+    [
+      "verify the reworked NYC fire hydrant (black base, steel dome,",
+      "node",
+      "_hydrant_chk.js"
+    ],
+    [
+      "compile every inline <script> block in index.html with",
+      "node",
+      "_index_syntax_chk.js"
+    ],
+    [
+      "Browser shims (Blob parts, worker, XHR)",
+      "node",
+      "_litter2_verify.mjs"
+    ],
+    [
+      "verify the LODI \"passed out on his back\" pose against the",
+      "node",
+      "_lodi_pose_chk.js"
+    ],
+    [
+      "verify the mafia guy's Adidas stripes sit RIGHT ON the",
+      "node",
+      "_mafia_stripes_chk.js"
+    ],
+    [
+      "verify the Manhattan-specific leashed-dog mechanics:",
+      "node",
+      "_manhattan_dog_chk.js"
+    ],
+    [
+      "Part 1: Initial spawn placement (50k iterations)",
+      "node",
+      "_manhattan_dog_placement_chk.js"
+    ],
+    [
+      "test the REAL multi-carry logic extracted verbatim from",
+      "node",
+      "_multicarry_chk.js"
+    ],
+    [
+      "the STATION SHIP CHECK: every track the radio can play is on",
+      "node",
+      "_music_ship_chk.js"
+    ],
+    [
+      "COLD BOOT: no unguarded `truck.` inside functions that run during spawnWorld",
+      "node",
+      "_night_names.js"
+    ],
+    [
+      "Polish-advances check (Thursday, Maspeth): the worker bumps a Polish lady",
+      "node",
+      "_polish_advances_chk.js"
+    ],
+    [
+      "(1) manifest.json",
+      "node",
+      "_pwa_chk.js"
+    ],
+    [
+      "verify the Maspeth 5th block CEMETERY in index.html:",
+      "node",
+      "_queens_cemetery_chk.js"
+    ],
+    [
+      "verify the GUTTED \"Polish deli\" feature is fully",
+      "node",
+      "_queens_deli_chk.js"
+    ],
+    [
+      "verify the Maspeth (Queens) nosy HOMEOWNER NPC +",
+      "node",
+      "_queens_homeowner_chk.js"
+    ],
+    [
+      "validate the Maspeth (QUEENS, level 4) corner stores:",
+      "node",
+      "_queens_store_chk.js"
+    ],
+    [
+      "Simulate SFX.radioScan() list extraction: directory-listing HTML and manifest fallback.",
+      "node",
+      "_radio_chk.js"
+    ],
+    [
+      "fakes",
+      "node",
+      "_radio_hud_chk.js"
+    ],
+    [
+      "verify the Rubik's cube (treasure kind 12) renders its top face.",
+      "node",
+      "_rubik_chk.js"
+    ],
+    [
+      "validate the Flatbush-only observant Jewish scholar in index.html",
+      "node",
+      "_scholar_chk.js"
+    ],
+    [
+      "Headless stubs (same style as _worker_zfight_chk.js)",
+      "node",
+      "_scholar_zfight_chk.js"
+    ],
+    [
+      "decode a shovel .glb through the game's OWN",
+      "node",
+      "_shovel_compressed_probe.mjs"
+    ],
+    [
+      "verify the Staten Island (New Dorp, day 5) CAR WASH in",
+      "node",
+      "_si_carwash_chk.js"
+    ],
+    [
+      "verify the Staten Island (New Dorp) house builder:",
+      "node",
+      "_si_house_chk.js"
+    ],
+    [
+      "verify the Maspeth skunk is a proper QUADRUPED (not bipedal):",
+      "node",
+      "_skunk_chk.js"
+    ],
+    [
+      "verify the rebuilt squirrel: darker grey coat, four little",
+      "node",
+      "_squirrel_chk.js"
+    ],
+    [
+      "does the shipped code carry the rear hazard flash back?",
+      "node",
+      "_sv_hchk.js"
+    ],
+    [
+      "read the ID3v2 artist/title of every mp3 in music/ (plain Node, no deps).",
+      "node",
+      "_sv_id3.js"
+    ],
+    [
+      "tag the tracks the player dropped in so they match the shipped convention:",
+      "node",
+      "_sv_id3set.js"
+    ],
+    [
+      "LEG AUDIT on the rig's REAL axes (no THREE dependency).",
+      "node",
+      "_sv_legs.js"
+    ],
+    [
+      "the shipped build says what it should: the night set, the weekday lockout, the",
+      "node",
+      "_sv_mv.js"
+    ],
+    [
+      "serve the folder on :8124 the way the playtest does, fetch index.html over",
+      "node",
+      "_sv_serve.js"
+    ],
+    [
+      "HEADLESS PROOF of the new swing: play the shipped arc, frame by frame, with",
+      "node",
+      "_sv_sim.js"
+    ],
+    [
+      "validate the shovel swing keyframe curve against the EXACT poseShovel math",
+      "node",
+      "_sv_swing.js"
+    ],
+    [
+      "syntax chk",
+      "node",
+      "_syntax_chk.js"
+    ],
+    [
+      "Static TDZ audit: top-level `const X = <literal>` statements whose initializer references",
+      "node",
+      "_tdz_audit.js"
+    ],
+    [
+      "verify the college textbooks (treasure kind 20) read as a",
+      "node",
+      "_textbook_chk.js"
+    ],
+    [
+      "tree silhouette + heavy-bag readability checks.",
+      "node",
+      "_tree_bag_chk.js"
+    ],
+    [
+      "tri chk",
+      "node",
+      "_tri_chk.js"
+    ],
+    [
+      "smoke-test the rebuilt makeTricycle(): classic Big Wheel proportions",
+      "node",
+      "_tric_chk.js"
+    ],
+    [
+      "unit-test the canBackUp() + updateTruck() follow logic",
+      "node",
+      "_truck_logic_chk.js"
+    ],
+    [
+      "verify cars & motos live on ONE side of the street",
+      "node",
+      "_vehicle_side_chk.js"
+    ],
+    [
+      "Harness: runs the EXACT voice code from index.html (extracted verbatim) to verify the",
+      "node",
+      "_voice_chk.js"
+    ],
+    [
+      "the gendered AUDIO-voice engine (male/female voice pools) was",
+      "node",
+      "_voice_gender_chk.js"
+    ],
+    [
+      "verify the cop/robber WALK CYCLE drives the legs/arms/bob.",
+      "node",
+      "_walkanim_chk.js"
+    ],
+    [
+      "validate the two new walker behaviors (all levels):",
+      "node",
+      "_walker_avoid_chk.js"
+    ],
+    [
+      "Headless stubs for the worker's dependencies",
+      "node",
+      "_worker_zfight_chk.js"
+    ]
+  ]
+}
