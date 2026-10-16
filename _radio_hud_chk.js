@@ -1,6 +1,7 @@
 // Harness: runs the EXACT radio (SFX methods) + RADIO HUD code from index.html.
 const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
+const swSrc = fs.readFileSync('sw.js', 'utf8');
 
 // extract SFX radio methods (radioEl... through end of the SFX object) — bounded by
 // BRACE-COUNTING (string/comment-aware) because Prettier indented the closing "}"
@@ -51,25 +52,56 @@ function fakeEl(){ const el = { style:{}, textContent:'', volume:1, src:'', _h:{
     get(){ return _html; },
     set(v){ _html = String(v || ''); el.textContent = _html.replace(/<[^>]*>/g, ''); } });
   return el; }
-const els = { 'radio': fakeEl(), 'radio-title': fakeEl(), 'btnMute': fakeEl(), 'btnSkip': fakeEl() };
+const els = { 'radio': fakeEl(), 'radio-title': fakeEl(), 'btnMute': fakeEl(), 'btnSkip': fakeEl(), 'btnMusic': fakeEl() };
 const $ = id => els[id];
 const FILES = JSON.parse(fs.readFileSync('music/manifest.json', 'utf8'));
-const listing = '<html><pre>' + FILES.map(f => '<li><a href="' + encodeURIComponent(f) + '">' + f + '</a>').join('\n') + '</pre></html>';
+const LO_FILES = JSON.parse(fs.readFileSync('music/lo/manifest.json', 'utf8'));
+const mkListing = files => '<html><pre>' + files.map(f => '<li><a href="' + encodeURIComponent(f) + '">' + f + '</a>').join('\n') + '</pre></html>';
+const listing = mkListing(FILES);
 global.fetch = async url => {
   if (url === 'music/') return { ok: true, text: async () => listing };
   if (url === 'music/manifest.json') return { ok: true, json: async () => FILES };
+  if (url === 'music/lo/') return { ok: true, text: async () => mkListing(LO_FILES) };
+  if (url === 'music/lo/manifest.json') return { ok: true, json: async () => LO_FILES };
   return { ok: false }; };
 const played = [];
 global.Audio = class { addEventListener(ev, fn){ (this._h = this._h || {})[ev] = (this._h[ev] || []).concat(fn); }
   play(){ played.push(this.src); return Promise.resolve(); }
   fire(ev){ (this._h[ev] || []).forEach(fn => fn()); } };
 
+// THE TIER MODULE + THE RADIO + HUD, run together exactly as the page runs them: the tier module
+// (MUSIC_QUAL / musicDir() / the RADIO row) comes first, then the SFX radio methods, then the HUD
+// wiring. A mock localStorage carries the persisted row.
+const tierSrc = html.slice(html.indexOf('const MUSIC_QUALS'), html.indexOf('// ==================== PROCEDURAL AUDIO'));
+if (!tierSrc.includes('function musicDir()')) throw new Error('the radio tier module was not found');
+const store = {};
+const hLS = { getItem: k => (store[k] === undefined ? null : store[k]), setItem: (k, v) => { store[k] = String(v); } };
+const TIER_BODY = tierSrc + 'const SFX = {' + methods + '};' + '\n' + hud +
+  '\nreturn { SFX, radioSetTitle, radioToggleMute, radioMode, musicDir, musicManifestUrl, radioCacheNameFor, btnMusic: $("btnMusic"), get tier() { return MUSIC_QUAL; }, get cacheName() { return SFX.radioCacheName; } };';
 // combine real code: SFX radio methods object + HUD wiring
-const out = new Function('$', 'const SFX = {' + methods + '};' + '\n' + hud + '\nreturn { SFX, radioSetTitle, radioToggleMute, radioMode };')($);
+const out = new Function('$', 'localStorage', 'MOBILE_LOW_PROFILE', TIER_BODY)($, hLS, false);
+// AN ISOLATED HARNESS for the tier tests: its own mocks, its own device profile / persisted row.
+function makeTierHarness(o) {
+  o = o || {};
+  const hEls = { 'radio': fakeEl(), 'radio-title': fakeEl(), 'btnMute': fakeEl(), 'btnSkip': fakeEl(), 'btnMusic': fakeEl() };
+  const h$ = id => hEls[id];
+  const hStore = {};
+  const hLocalStorage = {
+    getItem: k => (hStore[k] === undefined ? null : hStore[k]),
+    setItem: (k, v) => { hStore[k] = String(v); },
+  };
+  if (o.stored) hStore.dsnysweep_music = o.stored;
+  const hPlayed = [];
+  const Audio = class { addEventListener(ev, fn){ (this._h = this._h || {})[ev] = (this._h[ev] || []).concat(fn); }
+    play(){ hPlayed.push(this.src); return Promise.resolve(); }
+    fire(ev){ (this._h[ev] || []).forEach(fn => fn()); } };
+  const run = new Function('$', 'localStorage', 'MOBILE_LOW_PROFILE', 'Audio', TIER_BODY)(h$, hLocalStorage, !!o.lowProfile, Audio);
+  return { run, hEls, hStore, hPlayed };
+}
 let pass = true;
 const check = (n, c) => { console.log((c ? 'PASS' : 'FAIL') + '  ' + n); if (!c) pass = false; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const unenc = p => decodeURIComponent(p.replace('music/', ''));
+const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace('music/', ''));
 
 (async () => {
   // --- start the station ---
@@ -144,6 +176,69 @@ const unenc = p => decodeURIComponent(p.replace('music/', ''));
   const btnTarget = { closest: function(sel){ return sel === 'button' ? els['btnMute'] : null; } };
   try { (els['radio']._h['click'] || [])[0]({ target: btnTarget }); } catch (e) { btnThrew = true; }
   check('tapping MUTE is excluded from the tune-in handler (no throw)', !btnThrew && played.length === 3);
+
+  // --- THE RADIO DATA TIER (v1.0.564): the row, the default, the folder and the cache ---
+  check('the RADIO row is on the settings page and NAMES the tier + its rate',
+    /<button id="btnMusic">/.test(html) && /^HI 96K$/.test(els.btnMusic.textContent));
+  check('the station reads the tier folder (HI = music/) and its manifest',
+    out.musicDir() === 'music/' && out.musicManifestUrl() === 'music/manifest.json' && out.tier === 'hi');
+  check('the HI tier keeps its own cache name, and the LO tier gets its OWN (a switch never re-fetches or evicts the other)',
+    out.cacheName === 'dsnboy-radio-v1' && out.radioCacheNameFor('lo') === 'dsnboy-radio-lo-v1');
+  {
+    const L = makeTierHarness({ lowProfile: true });
+    check('a small-device first run boots the station on the LO tier (music/lo/, 48k, its own cache)',
+      L.run.tier === 'lo' && L.run.musicDir() === 'music/lo/' && L.run.musicManifestUrl() === 'music/lo/manifest.json' &&
+        L.run.cacheName === 'dsnboy-radio-lo-v1' && /^LO 48K$/.test(L.hEls.btnMusic.textContent));
+    const click = (L.hEls.btnMusic._h.click || [])[0];
+    click();
+    check('the row flips LO -> HI, stores its pick under dsnysweep_music, and re-labels the rate',
+      L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI 96K$/.test(L.hEls.btnMusic.textContent));
+    check('the flip asks the station to hop folders (radioRestartTier is the switch, not a reload)',
+      typeof L.run.SFX.radioRestartTier === 'function');
+    const click2 = (L.hEls.btnMusic._h.click || [])[0];
+    click2();
+    check('and flipping back is symmetrical (HI -> LO, the key follows, the label follows)',
+      L.run.tier === 'lo' && L.hStore.dsnysweep_music === 'lo' && /^LO 48K$/.test(L.hEls.btnMusic.textContent));
+    const P = makeTierHarness({ lowProfile: true, stored: 'hi' });
+    check('a player who CHOSE HI on a small phone keeps HI (the stored row outranks the profile default)',
+      P.run.tier === 'hi' && P.run.musicDir() === 'music/');
+    const PL = makeTierHarness({ lowProfile: false, stored: 'lo' });
+    check('a player who CHOSE LO on a strong device gets LO (the row is the law in both directions)',
+      PL.run.tier === 'lo' && PL.run.musicDir() === 'music/lo/');
+  }
+  {
+    // THE LO FOLDER, ON DISK: the same names, the real files, the half the bytes.
+    const hi = FILES, lo = LO_FILES;
+    check('the LO manifest carries EXACTLY the rotation names (one playlist, never a forked set)',
+      JSON.stringify(lo) === JSON.stringify(hi), lo.length + ' vs ' + hi.length);
+    let short = 0, fat = 0, nights = 0;
+    hi.forEach((n) => {
+      const a = fs.statSync('music/' + n).size;
+      const lp = 'music/lo/' + n;
+      if (!fs.existsSync(lp)) { short++; return; }
+      const b = fs.statSync(lp).size;
+      if (b > a * 0.68) fat++; // 48k against 96k sources: a file that did not shrink means it was not re-encoded
+    });
+    const nbStart = html.indexOf('const NIGHT_MUSIC_TRACKS = [');
+    const nightBlock = html.slice(nbStart, html.indexOf('];', nbStart));
+    const NIGHTS = [...nightBlock.matchAll(/"([^"]+\.mp3)"/g)].map((m) => m[1]);
+    // The array names the theme by IDENTIFIER (NIGHT_MUSIC_TRACK), so resolve it from its own line.
+    const THEME = (html.match(/const NIGHT_MUSIC_TRACK = "([^"]+\.mp3)"/) || [])[1];
+    if (THEME && NIGHTS.indexOf(THEME) < 0) NIGHTS.push(THEME);
+    NIGHTS.forEach((n) => { if (fs.existsSync('music/lo/' + n)) nights++; });
+    check('every rotation track EXISTS in music/lo/ (0 missing) and every one came out smaller than its source',
+      short === 0 && fat === 0, 'missing=' + short + ' not-shrunk=' + fat);
+    check('the night set the page locks for MIDNIGHT is complete in the LO tier (a LO phone plays the haunted shift with its music)',
+      NIGHTS.length >= 4 && nights === NIGHTS.length, 'night tracks in lo: ' + nights + '/' + NIGHTS.length);
+  }
+  check('THE SERVICE WORKER KNOWS BOTH TIERS: the LO manifest is precached and served cache-first',
+    swSrc.includes("'./music/lo/manifest.json'") && swSrc.includes('MANIFEST_KEY'));
+  check('no radio path hard-codes the HI folder any more (scan / manifest / src / cache / identity checks all route through the tier)',
+    !/fetch\("music\//.test(html) && !/const url = "music\//.test(html) &&
+      !/radioCacheName: "dsnboy-radio-v1"/.test(html));
+  check('the trainer menu track is NOT part of the rotation folder (it stays a root file, in its own cache)',
+    html.includes('TRAINER_TRACK: "Romeo Knight - Beat To The Pulp [Remastered].mp3"') &&
+      !html.includes('music/Romeo Knight - Beat To The Pulp [Remastered].mp3'));
 
   console.log(pass ? '\nALL RADIO HUD TESTS PASSED' : '\nSOME TESTS FAILED');
   process.exit(pass ? 0 : 1);

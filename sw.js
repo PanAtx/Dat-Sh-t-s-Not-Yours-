@@ -24,8 +24,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.564';
-var APP_VERSION = '1.0.564';
+var CACHE_NAME = 'dsnboy-shell-v1.0.565';
+var APP_VERSION = '1.0.565';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -48,6 +48,11 @@ var SHELL = [
   './icon-maskable-1024.png',
   './music/manifest.json', // radio track list (needed OFFLINE so the station can
                            // discover which tracks are in the radio cache)
+  './music/lo/manifest.json', // THE LO TIER's track list (the same 31 names at 48 kbps): the
+                              // station discovers its playlist from a manifest, so the folder the
+                              // player chose has to answer OFFLINE too. The .mp3 files themselves
+                              // stay owned by the game's per-tier radio caches (dsnboy-radio-v1 /
+                              // dsnboy-radio-lo-v1); the LIST belongs to the shell.
   // Draco decoder (local copy of the gstatic.com CDN build) - litterReduced2.glb
   // is Draco-compressed, so the decoder must be available OFFLINE. The DRACOLoader
   // pulls these in the MAIN THREAD via XHR (FileLoader) and hands the wasm binary
@@ -191,10 +196,11 @@ self.addEventListener('fetch', function (e) {
   // is served from a GitHub Pages subdirectory (e.g. /DSNYBoy/music/manifest.json).
   if (/\.(fbx|glb|gltf|mp3)$/i.test(url.pathname) || url.pathname.indexOf('/music/') !== -1) {
     if (url.pathname.indexOf('/music/manifest.json') !== -1) {
+      var MANIFEST_KEY = url.pathname.indexOf('/music/lo/manifest.json') !== -1 ? './music/lo/manifest.json' : './music/manifest.json';
       e.respondWith(
-        caches.match('./music/manifest.json').then(function (hit) {
+        caches.match(MANIFEST_KEY).then(function (hit) {
           if (hit) return hit;
-          return fetchTimeout(req).catch(function () { return caches.match('./music/manifest.json'); });
+          return fetchTimeout(req).catch(function () { return caches.match(MANIFEST_KEY); });
         })
       );
       return;

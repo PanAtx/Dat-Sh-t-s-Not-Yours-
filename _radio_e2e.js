@@ -82,7 +82,15 @@ global.NIGHT_MUSIC_TRACK = themeM[1];
 global.NIGHT_MUSIC_TRACKS = NIGHT;
 console.log('midnight-only set (' + NIGHT.length + '):', NIGHT.join(' | '));
 
-const SFX = new Function('return {' + sfxCode + '};')();
+// THE RADIO DATA TIER rides with the station: the page's tier module (musicDir() / the manifest
+// url / the per-tier cache name / the RADIO settings row) is evaluated in the same scope, with a
+// mock localStorage so the persisted row and the small-device default behave as they do on a phone.
+const tierSrc = html.slice(html.indexOf('const MUSIC_QUALS'), html.indexOf('// ==================== PROCEDURAL AUDIO'));
+if (!tierSrc.includes('function musicDir()')) throw new Error('the radio tier module was not found');
+const tierStore = {};
+const tierLS = { getItem: k => (tierStore[k] === undefined ? null : tierStore[k]), setItem: (k, v) => { tierStore[k] = String(v); } };
+const tier$ = () => ({ textContent: '', className: '', addEventListener() {} });
+const SFX = new Function('$', 'localStorage', 'MOBILE_LOW_PROFILE', tierSrc + 'return {' + sfxCode + '};')(tier$, tierLS, false);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Poll until cond() is truthy or the timeout elapses. In a real browser the
 // Cache/Blob APIs are warm and resolve in <1ms, but on first use in Node they

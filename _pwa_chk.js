@@ -84,7 +84,14 @@ global.fetch = async url => {
   if (url.indexOf('music/') === 0){ netFetches++; return { ok: true, headers: { get: () => String(1000 * 1024) }, blob: async () => new Blob(['fake-mp3']) }; }
   return { ok: false };
 };
-const SFX = new Function('return {' + sfxCode + '};')();
+// THE RADIO DATA TIER rides with radioWarm(): the page tier module (musicDir() / the manifest url
+// / the per-tier cache name / the RADIO row) runs in the same scope, with a mock localStorage.
+const TIER_SRC = html.slice(html.indexOf('const MUSIC_QUALS'), html.indexOf('// ==================== PROCEDURAL AUDIO'));
+if (!TIER_SRC.includes('function musicDir()')) throw new Error('the radio tier module was not found');
+const TIER_STORE = {};
+const TIER_LS = { getItem: k => (TIER_STORE[k] === undefined ? null : TIER_STORE[k]), setItem: (k, v) => { TIER_STORE[k] = String(v); } };
+const TIER_DOM = () => ({ textContent: '', className: '', addEventListener() {} });
+const SFX = new Function('DOM', 'localStorage', 'MOBILE_LOW_PROFILE', 'const $ = DOM;' + TIER_SRC + 'return {' + sfxCode + '};')(TIER_DOM, TIER_LS, false);
 (async () => {
   // warm pass #1: 3 seeded tracks skipped, the rest pulled from the "network"
   await SFX.radioWarm();

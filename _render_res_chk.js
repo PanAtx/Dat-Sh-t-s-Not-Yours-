@@ -162,17 +162,17 @@ check(
     (h.match(/function setScanLabel/g) || []).length === 1
 );
 check(
-  "settings page: gear button opens it, BACK + ESC close it",
+  "settings page: gear button opens it, BACK + ESC close it, and it carries FIVE option rows",
   h.indexOf('id="settingsPage"') >= 0 &&
     h.indexOf('id="btnSettings"') >= 0 &&
     h.indexOf('id="btnSettingsBack"') >= 0 &&
-    (h.match(/class="set-row"/g) || []).length === 4 &&
+    (h.match(/class="set-row"/g) || []).length === 5 &&
     h.indexOf('$("btnSettings").addEventListener("click", openSettings)') >= 0 &&
     h.indexOf('$("btnSettingsBack").addEventListener("click", closeSettings)') >= 0 &&
     h.indexOf('e.key === "Escape"') >= 0
 );
 check(
-  "settings page: all four option buttons live INSIDE it and are styled there",
+  "settings page: all FIVE option buttons (incl. the RADIO tier row) live INSIDE it and are styled there",
   (() => {
     const i = h.indexOf('id="settingsPage"');
     if (i < 0) return false;
@@ -182,6 +182,7 @@ check(
       seg.indexOf('id="btnFps"') >= 0 &&
       seg.indexOf('id="btnShadow"') >= 0 &&
       seg.indexOf('id="btnCrt"') >= 0 &&
+          seg.indexOf('id="btnMusic"') >= 0 &&
       seg.indexOf('id="btnSettingsBack"') >= 0
     );
   })() &&

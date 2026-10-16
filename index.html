@@ -5406,7 +5406,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.564</div>
+          <div id="app-version" class="menu-version">v1.0.565</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5450,6 +5450,10 @@
             <div class="set-row"
               ><span class="set-name">CRT</span>
               <button id="btnCrt">ON</button></div
+            >
+            <div class="set-row"
+              ><span class="set-name">RADIO</span>
+              <button id="btnMusic">HI</button></div
             >
             <div class="set-foot">CHOICES SAVE ON THIS DEVICE</div>
           </div>
@@ -5713,7 +5717,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.564';
+      const APP_VERSION = '1.0.565';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -9851,6 +9855,51 @@
         camera.updateProjectionMatrix();
         applyRenderSize(); // buffer tracks the new aspect at the same RENDER_H cap
       });
+      // ==================== THE RADIO DATA TIER (settings row: HI 96K / LO 48K) ================
+      // THE MUSIC IS THE SITE: the rotation is 94.7 MB of 96 kbps stereo mp3 (31 tracks), and a phone on
+      // cellular pays for every track it hears. THE LO TIER carries THE SAME TRACKS, THE SAME NAMES and
+      // the same night set at 48 kbps (music/lo/, 47.4 MB) - HALF the bytes, radio
+      // quality at the half the data, and the point is the DATA a phone spends, not the paint.
+      // THE LAWS OF THE TIER:
+      //   * ONE set of names: the scan / manifest / cache / playback paths all route through
+      //     musicDir() and musicManifestUrl(), so a tier is a FOLDER, never a forked playlist.
+      //   * A CACHE PER TIER (dsnboy-radio-v1 / dsnboy-radio-lo-v1): switching tiers never
+      //     re-fetches the other tier's files, and a LO session never evicts the HI cache -
+      //     the bus ride and the evening at home each keep what they downloaded.
+      //   * The row is the player's, persisted under dsnysweep_music; a small-device first run
+      //     starts on LO (the profile's own verdict), and HI (the 96 kbps originals) is every
+      //     other device's default.
+      //   * The switch is LIVE: radioRestartTier() drops the air player, re-scans the new folder
+      //     and keeps the station playing - no reload, and the night lock survives the hop.
+      const MUSIC_QUALS = ["hi", "lo"];
+      const MUSIC_KBPS = { hi: 96, lo: 48 }; // measured off the shipped files: the rotation is 96 kbps stereo, the LO tier is half of it
+      const MUSIC_LO_DIR = "music/lo/";
+      const _storedMusic = localStorage.getItem("dsnysweep_music");
+      let MUSIC_QUAL = MUSIC_QUALS.indexOf(_storedMusic) >= 0
+        ? _storedMusic
+        : MOBILE_LOW_PROFILE
+          ? "lo"
+          : "hi";
+      function musicDir() {
+        return MUSIC_QUAL === "lo" ? MUSIC_LO_DIR : "music/";
+      }
+      function musicManifestUrl() {
+        return musicDir() + "manifest.json";
+      }
+      function radioCacheNameFor(q) {
+        return q === "lo" ? "dsnboy-radio-lo-v1" : "dsnboy-radio-v1";
+      }
+      function setMusicLabel() {
+        // The row NAMES the tier and its rate, so the data cost is visible where it is chosen.
+        $("btnMusic").textContent = (MUSIC_QUAL === "lo" ? "LO" : "HI") + " " + MUSIC_KBPS[MUSIC_QUAL] + "K";
+      }
+      $("btnMusic").addEventListener("click", function () {
+        MUSIC_QUAL = MUSIC_QUAL === "lo" ? "hi" : "lo";
+        localStorage.setItem("dsnysweep_music", MUSIC_QUAL);
+        setMusicLabel();
+        if (typeof SFX !== "undefined" && SFX && SFX.radioRestartTier) SFX.radioRestartTier();
+      });
+      setMusicLabel();
       // ==================== PROCEDURAL AUDIO (Web Audio API) ====================
       const SFX = {
         ctx: null,
@@ -9871,7 +9920,7 @@
         radioStarting: false,
         radioMuted: false,
         radioGen: 0,
-        radioCacheName: "dsnboy-radio-v1",
+        get radioCacheName() { return radioCacheNameFor(MUSIC_QUAL); },
         radioBlobUrl: null,
         _radioCache: null,
         _radioSrcChanged: false,
@@ -10357,7 +10406,7 @@
           // 1) HTTP directory listing of music/ (autoindex / python http.server / VS Code Live
           //    Server / Apache / nginx / Caddy: adding/removing .mp3 files "just works")
           try {
-            const r = await fetch("music/", { cache: "no-cache" });
+            const r = await fetch(musicDir(), { cache: "no-cache" });
             if (r.ok) {
               const txt = await r.text();
               const re = /href=["']([^"'\?#<>]+\.mp3)["']/gi;
@@ -10372,7 +10421,7 @@
           // 2) manifest.json (for hosts with no directory listing, e.g. GitHub Pages), unioned
           //    with the listing above so the playlist is always the full set.
           try {
-            const r = await fetch("music/manifest.json", { cache: "no-cache" });
+            const r = await fetch(musicManifestUrl(), { cache: "no-cache" });
             if (r.ok) {
               const j = await r.json();
               const arr = Array.isArray(j)
@@ -10486,7 +10535,7 @@
         // handler advances to the next track immediately), and (b) guard every online
         // fetch with a hard timeout so a stalled request can't wedge the rotation.
         async _radioResolveSrc(name) {
-          const url = "music/" + encodeURIComponent(name);
+          const url = musicDir() + encodeURIComponent(name);
           const cache = await this._radioGetCache();
           if (cache) {
             try {
@@ -10565,14 +10614,14 @@
           if (this.radioGen !== gen) {
             // superseded by a newer radioNext (e.g. SKIP during resolve): the blob we
             // just created was never assigned to radioBlobUrl, so revoke it directly
-            if (res.blobUrl && res.blobUrl.indexOf("music/") !== 0) {
+            if (res.blobUrl && res.blobUrl.indexOf(musicDir()) !== 0) {
               try {
                 URL.revokeObjectURL(res.blobUrl);
               } catch (e) {}
             }
             return;
           }
-          if (res.blobUrl !== "music/" + encodeURIComponent(name)) {
+          if (res.blobUrl !== musicDir() + encodeURIComponent(name)) {
             this.radioBlobUrl = res.blobUrl;
           }
           this.radioEl.src = res.blobUrl;
@@ -10641,6 +10690,31 @@
           this._radioCancel(); // drop any pending "advance" aimed at the old playlist
           if (!this.radioEl || !this.radioList.length) return on !== null; // not on air: radioStart honours it
           this.radioNext(); // straight onto the locked song (or back into the rotation)
+          return true;
+        },
+        radioRestartTier() {
+          // THE DATA TIER SWITCH (the settings row HI 96K / LO 48K): the station re-scans the
+          // tier's folder and keeps playing. Each tier owns its OWN cache (dsnboy-radio-v1 /
+          // dsnboy-radio-lo-v1), so the hop never re-fetches the other tier's files and a LO
+          // session never evicts what the HI cache holds: the bus ride and the evening at home
+          // each keep what they downloaded. The night lock rides along untouched - the locked
+          // midnight songs exist in both folders under the same names.
+          this._radioCache = null; // the tier's cache opens fresh on the next fetch
+          this.radioList = [];
+          this.radioBag = [];
+          if (this.radioLock) this.radioLockPool = this.radioLock.slice();
+          const el = this.radioEl;
+          if (!el) return false; // not on air: the next radioStart() simply scans the new folder
+          try {
+            el.pause();
+            if (this.radioBlobUrl) URL.revokeObjectURL(this.radioBlobUrl);
+            el.src = "";
+          } catch (e) {}
+          this.radioEl = null;
+          this.radioBlobUrl = null;
+          this.radioGen++; // any in-flight callbacks from the old player are now stale
+          this._radioCancel(); // drop the advance timer aimed at the old folder
+          this.radioStart(); // re-scan musicDir() and go back on air
           return true;
         },
         radioSkip() {
@@ -10752,7 +10826,7 @@
               for (let i = 0; i < list.length; i++) {
                 if (this.radioEl) break; // station came on air: live play-time caching takes over
                 const name = list[i];
-                const url = "music/" + encodeURIComponent(name);
+                const url = musicDir() + encodeURIComponent(name);
                 try {
                   if (await cache.match(url)) continue; // already stored
                   const r = await fetch(url);
@@ -10805,7 +10879,7 @@
         // more than once per call (a cache hit short-circuits before any fetch).
         async radioCacheTrack(name) {
           const cache = await this._radioGetCache();
-          const url = "music/" + encodeURIComponent(name);
+          const url = musicDir() + encodeURIComponent(name);
           if (cache) {
             try {
               if (await cache.match(url)) return "cached";
@@ -59026,7 +59100,7 @@
           SFX.radioList && SFX.radioList.length ? SFX.radioList.length : 0;
         if (!total) {
           try {
-            const r = await fetch("music/manifest.json", {
+            const r = await fetch(musicManifestUrl(), {
               cache: "force-cache",
             });
             if (r.ok) {
@@ -59043,7 +59117,7 @@
         let have = 0;
         try {
           if (typeof caches !== "undefined" && caches.open) {
-            const rc = await caches.open("dsnboy-radio-v1");
+            const rc = await caches.open(radioCacheNameFor(MUSIC_QUAL));
             if (rc) {
               const keys = await rc.keys();
               have = keys.length;
