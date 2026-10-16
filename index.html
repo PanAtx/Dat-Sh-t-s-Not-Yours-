@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.548</div>
+          <div id="app-version" class="menu-version">v1.0.549</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.548';
+      const APP_VERSION = '1.0.549';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -33908,13 +33908,31 @@
       // The five old intersections on tonight's dead-end street are paved over as plain
       // road, but the BUILDING LINE behind the sidewalk still has a 16u gap where the
       // cross-street used to cut through. Tonight each gap is an empty, fenced-off lot:
-      // a dark concrete slab behind the walk, a chain-link fence on the street-facing
-      // side, four corner posts, and a top rail. Simple, quiet, abandoned.
+      // a dark concrete slab behind the walk and ONE chain-link fence on the street-facing
+      // side: pipe posts, two rails, and NO side runs. Simple, quiet, abandoned.
+      // THE FENCE STANDS ON THE BUILDING LINE: tonight's street is Bed-Stuy geometry, where
+      // every brownstone is centred at HOUSE_Y 9.5 with a 4.5u-deep shell — so the row's
+      // front faces all land on y 7.25. The lots' chain-link is strung on that SAME line, so
+      // each fence closes its gap IN LINE with the houses at the gap's edges and the fence
+      // face sits back off the walk instead of sticking out past the buildings.
+      const NIGHT_LOT_FENCE_Y = 7.25;
+      const SLAB_FRONT_Y = 5.0; // ...and the lot's pavement runs from the walk's edge back
+      // THE FENCE IS A WALL, NOT A DECAL (Midnight): the worker stops a body-width off the
+      // wire on the street side — the same margin he keeps off a brownstone face (WALL_STOP)
+      // and off the cemetery iron (FENCE_STOP), so the paved-over gaps stop being a route
+      // behind the fence and the strip between the wire and the buildings is off the street.
+      const NIGHT_LOT_STOP = 0.3;
+      const NIGHT_LOT_BUILD_WALL = NIGHT_LOT_FENCE_Y - NIGHT_LOT_STOP; // 6.95 — his uphill floor
+
+      // The panel, its rails and its front posts all ride that 7.25 line, so the fence is
+      // the lot's own wall — flush with the houses that close the gap on either side, and
+      // never jutting out toward the walk. The slab under it fills the gap from the walk's
+      // edge back to the wrought iron.
       function buildNightFencedLots() {
         const g = new THREE.Group();
-        const fenceY = CEM_FENCE_Y; // 5.4 — the same line the houses' front yards respect
+        const fenceY = NIGHT_LOT_FENCE_Y; // 7.25 — RECESSED onto the buildings' face line
         const backY = NIGHT_FENCE_Y; // 8.3 — the wrought-iron back fence line
-        const depth = backY - fenceY; // ~2.9u of lot behind the fence
+        const slabDepth = backY - SLAB_FRONT_Y; // the paved lot: walk's edge back to the iron
         const lotM = new THREE.MeshLambertMaterial({ color: 0x2a2e33 }); // dark concrete
         const postM = new THREE.MeshLambertMaterial({ color: 0x3a3d42 }); // dark steel post
         const meshM = new THREE.MeshLambertMaterial({
@@ -33927,10 +33945,10 @@
         for (let gi = 0; gi < NIGHT_GAP_XS.length; gi++) {
           const gx = NIGHT_GAP_XS[gi]; // left edge of the 16u gap
           const cx = gx + IW / 2; // centre x of the gap
-          // -- concrete pad: fills the building setback behind the walk --
-          const pad = new THREE.Mesh(new THREE.PlaneGeometry(IW - 0.6, depth - 0.3), lotM);
+          // -- concrete pad: fills the whole gap from the walk's edge back to the iron --
+          const pad = new THREE.Mesh(new THREE.PlaneGeometry(IW - 0.6, slabDepth), lotM);
           pad.rotation.x = -Math.PI / 2;
-          pad.position.set(cx, (fenceY + backY) / 2, GZ + 0.02);
+          pad.position.set(cx, (SLAB_FRONT_Y + backY) / 2, GZ + 0.02);
           pad.receiveShadow = true;
           g.add(pad);
           // -- chain-link fence on the street-facing side (facing the worker) --
@@ -33949,30 +33967,38 @@
           const brail = new THREE.Mesh(new THREE.BoxGeometry(fenceW, 0.06, 0.04), railM);
           brail.position.set(cx, fenceY, GZ + 0.08);
           g.add(brail);
-          // four corner posts (2 on the street side + 2 on the back corners of the pad)
+          // the posts: the two ends of the fence run, a line post at each third of the span,
+          // and the two back corners of the slab. A chain-link pole is a CYLINDER, and
+          // THREE's CylinderGeometry is built along its LOCAL Y — this world is Z-UP (the
+          // sidewalk slab stands proud in +Z), so a pipe planted with no rotation lies FLAT
+          // on the ground. Every pole is tipped +90° about X (its axis rides onto world +Z)
+          // before it stands in its hole, and finished with the round post cap real
+          // chain-link fences are topped with.
           const postR = 0.12;
           const postH = fenceH + 0.1;
           const postGeo = new THREE.CylinderGeometry(postR, postR, postH, 8);
+          const capGeo = new THREE.SphereGeometry(postR + 0.02, 8, 6);
           const corners = [
             [gx + 0.3, fenceY],
             [gx + IW - 0.3, fenceY],
             [gx + 0.3, backY - 0.3],
             [gx + IW - 0.3, backY - 0.3],
           ];
+          // ...plus the two line posts across the front run, a third and two thirds along it
+          corners.push([gx + 0.3 + (IW - 0.6) / 3, fenceY]);
+          corners.push([gx + 0.3 + ((IW - 0.6) * 2) / 3, fenceY]);
           for (let pi = 0; pi < corners.length; pi++) {
             const post = new THREE.Mesh(postGeo, postM);
+            post.rotation.x = Math.PI / 2; // local Y (the pipe axis) -> world Z: STANDS UP
             post.position.set(corners[pi][0], corners[pi][1], GZ + postH / 2);
             post.castShadow = true;
             g.add(post);
+            const cap = new THREE.Mesh(capGeo, postM);
+            cap.position.set(corners[pi][0], corners[pi][1], GZ + postH + 0.01);
+            g.add(cap);
           }
-          // back fence runs (left and right sides of the pad, connecting front to back)
-          for (let s = 0; s < 2; s++) {
-            const sideMesh = new THREE.Mesh(new THREE.PlaneGeometry(depth - 0.3, fenceH), meshM);
-            const sx = s === 0 ? gx + 0.3 : gx + IW - 0.3;
-            sideMesh.position.set(sx, (fenceY + backY - 0.3) / 2, GZ + fenceH / 2 + 0.05);
-            sideMesh.rotation.set(Math.PI / 2, 0, Math.PI / 2); // upright, running along Y
-            g.add(sideMesh);
-          }
+          // NO side fence runs: a lot's sides are the open apron between the gaps, and the
+          // single street-facing panel on the building line is the only wall the lot needs.
         }
         worldGroup.add(g);
       }
@@ -45007,6 +45033,19 @@
         // weekdays are walled by their houses (the front-wall clamp above), never this.
         if (isNightShift() && p.wy > NIGHT_FENCE_Y - FENCE_STOP) {
           p.wy = NIGHT_FENCE_Y - FENCE_STOP;
+        }
+        // === THE MIDNIGHT CHAIN-LINK LOTS: THE FENCE STANDS ON THE BUILDING LINE ===
+        // Tonight the five paved-over intersections are closed by chain-link strung on the row's
+        // own face line (y 7.25 — Bed-Stuy's HOUSE_Y 9.5 minus half the 4.5u shell), which is the
+        // SAME line the brownstone faces stop him on inside the blocks. So the wire is his
+        // uphill wall everywhere the street is open: his center stops a body-width off the fence,
+        // street side only. He cannot get behind the chain-link, and he cannot squeeze through
+        // the strip between the fence and the buildings at a gap — that strip is not street. The
+        // law is a hard stop, so no knock-back, fling, shove or spawn ever lands him on the far
+        // side of the wire; it runs every frame, exactly like the iron above. Weekdays never run
+        // it: their gaps are real cross-streets and their street is walled by its own houses.
+        if (isNightShift() && typeof NIGHT_LOT_BUILD_WALL === "number" && p.wy > NIGHT_LOT_BUILD_WALL) {
+          p.wy = NIGHT_LOT_BUILD_WALL;
         }
         // === SOLID SIDEWALK OBSTACLES (USPS collection boxes / sidewalk trees = b.trees) ===
         // The worker can't walk THROUGH a collection box: hard circle push-out
