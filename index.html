@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.550</div>
+          <div id="app-version" class="menu-version">v1.0.551</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.550';
+      const APP_VERSION = '1.0.551';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -5132,6 +5132,31 @@
       const RAIN_N = 220; // streaks (two verts each)
       const RAIN_SPLASH_N = 120; // micro-burst pool (4 line segments each)
       const RAIN_PETALS = [[-1, -0.35], [1, -0.35], [-0.35, 1], [0.35, 1]]; // the burst's legs
+      // ---- THE FRAME-RATE LAW (the mobile "horizontal white waves" fix) -----------------
+      // The streak field USED to be integrated on the raw frame dt: every drop stepped by
+      // exactly the same fall and re-entered the box at y = 9 EXACTLY. An equal step plus an
+      // equal reset line phase-locks the whole sheet onto ONE arithmetic ladder of heights
+      // spaced `fall` apart. At 60fps the ladder has ~127 rungs across the 18-unit box and
+      // the eye reads it as rain. On a phone grinding the heavy parts of a block (the
+      // midnight packs, the full prop load) the frame time sits on the loop's dt clamp
+      // (0.05s = 20fps), so a step is 0.43u: the ladder collapses to ~42 rungs and all 220
+      // streaks stack ~5-deep at IDENTICAL heights — a rung of 1px lines is a horizontal
+      // white bar, and the wind's uniform shove slides every bar together: the reported
+      // "out of sync waves of horizontal white lines". Three cures, all below:
+      // (a) integrate on a FIXED 75Hz slice banked through an accumulator, so the rung
+      //     spacing never depends on how long a frame took (and a stall's time is banked,
+      //     not teleported — the storm keeps wall-clock time at any frame rate);
+      // (b) give every streak its own permanent fall / wind-catch RATES, so the rungs are
+      //     incommensurate and the sheet can never snap back onto a shared grid;
+      // (c) re-enter a landing drop at a RANDOM height above the top edge, so a respawn
+      //     doesn't re-pile 220 drops onto the same line.
+      const RAIN_STEP = 1 / 75; // the fixed integration slice (s) — 0.11u of fall per rung
+      const RAIN_SUB_MAX = 8; // the most slices ONE (stalled) frame may simulate
+      const RAIN_SPD_L = 0.72; // a streak's fall rate: -28% .. +34% of the storm's
+      const RAIN_SPD_H = 1.34;
+      const RAIN_DRF_L = 0.55; // ...and how much of the gust's shove it catches
+      const RAIN_DRF_H = 1.45;
+      let rainAcc = 0; // the wall-clock rain time banked between frames
       // THE RAIN (camera-space, guaranteed visible): the streak field + splash pool are
       // parented to the CAMERA itself, so their coordinates are in camera units (x = screen
       // right, y = screen up, z = toward the viewer). The ortho frustum spans about
@@ -5141,11 +5166,16 @@
       // it ~28u outside the frustum — the drops existed, they were just never in the frame.)
       function buildWeatherRain() {
         clearWeatherRain();
+        rainAcc = 0; // a fresh sheet starts on a fresh clock
         const pos = new Float32Array(RAIN_N * 6);
+        const spd = new Float32Array(RAIN_N); // THIS streak's fall rate (x the storm's)
+        const drf = new Float32Array(RAIN_N); // ...and the share of the gust it catches
         for (let i = 0; i < RAIN_N; i++) {
           const x = R(-16, 16),
             y = R(-9, 9),
             z = R(-40, -3);
+          spd[i] = R(RAIN_SPD_L, RAIN_SPD_H);
+          drf[i] = R(RAIN_DRF_L, RAIN_DRF_H);
           pos[i * 6] = x - 0.09; // bottom (leading) end
           pos[i * 6 + 1] = y;
           pos[i * 6 + 2] = z;
@@ -5186,6 +5216,8 @@
           splashes: splashes,
           pos: pos,
           sp: sp,
+          spd: spd, // per-streak fall rates (THE FRAME-RATE LAW)
+          drf: drf, // per-streak wind-catch rates
           n: RAIN_N,
           splashN: RAIN_SPLASH_N,
           life: new Float32Array(RAIN_SPLASH_N), // seconds of burst life left (0 = dead)
@@ -5193,6 +5225,7 @@
           cy: new Float32Array(RAIN_SPLASH_N),
           cz: new Float32Array(RAIN_SPLASH_N),
           cursor: 0,
+          splashFired: 0, // landings witnessed (the banding checks read the cadence)
         };
         buildWeatherPuddles(); // glossy wet sheen laid on the street for rainy shifts
       }
@@ -5255,6 +5288,7 @@
         const wr = weatherRain;
         const i = wr.cursor;
         wr.cursor = (wr.cursor + 1) % wr.splashN;
+        wr.splashFired++; // one landing recorded (the fall cadence is the rain's clock)
         wr.life[i] = 0.3;
         wr.cx[i] = x;
         wr.cy[i] = Math.random() < 0.8 ? R(-6.6, -4.6) : R(-1.5, 1.5);
@@ -5353,31 +5387,65 @@
         const windX = 0.09 + 0.28 * gustK; // streak slant: calm lean -> a visible lean (not a steep diagonal)
         // A gust SHORTENS the streaks: long diagonal lines read as "streaks", not drops.
         const streakLen = 0.5 * (1 - 0.62 * gustK);
-        const drift = (0.63 + 5.5 * gustK) * dt; // the horizontal shove
-        const fall = (8.5 + 2.2 * gustK) * dt; // a gust drives the drops down faster
-        // ---- STREAKS: fall down the screen (camera units/sec); a landing streak wraps to
-        // the top and fires a splash where it touched down.
+        // THE FRAME-RATE LAW: the shove and the descent are RATES (camera units per
+        // second); the frame's real time is banked in rainAcc and paid out in fixed
+        // RAIN_STEP slices. The streaks' rhythm is then identical on a 120Hz desktop and on
+        // a phone grinding the heavy part of a block at 18fps, and a stalled frame's time is
+        // banked (max RAIN_SUB_MAX slices at once) — never teleported in one 0.43u lurch.
+        const driftRate = 0.63 + 5.5 * gustK; // the horizontal shove (u/sec)
+        const fallRate = 8.5 + 2.2 * gustK; // a gust drives the drops down faster (u/sec)
+        rainAcc = Math.min(rainAcc + dt, RAIN_STEP * RAIN_SUB_MAX);
+        // ---- STREAKS: fall down the screen; a landing streak re-enters above the top and
+        // fires a splash where it touched down. Every streak travels at ITS OWN rate (spd /
+        // drf) and re-enters at a random height, so the 220 drops are mutually
+        // incommensurate: the field never collapses onto a shared ladder of heights (the
+        // horizontal white waves of a low-fps mobile frame).
         const P = weatherRain.pos;
-        for (let i = 0; i < weatherRain.n; i++) {
-          const o = i * 6;
-          P[o] -= drift;
-          const y = P[o + 1] - fall;
-          P[o + 1] = y;
-          P[o + 3] = P[o] + windX; // the top end tracks the bottom with the current slant
-          P[o + 4] = y + streakLen;
-          if (y < -9) {
-            const nx = R(-16, 16),
-              nz = R(-40, -3);
-            P[o] = nx - windX;
-            P[o + 1] = 9;
-            P[o + 2] = nz;
-            P[o + 3] = nx;
-            P[o + 4] = 9 + streakLen;
-            P[o + 5] = nz;
-            spawnSplash(nx); // the drop lands — a micro-burst at its touchdown point
+        const SPD = weatherRain.spd;
+        const DRF = weatherRain.drf;
+        let sub = 0;
+        while (rainAcc >= RAIN_STEP && sub < RAIN_SUB_MAX) {
+          rainAcc -= RAIN_STEP;
+          sub++;
+          for (let i = 0; i < weatherRain.n; i++) {
+            const o = i * 6;
+            const drift = driftRate * DRF[i] * RAIN_STEP; // this streak's share of the wind
+            const fall = fallRate * SPD[i] * RAIN_STEP; // ...and of the descent
+            P[o] -= drift;
+            const y = P[o + 1] - fall;
+            P[o + 1] = y;
+            P[o + 3] = P[o] + windX; // the top end tracks the bottom with the current slant
+            P[o + 4] = y + streakLen;
+            if (P[o] < -16) {
+              P[o] += 32; // a long gust can't walk the sheet out of the frame
+              P[o + 3] += 32;
+            }
+            if (y < -9) {
+              const nx = R(-16 + windX, 16),
+                nz = R(-40, -3);
+              SPD[i] = R(RAIN_SPD_L, RAIN_SPD_H); // a fresh life, a fresh rate
+              DRF[i] = R(RAIN_DRF_L, RAIN_DRF_H);
+              P[o] = nx - windX;
+              P[o + 1] = 9 + R(0, 3.2); // re-enter OFF the grid, above the top edge
+              P[o + 2] = nz;
+              P[o + 3] = nx;
+              P[o + 4] = P[o + 1] + streakLen;
+              P[o + 5] = nz;
+              spawnSplash(nx); // the drop lands — a micro-burst at its touchdown point
+            }
           }
         }
         weatherRain.streaks.geometry.attributes.position.needsUpdate = true;
+        // MOBILE INK: the retro buffer is CSS-upscaled, so a 1px streak becomes a 2-3px
+        // white bar at 540P and worse at 320P / ATARI 2600 — precisely where any banding
+        // reads loudest. Thin the ink as the buffer shrinks. (typeof guard: the weather
+        // sandbox runs this function with no RENDER_H in scope.)
+        if (typeof RENDER_H !== "undefined") {
+          let rainInk = 0.78; // NATIVE (0) / 720P: the desktop ink
+          if (RENDER_H && RENDER_H <= 540) rainInk = 0.68;
+          if (RENDER_H && RENDER_H <= 320) rainInk = 0.52;
+          weatherRain.streaks.material.opacity = rainInk;
+        }
         updateSplashes(dt);
         updateGustPapers(dt);
       }

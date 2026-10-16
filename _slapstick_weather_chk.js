@@ -36,6 +36,12 @@ check('updateGag runs every play frame from updatePlayer', html.includes('update
 check('a knocked drop flags the Bag Cascade', grab('function dropCarried() {', 'const item = carried;').includes('p.dropGag = true;'));
 check('the rainy-shift Karen quip fires once per day on a drop', html.includes("It's raining. I can see it.") && /p\.rainQuip = true;/.test(html));
 check('rain ticks every live frame from the main loop', html.includes('updateWeatherRain(dt); // the storm keeps falling'));
+// ---- the FRAME-RATE LAW: the mobile low-fps "horizontal white waves" fix ---------------
+check('rain integrates on a FIXED timestep banked through an accumulator (the rung spacing is frame-rate independent)', /const RAIN_STEP = 1 \/ 75;/.test(html) && /rainAcc = Math\.min\(rainAcc \+ dt, RAIN_STEP \* RAIN_SUB_MAX\)/.test(html) && /while \(rainAcc >= RAIN_STEP && sub < RAIN_SUB_MAX\)/.test(html));
+check('every streak falls + drifts at its OWN permanent rate (incommensurate steps can never phase-lock onto one ladder)', /const spd = new Float32Array\(RAIN_N\)/.test(html) && /const drf = new Float32Array\(RAIN_N\)/.test(html) && /fallRate \* SPD\[i\] \* RAIN_STEP/.test(html) && /driftRate \* DRF\[i\] \* RAIN_STEP/.test(html));
+check('a landing streak re-enters OFF the grid, above the top edge (no y=9 snap for 220 drops)', /P\[o \+ 1\] = 9 \+ R\(0, 3\.2\)/.test(html) && !/P\[o \+ 1\] = 9;/.test(html));
+check('the gust cannot walk the sheet out of the frame (x wraps back into the box)', /if \(P\[o\] < -16\) \{[\s\S]{0,160}P\[o\] \+= 32;[\s\S]{0,120}P\[o \+ 3\] \+= 32;/.test(html));
+check('the low-res mobile buffer THINS THE RAIN INK (1px streaks upscale 2-3x into white bars)', /weatherRain\.streaks\.material\.opacity = rainInk/.test(html) && /if \(RENDER_H && RENDER_H <= 320\) rainInk = 0\.52;/.test(html));
 check('resetWorldState clears the gag state', /p\.gagT = 0; \/\/ fresh shift/.test(html));
 check('the down sequence ends the gag + reseats the cap', grab('function startDyingSequence() {', 'function updateDying(dt) {').includes('worker.hat.position.z = 1.87'));
 check('the route-end cinematic reseats the cap', grab('function startRouteEnd() {', 'const boxW =').includes('worker.hat.position.z = 1.87'));
@@ -78,7 +84,7 @@ function runWeather() {
     grab('let _lanePrevWy = 0; // previous frame', 'let state = "menu",');
   const fn = new Function(
     'THREE', 'scene', 'dirLight', 'ambientLight', 'R', 'camFollowX', 'p', 'camera', 'state',
-    src + '\nreturn { rollWeather, updateWeatherRain, getWeather: () => weather, getSUN: () => [SUN_X0, SUN_Y0, SUN_Z0], getRain: () => weatherRain, getAmb: () => ambientLight.intensity, getSunI: () => dirLight.intensity, getSky: () => scene.background.hex, getFog: () => [scene.fog.near, scene.fog.far], getTemp: () => weatherTemp, getForecast: () => updateWeatherHud(), getDayForecast: () => weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine, countSplashes: () => { let c = 0; for (let i = 0; i < weatherRain.splashN; i++) if (weatherRain.life[i] > 0) c++; return c; }, setStormNext: v => { stormNext = v; }, setGust: v => { gustT = v; }, setGustNext: v => { gustNext = v; }, getPapers: () => gustPapers.length, getPaperList: () => gustPapers, getPuddles: () => weatherPuddles, getState: () => state, setState: v => { state = v; }, WEATHERS };'
+    src + '\nreturn { rollWeather, updateWeatherRain, getWeather: () => weather, getSUN: () => [SUN_X0, SUN_Y0, SUN_Z0], getRain: () => weatherRain, getAmb: () => ambientLight.intensity, getSunI: () => dirLight.intensity, getSky: () => scene.background.hex, getFog: () => [scene.fog.near, scene.fog.far], getTemp: () => weatherTemp, getForecast: () => updateWeatherHud(), getDayForecast: () => weatherIcon() + " " + weatherTemp + "\u00B0F \u00b7 " + WEATHERS[weather].dayLine, countSplashes: () => { let c = 0; for (let i = 0; i < weatherRain.splashN; i++) if (weatherRain.life[i] > 0) c++; return c; }, setStormNext: v => { stormNext = v; }, setGust: v => { gustT = v; }, setGustNext: v => { gustNext = v; }, getPapers: () => gustPapers.length, getPaperList: () => gustPapers, getPuddles: () => weatherPuddles, getState: () => state, setState: v => { state = v; }, getPos: () => weatherRain.pos, splashEvents: () => weatherRain.splashFired, WEATHERS };'
   );
   return fn(THREE, scene, dirLight, ambientLight, R, 42, { wx: 5, wy: 2.5 }, camera, 'play');
 }
@@ -108,7 +114,14 @@ withRand(() => 0.5, () => rw.rollWeather({ special: true }));
 withRand(() => 0.5, () => {
   for (let i = 0; i < 200; i++) rw.updateWeatherRain(0.016); // ~3.2s of rain: every streak lands and wraps
 });
-check('landing streaks fire splash bursts (pool active after the rain falls)', rw.countSplashes() > 0, String(rw.countSplashes()));
+check('landing streaks fire splash bursts (every fall cycle plops on the street)', rw.splashEvents() > 40, 'landings=' + rw.splashEvents());
+{
+  // The live pool: a real (randomly-seeded) shower mid-fall must have bursts on screen.
+  const rw2 = runWeather();
+  rw2.rollWeather({ special: true });
+  for (let i = 0; i < 60; i++) rw2.updateWeatherRain(0.016); // ~1s of falling
+  check('the splash pool is live mid-shower (bursts swell and snap back)', rw2.countSplashes() > 0, String(rw2.countSplashes()));
+}
 check('splash is the simple see-through blue dash (no vertex-color fade — that multiplied to black spikes)', /0xbfe0f5/.test(html) && !/vertexColors: true,/.test(html) && /opacity: 0\.7,/.test(html));
 
 // ---- day card forecast panel --------------------------------------------------------------
@@ -184,6 +197,101 @@ check('settled papers hop when a gust hits (lift + tumble + drift + land)', /if 
     wh.updateWeatherRain(0.016);
   });
   check('a new gust lifts the settled paper and makes it hop + tumble', wh.getPaperList()[0].hopT > 0 && wh.getPaperList()[0].g.position.z > 0.4, String(wh.getPaperList()[0].g.position.z));
+}
+
+// ---- THE FRAME-RATE LAW, measured: what a mobile frame rate does to the sheet ----------
+// A phone grinding the heavy part of a block lands the loop on its dt clamp (0.05s = 20fps
+// frames). The old field stepped all 220 streaks by the SAME fall and snapped every landing
+// back to y = 9, which phase-locked the sheet onto ~43 exact heights with 12 streaks sharing
+// one height — 12 collinear 1px lines is a horizontal white bar, and the bars slid together
+// in the gust: the "out of sync waves of horizontal white lines". The meter below counts the
+// exact heights in the field and the depth of the most crowded one.
+function ladderReport(api) {
+  const pos = api.getPos();
+  const n = api.getRain().n;
+  const exact = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = pos[i * 6 + 1].toFixed(6);
+    exact.set(k, (exact.get(k) || 0) + 1);
+  }
+  let deepest = 0;
+  for (const v of exact.values()) deepest = Math.max(deepest, v);
+  return { heights: exact.size, deepest, n: n };
+}
+function rainRun(dt, frames) {
+  const api = runWeather();
+  api.rollWeather({ special: true }); // always rain — on REAL randomness, not a fixed seed
+  const warm = Math.ceil(24 / (8.5 * 0.72 * dt)) + 20; // long enough for every streak to land
+  for (let i = 0; i < warm + frames; i++) api.updateWeatherRain(dt);
+  return ladderReport(api);
+}
+{
+  const r = rainRun(0.05, 60); // the stalled mobile frame (loop dt clamp)
+  check('20fps frames keep every streak on its OWN height (no rung the bars can pile onto)', r.heights >= 150 && r.deepest <= 4, 'heights=' + r.heights + ' deepest=' + r.deepest);
+}
+{
+  const r = rainRun(0.0833, 40); // a 12fps grind
+  check('a 12fps grind keeps the sheet off the ladder too', r.heights >= 150 && r.deepest <= 4, 'heights=' + r.heights + ' deepest=' + r.deepest);
+}
+{
+  const r = rainRun(1 / 60, 240); // the desktop baseline
+  check('60fps keeps the classic dense sheet', r.heights >= 150 && r.deepest <= 4, 'heights=' + r.heights + ' deepest=' + r.deepest);
+}
+{
+  // The wall-clock law: half a second of rain falls the SAME distance whether the device
+  // draws it in 30 frames of 1/60s or 10 frames of 0.05s — the storm keeps time, it never
+  // teleports through a stall (that lurch is what visibly "goes out of sync").
+  const api = runWeather();
+  api.rollWeather({ special: true });
+  for (let i = 0; i < 60; i++) api.updateWeatherRain(1 / 60); // settle the sheet
+  const pos = api.getPos();
+  const n = api.getRain().n;
+  const medianFall = (dt, frames) => {
+    const before = [];
+    for (let i = 0; i < n; i++) before.push(pos[i * 6 + 1]);
+    for (let i = 0; i < frames; i++) api.updateWeatherRain(dt);
+    const d = [];
+    for (let i = 0; i < n; i++) {
+      const dd = before[i] - pos[i * 6 + 1];
+      if (dd > 0 && dd < 6) d.push(dd); // the streaks that did NOT land in this window
+    }
+    d.sort((a, b) => a - b);
+    return d.length ? d[(d.length / 2) | 0] : 0;
+  };
+  const f60 = medianFall(1 / 60, 30); // 0.5s of rain at 60fps
+  const f20 = medianFall(0.05, 10); // the same 0.5s in 20fps frames
+  const ratio = f60 > 0 ? f20 / f60 : 0;
+  check('0.5s of rain falls the same distance at 60fps and at 20fps (the storm keeps wall-clock time)', ratio > 0.93 && ratio < 1.07, 'f60=' + f60.toFixed(3) + ' f20=' + f20.toFixed(3) + ' ratio=' + ratio.toFixed(3));
+}
+{
+  // The splash cadence is the rain's clock: the same 3 seconds must produce the same number
+  // of plops at 60fps and on a stalled 20fps mobile frame — that is the "goes out of sync"
+  // the phone reports, measured as landings per wall-second.
+  const landings = (dt, frames) => {
+    const api = runWeather();
+    api.rollWeather({ special: true });
+    for (let i = 0; i < frames; i++) api.updateWeatherRain(dt);
+    return api.splashEvents();
+  };
+  const l60 = landings(1 / 60, 180); // 3s of rain at 60fps
+  const l20 = landings(0.05, 60); // ...the same 3s in stalled 20fps frames
+  const lratio = l60 > 0 ? l20 / l60 : 0;
+  check('the rain lands the same number of drops per wall-second at 60fps and at 20fps', lratio > 0.75 && lratio < 1.3, 'l60=' + l60 + ' l20=' + l20 + ' ratio=' + lratio.toFixed(3));
+}
+{
+  // The gust can no longer walk the sheet out of the frame: after a hard gust the streaks
+  // are still inside the ±16 box the ortho frustum covers.
+  const api = runWeather();
+  api.rollWeather({ special: true });
+  api.setGust(2.2); // a full-strength gust
+  for (let i = 0; i < 260; i++) {
+    api.setGust(2.2); // held: the drops see 6.1u/s of shove the whole time
+    api.updateWeatherRain(0.05);
+  }
+  const pos = api.getPos();
+  let out = 0;
+  for (let i = 0; i < api.getRain().n; i++) if (pos[i * 6] < -16.1 || pos[i * 6] > 16.1) out++;
+  check('a long gust keeps every streak inside the ±16 box (no empty half of the screen)', out === 0, 'out=' + out);
 }
 
 // ---- no-repeat rule: the week visibly changes level to level -----------------------------
