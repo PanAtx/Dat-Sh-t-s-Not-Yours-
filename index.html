@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.551</div>
+          <div id="app-version" class="menu-version">v1.0.552</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.551';
+      const APP_VERSION = '1.0.552';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -34516,7 +34516,7 @@
       // drops nothing. And the note always lands in a band he can stand in — the sidewalk
       // or the roadway — never on a roof, in a wall, or out in the fog past the wards.
       const NIGHT_KILL_NOTE = true; // every shoveled spook drops its note
-      const NIGHT_KILL_NOTE_CAP = 12; // notes lying on the street at once: no cash blizzard
+      const NIGHT_KILL_NOTE_CAP = 18; // notes lying on the street at once: no cash blizzard (raised from 12 with PRIZE PERSISTENCE — left-behind notes no longer evaporate, so they keep eating the budget; the pile still stays legible and worth walking to)
       function hellNoteDropY(wy) {
         if (wy >= HELL_NOTE_ROAD_Y0 && wy <= HELL_NOTE_ROAD_Y1) return wy; // already in the roadway
         if (wy >= HELL_NOTE_WALK_Y0 && wy <= HELL_NOTE_WALK_Y1) return wy; // already on the walk
@@ -40492,6 +40492,69 @@
       }
       const CASH_LIFT = 0.12; // raise street cash clear of the raised curbs (top ~0.365) so no bill gets clipped
       const CURB_LIFT = 0.06; // near curb top is GZ+0.05 (0.35); rest treasure/mongo just above it so the raised curb never clips through their base (same fix as the hydrant)
+      // ==================== PRIZE PERSISTENCE (nobody's haul evaporates) ==================
+      // A street-cash bill, a joss HELL NOTE, a mongo haul, a treasure, a coffee, a BEC and
+      // a Monster can are all money the worker EARNED. Walking down the block slides them off
+      // the back of the screen — and the old rule DELETED anything he had passed by 14 units,
+      // so the prizes he saw land simply vanished and he had nothing to walk back for. On the
+      // backwards Midnight shift (routeDir() === -1) that same "behind" test pointed the WRONG
+      // way and ate the notes lying AHEAD of him before he ever got to them.
+      // THE LAW NOW: a pickup lives on the street for the whole shift and reappears the moment
+      // he walks back to it. It is only retired when it lies OUTSIDE HIS OWN WALK BOUNDS — the
+      // ground he can never stand on: past the Intersection-1 barrier by day, past the
+      // cul-de-sac ceiling (or the closed ghost iron) on the dead-end shift. "Behind him" is
+      // resolved on the ROUTE AXIS via routeDir(), so the mirrored night route is fixed by the
+      // same rule and every weekday expression keeps its shipped meaning.
+      const PICKUP_CULL_GRACE = 10; // slack PAST the worker's walk barrier before a pickup counts as gone for good
+      const MAX_LIVE_PICKUPS = 110; // roster ceiling (memory guard): a shift that digs up more finds than this lets go of the prize FURTHEST BEHIND the worker
+      // Is this pickup lying on ground the worker can never reach? (typeof guards keep the
+      // check suites — which run these functions with a partial harness — able to call it.)
+      function pickupGoneForGood(wx) {
+        const RT = typeof routeDir === "function" ? routeDir() : 1;
+        if (RT > 0) {
+          // DAY: he is clamped to p.wx >= ROUTE_START_X — a find below the barrier is dead ground.
+          const floorX = typeof ROUTE_START_X === "number" ? ROUTE_START_X : 80;
+          return wx < floorX - PICKUP_CULL_GRACE;
+        }
+        // MIDNIGHT: his uphill ceiling is the cul-de-sac wall behind the rig's tail
+        // (NIGHT_TOP_X - NIGHT_TRAIL_X = 449), and the ghost-iron seal lowers it while the ring
+        // is shut. A find above that ceiling is unreclaimable, so it may be cleaned up.
+        const ceilX =
+          typeof workerCeilX === "function"
+            ? workerCeilX()
+            : typeof workerTopLimitX === "function"
+              ? workerTopLimitX()
+              : 449;
+        return wx > ceilX + PICKUP_CULL_GRACE;
+      }
+      // How far BEHIND the direction the shift runs a pickup sits (positive = left behind).
+      function pickupBehindDist(wx) {
+        const RT = typeof routeDir === "function" ? routeDir() : 1;
+        return (p.wx - wx) * RT;
+      }
+      function retirePickup(b) {
+        if (!b || !b.g) return;
+        if (b.g.parent) b.g.parent.remove(b.g);
+        disposeObj(b.g);
+      }
+      // The roster ceiling, applied once per frame per pickup list: drop the single prize
+      // furthest BEHIND the worker — never the next bill he is about to walk back for.
+      function trimPickupRoster(list) {
+        if (list.length <= MAX_LIVE_PICKUPS) return;
+        let worst = -1,
+          worstBehind = 0;
+        for (let i = 0; i < list.length; i++) {
+          const behind = pickupBehindDist(list[i].wx);
+          if (behind > worstBehind) {
+            worstBehind = behind;
+            worst = i;
+          }
+        }
+        if (worst >= 0) {
+          retirePickup(list[worst]);
+          list.splice(worst, 1);
+        }
+      }
       // The named "finds" the worker can dig out of the trash — each gets its own spoken line.
       const TREASURE_NAMES = {
         0: "Vintage TV!",
@@ -40724,13 +40787,17 @@
             bonuses.splice(i, 1);
             continue;
           }
-          // clean up bonuses the player has driven well past so they don't linger on the street
-          if (b.wx < p.wx - 14) {
-            if (b.g.parent) b.g.parent.remove(b.g);
-            disposeObj(b.g);
+          // PRIZE PERSISTENCE: a find the worker earned stays lying on the street for the
+          // whole shift — it slides off the screen when he walks away, and it slides right
+          // back in when he walks back for it. Only ground OUTSIDE his walk bounds (behind
+          // the Intersection-1 barrier by day, above the cul-de-sac ceiling on the night
+          // shift) is retired, so he never loses a prize he was able to reach.
+          if (pickupGoneForGood(b.wx)) {
+            retirePickup(b);
             bonuses.splice(i, 1);
           }
         }
+        trimPickupRoster(bonuses); // the roster ceiling (memory guard), never the nearest prize
       }
       // ==================== HEALTH & POWER-UP SYSTEM ====================
       // The worker has a finite health pool. NPCs (vehicles / hard hazards) drain it.
@@ -42986,13 +43053,17 @@
             powerups.splice(i, 1);
             continue;
           }
-          // clean up powerups the worker has driven well past so they don't linger
-          if (b.wx < p.wx - 14) {
-            if (b.g.parent) b.g.parent.remove(b.g);
-            disposeObj(b.g);
+          // PRIZE PERSISTENCE (the same law as the street finds): a healer or a Monster the
+          // worker earned stays on his stretch of the street for the whole shift — off the
+          // screen as he walks away, back on it when he walks back. Retired only on ground
+          // outside his walk bounds (behind the Intersection-1 barrier by day, above the
+          // cul-de-sac ceiling on the night shift).
+          if (pickupGoneForGood(b.wx)) {
+            retirePickup(b);
             powerups.splice(i, 1);
           }
         }
+        trimPickupRoster(powerups); // the roster ceiling (memory guard), never the nearest power-up
       }
       // ==================== "RUN IT UP!" COLORFUL STAR BURST ====================
       // Small colorful stars that shoot outward from the worker, spin, fall and fade —

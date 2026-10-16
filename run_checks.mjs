@@ -19,6 +19,7 @@ const suites = [
   ['camera lane follow (subtle 3D)', 'node', '_cam_follow_chk.js'],
   ['piss bottle kick + stain', 'node', '_piss_kick_chk.js'],
   ['powerup spawn ahead (visible + reachable)', 'node', '_powerup_spawn_chk.js'],
+  ['prize persistence (street cash / hell notes / power-ups never evaporate behind the worker)', 'node', '_prize_keep_chk.js'],
   ['delivery cyclist + L1 tuning', 'node', '_delivery_cyclist_chk.js'],
   ['traffic negotiation (knot fix)', 'node', '_traffic_nego_chk.js'],
   ['slapstick + weather (squash-stretch / hat pop / bag cascade / rain)', 'node', '_slapstick_weather_chk.js'],

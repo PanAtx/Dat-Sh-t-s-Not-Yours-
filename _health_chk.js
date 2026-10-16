@@ -54,6 +54,8 @@ const POWERUP_IMMUNE_DUR = getNumConst('POWERUP_IMMUNE_DUR');
 const HP_HIT_VEHICLE = getNumConst('HP_HIT_VEHICLE');
 const HP_HIT_HAZARD = getNumConst('HP_HIT_HAZARD');
 const MONSTER_SCORE_STEP = getNumConst('MONSTER_SCORE_STEP');
+const PICKUP_CULL_GRACE = getNumConst('PICKUP_CULL_GRACE'); // how far PAST his walk barrier a pickup must sit before it is retired
+const MAX_LIVE_PICKUPS = getNumConst('MAX_LIVE_PICKUPS');   // the roster ceiling (the memory guard that replaces the old 14u delete)
 const WRITEUP_RECOVERY_INVULN = getNumConst('WRITEUP_RECOVERY_INVULN'); // write-up recovery i-frame duration (must outlast the 5s stamp)
 
 // ---- mutable game state (the extracted functions close over these) ----
@@ -196,6 +198,12 @@ eval(extractFn('spawnMonsterNearPlayer'));
 eval(extractFn('spawnHealerNearPlayer'));
 eval(extractFn('consumePowerup'));
 eval(extractFn('updatePowerups'));
+// PRIZE PERSISTENCE (the law updatePowerups / updateBonuses retire pickups with): the shared
+// helpers + the roster ceiling, pulled out of the ship exactly as the game defines them.
+eval(extractFn('retirePickup'));
+eval(extractFn('pickupGoneForGood'));
+eval(extractFn('pickupBehindDist'));
+eval(extractFn('trimPickupRoster'));
 eval(extractFn('spawnStars'));
 eval(extractFn('updateStarParticles'));
 
@@ -417,7 +425,7 @@ check('healer milestone fires from BOTH addScore (which delegates to addScoreFla
 check('healers spawn ONLY via spawnHealerNearPlayer (coffee/BEC, never pre-placed)',
   /function spawnHealerNearPlayer\(\)[\s\S]{0,300}"coffee" : "bec"/.test(src) && src.indexOf('const POWERUP_CASH_STEP = 5000') >= 0);
 
-// ===== 13) updatePowerups() consumes on contact + cleans up items driven past =====
+// ===== 13) updatePowerups() consumes on contact + PRIZE PERSISTENCE (no evaporating hauls) =====
 reset();
 powerups.push({ type: 'coffee', wx: p.wx + 0.5, wy: p.wy + 0.5, t: 0, g: { parent: dynamicGroup, position: { set(){} }, rotation: { y: 0 }, children: [{ }] } });
 const hBefore = health;
@@ -426,7 +434,15 @@ check('walking into a coffee consumes it and heals', powerups.length === 0 && he
 reset();
 powerups.push({ type: 'bec', wx: p.wx - 20, wy: 2, t: 0, g: { parent: dynamicGroup, position: { set(){} }, rotation: { y: 0 }, children: [{ }] } });
 updatePowerups(1 / 30);
-check('a pickup well behind the worker is recycled out of the world', powerups.length === 0);
+check('a pickup lying PAST HIS WALK BARRIER (x ' + (88 - 20) + ' < ROUTE_START_X 80 - ' + PICKUP_CULL_GRACE + ' grace) is recycled — the only ground he can never reach', powerups.length === 0);
+reset();
+powerups.push({ type: 'bec', wx: p.wx - 15, wy: 2, t: 0, g: { parent: dynamicGroup, position: { set(){} }, rotation: { y: 0 }, children: [{ }] } });
+updatePowerups(1 / 30); updatePowerups(1 / 30);
+check('PRIZE PERSISTENCE: a power-up 15u behind him (off the back of the screen) SURVIVES the walk-away — the old "driven well past" delete ate the healer he earned', powerups.length === 1);
+const hBec = health;
+p.wx = p.wx - 15; // he walks back for it
+updatePowerups(1 / 30);
+check('PRIZE PERSISTENCE: walking back over it banks it (BEC heals ' + POWERUP_HEAL_BEC + ' — the prize is exactly where it landed)', powerups.length === 0 && health === Math.min(maxHealth, hBec + POWERUP_HEAL_BEC));
 
 // ===== 14) balance tuning: fair damage, scarce healers, long Monster rush =====
 check('NPC hits are kept light & fair (vehicle ' + HP_HIT_VEHICLE + ', hazard ' + HP_HIT_HAZARD + ' <= 10)', HP_HIT_VEHICLE <= 10 && HP_HIT_HAZARD <= 10);
