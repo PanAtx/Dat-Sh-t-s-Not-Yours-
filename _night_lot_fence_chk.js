@@ -4,6 +4,14 @@
 //   3) the street-facing panel is RECESSED onto the BUILDING LINE (7.25 = Bed-Stuy house
 //      centre 9.5 minus half the 4.5u shell), so it lines up with the houses and never
 //      sticks out past them toward the sidewalk
+//   4) THE FENCE IS THE WORKER'S WALL: NIGHT_LOT_BUILD_WALL (line - body-width) is a hard
+//      per-frame stop, the same line the brownstone faces give him, so no side of the wire
+//      and no squeeze at a gap — and the block still clears from the street side
+//   5) THE WEAVE AND THE TIN: the panel is a painted, alpha-cut diamond weave you see
+//      THROUGH (node-safe), and every lot wears a NO TRESPASSING plate on the street side
+//   6) THE TELL AND THE FENCED MONEY: the wire answers his bump (shake + rattle + a budgeted
+//      worker line, first contact only), and each lot hides one Joss note BEHIND the wire —
+//      proximity never banks it, only the shovel dig does (flung into a lane he can stand in)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -39,6 +47,7 @@ function extractFn(name) {
   }
   return src.slice(idx, end);
 }
+const srcFn = extractFn; // (the suite's usual name for "the game's own source of a function")
 const num = (name) => Number(src.match(new RegExp('const ' + name + ' = (-?[0-9.]+)'))[1]);
 const arr = (name) => JSON.parse(src.match(new RegExp('const ' + name + ' = (\\[[^\\]]*\\])'))[1]);
 
@@ -55,19 +64,34 @@ check('MIDNIGHT IS BED-STUY GEOMETRY: house centre ' + BEDSTUY_HOUSE_Y + ', shel
   BEDSTUY_HOUSE_Y === 9.5 && BEDSTUY_DEPTH === 4.5);
 
 // ---- 3) BUILD it with the real THREE and measure every mesh ----
+// The builders run for real: the weave and the tin face fall back to flat materials in node
+// (no canvas), exactly as the game's other texture builders do.
 const worldGroup = new THREE.Group();
 const fn = new Function('THREE', 'worldGroup', 'NIGHT_GAP_XS', 'IW', 'GZ', 'NIGHT_FENCE_Y',
-  'NIGHT_LOT_FENCE_Y', 'SLAB_FRONT_Y',
+  'NIGHT_LOT_FENCE_Y', 'SLAB_FRONT_Y', 'M', 'MS', 'BX',
+  extractFn('makeChainLinkWeave') + '\n' + extractFn('makeNoTrespassFace') + '\n' + extractFn('makeNoTrespassSign') + '\n' +
   extractFn('buildNightFencedLots') + '\n;return buildNightFencedLots();');
-fn(THREE, worldGroup, NIGHT_GAP_XS, IW, GZ, NIGHT_FENCE_Y, NIGHT_LOT_FENCE_Y, SLAB_FRONT_Y);
+const M = (c, o) => new THREE.MeshLambertMaterial(Object.assign({ color: c }, o || {}));
+const MS = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, metalness: 0.5, roughness: 0.5 }, o || {}));
+const BX = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+fn(THREE, worldGroup, NIGHT_GAP_XS, IW, GZ, NIGHT_FENCE_Y, NIGHT_LOT_FENCE_Y, SLAB_FRONT_Y, M, MS, BX);
 worldGroup.updateMatrixWorld(true);
 const box = (o) => new THREE.Box3().setFromObject(o);
 const kids = [];
 worldGroup.traverse((o) => { if (o.isMesh) kids.push(o); });
-const wire = kids.filter((o) => o.material && o.material.opacity === 0.7); // chain-link panels
+// the panels are the upright wire planes (the pads lie flat at -90deg, the tins are boxes)
+const isPanel = (o) => o.geometry && o.geometry.type === 'PlaneGeometry' &&
+  Math.abs((o.rotation ? o.rotation.x : 0) - Math.PI / 2) < 1e-6;
+const wire = kids.filter(isPanel); // chain-link panels
 const pads = kids.filter((o) => o.geometry && o.geometry.type === 'PlaneGeometry' && o.rotation.x === -Math.PI / 2);
 const posts = kids.filter((o) => o.geometry && o.geometry.type === 'CylinderGeometry');
 const caps = kids.filter((o) => o.geometry && o.geometry.type === 'SphereGeometry');
+// the NO TRESPASSING plates: each is a 4.5 x 1.02 tin frame hung on the outside of the wire
+const tins = kids.filter((o) => {
+  if (!o.geometry || o.geometry.type !== 'BoxGeometry') return false;
+  const p = o.geometry.parameters;
+  return Math.abs(p.width - 4.5) < 0.02 && Math.abs(p.depth - 1.02) < 0.02;
+});
 
 check('the lots are built for every paved-over intersection (' + NIGHT_GAP_XS.length + ' lots)',
   pads.length === NIGHT_GAP_XS.length, 'pads=' + pads.length);
@@ -116,7 +140,7 @@ check('the shipped fence lines are untouched (CEM_FENCE_Y ' + CEM_FENCE_Y + ', N
   CEM_FENCE_Y === 5.4 && NIGHT_FENCE_Y === 8.3);
 
 // ---- 4) THE FENCE IS THE WORKER'S WALL (the building line, and no squeeze at a gap) ----
-const WALL_RE = /if \(isNightShift\(\) && typeof NIGHT_LOT_BUILD_WALL === "number" && p\.wy > NIGHT_LOT_BUILD_WALL\) \{\s*\n\s*p\.wy = NIGHT_LOT_BUILD_WALL;\s*\n\s*\}/;
+const WALL_RE = /if \(isNightShift\(\) && typeof NIGHT_LOT_BUILD_WALL === "number" && p\.wy > NIGHT_LOT_BUILD_WALL\) \{[^{}]*\}/;
 check('updatePlayer carries the chain-link wall law (hard stop on the fence line, every frame)',
   WALL_RE.test(src), 'clamp not found');
 const NSTOP = num('NIGHT_LOT_STOP');
@@ -204,6 +228,132 @@ check('his working lane stays a real lane: ' + (NWALL + 9.4).toFixed(2) + 'u fro
   NWALL - HORROR_STREET_Y >= 15);
 check('the fence line the worker is stopped on matches the panel he walks into (y ' + NIGHT_LOT_FENCE_Y + ' — wall ' + NWALL.toFixed(2) + ' = line - ' + NSTOP + ')',
   Math.abs(NWALL - (NIGHT_LOT_FENCE_Y - NSTOP)) < 1e-9);
+
+// ---- 5) THE WEAVE, THE TIN, THE TELL AND THE FENCED MONEY ----
+const weaveSrc = extractFn('makeChainLinkWeave');
+check('THE CHAIN-LINK IS PAINTED AS A WEAVE: a canvas builder draws the crossing wires',
+  weaveSrc.includes('canvas.getContext("2d")') && /moveTo\(k, 0\); c\.lineTo\(k \+ PIX, PIX\)/.test(weaveSrc) &&
+    /moveTo\(k, PIX\); c\.lineTo\(k \+ PIX, 0\)/.test(weaveSrc),
+  'no lattice passes');
+const MESH_SLICE = src.slice(src.indexOf('const meshM = weave'), src.indexOf('node fallback'));
+check('THE HOLES ARE OPEN: the tile is cleared to full transparency before the wires go down',
+  /clearRect\(0, 0, PIX, PIX\)/.test(weaveSrc) && /transparent: true/.test(MESH_SLICE));
+check('THE WEAVE IS ALPHA-CUT, not a translucent sheet (alphaTest on the mapped panel)',
+  /alphaTest: 0\.\d+/.test(MESH_SLICE) && /map: weave/.test(MESH_SLICE) && /emissive: 0x182028/.test(MESH_SLICE));
+check('the tile rides the panel UVs as a repeat sized by the real panel (no stretched diamonds)',
+  /tex\.repeat\.set\(fenceW \/ CHAIN_LINK_TILE_U, fenceH \/ CHAIN_LINK_TILE_U\)/.test(weaveSrc));
+const TILE_U = num('CHAIN_LINK_TILE_U'), DIAMS = num('CHAIN_LINK_DIAMONDS');
+const DIAMONDS_ACROSS = Math.round((IW - 0.6) / (TILE_U / DIAMS));
+check('the diamonds are small on a real fence: ' + DIAMONDS_ACROSS + ' diamonds across a 15.4u panel',
+  DIAMONDS_ACROSS >= 60, 'diamonds=' + DIAMONDS_ACROSS);
+check('a node boot (no canvas) keeps the shipped steel sheet (the builders are all node-safe)',
+  /typeof document === "undefined" \|\| !THREE\.CanvasTexture/.test(weaveSrc) &&
+    /typeof document === "undefined" \|\| !THREE\.CanvasTexture/.test(extractFn('makeNoTrespassFace')) &&
+    wire.length === NIGHT_GAP_XS.length && wire.every((o) => o.material.opacity === 0.7 && o.material.side === THREE.DoubleSide),
+  'panels=' + wire.length);
+check('the lattice keeps a light wire over a dark shadow pass (a mesh with depth, not a flat grey)',
+  /c\.strokeStyle = pass === 0 \? "#c3ccd4" : "#dfe6ec"/.test(weaveSrc) && /rgba\(14,17,21,0\.95\)/.test(weaveSrc));
+check('THE TIN ON THE WIRE: one NO TRESPASSING plate per lot',
+  tins.length === NIGHT_GAP_XS.length, 'frames=' + tins.length);
+const tinB = tins.length ? box(tins[0]) : null;
+check('the plate hangs on the STREET side of the wire, mid-panel (facing the worker)',
+  !!tinB && tinB.max.y < NIGHT_LOT_FENCE_Y + 0.01 && tinB.min.y > NIGHT_LOT_FENCE_Y - 0.4 &&
+    tinB.min.z > GZ + 0.6 && tinB.max.z < GZ + 2.0,
+  tinB ? 'y ' + tinB.min.y.toFixed(2) + '..' + tinB.max.y.toFixed(2) + ' z ' + tinB.min.z.toFixed(2) + '..' + tinB.max.z.toFixed(2) : 'n/a');
+check('the tin carries a red face (the city plate colour) inside its steel frame',
+  kids.some((o) => o.geometry && o.geometry.type === 'BoxGeometry' && o.material &&
+    o.material.color && o.material.color.getHex() === 0x9b2121),
+  'no red face mesh');
+
+// THE TELL: the wire answers the frame he goes into it
+const FENCE_LINES = ["THAT'S THE BUILDING LINE — NO WALKING PAST IT!"];
+const bumpSrc = extractFn('nightFenceBump');
+check('THE WIRE TALKS BACK is wired into the wall clamp (the hard stop tells the player)',
+  /p\.wy = NIGHT_LOT_BUILD_WALL;[\s\S]{0,320}nightFenceBump\(\)/.test(src));
+check('the tell is sound + shake + a budgeted worker line, on its own cooldown',
+  bumpSrc.includes('p.shake') && /SFX\.playHittingSound/.test(bumpSrc) &&
+    /nightSayOk\(\)/.test(bumpSrc) && /Voice\.say\(pick\(FENCE_BUMP_LINES\)/.test(bumpSrc) &&
+    /nightFenceBumpT > 0/.test(bumpSrc));
+check("the tell's cooldown ticks with the night and resets with the shift",
+  srcFnTick() && /nightFenceBumpT = 0;/.test(src));
+check('the lines teach the LAW (the building line, the dig, no walking past)',
+  /THAT'S THE BUILDING LINE — NO WALKING PAST IT!/.test(src) &&
+    /JOSS MONEY'S BEHIND THE FENCE — SHOVEL IT OUT!/.test(src));
+(function () {
+  const mod = new Function('p', 'SFX', 'Voice', 'pick', 'nightSayOk', 'isNightShift', 'FENCE_BUMP_LINES', 'NIGHT_FENCE_BUMP_CD',
+    'let nightFenceBumpT = 0;\n' + bumpSrc + '\nreturn function () { return nightFenceBump(); };');
+  const said = [], hit = [];
+  const p = { wx: 88, wy: 6.95, shake: 0 };
+  const api = mod(p, { playHittingSound: () => hit.push(1) }, { say: () => said.push(1) }, () => FENCE_LINES[0],
+    () => true, () => true, ['LINE'], 2.6);
+  const first = api(), twice = api();
+  check('FIRST CONTACT fires once (shake + rattle + a line) and a player pressed on the wire is not a loudspeaker',
+    first === true && twice === false && hit.length === 1 && said.length === 1 && p.shake >= 0.5,
+    'first=' + first + ' twice=' + twice + ' hits=' + hit.length + ' said=' + said.length);
+  const day = mod({ wx: 88, wy: 6.95, shake: 0 }, { playHittingSound: () => {} }, { say: () => {} }, () => 'x', () => true, () => false, ['LINE'], 2.6);
+  check('a WEEKDAY bump on the same spot says nothing (the tell is night-only)', day() === false);
+})();
+
+function srcFnTick() {
+  return /nightFenceBumpT = Math\.max\(0, nightFenceBumpT - dt\)/.test(src);
+}
+
+// ---- 6) THE FENCED JOSS MONEY (shovel-only, additive, and never a proximity bank) ----
+const NOTE_Y0 = num('FENCE_NOTE_Y0'), NOTE_Y1 = num('FENCE_NOTE_Y1');
+const NIGHT_TOP_X = num('NIGHT_TOP_X');
+const SHOVEL_BLADE_R = num('SHOVEL_BLADE_R');
+check('the fenced notes sit in the strip BEHIND the wire and in front of the iron (' + NOTE_Y0 + '..' + NOTE_Y1 + ')',
+  NOTE_Y0 > NIGHT_LOT_FENCE_Y && NOTE_Y1 < NIGHT_FENCE_Y && NOTE_Y1 > NOTE_Y0,
+  'band=' + NOTE_Y0 + '..' + NOTE_Y1);
+check('the street keeps its OWN 12 notes (the fence layer is additive, never a re-roll)',
+  num('NIGHT_HELL_NOTE_PICKS') === 12 && /spawnHellNotes\(bands\)/.test(srcFn('spawnNightShift')));
+check('the night build lays the fenced notes (spawnNightShift runs spawnNightFenceNotes)',
+  /spawnNightFenceNotes\(\)/.test(srcFn('spawnNightShift')));
+check('the dig ranks UNDER a spook and under the grave furniture (a real catch is never stolen)',
+  (function () {
+    const sw = srcFn('tryShovelSwing');
+    const iSpook = sw.indexOf('if (targets.length)'), iProp = sw.indexOf('} else if (prop)'), iNote = sw.indexOf('} else if (fenceNote)');
+    return iSpook >= 0 && iProp > iSpook && iNote > iProp && /nearestFenceNote\(reach\)/.test(sw);
+  })(),
+  'branch order wrong');
+check('the strike frame throws the note OVER the wire into a lane he can stand in',
+  /shovelFenceNoteStrike\(pend\.note\)/.test(srcFn('shovelDeliverStrike')) &&
+    (function () {
+      const f = extractFn('shovelFenceNoteStrike');
+      return /hellNoteDropY\(p\.wy\)/.test(f) && /rec\.fence = false/.test(f) &&
+        /rec\.g\.position\.set\(tx, ty,/.test(f) && /clamp\(rec\.wx \+ R\(-1\.1, 1\.1\), routeNearX\(\), routeFarX\(\)\)/.test(f);
+    })());
+check('PROXIMITY NEVER BANKS A FENCED NOTE (the 1.8u pickup door in updateBonuses skips the flag — the wire is the wall)',
+  src.includes('if (state === "play" && !b.fence && dist(b.wx, b.wy) < 1.8) {') &&
+    (function () {
+      const ub = extractFn('updateBonuses');
+      const ungated = ub.match(/if \(state === "play" && dist\(b\.wx, b\.wy\) < 1\.8\) \{/g);
+      const gated = ub.match(/if \(state === "play" && !b\.fence && dist\(b\.wx, b\.wy\) < 1\.8\) \{/g);
+      return (!ungated || ungated.length === 0) && gated && gated.length === 1;
+    })(),
+  'the pickup door is not fenced-aware');
+check('the kill-note budget counts the notes he can WALK (a fenced find never eats the cap)',
+  /bonuses\[i\] && bonuses\[i\]\.type === "cash" && !bonuses\[i\]\.fence/.test(extractFn('dropShovelHellNote')));
+check('the fence dig is taught out loud (the bump line and the dig line)',
+  /JOSS MONEY'S BEHIND THE FENCE — SHOVEL IT OUT!/.test(src) &&
+    /OVER THE WIRE!/.test(src) && /Voice\.say\(pick\(FENCE_DIG_LINES\)/.test(extractFn('shovelFenceNoteStrike')));
+(function () {
+  // run the game's own layer for real and measure where the money lands
+  const bonuses = [];
+  const spawnCash = (wx, wy) => bonuses.push({ wx: wx, wy: wy, val: 100, type: "cash", g: { position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } } }, lift: 0.12 });
+  const mod = new Function('isNightShift', 'spawnCash', 'NIGHT_GAP_XS', 'IW', 'NIGHT_TOP_X', 'R',
+    'bonuses', 'FENCE_NOTE_Y0', 'FENCE_NOTE_Y1',
+    extractFn('spawnNightFenceNotes') + '\nreturn spawnNightFenceNotes();');
+  const n = mod(() => true, spawnCash, NIGHT_GAP_XS, IW, NIGHT_TOP_X, (a, b) => a + (b - a) * 0.5, bonuses, NOTE_Y0, NOTE_Y1);
+  check('the fence layer lays one note per fenced lot INSIDE the walking lane (' + n + ' of ' + NIGHT_GAP_XS.length + ' gaps)',
+    n === NIGHT_GAP_XS.filter((gx) => gx + IW / 2 <= NIGHT_TOP_X).length && n >= 4, 'laid=' + n);
+  check('every fenced note is BEHIND the wire (y ' + NOTE_Y0 + '..' + NOTE_Y1 + ') and flagged fence',
+    bonuses.length === n && bonuses.every((b) => b.wy >= NOTE_Y0 && b.wy <= NOTE_Y1 && b.fence === true),
+    'ys=' + bonuses.map((b) => b.wy.toFixed(2)).join(','));
+  const worst = Math.max.apply(null, bonuses.map((b) => b.wy - NWALL));
+  check('and every one of them is inside the shovel from the wall (' + worst.toFixed(2) + 'u of ' + (SHOVEL_REACH + SHOVEL_BLADE_R).toFixed(2) + 'u tool reach)',
+    worst <= SHOVEL_REACH + SHOVEL_BLADE_R, 'worst=' + worst.toFixed(2));
+})();
 
 console.log('\n' + (pass ? 'ALL CHECKS PASSED' : 'SOME CHECKS FAILED'));
 process.exit(pass ? 0 : 1);

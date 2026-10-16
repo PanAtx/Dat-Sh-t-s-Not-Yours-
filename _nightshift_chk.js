@@ -1100,7 +1100,7 @@ console.log('\n[5] the haunted street BUILDS (real spawner, stub block row)');
 // per-cell `blocks` records that collideStatic actually scans. A graveyard wired to the
 // wrong array throws (or worse, silently does nothing) the second the level loads — so run
 // the REAL spawnNightShift against both and look at where it put its hands.
-let S2_BOSS_SPAWN = [], S2_BOSS_CLEAR = [], S2_CEMETERY = [], S2_LOTS = [], S2_ROUTE_DIR = 1;
+let S2_BOSS_SPAWN = [], S2_BOSS_CLEAR = [], S2_CEMETERY = [], S2_LOTS = [], S2_FENCE_NOTES = [], S2_ROUTE_DIR = 1;
 const S5 = new Function(
   'THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'clamp', 'GZ', 'BLOCK_W',
   'creatureMaxY', 'spawnMaxY', 'ROUTE_START_X', 'ROUTE_FINISH_X', 'ROUTE_END_X',
@@ -1122,6 +1122,10 @@ const S5 = new Function(
   // geometry is measured for its own suite in _night_lot_fence_chk.js; here the spawner only
   // has to prove it lays them and the harness keeps the call site from throwing).
   'buildNightFencedLots',
+  // THE FENCED JOSS MONEY: the notes laid behind each chain-link lot. The street's own 12
+  // notes stay under the shipped count law, so the fence layer gets its own tracker here (the
+  // notes themselves are measured in _night_lot_fence_chk.js).
+  'spawnNightFenceNotes',
   'makeTentacleBoss',
   // THE HELL NOTES: tonight's street cash, laid by the spawner's own layout code
   'NIGHT_HELL_NOTE_PICKS', 'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1',
@@ -1150,7 +1154,8 @@ const S5 = new Function(
   HORROR_FILL_ORDER, HORROR_ALL,
   nightBlockPack, nightBlockFamilies, nightBlockQuota, nightBlockOrder, NIGHT_BLOCKS, IW,
   () => S2_BOSS_SPAWN.push(p.wx), () => (S2_ROUTE_DIR = -1), () => S2_BOSS_CLEAR.push(1),
-  () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => S2_LOTS.push(1), () => mkObj('tentboss'),
+  () => S2_BOSS_SPAWN.push(1), () => S2_CEMETERY.push(1), () => S2_LOTS.push(1),
+  () => S2_FENCE_NOTES.push(1), () => mkObj('tentboss'),
   NIGHT_HELL_NOTE_PICKS, HELL_NOTE_WALK_Y0, HELL_NOTE_WALK_Y1,
   HELL_NOTE_ROAD_Y0, HELL_NOTE_ROAD_Y1,
   H.gateBuild, H.gateClear

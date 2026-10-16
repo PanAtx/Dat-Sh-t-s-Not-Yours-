@@ -4555,7 +4555,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.549</div>
+          <div id="app-version" class="menu-version">v1.0.550</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -4813,7 +4813,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.549';
+      const APP_VERSION = '1.0.550';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // Show the running build on the main menu AND the pause / game-over / route-complete
@@ -29672,6 +29672,35 @@
         nightSayT = NIGHT_SAY_GAP;
         return true;
       }
+      // THE WIRE TALKS BACK (Midnight): the frame he runs into the chain-link the fence answers
+      // — the screen shakes off the steel, the wire rattles, and inside the night's voice budget
+      // he says the LAW out loud: the fence is the building line, he can't get past it, and the
+      // only way to anything standing behind it is the shovel. It is a FIRST-CONTACT tell: a
+      // player pressed on the wire is not a loudspeaker, so the tell has its own cooldown.
+      const NIGHT_FENCE_BUMP_CD = 2.6; // seconds between fence tells
+      const FENCE_BUMP_LINES = [
+        "THAT'S THE BUILDING LINE — NO WALKING PAST IT!",
+        "NO TRESPASSING! THE WIRE'S THE WALL!",
+        "JOSS MONEY'S BEHIND THE FENCE — SHOVEL IT OUT!",
+        "CITY PROPERTY! I CAN'T GET PAST THAT!",
+      ];
+      const FENCE_DIG_LINES = [
+        "OVER THE WIRE!",
+        "THE DIG GOES OVER THE FENCE!",
+        "FENCED IN — SHOVELED OUT!",
+      ];
+      let nightFenceBumpT = 0; // the tell's own cooldown (tick in updateNightHaunt)
+      function nightFenceBump() {
+        if (typeof isNightShift !== "function" || !isNightShift()) return false;
+        if (nightFenceBumpT > 0) return false;
+        nightFenceBumpT = NIGHT_FENCE_BUMP_CD;
+        p.shake = Math.max(p.shake || 0, 0.55); // the jolt of going into a fence at a walk
+        if (typeof SFX !== "undefined" && SFX.playHittingSound) SFX.playHittingSound(); // the steel slap
+        if (typeof nightSayOk === "function" && nightSayOk())
+          Voice.say(pick(FENCE_BUMP_LINES), 2.2, 0.95, p.wx, p.wy,
+            typeof WORKER_GENDER !== "undefined" ? WORKER_GENDER : "neutral", "worker");
+        return true;
+      }
       function nightBubbleOk(text, speaker) {
         if (typeof isNightShift !== "function" || !isNightShift()) return true;
         // THE SILENT STREET FIRST: on Midnight a bubble only exists if the player named it
@@ -29810,6 +29839,10 @@
           return a.d - b.d;
         });
         const prop = nearestShovelHazard(reach);
+        // THE FENCED FIND: the money laid behind a chain-link lot. It ranks below the beast,
+        // below a spook and below the grave furniture, so a swing with a real catch in the tool
+        // is a catch — the dig only fires when the tool has nothing else to bite.
+        const fenceNote = nearestFenceNote(reach);
         p.shovelT = SHOVEL_SWING_DUR;
         // THE BLADE STAYS UP: for the swipe AND its tail, any spook that comes into the tool
         // is parried into the hopper (see the contact pass) — this is the defence window.
@@ -29830,6 +29863,9 @@
           pendingStrike = { spooks: targets.slice(), charged: charged };
         } else if (prop) {
           pendingStrike = { b: prop.b, hz: prop.hz, charged: charged };
+        } else if (fenceNote) {
+          // nothing living in the tool: the blade goes over the wire for the fenced money
+          pendingStrike = { note: fenceNote, charged: charged };
         } else {
           SFX.playSwoosh(); // a miss: the shovel still whistles through the fog
           shovelFlinch(); // ...and the holy light still makes them flinch
@@ -29866,6 +29902,8 @@
         if (pend.spooks) {
           for (let i = 0; i < pend.spooks.length; i++) shovelStrike(pend.spooks[i].c);
           shovelFlinch(); // every spook near the blade recoils from it
+        } else if (pend.note) {
+          shovelFenceNoteStrike(pend.note); // the Joss note comes OVER the wire
         } else {
           shovelHazardStrike(pend.b, pend.hz); // the headstone goes IN THE TRUCK
         }
@@ -31419,6 +31457,7 @@
         nightSayT = Math.max(0, nightSayT - dt);
         nightBubbleT = Math.max(0, nightBubbleT - dt);
         nightPopT = Math.max(0, nightPopT - dt);
+        nightFenceBumpT = Math.max(0, nightFenceBumpT - dt); // the fence tell's cooldown ticks with the night
         // 1) CULL: a spook that fell far behind dissolves into the fog and FREES ITS BAND
         //    SLOT for the next one (its mesh goes with it — no invisible pile-up).
         for (let i = creatures.length - 1; i >= 0; i--) {
@@ -33928,6 +33967,92 @@
       // the lot's own wall — flush with the houses that close the gap on either side, and
       // never jutting out toward the walk. The slab under it fills the gap from the walk's
       // edge back to the wrought iron.
+      // ==================== THE CHAIN-LINK WEAVE (the mesh itself) ====================
+      // A chain-link panel is a WOVEN WIRE DIAMOND, not a sheet of metal. The canvas below
+      // paints ONE TILE of the weave — two crossing wires, the galvanized top lit and a dark
+      // shadow under it so the mesh has depth — and the openings between the wires are painted
+      // FULLY TRANSPARENT, so the worker sees the lot's slab, the weeds and the iron THROUGH
+      // the fence instead of staring at a grey wall. The tile rides the panel's UVs as a
+      // repeat, so the diamonds stay small against a 15.4u run. In node (no document) there is
+      // no canvas and the material falls back to the shipped flat steel sheet.
+      const CHAIN_LINK_TILE_U = 0.64; // one canvas tile of the weave = 0.64u of real fence
+      const CHAIN_LINK_DIAMONDS = 4; // ...carrying 4 diamonds across it (a ~0.16u diamond)
+      function makeChainLinkWeave(fenceW, fenceH) {
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return null;
+        const PIX = 128;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = PIX;
+        const c = canvas.getContext("2d");
+        c.clearRect(0, 0, PIX, PIX); // the holes stay transparent — you look THROUGH the fence
+        const step = PIX / CHAIN_LINK_DIAMONDS; // one diamond per step, both ways
+        c.lineCap = "round";
+        for (let pass = 0; pass < 2; pass++) {
+          // the wires of one direction; pass 0 draws the wire running down-right, pass 1 the
+          // wire crossing it up-right. The dark pass is laid first as the wire's own shadow.
+          for (let k = -PIX; k <= PIX; k += step) {
+            c.strokeStyle = pass === 0 ? "rgba(14,17,21,0.95)" : "rgba(20,24,29,0.95)";
+            c.lineWidth = 6.5;
+            c.beginPath();
+            if (pass === 0) { c.moveTo(k, 0); c.lineTo(k + PIX, PIX); }
+            else { c.moveTo(k, PIX); c.lineTo(k + PIX, 0); }
+            c.stroke();
+            c.strokeStyle = pass === 0 ? "#c3ccd4" : "#dfe6ec"; // the galvanized wire, lit on top
+            c.lineWidth = 3.4;
+            c.beginPath();
+            if (pass === 0) { c.moveTo(k, 2.4); c.lineTo(k + PIX, PIX + 2.4); }
+            else { c.moveTo(k, PIX - 2.4); c.lineTo(k + PIX, -2.4); }
+            c.stroke();
+          }
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(fenceW / CHAIN_LINK_TILE_U, fenceH / CHAIN_LINK_TILE_U);
+        tex.generateMipmaps = false; // a thin lattice under the moon shimmers with mipmaps
+        tex.minFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+        return tex;
+      }
+      // THE TIN ON THE WIRE: every lot wears a real NO TRESPASSING plate on the street-facing
+      // side of its fence — the panel that is a wall says so, in the same red tin the city
+      // screws to a chain-link, hung where the worker walks up to it.
+      function makeNoTrespassFace() {
+        if (typeof document === "undefined" || !THREE.CanvasTexture) return M(0x9b2121);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#9b2121";
+        ctx.fillRect(0, 0, 512, 128);
+        ctx.strokeStyle = "#f2f4f6";
+        ctx.lineWidth = 7;
+        ctx.strokeRect(10, 10, 492, 108);
+        ctx.fillStyle = "#f2f4f6";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "bold 46px Impact, 'Arial Black', sans-serif";
+        ctx.fillText("NO TRESPASSING", 256, 52);
+        ctx.font = "bold 24px Impact, 'Arial Black', sans-serif";
+        ctx.fillText("SANITATION PROPERTY — DIG, DON'T CLIMB", 256, 94);
+        const t = new THREE.CanvasTexture(canvas);
+        t.needsUpdate = true;
+        return new THREE.MeshLambertMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.22 });
+      }
+      function makeNoTrespassSign() {
+        // Origin at the sign's centre, hung on the OUTSIDE face of the wire (local -Y).
+        const g = new THREE.Group();
+        const frame = BX(4.5, 0.07, 1.02, MS(0x24272c, { metalness: 0.55, roughness: 0.55 }));
+        frame.position.set(0, -0.02, 0);
+        g.add(frame);
+        const face = BX(4.3, 0.05, 0.88, makeNoTrespassFace());
+        face.position.set(0, -0.08, 0);
+        g.add(face);
+        for (const sx of [-1.7, 1.7]) {
+          const tie = BX(0.16, 0.12, 0.3, MS(0x2b2f34, { metalness: 0.6, roughness: 0.5 }));
+          tie.position.set(sx, 0.01, 0.3);
+          g.add(tie);
+        }
+        return g;
+      }
       function buildNightFencedLots() {
         const g = new THREE.Group();
         const fenceY = NIGHT_LOT_FENCE_Y; // 7.25 — RECESSED onto the buildings' face line
@@ -33935,12 +34060,22 @@
         const slabDepth = backY - SLAB_FRONT_Y; // the paved lot: walk's edge back to the iron
         const lotM = new THREE.MeshLambertMaterial({ color: 0x2a2e33 }); // dark concrete
         const postM = new THREE.MeshLambertMaterial({ color: 0x3a3d42 }); // dark steel post
-        const meshM = new THREE.MeshLambertMaterial({
-          color: 0x4a4f55,
-          transparent: true,
-          opacity: 0.7,
-          side: THREE.DoubleSide,
-        }); // chain-link wire
+        const fenceW0 = IW - 0.6, fenceH0 = 2.0; // the panel run: 15.4u of wire, 2u tall
+        const weave = makeChainLinkWeave(fenceW0, fenceH0); // the woven diamond, holes and all
+        const meshM = weave
+          ? new THREE.MeshLambertMaterial({
+              map: weave,
+              side: THREE.DoubleSide,
+              transparent: true,
+              alphaTest: 0.45, // the weave's openings are SEE-THROUGH, not a grey wall
+              emissive: 0x182028, // ...and the galvanized wire keeps a cold moon sheen
+            })
+          : new THREE.MeshLambertMaterial({
+              color: 0x4a4f55,
+              transparent: true,
+              opacity: 0.7,
+              side: THREE.DoubleSide,
+            }); // node fallback (no canvas to paint on): the plain steel sheet
         const railM = new THREE.MeshLambertMaterial({ color: 0x44484e }); // top rail
         for (let gi = 0; gi < NIGHT_GAP_XS.length; gi++) {
           const gx = NIGHT_GAP_XS[gi]; // left edge of the 16u gap
@@ -33952,13 +34087,16 @@
           pad.receiveShadow = true;
           g.add(pad);
           // -- chain-link fence on the street-facing side (facing the worker) --
-          const fenceW = IW - 0.6; // leave a tiny margin at each end
-          const fenceH = 2.0; // 2u tall
-          // the wire mesh (a flat plane, semi-transparent for the chain look)
+          const fenceW = fenceW0, fenceH = fenceH0; // the 15.4u run, a margin at each end, 2u tall
+          // the woven wire panel (one plane carrying the diamond weave, the holes left open)
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(fenceW, fenceH), meshM);
           mesh.position.set(cx, fenceY, GZ + fenceH / 2 + 0.05);
           mesh.rotation.x = Math.PI / 2; // stand the plane upright (Z = up in this game)
           g.add(mesh);
+          // -- the tin on the wire: NO TRESPASSING, hung street-side where he walks up to it --
+          const tin = makeNoTrespassSign();
+          tin.position.set(cx - 2.4, fenceY - 0.05, GZ + 1.3);
+          g.add(tin);
           // top rail
           const rail = new THREE.Mesh(new THREE.BoxGeometry(fenceW, 0.08, 0.05), railM);
           rail.position.set(cx, fenceY, GZ + fenceH + 0.05);
@@ -34227,6 +34365,79 @@
         }
         return laid;
       }
+      // THE FENCED JOSS MONEY (Midnight): every chain-link lot is paid out. One joss note is
+      // laid inside each fenced gap, BEHIND the wire — in the strip between the fence (7.25) and
+      // the dead-end iron (8.3) that the worker is walled off from. He can see it glinting
+      // through the weave and he can never walk to it: the ONLY way to fenced money is the
+      // shovel (see nearestFenceNote / shovelFenceNoteStrike — a swing in the tool over the wire
+      // flings the note down into a lane he can stand in). Fenced notes are ADDITIVE: the
+      // shipped 12 road-and-walk notes are laid exactly as before, on top of these.
+      const FENCE_NOTE_Y0 = 7.55; // behind the wire, in front of the iron (7.25 .. 8.3)
+      const FENCE_NOTE_Y1 = 8.05;
+      function spawnNightFenceNotes() {
+        if (typeof isNightShift !== "function" || !isNightShift()) return 0;
+        if (typeof spawnCash !== "function" || typeof NIGHT_GAP_XS === "undefined") return 0;
+        let laid = 0;
+        for (let gi = 0; gi < NIGHT_GAP_XS.length; gi++) {
+          const gx = NIGHT_GAP_XS[gi]; // the same gap the fence closes
+          const cx = gx + IW / 2;
+          if (typeof NIGHT_TOP_X === "number" && cx > NIGHT_TOP_X) continue; // off his walking lane
+          const wx = cx + R(-3.2, 3.2);
+          const wy = R(FENCE_NOTE_Y0, FENCE_NOTE_Y1);
+          spawnCash(wx, wy);
+          // Mark the record: a cash note behind the wire is a FENCED find, visible through the
+          // weave and shovel-only. The lane notes carry no flag and obey the shipped law alone.
+          if (typeof bonuses !== "undefined" && bonuses.length) {
+            const rec = bonuses[bonuses.length - 1];
+            if (rec && rec.type === "cash") rec.fence = true;
+          }
+          laid++;
+        }
+        return laid;
+      }
+      // THE FENCE DIG: the tool's target test for fenced money. It ranks under the beast, under
+      // a spook and under the grave furniture — a swing that has a real catch never steals a
+      // note — and it obeys the same facing law as every other shovel target.
+      function nearestFenceNote(reach) {
+        if (typeof isNightShift !== "function" || !isNightShift()) return null;
+        if (typeof bonuses === "undefined" || !bonuses.length) return null;
+        let best = null,
+          bestD = shovelToolReach(reach);
+        for (let i = 0; i < bonuses.length; i++) {
+          const b = bonuses[i];
+          if (!b || b.type !== "cash" || !b.fence) continue; // lane money is walking money
+          const d = Math.hypot(b.wx - p.wx, b.wy - p.wy);
+          if (d <= bestD && shovelFacingOK(b.wx, b.wy)) {
+            best = b;
+            bestD = d;
+          }
+        }
+        return best;
+      }
+      // THE FRAME THE DIG LANDS: the blow that catches a fenced note sends it OVER the wire and
+      // down into a lane the worker can stand in (hellNoteDropY — the walk band or the roadway),
+      // where it banks through the ordinary cash pickup, the SAME $100 pipeline as every other
+      // note. The note is never destroyed by the dig: it is moved. The splat stays where it was
+      // buried, so the spot he digs reads as the hole the money came out of.
+      function shovelFenceNoteStrike(rec) {
+        if (!rec || !rec.g) return false;
+        const fromX = rec.wx,
+          fromY = rec.wy;
+        const tx = clamp(rec.wx + R(-1.1, 1.1), routeNearX(), routeFarX());
+        const ty = hellNoteDropY(p.wy);
+        rec.wx = tx;
+        rec.wy = ty;
+        rec.fence = false; // over the wire: from here it is ordinary street cash
+        rec.g.position.set(tx, ty, GZ + (rec.lift || CASH_LIFT));
+        spawnEctoSplat(fromX, fromY, 0.5); // the dig's mark stays on the fenced side
+        spawnEctoSplat(tx, ty, 0.25); // ...and a light spatter where it lands
+        SFX.playSwoosh();
+        shovelFlinch(); // the pack recoils from the blow like any other strike
+        if (typeof nightSayOk === "function" && nightSayOk())
+          Voice.say(pick(FENCE_DIG_LINES), 1.8, 0.95, tx, ty,
+            typeof WORKER_GENDER !== "undefined" ? WORKER_GENDER : "neutral", "worker");
+        return true;
+      }
       // THE SPOOK PAYS WHERE IT STOOD: every spook the shovel packs into the hopper drops
       // the HELL NOTE it was standing on, right on the spot it was banished from, so the
       // kill itself lays a joss-money find on the street for the worker to walk over and
@@ -34251,7 +34462,9 @@
         if (typeof isNightShift !== "function" || !isNightShift()) return false; // weekdays pay in trash, not notes
         let live = 0;
         for (let i = 0; i < bonuses.length; i++) {
-          if (bonuses[i] && bonuses[i].type === "cash") live++;
+          // A FENCED note is not lying on the street — it is behind the wire, waiting for a
+          // dig — so it never eats the kill-note budget. The cap counts the notes he can walk.
+          if (bonuses[i] && bonuses[i].type === "cash" && !bonuses[i].fence) live++;
         }
         if (live >= NIGHT_KILL_NOTE_CAP) return false; // the street is already paved in notes
         spawnCash(wx + R(-0.7, 0.7), hellNoteDropY(wy));
@@ -34271,6 +34484,7 @@
         nightSayT = 0; // a fresh shift: the chatter budget starts empty
         nightBubbleT = 0;
         nightPopT = 0;
+        nightFenceBumpT = 0; // ...and so does the fence's tell
         const bands = nightBands();
         if (!bands.length) return;
         // THE WARDS: one spectral curtain per block at its own low end, and every block's
@@ -34378,6 +34592,9 @@
         // sidewalk and out in the roadway of every block, for the worker to gather on his
         // way down to the graves (street cash is the power-up economy's fuel).
         const notesLaid = spawnHellNotes(bands);
+        // THE FENCED LOTS ARE PAID OUT: a joss note behind every chain-link panel, in the strip
+        // he is walled off from — walking money for the street, shovel money for the lots.
+        const fenceNotesLaid = spawnNightFenceNotes();
         // THE MIDNIGHT DEAD END: the graveyard block is built at the street's NEAR end
         // (the cul-de-sac), the headstone wall + iron gate close off that end, and the
         // FINAL BOSS is laid to rest in the yard asleep under the grass. (The night's
@@ -40398,7 +40615,11 @@
               ? GZ + b.baseLift + 0.35 + Math.sin(b.t * 2.2) * 0.18
               : GZ + (b.lift || 0),
           );
-          if (state === "play" && dist(b.wx, b.wy) < 1.8) {
+          // THE FENCED NOTE LAW (Midnight): money lying BEHIND the chain-link is not walking
+          // money. The wire is the building line and he is walled off from that strip, so his
+          // proximity never banks a fenced find — only the shovel dig does (shovelFenceNoteStrike
+          // throws it over the wire into a lane he can stand in and clears the flag).
+          if (state === "play" && !b.fence && dist(b.wx, b.wy) < 1.8) {
             const v = b.val * (BONUS ? BONUS_CASH_MULT : 1); // overtime loot is worth 2x -> the $3000 goal stays reachable
             // THE HELL NOTE LAW (Midnight): a joss note banks its FACE VALUE — $100. The street double
             // is a property of the DAY (scoreMultiplier is 2 because Midnight borrows Bed-Stuy's
@@ -45046,6 +45267,8 @@
         // it: their gaps are real cross-streets and their street is walled by its own houses.
         if (isNightShift() && typeof NIGHT_LOT_BUILD_WALL === "number" && p.wy > NIGHT_LOT_BUILD_WALL) {
           p.wy = NIGHT_LOT_BUILD_WALL;
+          // ...and the wire answers the frame he goes into it (rattle + shake + the law, said)
+          if (typeof nightFenceBump === "function") nightFenceBump();
         }
         // === SOLID SIDEWALK OBSTACLES (USPS collection boxes / sidewalk trees = b.trees) ===
         // The worker can't walk THROUGH a collection box: hard circle push-out
