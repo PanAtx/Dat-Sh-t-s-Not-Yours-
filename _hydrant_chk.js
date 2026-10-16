@@ -2,7 +2,7 @@
 // hex top valve) builds without throwing and actually uses the new material scheme.
 const fs = require("fs");
 const path = require("path");
-global.THREE = require(path.join(__dirname, "_three128.js"));
+global.THREE = require(path.join(__dirname, "three_r128.min.js"));
 
 const src = fs.readFileSync(path.join(__dirname, "index.html"), "utf8");
 function extract(name) {

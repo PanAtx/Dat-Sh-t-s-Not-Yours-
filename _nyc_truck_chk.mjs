@@ -34,7 +34,7 @@ check('hazN is the measured new rear-face normal (-0.99, 0, -0.14)', html.indexO
 check('TRUCK_SCALE matches old final length (12.39 / 1.8648 = 6.6463)', html.indexOf('const TRUCK_SCALE = 6.6463,') >= 0);
 
 // ---- (1) browser-equivalent harness: local three + local GLTFLoader ----
-const THREE = (await import('./_three128.js')).default;
+const THREE = (await import('./three_r128.min.js')).default;
 global.THREE = THREE;
 global.self = global;
 global.window = global;

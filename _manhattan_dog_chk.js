@@ -15,7 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-global.THREE = require(path.join(__dirname, '_three128.js'));
+global.THREE = require(path.join(__dirname, 'three_r128.min.js'));
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 let ok = true;
 const check = (name, cond, detail) => { console.log((cond ? 'PASS ' : 'FAIL ') + name + (detail ? ' — ' + detail : '')); if (!cond) ok = false; };

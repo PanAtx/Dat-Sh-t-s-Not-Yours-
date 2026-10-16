@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const THREE = (await import('./_three128.js')).default;
+const THREE = (await import('./three_r128.min.js')).default;
 global.THREE = THREE;
 global.self = global;
 global.window = global;

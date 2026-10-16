@@ -10,10 +10,10 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // --- three r128 (same cached copy as the other checks) ---
-const T = path.join(__dirname, '_three128.js');
+const T = path.join(__dirname, 'three_r128.min.js');
 if (!fs.existsSync(T)) {
   console.log('downloading three r128 build...');
-  execSync('curl -L -o _three128.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', {
+  execSync('curl -L -o three_r128.min.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', {
     cwd: __dirname,
     stdio: 'inherit',
   });

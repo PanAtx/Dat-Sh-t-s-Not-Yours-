@@ -12,7 +12,7 @@ import vm from 'vm';
 import { pathToFileURL } from 'url';
 const DIR = import.meta.dirname;
 
-const THREE = (await import(pathToFileURL(path.join(DIR, '_three128.js')).href)).default;
+const THREE = (await import(pathToFileURL(path.join(DIR, 'three_r128.min.js')).href)).default;
 global.THREE = THREE;
 global.self = global;
 global.window = global;

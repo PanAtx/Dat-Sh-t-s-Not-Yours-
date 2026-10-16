@@ -21,6 +21,7 @@ _meshes.txt
 _png_*_2048x2048.png
 _tex_*.*
 _test_outline*.svg
+_*.svg
 _*.bak
 
 # local GLB / truck-texture tooling + scratch context dumps (never ship)

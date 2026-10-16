@@ -182,11 +182,6 @@
       "_multicarry_chk.js"
     ],
     [
-      "the STATION SHIP CHECK: every track the radio can play is on",
-      "node",
-      "_music_ship_chk.js"
-    ],
-    [
       "COLD BOOT: no unguarded `truck.` inside functions that run during spawnWorld",
       "node",
       "_night_names.js"

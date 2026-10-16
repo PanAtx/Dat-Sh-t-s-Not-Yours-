@@ -4,7 +4,7 @@
    Body space: +Z = standing-up (head), +X = front (face/brim), ±Y = sides.
    Target final pose: face (+X) to the sky (+Z), head (+Z) toward the sidewalk (+Y),
    sides (±Y) flat along the street (±X). */
-const THREE = require('./_three128.js');
+const THREE = require('./three_r128.min.js');
 const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
 console.log('premultiply available:', typeof THREE.Quaternion.prototype.premultiply === 'function');
 

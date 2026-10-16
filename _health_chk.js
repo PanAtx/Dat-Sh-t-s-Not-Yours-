@@ -4,7 +4,7 @@
 // a few seconds of immunity, and spawn counts scale up with the level (route).
 const fs = require('fs');
 const path = require('path');
-global.THREE = require(path.join(__dirname, '_three128.js'));
+global.THREE = require(path.join(__dirname, 'three_r128.min.js'));
 
 const src = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 

@@ -2,7 +2,7 @@
 // and report the native bounding box (size + min/max), material list, and mesh count.
 // Read-only: does NOT modify any project files.
 import fs from 'fs';
-const THREE = (await import('./_three128.js')).default;
+const THREE = (await import('./three_r128.min.js')).default;
 global.THREE = THREE;
 global.self = global;
 global.window = global;

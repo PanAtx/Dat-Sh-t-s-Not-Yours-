@@ -5,7 +5,7 @@
 // is. Nothing anywhere may be a loop, fin, horn, ball, cone or bowl.
 const fs = require("fs");
 const path = require("path");
-const THREE = require(path.join(__dirname, "..", "_three128.js"));
+const THREE = require(path.join(__dirname, "..", "three_r128.min.js"));
 const src = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 function extractFn(name) {
   const s = src.indexOf("function " + name + "(");

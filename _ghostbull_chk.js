@@ -4,9 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const T = path.join(__dirname, '_three128.js');
+const T = path.join(__dirname, 'three_r128.min.js');
 if (!fs.existsSync(T)) {
-  execSync('curl -L -o _three128.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', { cwd: __dirname, stdio: 'inherit' });
+  execSync('curl -L -o three_r128.min.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js', { cwd: __dirname, stdio: 'inherit' });
 }
 global.THREE = require(T);
 const THREE = global.THREE;
