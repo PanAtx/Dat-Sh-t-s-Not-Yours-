@@ -75,6 +75,7 @@ const suites = [
   ['OFFLINE COVERAGE (every model + every MP3 — the Midnight songs and the trainer menu track — plus the shell/webfonts is cached for a no-network play)', 'node', '_offline_cache_chk.js'],
   ['THE STATION SHIP CHECK (manifest<->disk parity for Pages, the trainer-track convention, the ID3 credits, the 96 kbps size budget, a real MPEG frame at the audio start)', 'node', '_music_ship_chk.js'],
   ['THE GATE REGISTRY (every suite npm test names is tracked on main - no .gitignore may swallow a gate, no long-tail entry may duplicate or vanish)', 'node', '_gate_registry_chk.js'],
+  ['THE VERSION NUMBER IS MAIN-SCREEN ONLY (#app-version, the clickable TRAINER trigger; the pause / game-over / route-complete / week-complete / day-intro / loading panels carry none, and the boot stamp can no longer leak one in)', 'node', '_ver_display_chk.js'],
 ];
 
 // ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----

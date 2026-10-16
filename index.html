@@ -2035,9 +2035,6 @@
           opacity: 1;
         }
       }
-      #complete .modal-ver {
-        animation: complete-fade-in 0.4s ease-out 1.1s both;
-      }
       #complete button {
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.3s
           both;
@@ -2087,9 +2084,6 @@
       }
       #over .score:last-of-type {
         animation-delay: 0.9s;
-      }
-      #over .modal-ver {
-        animation: complete-fade-in 0.4s ease-out 1.1s both;
       }
       #over button {
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.3s
@@ -2264,9 +2258,6 @@
       }
       #week-complete .score:last-of-type {
         animation-delay: 1s;
-      }
-      #week-complete .modal-ver {
-        animation: complete-fade-in 0.4s ease-out 1.2s both;
       }
       #week-complete button {
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.4s
@@ -3556,9 +3547,9 @@
           0 0 6px rgba(46, 224, 144, 0.5),
           1px 1px 0 rgba(0, 0, 0, 0.85);
       }
-      /* In-game build tag: bottom-left corner of the HUD (the cache badge owns the
-   bottom-right). Tiny + dim so it reads as a watermark, not a HUD readout.
-   Populated from APP_VERSION at boot (see the version IIFE). */
+      /* In-game HUD corner: bottom-left (the cache badge owns the bottom-right).
+   This is the DAY'S FORECAST (see updateWeatherHud in the weather block) - the build
+   number belongs to the main screen only, never the street. */
       .hud-ver {
         position: absolute;
         bottom: 12px;
@@ -3575,17 +3566,12 @@
           0 0 6px rgba(0, 0, 0, 0.9),
           1px 1px 0 rgba(0, 0, 0, 0.9);
       }
-      /* Build tag on the pause / game-over / route-complete panels. Centered under
-   the buttons, small + dim (a footer watermark). */
-      .modal-ver {
-        font-family: "Courier New", Courier, monospace;
-        font-size: 10px;
-        letter-spacing: 2px;
-        color: rgba(125, 255, 158, 0.45);
-        margin-top: 14px;
-        text-align: center;
-        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
-      }
+      /* THE VERSION NUMBER IS MAIN-SCREEN ONLY (see .menu-version above): clicking it
+   is the secret TRAINER trigger, so it belongs on the title screen and nowhere else.
+   The pause / game-over / route-complete panels deliberately carry NO build number -
+   a shift screen is the street, not a build report. The old .modal-ver footer
+   watermark (and the pause/route-complete/game-over animation rules for it) is GONE:
+   no element wears the class, and the boot IIFE no longer stamps it. */
       /* Pinned to the VERY BOTTOM of the logo frame: START SHIFT with the NOW PLAYING
    widget docked just below it (flush with the frame's bottom edge, minimal footprint). */
       .menu-bottom {
@@ -5380,7 +5366,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.557</div>
+          <div id="app-version" class="menu-version">v1.0.558</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5537,7 +5523,6 @@
         <div class="ctl"
           >RESUME / START = UNPAUSE &middot; START + SELECT = QUIT TO MENU</div
         >
-        <div class="modal-ver">v1.0.1</div>
         <button id="btnResume">RESUME SHIFT</button>
         <button id="btnQuit2">QUIT TO MENU</button>
       </div></div
@@ -5581,7 +5566,6 @@
           >SHIFT SCORE $<span id="finalscore2">000000</span></div
         >
         <div class="score">HI-SCORE $<span id="hiscore3">000000</span></div>
-        <div class="modal-ver">v1.0.1</div>
         <button id="btnRestart2">START NEXT ROUTE</button>
       </div></div
     >
@@ -5689,14 +5673,18 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.557';
+      const APP_VERSION = '1.0.558';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
-      // Show the running build on the main menu AND the pause / game-over / route-complete
-      // panels, populated once at boot. The fallback HTML already carries the version, so the
-      // number shows even before this runs (and the pre-commit bump keeps every copy in
-      // lockstep). NOTE: the in-game HUD corner (#hud-version) is the DAY'S FORECAST now
-      // (see updateWeatherHud in the weather block) — the build number lives in the menu.
+      // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
+      // top-left of the logo frame, where clicking it is the secret TRAINER trigger
+      // (wireTap(document.getElementById("app-version"), openTrainer)). The pause /
+      // game-over / route-complete panels deliberately carry NO build number - a shift
+      // screen is the street, not a build report. The fallback HTML already carries the
+      // version, so the number shows even before this runs (the pre-commit bump keeps
+      // every copy in lockstep and scripts/bump-version.js rewrites the app-version
+      // fallback). NOTE: the in-game HUD corner (#hud-version) is the DAY'S FORECAST now
+      // (see updateWeatherHud in the weather block).
       (function () {
         var t = "v" + APP_VERSION;
         var vs = ["app-version"];
@@ -5704,8 +5692,6 @@
           var el = $(vs[i]);
           if (el) el.textContent = t;
         }
-        var modals = document.querySelectorAll(".modal-ver");
-        for (var j = 0; j < modals.length; j++) modals[j].textContent = t;
       })();
       const R = (a, b) => a + Math.random() * (b - a);
       const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
