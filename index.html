@@ -5424,7 +5424,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.567</div>
+          <div id="app-version" class="menu-version">v1.0.568</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5735,7 +5735,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.567';
+      const APP_VERSION = '1.0.568';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -10204,6 +10204,22 @@
           this.ensure();
           this.tone("sawtooth", 210, 185, 0.22, 0.35);
           this.tone("sawtooth", 210, 185, 0.22, 0.35, 0.3);
+        },
+        // THE RIG'S AIR HORN - "TOOT-TOOT": two deep two-tone blips a beat apart, the way a
+        // sanitation truck clears the street before it rolls out at the end of the shift.
+        // Each toot: a sawtooth body bent slightly flat (the reed choking out), a brassy
+        // square a fifth over it, a sine air-sub under it, and a short puff of compressor
+        // air on the attack. Procedural (Web Audio), no samples.
+        playTruckHorn() {
+          this.ensure();
+          const toot = function (at) {
+            this.tone("sawtooth", 330, 312, 0.3, 0.52, at); // the horn body
+            this.tone("square", 494, 480, 0.26, 0.16, at); // the brassy fifth over it
+            this.tone("sine", 165, 156, 0.34, 0.36, at); // the air-sub chest
+            this.noise(0.05, "bandpass", 820, 0.18, at); // the compressor-air puff
+          };
+          toot.call(this, 0); // TOOT
+          toot.call(this, 0.45); // ...TOOT
         },
         playShooSound() {
           this.ensure();
@@ -56014,6 +56030,11 @@
             routeEnd.phase = "drive";
             routeEnd.t = 0;
             routeEnd.driveT = 0;
+            // TOOT-TOOT: the instant he is aboard and the drive-off begins, the rig's
+            // air horn speaks twice. Guarded on typeof: the vm harnesses run this
+            // function with no SFX object in scope.
+            if (typeof SFX !== "undefined" && SFX && SFX.playTruckHorn)
+              SFX.playTruckHorn();
             return;
           }
           const sp = Math.min(RE_WALK_SP, dist / Math.max(dt, 1e-4));
