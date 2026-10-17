@@ -1039,6 +1039,24 @@
       #tr.complaint-stamp {
         animation: complaintStamp 0.55s cubic-bezier(0.2, 1.5, 0.4, 1);
       }
+      /* ===== MOBILE: the COMPLAINTS ISSUED box is too big for a phone screen. Shrink the
+         label AND the tally pips on phones - portrait phones (max-width) AND landscape phones
+         (max-height), the same phone law as the main-screen mobile block above. Desktop
+         (13px label, 14px pips) is untouched. ===== */
+      @media (max-width: 640px), (max-height: 500px) {
+        #tr {
+          font-size: clamp(8px, 1.5vw, 10px);
+          letter-spacing: 1px;
+        }
+        #pips {
+          margin-top: 3px;
+        }
+        .pip {
+          width: 10px;
+          height: 10px;
+          margin-left: 4px;
+        }
+      }
       @keyframes complaintStamp {
         0% {
           transform: scale(1.45) rotate(-3deg);
@@ -5406,7 +5424,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.565</div>
+          <div id="app-version" class="menu-version">v1.0.566</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5717,7 +5735,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.565';
+      const APP_VERSION = '1.0.566';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
