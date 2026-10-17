@@ -5424,7 +5424,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.569</div>
+          <div id="app-version" class="menu-version">v1.0.570</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5735,7 +5735,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.569';
+      const APP_VERSION = '1.0.570';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -10205,27 +10205,33 @@
           this.tone("sawtooth", 210, 185, 0.22, 0.35);
           this.tone("sawtooth", 210, 185, 0.22, 0.35, 0.3);
         },
-        // THE RIG'S AIR HORN - "BEEP-BEEP, SEE YA!": two loud bright blips a snappy
-        // quarter-beat apart, built the way a real air horn is built: NOT one tone but a
-        // STACK of reeds (fundamental + fifth + octave) blaring together at full gain, with
-        // a compressor SLAP on the attack and the chord dipping on the release. Square for
-        // the blare brightness, sawtooths for the reed body, a sine sub for the chest punch.
-        // Blip 2 lands a semitone lower and rides a hair longer - the ragged "see ya!".
-        // Procedural (Web Audio), no samples.
+        // THE RIG'S AIR HORN - "BEEP-BEEP, SEE YA!" (big-bass edition): two deep honks a
+        // snappy beat apart, built like the real thing records as: NOT square blips but an
+        // ADDITIVE REED STACK - sine fundamentals low in the chest (G3, then a whole tone
+        // down to C#3 on the second honk), the fifth and octave as SINES (a horn's
+        // brightness without the 8-bit buzz), sawtooths ONLY on the 2nd harmonic (the warm
+        // brass body), a pair of slightly detuned fundamentals beating ~1 Hz against each
+        // other so the reed sounds ALIVE, a bandpass GROWL over the honk, and a lowpassed
+        // noise KICK under the attack - the compressor boom you feel in the sternum.
+        // Every release dips the whole chord flat. Procedural (Web Audio), no samples.
         playTruckHorn() {
           this.ensure();
-          // BEEP - bright, sustained, in your face.
-          this.tone("square", 466, 452, 0.24, 0.85, 0.0); // main reed (B4, dips on release)
-          this.tone("sawtooth", 698, 680, 0.22, 0.46, 0.0); // fifth reed (F#5)
-          this.tone("sawtooth", 932, 910, 0.2, 0.27, 0.0); // octave reed (A5)
-          this.tone("sine", 233, 226, 0.3, 0.6, 0.0); // the sub punch
-          this.noise(0.04, "bandpass", 2600, 0.3, 0.0); // compressor SLAP on attack
-          // ...BEEP - a touch lower, a touch longer: "see ya!".
-          this.tone("square", 415, 392, 0.34, 0.8, 0.32); // semitone drop on the release
-          this.tone("sawtooth", 622, 588, 0.32, 0.42, 0.32);
-          this.tone("sawtooth", 830, 784, 0.28, 0.24, 0.32);
-          this.tone("sine", 208, 196, 0.42, 0.55, 0.32);
-          this.noise(0.04, "bandpass", 2400, 0.25, 0.32); // ...SLAP
+          // BEEP - deep, brassy, chest-thumping.
+          this.tone("sine", 155, 146, 0.45, 1.0, 0.0); // fundamental G3 (detuned pair)
+          this.tone("sine", 156.2, 147.2, 0.45, 0.8, 0.0); // ...beating ~1 Hz - living reed
+          this.tone("sawtooth", 310, 292, 0.4, 0.35, 0.0); // 2nd harmonic: the brass body
+          this.tone("sine", 233, 220, 0.42, 0.26, 0.0); // 3rd: the horn's fifth
+          this.tone("sine", 466, 440, 0.36, 0.16, 0.0); // 4th: the barest horn brightness
+          this.noise(0.14, "lowpass", 120, 0.9, 0.0); // the compressor BOOM under it
+          this.noise(0.1, "bandpass", 330, 0.32, 0.0); // the reed GROWL on attack
+          // ...BEEP - a whole tone lower, a beat longer: the "see ya!".
+          this.tone("sine", 138.6, 126, 0.55, 0.9, 0.4); // fundamental C#3, sinking flat
+          this.tone("sine", 139.8, 127.2, 0.55, 0.75, 0.4); // ...detuned twin
+          this.tone("sawtooth", 277, 252, 0.5, 0.32, 0.4); // brass body
+          this.tone("sine", 208, 185, 0.52, 0.24, 0.4); // fifth
+          this.tone("sine", 415, 392, 0.45, 0.14, 0.4); // brightness
+          this.noise(0.15, "lowpass", 110, 0.8, 0.4); // ...BOOM
+          this.noise(0.1, "bandpass", 300, 0.29, 0.4); // ...GROWL
         },
         playShooSound() {
           this.ensure();
