@@ -78,5 +78,48 @@ check('the day-end gate is the ONLY advance path (no other level++ in the day-en
   })());
 check('the overtime day is NOT a route-end (the replay gate never fires on it)',
   /overtime/.test(html) && !/overtime[\s\S]{0,400}routeFailed = routeCleanRatio/.test(html));
+// [4] THE TRANSITION OVERLAY NEVER PROMISES A SHIFT THAT IS NOT BEING LOADED.
+//     The "GETTING READY FOR <DAY X>" screen is built the instant the day-end button is
+//     tapped — before the gate runs. A tap on a FAILED shift replays the SAME level, so
+//     the overlay must name TODAY (the replayed shift), not the day that was skipped.
+const ovStart = html.indexOf('function _advanceDayName()');
+const ovEnd = html.indexOf('function showLevelLoading(dayText)');
+const ovHelpers = ovStart >= 0 && ovEnd > ovStart ? html.slice(ovStart, ovEnd) : '';
+const OV_DAYS = [{ day: 'MONDAY' }, { day: 'TUESDAY' }, { day: 'WEDNESDAY' }, { day: 'THURSDAY' },
+  { day: 'FRIDAY' }, { day: 'SATURDAY' }, { day: 'SUNDAY' }, { day: 'MIDNIGHT' }];
+const runOv = (fn, lv, failed, MAX) => new Function('LEVEL_DAYS', 'level', 'MAX_LEVEL', 'routeFailed',
+  ovHelpers + '\nreturn ' + fn + '();')(OV_DAYS, lv, MAX, !!failed);
+check('the overlay line is built by a replay-aware helper, wired into the day-end button',
+  ovHelpers.length > 0 && /function _nextAdvanceOverlayText\(\)/.test(ovHelpers) &&
+  (() => {
+    const i = html.indexOf('$("btnNextDay").addEventListener("click"');
+    const seg = i < 0 ? '' : html.slice(i, i + 900);
+    return /_nextAdvanceOverlayText\(\)/.test(seg) &&
+      !/"GETTING READY FOR " \+ _nextAdvanceDayName\(\)/.test(seg);
+  })());
+check('a failed MONDAY (level 1) announces the MONDAY replay — the screen never says TUESDAY',
+  runOv('_nextAdvanceOverlayText', 1, true, 8) === 'REPLAYING MONDAY');
+check('a failed WEDNESDAY (level 3, Flatbush) announces the WEDNESDAY replay, not Thursday',
+  runOv('_nextAdvanceOverlayText', 3, true, 8) === 'REPLAYING WEDNESDAY');
+check('a failed MIDNIGHT (level 8) announces the MIDNIGHT replay — the haunted shift is not skipped',
+  runOv('_nextAdvanceOverlayText', 8, true, 8) === 'REPLAYING MIDNIGHT');
+check('a passed MONDAY (level 1) announces TUESDAY, the shift it truly advances to',
+  runOv('_nextAdvanceOverlayText', 1, false, 8) === 'GETTING READY FOR TUESDAY');
+check('a passed SATURDAY (level 7) announces MIDNIGHT, the last shift',
+  runOv('_nextAdvanceOverlayText', 7, false, 8) === 'GETTING READY FOR MIDNIGHT');
+check('a passed MIDNIGHT (level 8) finishes the week — no phantom shift after the last one',
+  runOv('_nextAdvanceOverlayText', 8, false, 8) === 'FINISHING THE WEEK');
+check('_nextAdvanceDayName is replay-aware for every caller: today on a failure, tomorrow on a pass',
+  runOv('_nextAdvanceDayName', 2, true, 8) === 'TUESDAY' &&
+  runOv('_nextAdvanceDayName', 2, false, 8) === 'WEDNESDAY');
+check('the day-INTRO card (Begin Day) always names the CURRENT shift — the replay reads as Monday',
+  (() => {
+    const i = html.indexOf('$("btnBeginDay").addEventListener("click"');
+    const seg = i < 0 ? '' : html.slice(i, i + 700);
+    return /_advanceDayName\(\)/.test(seg) && !/_nextAdvanceDayName\(\)/.test(seg);
+  })());
+check('the overlay text is decided from the SAME flag the gate uses (routeFailed, re-decided every route end)',
+  /if \(routeFailed\) return "REPLAYING "/.test(ovHelpers) &&
+  /routeFailed = routeCleanRatio\(\) < 0\.95;/.test(html));
 console.log('\n' + pass + ' route-replay checks passed, ' + fail + ' failed');
 if (fail) { console.log(failures.map((f, i) => '  FAIL ' + (i + 1) + ') ' + f).join('\n')); process.exit(1); }

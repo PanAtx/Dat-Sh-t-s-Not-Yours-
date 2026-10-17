@@ -95,6 +95,37 @@ check('the day card / stats / HUD all resolve through LEVEL_DAYS (no 7-day clamp
   /const d = LEVEL_DAYS\[Math\.min\(level, MAX_LEVEL\) - 1\]/.test(html) &&
     /level < MAX_LEVEL[\s\S]{0,80}nextDay\(\)/.test(html));
 
+console.log('\n[2b] THE GAME-OVER RESTART: the suspended card boots a FRESH WEEK from the first level');
+{
+  // The restart card is a WEEK restart: startGame() re-arms the whole week, so the label
+  // must never promise a single-shift restart, and no state may leak from the dead run.
+  const restartTag = (html.match(/<button id="btnRestart">([^<]*)<\/button>/) || [])[1] || '';
+  const fnBody = (name) => {
+    const i = html.indexOf('function ' + name + '() {');
+    const j = i < 0 ? -1 : html.indexOf('\n      }', i);
+    return j < 0 ? '' : html.slice(i, j + 7);
+  };
+  const sg = fnBody('startGame');
+  const qg = fnBody('quitGame');
+  const clickSeg = (() => {
+    const i = html.indexOf('$("btnRestart").addEventListener');
+    return i < 0 ? '' : html.slice(i, i + 260);
+  })();
+  check('the GAME OVER card\'s button reads RESTART WEEK ("RESTART SHIFT" is gone from the file)',
+    restartTag === 'RESTART WEEK' && !/RESTART SHIFT/.test(html), 'label=' + restartTag);
+  check('tapping RESTART WEEK runs startGame() under the "STARTING THE WEEK" overlay (the whole week, not the shift)',
+    /beginAdvance\(\s*"btnRestart",\s*"STARTING THE WEEK",\s*startGame/.test(clickSeg), clickSeg.slice(0, 120));
+  check('the restart arms the FIRST level: level = START_LEVEL = 1 = MONDAY (the Manhattan street)',
+    /level = START_LEVEL;/.test(sg) && PLAIN === 1 && LEVEL_DAYS[PLAIN - 1].day === 'MONDAY', 'level=' + PLAIN);
+  check('nothing leaks from the dead run: startGame() clears the strikes, the scores, the health AND the failed-route replay flag',
+    /complaints = 0;/.test(sg) && /weekScore = 0;/.test(sg) && /score = 0;/.test(sg) &&
+      /health = maxHealth;/.test(sg) && /routeFailed = false;/.test(sg), 'startGame body ' + sg.length + ' chars');
+  check('QUIT to the menu clears the same slate (a menu START can never inherit a queued replay)',
+    /level = START_LEVEL;/.test(qg) && /complaints = 0;/.test(qg) && /routeFailed = false;/.test(qg), 'quitGame body ' + qg.length + ' chars');
+  check('advanceGame routes the game-over card to a fresh week (state "over" -> startGame, never the replay branch)',
+    /return startGame\(\); \/\/ 'menu' \/ 'over'/.test(html));
+}
+
 console.log('\n[3] THE NIGHT SET rides the LEVEL, not the boot (MIDNIGHT stays fully wired)');
 check('MIDNIGHT MENAGERIE is the night shift\'s theme and the file is on the shelf',
   /const NIGHT_MUSIC_TRACK = "Midnight Menagerie\.mp3";/.test(html) &&

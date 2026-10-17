@@ -75,6 +75,8 @@ console.log('[2] the two menus carry the win / lose scenes (and keep every ID th
   check('the poop pile is stacked from three CSS blobs', /go-poop"><i class="p1"><\/i><i class="p2"><\/i><i class="p3">/.test(over), 'poop pile not built');
   check('#over keeps the IDs the JS writes: over-title / over-tag / finalscore / hiscore2 / btnRestart', /over-title/.test(over) && /over-tag/.test(over) && /id="finalscore"/.test(over) && /id="hiscore2"/.test(over) && /id="btnRestart"/.test(over), 'ID lost');
   check('#over shouts GAME OVER, offers PRESS START and carries the NEW HIGH SCORE ribbon', /arcade-banner go-banner/.test(over) && /Game Over/.test(over) && /press-start/.test(over) && /id="over-newhi"/.test(over), 'banner/press-start/newhi missing');
+  check('#over restarts the WEEK (a 3rd write-up terminates the run — "RESTART WEEK", never "RESTART SHIFT")',
+    /<button id="btnRestart">RESTART WEEK<\/button>/.test(over) && !/RESTART SHIFT/.test(over), 'wrong restart label');
   check('#week-complete has the cash-rain layer inside the modal', /fx-layer fx-won/.test(week), 'fx-won layer missing');
   check('the WIN stage is built (rays / 3 coins / money bag / KA-CHING)', /win-rays/.test(week) && /win-coin c3/.test(week) && /win-bag/.test(week) && /win-ching/.test(week), 'win stage pieces missing');
   check('the money bag is the MONEY BAG (U+1F4B0)', /win-bag">\s*&#128176;/.test(week), 'no money bag entity');

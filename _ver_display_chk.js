@@ -75,5 +75,62 @@ check('the version IIFE runs clean', ran, err);
 check('#app-version receives "v" + APP_VERSION', appVer.textContent === 'v' + APP_VERSION, 'got "' + appVer.textContent + '"');
 check('a .modal-ver panel element is left untouched (the number cannot leak)', plant.textContent === '', 'plant got "' + plant.textContent + '"');
 
+// ---------- [6] THE TINY DOORWAY HINT under the version number ----------
+// "tap above for hidden cheat menu!" — the whisper-sized line under the build tag that
+// labels the secret TRAINER trigger. Its law:
+//   * ONE element inside #menu, as a SIBLING after #app-version (never a child: the boot
+//     IIFE stamps #app-version with textContent, which would wipe any child node);
+//   * pointer-events: none, so the hint can never eat the tap the trigger needs;
+//   * printed VERY small (the clamp's floor is tiny print, not a menu row);
+//   * declared at the TOP LEVEL of the stylesheet — the same nesting level as .menu-version,
+//     never buried inside a mobile @media block (a nested rule silences the hint on desktop);
+//   * its only loop is an opacity pulse, and prefers-reduced-motion switches it off.
+const STYLE0 = html.indexOf('<style>');
+const depthOf = (sel) => {
+  const t = html.indexOf(sel);
+  if (t < 0) return -1;
+  const body = html.slice(STYLE0 + 7, t).replace(/\/\*[\s\S]*?\*\//g, '');
+  return (body.match(/\{/g) || []).length - (body.match(/\}/g) || []).length;
+};
+const HINT_TEXT = 'tap above for hidden cheat menu!';
+check('exactly ONE hint element on the page', count(/class="menu-ver-hint"/g) === 1, count(/class="menu-ver-hint"/g) + ' found');
+check('it says exactly "' + HINT_TEXT + '"', new RegExp('<div class="menu-ver-hint" id="menu-ver-hint">' + HINT_TEXT + '</div>').test(html), 'text/markup changed');
+check('it is the SIBLING right after #app-version (a child would be wiped by the version stamp)',
+  /<div id="app-version" class="menu-version">v[\d.]+<\/div>[\s\S]{0,320}?<div class="menu-ver-hint"/.test(html), 'not the sibling after the version');
+check('it lives on the main menu (#menu, beside the version — never on a shift screen)',
+  html.indexOf('<div id="menu"') < html.indexOf('class="menu-ver-hint"') &&
+    html.indexOf('class="menu-ver-hint"') < html.indexOf('<div id="paused"'), 'hint outside #menu');
+const hvCss = (function () { const i = html.indexOf('.menu-ver-hint {'); const a = html.indexOf('{', i); let d = 0, j = a; for (; j < html.length; j++) { if (html[j] === '{') d++; else if (html[j] === '}') { d--; if (!d) break; } } return i < 0 ? '' : html.slice(i, j + 1); })();
+check('.menu-ver-hint CSS present', hvCss.length > 80, 'rule missing');
+check('the hint never eats the trigger tap (pointer-events: none)', /pointer-events:\s*none/.test(hvCss), 'pointer-events not none');
+check('the print is VERY small (the clamp floor is 8px or less)',
+  (() => { const m = hvCss.match(/font-size:\s*clamp\((\d+(?:\.\d+)?)px/); return !!m && parseFloat(m[1]) <= 8; })(),
+  hvCss.match(/font-size:[^;]+/) || 'no font-size');
+check('the hint CSS is TOP-LEVEL — the same nesting depth as .menu-version (not buried in a mobile @media)',
+  depthOf('.menu-ver-hint {') === 0 && depthOf('.menu-version {') === 0, 'hint depth=' + depthOf('.menu-ver-hint {') + ' version depth=' + depthOf('.menu-version {'));
+check('its only animation is opacity (no layout/transform property in the loop)',
+  (() => {
+    const k = html.slice(html.indexOf('@keyframes verHintPulse'), html.indexOf('@keyframes verHintPulse') + 200);
+    return k.length > 20 && /opacity/.test(k) && !/transform|top:|left:|font-size|width/.test(k);
+  })(), 'the pulse touches a layout property');
+check('prefers-reduced-motion switches the hint pulse off',
+  /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,120}\.menu-ver-hint \{ animation: none/.test(html), 'no reduced-motion off-switch');
+check('the hint is wired to the version as ONE target (hovering the number lights the hint)',
+  /#app-version:hover \+ \.menu-ver-hint/.test(html), 'no hover link');
+// LIVE: the version stamp must not be able to wipe the hint's words.
+{
+  const el = (id, cls, txt) => ({ id, cls, textContent: txt || '', get className() { return this.cls; } });
+  const ver = el('app-version', 'menu-version', 'v0.0.0');
+  const hint = el('menu-ver-hint', 'menu-ver-hint', HINT_TEXT);
+  const d2 = { 'app-version': ver, 'menu-ver-hint': hint };
+  const doc2 = { getElementById: (id) => d2[id] || null, querySelectorAll: () => [] };
+  let ok = true;
+  try { new Function('document', '$', 'APP_VERSION', block)(doc2, (id) => doc2.getElementById(id), APP_VERSION); }
+  catch (e) { ok = false; }
+  check('LIVE: the stamp runs, writes the version, and leaves the hint\'s words intact',
+    ok && ver.textContent === 'v' + APP_VERSION && hint.textContent === HINT_TEXT,
+    'ver="' + ver.textContent + '" hint="' + hint.textContent + '"');
+}
+
 console.log('\n' + (pass ? 'ALL CHECKS PASSED' : 'SOME CHECKS FAILED'));
 process.exit(pass ? 0 : 1);

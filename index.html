@@ -3590,6 +3590,46 @@
       /* Build/version tag pinned to the TOP-LEFT of the logo frame (the PA badge owns the
    bottom-right, the START SHIFT bar owns the bottom). Small, dim, decorative -
    click-through so it never blocks the radio widget or START SHIFT. */
+      /* ===== THE TINY HINT UNDER THE VERSION NUMBER (the secret doorway, labeled) =====
+   ".menu-version" (the rule right below) is the TRAINER / cheat trigger —
+   wireTap(app-version, openTrainer) — a doorway nobody finds by accident. This
+   whisper-sized line under the build number spells it out. Its law:
+     * pointer-events: none — the line must NEVER eat the tap, so the trigger keeps its
+       full hit area: a tap on the hint falls straight through to the version above it;
+     * it shares the version's top-left column inside the logo frame (.menu-logo-wrap is
+       position:relative, so top: is measured from the frame edge). The offset rides the
+       same scale as the version's clamp(9px, 1.2vw, 12px) so the line never rides over
+       the number at any width, and it stays clear of #btnCredits in the top-right;
+     * the ONLY animation is opacity (no layout property = no repaint thrash), and
+       prefers-reduced-motion switches it off, exactly like every other screen loop.
+   Hovering the version lights the hint with it, so the pair reads as ONE tap target. */
+      .menu-ver-hint {
+        position: absolute;
+        top: clamp(20px, 2.1vw, 26px);
+        left: 8px;
+        z-index: 3;
+        pointer-events: none;
+        max-width: 34vw;
+        line-height: 1.25;
+        font-family: "Courier New", Courier, monospace;
+        font-size: clamp(5px, 0.72vw, 7px); /* VERY small: a whisper, not a menu row */
+        letter-spacing: 0.4px;
+        color: rgba(125, 255, 158, 0.5);
+        text-shadow: 0 0 5px rgba(0, 0, 0, 0.85), 1px 1px 0 rgba(0, 0, 0, 0.8);
+        animation: verHintPulse 3.2s ease-in-out infinite;
+      }
+      @keyframes verHintPulse {
+        0%, 100% { opacity: 0.55; }
+        50% { opacity: 1; }
+      }
+      #app-version:hover + .menu-ver-hint {
+        color: #4dffb0;
+        opacity: 1;
+        text-shadow: 0 0 10px rgba(46, 224, 144, 0.9);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .menu-ver-hint { animation: none; opacity: 0.8; }
+      }
       .menu-version {
         position: absolute;
         top: 8px;
@@ -5154,6 +5194,7 @@
     body.trainer-open #vpad #btnPause { display: none; }
     .menu-version:hover { color: #4dffb0; text-shadow: 0 0 10px rgba(46, 224, 144, 0.9); }
 
+
     /* "Rotate your phone" prompt: hidden by default, shown only in portrait via the media query below */
     .tr-rotate-prompt { display: none; }
 
@@ -5424,7 +5465,11 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.571</div>
+          <div id="app-version" class="menu-version">v1.0.572</div>
+          <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
+               trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
+               on the card. It sits under the version and never eats a tap. -->
+          <div class="menu-ver-hint" id="menu-ver-hint">tap above for hidden cheat menu!</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
@@ -5616,7 +5661,7 @@
         >
         <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
         <div class="new-hi hidden" id="over-newhi">NEW HIGH SCORE!</div>
-        <button id="btnRestart">RESTART SHIFT</button>
+        <button id="btnRestart">RESTART WEEK</button>
         <div class="press-start">Press Start - Clock Back In</div>
       </div></div
     >
@@ -5735,7 +5780,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.571';
+      const APP_VERSION = '1.0.572';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -56925,6 +56970,7 @@
         weekScore = 0; // fresh running total
         score = 0; // fresh run: the HUD score starts at zero (it carries over across days otherwise)
         complaints = 0; // fresh run: the write-up strike record starts clean (it persists across replays of a failed level otherwise)
+        routeFailed = false; // fresh run: NO shift is queued for a replay — a new week always begins on the FIRST level (the flag is re-decided at every route end, and it drives the loading overlay's day name)
         bonusTally = 0; // fresh run: the street cash starts at zero (it carries over across days otherwise)
         monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this run
         healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
@@ -57027,6 +57073,7 @@
         score = 0;
         bonusTally = 0;
         monsterNextAt = MONSTER_SCORE_STEP; // a fresh run from the menu restarts the milestones too
+        routeFailed = false; // menu = a clean slate: no shift is queued for a replay (a START from the menu begins the first level)
         healerNextAt = POWERUP_CASH_STEP;
         complaints = 0;
         resetWorldState(); // rebuild a clean street + re-anchor the worker at the start
@@ -57652,6 +57699,12 @@
         }
       }
       function _nextAdvanceDayName() {
+        // A FAILED SHIFT REPLAYS TODAY. Below the 95% clean bar advanceGame() never
+        // advances the level (it goes to showDayIntro with the SAME level), so the shift
+        // the player is about to see is TODAY's — naming tomorrow here promises a
+        // "loading TUESDAY" screen while Monday is the level being rebuilt.
+        if (routeFailed) return _advanceDayName();
+
         try {
           const n = Math.min((level || 1) + 1, MAX_LEVEL);
           const d = LEVEL_DAYS[n - 1];
@@ -57659,6 +57712,16 @@
         } catch (e) {
           return "THE NEXT DAY";
         }
+      }
+      // THE DAY-END OVERLAY LINE: worded for whatever advanceGame() will ACTUALLY do with
+      // the tap, so the loading screen can never claim a shift that is not being loaded:
+      //   routeFailed  -> the SAME level replays  = "REPLAYING <today>" (NOT tomorrow);
+      //   level >= MAX_LEVEL -> the week ends     = "FINISHING THE WEEK";
+      //   otherwise           -> the next shift   = "GETTING READY FOR <next day>".
+      function _nextAdvanceOverlayText() {
+        if (routeFailed) return "REPLAYING " + _advanceDayName();
+        if ((level || 1) >= MAX_LEVEL) return "FINISHING THE WEEK";
+        return "GETTING READY FOR " + _nextAdvanceDayName();
       }
       function showLevelLoading(dayText) {
         const el = $("level-loading");
@@ -57732,7 +57795,9 @@
         );
       }); // day-intro card -> start the shift
       $("btnNextDay").addEventListener("click", function () {
-        // MOBILE FEEDBACK: press the button + show the "GETTING READY FOR DAY X" overlay the
+        // MOBILE FEEDBACK: press the button + show the day-name transition overlay the
+        // _nextAdvanceOverlayText() line names the shift advanceGame() is about to load —
+        // a failed shift is "REPLAYING MONDAY", never "GETTING READY FOR TUESDAY".
         // instant it's tapped so a slow level rebuild doesn't look like a dead tap / hang.
         // beginAdvance defers the (synchronous, sometimes slow) rebuild to the next frame so
         // the pressed state + overlay paint first, then releases them once the next screen
@@ -57740,7 +57805,7 @@
         // the advance (3rd-strike write-up lock / preloading).
         beginAdvance(
           "btnNextDay",
-          "GETTING READY FOR " + _nextAdvanceDayName(),
+          _nextAdvanceOverlayText(),
           advanceGame,
         );
       }); // day-end report -> next day / finish the week
