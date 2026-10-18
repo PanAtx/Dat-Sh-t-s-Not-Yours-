@@ -403,5 +403,100 @@ function herd(side) {
     'open lane east, scareDir kept');
 }
 
+// ---- 11) THE COLLISION GATE, RUN FOR REAL (the proof, not the census) ----
+// The census above can be satisfied by a lucky line of text. This runs the ACTUAL
+// collideCreatures() body from index.html in a sandbox (with(S) scope: declared globals are
+// real values, anything else resolves to a universal stub) and shoves a cat against the
+// worker's body. A bodega cat must deal NOTHING. The car in the same spot is the positive
+// control: it MUST deal 8 HP + a 1.2s stun + a dropped bag, proving the sim can see damage
+// at all (a zero on the cat that came from a blind harness is worth nothing).
+{
+  const ccText = (() => {
+    const from = src.indexOf('function collideCreatures(');
+    if (from < 0) throw new Error('collideCreatures not found');
+    const b = src.indexOf('{', from);
+    let k = 0, j = b;
+    for (; j < src.length; j++) { if (src[j] === '{') k++; else if (src[j] === '}') { k--; if (!k) { j++; break; } } }
+    return src.slice(from, j);
+  })();
+  const stubCache = new Map();
+  const makeStub = () => {
+    const fn = function () { return thing; };
+    const thing = new Proxy(fn, {
+      get: (t, key) => {
+        if (key === Symbol.toPrimitive) return () => 0;
+        if (key === 'valueOf') return () => 0;
+        if (key === 'toString') return () => '0';
+        if (key === Symbol.iterator) return undefined;
+        return thing;
+      },
+      set: () => true,
+      apply: () => thing,
+      construct: () => thing,
+    });
+    return thing;
+  };
+  const runCollide = (c) => {
+    const rec = { stuns: [], hurts: [], drops: [], prank: 0 };
+    const p = { wx: 0, wy: 4.5, health: 40, stunT: 0, stunDur: 0, invuln: 0, immuneT: 0, gagT: 0, sqLine: 0, facing: 0, shovelGuardT: 0, nightHitT: 0 };
+    const real = {
+      p, creatures: [c], state: 'play', carry: 'bag', carried: { type: 'bag' }, blocks: [],
+      level: 5, GZ: 0.3, Math,
+      HORROR_TYPES: {}, HORROR_HITS: {}, SPOOK_LINES: {}, droppedSlices: [],
+      HP_HIT_VEHICLE: 8, HP_HIT_HAZARD: 2, HP_HIT_MAFIA: 4, HP_HIT_GHOST: 5, HP_GHOST_STREET: 5,
+      HP_HIT_RAPPER: 2, HP_HIT_SCHOLAR: 1, HP_HIT_TEEBALL: 2, HP_HIT_SOCCERBALL: 2, HP_HIT_RCKID: 2,
+      HORROR_STUN_T: 0.2, HORROR_TOUCH_CD: 1.5, NIGHT_HIT_GRACE: 1, FLINCH_T: 0.3,
+      SHOVEL_BUTT: 1, SHOVEL_BLADE_R: 1, RC_TRUCK_STRIKE_R: 1.2, RC_TRUCK_STRIKE_CD: 2,
+      workerMaxY: () => 8, isNightShift: () => false, isQueensLevel: () => false,
+      isManhattanLevel: () => false, isBronxLevel: () => false, isFlatbushLevel: () => false,
+      isBedStuyLevel: () => false, isStatenIslandLevel: () => false,
+      shovelFacingOK: () => false,
+      clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
+      pick: (a) => a[0], R: (a) => a,
+      Voice: { say: () => {} }, SFX: {},
+      doStun: (dur, type) => { rec.stuns.push(type); p.stunT = dur; },
+      hurtNPC: (amt, cause) => { rec.hurts.push({ amt, cause }); p.health -= amt; },
+      dropCarried: () => { rec.drops.push(1); },
+      awardPrankPoints: () => { rec.prank++; },
+    };
+    const scope = new Proxy(real, {
+      has: () => true,
+      get: (t, key) => {
+        if (key in t) return t[key];
+        if (typeof key === 'symbol') return undefined;
+        if (!stubCache.has(key)) stubCache.set(key, makeStub());
+        return stubCache.get(key);
+      },
+      set: (t, key, v) => { t[key] = v; return true; },
+    });
+    new Function('S', 'with (S) { ' + ccText + '\n  collideCreatures(); }')(scope);
+    return { rec, p, c };
+  };
+  const mk = (type, wy) => ({
+    type, wx: 0.45, wy: wy || 4.5, dir: 1, sp: 6, blockMinX: -5, blockMaxX: 60,
+    g: { position: { x: 0.45, y: 4.5, z: 0.3 }, rotation: { z: 0 }, userData: {} },
+  });
+  const catRun = runCollide(mk('cat'));
+  const catRun2 = runCollide(mk('cat')); // the mat cat's line (Bronx / Flatbush perched cats)
+  const carRun = runCollide(mk('car'));
+  check('THE CONTROL WORKS: a car in the same spot really does hurt him (8 HP + a 1.2s hit stun + a dropped bag)',
+    carRun.rec.hurts.length === 1 && carRun.rec.hurts[0].cause === 'car' &&
+    carRun.rec.stuns.length === 1 && carRun.rec.drops.length === 1 &&
+    carRun.p.health === 32 && carRun.p.wx !== 0,
+    JSON.stringify(carRun.rec) + ' hp=' + carRun.p.health);
+  check('THE FRIENDLY BODEGA CAT: a cat pressed against the worker deals ZERO damage',
+    catRun.rec.hurts.length === 0 && catRun2.rec.hurts.length === 0,
+    JSON.stringify(catRun.rec.hurts) + ' ' + JSON.stringify(catRun2.rec.hurts));
+  check('THE FRIENDLY BODEGA CAT: no stun, no stagger, no dropped cargo, no i-frames',
+    catRun.rec.stuns.length === 0 && catRun.rec.drops.length === 0 &&
+    catRun.p.stunT === 0 && catRun.p.invuln === 0,
+    JSON.stringify(catRun.rec) + ' stunT=' + catRun.p.stunT + ' invuln=' + catRun.p.invuln);
+  check('the worker keeps his footing AND his position (a cat is not a wall he bounces off)',
+    catRun.p.wx === 0 && catRun.p.wy === 4.5 && catRun.p.health === 40,
+    'p=(' + catRun.p.wx + ',' + catRun.p.wy + ') hp=' + catRun.p.health);
+  check('the friendly cat is not a scoring exploit (the bump pays NO street cash)',
+    catRun.rec.prank === 0, 'prank=' + catRun.rec.prank);
+}
+
 console.log(ok ? '\nALL FRIENDLY-CAT CHECKS PASSED' : '\nFRIENDLY-CAT CHECKS FAILED');
 process.exit(ok ? 0 : 1);
