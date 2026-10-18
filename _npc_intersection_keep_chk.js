@@ -168,7 +168,8 @@ check('the block roster that already authored bounds is untouched (homeowner / k
 const RUNOFF = [
   ['the generic punchback scare-off clamps the fleeing x', /c\.wx \+= \(c\.wx >= p\.wx \? 1 : -1\) \* 7 \* dt;[\s\S]{0,900}?if \(typeof blockClampX === "function"\) c\.wx = blockClampX\(c, c\.wx\);/],
   ['cat charge clamps', /const catSpd = c\.sp \+ 1\.5;[\s\S]{0,240}?if \(typeof blockClampX === "function"\) c\.wx = blockClampX\(c, c\.wx\);/],
-  ['cat bolt clamps', /c\.wx \+= c\.dir \* \(c\.sp \+ 1\.0\) \* dt;[\s\S]{0,240}?if \(typeof blockClampX === "function"\) c\.wx = blockClampX\(c, c\.wx\);/],
+  ['cat bolt clamps (THE TURNAROUND LAW re-anchor: the escape step is measured as runTo, then clamped)', /let runTo = c\.wx \+ away \* \(c\.sp \+ 1\.0\) \* dt;[\s\S]{0,300}?if \(typeof blockClampX === "function"\) runTo = blockClampX\(c, runTo\);/],
+  ['cat turnaround step clamps too (a bolted cat turns at a dead end and the new lane is clamped as well)', /away = -away;[\s\S]{0,300}?runTo = blockClampX\(c, runTo\);[\s\S]{0,200}?c\.wx = runTo;/],
   ['skunk bolt clamps', /c\.wx \+= away \* 7 \* dt;[\s\S]{0,400}?if \(typeof blockClampX === "function"\) c\.wx = blockClampX\(c, c\.wx\); \/\/ a bolted skunk/],
   ['skunk mom picks her next trot target on her block', /c\.tx = R\(p\.wx - 30, p\.wx \+ 40\);[\s\S]{0,240}?if \(typeof blockClampX === "function"\) c\.tx = blockClampX\(c, c\.tx\);/],
   ['panhandler wander target is snapped onto his frontage', /c\.tgtX = typeof blockClampX === "function" \? blockClampX\(c, c\.homeX \+ Math\.cos\(a\) \* r\)/],

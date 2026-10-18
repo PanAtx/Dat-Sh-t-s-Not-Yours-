@@ -45,10 +45,13 @@ function makeGCat() { return { userData: { cat: parts }, rotation: { x: 0, y: 0,
 function animCat(c, dphase) { c.phase = (c.phase || 0) + dphase; }
 
 const runCatCase = (c, p, dt) => {
+  // awardPrankPoints joins the shim list: the spook frame pays the worker +10 STREET CASH
+  // (the prank payout landed after this harness was written, and the harness has been red on
+  // it ever since - the reference was simply missing, never the law under test).
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'Voice', 'state', 'clamp',
-    'doStun', 'dropCarried', 'carry', 'animCat',
+    'doStun', 'dropCarried', 'carry', 'animCat', 'awardPrankPoints',
     'const tx = c.wx - p.wx;\nswitch (c.type) { ' + caseText + ' }');
-  fn(c, p, dt, R, GZ, Voice, state, clamp, () => {}, () => {}, carry, animCat);
+  fn(c, p, dt, R, GZ, Voice, state, clamp, () => {}, () => {}, carry, animCat, () => {});
 };
 
 // ---- 1) static source guard: no position re-roll in the cat case anymore ----

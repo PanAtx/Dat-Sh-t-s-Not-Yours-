@@ -84,6 +84,7 @@ const suites = [
   ['THE SHORT-BLOCK LAW (7 buildings per block = 56u, the 72u step, the route anchors, the 288u street, Maspeth 9 / the PINNED 80u overtime round after Wednesday that never shortens / the 4/3 DAMAGE offset that keeps the difficulty of the shorter week)', 'node', '_level_length_chk.js'],
   ['THE BLOCK-RESIDENCY LAW (no block NPC — spawned on a block or bolting from a punchback — stands in a cross-street: BLOCK_W-derived hard bounds, clamped run-offs, in-block spawn bands and the last-word residency pass)', 'node', '_npc_intersection_keep_chk.js'],
   ['THE LOOT LEDGER + THE POWER-UP POINTER (every mongo / street cash / treasure spot is AUTHORED at level start from the level seed - the floor is one find per house, the late levels author a second in the cell plus 3->10 spread deposits, MIDNIGHT excluded; nothing conjures a find mid-shift, so scrolling back never reveals a new one; plus a neon arrow that aims at every power-up the moment it spawns, throbs, tracks the find and fades out on a 3-second clock)', 'node', '_loot_supply_chk.js'],
+  ['THE FRIENDLY BODEGA CAT (a cat the worker scared never hurts him - no trip, no dropped cargo, no HP; and THE TURNAROUND LAW: a cat herded at the end of its block takes the opposite direction, never the cross-street)', 'node', '_cat_friendly_chk.js'],
 ];
 
 // ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----
