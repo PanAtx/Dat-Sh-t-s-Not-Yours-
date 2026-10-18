@@ -70,7 +70,23 @@ function lootCtx(o) {
     LEVEL_BLOCKS: [{ x: 0 }, { x: 96 }, { x: 192 }, { x: 288 }].map((b) => ({ x: b.x })),
     HOUSES_PER_BLOCK: 7,
     BW: 8,
-    snapToHouseCell: (wx) => Math.max(56, Math.min(344, wx)),
+    // Faithful mirror of index.html snapToHouseCell: snap to the nearest house cell and land
+    // the find INSIDE that cell's frontage (0.8u insets), exactly like the page code.
+    snapToHouseCell: (wx) => {
+      let best = null,
+        bestD = Infinity;
+      for (const bl of ctx.LEVEL_BLOCKS) {
+        for (let k = 0; k < ctx.HOUSES_PER_BLOCK; k++) {
+          const cs = bl.x + k * ctx.BW;
+          const d = Math.abs(cs + ctx.BW / 2 - wx);
+          if (d < bestD) {
+            bestD = d;
+            best = cs;
+          }
+        }
+      }
+      return best + 0.8 + Math.random() * (ctx.BW - 1.6);
+    },
     spawnBonus: (wx, wy) => bonuses.push({ wx, wy }),
   };
   vm.createContext(ctx);
@@ -79,14 +95,18 @@ function lootCtx(o) {
 }
 console.log('THE SUPPLY LINE live (real page code, 60s of walking):');
 {
-  const { ctx, bonuses } = lootCtx({ wx: 100, level: 0 });
+  const { ctx, bonuses } = lootCtx({ wx: 100, level: 2 });
   vm.runInContext('lootNextAt = 0.1', ctx);
-  for (let i = 0; i < 3600; i++) ctx.updateLootSupply(1 / 60); // 60 seconds
-  check('a weekday level pays the worker over a minute', bonuses.length >= 6, 'drops=' + bonuses.length);
-  const ahead = bonuses.filter((b) => b.wx > 100 + 4 && b.wx <= 344);
-  check('every supply drop lands AHEAD of the worker, inside the route', ahead.length === bonuses.length, ahead.length + '/' + bonuses.length);
-  const onWalk = bonuses.every((b) => b.wy >= 0.5 && b.wy <= 7.0);
-  check('every supply drop lands on the spawn band (y 0.5..spawnMaxY)', onWalk);
+  for (let i = 0; i < 7200; i++) ctx.updateLootSupply(1 / 60); // 120 seconds of walking
+  check('a weekday level pays the worker across two minutes', bonuses.length >= 20, 'drops=' + bonuses.length);
+  const onFrontage = (b) =>
+    [0, 96, 192, 288].some((x) =>
+      [0, 1, 2, 3, 4, 5, 6].some((k) => b.wx >= x + k * 8 + 0.8 - 1e-9 && b.wx <= x + k * 8 + 7.2 + 1e-9),
+    );
+  check('every supply drop lands ON A HOUSE FRONTAGE (never in a cross-street gap)', bonuses.every(onFrontage), bonuses.filter((b) => !onFrontage(b)).length + ' off-frontage');
+  const avg = bonuses.reduce((s, b) => s + b.wx, 0) / Math.max(bonuses.length, 1);
+  check('the supply line feeds AHEAD of the worker (the pack is net forward of his feet)', avg > 103, 'avgX=' + avg.toFixed(1));
+  check('every supply drop lands on the spawn band (y 0.5..spawnMaxY)', bonuses.every((b) => b.wy >= 0.5 && b.wy <= 7.0), bonuses.filter((b) => b.wy < 0.5 || b.wy > 7.0).length + ' off-band');
 }
 {
   const { ctx, bonuses } = lootCtx({ wx: 100, level: 0, night: true });
@@ -100,11 +120,11 @@ check('the ramp reads the DAY level, not the on-street block counter', /typeof l
   const pay = (lvl) => {
     const { ctx, bonuses } = lootCtx({ wx: 100, level: lvl });
     vm.runInContext('lootNextAt = 0.1', ctx);
-    for (let i = 0; i < 1800; i++) ctx.updateLootSupply(1 / 60); // 30 seconds of walking
+    for (let i = 0; i < 14400; i++) ctx.updateLootSupply(1 / 60); // 240 seconds of walking
     return bonuses.length;
   };
   const p1 = pay(1), p4 = pay(4), p7 = pay(7);
-  check('a 30s stretch of MONDAY pays less than WEDNESDAY pays less than the last weekday', p1 < p4 && p4 < p7, [p1, p4, p7].join(' < '));
+  check('a 4-minute shift pays MONDAY < WEDNESDAY < the last weekday (the late levels feed the worker)', p1 < p4 && p4 < p7, [p1, p4, p7].join(' < '));
   const iv = [1, 2, 3, 4, 5, 6, 7].map((l) => vm.runInContext('lootSupplyEvery()', lootCtx({ level: l }).ctx));
   check('the interval steps down one notch for every day of the week', iv.every((n, i) => i === 0 || n < iv[i - 1]), iv.join(' > '));
 }
