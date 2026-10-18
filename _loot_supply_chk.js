@@ -57,7 +57,8 @@ function lootCtx(o) {
     bonuses,
     BONUS: !!o.bonus,
     state: 'play',
-    routeIdx: o.level || 0,
+    level: o.level || 1, // THE DAY INDEX (1 = MONDAY .. 8 = Midnight) - what the ramp reads
+    routeIdx: 0, // the on-street block counter: the ramp must NOT key off this
     p: { wx: o.wx, wy: 2.5 },
     clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
     R: (a, b) => a + Math.random() * (b - a),
@@ -92,6 +93,20 @@ console.log('THE SUPPLY LINE live (real page code, 60s of walking):');
   vm.runInContext('lootNextAt = 0.1', ctx);
   for (let i = 0; i < 3600; i++) ctx.updateLootSupply(1 / 60);
   check('MIDNIGHT gets NO supply drops (its own tuned street is untouched)', bonuses.length === 0, 'drops=' + bonuses.length);
+}
+const llBody = ((lootBlock.match(/function lootLevel\(\)\s*\{[\s\S]*?\n      \}/) || [''])[0]).replace(/^\s*\/\/.*$/gm, ''); // code only - no comments
+check('the ramp reads the DAY level, not the on-street block counter', /typeof level === "number"/.test(llBody) && !/\brouteIdx\b/.test(llBody), llBody.replace(/\r?\n\s*/g, ' '));
+{
+  const pay = (lvl) => {
+    const { ctx, bonuses } = lootCtx({ wx: 100, level: lvl });
+    vm.runInContext('lootNextAt = 0.1', ctx);
+    for (let i = 0; i < 1800; i++) ctx.updateLootSupply(1 / 60); // 30 seconds of walking
+    return bonuses.length;
+  };
+  const p1 = pay(1), p4 = pay(4), p7 = pay(7);
+  check('a 30s stretch of MONDAY pays less than WEDNESDAY pays less than the last weekday', p1 < p4 && p4 < p7, [p1, p4, p7].join(' < '));
+  const iv = [1, 2, 3, 4, 5, 6, 7].map((l) => vm.runInContext('lootSupplyEvery()', lootCtx({ level: l }).ctx));
+  check('the interval steps down one notch for every day of the week', iv.every((n, i) => i === 0 || n < iv[i - 1]), iv.join(' > '));
 }
 {
   const { ctx: a } = lootCtx({ level: 0 });

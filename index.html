@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.574</div>
+          <div id="app-version" class="menu-version">v1.0.575</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.574';
+      const APP_VERSION = '1.0.575';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -43085,8 +43085,12 @@
       const LOOT_SUPPLY_AHEAD_LO = 5; // u ahead of the worker a supply drop lands ...
       const LOOT_SUPPLY_AHEAD_HI = 15; // ...and its far end (a drop you can see coming)
       function lootLevel() {
-        // routeIdx is the level index the shift is running (0 = the first route).
-        return clamp(routeIdx | 0, 0, LOOT_SUPPLY_EVERY.length - 1);
+        // THE DAY INDEX, not the block counter: `level` is the current day of the week
+        // (1 = MONDAY .. MAX_LEVEL = Midnight) and it is what the difficulty ramps off.
+        // routeIdx is the on-street block counter (it never tracks the day), so the supply
+        // line must NOT read it. typeof-guarded for the vm harnesses that lack `level`.
+        const L = typeof level === "number" && isFinite(level) ? level : 1;
+        return clamp(L - 1, 0, LOOT_SUPPLY_EVERY.length - 1);
       }
       function lootSupplyOn() {
         return typeof isNightShift === "function" ? !isNightShift() : true;
