@@ -72,18 +72,36 @@ console.log("[2] spawn rules");
 const spawnIdx = html.indexOf("// Bronx drug dealers: one burly dealer on EVERY");
 const spawnEnd = html.indexOf("// Manhattan Pizza Rat");
 const spawnBlock = html.slice(spawnIdx, spawnEnd);
+// The dealer's own setup lines, cut at the next Bronx feature so the shape checks
+// read the spawn code itself and not the neighbours.
+const dealerOnly = spawnBlock.slice(0, spawnBlock.indexOf("// Bronx panhandlers"));
 check(
   "dealer spawn is gated to Bronx levels",
   spawnBlock.indexOf("if (isBronxLevel()) {") >= 0,
 );
 check(
-  "one dealer on EVERY active block (5 per level)",
-  /for \(let dI = 1; dI <= 5; dI\+\+\)/.test(spawnBlock),
+  "one dealer on EVERY active block (the count follows the route)",
+  /for \(const bl of ACTIVE_BLOCKS\)/.test(spawnBlock),
 );
 check(
-  "loops over ALL five active blocks (no shuffle, no take-2)",
-  spawnBlock.indexOf("LEVEL_BLOCKS[dI]") >= 0 &&
-    spawnBlock.indexOf("dealerBlockIdx") < 0,
+  "no hardcoded block list, no shuffle, no take-N",
+  dealerOnly.indexOf("LEVEL_BLOCKS[") < 0 &&
+    dealerOnly.indexOf("dealerBlockIdx") < 0 &&
+    !/Math\.random\(\) \* 8/.test(dealerOnly),
+);
+check(
+  "the stoop span is derived from the block law: cells 1..HOUSES_PER_BLOCK-2",
+  /const STOOP_CELL_LO = 1;/.test(spawnBlock) &&
+    /const STOOP_CELL_HI = HOUSES_PER_BLOCK - 2;/.test(spawnBlock) &&
+    /const houseI = STOOP_CELL_LO \+ \(\(Math\.random\(\) \* \(STOOP_CELL_HI - STOOP_CELL_LO \+ 1\)\) \| 0\);/.test(spawnBlock),
+);
+check(
+  "house center is cell x + BW/2 off the block edge (cell-derived, no baked 8s)",
+  /const houseX = bl\.x \+ houseI \* BW \+ BW \/ 2;/.test(spawnBlock),
+);
+check(
+  "the dealer remembers his cell (dl.houseI) so his stoop is knowable downstream",
+  /dl\.houseI = houseI;/.test(spawnBlock) && /dl\.blockX = bl\.x;/.test(spawnBlock),
 );
 check(
   "dealer stands on the bottom stoop step (y 5.6, z 0.47)",
@@ -115,8 +133,72 @@ check(
 );
 check(
   "lure registers on a REAL house cell (collectible + recyclable, no orphaned cans)",
-  spawnBlock.indexOf("b.worldX === bl.x + houseI * 8") >= 0 &&
+  spawnBlock.indexOf("b.worldX === bl.x + houseI * BW") >= 0 &&
     spawnBlock.indexOf("!hb.can)") >= 0,
+);
+
+console.log("[2b] RUNTIME: the spawn code, run for real (every dealer must land on a stoop)");
+const HOUSES_CHK = Number(html.match(/const HOUSES_PER_BLOCK = (\d+);/)[1]);
+const BW_CHK = Number(html.match(/^\s*BW = (\d+);/m)[1]); // the house-cell width (index.html: BW = 8)
+const BLOCK_W_CHK = HOUSES_CHK * BW_CHK;
+// The stoop law straight from the street builder: on a Bronx block the corner cells
+// (index 0 and the last cell) are storefronts — NO stoop — and the ground past the
+// last cell is the open intersection.
+const stoopCells = [];
+for (let i = 1; i <= HOUSES_CHK - 2; i++) stoopCells.push(i);
+const blocksOf = (bx) =>
+  Array.from({ length: HOUSES_CHK }, (_, i) => ({
+    worldX: bx + i * BW_CHK,
+    house: i >= 1 && i <= HOUSES_CHK - 2, // the storefront cells are not houses
+    can: null,
+  }));
+const placed = [];
+for (let trial = 0; trial < 400; trial++) {
+  const ACTIVE_BLOCKS = [{ x: 72 }, { x: 144 }, { x: 216 }, { x: 288 }, { x: 360 }];
+  const spawned = [];
+  const addCreature = (t) => {
+    const c = { type: t, wx: 0, wy: 0, baseZ: 0, g: { position: { set(x, y, z) { c.px = x; c.py = y; c.pz = z; } }, userData: { head: {}, punchArm: {} } } };
+    spawned.push(c);
+    return c;
+  };
+  const sh = {
+    isBronxLevel: () => true,
+    ACTIVE_BLOCKS,
+    addCreature,
+    makeDealerStash: () => ({ position: { set() {} } }),
+    dynamicGroup: { add() {} },
+    clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
+    blocks: ACTIVE_BLOCKS.flatMap((b) => blocksOf(b.x)),
+    makeCurbBag: () => ({}),
+    makeCurbCan: () => ({}),
+    spawnBonus: () => ({}),
+    R: (a, b) => a + Math.random() * (b - a), // the game's range-random helper
+    BLOCK_W: BLOCK_W_CHK,
+    BW: BW_CHK,
+    HOUSES_PER_BLOCK: HOUSES_CHK,
+  };
+  const argNames = Object.keys(sh);
+  new Function(...argNames, dealerOnly)(...argNames.map((k) => sh[k]));
+  spawned.forEach((c) => placed.push({ wx: c.wx, wy: c.wy, blockX: c.blockX, cell: Math.floor((c.wx - c.blockX) / BW_CHK) }));
+  if (trial === 0)
+    check("one dealer is spawned on each of the 5 active blocks", spawned.length === ACTIVE_BLOCKS.length, undefined);
+}
+const offStoopCell = placed.filter((d) => !stoopCells.includes(d.cell));
+const offStoopPos = placed.filter((d) => d.wy < 5.4 || d.wy > 5.8);
+const loose = placed.filter((d) => d.wx < d.blockX + BW_CHK || d.wx > d.blockX + (HOUSES_CHK - 1) * BW_CHK);
+check(
+  `${placed.length} dealers over 400 block-sets: EVERY one stands in a residential stoop cell (1..${HOUSES_CHK - 2}), never a corner storefront (${offStoopCell.length} offenders: ${offStoopCell.slice(0, 4).map((d) => d.cell + "@" + d.wx.toFixed(1)).join(",")})`,
+  offStoopCell.length === 0,
+);
+check("the dealer stands on the stoop depth (y 5.45..5.75), not the sidewalk", offStoopPos.length === 0);
+check(
+  `no dealer is ever thrown out into the intersection past his block (${loose.length} offenders)`,
+  loose.length === 0,
+);
+const cellsSeen = new Set(placed.map((d) => d.cell));
+check(
+  `the draw really spans every stoop cell (${[...cellsSeen].sort((a, b) => a - b).join("/")})`,
+  stoopCells.every((c) => cellsSeen.has(c)),
 );
 
 console.log("[3] wiring");
@@ -304,11 +386,11 @@ let lureOk = true,
 for (let t = 0; t < 400; t++) {
   const side = Math.random() < 0.5 ? 1 : -1;
   const dl = { wx: 100 + side * 0.45, wy: 5.6 }; // stoopX 100 + side * 0.45
-  const bl = { x: 96 }; // a real active block (x 96..480)
-  const houseI = 1 + ((Math.random() * 8) | 0);
+  const bl = { x: 72 }; // a real active block on the short-block street (x 72..360)
+  const houseI = 1 + ((Math.random() * (HOUSES_CHK - 2)) | 0); // the residential stoop cells
   const stubBlocks = [
     {
-      worldX: bl.x + houseI * 8,
+      worldX: bl.x + houseI * BW_CHK,
       house: {},
       can: Math.random() < 0.5 ? { state: "curb" } : null,
     },
@@ -326,6 +408,7 @@ for (let t = 0; t < 400; t++) {
     "R",
     "clamp",
     "BLOCK_W",
+    "BW",
     "placed",
     "makeCurbBag",
     "makeCurbCan",
@@ -339,7 +422,8 @@ for (let t = 0; t < 400; t++) {
     stubBlocks,
     R,
     clamp,
-    80,
+    BLOCK_W_CHK,
+    BW_CHK,
     placed,
     (x, y) => placed.push({ x, y, kind: "bag" }),
     (x, y) => placed.push({ x, y, kind: "can" }),
@@ -348,7 +432,7 @@ for (let t = 0; t < 400; t++) {
   if (placed.length !== 1) lureCountOk = false;
   for (const pl of placed) {
     if (Math.hypot(pl.x - dl.wx, pl.y - dl.wy) >= 2.2) lureOk = false;
-    if (pl.x < bl.x + 1 || pl.x > bl.x + 80 - 1) lureOk = false;
+    if (pl.x < bl.x + 1 || pl.x > bl.x + BLOCK_W_CHK - 1) lureOk = false;
     if (pl.kind === "bag") nLureBags++;
     else if (pl.kind === "can") nLureCans++;
     else nLureBonus++;

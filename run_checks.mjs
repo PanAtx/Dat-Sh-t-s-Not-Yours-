@@ -81,6 +81,8 @@ const suites = [
   ['THE STATION SHIP CHECK (manifest<->disk parity for Pages, the trainer-track convention, the ID3 credits, the 96 kbps size budget, a real MPEG frame at the audio start)', 'node', '_music_ship_chk.js'],
   ['THE GATE REGISTRY (every suite npm test names is tracked on main - no .gitignore may swallow a gate, no long-tail entry may duplicate or vanish)', 'node', '_gate_registry_chk.js'],
   ['THE VERSION NUMBER IS MAIN-SCREEN ONLY (#app-version, the clickable TRAINER trigger; the pause / game-over / route-complete / week-complete / day-intro / loading panels carry none, and the boot stamp can no longer leak one in)', 'node', '_ver_display_chk.js'],
+  ['THE SHORT-BLOCK LAW (7 buildings per block = 56u, the 72u step, the route anchors, the 288u street, Maspeth 9 / the PINNED 80u overtime round after Wednesday that never shortens / the 4/3 DAMAGE offset that keeps the difficulty of the shorter week)', 'node', '_level_length_chk.js'],
+  ['THE BLOCK-RESIDENCY LAW (no block NPC — spawned on a block or bolting from a punchback — stands in a cross-street: BLOCK_W-derived hard bounds, clamped run-offs, in-block spawn bands and the last-word residency pass)', 'node', '_npc_intersection_keep_chk.js'],
 ];
 
 // ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----

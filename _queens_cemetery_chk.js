@@ -1,5 +1,5 @@
 // _queens_cemetery_chk.js — verify the Maspeth 5th block CEMETERY in index.html:
-//   - constants (block index 4 / x 384 — the 5th block; fence line 5.4, back edge 12.0)
+//   - constants (block index 4 / x 288 — the 5th block; fence line 5.4, back edge 12.0)
 //   - builders: makeHeadstone, makeDeadTree, makeRaven, makeCemeteryFence,
 //     buildCemeteryBlock (fence + stones + monuments + trees; records RAVEN_PERCH)
 //   - ghost helpers (ghostifyPerson transparent blue, makeGhostPerson w/ own material)
@@ -86,7 +86,7 @@ function extractFrom(anchor, fromIdx) {
 
 // ================= 1. CONSTANTS =================
 check(
-  'cemetery constants: block index 4 (the 5th block, x=384), fence line 5.4, back edge 12.0',
+  'cemetery constants: block index 4 (the 5th block of the short-block street, x=288), fence line 5.4, back edge 12.0',
   /const QUEENS_CEMETERY_BLOCK = 4;/.test(src) &&
     /const QUEENS_CEMETERY_X = LEVEL_BLOCKS\[QUEENS_CEMETERY_BLOCK\]\.x;/.test(src) &&
     /const CEM_FENCE_Y = 5\.4;/.test(src) &&

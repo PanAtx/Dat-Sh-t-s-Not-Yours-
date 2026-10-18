@@ -89,12 +89,13 @@ check(
 check("exactly 2 panhandlers per level", /for \(let phI = 0; phI < 2; phI\+\+\)/.test(spawnBlock));
 check(
   "picks 2 DISTINCT active blocks (shuffle 1..5, take 2)",
-  /phBlockIdx = \[1, 2, 3, 4, 5\]/.test(spawnBlock) &&
-    spawnBlock.indexOf("LEVEL_BLOCKS[phBlockIdx[phI]]") >= 0,
+  /phBlockIdx = ACTIVE_BLOCKS\.map/.test(spawnBlock) &&
+    spawnBlock.indexOf("ACTIVE_BLOCKS[phBlockIdx[phI]]") >= 0,
 );
 check(
-  "stands in front of the block's corner store (house 0 or 9)",
-  spawnBlock.indexOf("Math.random() < 0.5 ? 0 : 9") >= 0 &&
+  "stands in front of the block's corner store (the cell-0 or the last-cell store, derived from HOUSES_PER_BLOCK)",
+  /Math\.random\(\) < 0\.5 \? 0 : HOUSES_PER_BLOCK - 1/.test(spawnBlock) &&
+    /const storeX = bl\.x \+ storeI \* BW \+ BW \/ 2;/.test(spawnBlock) &&
     spawnBlock.indexOf("storeI === 0 ? 1 : -1") >= 0,
 );
 check("home spot is on the sidewalk in front of the storefront", spawnBlock.indexOf("ph.homeY = R(3.6, 4.6)") >= 0);

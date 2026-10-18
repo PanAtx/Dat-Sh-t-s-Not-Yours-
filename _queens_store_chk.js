@@ -134,34 +134,34 @@ const checks = [
       html,
     ),
   ],
-  // --- denser Maspeth street: 12 buildings per 80u block ---
+  // --- denser Maspeth street: 9 buildings per 56u block (the short-block law) ---
   [
-    "Maspeth packs 12 buildings per block (2x 8u corner cells + 10x 6.4u middle cells)",
-    /const QUEENS_HOUSES_PER_BLOCK = 12;[\s\S]*?const QUEENS_MID_W = \(BLOCK_W - 2 \* BW\) \/ \(QUEENS_HOUSES_PER_BLOCK - 2\);/.test(
+    "Maspeth packs 9 buildings per block (2x 8u corner cells + 7x 40/7u middle cells)",
+    /const QUEENS_HOUSES_PER_BLOCK = 9;[\s\S]*?const QUEENS_MID_W = \(BLOCK_W - 2 \* BW\) \/ \(QUEENS_HOUSES_PER_BLOCK - 2\);/.test(
       html,
     ),
   ],
   [
-    "Maspeth cells tile the full 80u block (x + width lands exactly on the block edge)",
+    "Maspeth cells tile the full 56u block (x + width lands exactly on the block edge)",
     (function () {
       const mW = html.match(/function queensCellW\(i\) \{[\s\S]*?\n\s*\}/);
       const mX = html.match(/function queensCellX\(i\) \{[\s\S]*?\n\s*\}/);
       if (!mW || !mX) return false;
       const scope =
-        "const BW = 8, BLOCK_W = 80, QUEENS_HOUSES_PER_BLOCK = 12, QUEENS_MID_W = (BLOCK_W - 2 * BW) / (QUEENS_HOUSES_PER_BLOCK - 2);\n" +
+        "const BW = 8, BLOCK_W = 56, QUEENS_HOUSES_PER_BLOCK = 9, QUEENS_MID_W = (BLOCK_W - 2 * BW) / (QUEENS_HOUSES_PER_BLOCK - 2);\n" +
         mW[0] +
         "\n" +
         mX[0] +
         "\n";
       const f = new Function(
         scope +
-          "for (let i = 0; i < QUEENS_HOUSES_PER_BLOCK; i++) { const w = queensCellW(i), x = queensCellX(i); if (!(w > 0 && x >= 0 && x + w <= BLOCK_W + 1e-9)) return false; } return queensCellX(QUEENS_HOUSES_PER_BLOCK - 1) + queensCellW(QUEENS_HOUSES_PER_BLOCK - 1) === BLOCK_W && queensCellW(0) === 8 && queensCellW(11) === 8 && QUEENS_MID_W === 6.4;",
+          "for (let i = 0; i < QUEENS_HOUSES_PER_BLOCK; i++) { const w = queensCellW(i), x = queensCellX(i); if (!(w > 0 && x >= 0 && x + w <= BLOCK_W + 1e-9)) return false; } return queensCellX(QUEENS_HOUSES_PER_BLOCK - 1) + queensCellW(QUEENS_HOUSES_PER_BLOCK - 1) === BLOCK_W && queensCellW(0) === 8 && queensCellW(QUEENS_HOUSES_PER_BLOCK - 1) === 8 && Math.abs(QUEENS_MID_W - 40 / 7) < 1e-9;",
       );
       return f();
     })(),
   ],
   [
-    "Maspeth houses sit at their own cell centers (6.4u middle cells -> tighter rows)",
+    "Maspeth houses sit at their own cell centers (40/7u middle cells -> tighter rows)",
     /hg\.position\.x = isQueensBlock \? cellW \/ 2 : 4\.0;/.test(html),
   ],
   // --- wiring (Queens only) ---

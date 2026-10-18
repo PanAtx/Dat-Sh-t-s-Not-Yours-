@@ -145,15 +145,17 @@ function runLeashDogCase(c, manhattan, rec){
   const VoiceRec = { say: function(line){ rec.lines.push(line); } };
   function makeHydrantMesh(){ return { position: { set(){} }, parent: null }; }
   function makePostMesh(){ return { position: { set(){} }, parent: null }; }
-  const BLOCK_W = 80;             // mirrors index.html (10 houses x 8u)
+  const BLOCK_W = 56;             // mirrors index.html (the short-block law: 7 houses x 8u)
+  const BLOCK_STEP = 72;          // mirrors index.html (BLOCK_W + IW — the dog recycle cycle)
+  const BLOCK_EDGE_IN = 10;       // mirrors index.html (the sidewalk setback the recycle window keeps)
   const fn = new Function('c', 'p', 'dt', 'R', 'GZ', 'dynamicGroup', 'isFlatbushLevel', 'isStatenIslandLevel', 'Voice', 'flatbushDriveways',
     'state', 'clamp', 'workerMaxY', 'hurtNPC', 'doStun', 'dropBloodSplatter', 'WORKER_GENDER', 'HP_HIT_HAZARD',
-    'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W',
+    'isManhattanLevel', 'creatureMaxY', 'makeHydrantMesh', 'makePostMesh', 'tieLeashChain', 'BLOCK_W', 'BLOCK_STEP', 'BLOCK_EDGE_IN',
     'isBronxLevel', 'dogStopY', 'isQueensLevel', 'isBedStuyLevel', // Bronx + Queens + Bed-Stuy feature globals (injected false here)
     'const tx = c.wx - p.wx;\nswitch (c.type){' + caseText + '}');
   return fn(c, p, 0.016, R, GZ, dynamicGroup, () => false, () => false, VoiceRec, [],
     state, clamp, workerMaxY, hurtNPC, doStun, dropBloodSplatter, WORKER_GENDER, HP_HIT_HAZARD,
-    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W,
+    () => manhattan, () => 4.8, makeHydrantMesh, makePostMesh, tieLeashChain, BLOCK_W, BLOCK_STEP, BLOCK_EDGE_IN,
     () => false, () => Infinity, () => false, () => false);
 }
 

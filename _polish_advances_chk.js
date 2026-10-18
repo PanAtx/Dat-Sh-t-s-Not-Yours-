@@ -143,7 +143,8 @@ console.log('[1] damage constant + source wiring');
 console.log('');
 console.log('[2] spawn: one lady per active block + the trash anchor at her feet');
 {
-  const spawn = src.slice(src.indexOf('// Maspeth Polish women'), src.indexOf('he hangs around the corner store'));
+  const spawnStart = src.indexOf('// Maspeth Polish women');
+  const spawn = src.slice(spawnStart, src.indexOf('// The Maspeth skunks', spawnStart));
   check(
     'ONE lady per active block (the spawn loop walks polishBlocks exactly once)',
     spawn.indexOf('for (const bl of polishBlocks)') >= 0 &&
@@ -151,29 +152,30 @@ console.log('[2] spawn: one lady per active block + the trash anchor at her feet
       spawn.indexOf('polishLadies.push({ pw: pw, bl: bl });') >= 0
   );
   check(
-    'active blocks = garbage blocks x 96..576 (the cemetery block counts too)',
-    spawn.indexOf('b.garbage === true') >= 0 &&
-      spawn.indexOf('b.x >= 96') >= 0 &&
-      spawn.indexOf('b.x <= 576') >= 0
+    'house blocks only: every ACTIVE block except the cemetery (the living ladies never walk on the graveyard)',
+    spawn.indexOf('ACTIVE_BLOCKS.filter((b) => b.x !== CEMETERY_BLOCK_X)') >= 0 &&
+      spawn.indexOf('const CEMETERY_BLOCK_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x;') >= 0 &&
+      spawn.indexOf('b.x >= 96') < 0 &&
+      spawn.indexOf('b.x <= 576') < 0,
   );
-  const LEVEL_BLOCKS = [
-    { x: 0, garbage: false },
-    { x: 96, garbage: true },
-    { x: 192, garbage: true },
-    { x: 288, garbage: true },
-    { x: 384, garbage: true },
-    { x: 480, garbage: true },
-    { x: 576, garbage: true },
-    { x: 672, garbage: false },
-  ];
-  const active = LEVEL_BLOCKS.filter((b) => b.garbage === true && b.x >= 96 && b.x <= 576);
-  check('6 active blocks -> 6 Polish ladies (one each)', active.length === 6);
+  const HOUSES_CHK = Number(src.match(/const HOUSES_PER_BLOCK = (\d+);/)[1]);
+  const BW_CHK = Number(src.match(/^\s*BW = (\d+);/m)[1]);
+  const BWIDE = HOUSES_CHK * BW_CHK;
+  const STEP_CHK = Number(src.match(/const IW = (\d+);/)[1]) + BWIDE;
+  const CEM_IDX = Number(src.match(/const QUEENS_CEMETERY_BLOCK = (\d+);/)[1]);
+  const LEVEL_BLOCKS = Array.from({ length: 6 }, (_, i) => ({ x: i * STEP_CHK, garbage: i >= 1 && i <= 4 }));
+  const active = LEVEL_BLOCKS.filter((b) => b.garbage === true && b.x !== LEVEL_BLOCKS[CEM_IDX].x);
+  check(
+    'the Maspeth route has ' + active.length + ' house blocks (the cemetery block is dropped) -> ' + active.length + ' Polish ladies',
+    active.length === 3 && active.map((b) => b.x).join('/') === '72/144/216',
+    active.map((b) => b.x).join('/'),
+  );
   check(
     'the anchor pass: nearest curb bag re-anchored (position + mesh) or a fresh makeCurbBag, on the curb band',
     src.indexOf('best.g.position.x = tx;') >= 0 &&
       src.indexOf('best.g.position.y = ty;') >= 0 &&
       src.indexOf('makeCurbBag(tx, ty, cells[0].house);') >= 0 &&
-      src.indexOf('const tx = pw.wx + R(-1.0, 1.0);') >= 0 &&
+      src.indexOf('clamp(pw.wx + R(-1.0, 1.0), pw.blockX + BLOCK_EDGE_IN, pw.blockX + BLOCK_W - BLOCK_EDGE_IN)') >= 0 &&
       src.indexOf('const ty = clamp(pw.wy - R(1.0, 1.8), 0.7, 4.8);') >= 0
   );
   // The anchor pass, mirrored with the deterministic R (R(a,b) = (a+b)/2)

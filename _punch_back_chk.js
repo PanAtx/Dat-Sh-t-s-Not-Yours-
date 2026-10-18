@@ -329,7 +329,9 @@ console.log('[7] the scare-off block in updateCreatures + the jab pose in update
     'the scare-off block sits BEFORE the type switch (it preempts the type AI for those frames)',
     scareIdx >= 0 && switchIdx > scareIdx
   );
-  const block = uc.slice(scareIdx, scareIdx + 600);
+  // The block runs right up to the type switch — read it as the whole span, not a fixed
+  // window, so adding a line inside it can never blind the gate.
+  const block = uc.slice(scareIdx, switchIdx);
   check(
     'scare-off: 5s decay, flee at ~7 u/s AWAY from the worker, the walkable band clamp, self position/rotation sync (the continue skips the post-switch sync), legs pump at flee speed',
     /c\.scareT -= dt/.test(block) &&
@@ -339,6 +341,12 @@ console.log('[7] the scare-off block in updateCreatures + the jab pose in update
       /c\.g\.rotation\.z = c\.wx >= p\.wx \? 0 : Math\.PI/.test(block) &&
       /animParts\(c, 7 \* dt \* 2\.2\)/.test(block) &&
       /continue;/.test(block)
+  );
+  check(
+    'scare-off: a fleeing attacker takes HIS props with him — the street-baller bolts with the basketball at his hip (nothing is left on the court)',
+    /if \(c\.type === "bball" && c\.ballG && c\.ballW\) \{/.test(block) &&
+      /c\.ballState = "carried";/.test(block) &&
+      /c\.ballG\.position\.set\(c\.ballW\.x, c\.ballW\.y, GZ \+ c\.ballW\.z\);/.test(block)
   );
   const up = src.slice(src.indexOf('function updatePlayer'));
   check(

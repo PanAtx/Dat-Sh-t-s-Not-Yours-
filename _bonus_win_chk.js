@@ -27,8 +27,10 @@ function meshMock(h){ return { parent:null, visible:true, _h:(h||0), position:PO
 const M=(c)=>({c}), MS=(c)=>({c}), BX=(w)=>meshMock(w/2), CY=(r1,r2)=>meshMock(Math.max(r1||0,r2||0)), SP=(r)=>meshMock(r||0);
 const worker = { group: groundGroup };
 const CROSS_W = 9, IW = 16, LEVEL_XS = [0,16,32,48,64,80,96,112];
+// The OVERTIME street's PINNED corner line (its 80u blocks on a 96u step never follow the week)
+const BONUS_XS = [80, 176, 272, 344];
 const R = (a,b)=>a + Math.random()*(b-a);
-const GZ = 0.01, LITTER_DUMP_RADIUS = 4.0, BLOCK_W = 16, QUEENS_CEMETERY_X = 384;
+const GZ = 0.01, LITTER_DUMP_RADIUS = 4.0, BLOCK_W = 16, QUEENS_CEMETERY_X = 288;
 const truck = { wx:10, hopperOff:-4.3, hopperY:0, hidden:0 };
 const p = { wx:5, wy:-4.5, stunT:0 };
 const state = 'play', blocks=[], creatures=[], WORKER_GENDER='male';
@@ -41,14 +43,14 @@ const fns = ['computeNormalLitterBasketHomes','nearHopper','nearHopperLitter','a
 // normal layout both derive their route length from it).
 const blockSrc = html.slice(html.indexOf('const LEVEL_BLOCKS = ['), html.indexOf('];', html.indexOf('const LEVEL_BLOCKS = [')) + 2).replace(/const/g,'var');
 const api = new Function(
-  'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE','CROSS_W','IW','LEVEL_XS','R','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','dist','SFX','Voice','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT','isBedStuyLevel',
+  'THREE','worker','groundGroup','dynamicGroup','LITTERBASKET_TPL','LITTERBASKET_SCALE','CROSS_W','IW','LEVEL_XS','BONUS_XS','R','GZ','LITTER_DUMP_RADIUS','truck','p','state','blocks','creatures','WORKER_GENDER','dist','SFX','Voice','M','MS','BX','CY','SP','isQueensLevel','QUEENS_CEMETERY_X','BLOCK_W','BONUS','BONUS_BASKET_COUNT','isBedStuyLevel',
   'var carry="none", carried=null; var litterBaskets=[]; var litterBasketHomes=null; var litterBasketPlaced=false; var flyingBaskets=[]; var bagStack=[]; const MAX_SMALL_BAGS=3;\n'+
   blockSrc + 'var ACTIVE_BLOCKS = LEVEL_BLOCKS.filter(function(b){return b.garbage;});\n'+
   'function tossBag(){} function dumpCan(){} function speakBagType(){} function attachStacked(it,slot){ worker.group.add(it.g); } function addScore(){} function hopperDeposit(){} function disposeObj(){}\n'+
   fns + '\n'+
   'return { dumpLitterBasket, updateFlyingBaskets, placeLitterBasket, baskets:()=>litterBaskets, flying:()=>flyingBaskets, setCarried:function(c,i){carry=c;carried=i;} };'
 )(THREE, worker, groundGroup, dynamicGroup, LITTERBASKET_TPL, LITTERBASKET_SCALE,
-  CROSS_W, IW, LEVEL_XS, R, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, dist, SFX, Voice,
+  CROSS_W, IW, LEVEL_XS, BONUS_XS, R, GZ, LITTER_DUMP_RADIUS, truck, p, state, blocks, creatures, WORKER_GENDER, dist, SFX, Voice,
   M, MS, BX, CY, SP, ()=>false, QUEENS_CEMETERY_X, BLOCK_W, BONUS, BONUS_BASKET_COUNT, ()=>false);
 api.placeLitterBasket();
 const baskets = api.baskets();

@@ -108,7 +108,8 @@ check('polish girl: 6+ top-level body parts', bag.children.length >= 6, 'childre
 
 // ================= 2. SPAWN ROSTER (npcCounts) =================
 check('npcCounts: hookers are zeroed on Queens (day 4)',
-  /if\s*\(\s*day\s*===\s*4\s*&&\s*t\s*===\s*"hooker"\s*\)\s*base\s*=\s*0\s*;/.test(src));
+  /day\s*===\s*4\s*&&[\s\S]{0,80}t\s*===\s*"hooker"/.test(src) &&
+    /isQueensLevel\(\)|day === 4/.test(src));
 check('npcCounts: polish is base 0 (spawned by the dedicated block, like crazy/dealer)',
   /polish:\s*0\s*,/.test(src.slice(src.indexOf('const BASE_NPC_COUNTS'), src.indexOf('const SCALING_NPC'))));
 
@@ -155,13 +156,19 @@ check('bubble mapping: speaker "polish" -> bub-polish',
 const spawnSec = (() => {
   const i = src.indexOf('Maspeth Polish women');
   if (i < 0) return '';
-  return src.slice(i, i + 1400);
+  return src.slice(i, i + 2400);
 })();
 check('spawn block: gated to Queens', spawnSec.indexOf('if (isQueensLevel())') >= 0);
-check('spawn block: one per ACTIVE block (garbage === true, x 96..576)',
-  spawnSec.indexOf('b.garbage === true') >= 0 && spawnSec.indexOf('b.x >= 96') >= 0 && spawnSec.indexOf('b.x <= 576') >= 0);
-check('spawn block: x kept in the safe 10..70 window (no corner-store frontage)',
-  spawnSec.indexOf('bl.x + 10 + R(0, 60)') >= 0);
+check('spawn block: every ACTIVE block EXCEPT the cemetery (no houses there) — the living ladies walk only the house blocks',
+  spawnSec.indexOf('ACTIVE_BLOCKS.filter((b) => b.x !== CEMETERY_BLOCK_X)') >= 0 &&
+    /const CEMETERY_BLOCK_X = LEVEL_BLOCKS\[QUEENS_CEMETERY_BLOCK\]\.x;/.test(spawnSec));
+check('spawn block: x is drawn inside her block house frontage (BLOCK_EDGE_IN inset from BOTH corners — never the intersection)',
+  /const front = polishFrontage\(bl\);/.test(spawnSec) &&
+    /pw\.wx = front\.minX \+ R\(0, front\.maxX - front\.minX\);/.test(spawnSec) &&
+    /minX: bl\.x \+ BLOCK_EDGE_IN,/.test(spawnSec) &&
+    /maxX: bl\.x \+ BLOCK_W - BLOCK_EDGE_IN,/.test(spawnSec));
+check('spawn block: she remembers her block (pw.blockX), so her bag and boy stay on it',
+  /pw\.blockX = bl\.x;/.test(spawnSec));
 check('spawn block: sidewalk OR front lawn (50/50)',
   spawnSec.indexOf('onLawn') >= 0 && spawnSec.indexOf('R(5.0, 7.0)') >= 0 && spawnSec.indexOf('R(1.4, 4.2)') >= 0);
 check('spawn block: faces the street (-PI/2, like the hooker)',
@@ -177,6 +184,81 @@ check('spawn: one nice Polish boy per ACTIVE block, on HER block (pb.sis = pl.pw
   src.indexOf('pb.sis = pl.pw') >= 0 &&
   src.indexOf('pb.loiter') >= 0 &&
   src.indexOf('queensStoreSpots') < 0);
+
+// ================= 7b. RUNTIME: the real spawn code, run many times =================
+// THE LAW THE USER CAN SEE: a Polish lady stands on a block that has houses, on her
+// block's frontage — never on the cemetery block, never in the intersection, never in
+// the street. Run the shipped spawn text (the loop from `if (isQueensLevel())` to the end
+// of the lady loop) against a Maspeth-shaped street and measure where she lands.
+{
+  const spawnBody = (() => {
+    const i = src.indexOf('Maspeth Polish women');
+    const a = src.indexOf('if (isQueensLevel())', i);
+    const b = src.indexOf('// The Maspeth skunks', a);
+    // The slice ends inside the `if (isQueensLevel())` block — close it so it parses.
+    return src.slice(a, b) + '\n }\n';
+  })();
+  const HOUSES = Number(src.match(/const HOUSES_PER_BLOCK = (\d+);/)[1]);
+  const BWv = Number(src.match(/^\s*BW = (\d+);/m)[1]);
+  const BLOCK_Wv = HOUSES * BWv;
+  const IWv = Number(src.match(/const IW = (\d+);/)[1]); // the intersection width
+  const edgev = Number(src.match(/const BLOCK_EDGE_IN = (\d+);/)[1]);
+  const cemIdx = Number(src.match(/const QUEENS_CEMETERY_BLOCK = (\d+);/)[1]);
+  const stepv = BLOCK_Wv + IWv;
+  const LEVEL_BLOCKS = Array.from({ length: 6 }, (_, i) => ({ x: i * stepv, garbage: i >= 1 && i <= 4 }));
+  const CEM_X = LEVEL_BLOCKS[cemIdx].x;
+  const houseBlocks = LEVEL_BLOCKS.filter((b) => b.garbage && b.x !== CEM_X);
+  // Maspeth curb geometry: houses on cells 1..HOUSES-2 (the end cells are the corner stores).
+  const houseCells = (bx) => Array.from({ length: HOUSES }, (_, i) => ({
+    blockX: bx,
+    worldX: bx + i * BWv,
+    house: i >= 1 && i <= HOUSES - 2 ? { bags: [] } : null,
+  }));
+  const polishLandings = [];
+  const boyLandings = [];
+  for (let t = 0; t < 300; t++) {
+    const made = [];
+    const addCreature = (type) => { const c = { type, wx: 0, wy: 0, g: { position: { set() {} }, rotation: {} } }; made.push(c); return c; };
+    const sh = {
+      isQueensLevel: () => true,
+      addCreature,
+      LEVEL_BLOCKS,
+      ACTIVE_BLOCKS: LEVEL_BLOCKS.filter((b) => b.garbage),
+      QUEENS_CEMETERY_BLOCK: cemIdx,
+      QUEENS_CEMETERY_X: CEM_X,
+      BLOCK_W: BLOCK_Wv,
+      BLOCK_EDGE_IN: edgev,
+      POLISH_DRESSES: [1, 2, 3, 4, 5, 6],
+      polishDressQueue: [],
+      polishLadies: [],
+      blocks: LEVEL_BLOCKS.flatMap((b) => houseCells(b.x)),
+      clamp: (v, a, b) => Math.min(b, Math.max(a, v)),
+      R: (a, b) => a + Math.random() * (b - a),
+      GZ: 0.3,
+      makeCurbBag: () => ({}),
+    };
+    const names = Object.keys(sh);
+    new Function(...names, spawnBody)(...names.map((k) => sh[k]));
+    const ladies = made.filter((c) => c.type === 'polish');
+    const boys = made.filter((c) => c.type === 'polishboy');
+    ladies.forEach((c) => { polishLandings.push({ wx: c.wx, wy: c.wy, bl: c.blockX }); });
+    boys.forEach((c) => boyLandings.push({ wx: c.wx, wy: c.wy }));
+    if (t === 0) check('7b runtime: one lady per HOUSE block (' + ladies.length + ' = ' + houseBlocks.length + ' blocks, the cemetery excluded)', ladies.length === houseBlocks.length, ladies.length);
+  }
+  const onCemetery = polishLandings.filter((p) => p.bl === CEM_X).length;
+  const inIntersection = polishLandings.filter((p) => p.wx < p.bl + edgev || p.wx > p.bl + BLOCK_Wv - edgev).length;
+  const inStreet = polishLandings.filter((p) => p.wy < 1.4 || p.wy > 7.0).length;
+  check('7b runtime: NO lady is ever spawned on the cemetery block (' + onCemetery + ' offenders over ' + polishLandings.length + ' draws)', onCemetery === 0, onCemetery);
+  check('7b runtime: NO lady ever stands in an intersection / past her block edges (' + inIntersection + ' offenders)', inIntersection === 0, inIntersection);
+  check('7b runtime: NO lady ever stands in the street — sidewalk 1.4..4.2 or lawn 5.0..7.0 only (' + inStreet + ' offenders)', inStreet === 0, inStreet);
+  const boyOutside = boyLandings.filter((pb) => {
+    const bl = houseBlocks.map((b) => b.x);
+    return !bl.some((bx) => pb.wx >= bx + edgev && pb.wx <= bx + BLOCK_Wv - edgev);
+  }).length;
+  check('7b runtime: her little brother is clamped to her block frontage too (' + boyOutside + ' offenders over ' + boyLandings.length + ')', boyOutside === 0, boyOutside);
+  const spreadX = new Set(polishLandings.map((p) => Math.round(p.wx)));
+  check('7b runtime: the draw really covers the frontage (x range ' + Math.min(...spreadX) + '..' + Math.max(...spreadX) + ', ' + spreadX.size + ' distinct spots)', spreadX.size > 90, spreadX.size);
+}
 
 // ================= 8. DOG COUNT SCALED BY SCORE =================
 const dogSec = (() => {

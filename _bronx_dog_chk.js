@@ -107,7 +107,9 @@ check('npcRoadRules accepts a maxWy escape-lane cap', extractFn('npcRoadRules').
 // ---- harness: run the real case with toggleable levels (global scope) ----
 const GZ = 0.3;
 global.stepTopAt = () => GZ;
-global.BLOCK_W = 96;
+global.BLOCK_W = 56;   // the short-block law: 7 houses x 8u
+global.BLOCK_STEP = 72; // the recycle cycle: BLOCK_W + BLOCK_GAP
+global.BLOCK_EDGE_IN = 10; // the sidewalk setback the recycle window keeps
 const dynamicGroup = { add(){}, remove(){} };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const workerMaxY = () => 5.0;

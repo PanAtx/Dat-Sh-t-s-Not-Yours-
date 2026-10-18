@@ -351,13 +351,13 @@ const NK_BOSS_X = srcNum("NIGHT_BOSS_X"), NK_GRAVE = srcNum("NIGHT_GRAVE_X");
 const NK_GATE_FADE = srcNum("NIGHT_GATE_FADE"), NK_GATE_LIFT = srcNum("NIGHT_GATE_LIFT");
 const NK_PANELS = srcNum("NIGHT_WARD_PANELS"), NK_BAND = srcNum("NIGHT_WARD_DEATH_BAND");
 const NK_GRAVE_BLOCK = srcNum("NIGHT_GRAVE_BLOCK_X");
-const NK_BLOCK_W = 80; // BW * HOUSES_PER_BLOCK — the pitch the cemetery fence row is laid on
+const NK_BLOCK_W = 56; // BW * HOUSES_PER_BLOCK — the pitch the cemetery fence row is laid on
 const sealSrc = (n) => srcFn(n).replace(/\bnightSeal\b/g, "S.seal");
 const GZ = 0.3; // mirrors index.html
 const MS = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c }, o || {}));
 const pick = (a) => a[0]; // deterministic in the suites
 const said4 = [], disposed4 = [], bursts4 = [];
-const p4 = { wx: 449, wy: 2.5, shake: 0, sealT: 0 };
+const p4 = { wx: 329, wy: 2.5, shake: 0, sealT: 0 };
 const dyn4 = {
   children: [],
   add(o) { this.children.push(o); o.parent = this; },
@@ -388,7 +388,7 @@ const RING = new Function(
   NK_SEAL_X, NK_SEAL_STOP, NK_SEAL_INNER, NK_NOSE, NK_TRUCK_CLEAR, NK_RISE_T, NK_HOLD_T,
   ["THE FENCE'S UP — NO WAY BACK UP THE STREET!"],
   NK_MESH_DN, NK_MESH_UP,
-  NK_TOP_X, NK_TRAIL, 560, NK_GATE_FADE, NK_GATE_LIFT,
+  NK_TOP_X, NK_TRAIL, 432, NK_GATE_FADE, NK_GATE_LIFT,
   NK_PANELS, srcNum("NIGHT_WARD_SPAN_R"), srcNum("NIGHT_WARD_SPAN_L"), NK_BAND,
   new Function(
     "THREE", "BX", "CY", "SP", "R", "M", "GZ", "MS",
@@ -424,7 +424,7 @@ check(
   (function () {
     night4 = false;
     const dayCeil = RING.workerCeilX();
-    const r = RING.nightSealClosed() === false && dayCeil === 560 && RING.truckFenceFloorX() === null;
+    const r = RING.nightSealClosed() === false && dayCeil === 432 && RING.truckFenceFloorX() === null;
     night4 = true;
     return r;
   })(),
@@ -456,7 +456,7 @@ check(
 check(
   "WAKING THE BEAST ARMS THE LINE, AND THE FENCE SHUTS ON THE FRAME HE CROSSES THE IRON'S FACE",
   (function () {
-    p4.wx = 449;
+    p4.wx = 329;
     RING.buildNightSeal();
     RING.nightSealArm();
     const armedAbove = S4.seal.armed === true && S4.seal.closed === false && RING.nightSealClosed() === false;
@@ -465,7 +465,7 @@ check(
       S4.seal.g.visible === true && S4.seal.g.scale.z < 1 && S4.seal.g.userData.ward.mats[0].opacity > 0; // the armed line shows itself
     S4.seal.rise = 0;
     S4.seal.holdT = 0; // the rise-hold has run out: the wall is rising
-    p4.wx = 70; // he is fully below the iron's face: the crossing closes the ring in the fight zone
+    p4.wx = NK_SEAL_X - 10; // he is fully below the iron's face: the crossing closes the ring in the fight zone
     const closed = RING.nightSealClose();
     return (
       armedAbove &&
@@ -473,7 +473,7 @@ check(
       closed === true &&
       RING.nightSealClosed() === true &&
       S4.seal.g.visible === true &&
-      S4.seal.prevWx === 70 && // the seal's own history rides the crossing frame
+      S4.seal.prevWx === NK_SEAL_X - 10 && // the seal's own history rides the crossing frame
       said4.length > 0 &&
       bursts4.some((b) => b.x === NK_SEAL_X)
     );
@@ -491,7 +491,7 @@ check(
       ceil < face && // the standing point is DOWN the road of the iron: never inside the wall
       ceil < NK_MESH_LO && // ...and clean out of the fence mesh's own footprint
       NK_MESH_LO - ceil <= NK_SEAL_STOP + 0.05 && // ...by barely a body — the wall IS his cover
-      ceil > floor + 30 && // ...with real street under him to fight on
+      ceil > floor + 21 && // ...with real street under him to fight on
       ceil < RING.truckFenceFloorX() && // he is sealed BELOW the parked rig, at the graves
       NK_BOSS_X > floor && NK_BOSS_X < ceil && // the beast rises inside the ring, below the wall
       NK_GRAVE > floor && NK_GRAVE < ceil // ...and its treasure lands inside the ring
@@ -570,14 +570,14 @@ check(
     const face = RING.sealFaceX(), stand = RING.sealStandX();
     const meshIn = (x) => x >= NK_MESH_LO - 0.45 && x <= NK_MESH_HI + 0.45;
     RING.buildNightSeal();
-    p4.wx = 115; p4.wy = 2.5; p4.shake = 0; p4.sealT = 0;
+    p4.wx = NK_SEAL_X + 35; p4.wy = 2.5; p4.shake = 0; p4.sealT = 0;
     RING.nightSealArm();
     if (!(S4.seal.armed === true && S4.seal.closed === false)) return false;
     const step = 8.5 * (1 / 60) * 0.75; // his real downhill pace
     let closedAt = -1, closedWx = 0, walkThrough = 0, stuck = 0, prevWx = p4.wx;
     for (let i = 0; i < 420; i++) {
       p4.wx -= step;
-      if (p4.wx < 39.6) p4.wx = 39.6;
+      if (p4.wx < NK_FENCE + NK_STANDOFF - 10) p4.wx = NK_FENCE + NK_STANDOFF - 10;
       const ceil = RING.nightSealClosed() ? Math.min(NK_TOP_X - NK_TRAIL, stand) : NK_TOP_X - NK_TRAIL;
       if (p4.wx > ceil) p4.wx = ceil;
       if (S4.seal.armed && !S4.seal.closed && prevWx >= face && p4.wx < face) RING.nightSealClose();
@@ -603,7 +603,7 @@ check(
   (function () {
     const face = RING.sealFaceX(), stand = RING.sealStandX();
     const meshIn = (x) => x >= NK_MESH_LO - 0.45 && x <= NK_MESH_HI + 0.45;
-    p4.wx = 60; p4.wy = 0; p4.sealT = 0;
+    p4.wx = NK_SEAL_X - 10; p4.wy = 0; p4.sealT = 0;
     RING.buildNightSeal();
     RING.nightSealArm(); // the wake happened with him inside the ring: sealed on the spot
     if (!RING.nightSealClosed()) return false;
@@ -628,13 +628,13 @@ check(
   "A FAT LAG FRAME CANNOT SLIP HIM THROUGH: a 21-frame step past the iron's face still closes the seal, and the hard stop lands him at the wall's fight-side point (the close is measured on the travelled segment, so a skipped crossing frame is a CLOSED frame)",
   (function () {
     const face = RING.sealFaceX(), stand = RING.sealStandX();
-    p4.wx = 100; p4.sealT = 0;
+    p4.wx = NK_SEAL_X + 20; p4.sealT = 0;
     RING.buildNightSeal();
     RING.nightSealArm();
     let prevWx = p4.wx, closed = false, pos = [];
     for (let i = 0; i < 400; i++) {
       p4.wx -= 8.5 * (i % 40 === 0 ? 21 : 1) * (1 / 60) * 0.75;
-      if (p4.wx < 39.6) p4.wx = 39.6;
+      if (p4.wx < NK_FENCE + NK_STANDOFF - 10) p4.wx = NK_FENCE + NK_STANDOFF - 10;
       const ceil = RING.nightSealClosed() ? Math.min(NK_TOP_X - NK_TRAIL, stand) : NK_TOP_X - NK_TRAIL;
       if (p4.wx > ceil) p4.wx = ceil;
       if (!closed && prevWx >= face && p4.wx < face) { RING.nightSealClose(); closed = true; }

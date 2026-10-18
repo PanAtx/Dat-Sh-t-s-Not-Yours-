@@ -4359,6 +4359,23 @@
           opacity: 0;
         }
       }
+      /* FADE ON THE FIRST STEP: a WRITTEN UP! stamp that is still on screen when the
+   recovered worker starts walking has said its piece — .fading cuts the 5s slam short
+   with a quick fade (fadeWriteUpStamp() fires it from updatePlayer's first moving
+   frame; the stamp's own removal timer cleans the element up). */
+      .pop-writeup.fading {
+        animation: writeUpFadeOut 0.55s ease-out forwards;
+      }
+      @keyframes writeUpFadeOut {
+        0% {
+          transform: translateX(-50%) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(-50%) scale(0.72);
+          opacity: 0;
+        }
+      }
       /* THE GHOULS' HEALTH (Midnight): a tiny bar hovering over each spook's head, so he
    can SEE that a swing is a wound and how many the thing has left. DOM like the speech
    bubbles and the Zzz letters — projected off the same worldToScreen, crisp at any
@@ -4366,7 +4383,11 @@
    the last swing. */
       .ghp {
         position: fixed;
-        z-index: 54;
+        /* ON THE GHOUL'S OWN PLANE (was 54, which rode OVER every menu): the bar sits at
+     z-index 15 — above the world canvas and the HUD, BELOW every menu, since .modal
+     (#paused / #menu / #over / #day-intro ...) lives at 20 and up. A spook's health
+     bar never obscures the Pause menu or any other menu. */
+        z-index: 15;
         transform: translate(-50%, -50%);
         pointer-events: none;
         display: none;
@@ -5465,7 +5486,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.572</div>
+          <div id="app-version" class="menu-version">v1.0.573</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5780,7 +5801,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.572';
+      const APP_VERSION = '1.0.573';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -5814,14 +5835,24 @@
       //   * The shift STARTS at Intersection 1 / the entrance of Block 2.
       //   * The shift ENDS when the worker reaches Intersection 6 (the last one before Block 7).
       //   * Block 1 (behind the start) and Block 7 (past the finish) carry NO curb garbage.
-      const HOUSES_PER_BLOCK = 10;
-      const BLOCK_W = BW * HOUSES_PER_BLOCK; // 80 world units per block (10 houses x 8u)
+      // THE SHORT-BLOCK LAW (the "levels are too long" fix): the week's row runs SEVEN
+      // buildings per block — three shorter than the ten-house row the game shipped with.
+      // ONE number drives the whole street: BLOCK_W, the block-and-intersection step
+      // (BLOCK_STEP), every route anchor below, each block-local spawn band and the MIDNIGHT
+      // dead end all derive from it. The OVERTIME BASKETS round is the ONE street that stays
+      // PINNED to the old 10-cell geometry (its length is fixed law) — see BONUS_CELLS /
+      // BONUS_BLOCK_XS in the bonus section.
+      const HOUSES_PER_BLOCK = 7;
+      const BLOCK_W = BW * HOUSES_PER_BLOCK; // 56 world units per block (7 houses x 8u)
+      // The block length the week USED to run (10 houses x 8u). It is the reference for the
+      // DAMAGE_SCALE offset below: the shorter street trades walking room for harder hits.
+      const OLD_BLOCK_W = BW * 10;
       // ---- Maspeth (Queens) DENSER street layout (Queens only) ----
       // The two CORNER cells keep the full 8u (they hold the 6.5u corner store), and the
-      // eight middle 8u cells are compressed into TEN 6.4u cells, so each 80u block holds
-      // 12 buildings (1 store + 11 houses) with the houses packed much closer together.
-      const QUEENS_HOUSES_PER_BLOCK = 12;
-      const QUEENS_MID_W = (BLOCK_W - 2 * BW) / (QUEENS_HOUSES_PER_BLOCK - 2); // (80-16)/10 = 6.4
+      // six middle 8u cells are compressed into SEVEN ~5.71u cells, so each 56u block holds
+      // 9 buildings (1 store + 8 houses) with the houses packed much closer together.
+      const QUEENS_HOUSES_PER_BLOCK = 9;
+      const QUEENS_MID_W = (BLOCK_W - 2 * BW) / (QUEENS_HOUSES_PER_BLOCK - 2); // (56-16)/7 = 5.714...
       function queensCellW(i) {
         return i === 0 || i === QUEENS_HOUSES_PER_BLOCK - 1 ? BW : QUEENS_MID_W;
       }
@@ -5839,18 +5870,21 @@
       const CROSS_H = 30; // cross-street LENGTH (across the road / Y) — runs from the far nose (y=-14) past the houses (y=+16), with room for the perpendicular crosswalks to sit clear of the main road on both sides
       const CROSS_CY = 1.0; // cross-street lateral centerline — spans y = -14 → +16 (still reaches the top-left corner, plus clearance below the road for the crosswalk)
       const CROSS_R = 3; // rounded radius — applied ONLY to the far "nose" (open side); the near side stays square so the road reaches the top-left corner
-      // 6 blocks, each 80u wide, separated by 16u intersections:
+      // 6 blocks, each 56u wide (7 buildings), separated by 16u intersections — a 72u step:
       // 4 active blocks (2-5) between a start buffer (Block 1) and a finish
-      // buffer (Block 6). Route length is controlled HERE — ACTIVE_BLOCKS below
-      // (and every level-specific NPC, the litter-basket layout, and the finish
-      // line) all derive from it, so this is the single safe knob for length.
+      // buffer (Block 6). Route length is controlled HERE — HOUSES_PER_BLOCK above is
+      // the ONE knob (ACTIVE_BLOCKS below, every level-specific NPC, the litter-basket
+      // layout, and the finish line all derive from it).
+      // THE OVERTIME BASKETS street is NOT on this grid: it keeps its OWN pinned 80u / 96u
+      // layout (see BONUS_BLOCK_XS), so shortening the week never shortens the timed round.
+      const BLOCK_STEP = BLOCK_W + IW; // 72u: one block (56u) + one intersection (16u)
       const LEVEL_BLOCKS = [
         { x: 0, garbage: false }, // Block 1 — behind the start, NO garbage
-        { x: 96, garbage: true }, // Block 2
-        { x: 192, garbage: true }, // Block 3
-        { x: 288, garbage: true }, // Block 4
-        { x: 384, garbage: true }, // Block 5 — Maspeth cemetery (last active block)
-        { x: 480, garbage: false }, // Block 6 — past the finish, NO garbage
+        { x: 72, garbage: true }, // Block 2   (1 * BLOCK_STEP)
+        { x: 144, garbage: true }, // Block 3  (2 * BLOCK_STEP)
+        { x: 216, garbage: true }, // Block 4  (3 * BLOCK_STEP)
+        { x: 288, garbage: true }, // Block 5 — Maspeth cemetery (4 * BLOCK_STEP, last active block)
+        { x: 360, garbage: false }, // Block 6 — past the finish, NO garbage (5 * BLOCK_STEP)
       ];
       // The blocks the worker actually services (start/finish buffers excluded).
       // EVERY level-specific spawner (Karens, housewives, Bronx dealers /
@@ -5869,8 +5903,8 @@
       // it: green grass, headstones, monuments, scary dead trees, a black raven.
       // The block's only living NPCs are the rats — everything else walking around
       // is a bluish, transparent ghost (the annoying homeowner is a ghost there too).
-      const QUEENS_CEMETERY_BLOCK = 4; // the 5th block (x=384) — the worker walks the full route to reach it
-      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x; // 384
+      const QUEENS_CEMETERY_BLOCK = 4; // the 5th block (x = 288 = 4 * BLOCK_STEP) — the worker walks the full route to reach it
+      const QUEENS_CEMETERY_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x;
       const CEM_FENCE_Y = 5.4; // iron fence line: right up against the sidewalk edge (y 5.0)
       const CEM_BACK_Y = 12.0; // back edge of the cemetery grass
       // ==================== QUEENS OAK TREE + ACORNS (Maspeth, the 3rd block) ====================
@@ -5882,16 +5916,111 @@
       // HP nick. Then a squirrel scurries over, takes the acorn, and runs off
       // with it (it already cradles a comically big one between its paws — the
       // ground acorn vanishes on the grab).
-      const QUEENS_OAK_BLOCK = 2; // the 3rd block (x=192) — one big oak, never the cemetery
-      const QUEENS_OAK_X = LEVEL_BLOCKS[QUEENS_OAK_BLOCK].x; // 192
+      const QUEENS_OAK_BLOCK = 2; // the 3rd block (x = 144 = 2 * BLOCK_STEP) — one big oak, never the cemetery
+      const QUEENS_OAK_X = LEVEL_BLOCKS[QUEENS_OAK_BLOCK].x;
       const QUEENS_OAK_CELL = 3; // the 4th cell of the block carries the trunk
       const ACORN_COUNT = 14; // acorns scattered all over the block's sidewalk
-      // 6 intersections (cross-streets), each starting 80u into its preceding segment:
-      const LEVEL_XS = [80, 176, 272, 368, 464, 560];
-      const ROUTE_START_X = 80; // barrier: worker can't walk back before Intersection 1
-      const PLAYER_START_X = 88; // spawn in the middle of Intersection 1, facing Block 2
-      const ROUTE_FINISH_X = 464; // end of the last active block (x=384) completes the route
-      const ROUTE_END_X = 576; // far edge of the route (the finish buffer block)
+      // 6 intersections (cross-streets), each starting BLOCK_W into its preceding block:
+      const LEVEL_XS = [56, 128, 200, 272, 344, 416]; // LEVEL_BLOCKS[i].x + BLOCK_W
+      const ROUTE_START_X = 56; // barrier: worker can't walk back before Intersection 1 (LEVEL_XS[0])
+      const PLAYER_START_X = 64; // spawn in the middle of Intersection 1, facing Block 2 (ROUTE_START_X + IW / 2)
+      const ROUTE_FINISH_X = 344; // end of the LAST ACTIVE block (Block 5, x=288) completes the route (LEVEL_XS[4])
+      const ROUTE_END_X = 432; // far edge of the route (the finish buffer block: 360 + BLOCK_STEP)
+      // ---- THE DAMAGE OFFSET FOR THE SHORTER STREET (the difficulty stays exactly where it was) ----
+      // The week's walkable route got a quarter shorter: the 10-house blocks ran from the
+      // 80u barrier to the 464u finish (384u of street), the 7-house blocks run 56u -> 344u
+      // (288u). A quarter less street means a quarter fewer hazards met, so EVERY hit lands
+      // harder by the inverse of that ratio — the same danger per shift, in a shorter shift.
+      // The OVERTIME BASKETS round is the one street that is NOT shorter (its length is fixed
+      // law), so the bonus round runs UNSCALED.
+      const OLD_ROUTE_START_X = 80; // the shipped 10-house route's barrier ...
+      const OLD_ROUTE_FINISH_X = 464; // ... and finish line: 384u of street
+      const OLD_ROUTE_SPAN_X = 384; // OLD_ROUTE_FINISH_X - OLD_ROUTE_START_X
+      const ROUTE_SPAN_X = 288; // ROUTE_FINISH_X - ROUTE_START_X (344 - 56)
+      const DAMAGE_SCALE = 4 / 3; // OLD_ROUTE_SPAN_X / ROUTE_SPAN_X = 384 / 288 — every hit lands
+      // one third harder, which is exactly the quarter of the street that came off the route.
+      // ---- THE LANE THE WORKER IS CLAMPED TO ----
+      // On the OVERTIME street these answer the PINNED bonus grid (the 30s round is timed to
+      // a fixed length); every other shift answers the week's own grid.
+      function laneStartX() {
+        return BONUS ? BONUS_START_X : ROUTE_START_X;
+      }
+      function laneFinishX() {
+        return BONUS ? BONUS_ROUTE_END_X : ROUTE_FINISH_X;
+      }
+      function laneEndX() {
+        return BONUS ? BONUS_ROUTE_END_X : ROUTE_END_X;
+      }
+      function laneSpawnX() {
+        return BONUS ? BONUS_PLAYER_START_X : PLAYER_START_X;
+      }
+      // ---- THE BLOCK-LOCAL SPAWN BANDS (all derive from BLOCK_W, so they shorten with it) ----
+      const BLOCK_EDGE_IN = 10; // u of setback from a block corner every sidewalk anchor keeps
+      const MID_BLOCK_LO = BLOCK_W / 4; // "in the middle of its own block" spawn band, low end
+      const MID_BLOCK_HI = BLOCK_W * 0.75; // ...and high end (the 25%..75% of the block frontage)
+      // ---- THE BLOCK-RESIDENCY LAW (the "he ended up in the middle of an intersection" fix) ----
+      // Taking three buildings off every block shrank a block 80u -> 56u while every cross-street
+      // gap stayed 16u wide and the step stayed 72u. Every run-off distance, leash, wander radius
+      // and spawn band that was tuned for the long block therefore reaches INTO the gap: the
+      // Harlem street-baller bolts from a punchback for a flat 5 seconds at ~7 u/s (35u) with no
+      // block clamp at all and parks in the middle of an intersection — no sidewalk, no
+      // storefront, nowhere a block NPC belongs. One law, three teeth:
+      //   1. every block-owned creature gets HARD bounds at spawn (setBlockBounds), derived from
+      //      BLOCK_W, so shortening the street shortens its bounds with it;
+      //   2. every run-off / chase / wander move runs its x through blockClampX (a creature with
+      //      no authored block — traffic, birds, vermin — is passed through untouched: they own
+      //      the asphalt, not a frontage);
+      //   3. the residency pass at the bottom of updateCreatures clamps every bounded creature
+      //      as the last line, so no NPC mesh stands in a gap on any frame.
+      const NPC_BLOCK_INSET = 4; // u a block NPC's hard bounds keep off the block corner
+      function routeBlockXs() {
+        // The week rides the short-block grid; OVERTIME keeps its PINNED 80u row (fixed law).
+        return BONUS ? BONUS_BLOCK_XS.slice() : LEVEL_BLOCKS.map((b) => b.x);
+      }
+      function routeBlockW() {
+        return BONUS ? BONUS_BLOCK_W : BLOCK_W;
+      }
+      function blockIndexAtX(x) {
+        const xs = routeBlockXs(),
+          w = routeBlockW();
+        let best = -1,
+          bestD = Infinity;
+        for (let i = 0; i < xs.length; i++) {
+          if (x >= xs[i] && x <= xs[i] + w) return i; // standing on this block's frontage
+          const d = x < xs[i] ? xs[i] - x : x - (xs[i] + w); // how deep in the gap
+          if (d < bestD) {
+            bestD = d;
+            best = i;
+          }
+        }
+        return best;
+      }
+      function inIntersectionX(x) {
+        const xs = routeBlockXs(),
+          w = routeBlockW();
+        for (let i = 0; i < xs.length; i++)
+          if (x > xs[i] + w && x < xs[i] + w + IW) return true;
+        return false;
+      }
+      function blockSafeX(x, inset) {
+        const inu = inset === undefined ? NPC_BLOCK_INSET : inset;
+        const xs = routeBlockXs(),
+          w = routeBlockW();
+        const i = blockIndexAtX(x);
+        if (i < 0) return x;
+        return clamp(x, xs[i] + inu, xs[i] + w - inu); // snap out of the gap onto the near frontage
+      }
+      function setBlockBounds(o, blockX, inset) {
+        const inu = inset === undefined ? NPC_BLOCK_INSET : inset;
+        o.blockMinX = blockX + inu;
+        o.blockMaxX = blockX + routeBlockW() - inu;
+        return o;
+      }
+      function blockClampX(o, x) {
+        if (!o || typeof o.blockMinX !== "number" || typeof o.blockMaxX !== "number")
+          return x; // no authored frontage — the whole street is its block
+        return clamp(x, o.blockMinX, o.blockMaxX);
+      }
       const RUN_SPEED = 4; // SLOWED traffic floor (was 8.5) — also sets CAR_MIN_SP, so cars no longer "never crawl below the worker's walk pace"
       const PLAYER_SPEED = 8.5; // worker forward speed while W / UP / stick is held (no input = stands still) — eased back from 10 so the worker feels grounded, not flighty
       const LAT_SPEED = 6.5; // worker strafe speed (A/D / stick horizontal)
@@ -7943,7 +8072,21 @@
       const BONUS_TIME = 30; // seconds to service every basket AND hit the $3000 street-cash goal — a TIGHT 30s clock
       const BONUS_BASKET_COUNT = 6; // baskets on the bonus street: Block 2 = 94 & 178, Block 3 = 190 & 274. First + last block carry none.
       const BONUS_BLOCKS = 4; // the overtime street is only 4 blocks long (Blocks 1-4, x=0..368) — cut by one block from the old 5-block street
-      const BONUS_ROUTE_END_X = 384; // far edge of the 4th intersection (368..384): the worker can't walk past the end of the street
+      // ==================== THE OVERTIME STREET'S OWN PINNED GRID (FIXED LAW) ====================
+      // The week's blocks got shorter (7 buildings, 56u wide, a 72u step). This round did NOT:
+      // the 30-second OVERTIME BASKETS clock is tuned to the street it services, so the bonus
+      // street keeps its OWN pinned 10-cell (80u) block on the pinned 96u step — 4 blocks,
+      // baskets at 94/178/190/274, barrier at 80, wall at 384, exactly as shipped. NOTHING on
+      // the week's grid (HOUSES_PER_BLOCK / BLOCK_W / BLOCK_STEP / LEVEL_BLOCKS) feeds these
+      // numbers, and nothing here feeds the week. Shortening the week can never shorten this.
+      const BONUS_CELLS = 10; // pinned: the bonus street keeps the original 10-cell row
+      const BONUS_BLOCK_W = 80; // pinned: BW * BONUS_CELLS (10 cells x 8u)
+      const BONUS_STEP = 96; // pinned: BONUS_BLOCK_W + IW (block + intersection)
+      const BONUS_BLOCK_XS = [0, 96, 192, 288]; // pinned: i * BONUS_STEP
+      const BONUS_XS = [80, 176, 272, 344]; // pinned: BONUS_BLOCK_XS[i] + BONUS_BLOCK_W
+      const BONUS_START_X = 80; // pinned: the overtime street's barrier line (BONUS_XS[0])
+      const BONUS_PLAYER_START_X = 88; // pinned: the overtime clock-in spot (BONUS_XS[0] + IW / 2)
+      const BONUS_ROUTE_END_X = 384; // pinned: far edge of the 4th intersection (368..384) — the worker can't walk past the end of the street
       const BONUS_CASH_GOAL = 3000; // WIN also requires >= this much STREET CASH banked in the round (in addition to every basket)
       const BONUS_CASH_MULT = 2; // overtime loot is worth this x more, so the $3000 goal stays reachable on the (now shorter) street
       let BONUS = false; // true while the bonus world is live
@@ -9263,8 +9406,11 @@
       function buildGround() {
         // The ground is FIXED (covers the whole finite route, x = -60 .. 840) instead of
         // scrolling infinitely — the level is a bounded block-and-intersection route.
+        // Ground extents follow the route anchors: the week's street ends past its finish
+        // buffer block (exactly the 264u of margin past ROUTE_END_X the view has always run
+        // on), and the PINNED overtime street keeps its own fixed short ground.
         const GROUND_L = -60,
-          GROUND_R = BONUS ? 390 : 840; // overtime = a short 4-block street (ends just past the last basket at x=384)
+          GROUND_R = BONUS ? BONUS_ROUTE_END_X + 6 : ROUTE_END_X + 264; // overtime = a short 4-block street (ends just past the last basket at x=384)
         const GW = GROUND_R - GROUND_L;
         const GCX = (GROUND_L + GROUND_R) / 2;
         groundStrip(GW, 10, 0.3, -4.5, 0x3a4046, GCX); // asphalt
@@ -9745,7 +9891,10 @@
             groundGroup.add(edge);
           }
         }
-        for (const xInt of nightGap ? NIGHT_XS : LEVEL_XS) {
+        // The OVERTIME street is its OWN pinned grid, so it gets the pinned intersection line
+        // (80/176/272/344) — the week's shorter step never touches it.
+        const bonusGap = typeof BONUS !== "undefined" && BONUS;
+        for (const xInt of nightGap ? NIGHT_XS : bonusGap ? BONUS_XS : LEVEL_XS) {
           const g = new THREE.Group();
           const cx = xInt + IW / 2; // center of the intersection gap
           const halfW = CROSS_W / 2; // cross-street half-width
@@ -13002,10 +13151,10 @@
             const off = CROSS_W / 2 + 1.5; // 6 — corner offset from the gap centerline
             // [intersection x, +1 = block's NEAR (east) corner | -1 = block's FAR (west) corner]
             const corners = [
-              [80, +1], // 94   Block 2 near
-              [176, -1], // 178  Block 2 far
-              [176, +1], // 190  Block 3 near
-              [272, -1], // 274  Block 3 far
+              [BONUS_XS[0], +1], // 94   Block 2 near
+              [BONUS_XS[1], -1], // 178  Block 2 far
+              [BONUS_XS[1], +1], // 190  Block 3 near
+              [BONUS_XS[2], -1], // 274  Block 3 far
             ];
           litterBasketHomes = [];
           for (const c of corners) {
@@ -19650,18 +19799,18 @@
         return g;
       }
       // A USPS collection box on EVERY 5TH STREET CORNER, counting from the FIRST
-      // CORNER of Block 2 (near-side corner at world x=96). Near-side corners are
-      // each block's west edge (houseIdx 0) and east edge (houseIdx 9):
-      // 96, 176, 192, 272, 288, 368, 384, 464, 480, 560, 576, 656.
-      // Every 5th from x=96 -> boxes at x=96, x=368, x=576 (3 per level).
+      // CORNER of Block 2 (near-side corner at the block's own x). Near-side corners are
+      // each block's west edge (houseIdx 0) and east edge (houseIdx HOUSES_PER_BLOCK - 1):
+      // they land on the block edges of the BLOCK_STEP grid (block x, block x + BLOCK_W).
+      // Every 5th corner from the first active corner is a box.
       // Returns 0 = no box, 1 = west corner (box 2.4u INTO the block),
       // 2 = east corner (box 2.4u back from the block's end edge).
       function mailboxAt(blockX, houseIdx, lastIdx) {
-        // lastIdx: the index of the block's LAST corner house. Maspeth packs 12
-        // buildings per block (see QUEENS_HOUSES_PER_BLOCK), so its last index is 11.
+        // lastIdx: the index of the block's LAST corner house. Maspeth packs 9
+        // buildings per block (see QUEENS_HOUSES_PER_BLOCK), so its last index is 8.
         const li = lastIdx != null ? lastIdx : HOUSES_PER_BLOCK - 1;
         if (houseIdx !== 0 && houseIdx !== li) return 0;
-        const blockIdx = Math.round(blockX / 96);
+        const blockIdx = Math.round(blockX / BLOCK_STEP);
         const cornerIdx = blockIdx * 2 + (houseIdx === li ? 1 : 0);
         if (cornerIdx < 2 || (cornerIdx - 2) % 5 !== 0) return 0;
         return houseIdx === 0 ? 1 : 2;
@@ -22016,7 +22165,7 @@
           return typeof NIGHT_TEST_BOSS_START !== "undefined" && NIGHT_TEST_BOSS_START
             ? NIGHT_BOSS_TRIGGER_X + 3
             : NIGHT_START_X;
-        return PLAYER_START_X;
+        return typeof laneSpawnX === "function" ? laneSpawnX() : PLAYER_START_X;
       }
       // ---- THE RIG'S FOLLOW GAPS (Midnight only — every weekday keeps 3.6 / 4.1 / 1.5) ----
       // On the dead-end street the rig REVERSES behind the worker with its open scoop facing
@@ -24375,10 +24524,25 @@
       // then wheel around overhead and rain droppings on the worker — a MINOR whack.
       // He is non-solid (you contend with his birds, not his body). Being pooped on
       // enough to go down reads "Failure to maintain a clean uniform" (cause "birdSeed").
-      const HP_HIT_BIRDPOOP = 4; // minor — a pigeon splat stings, it doesn't flatten him
+      const HP_HIT_BIRDPOOP = 3; // minor — a pigeon splat stings, it doesn't flatten him (was 4)
       const SEED_RANGE = 12; // this close -> he flings seed toward the worker
       const SEED_CD_MIN = 5.0;
       const SEED_CD_MAX = 7.0;
+      // THE FAIR FLOCK: the pigeons are called down by the SEED, so they eat the seed, wheel
+      // over the seed and foul the seed. They do NOT follow the worker and they do not aim
+      // their droppings at him: the rain falls on the patch where the pouch burst. Walk out
+      // of the seed patch and you are out of the splash; the fall from this height is long
+      // and visible, so it can be stepped out of. The splat that lands stays a mess on the
+      // pavement (inert — the mess is the joke, not a trap).
+      const BIRD_ROOST_RAD = 2.6; // the circle they wheel above their pile
+      const BIRD_ROOST_Y_RAD = 1.8; // ...flattened across the sidewalk band
+      const BIRD_ROOST_ALT = 3.6; // high enough that every dropping is a dodgeable fall
+      const BIRD_DROP_CD_MIN = 1.7; // per-bird gap between droppings (was 1.0-1.8)
+      const BIRD_DROP_CD_MAX = 2.9;
+      const BIRD_POOP_MAX = 3; // droppings falling at once across the flock (was 6)
+      const BIRD_POOP_SCATTER = 1.8; // how far the fouled patch spreads around the pile
+      const BIRD_POOP_HIT_R = 0.75; // you must be IN the splash when it lands (was 0.9)
+      const BIRD_MESS_T = 7; // the splat lies on the pavement this long
       const CH_FOLLOW_SP = 3.2; // his block-clamped stalk speed
       const CART_HOMELESS_LINES = [
         "Just minding my business, man.",
@@ -24499,6 +24663,8 @@
         const g = makeSeedScatter();
         g.position.set(x, y, GZ);
         dynamicGroup.add(g);
+        // The patch the flock is called to — every bird carries these coordinates, so the
+        // roost, the droppings and the fouled patch all belong to THE SEED, not to the worker.
         c.seeds.push({ g: g, wx: x, wy: y, life: 8 });
         return g;
       }
@@ -24521,9 +24687,11 @@
             t: 0,
             tx: pile.wx + R(-0.4, 0.4),
             ty: pile.wy + R(-0.3, 0.3),
+            pileX: pile.wx, // their seed: the roost, the rain and the mess all ride the pile
+            pileY: pile.wy,
             seedAng: R(0, 6.28),
             orbit: R(0, 6.28),
-            dropCd: R(0.6, 1.3),
+            dropCd: R(1.2, 2.2),
             peckDur: R(2.5, 4.5),
             roostDur: R(3.5, 5.5),
             escAng: ang,
@@ -24619,22 +24787,25 @@
               b.t = 0;
             }
           } else if (b.state === "roost") {
-            // wheel OVER the worker and rain droppings (he can walk out from under it)
-            b.orbit += dt * 1.7;
-            const rad = 1.7;
-            b.wx = p.wx + Math.cos(b.orbit) * rad;
-            b.wy = p.wy + Math.sin(b.orbit) * rad;
-            b.gz = 2.5 + Math.sin(b.orbit * 2) * 0.3;
+            // Wheel OVER THEIR SEED — the pile they were called down to. The flock fouls the
+            // food, not the man: they hang above the scatter and drop into it. A worker who
+            // has walked clear of the seed patch is out of range of every dropping.
+            b.orbit += dt * 1.5;
+            const rad = BIRD_ROOST_RAD;
+            b.wx = b.pileX + Math.cos(b.orbit) * rad;
+            b.wy = b.pileY + Math.sin(b.orbit) * BIRD_ROOST_Y_RAD;
+            b.gz = BIRD_ROOST_ALT + Math.sin(b.orbit * 2) * 0.35;
             b.g.rotation.z = b.orbit + Math.PI / 2;
             b.g.rotation.y = 0.2;
             birdFlap(b, 0.55);
             b.dropCd -= dt;
-            if (b.dropCd <= 0 && state === "play" && c.poops.length < 6) {
-              b.dropCd = R(1.0, 1.8);
-              // the dropping falls onto the worker's CURRENT spot (walk out from under
-              // it to dodge) — released from this bird's height as it wheels overhead.
-              const px = p.wx + R(-0.4, 0.4);
-              const py = p.wy + R(-0.4, 0.4);
+            if (b.dropCd <= 0 && state === "play" && c.poops.length < BIRD_POOP_MAX) {
+              b.dropCd = R(BIRD_DROP_CD_MIN, BIRD_DROP_CD_MAX);
+              // The dropping falls on the SEED PATCH (with its own scatter around the pile),
+              // released from this bird's height as it wheels overhead. It is NOT aimed at the
+              // worker: he is only splashed if he is the one standing in the patch.
+              const px = b.pileX + R(-BIRD_POOP_SCATTER, BIRD_POOP_SCATTER);
+              const py = b.pileY + R(-BIRD_POOP_SCATTER * 0.7, BIRD_POOP_SCATTER * 0.7);
               const pg = makeBirdPoopMesh();
               pg.position.set(px, py, GZ + b.gz - 0.15);
               dynamicGroup.add(pg);
@@ -24672,7 +24843,7 @@
             c.birds.splice(i, 1);
           }
         }
-        // 4) droppings fall and (maybe) connect with the worker
+        // 4) droppings fall; they only connect if the worker is standing in the splash
         for (let i = c.poops.length - 1; i >= 0; i--) {
           const q = c.poops[i];
           q.vz -= G * dt;
@@ -24681,7 +24852,7 @@
           if (state === "play" && q.hitCd <= 0 && q.z < 1.9 && q.z > 0.2) {
             const dpx = q.wx - p.wx,
               dpy = q.wy - p.wy;
-            if (dpx * dpx + dpy * dpy <= 0.9 * 0.9) {
+            if (dpx * dpx + dpy * dpy <= BIRD_POOP_HIT_R * BIRD_POOP_HIT_R) {
               q.hitCd = 99;
               hurtNPC(HP_HIT_BIRDPOOP, "birdSeed", true); // no generic yelp — custom line
               Voice.say(
@@ -24700,8 +24871,12 @@
             }
           }
           if (q.z <= 0 && q.vz < 0) {
+            // It lands ON THE SEED PATCH and lies there as a mess (inert — no trap, no
+            // follow). The litter stays a visible warning until the seed itself ages out.
             q.landT += dt;
-            if (q.landT > 0.5) {
+            q.z = 0;
+            q.g.position.set(q.wx, q.wy, GZ);
+            if (q.landT > BIRD_MESS_T) {
               dynamicGroup.remove(q.g);
               c.poops.splice(i, 1);
               continue;
@@ -30825,19 +31000,20 @@
       // read behind isNightShift() / routeDir(), so the seven weekdays (and OVERTIME)
       // never touch them and their own ROUTE_START_X / PLAYER_START_X / ROUTE_FINISH_X
       // rules stay exactly as shipped.
-      const NIGHT_TOP_X = 470; // the cul-de-sac wall at the TOP of the screen (dead end)
-      const NIGHT_START_X = 449; // the worker clocks in at the top of the street, facing down
+      const NIGHT_TOP_BLOCK_X = 288; // the block at the top of the dead end (288..344) = LEVEL_BLOCKS[4].x
+      const NIGHT_TOP_X = 350; // the cul-de-sac wall at the TOP of the screen: NIGHT_TOP_BLOCK_X + BLOCK_W + 6
+      const NIGHT_START_X = 329; // the worker clocks in at the top of the street, facing down: NIGHT_TOP_X - NIGHT_TRAIL_X
       // ...exactly at the uphill limit his own clamp gives him (NIGHT_TOP_X - NIGHT_TRAIL_X), so
       // the shift opens with the rig parked 10.5u upslope of him and a clear 6.2u lane to the
       // scoop — no first-frame snap, no truck on top of him at clock-in.
-      const NIGHT_END_X = 30; // the graveyard's back wall: he can't walk past the dead
+      const NIGHT_END_X = 21; // the graveyard's back wall: he can't walk past the dead (BLOCK_W * 0.375 — the same 37.5% of the graves block it sat at on the 80u street)
       // THE BOTTOM BORDER OF THE STREET (Midnight): the bottom cemetery fence stands where
       // the asphalt ENDS and the graveyard grass begins — NIGHT_END_X + 8, exactly the edge
       // of the yard slab buildNightCemetery lays, and the same line as the sealed graves gate
       // (NIGHT_GRAVE_X - 8). It is a border, not a decoration: the worker, the horde, the
       // lamps, the hydrants and the curb all stop at it, and everything below it is the
       // cemetery — grass, graves and the beast's yard, not a street.
-      const NIGHT_FENCE_X = 38; // = NIGHT_END_X + 8: the edge of the yard slab, the worker's floor
+      const NIGHT_FENCE_X = 29; // = NIGHT_END_X + 8: the edge of the yard slab, the worker's floor
       // RESPECT FOR THE IRON (Midnight): the fence line is the border of the street and his
       // body does NOT stand on it. The bottom fence is a bars-and-finial wall with a 0.3u
       // concrete footing, and a body parked exactly on the line clipped the bars. So the
@@ -30845,12 +31021,12 @@
       // NIGHT_FENCE_X + NIGHT_FENCE_STANDOFF, awake and asleep alike, and every knock-back
       // clamp stops on the same hard floor.
       const NIGHT_FENCE_STANDOFF = 1.6;
-      const NIGHT_BOSS_TRIGGER_X = 112; // step into this cross-street and the beast wakes
-      const NIGHT_BOSS_X = 74; // ...and this is where it rises out of the yard
+      const NIGHT_BOSS_TRIGGER_X = 88; // step into this cross-street and the beast wakes (LEVEL_BLOCKS[1].x + 2 * BW — 16u above the seal line, exactly as shipped)
+      const NIGHT_BOSS_X = 50; // ...and this is where it rises out of the yard (NIGHT_SEAL_X - 6, as shipped)
       // ==================== THE BOSS RING (Midnight): the rig stops at the iron ==========
       // The rig BACKS DOWN the dead-end street after the worker, and it stops at the line
       // where the cemetery's fence row BEGINS — the near edge of the graves block
-      // (NIGHT_GRAVE_BLOCK_X + BLOCK_W = 96). From that frame the rig never crosses the line:
+      // (NIGHT_GRAVE_BLOCK_X + BLOCK_W — the graves block's near edge, BLOCK_W wide).
       // its 4u collision nose stands fully UP-street of it and its open scoop rests 4.9u up
       // the street, parked for the rest of the night. The moment the worker walks BELOW that
       // line the cemetery closes behind him: a GHOSTLY WROUGHT-IRON FENCE — the very same
@@ -30866,7 +31042,7 @@
       // he crosses its face, so he is never inside it and never past it.
       // Banish the beast and the ghost iron tears panel by
       // panel and lifts off the road, the street opens back up, and he walks up to the scoop.
-      const NIGHT_SEAL_X = 80; // the seal line: where the first cemetery fence begins (the graves block's near edge = NIGHT_GRAVE_BLOCK_X + BLOCK_W)
+      const NIGHT_SEAL_X = 56; // the seal line: where the first cemetery fence begins (NIGHT_GRAVE_BLOCK_X + BLOCK_W — the graves block's near edge)
       const NIGHT_SEAL_MESH_DOWN = 1.55; // u the ghost fence's light reaches DOWN the road from its line
       const NIGHT_SEAL_MESH_UP = 1.05; // ...and u it reaches UP the road (makeGhostIronFence's own mesh)
       const NIGHT_SEAL_STOP = 0.6; // a body-width of respect off the ghost iron (his sealed ceiling)
@@ -30904,17 +31080,18 @@
       // TO PLAYTEST (Midnight clocks in AT THE FINAL BOSS, every ward ledger stamped clear):
       // change the ONE line below from `false` to `true`. Nothing else needs touching.
       const NIGHT_TEST_BOSS_START = false; // false = the shipped law
-      const NIGHT_GRAVE_X = 46; // the gargoyle lands on the graveyard grass when the beast dies
-      const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..96) IS the cemetery tonight
+      // THE GRAVES BLOCK'S OWN ANCHORS are derived off the block width (BLOCK_W): the seal
+      // line is declared above, beside the boss ring it is the ceiling of.
+      const NIGHT_GRAVE_X = 37; // the gargoyle lands on the graveyard grass when the beast dies (NIGHT_FENCE_X + 8: the graves gate NIGHT_GRAVE_X - 8 stays ON the fence line, exactly as shipped)
+      const NIGHT_GRAVE_BLOCK_X = 0; // the FIRST block (x 0..BLOCK_W) IS the cemetery tonight
       // THE DEAD-END STREET LAYOUT (Midnight only): a cul-de-sac has no cross streets, so
       // tonight the route carries NO intersections and NO corner stores — except the pair
       // at the very TOP of the level, the intersection the worker clocks in beside and the
       // corner store on the block behind it. Its LAST block (the one he walks INTO at the
       // bottom) holds no buildings at all: it is St Basuras Cemetery.
-      const NIGHT_XS = [464]; // the single cross-street tonight: the top of the street
-      const NIGHT_GAP_XS = [80, 176, 272, 368, 560]; // the old intersections, now plain street
-      const NIGHT_TOP_BLOCK_X = 384; // the block at the top of the dead end (384..464)
-      const NIGHT_TOP_BLOCK_IDX = LEVEL_BLOCKS.findIndex((bl) => bl.x === NIGHT_TOP_BLOCK_X);
+      const NIGHT_TOP_BLOCK_IDX = 4; // the block at the top of the dead end (LEVEL_BLOCKS.length - 2)
+      const NIGHT_XS = [344]; // the single cross-street tonight: the top of the street (LEVEL_XS[4])
+      const NIGHT_GAP_XS = [56, 128, 200, 272, 416]; // the old intersections, now plain street (every LEVEL_XS but the top)
       const NIGHT_CEMETERY_BLOCK_IDX = 0; // the LAST block on the route = block 0 = the graves
       const NIGHT_CEMETERY_NAME = "St Basuras Cemetery"; // the brass plaque on the iron fence
       // THE PLAQUE's SPOT ON THE FENCE (Midnight): measured back (downhill) from the beast's
@@ -32049,10 +32226,10 @@
       const NIGHT_PACK_SLACK = 8;       // u a block spook may work outside its own block
       // THE FOUR BLOCK BEATS OF TONIGHT'S STREET (the pack x keys; the top block is the
       // corner store he clocks in beside, the low block is the graveyard = the flood).
-      const NIGHT_BEAT_TOP_X = 384;
-      const NIGHT_BEAT_VERMIN_X = 288;
-      const NIGHT_BEAT_DIGGER_X = 192;
-      const NIGHT_BEAT_GRAVE_X = 96;
+      const NIGHT_BEAT_TOP_X = 288; // the top block of tonight's street (LEVEL_BLOCKS[4].x)
+      const NIGHT_BEAT_VERMIN_X = 216; // LEVEL_BLOCKS[3].x
+      const NIGHT_BEAT_DIGGER_X = 144; // LEVEL_BLOCKS[2].x
+      const NIGHT_BEAT_GRAVE_X = 72; // LEVEL_BLOCKS[1].x
       const NIGHT_BLOCKS = [
         {
           x: NIGHT_BEAT_TOP_X, // the top block — the corner store and the one cross-street he clocks in beside
@@ -33954,8 +34131,12 @@
         if (isNightShift()) {
           c.wx = horrorRespawnX(c);
         } else {
-          const lo = c.flood ? c.flood.x0 : ROUTE_START_X;
-          const hi = c.flood ? c.flood.x1 : Math.max(ROUTE_START_X + 10, ROUTE_END_X - 4);
+          // The lane helpers keep the PINNED overtime street its length; the typeof guards let
+          // the partial harnesses (which inject only ROUTE_* anchors) run this code unchanged.
+          const laneA = typeof laneStartX === "function" ? laneStartX() : ROUTE_START_X;
+          const laneB = typeof laneEndX === "function" ? laneEndX() : ROUTE_END_X;
+          const lo = c.flood ? c.flood.x0 : laneA;
+          const hi = c.flood ? c.flood.x1 : Math.max(laneA + 10, laneB - 4);
           c.wx = clamp(
             p.wx + R(c.flood ? 12 : 28, c.flood ? 40 : 52),
             lo,
@@ -33989,10 +34170,11 @@
         }
         if (c.escaped) {
           // it has already been beaten once: it just runs, and doesn't come back
-          c.wx = Math.min(ROUTE_END_X + 90, c.wx + c.chaseSp * 1.6 * dt);
+          const laneEnd = typeof laneEndX === "function" ? laneEndX() : ROUTE_END_X;
+          c.wx = Math.min(laneEnd + 90, c.wx + c.chaseSp * 1.6 * dt);
           if (c.g) {
             c.g.rotation.z = 0;
-            if (c.wx > ROUTE_END_X + 26) c.g.visible = false;
+            if (c.wx > (typeof laneEndX === "function" ? laneEndX() : ROUTE_END_X) + 26) c.g.visible = false;
           }
         } else if (!c.bolted) {
           // still gnawing at the truck. It only takes off once the shift moves.
@@ -34044,7 +34226,9 @@
           }
           bp.maw.rotation.y = Math.sin(c.phase * 2.2) * 0.1;
         }
-        c.wx = clamp(c.wx, ROUTE_START_X - 4, ROUTE_END_X + 90);
+        const lnA = typeof laneStartX === "function" ? laneStartX() : ROUTE_START_X;
+        const lnB = typeof laneEndX === "function" ? laneEndX() : ROUTE_END_X;
+        c.wx = clamp(c.wx, lnA - 4, lnB + 90);
       }
 
       // TEARING THE TREASURE FREE. The beast drops it, runs for good, and the Ruby-Plated
@@ -38635,7 +38819,7 @@
             if (isQueensBlock && houseIdx === 0) {
               const nBoxes = Math.random() < 0.5 ? 1 : 2;
               for (let bx = 0; bx < nBoxes; bx++) {
-                makeCurbBox(b.blockX + R(2.0, 78.0), R(0.5, spawnMaxY()), house);
+                makeCurbBox(b.blockX + R(2.0, BLOCK_W - 2.0), R(0.5, spawnMaxY()), house);
               }
             }
           }
@@ -38839,7 +39023,8 @@
           }
         }
         // USPS blue collection boxes — one on EVERY 5TH STREET CORNER, counting
-        // from the FIRST CORNER of Block 2 (world x=96): boxes at x=96, 368, 576.
+        // from the FIRST CORNER of Block 2 (the first active block's west edge): boxes land
+        // on the 5-corner ladder of the BLOCK_STEP grid.
         // Each sits 2.4u in from its corner, 1.0u off the curb, flat back facing
         // the street. Every box gets its own fresh random graffiti + sticker.
         const mb = mailboxAt(
@@ -38998,8 +39183,10 @@
           const pool = shuffleStoreNames(OVERTIME_STORE_NAMES);
           let si = 0;
           for (let blkIdx = 0; blkIdx < BONUS_BLOCKS; blkIdx++) {
-            const bl = LEVEL_BLOCKS[blkIdx];
-            for (let i = 0; i < HOUSES_PER_BLOCK; i++) {
+            // The PINNED overtime grid — this street keeps the 10-cell (80u) block on the 96u
+            // step. The week's shorter 7-building block must never reach in and shrink it.
+            const bl = { x: BONUS_BLOCK_XS[blkIdx] };
+            for (let i = 0; i < BONUS_CELLS; i++) {
               const g = new THREE.Group();
               const worldX = bl.x + i * BW;
               const b = {
@@ -39081,11 +39268,12 @@
               coats[j] = t;
             }
             for (let i = 0; i < 4; i++) {
-              const bl = LEVEL_BLOCKS[catBlocks[i]];
+              const blX = BONUS_BLOCK_XS[catBlocks[i]]; // the pinned overtime block row
               const bc = addCreature("cat", { palette: coats[i] });
-              bc.wx = bl.x + 3.0; // in front of the block's first store door
+              bc.wx = blX + 3.0; // in front of the block's first store door
               bc.wy = 4.5; // on the sidewalk in front of the storefront
               bc.yMax = 4.5; // chase clamp ceiling (its home line)
+              setBlockBounds(bc, blX, 1.0); // the overtime row is its block frontage — a bolted cat sits on the walk, not in the gap (inset 1.0 keeps the corner-door mat inside its bounds)
               bc.g.position.set(bc.wx, bc.wy, GZ);
             }
           }
@@ -39472,6 +39660,8 @@
             tk.dir = ti % 2 ? -1 : 1; // mixed directions — they cross each other all the time
             tk.minX = tMinX;
             tk.maxX = tMaxX;
+            tk.blockMinX = tMinX; // the residency law's handle: the pitch is their block frontage
+            tk.blockMaxX = tMaxX;
             tk.kidCd = 0; // per-kid cooldown for the worker's bump exchange
             tk.ballCd = 0;
             tk.g.rotation.z = tk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
@@ -39635,8 +39825,10 @@
         // "Endangering a protected species." (see the "gator" case in updateCreatures.) =====
         if (isHarlemLevel()) {
           const gatorBlocks = LEVEL_BLOCKS.filter(
-            (b) => b.garbage === true && b.x >= 96 && b.x <= 384,
-          ); // the four active garbage blocks (Blocks 2-5)
+            (b) => b.garbage === true, // the ACTIVE garbage blocks of THIS week's route — derived
+            // from the layout flags, never from the old 96u-pitch x range (96..384), which fell a
+            // whole block short on the 72u step and hid the gator from the first block worked.
+          );
           if (gatorBlocks.length) {
             const gb = gatorBlocks[(Math.random() * gatorBlocks.length) | 0];
             const gator = addCreature("gator");
@@ -39715,14 +39907,14 @@
               // a sidewalk tree or a cast-iron fence post (the doghouse is hidden; there are no lawns).
               // The anchor object is spawned here so the chain visibly ties to it, and the
               // off-screen recycling in updateCreatures moves it along with the dog.
-              // SIDEBWALK-ONLY: use only active gameplay blocks (2-7) with proper sidewalk margin.
-              // Sidewalk is centered in each block: x ∈ [blockX + 10, blockX + 70] (10u setback from corners).
+              // SIDEBWALK-ONLY: use only active gameplay blocks (the serviced stretch).
+              // Sidewalk is centered in each block: x ∈ [blockX + BLOCK_EDGE_IN, blockX + BLOCK_W - BLOCK_EDGE_IN].
               const activeBlocks = LEVEL_BLOCKS.filter(
-                (b) => b.garbage === true && b.x >= 96 && b.x <= 576,
+                (b) => b.garbage === true,
               );
               const b = activeBlocks[(Math.random() * activeBlocks.length) | 0];
               ld.anchorX = clamp(
-                b.x + 10.0 + R(0, 60.0),
+                b.x + 10.0 + R(0, BLOCK_W - 20.0),
                 b.x + 10.0,
                 b.x + BLOCK_W - 10.0,
               );
@@ -39978,16 +40170,21 @@
             }
           }
         }
-        // Maspeth Polish women: ONE per active block — sidewalk (y 1.4..4.2) or front
-        // lawn (y 5..7), x kept in the safe 10..70 window so she never lands on the
-        // corner-store frontage. They replace the hookers (Queens spawns none).
+        // Maspeth Polish women: ONE per block that carries HOUSES — the living frontage of
+        // Maspeth. She never stands on the cemetery block (St Basuras owns that ground: no
+        // house, no stoop, no curb) and never out in the open intersection: her x is drawn
+        // inside the block's house span, inset from both corners by BLOCK_EDGE_IN, and her y
+        // is the sidewalk/lawn band, never the asphalt. They replace the hookers (Queens
+        // spawns none).
         if (isQueensLevel()) {
-          const polishBlocks = LEVEL_BLOCKS.filter(
-            (b) =>
-              b.garbage === true &&
-              b.x >= 96 &&
-              b.x <= 576, // the cemetery block counts too — the living ladies walk there
-          );
+          const CEMETERY_BLOCK_X = LEVEL_BLOCKS[QUEENS_CEMETERY_BLOCK].x;
+          const polishBlocks = ACTIVE_BLOCKS.filter((b) => b.x !== CEMETERY_BLOCK_X);
+          // A lady's patch: the house frontage of her block, inset from both block corners —
+          // past either edge is the intersection, and the street itself is below y 1.4.
+          const polishFrontage = (bl) => ({
+            minX: bl.x + BLOCK_EDGE_IN,
+            maxX: bl.x + BLOCK_W - BLOCK_EDGE_IN,
+          });
           // Every lady gets a UNIQUE dress color: shuffle the palette into the
           // queue; addCreature's "polish" case consumes one per block.
           polishDressQueue = polishDressQueue.concat(
@@ -39997,8 +40194,10 @@
           for (const bl of polishBlocks) {
             const pw = addCreature("polish");
             const onLawn = Math.random() < 0.5;
-            pw.wx = bl.x + 10 + R(0, 60);
-            pw.wy = onLawn ? R(5.0, 7.0) : R(1.4, 4.2);
+            const front = polishFrontage(bl);
+            pw.wx = front.minX + R(0, front.maxX - front.minX); // always on her block's houses
+            pw.wy = onLawn ? R(5.0, 7.0) : R(1.4, 4.2); // lawn or sidewalk — never the street
+            pw.blockX = bl.x; // the block she is pinned to (she never recycles)
             pw.g.position.set(pw.wx, pw.wy, GZ);
             pw.g.rotation.z = -Math.PI / 2; // facing the street, like the hooker
             polishLadies.push({ pw: pw, bl: bl });
@@ -40026,7 +40225,7 @@
                 }
               }
             }
-            const tx = pw.wx + R(-1.0, 1.0);
+            const tx = clamp(pw.wx + R(-1.0, 1.0), pw.blockX + BLOCK_EDGE_IN, pw.blockX + BLOCK_W - BLOCK_EDGE_IN);
             const ty = clamp(pw.wy - R(1.0, 1.8), 0.7, 4.8);
             if (best) {
               best.wx = tx;
@@ -40044,11 +40243,15 @@
           // worker punches back (the boy walks away) or the temper cools.
           for (const pl of polishLadies) {
             const pb = addCreature("polishboy");
-            pb.wx = pl.pw.wx + R(-6, 6); // on the same block as his sister
-            pb.wy = R(1.8, 3.6);
+            pb.wx = clamp(
+              pl.pw.wx + R(-6, 6), // near his sister, inside HER block's houses
+              pl.bl.x + BLOCK_EDGE_IN,
+              pl.bl.x + BLOCK_W - BLOCK_EDGE_IN,
+            );
+            pb.wy = R(1.8, 3.6); // the sidewalk — he stays out of the street as well
             pb.loiter = {
-              minX: pl.bl.x + 10,
-              maxX: pl.bl.x + 70,
+              minX: pl.bl.x + BLOCK_EDGE_IN,
+              maxX: pl.bl.x + BLOCK_W - BLOCK_EDGE_IN,
               dir: Math.random() < 0.5 ? -1 : 1,
             };
             pb.aggro = false;
@@ -40064,8 +40267,14 @@
           );
           const sb = skunkBlocks[(Math.random() * skunkBlocks.length) | 0];
           const mom = addCreature("skunk", { mom: true });
-          mom.wx = sb.x + 10 + R(0, 60);
+          // THE SHORT-BLOCK LAW, SKUNK EDITION: the old band was "10 + R(0, 60)" — 10u of setback
+          // and a 60u reach, authored for the 80u block. On the 56u block it planted the whole
+          // family up to 14u PAST the last house, i.e. in the cross-street. The band is now the
+          // block's own sidewalk frontage (BLOCK_W-derived, the same BLOCK_EDGE_IN setback every
+          // sidewalk anchor keeps), and the trio gets hard bounds on that block.
+          mom.wx = sb.x + BLOCK_EDGE_IN + R(0, BLOCK_W - 2 * BLOCK_EDGE_IN);
           mom.wy = R(4.2, 5.0); // on the front yard, along the sidewalk
+          setBlockBounds(mom, sb.x); // she trots her block, she does not trot the intersections
           mom.t = 0;
           mom.tx = mom.wx + (Math.random() < 0.5 ? -1 : 1) * 5;
           mom.ty = mom.wy;
@@ -40078,6 +40287,8 @@
             bb.offY = off * 0.5; // a little to one side of mom
             bb.wx = mom.wx - 1.5;
             bb.wy = mom.wy + off * 0.5;
+            bb.blockMinX = mom.blockMinX; // her babies inherit HER block (never a gap)
+            bb.blockMaxX = mom.blockMaxX;
             bb.g.position.set(bb.wx, bb.wy, GZ);
           });
           // The nosy homeowners: ONE PER ACTIVE BLOCK — each block's homeowner
@@ -40099,10 +40310,10 @@
                 // he still asks his exact same dumb trash questions, from the other side
                 ghost: bx === QUEENS_CEMETERY_X,
               });
-              ho.wx = bx + R(20, 60); // in the middle of their own block
+              ho.wx = bx + R(MID_BLOCK_LO, MID_BLOCK_HI); // in the middle of their own block
               ho.wy = R(1.6, 3.8);
               ho.blockMinX = bx + 4; // hard bounds: stays on this block
-              ho.blockMaxX = bx + 76;
+              ho.blockMaxX = bx + BLOCK_W - 4;
               ho.g.position.set(ho.wx, ho.wy, GZ);
             }
             // ===== The Maspeth cemetery (5th block): its own residents =====
@@ -40158,15 +40369,15 @@
             const k = addCreature("karen", {
               outfit: karenOutfitQueue[i % karenOutfitQueue.length],
             });
-            k.wx = bx + R(20, 60); // in the middle of her own block
+            k.wx = bx + R(MID_BLOCK_LO, MID_BLOCK_HI); // in the middle of her own block
             k.wy = R(1.6, 3.8);
             k.blockMinX = bx + 4; // hard bounds: stays on this block
-            k.blockMaxX = bx + 76;
+            k.blockMaxX = bx + BLOCK_W - 4;
             k.g.position.set(k.wx, k.wy, GZ);
           }
         }
         // The Staten Island HOUSEWIVES (New Dorp, day 5): ONE PER EVEN-NUMBERED
-        // BLOCK (blocks 2, 4, 6 — x 96, 288, 480). Each STAYS ON HER BLOCK
+        // BLOCK (one every other block, spread down the serviced stretch). Each STAYS ON HER BLOCK
         // (never crosses the street), wears a UNIQUE dress color, and shadows the
         // worker around 3-4 houses with OVERLY FRIENDLY (slightly too forward)
         // chatter: how you're doing, what a great job, how big and strong, do you
@@ -40185,10 +40396,10 @@
             const hw = addCreature("housewife", {
               outfit: housewifeOutfitQueue[i % housewifeOutfitQueue.length],
             });
-            hw.wx = bx + R(20, 60); // in the middle of her own block
+            hw.wx = bx + R(MID_BLOCK_LO, MID_BLOCK_HI); // in the middle of her own block
             hw.wy = R(1.6, 3.8);
             hw.blockMinX = bx + 4; // hard bounds: stays on this block
-            hw.blockMaxX = bx + 76;
+            hw.blockMaxX = bx + BLOCK_W - 4;
             hw.g.position.set(hw.wx, hw.wy, GZ);
           }
         }
@@ -40293,6 +40504,8 @@
               sk.dir = si % 2 ? -1 : 1; // mixed directions — they cross each other all the time
               sk.minX = sMinX;
               sk.maxX = sMaxX;
+              sk.blockMinX = sMinX; // the residency law's handle: the chalk field IS their block
+              sk.blockMaxX = sMaxX; // frontage, so a chased ball never drags a kid into the gap
               sk.kidCd = 0; // per-kid cooldowns for the worker's bump/ball exchanges
               sk.ballCd = 0;
               sk.g.rotation.z = sk.dir >= 0 ? 0 : Math.PI; // face the direction of travel
@@ -40464,6 +40677,11 @@
             bb.wy = bbY;
             bb.homeX = bbX;
             bb.homeY = bbY;
+            // HIS COURT HAS HARD WALLS (the block residency law): the spawn records the bounds of
+            // the block he was put on, derived from BLOCK_W, so bolting from a punchback can never
+            // leave him standing in a cross-street, and the court — the hoop, his dribble and the
+            // carried ball — stays on the frontage with him.
+            setBlockBounds(bb, bbBlock.x);
             bb.hoopX = bbX; // the rim's world X
             bb.hoopY = 6.15; // the rim's world Y (board mounted on the building face at ~6.6, the rim sticks out toward the street)
             bb.hoopZ = 4.0; // rim height above ground (world rim z = GZ + 4.0) — low & visible
@@ -40499,24 +40717,30 @@
             }
           }
         }
-        // Bronx drug dealers: one burly dealer on EVERY active block (all five,
-        // indices 1..5, x 96..480) — each guarding a weed/fentanyl stash on a
-        // different stoop. They stand on the bottom stoop step, watch the
-        // street, and punch the worker if he comes close.
+        // Bronx drug dealers: one burly dealer on EVERY active block — each
+        // guarding a weed/fentanyl stash on a different stoop. They stand on the
+        // bottom stoop step, watch the street, and punch the worker if he comes close.
         if (isBronxLevel()) {
           // One dealer per ACTIVE block (derived from ACTIVE_BLOCKS, so the count
           // follows the route length and never lands on a buffer block).
           for (const bl of ACTIVE_BLOCKS) {
-            // Residential houses are index 1..8 (0 and 9 are storefronts);
-            // every one of them has a Bronx row-house stoop.
-            const houseI = 1 + ((Math.random() * 8) | 0);
-            const houseX = bl.x + houseI * 8 + 4.0; // BW=8, house centers at +4
+            // Only the cells BETWEEN the two corner storefronts carry a Bronx row-house
+            // stoop: index 1..HOUSES_PER_BLOCK-2 (index 0 and the last cell of every
+            // block are the corner stores, and the ground past the last cell is the
+            // open intersection). Drawing from that closed span is what guarantees the
+            // dealer is always set up ON A STOOP and never on a bare corner.
+            const STOOP_CELL_LO = 1;
+            const STOOP_CELL_HI = HOUSES_PER_BLOCK - 2;
+            const houseI = STOOP_CELL_LO + ((Math.random() * (STOOP_CELL_HI - STOOP_CELL_LO + 1)) | 0);
+            const houseX = bl.x + houseI * BW + BW / 2; // house center of his cell
             const stoopX = houseX + 1.6; // stoop center (w*0.2 = 1.6)
             const side = Math.random() < 0.5 ? 1 : -1; // left/right of the stoop
             const dl = addCreature("dealer");
             dl.wx = stoopX + side * 0.45;
             dl.wy = 5.6; // bottom step spans y 5.45..5.75 (HOUSE_Y 9.5)
             dl.baseZ = 0.47; // bottom step top = 0.3 + 1*0.17
+            dl.houseI = houseI; // the stoop cell he is pinned to (his block, cell, stoop)
+            dl.blockX = bl.x;
             dl.head = dl.g.userData.head;
             dl.punchArm = dl.g.userData.punchArm;
             dl.g.position.set(dl.wx, dl.wy, dl.baseZ);
@@ -40531,7 +40755,7 @@
             const lureX = clamp(dl.wx + R(-1.0, 1.0), bl.x + 1, bl.x + BLOCK_W - 1);
             const lureY = 4.4; // dy 1.2 + dx <= 1.0 -> at most ~1.56u from the dealer
             const hb = blocks.find(
-              (b) => b.worldX === bl.x + houseI * 8 && b.house,
+              (b) => b.worldX === bl.x + houseI * BW && b.house,
             );
             if (Math.random() < 0.5 && hb) {
               // Garbage: a curb bag, or a can (only when the cell's can slot is
@@ -40548,8 +40772,9 @@
         // corner store on two DIFFERENT active blocks (two never share a
         // block). Thin, hungry and smelly — they shuffle around the storefront
         // begging passersby, especially the sanitation worker, for money, a
-        // drink, or drugs. The stores are the end houses of each block (index
-        // 0 and 9), so they never end up on a dealer's stoop (houses 1..8).
+        // drink, or drugs. The stores are the two END cells of each block (index
+        // 0 and HOUSES_PER_BLOCK-1), so they never end up on a dealer's stoop
+        // (the residential cells 1..HOUSES_PER_BLOCK-2).
         if (isBronxLevel()) {
           const phBlockIdx = ACTIVE_BLOCKS.map((_, i) => i); // two random ACTIVE blocks
           for (let phS = phBlockIdx.length - 1; phS > 0; phS--) {
@@ -40560,11 +40785,17 @@
           }
           for (let phI = 0; phI < 2; phI++) {
             const bl = ACTIVE_BLOCKS[phBlockIdx[phI]];
-            const storeI = Math.random() < 0.5 ? 0 : 9; // the block's store
-            const storeX = bl.x + storeI * 8 + 4.0; // BW=8, house centers at +4
+            const storeI = Math.random() < 0.5 ? 0 : HOUSES_PER_BLOCK - 1; // the block's store
+            const storeX = bl.x + storeI * BW + BW / 2; // storefront center of its cell
             const ph = addCreature("panhandler");
             ph.homeX = storeX + (storeI === 0 ? 1 : -1) * R(0.5, 1.5);
             ph.homeY = R(3.6, 4.6); // on the sidewalk, in front of the storefront
+            // HIS CORNER IS HIS BLOCK: the Mott Haven stores are the block's two END cells, so
+            // on the 7-house (56u) block a 6.5u wander radius reaches clean over the corner and
+            // into the cross-street. Hard bounds (BLOCK_W-derived) keep the shuffling on the
+            // frontage, and his home is pulled inside them at once.
+            setBlockBounds(ph, bl.x);
+            ph.homeX = clamp(ph.homeX, ph.blockMinX, ph.blockMaxX);
             ph.wanderR = R(4.5, 6.5); // never leaves his corner
             ph.wx = ph.homeX;
             ph.wy = ph.homeY;
@@ -40583,7 +40814,7 @@
           const fbIdx = ACTIVE_BLOCK_IDX[(Math.random() * ACTIVE_BLOCK_IDX.length) | 0]; // one random ACTIVE block
           const fbBlock = LEVEL_BLOCKS[fbIdx];
           const fb = addCreature("football");
-          fb.homeX = fbBlock.x + R(20, 60); // mid-block frontage, never in a cross-street
+          fb.homeX = fbBlock.x + R(MID_BLOCK_LO, MID_BLOCK_HI); // mid-block frontage, never in a cross-street
           fb.homeY = R(1.8, 3.4); // on the sidewalk, in the worker's lane
           fb.blockMinX = fbBlock.x + 6.0;
           fb.blockMaxX = fbBlock.x + BLOCK_W - 6.0;
@@ -40606,7 +40837,7 @@
           }
           const rpBlock = LEVEL_BLOCKS[rpIdx];
           const rp = addCreature("rapper");
-          rp.homeX = rpBlock.x + R(20, 60); // mid-block frontage
+          rp.homeX = rpBlock.x + R(MID_BLOCK_LO, MID_BLOCK_HI); // mid-block frontage
           rp.homeY = R(1.8, 3.4); // on the sidewalk, in the worker's lane
           rp.blockMinX = rpBlock.x + 6.0;
           rp.blockMaxX = rpBlock.x + BLOCK_W - 6.0;
@@ -40757,9 +40988,12 @@
             if ((isBronxLevel() || isFlatbushArea) && Math.random() < 0.5) {
               if (isBronxLevel()) {
                 // Bronx: perch ON the first store's entrance mat, right at the door.
-                // The first house's door is at local x -2.6 (world bl.x - 2.6) and the
-                // mat spans y 6.55..6.95, so the cat sits dead-center on the mat.
-                bc.wx = bl.x - 2.6;
+                // A Mott Haven storefront is CENTERED in its corner cell (hg.position.x 4.0),
+                // and its door mat is 2.6u left of that center — so the mat stands at
+                // bl.x + 1.4. The old bl.x - 2.6 dropped the cat 3.4u LEFT of the block corner,
+                // dead in the cross-street: the store's cell begins at bl.x, so the corner
+                // sidewalk in front of the door has to be measured from the cell's CENTER.
+                bc.wx = bl.x + BW / 2 - 2.6;
                 bc.wy = 6.7;
               } else {
                 // Flatbush: perch ON the left corner store's mat. The store is
@@ -40774,6 +41008,8 @@
               bc.wy = 4.5; // on the sidewalk in front of the storefront
             }
             bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling (mat cats: their mat's wy)
+            setBlockBounds(bc, bl.x, 1.0); // a cat owns its store's FRONTAGE: its charge and its
+            // 2.3s bolt end on the block's own sidewalk, the inset keeps the corner-door mat inside
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
@@ -40782,7 +41018,7 @@
         // Maspeth can evolve on its own. Exactly 4 per level, each on the sidewalk
         // (wy 4.5) in front of its block's corner store. The store sits at the corner
         // frozen for the session (QUEENS_STORE_CORNERS), so the cat faces the store
-        // door at bl.x + 0.65 (left corner) or bl.x + 79.35 (right corner).
+        // door at bl.x + 0.65 (left corner) or bl.x + BLOCK_W - 0.65 (right corner).
         // Coats: Queens swaps the plain grey for the three-patch "calico" (a
         // Queens-only coat, like the Bronx's "mott").
         if (isQueensLevel()) {
@@ -40807,9 +41043,14 @@
             const bc = addCreature("cat", { palette: coats[i] });
             bc.wx =
               bl.x +
-              (QUEENS_STORE_CORNERS[catBlocks[i]] ? 0.65 : 79.35); // in front of the block's corner store door
+              // THE SHORT-BLOCK LAW, QUEENS EDITION: the old number was the 80u block's right
+              // corner (bl.x + 79.35 = the block's end MINUS 0.65). On the 56u Maspeth block the
+              // right-hand store's door mat stands at BLOCK_W - 0.65, and 79.35 lands 23u PAST the
+              // block — in the middle of the next intersection.
+              (QUEENS_STORE_CORNERS[catBlocks[i]] ? 0.65 : BLOCK_W - 0.65); // in front of the block's corner store door
             bc.wy = 4.5; // on the sidewalk in front of the storefront
             bc.yMax = Math.max(4.5, bc.wy); // chase clamp ceiling
+            setBlockBounds(bc, bl.x, 1.0); // the cat owns its corner store's frontage, never the gap
             bc.g.position.set(bc.wx, bc.wy, GZ);
             // Face along the street like raccoon/dog (no sideways rotation)
           }
@@ -43587,7 +43828,15 @@
         if (state !== "play" && !allowCinematic) return;
         if (p.invuln > 0 || p.immuneT > 0 || p.god)
           return; // i-frames / Monster immunity / TRAINER Infinite Health absorb the hit
-        health = Math.max(0, health - (amount || 0));
+        // THE SHORT-BLOCK DAMAGE OFFSET: the week's street runs a quarter less route than the
+        // 10-house layout it shipped with, so every hit lands DAMAGE_SCALE harder — the same
+        // danger per shift, in a shorter shift. The PINNED OVERTIME street never got shorter,
+        // so the bonus round takes its hits exactly as tuned.
+        const dmgScale =
+          typeof DAMAGE_SCALE === "number" && !(typeof BONUS !== "undefined" && BONUS)
+            ? DAMAGE_SCALE
+            : 1; // 1.333x on the week; a partial harness with no globals takes the raw amount
+        health = Math.max(0, health - (amount || 0) * dmgScale);
         lastHitCause = cause || "route"; // log the offense: the WRITTEN UP! stamp cites it when he comes to
         const f = $("flash");
         if (f) {
@@ -44230,6 +44479,17 @@
         setTimeout(function () {
           if (el.parentNode) el.parentNode.removeChild(el);
         }, 5200); // hold long enough that the stamped offense under the seal can actually be READ
+      }
+      // FADE ON THE FIRST STEP: fired from updatePlayer the moment the recovered worker
+      // starts moving. The stamp has said its piece — cut the 5s slam short with the
+      // quick writeUpFadeOut fade (its own removal timer cleans the element up). The
+      // :not(.fading) pick makes this a one-shot: every moving frame after that finds
+      // no unfaded stamp and does nothing. No-op when no stamp is up — the 3rd-strike
+      // suspension and the end-of-route inspection never fade (no walking, no fade).
+      function fadeWriteUpStamp() {
+        if (typeof document === "undefined") return; // not in the browser (test harness)
+        const el = document.querySelector(".pop-writeup:not(.fading)");
+        if (el) el.classList.add("fading");
       }
       // Big animated "Power Up!" / "Run It Up!" callout — reuses the .popup base CSS class
       // (the same mechanism showPopup uses for MONGO!/STREET CASH!) with dedicated
@@ -46593,14 +46853,18 @@
                     "escooter",
                   );
                 else if (c.type === "yeller")
+                  // THE WORKER says it, not the addict: "Damn fentanyl addicts!" is HIS
+                  // reaction to the bump. It rides HIS light-green worker bubble
+                  // (speaker "worker", .bub-worker) over HIS head — the addict never
+                  // yells about himself in his own bubble color.
                   Voice.say(
                     "Damn fentanyl addicts!",
                     4,
                     0.9,
-                    c.wx,
-                    c.wy,
-                    c.gender,
-                    "yeller",
+                    p.wx,
+                    p.wy,
+                    WORKER_GENDER,
+                    "worker",
                   );
                 else if (c.type === "breaker")
                   Voice.say(
@@ -47023,6 +47287,9 @@
         if (f !== 0 || l !== 0) {
           // OVERTIME BASKETS: the 30-second clock starts the moment the worker moves.
           if (BONUS && !bonusClockStarted) bonusClockStarted = true;
+          // FADE ON THE FIRST STEP: a WRITTEN UP! stamp still on screen says its
+          // goodbye the instant he starts walking the route again (see fadeWriteUpStamp).
+          if (typeof fadeWriteUpStamp === "function") fadeWriteUpStamp();
           const target = Math.atan2(l, f);
           let diff = target - p.facing;
           while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -47055,7 +47322,11 @@
         // a stripe, because a dead-end street has none: it ends at the BOSS in the graveyard.
         const RT = routeDir();
         if (RT > 0) {
-          if (p.wx < ROUTE_START_X) p.wx = ROUTE_START_X;
+          // The laneStartX / laneEndX helpers keep the PINNED OVERTIME street its own length:
+          // on the bonus round they answer the 80u barrier and the 384u wall, never the week's
+          // new 72u step. Every weekday answers the week's grid, exactly as shipped.
+          const startLine = typeof laneStartX === "function" ? laneStartX() : ROUTE_START_X;
+          if (p.wx < startLine) p.wx = startLine;
         } else {
           const wall = workerEndLimitX();
           if (p.wx < wall) {
@@ -49054,6 +49325,10 @@
         fy /= fl;
         const FLEE = 9; // panicked sprint (a touch faster than the worker's ~8.5)
         c.wx += fx * FLEE * dt;
+        // THE BLOCK-RESIDENCY LAW: a panicked walker is shoved out of the cross-street he is
+        // sprinting into — he bolts to the nearest block frontage and keeps running there, so
+        // the Bed-Stuy firefight never empties an intersection full of screaming pedestrians.
+        if (typeof blockSafeX === "function") c.wx = blockSafeX(c.wx);
         c.wy = clamp(c.wy + fy * FLEE * dt, 0.8, 4.4); // stay on the sidewalk band
         c.crossfireHeat = 1; // fully panicked while in the fire
         if (c.dir !== undefined) c.dir = fx >= 0 ? 1 : -1; // face the flight
@@ -49167,11 +49442,29 @@
           if (c.scareT > 0) {
             c.scareT -= dt;
             c.wx += (c.wx >= p.wx ? 1 : -1) * 7 * dt; // ~7 u/s away from the worker
+            // HE DOES NOT GET TO FLEE INTO A CROSS-STREET. A block-owned runner stops at his own
+            // block's bounds (BLOCK_W-derived, so a 7-house block has 7-house bounds): a flat 5s
+            // panic sprint ends on the far sidewalk of HIS frontage, not in the middle of the
+            // intersection behind the last building. Creatures with no authored block (birds,
+            // vermin, traffic) keep their whole-street freedom, untouched.
+            if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx);
             c.wy = clamp(c.wy, 0.8, 4.4); // stay on the walkable band
             if (c.g) {
               c.g.position.x = c.wx;
               c.g.position.y = c.wy;
               c.g.rotation.z = c.wx >= p.wx ? 0 : Math.PI; // face the direction of travel
+            }
+            // HE TAKES HIS THINGS WITH HIM. The Harlem street-baller bolts with the
+            // basketball clamped under his arm — the ball is never left bouncing on an
+            // empty court (the "carried" state is what his own AI resumes from).
+            if (c.type === "bball" && c.ballG && c.ballW) {
+              c.ballState = "carried";
+              c.ballW.x = c.wx + (c.wx >= p.wx ? 0.5 : -0.5);
+              c.ballW.y = c.wy - 0.26; // tucked against his side, in the stride
+              c.ballW.z = 1.62; // clamped at the hip, off the ground
+              c.ballG.position.set(c.ballW.x, c.ballW.y, GZ + c.ballW.z);
+              c.ballG.rotation.z += dt * 9; // it spins in his grip, it does not roll free
+              c.ballG.rotation.x = 0;
             }
             animParts(c, 7 * dt * 2.2); // legs pump at flee speed
             continue; // skip the type AI + position sync for this frame
@@ -49573,6 +49866,7 @@
                 c.scaredT = (c.scaredT || 0) - dt;
                 const sdx = c.wx >= p.wx ? 1 : -1;
                 c.wx += sdx * 2 * dt; // a slow, dignified walk away
+                if (L) c.wx = clamp(c.wx, L.minX, L.maxX); // HIS SISTER'S BLOCK IS HIS LEASH
                 c.wy = clamp(c.wy + (3.2 - c.wy) * Math.min(1, dt), 1.2, 4.4); // back to the sidewalk
                 if (c.g) c.g.rotation.z = sdx >= 0 ? 0 : Math.PI;
                 animParts(c, 2 * dt * 2.2);
@@ -49612,6 +49906,7 @@
                   c.backoffT -= dt;
                   const bdx = c.wx >= p.wx ? 1 : -1;
                   c.wx += bdx * 1.6 * dt;
+                  if (L) c.wx = clamp(c.wx, L.minX, L.maxX); // the regroup stays on his sister's block
                   c.wy = clamp(c.wy + (3.2 - c.wy) * Math.min(1, dt * 1.5), 1.2, 4.4);
                   if (c.g) c.g.rotation.z = bdx >= 0 ? 0 : Math.PI;
                   animParts(c, 1.6 * dt * 2.2);
@@ -50256,6 +50551,19 @@
               const wDist = Math.hypot(p.wx - c.wx, p.wy - c.wy);
               const HAND_Z = 2.2; // hand height (above ground): release & catch
               const hostile = state === "play" && wDist < 7.5 && c.throwCd <= 0;
+              // CARRIED: he ran off with this ball under his arm (the punchback scare-off
+              // parks him in this state so the ball leaves the court with him). It rides his
+              // stride, and the moment he stops running he is dribbling it again.
+              if (c.ballState === "carried") {
+                c.ballW.x = c.wx + 0.5;
+                c.ballW.y = c.wy - 0.26;
+                c.ballW.z = 1.62;
+                if (c.scareT <= 0) {
+                  c.ballState = "dribble";
+                  c.ballT = 0;
+                  c.dribbleDur = R(1.2, 2.2);
+                }
+              }
               if (c.ballState === "dribble") {
                 // bounce the ball at his hand (a real dribble: up to his hand and back)
                 c.ballW.x = c.wx;
@@ -51219,6 +51527,7 @@
                 // Cat charges at the worker to scare him - slower for better animation visibility
                 const catSpd = c.sp + 1.5;
                 c.wx += c.dir * catSpd * dt;
+                if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx); // a corner cat charges its own frontage — 2.5s of hissing sprint never carries it into the cross-street
                 c.wy = clamp(c.wy + (p.wy - c.wy) * dt * 3, 0.5, c.yMax); // never past the cat's home line (4.5 street / 6.7 mat)
                 animCat(c, dt * 40);
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
@@ -51246,6 +51555,7 @@
                 // Cat runs away down the street
                 c.dir = tx > 0 ? 1 : -1;
                 c.wx += c.dir * (c.sp + 1.0) * dt; // Slower for better animation visibility
+                if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx); // and it bolts along ITS block: the cat ends the panic on the walk in front of its store, not parked in an intersection for the rest of the shift
                 animCat(c, dt * 35);
                 c.g.rotation.z = c.dir >= 0 ? 0 : Math.PI;
                 c.stateT += dt;
@@ -51322,6 +51632,7 @@
                 const away = c.wx >= p.wx ? 1 : -1;
                 c.wx += away * 7 * dt;
                 c.wy = clamp(c.wy + (Math.random() - 0.5) * 6 * dt, 0.8, creatureMaxY());
+                if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx); // a bolted skunk disappears behind the last house of HIS block — not into the cross-street
                 c.g.rotation.z =
                   away >= 0 ? R(-0.2, 0.2) : Math.PI + R(-0.2, 0.2);
                 animSkunk(c, dt * 7 * 5.5);
@@ -51348,6 +51659,7 @@
                   c.t = R(1, 3);
                   c.tx = R(p.wx - 30, p.wx + 40);
                   c.ty = R(4.2, 5.0); // the front yard along the sidewalk
+                  if (typeof blockClampX === "function") c.tx = blockClampX(c, c.tx); // her next trot target lives on her block
                 }
                 const dx = c.tx - c.wx,
                   dy = c.ty - c.wy;
@@ -54144,8 +54456,12 @@
             case "cartHomeless": {
               // HARLEM (day 6): the BIRD-SEED HOMELESS MAN. Block-clamped shadow of the
               // worker (never crosses the cross-street), pushing his cart and flinging
-              // bird seed that calls in a pigeon flock which rains droppings on him
-              // (minor damage; write-up "Failure to maintain a clean uniform"). Non-solid.
+              // bird seed that calls in a pigeon flock. THE FAIR FLOCK: the birds eat the
+              // seed, wheel over the seed and foul the seed — the droppings rain on the
+              // patch where the pouch burst, never aimed at the worker, so walking out of
+              // the seed patch is the dodge. Only a man standing in the splash gets
+              // splashed (minor damage; write-up "Failure to maintain a clean uniform").
+              // Non-solid.
               c.g.position.z = GZ;
               const chdx = p.wx - c.wx,
                 chdy = p.wy - c.wy;
@@ -54613,7 +54929,10 @@
                   c.mark = null;
                   const a = R(0, 6.28),
                     r = R(0.5, c.wanderR || 5);
-                  c.tgtX = c.homeX + Math.cos(a) * r;
+                  // HIS CORNER IS HIS BLOCK: the wander target is authored around a corner
+                  // storefront that sits at the block's very END cell, so a full-radius reach
+                  // (6.5u) lands in the cross-street. The target is snapped onto his frontage.
+                  c.tgtX = typeof blockClampX === "function" ? blockClampX(c, c.homeX + Math.cos(a) * r) : c.homeX + Math.cos(a) * r;
                   c.tgtY = clamp(c.homeY + Math.sin(a) * r, 1.0, 4.7);
                   c.decideCd = R(2.0, 5.0);
                 }
@@ -54640,6 +54959,7 @@
               if (!reached && pd > 0.001) {
                 const sp = c.sp || 0.7;
                 c.wx += (pdx / pd) * sp * dt;
+                if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx); // he begs on HIS corner — he never drifts into the cross-street after his mark
                 c.wy = clamp(c.wy + (pdy / pd) * sp * dt, 1.0, 4.7);
                 c.g.rotation.z = Math.atan2(pdy, pdx);
                 animParts(c, sp * dt * 2.6, 0.55);
@@ -54789,17 +55109,20 @@
                   // spawnWorld's queensDogSpot).
                   // OFF-SCREEN GUARANTEE: the window starts 50u ahead (the camera only
                   // sees ~15u forward) and the safe-window re-clamp pushes FORWARD only
-                  // (into the next block's 10..70 window). It must never pull the dog
+                  // (into the next block's safe sidewalk window). It must never pull the dog
                   // back toward the player — that backward pull is what made dogs
                   // materialize mid-block on screen. c.dogSlot spreads the 4 dogs
                   // across the route instead of stacking them in the same 10u window.
                   let targetX = p.wx + 50 + (c.dogSlot || 0) * 10 + R(0, 10);
-                  let blockIdx = Math.floor(targetX / 96);
-                  let posInCycle = targetX % 96;
-                  if (posInCycle < 10 || posInCycle > 70) {
-                    targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
+                  let blockIdx = Math.floor(targetX / BLOCK_STEP);
+                  let posInCycle = targetX % BLOCK_STEP;
+                  if (posInCycle < BLOCK_EDGE_IN || posInCycle > BLOCK_W - BLOCK_EDGE_IN) {
+                    targetX =
+                      (blockIdx + 1) * BLOCK_STEP +
+                      BLOCK_EDGE_IN +
+                      R(0, BLOCK_W - 2 * BLOCK_EDGE_IN);
                   }
-                  const qbx = Math.floor(targetX / 96) * 96;
+                  const qbx = Math.floor(targetX / BLOCK_STEP) * BLOCK_STEP;
                   // Never let two dogs share a house frontage: re-roll the spot while
                   // another dog's post is within one cell (16u) of this one.
                   let spotTries = 0;
@@ -54905,17 +55228,20 @@
                     // ahead (camera sees ~15u forward) and the re-clamp pushes FORWARD
                     // only, so the dog never materializes inside the camera frustum.
                     let targetX = p.wx + 50 + R(0, 10);
-                    let blockIdx = Math.floor(targetX / 96);
-                    let posInCycle = targetX % 96;
-                    if (posInCycle < 10 || posInCycle > 70) {
-                      targetX = (blockIdx + 1) * 96 + 10 + R(0, 60);
+                    let blockIdx = Math.floor(targetX / BLOCK_STEP);
+                    let posInCycle = targetX % BLOCK_STEP;
+                    if (posInCycle < BLOCK_EDGE_IN || posInCycle > BLOCK_W - BLOCK_EDGE_IN) {
+                      targetX =
+                        (blockIdx + 1) * BLOCK_STEP +
+                        BLOCK_EDGE_IN +
+                        R(0, BLOCK_W - 2 * BLOCK_EDGE_IN);
                     }
                     c.anchorX = targetX;
                     c.anchorY = R(0.85, 1.05);
                     // Update sidewalk bounds for the new block so the dog isn't clamped to its old block
-                    let newBlockIdx = Math.floor(targetX / 96);
-                    c.blockMinX = newBlockIdx * 96 + 6.0;
-                    c.blockMaxX = newBlockIdx * 96 + BLOCK_W - 6.0;
+                    let newBlockIdx = Math.floor(targetX / BLOCK_STEP);
+                    c.blockMinX = newBlockIdx * BLOCK_STEP + 6.0;
+                    c.blockMaxX = newBlockIdx * BLOCK_STEP + BLOCK_W - 6.0;
                     c.homeX = c.anchorX + R(-0.4, 0.8);
                     c.homeY = clamp(
                       c.anchorY + R(0.6, 1.4),
@@ -55156,6 +55482,14 @@
           // alive. Nothing is snapped away from the block anymore; the only thing that
           // keeps the worker out of the graveyard itself is the iron fence (the cemFence
           // clamp in updatePlayer). Road traffic, ghosts and rats were always free here.
+          // ===== THE BLOCK-RESIDENCY LAW, LAST WORD =====
+          // Every move above (its own AI, a scare-off sprint, a traffic shove, a separation push,
+          // a knockback) funnels through here: a creature that OWNS a block frontage (its spawn
+          // authored blockMinX/blockMaxX, all of them BLOCK_W-derived) ends the frame standing on
+          // that frontage, never in the 16u cross-street gap behind the last building. Creatures
+          // with no authored block — the traffic, the birds, the vermin, the route-walking
+          // pedestrians — are handed straight back their x untouched.
+          if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx);
           c.g.position.x = c.wx;
           c.g.position.y = c.wy;
           if (

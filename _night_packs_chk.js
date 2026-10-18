@@ -69,7 +69,7 @@ const SPH = (r, m, a, b) => { const o = mkObj('sph'); o.r = r; o.material = m; r
 const R = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pick = (a) => a[(Math.random() * a.length) | 0];
-const GZ = 0.3, BLOCK_W = 80, IW = 16;
+const GZ = 0.3, BLOCK_W = 56, IW = 16;
 function makeOf(name) {
   // run a REAL builder out of the game against the mock THREE
   const fn = new Function('THREE', 'M', 'MS', 'BX', 'CY', 'SP', 'SPH', 'R', 'clamp', 'pick', 'GZ', 'opts',
@@ -292,8 +292,8 @@ const blockOfFn = new Function('NIGHT_BLOCKS',
   srcFn('nightBlockOf') + '\nreturn nightBlockOf;')(NIGHT_BLOCKS);
 const bandOfX = (x) => ({ x0: x, x1: x + BLOCK_W });
 check('the block beats are laid out up the dead-end street (' + ACTIVE_XS.slice().sort((a, b) => b - a).join(' / ') + ')',
-  ACTIVE_XS.length >= 4 && NIGHT_BEAT_TOP_X === 384 && NIGHT_BEAT_VERMIN_X === 288 &&
-  NIGHT_BEAT_DIGGER_X === 192 && NIGHT_BEAT_GRAVE_X === 96);
+  ACTIVE_XS.length >= 4 && NIGHT_BEAT_TOP_X === 216 && NIGHT_BEAT_VERMIN_X === 216 &&
+  NIGHT_BEAT_DIGGER_X === 144 && NIGHT_BEAT_GRAVE_X === 72);
 check('EVERY active block has a pack of its own, and every pack is a full horde',
   ACTIVE_XS.every((x) => famFn(bandOfX(x)).length >= 4),
   ACTIVE_XS.map((x) => x + '=' + famFn(bandOfX(x)).length).join(' '));
@@ -317,32 +317,32 @@ check('each family resolves to exactly ONE home block (nightBlockOf answers for 
 check('the four beats run FOUR DIFFERENT hordes (nobody shares a set, nobody shares a family)',
   new Set(blockFams.map((f) => f.join(','))).size === blockFams.length);
 check('THE FOG GANG keeps the spirits and nothing else',
-  ['specter', 'wraith', 'poltergeist', 'banshee'].every((f) => famFn(bandOfX(384)).indexOf(f) >= 0) &&
-  !['ghoul', 'fangspider', 'grubsquat', 'pitfiend'].some((f) => famFn(bandOfX(384)).indexOf(f) >= 0));
+  ['specter', 'wraith', 'poltergeist', 'banshee'].every((f) => famFn(bandOfX(216)).indexOf(f) >= 0) &&
+  !['ghoul', 'fangspider', 'grubsquat', 'pitfiend'].some((f) => famFn(bandOfX(216)).indexOf(f) >= 0));
 check('THE VERMIN keeps the crawling things (the squat, the gremlins, the spiders, the rat king)',
-  ['grubsquat', 'gremlin', 'fangspider', 'ratking'].every((f) => famFn(bandOfX(288)).indexOf(f) >= 0) &&
-  !['ghoul', 'specter', 'reaper', 'pitfiend'].some((f) => famFn(bandOfX(288)).indexOf(f) >= 0));
+  ['grubsquat', 'gremlin', 'fangspider', 'ratking'].every((f) => famFn(bandOfX(216)).indexOf(f) >= 0) &&
+  !['ghoul', 'specter', 'reaper', 'pitfiend'].some((f) => famFn(bandOfX(216)).indexOf(f) >= 0));
 check('THE DIGGERS keep the ghouls, the red-eyed dead, the hounds and the lanternfangs',
-  ['ghoul', 'skeleton', 'goblin', 'hound', 'lanternfang'].every((f) => famFn(bandOfX(192)).indexOf(f) >= 0) &&
-  !['fangspider', 'ratking', 'goulra', 'specter'].some((f) => famFn(bandOfX(192)).indexOf(f) >= 0));
+  ['ghoul', 'skeleton', 'goblin', 'hound', 'lanternfang'].every((f) => famFn(bandOfX(144)).indexOf(f) >= 0) &&
+  !['fangspider', 'ratking', 'goulra', 'specter'].some((f) => famFn(bandOfX(144)).indexOf(f) >= 0));
 check('THE GRAVE WATCH (the flood block) keeps the heavy end, incl. the nine-eyed goulra',
-  ['pitfiend', 'demon', 'devil', 'eyecrawler', 'goulra', 'lich', 'reaper'].every((f) => famFn(bandOfX(96)).indexOf(f) >= 0));
+  ['pitfiend', 'demon', 'devil', 'eyecrawler', 'goulra', 'lich', 'reaper'].every((f) => famFn(bandOfX(72)).indexOf(f) >= 0));
 check('the flood block runs its OWN table (heavier than its plain block table) and the street stays capped; THE GRAVE WATCH BILL WAS CUT to 20 — at or below the opening blocks, because the last fight is the beast',
   (() => {
-    const floodTotal = famFn(bandOfX(96)).reduce((s, f) => s + blockQuota(f, { x0: 96, x1: 176, flood: true }), 0);
-    const others = ACTIVE_XS.filter((x) => x !== 96).map((x) =>
+    const floodTotal = famFn(bandOfX(72)).reduce((s, f) => s + blockQuota(f, { x0: 72, x1: 128, flood: true }), 0);
+    const others = ACTIVE_XS.filter((x) => x !== 72).map((x) =>
       famFn(bandOfX(x)).reduce((s, f) => s + blockQuota(f, bandOfX(x)), 0));
-    const e = NIGHT_BLOCKS.filter((x) => x.x === 96)[0];
+    const e = NIGHT_BLOCKS.filter((x) => x.x === 72)[0];
     const packTotal = Object.keys(e.pack).reduce((s, k) => s + e.pack[k], 0);
     return floodTotal === 20 && floodTotal > packTotal &&
       floodTotal <= Math.max.apply(null, others) && others.every((n) => n >= 18);
   })(),
-  'flood=' + famFn(bandOfX(96)).reduce((s, f) => s + blockQuota(f, { x0: 96, x1: 176, flood: true }), 0) +
-  ' others=' + ACTIVE_XS.filter((x) => x !== 96).map((x) =>
+  'flood=' + famFn(bandOfX(72)).reduce((s, f) => s + blockQuota(f, { x0: 72, x1: 128, flood: true }), 0) +
+  ' others=' + ACTIVE_XS.filter((x) => x !== 72).map((x) =>
     famFn(bandOfX(x)).reduce((s, f) => s + blockQuota(f, bandOfX(x)), 0)).join('/'));
 check('the flood table is at least the block table on every family it lists',
   (() => {
-    const e = NIGHT_BLOCKS.filter((x) => x.x === 96)[0];
+    const e = NIGHT_BLOCKS.filter((x) => x.x === 72)[0];
     return !!e.flood && Object.keys(e.flood).every((k) => e.flood[k] >= e.pack[k]);
   })());
 check('a family the block does not list has ZERO quota there (the exclusivity is arithmetic)',
@@ -350,16 +350,16 @@ check('a family the block does not list has ZERO quota there (the exclusivity is
     famFn(bandOfX(x)).indexOf(f) >= 0 || blockQuota(f, bandOfX(x)) === 0)));
 check('the whole street stays INSIDE the roster cap at base quota',
   ACTIVE_XS.reduce((s, x) => s + famFn(bandOfX(x)).reduce((q, f) =>
-    q + blockQuota(f, x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x)), 0), 0) <= HORROR_ROSTER_CAP,
+    q + blockQuota(f, x === 72 ? { x0: 72, x1: 128, flood: true } : bandOfX(x)), 0), 0) <= HORROR_ROSTER_CAP,
   'base=' + ACTIVE_XS.reduce((s, x) => s + famFn(bandOfX(x)).reduce((q, f) =>
-    q + blockQuota(f, x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x)), 0), 0) + ' cap=' + HORROR_ROSTER_CAP);
+    q + blockQuota(f, x === 72 ? { x0: 72, x1: 128, flood: true } : bandOfX(x)), 0), 0) + ' cap=' + HORROR_ROSTER_CAP);
 check('THE SPAWN GATE IS ARMED: nightBlockOwns answers the band and the FAMILY key (a cosmetic variant never vetoes the animal)',
   /nightBlockOwns\(type, band\)/.test(srcFn('nightSpawnHorror')) &&
     !/nightBlockOwns\(variant/.test(srcFn('nightSpawnHorror')));
 check('THE GATE REFUSES A FOREIGN FAMILY: a ghoul asked for on the vermin block is refused',
-  ownsFn('ghoul', bandOfX(288)) === false && ownsFn('gremlin', bandOfX(288)) === true &&
-  ownsFn('ghoul', bandOfX(192)) === true && ownsFn('banshee', bandOfX(384)) === true &&
-  ownsFn('grubsquat', bandOfX(192)) === false && ownsFn('goulra', bandOfX(288)) === false);
+  ownsFn('ghoul', bandOfX(216)) === false && ownsFn('gremlin', bandOfX(216)) === true &&
+  ownsFn('ghoul', bandOfX(144)) === true && ownsFn('banshee', bandOfX(216)) === true &&
+  ownsFn('grubsquat', bandOfX(144)) === false && ownsFn('goulra', bandOfX(216)) === false);
 check('every spook records its HOME band at birth (the block it works)',
   /c\.home = \{ x0: band\.x0, x1: band\.x1, i: band\.i \}/.test(srcFn('nightSpawnHorror')));
 check('a block spook re-enters the fog OUT OF ITS OWN BLOCK (no import from a neighbour)',
@@ -383,7 +383,7 @@ check('the surge hits HIS block with the block\u2019s own heavies (no shipped sh
   /fams\.concat\(heavy, heavy\)/.test(srcFn('nightBlockOrder')));
 check('the fill order of a band is ITS OWN families, heaviest first',
   (() => {
-    const band = bandOfX(192);
+    const band = bandOfX(144);
     const o = orderFn(band, false);
     const q = o.map((f) => blockQuota(f, band));
     return o.length === famFn(band).length && q.every((v, i) => i === 0 || v <= q[i - 1]) &&
@@ -391,7 +391,7 @@ check('the fill order of a band is ITS OWN families, heaviest first',
   })());
 check('every surge entry is a family of the band it is filling (a surge never imports)',
   ACTIVE_XS.every((x) => {
-    const band = x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x);
+    const band = x === 72 ? { x0: 72, x1: 128, flood: true } : bandOfX(x);
     return orderFn(band, true).every((f) => ownsFn(f, band) === true);
   }));
 check('a band with no entry of its own still lands on a pack (no block can ever be quiet)',
@@ -401,7 +401,7 @@ check('a band with no entry of its own still lands on a pack (no block can ever 
   const byBand = {};
   const live = { n: 0 };
   for (const x of ACTIVE_XS) {
-    const band = x === 96 ? { x0: 96, x1: 176, flood: true } : bandOfX(x);
+    const band = x === 72 ? { x0: 72, x1: 128, flood: true } : bandOfX(x);
     for (const f of orderFn(band, false)) {
       const want = blockQuota(f, band);
       for (let i = 0; i < want; i++) {
@@ -425,16 +425,16 @@ check('a band with no entry of its own still lands on a pack (no block can ever 
       return setOf.every((s) => s.size >= 4);
     })(),
     ACTIVE_XS.map((x) => (byBand[x] || []).length + ':' + new Set(byBand[x] || []).size).join(' '));
-  check('THE GRAVE WATCH carries a real seeded horde (' + (byBand[96] || []).length + ' animals standing) — every family of its pack on the ground — AND IT IS NOW THE LIGHTEST BLOCK ON THE STREET: no block seeds fewer than it, and its bill is the cut 20, not the old 30-animal farm',
-    (byBand[96] || []).length === 20 &&
-      new Set(byBand[96]).size >= 4 &&
-      ACTIVE_XS.filter((x) => x !== 96).every((x) => (byBand[96] || []).length <= (byBand[x] || []).length));
+  check('THE GRAVE WATCH carries a real seeded horde (' + (byBand[72] || []).length + ' animals standing) — every family of its pack on the ground — AND IT IS NOW THE LIGHTEST BLOCK ON THE STREET: no block seeds fewer than it, and its bill is the cut 20, not the old 30-animal farm',
+    (byBand[72] || []).length === 20 &&
+      new Set(byBand[72]).size >= 4 &&
+      ACTIVE_XS.filter((x) => x !== 72).every((x) => (byBand[72] || []).length <= (byBand[x] || []).length));
   check('the wave tier raises a block\u2019s OWN families and never hands it a stranger',
     (() => {
       nightGhoulTier = 4;
-      const band = bandOfX(192);
+      const band = bandOfX(144);
       const before = famFn(band).slice().join(',');
-      const pack = NIGHT_BLOCKS.filter((e) => e.x === 192)[0].pack;
+      const pack = NIGHT_BLOCKS.filter((e) => e.x === 144)[0].pack;
       const raised = famFn(band).every((f) => blockQuota(f, band) >= pack[f]);
       nightGhoulTier = 0;
       return raised && famFn(band).slice().join(',') === before;
@@ -442,11 +442,11 @@ check('a band with no entry of its own still lands on a pack (no block can ever 
   check('the ghoul ceiling still binds its own block',
     (() => {
       nightGhoulTier = 6;
-      const v = blockQuota('ghoul', bandOfX(192));
+      const v = blockQuota('ghoul', bandOfX(144));
       nightGhoulTier = 0;
       return v <= HORROR_QUOTA_CEIL.ghoul;
     })(),
-    (() => { nightGhoulTier = 6; const v = blockQuota('ghoul', bandOfX(192)); nightGhoulTier = 0; return 'tier6=' + v; })());
+    (() => { nightGhoulTier = 6; const v = blockQuota('ghoul', bandOfX(144)); nightGhoulTier = 0; return 'tier6=' + v; })());
   check('A CLEARED BLOCK IS A BLOCK THAT OPENS: the ward gate is a per-block test — its own live animals, the pack it SENT out, and the pack the shovel PAID for',
     /if \(nightGateLive\(band\) > 0\) continue;/.test(srcFn('nightGateCheck')) &&
       /if \(led\.sent < nightGateLoad\(band\)\) continue;/.test(srcFn('nightGateCheck')) &&
@@ -481,8 +481,8 @@ check('the block exclusivity is Midnight-only (the gate never arms on a weekday)
   /isNightShift\(\) &&/.test(srcFn('nightSpawnHorror')) &&
   /!nightBlockOwns\(type, band\)/.test(srcFn('nightSpawnHorror')));
 check('the dead-end layout knobs are all still in force (one cross-street, cemetery last, fence wall)',
-  /const NIGHT_XS = \[464\]/.test(html) && /const NIGHT_CEMETERY_BLOCK_IDX = 0/.test(html) &&
-  /const NIGHT_FENCE_Y = 8\.3/.test(html) && /const NIGHT_TOP_BLOCK_X = 384/.test(html));
+  /const NIGHT_XS = \[344\]/.test(html) && /const NIGHT_CEMETERY_BLOCK_IDX = 0/.test(html) &&
+  /const NIGHT_FENCE_Y = 8\.3/.test(html) && /const NIGHT_TOP_BLOCK_X = 216/.test(html));
 check('Maspeth keeps its own plaque name (Mount Mongo); the dead end says St Basuras',
   /const NIGHT_CEMETERY_NAME = "St Basuras Cemetery"/.test(html) && /Mount Mongo Cemetery/.test(html));
 const floatFn = new Function('THREE', 'M', 'BX', 'CY', 'SP', 'SPH', 'GZ', 'c', 'dt', 'hunting',

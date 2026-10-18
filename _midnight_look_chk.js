@@ -251,10 +251,10 @@ const camera = new THREE.OrthographicCamera(-8, 8, 4.5, -4.5, 1, 400);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.78);
 const dirLight = new THREE.DirectionalLight(0xfff2dd, 0.75);
 // The mock worker is planted ON the sidewalk line, UNDER a lamp: the lamps land on cells where
-// cell % 3 == 1, so block 1 has them at worldX 88 / 112 / 136, and the lamp line y is the same
-// curbClearY() line the builder uses. Standing the worker at x 112 on that line is exactly the
+// cell % 3 == 1, so block 1 has them at worldX 88 / 88 / 136, and the lamp line y is the same
+// curbClearY() line the builder uses. Standing the worker at x 88 on that line is exactly the
 // case the player sees: striping BLAZING under the light.
-const p = { wx: 112, wy: 1.34 };
+const p = { wx: 88, wy: 1.34 };
 const wparts = {
   stripeMat: new THREE.MeshLambertMaterial({ color: 0xf5f7f2 }),
   hiVisMat: new THREE.MeshLambertMaterial({ color: 0xd8f010 }),

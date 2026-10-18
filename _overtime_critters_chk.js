@@ -68,8 +68,8 @@ check(
   ),
 );
 check(
-  "overtime bodega cats sit in front of a store door (wx = bl.x + 3.0)",
-  /bc\.wx = bl\.x \+ 3\.0;/.test(branch),
+  "overtime bodega cats sit in front of a store door on the PINNED overtime grid (wx = blX + 3.0, blX = BONUS_BLOCK_XS[block])",
+  /bc\.wx = blX \+ 3\.0;/.test(branch) && /const blX = BONUS_BLOCK_XS\[catBlocks\[i\]\];/.test(branch),
 );
 check(
   "overtime bodega cats sit on the sidewalk (wy 4.5, home line = yMax)",

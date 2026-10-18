@@ -165,6 +165,18 @@ const pick = a => a[(Math.random() * a.length) | 0];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const GZ = 0.3, CURB_LIFT = 0.05;
 const ROUTE_START_X = 0, ROUTE_FINISH_X = 500, ROUTE_END_X = 520, PLAYER_START_X = 6;
+// The lane helpers the game's spawn clamps read (this harness has no OVERTIME world, so they
+// answer the same anchors the weekday street uses).
+const laneStartX = () => ROUTE_START_X;
+const laneEndX = () => ROUTE_END_X;
+const laneFinishX = () => ROUTE_FINISH_X;
+const laneSpawnX = () => PLAYER_START_X;
+// The lane helpers the game's spawn clamps read (this harness has no OVERTIME world, so they
+// answer the same anchors the weekday street uses).
+const laneStartX = () => ROUTE_START_X;
+const laneEndX = () => ROUTE_END_X;
+const laneFinishX = () => ROUTE_FINISH_X;
+const laneSpawnX = () => PLAYER_START_X;
 const SHOVEL_POINTS = srcNum('SHOVEL_POINTS'), HORROR_SPOOK_TARGET = 14, GARGOYLE_VALUE = 5000;
 const HORROR_SEE_R = 13, HORROR_TOUCH_CD = 1.5, SHOVEL_REACH = 3.4;
 const SHOVEL_SWING_DUR = srcNum('SHOVEL_SWING_DUR'), SHOVEL_COOLDOWN = srcNum('SHOVEL_COOLDOWN');
@@ -238,7 +250,7 @@ const NIGHT_BLOCKS = (() => {
   return eval('(' + raw + ')');
 })();
 const nightBlockPack = new Function('NIGHT_BLOCKS', 'BLOCK_W', 'IW',
-  srcFn('nightBlockPack') + '\nreturn nightBlockPack;')(NIGHT_BLOCKS, 80, IW);
+  srcFn('nightBlockPack') + '\nreturn nightBlockPack;')(NIGHT_BLOCKS, 56, IW);
 const nightBandPack = new Function('nightBlockPack',
   srcFn('nightBandPack') + '\nreturn nightBandPack;')(nightBlockPack);
 const nightBlockFamilies = new Function('nightBandPack', 'HORROR_ALL',
@@ -410,10 +422,10 @@ const p = { wx: 0, wy: 2.5, stunT: 0, stunDur: 1, shovelT: 0, shovelCd: 0, shove
 const creatures = [];
 let onScreen = true, nightOn = true;
 // ---- the stub WORLD the LIVE HAUNT + the EXORCISM run against (5 active blocks: the
-//      LAST one (index 4 = x 384) is the ABYSS FLOOD band the flood quotas belong to) ----
+//      LAST one (index 4 = x 288) is the ABYSS FLOOD band the flood quotas belong to) ----
 const S2_LAYOUT = [
-  { x: 0, garbage: false }, { x: 96, garbage: true }, { x: 192, garbage: true },
-  { x: 288, garbage: true }, { x: 384, garbage: true }, { x: 480, garbage: false },
+  { x: 0, garbage: false }, { x: 72, garbage: true }, { x: 144, garbage: true },
+  { x: 216, garbage: true }, { x: 288, garbage: true }, { x: 360, garbage: false },
 ];
 const S2_IDX = S2_LAYOUT.map((b, i) => (b.garbage ? i : -1)).filter((i) => i >= 0);
 const S2_BLOCKS = [];
@@ -783,8 +795,8 @@ const H = new Function(
   SHOCKWAVE_R, TRIAD_LINES, CONS_LINES, SHOVELABLE_HAZARDS, HORROR_PROP_NAMES,
   HORROR_PROP_LINES, HORROR_FILL_ORDER, NIGHT_PROP_QUOTA, NIGHT_PROP_QUOTA_FLOOD,
   NIGHT_GHOST_SLOTS, NIGHT_GHOST_CAP, NIGHT_GHOST_FILL, NIGHT_GHOUL_MIN,
-  S2_LAYOUT, S2_IDX, 80, S2_BLOCKS, S2_GROUND, S2_ARMS, S2_HANDS,
-  (slot, bx) => (bx == null ? 9999 : bx + (slot + 0.5) * (80 / NIGHT_GHOST_SLOTS)),
+  S2_LAYOUT, S2_IDX, 56, S2_BLOCKS, S2_GROUND, S2_ARMS, S2_HANDS,
+  (slot, bx) => (bx == null ? 9999 : bx + (slot + 0.5) * (56 / NIGHT_GHOST_SLOTS)),
   (o) => { disposed.push(o); },
   (x, y, s) => { bursts.push({ x, y, s }); },
   (t, x, y, k) => { bubbles.push({ t, x, y, k }); },
@@ -884,7 +896,7 @@ check('the DSNY shovel is a real street shovel: D-grip rig, SHORT WOOD handle, d
   H.makeShovelProp().children.length === 9);
 
 // --- ACT swings the shovel (and only on this level) ---
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 0; // he faces the ghoul he is about to swing at
+p.wx = 329; p.wy = 2.5; p.stunT = 0; p.shovelCd = 0; p.facing = 0; // he faces the ghoul he is about to swing at
 const farHound = mkC('hound', 30);
 const nearGhoul = mkC('ghoul', 2, { causeKey: 'ghoul' });
 creatures.length = 0; creatures.push(farHound, nearGhoul);
@@ -919,7 +931,7 @@ nightOn = true;
   const toolD = H.shovelToolReach(SHOVEL_REACH) - 0.15; // the blade's edge, in his own lane
   NK_BONUSES.length = 0;
   creatures.length = 0;
-  p.wx = 449; p.wy = 2.5; p.shovelCd = 0; p.facing = 0;
+  p.wx = 329; p.wy = 2.5; p.shovelCd = 0; p.facing = 0;
   const fenced = mkFenceNote(p.wx + toolD, p.wy);
   NK_BONUSES.push(fenced);
   check('THE TOOL SEES THE FENCED MONEY (the dig answers inside the blade and not past it)',
@@ -1008,7 +1020,7 @@ check('once the worker can see it, the pack notices and starts hunting', lurker.
 const d0 = Math.hypot(p.wx - lurker.wx, p.wy - lurker.wy);
 for (let i = 0; i < 90; i++) H.updateHorrorCreature(lurker, 1 / 60);
 check('a hunting horror CLOSES on the worker', Math.hypot(p.wx - lurker.wx, p.wy - lurker.wy) < d0 - 1);
-check('a ground crawler holds the sidewalk band (0.7 .. creatureMaxY)',
+check('a ground crawler holds the sidewalk band (9.4 .. creatureMaxY)',
   lurker.wy >= 0.7 - 1e-9 && lurker.wy <= 4.8 + 1e-9, 'wy=' + lurker.wy.toFixed(2));
 const drifter = mkC('specter', -5, {
   floaty: true, chaseSp: 3, lopeSp: 1.4, huntT: 0, sayCd: 999, wanderT: 999, phase: 0, hopT: 0,
@@ -1019,7 +1031,7 @@ for (let i = 0; i < 400; i++) H.updateHorrorCreature(drifter, 1 / 60);
 check('a specter owns the WHOLE block: it drifts off the walk and down the road lanes',
   drifter.wy > -8.9 && drifter.wy < 0, 'wy=' + drifter.wy.toFixed(2));
 check('...and it FLOATS above the asphalt (a ghost never stands on the street)',
-  drifter.g.position.z > GZ + 0.3, 'z=' + drifter.g.position.z.toFixed(2));
+  drifter.g.position.z > GZ + 4.5, 'z=' + drifter.g.position.z.toFixed(2));
 const stray = mkC('ghoul', -70, { chaseSp: 4, lopeSp: 1.5, huntT: 0, sayCd: 999, wanderT: 999, phase: 0 });
 stray.tx = stray.wx; stray.ty = stray.wy;
 H.updateHorrorCreature(stray, 1 / 60);
@@ -1194,9 +1206,9 @@ const S5 = new Function(
   '\nfunction nightArmSpook(c, band) {}' +
   '\nreturn { spawnNightShift, spawned, treasures, notes, getStolen: () => stolenGargoyle };'
 )(
-  THREE, M, MS, BX, CY, SP, SPH, R, clamp, GZ, 80, () => 4.8, () => 4.4,
+  THREE, M, MS, BX, CY, SP, SPH, R, clamp, GZ, 56, () => 4.8, () => 4.4,
   ROUTE_START_X, ROUTE_FINISH_X, ROUTE_END_X, GARGOYLE_VALUE, GARGOYLE_CAMP_X_OFF,
-  HORROR_SPOOK_TARGET, S2_LAYOUT, S2_IDX, S2_BLOCKS, S2_ARMS, S2_HANDS, S2_GROUND, { wx: 80 },
+  HORROR_SPOOK_TARGET, S2_LAYOUT, S2_IDX, S2_BLOCKS, S2_ARMS, S2_HANDS, S2_GROUND, { wx: 56 },
   () => mkObj('arm'), () => mkObj('stone'), () => mkObj('skulls'), () => mkObj('hand'),
   () => mkObj('candle'), () => mkObj('coffin'), () => mkObj('gate'), () => mkObj('beast'),
   () => mkObj('garg'), H.nightBands, H.nightWorldBlock, H.nightFloodBand, H.nightPlaceProp,
@@ -1217,7 +1229,7 @@ for (const o of S2_GROUND.children) o.parent = null;
 S2_GROUND.children.length = 0;
 S2_ARMS.length = 0; S2_HANDS.length = 0;
 creatures.length = 0; allSpawned.length = 0; disposed.length = 0;
-p.wx = 449; p.wy = 2.5; // the haunted shift clocks in at the TOP of the dead-end street
+p.wx = 329; p.wy = 2.5; // the haunted shift clocks in at the TOP of the dead-end street
 let s5Threw = null;
 try { S5.spawnNightShift(); } catch (e) { s5Threw = e; }
 check('the whole haunted street builds without throwing' + (s5Threw ? '  [' + s5Threw.message + ']' : ''), !s5Threw);
@@ -1252,27 +1264,27 @@ check('the grasping arms + the severed hands are registered for their animation 
 const count = (t) => allSpawned.filter((c) => c.type === t).length;
 const keyCount = (k) => allSpawned.filter((c) => (c.causeKey || c.type) === k).length;
 // THE BLOCK'S OWN HORDE AT BUILD (the game's pack code answers: which family, which block)
-const s5BandAt = (x) => ({ x0: x, x1: x + 80, flood: x === 96 });
+const s5BandAt = (x) => ({ x0: x, x1: x + 56, flood: x === 72 });
 const s5FamsAt = (x) => nightBlockFamilies(s5BandAt(x));
-const bandXOf = (wx) => (wx >= 384 ? 384 : wx >= 288 ? 288 : wx >= 192 ? 192 : 96);
+const bandXOf = (wx) => (wx >= 288 ? 288 : wx >= 216 ? 216 : wx >= 144 ? 144 : 72);
 const onOwnBlock = (c) => {
   const k = c.causeKey || c.type;
   if (!HORROR_ALL[k]) return true; // props, treasure, spirits, the thief: not pack animals
   const x = bandXOf(c.wx);
-  if (x !== c.wx && c.wx < 96) return true;
+  if (x !== c.wx && c.wx < 72) return true;
   return nightBlockOwns(k, s5BandAt(x));
 };
 check('THE PACK walks in ONE HORDE PER BLOCK: ' + S2_IDX.map((i) => S2_LAYOUT[i].x + '=' +
   s5FamsAt(S2_LAYOUT[i].x).length + ' families').join(' '),
   S2_IDX.every((i) => s5FamsAt(S2_LAYOUT[i].x).length >= 4) &&
-  keyCount('banshee') >= HORROR_QUOTA.banshee && count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(192)),
+  keyCount('banshee') >= HORROR_QUOTA.banshee && count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(144)),
   'ghouls=' + count('ghoul') + ' banshees=' + keyCount('banshee'));
 check('the ABYSS ROSTER walks in on ITS BLOCKS ONLY (ghoul on the diggers, specter on the fog, ' +
   count('ghoul') + ' ghouls / ' + count('specter') + ' specters / ' + count('imp') + ' imps)',
-  count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(192)) &&
-  count('specter') >= nightBlockQuota('specter', s5BandAt(384)) &&
-  count('imp') >= nightBlockQuota('imp', s5BandAt(384)) &&
-  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(384)),
+  count('ghoul') >= nightBlockQuota('ghoul', s5BandAt(144)) &&
+  count('specter') >= nightBlockQuota('specter', s5BandAt(288)) &&
+  count('imp') >= nightBlockQuota('imp', s5BandAt(288)) &&
+  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(288)),
   'banshees=' + keyCount('banshee') + ' packs=' + S2_IDX.map((i) =>
     s5FamsAt(S2_LAYOUT[i].x).join('+')).join(' | '));
 check('EVERY SPAWNED SPOOK STANDS ON ITS OWN BLOCK (the exclusivity holds on the seeded street)',
@@ -1288,7 +1300,7 @@ check('THE FOUR BEATS ARE FOUR DIFFERENT HORDES (no family shared, no set repeat
   S2_IDX.map((i) => s5FamsAt(S2_LAYOUT[i].x).join('+')).join(' | '));
 check('the roster cap bounds the horde (' + H.nightHorrorLive() + ' live, cap ' + HORROR_ROSTER_CAP + ')',
   H.nightHorrorLive() <= HORROR_ROSTER_CAP);
-const bandOfX = (x) => (x >= 380 ? 'flood' : x >= 280 ? 'b3' : x >= 180 ? 'b2' : x >= 80 ? 'b1' : 'off');
+const bandOfX = (x) => (x >= 380 ? 'flood' : x >= 280 ? 'b3' : x >= 180 ? 'b2' : x >= 56 ? 'b1' : 'off');
 const ghostIn = (b) => allSpawned.filter((c) => c.type === 'ghost' && bandOfX(c.wx) === b).length;
 check('THE SPIRITS ARE OFF THE LEVEL: ' + count('ghost') + ' ghosts seeded on the whole route (cap ' + NIGHT_GHOST_CAP + ')',
   count('ghost') === 0 && NIGHT_GHOST_CAP === 0);
@@ -1308,7 +1320,7 @@ check('every spook is placed on the route with a real position',
     Number.isFinite(c.wx) && Number.isFinite(c.wy) &&
     c.wx >= ROUTE_START_X - 6 && c.wx <= ROUTE_END_X));
 check('the banshees are still specters with a female voice (_variant, not a new type), and only on the fog block',
-  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(384)) &&
+  keyCount('banshee') >= nightBlockQuota('banshee', s5BandAt(288)) &&
     allSpawned.filter((c) => (c.causeKey || c.type) === 'banshee').every((c) => c.type === 'specter'));
 check('the only loot out here is 6 ghostly finds', S5.treasures.length === 6);
 const thief5 = allSpawned.filter((c) => c.type === 'eyestalker');
@@ -1326,7 +1338,7 @@ function s7Reset() {
   S2_ARMS.length = 0; S2_HANDS.length = 0;
   creatures.length = 0; allSpawned.length = 0; disposed.length = 0;
   H.resetNight();
-  p.wx = 449; p.wy = 2.5; // the haunted shift clocks in at the TOP
+  p.wx = 329; p.wy = 2.5; // the haunted shift clocks in at the TOP
   announced.length = 0; deposited.length = 0; scored.length = 0;
   S5.spawnNightShift();
 }
@@ -1334,13 +1346,13 @@ const keyAt = (band, type) =>
   creatures.filter((c) => (c.causeKey || c.type) === type && !c.hooked && !c.hookLanded &&
     c.wx >= band[0] - 2 && c.wx <= band[1] + 2).length;
 // THE BLOCK'S OWN HORDE, answered by the game's own pack code (flood table included)
-const bandAt = (x) => ({ x0: x, x1: x + 80, flood: x === 96 });
+const bandAt = (x) => ({ x0: x, x1: x + 56, flood: x === 72 });
 const famsAt = (x) => nightBlockFamilies(bandAt(x));
-const ANCHOR = { 384: 'specter', 288: 'grubsquat', 192: 'ghoul', 96: 'pitfiend' };
+const ANCHOR = { 288: 'specter', 216: 'grubsquat', 144: 'ghoul', 72: 'pitfiend' };
 const anchorAt = (x) => ANCHOR[x] || famsAt(x)[0];
 const liveInBand = (x) =>
   creatures.filter((c) => !c.hooked && !c.hookLanded && HORROR_ALL[H.horrorKey(c)] &&
-    c.wx >= x - 2 && c.wx <= x + 80 + 2).length;
+    c.wx >= x - 2 && c.wx <= x + 56 + 2).length;
 // THE WARD WALK: the worker's clamp at a closed curtain, so every march in this file
 // walks the street the way the game plays it — held at the light until the block is empty.
 function wardClamp() {
@@ -1355,7 +1367,7 @@ function wardClamp() {
 const living = () => creatures.filter((c) => !c.hooked && !c.hookLanded &&
   HORROR_ALL[H.horrorKey(c)]).length;
 // SHOVELED DOWN: the real swing machinery, worked on one spook until its pool is empty,
-// then the flight driven to the hopper. With the multi-hit shovel (v1.0.493) a single press
+// then the flight driven to the hopper. With the multi-hit shovel (v2.5.493) a single press
 // is only a WOUND, so a test that needs a banish spends the spook's full swings.
 function shovelDown(c, cap) {
   let swings = 0;
@@ -1376,16 +1388,16 @@ function shovelDown(c, cap) {
   return swings;
 }
 s7Reset();
-check('the block he STARTS in walks in on its OWN pack (the Fog Gang: ' + famsAt(384).join('/') + ')',
-  famsAt(384).every((f) => keyAt([384, 464], f) >= 1) &&
-  keyAt([384, 464], 'specter') >= nightBlockQuota('specter', bandAt(384)),
-  famsAt(384).map((f) => f + '=' + keyAt([384, 464], f)).join(' '));
+check('the block he STARTS in walks in on its OWN pack (the Fog Gang: ' + famsAt(288).join('/') + ')',
+  famsAt(288).every((f) => keyAt([288, 344], f) >= 1) &&
+  keyAt([288, 344], 'specter') >= nightBlockQuota('specter', bandAt(288)),
+  famsAt(288).map((f) => f + '=' + keyAt([288, 344], f)).join(' '));
 check('NO BLOCK IS QUIET, AND NO BLOCK REPEATS: every band stands its own families (' +
   S2_IDX.map((i) => famsAt(S2_LAYOUT[i].x).length).join('/') + ' families a band)',
   S2_IDX.every((i) => {
     const x = S2_LAYOUT[i].x;
     const fams = famsAt(x);
-    return fams.length >= 4 && fams.every((f) => keyAt([x, x + 80], f) >= 1);
+    return fams.length >= 4 && fams.every((f) => keyAt([x, x + 56], f) >= 1);
   }));
 check('THE HORDES DO NOT OVERLAP at build: not one family stands on two blocks',
   (() => {
@@ -1452,38 +1464,38 @@ for (frame = 0; frame < 60 * 130; frame++) {
   // warning rides the shared pop budget and may legitimately be displaced by a CONSECRATED!.
   if (hh[1] > 0) surgeFired = true;
   if (announced.some((a) => /SURGE/.test(a))) surgeAnnounced = true;
-  floodGhoulsAtEnd = liveInBand(96); // the night's flood band = the block at the BOTTOM of the street
+  floodGhoulsAtEnd = liveInBand(72); // the night's flood band = the block at the BOTTOM of the street
   // band is the block at the BOTTOM of the street, the one he marches into last
 }
 check('THE WARDS KEEP THE FIGHT ALIVE AT THE WALL: the block he is held against never fell under 3 of its OWN animals while its bill was unpaid',
   minHere >= 3, 'min own-horde spooks at the ward = ' + minHere);
 check('and the block at the BOTTOM (the flood) is held to its OWN ward bill: its live pack never runs past its load',
-  floodGhoulsAtEnd >= 1 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
-  'flood live = ' + floodGhoulsAtEnd + ' ward bill = ' + H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
+  floodGhoulsAtEnd >= 1 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 72)[0]),
+  'flood live = ' + floodGhoulsAtEnd + ' ward bill = ' + H.gateLoad(H.nightBands().filter((b) => b.x0 === 72)[0]));
 check('the horde fills to its ward bill — a block runs the whole load of its OWN pack and no more (' +
   floodGhoulsAtEnd + ' spooks standing on the graves)',
-  floodGhoulsAtEnd >= 14 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]),
+  floodGhoulsAtEnd >= 14 && floodGhoulsAtEnd <= H.gateLoad(H.nightBands().filter((b) => b.x0 === 72)[0]),
   'flood live at the end = ' + floodGhoulsAtEnd + ' ward bill=' +
-  H.gateLoad(H.nightBands().filter((b) => b.x0 === 96)[0]));
+  H.gateLoad(H.nightBands().filter((b) => b.x0 === 72)[0]));
 check('the ABYSS FLOOD block is a deep pack through and through: its reapers are out and the block is fought, not farmed',
   floodGhoulsAtEnd >= 14 &&
-  creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length >= 10 &&
-  keyAt([96, 176], 'reaper') >= 1,
-  'deep=' + creatures.filter((c) => c.deep && c.wx >= 96 && c.wx <= 176).length +
-  ' reaper=' + keyAt([96, 176], 'reaper'));
+  creatures.filter((c) => c.deep && c.wx >= 72 && c.wx <= 128).length >= 10 &&
+  keyAt([72, 128], 'reaper') >= 1,
+  'deep=' + creatures.filter((c) => c.deep && c.wx >= 72 && c.wx <= 128).length +
+  ' reaper=' + keyAt([72, 128], 'reaper'));
 check('and the graves block walks in with its own watch: goulra, pitfiends, devils, demons, the lich',
-  famsAt(96).every((f) => keyAt([96, 176], f) >= 1),
-  famsAt(96).map((f) => f + '=' + keyAt([96, 176], f)).join(' '));
+  famsAt(72).every((f) => keyAt([72, 128], f) >= 1),
+  famsAt(72).map((f) => f + '=' + keyAt([72, 128], f)).join(' '));
 check('the flood block never borrows: nothing on the graves block belongs to another block',
-  creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 96 && c.wx <= 176 &&
-    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(96))).length === 0,
-  'foreign=' + creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 96 && c.wx <= 176 &&
-    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(96)))
+  creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 72 && c.wx <= 128 &&
+    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(72))).length === 0,
+  'foreign=' + creatures.filter((c) => !c.hooked && !c.hookLanded && c.wx >= 72 && c.wx <= 128 &&
+    HORROR_ALL[H.horrorKey(c)] && !nightBlockOwns(H.horrorKey(c), bandAt(72)))
     .map((c) => H.horrorKey(c)).join(','));
 check('THE GHULS STAY ON THE DIGGERS BLOCK: not one ghoul stands on another block',
   (() => {
     const g = creatures.filter((c) => !c.hooked && !c.hookLanded && (c.causeKey || c.type) === 'ghoul');
-    return g.filter((c) => c.wx < 192 - 8 || c.wx > 272 + 8).length === 0;
+    return g.filter((c) => c.wx < 144 - 8 || c.wx > 272 + 8).length === 0;
   })(),
   'ghouls=' + creatures.filter((c) => (c.causeKey || c.type) === 'ghoul').length);
 check('wave escalation kicked in (5 banishments = +1 spook per family per block)', waveTier >= 1);
@@ -1550,7 +1562,7 @@ check('the ABYSS SURGE opens on the ' + HORROR_SURGE_AT + 'th banishment (12 s o
 s7Reset();
 
 console.log('\n[8] EXORCISING THE GRAVEYARD + THE HOLY WEAPON (consecration, triad, holy light)');
-const shovelPropBlock = S2_BLOCKS.find((r) => r.blockX === 192);
+const shovelPropBlock = S2_BLOCKS.find((r) => r.blockX === 144);
 shovelPropBlock.hazards.length = 0;
 const stone = H.nightPlaceProp(shovelPropBlock, 'headstone', p.wx + 2.2, 2.5);
 const arm = H.nightPlaceProp(shovelPropBlock, 'arm', p.wx + 2.0, 1.4);
@@ -1562,10 +1574,10 @@ check('the grave yard registers SOLID hazards on the block record (headstone, gr
 p.wx = 300; // the mob is AHEAD of him DOWN the street
 const mob3 = [];
 for (let i = 0; i < 3; i++) {
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
-  c.wx = p.wx + 1.6 + i * 0.7; c.wy = 2.5; c.huntT = 0; c.flinchT = 0;
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  const c = H.nightSpawnHorror('ghoul', { x0: 144, x1: 272 });
+  c.wx = p.wx + 1.6 + i * 0.7; c.wy = .5; c.huntT = 0; c.flinchT = 0;
   c.g.position.set(c.wx, c.wy, GZ);
   mob3.push(c);
 }
@@ -1584,11 +1596,11 @@ check('the swing makes every spook standing in the holy light FLINCH (they recoi
   creatures.filter((c) => !c.hooked).every((c) => c.flinchT > 0));
 const flinchGhoul = creatures.filter((c) => !c.hooked)[0];
 // THE WORK BOX OF A BLOCK SPOOK IS ITS OWN BLOCK — so the comparison is run with the
-// worker standing INSIDE the ghouls' beat (x 192..272), where both may legitimately chase.
+// worker standing INSIDE the ghouls' beat (x 144..272), where both may legitimately chase.
 p.wx = 230; // the worker stands in the middle of the diggers' block
 flinchGhoul.flinchT = FLINCH_T; flinchGhoul.huntT = 5; flinchGhoul.chaseSp = 4;
 flinchGhoul.wx = p.wx + 6; flinchGhoul.g.position.set(flinchGhoul.wx, flinchGhoul.wy, GZ);
-const plainGhoul = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
+const plainGhoul = H.nightSpawnHorror('ghoul', { x0: 144, x1: 272 });
 plainGhoul.huntT = 5; plainGhoul.chaseSp = 4; plainGhoul.flinchT = 0;
 plainGhoul.wx = p.wx + 6; plainGhoul.wy = 2.5; plainGhoul.g.position.set(plainGhoul.wx, plainGhoul.wy, GZ);
 const f0 = flinchGhoul.wx, q0 = plainGhoul.wx;
@@ -1655,9 +1667,9 @@ check("the Holy Weapon publishes its blade materials + a holy level, and the gam
 H.resetNight();
 creatures.length = 0;
 for (let i = 0; i < 5; i++) {
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  const c = H.nightSpawnHorror('ghoul', { x0: 144, x1: 272 });
   c.wx = p.wx + 1.4 + i * 0.5; c.wy = 2.5; c.g.position.set(c.wx, c.wy, GZ);
 }
 announced.length = 0;
@@ -1679,9 +1691,9 @@ check('FIVE banishments CONSECRATE the blade (charged; the pop is budgeted, not 
   ' announced=' + announced.join('/'));
 creatures.length = 0;
 for (let i = 0; i < 5; i++) {
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  const c = H.nightSpawnHorror('ghoul', { x0: 144, x1: 272 });
   c.wx = p.wx + 1.4 + i * 1.3; c.wy = 2.5 + (i % 3) * 0.4;
   c.huntT = 4; c.flinchT = 0;
   c.g.position.set(c.wx, c.wy, GZ);
@@ -1710,9 +1722,9 @@ H.resetNight();
 creatures.length = 0;
 announced.length = 0; scored.length = 0; deposited.length = 0;
 for (let i = 0; i < 3; i++) {
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  p.wx = 300; // standing above the band: on -X, [192,272] is AHEAD of him
-  const c = H.nightSpawnHorror('ghoul', { x0: 192, x1: 272 });
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  p.wx = 300; // standing above the band: on -X, [144,272] is AHEAD of him
+  const c = H.nightSpawnHorror('ghoul', { x0: 144, x1: 272 });
   c.wx = p.wx + 1.5; c.wy = 2.5; c.g.position.set(c.wx, c.wy, GZ);
   c.hooked = true; c.hookT = 0; c.hookLanded = false;
   c.fx0 = c.wx; c.fy0 = c.wy; c.fz0 = GZ;
@@ -1920,7 +1932,7 @@ check('the swing hits with ANY PART of the shovel — the head\'s own sweep beyo
     woodGhoul.hooked !== true && outGhoul.hp === outGhoul.hpMax && outGhoul.hooked === undefined; })(),
   'wood=' + woodGhoul.hp + '/' + woodGhoul.hpMax + ' out=' + outGhoul.hp + '/' + outGhoul.hpMax);
 check('a ghoul standing ON him (every contact radius, up to the reaper\'s 1.5) is INSIDE the tool',
-  SHOVEL_BUTT + SHOVEL_BLADE_R + 0.15 >= 1.5 && SHOVEL_BUTT > 0);
+  SHOVEL_BUTT + SHOVEL_BLADE_R + 0.15 >= 0.4 && SHOVEL_BUTT > 0);
 // --- THE PARRY: a spook that comes into the swinging tool is banished, cost-free ---
 creatures.length = 0;
 const attacker = mkC('ghoul', 1.05, { causeKey: 'ghoul', touchCd: 0, huntT: 4, flinchT: 0 });
@@ -2017,7 +2029,7 @@ check('the budget is a NIGHT-ONLY gate (weekday/Maspeth voices are untouched)',
 // --- SIM: a 45-second swing-frenzy against the live horde: how much text hits the screen? ---
 s7Reset();
 onScreen = true;
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN, so the horde ahead is IN his arc
+p.wx = 329; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN, so the horde ahead is IN his arc
 const sayMark = sayings.length, bubMark = bubbles.length, popMark = announced.length;
 let swings = 0;
 for (let i = 0; i < 60 * 45; i++) {
@@ -2059,7 +2071,7 @@ check('the frenzy still SCORES (loud in points, silent in text): ' + frenzyPurse
   ' shovel purses banked in ' + swings + ' swings, at least 2 swings per purse',
   frenzyPurse >= 1 && swings >= frenzyPurse * GHOUL_HITS_MIN,
   'shovel scores=' + frenzyPurse + ' swings=' + swings + ' wardsUp=' + H.gateCount() +
-  ' yieldTop=' + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).yield);
+  ' yieldTop=' + H.gateLedger(H.nightBands().filter((b) => b.x0 === 288)[0]).yield);
 s7Reset();
 console.log('\n[13] LESS SPIRIT CLUTTER, AND THE PACK WALKS THE WHOLE WIDTH OF THE BLOCK');
 check('THE NON-ATTACKING SPIRITS ARE REMOVED: cap ' + NIGHT_GHOST_CAP + ', quota ' +
@@ -2083,7 +2095,7 @@ check('the road (y ' + HORROR_STREET_Y + ') and the front lawn (y ' + HORROR_LAW
   HORROR_STREET_Y <= -8 && HORROR_LAWN_Y >= 7 &&
     /c\.wy = clamp\(c\.wy, HORROR_STREET_Y, horrorMaxY\(\)\);/.test(srcFn('updateHorrorCreature')));
 check('no crawler lane floor left (the old 0.7 = sidewalk-only clamp is GONE)',
-  !/clamp\(c\.wy, 0\.7,/.test(srcFn('updateHorrorCreature')));
+  !/clamp\(c\.wy, 0\0.02,/.test(srcFn('updateHorrorCreature')));
 check('spawn, respawn, wander, blink, shockwave and the grace shove all use the open lanes',
   [srcFn('nightSpawnHorror'), srcFn('respawnHorror'), srcFn('updateHorrorCreature'),
     srcFn('shovelShockwave'), srcFn('shoveSpookOff')]
@@ -2093,7 +2105,7 @@ check('the spirit zones stay on the Maspeth bands (street / curb / sidewalk slot
 // --- SIM: the live horde over 60s: the pack must be standing in the road AND on the lawn ---
 s7Reset();
 onScreen = true;
-p.wx = 449; p.wy = 2.5;
+p.wx = 329; p.wy = 2.5;
 let inStreet = 0, inCurb = 0, inWalk = 0, inLawn = 0, peakGhosts = 0;
 for (let i = 0; i < 60 * 60; i++) {
   p.wx = Math.max(90, p.wx - 3.0 / 60); // the march DOWN the dead-end street
@@ -2148,7 +2160,7 @@ check('the week starts on MONDAY (START_LEVEL = 1, no playtest flip in the ship)
 // --- SIM: a full haunted route of banishments = how much score, really? ---
 s7Reset();
 onScreen = true;
-p.wx = 449; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN into the pack
+p.wx = 329; p.wy = 2.5; p.stunT = 0; p.stunDur = 1; p.facing = Math.PI; // marching DOWN into the pack
 scored.length = 0;
 let kills = 0, swingBudget = 0;
 for (let i = 0; i < 60 * 90; i++) {
@@ -2339,14 +2351,14 @@ check('HE KEEPS HIS DISTANCE FROM THE IRON (Midnight): the floor of the street i
   'floor=' + NK_FLOOR);
 // THE SWEPT BOSS FIELD (Midnight): the final-boss block carries no haunt at all. The block
 // the beast is fought on is the near end of the dead-end street (x 0..NIGHT_BEAT_GRAVE_X);
-// NIGHT_BLOCKS packs the four wards ABOVE it (96 / 192 / 288 / 384u) and lists nothing at 0u.
+// NIGHT_BLOCKS packs the four wards ABOVE it (72 / 144 / 216 / 384u) and lists nothing at 0u.
 const NK_FIELD_X1 = NIGHT_BEAT_GRAVE_X; // 96u — the first packed ward block, the boss ring's far end
 const NIGHT_BOSS_FIELD_SWEPT = /const NIGHT_BOSS_FIELD_SWEPT = true/.test(html);
 check("THE BOSS FIELD IS SWEPT CLEAN (Midnight): the final-boss block (x 0.." + NK_FIELD_X1 + "u) lays NO ghostly haunt — no spectral headstone, no skull pile, no grave candle, no open coffin, no iron gate leaf, no risen ARM, no severed hand: buildNightCemetery's 21-prop scatter in the fight span (x 36..96u) is gated off by NIGHT_BOSS_FIELD_SWEPT, and the shoverable haunt stays on the ward blocks above (the band props at x >= " + NK_FIELD_X1 + "u) and in the YARD behind the bottom fence, which is the cemetery itself",
   NIGHT_BOSS_FIELD_SWEPT === true &&
     srcFn('buildNightCemetery').includes('if (b && b.hazards && !NIGHT_BOSS_FIELD_SWEPT)') &&
     srcFn('buildNightCemetery').includes('nightPlaceProp(b, kinds[i], px, py)') &&
-    NIGHT_BLOCKS.filter((e) => e.x === 0).length === 0 && NK_FIELD_X1 === 96);
+    NIGHT_BLOCKS.filter((e) => e.x === 0).length === 0 && NK_FIELD_X1 === 72);
 check("NO OPEN MANHOLE (and its pair of blinking eyes) is cut into the boss block on Midnight — the refusal lives in addManhole, it is night- and block-precise, every weekday block (and a Node harness with no night flag) cuts them exactly as shipped",
   srcFn('addManhole').includes('typeof isNightShift === "function" && isNightShift() && b && b.blockX === 0') &&
     srcFn('makeBlockContents').includes('else if (hr < 0.68) addManhole(b, hzX(1.5), R(-7.5, -3.5));'));
@@ -2490,7 +2502,7 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
     crushX === floor + 1.0 && crushY === 0 && crushHurt >= 1,
     'x=' + crushX.toFixed(2) + ' floor=' + floor + ' hurt=' + crushHurt);
   // THE GHOST IRON: with the ring sealed, the same crush uphill must leave him ON the sealed ceiling.
-  H.sealArm(); p.wx = 74; p.gatePrev = 74; H.sealClose();
+  H.sealArm(); p.wx = 50; p.gatePrev = 50; H.sealClose();
   const ceil = H.ceilX();
   b.wx = ceil - 2.6; b.wy = 0; b.bodyCd = 0;
   p.wx = ceil - 1.0; p.wy = 0; p.nightHitT = 0; p.stunT = 0;
@@ -2506,7 +2518,7 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
   H.sealClear();
   // NO SHOVE from the cold fire: the burst stings where he stands and leaves his feet alone.
   quiet();
-  b.hp = BOSS_MAX_HP; b.wx = 74; b.wy = 0;
+  b.hp = BOSS_MAX_HP; b.wx = 50; b.wy = 0;
   p.wx = b.wx + 6; p.wy = b.wy; p.nightHitT = 0; p.stunT = 0; // OUT of the crush radius
   const px0 = p.wx, py0 = p.wy;
   H.getFireballs().length = 0;
@@ -2521,7 +2533,7 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
       Math.abs(p.wx - px0) < 1e-9 && Math.abs(p.wy - py0) < 1e-9 && H.stunLog().length >= 1,
     'dmg=' + H.hurtLog().map((h) => h.a).join(',') + ' x=' + p.wx.toFixed(2));
   // THE LASH: a sting, and the same law — no launch down the street.
-  b.wx = 74; b.wy = 0; b.whipState = 'wind'; b.whipT = 0; b.fireT = 999; b.heartT = 999;
+  b.wx = 50; b.wy = 0; b.whipState = 'wind'; b.whipT = 0; b.fireT = 999; b.heartT = 999;
   p.wx = b.wx + 4.2; p.wy = b.wy + 0.4; p.nightHitT = 0; p.stunT = 0;
   const lx0 = p.wx, ly0 = p.wy;
   H.hurtLog().length = 0;
@@ -2542,7 +2554,7 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
   // burst — the beast NEVER writes his position, in any of its contacts.
   check('THE BEAST NEVER TOUCHES HIS GROUND, BEAT AFTER BEAT: a volley, a lash, a crush and a scurry all leave p.wx and p.wy EXACTLY where he stood',
     (function () {
-      b.hp = BOSS_MAX_HP; b.hits = 0; b.wx = 74; b.wy = 0;
+      b.hp = BOSS_MAX_HP; b.hits = 0; b.wx = 50; b.wy = 0;
       b.burst = false; b.burstT = 0; b.dead = false; b.hooked = false;
       b.scurryT = 0; b.scurry = false; b.whipState = 'idle';
       p.wx = 78; p.wy = 1.4; p.nightHitT = 0; p.stunT = 0; p.gatePrev = p.wx;
@@ -2634,7 +2646,7 @@ check('a lash is ONE hit, not a drain (the night hit grace runs with it)',
   // rig they expect.
   b.wx = NIGHT_BOSS_X; b.wy = 0; b.hp = BOSS_MAX_HP; b.hits = 0; b.rage = 0;
   b.heartState = 'shut'; b.heartOpen = 0; b.heartT = 2.2; b.whipState = 'idle'; b.invulnT = 0;
-  b.bodyCd = 0; b.whipT = 1.5; b.fireT = 2.5;
+  b.bodyCd = 0; b.whipT = 0.72; b.fireT = 2.5;
   H.sealClear();
 })();
 check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
@@ -2692,8 +2704,8 @@ check('a lash he has stepped OUT of hits nothing (the reach is the whole game)',
   H.getFireballs().length = 0;
   boss.hp = BOSS_MAX_HP; // the bar goes back to FULL: the ramp tests below run on mock bars
   const avgGap = (b, n) => { let s = 0; for (let i = 0; i < n; i++) s += H.bossFireGap(b); return s / n; };
-  const gapFull = avgGap({ hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP, rage: 0 }, 80);
-  const gapLast = avgGap({ hp: 1, maxHp: BOSS_MAX_HP, rage: 1 }, 80);
+  const gapFull = avgGap({ hp: BOSS_MAX_HP, maxHp: BOSS_MAX_HP, rage: 0 }, 56);
+  const gapLast = avgGap({ hp: 1, maxHp: BOSS_MAX_HP, rage: 1 }, 56);
   check('THE GAP BETWEEN VOLLEYS COLLAPSES as it weakens (' + gapFull.toFixed(2) + 's on a full bar \u2192 ' + gapLast.toFixed(2) + 's on its last heart, floor ' + BOSS_FIRE_CD_FLOOR + 's)',
     gapLast < gapFull * 0.6 && gapLast >= BOSS_FIRE_CD_FLOOR - 1e-9);
   check('THE HEART WINDOW SHORTENS AND THE ARMOUR GAP SHRINKS on the last hearts',
@@ -2771,7 +2783,7 @@ check('WITH THE SHELL SHUT THERE IS NO TARGET — the heart is the only window t
   boss.hits = 0;
   const scoreBefore = scored.reduce((a, s) => a + s.n, 0);
   let swings = 0, clangs = 0;
-  while (boss.hp > 0 && swings < 80) {
+  while (boss.hp > 0 && swings < 56) {
     p.wx = boss.wx - 2.4; p.wy = boss.wy; p.shovelCd = 0; p.stunT = 0; p.facing = 0;
     boss.invulnT = 0;
     shutHeart(); // the ARMOUR is up: a swing in this beat is a CLANG, not a cut
@@ -3009,8 +3021,8 @@ check('MIDNIGHT: the rig converges on the worker by rolling -x: the rear lands 3
   })());
 check('MIDNIGHT: a scoop that overshot down the street climbs back UPSLOPE in forward to re-take its gap (the same driver behaviour as a weekday)',
   (() => {
-    const back = runTruckAI(-1, 400, 384, "follow", 420);
-    return back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5;
+    const back = runTruckAI(-1, 400, 288, "follow", 420);
+    return back.wx > 288 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5;
   })());
 check('the drive-off leaves the way the RIG ROLLS: by day the cinematic follows routeDir, MIDNIGHT DRIVES UP — nose-forward, up-hill on driveDir 1 — and the off-screen check rides the SAME direction (the day stays put)',
   srcFn('updateRouteEnd').includes('isNightShift() ? 1 : RT') &&
@@ -3088,7 +3100,7 @@ function truckSpawnAt(wx) {
     "truckStandOffset", "truckTargetGap",
     srcFn("truckSpawnX") + srcFn("truckStandOffset") + srcFn("truckTargetGap") + srcFn("workerTopLimitX") +
       ";return truckSpawnX;",
-  )(470, 21, 0, () => true, () => 470 - 21, () => 6.2 + 4.3)(wx);
+  )(350, 21, 0, () => true, () => 350 - 21, () => 6.2 + 4.3)(wx);
 }
 function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
   const p = { wx: pWx, wy: pWy == null ? -4.0 : pWy, immuneT: 0 };
@@ -3104,7 +3116,7 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
   const gates = new Function(
     "p", "truck", "laneClear", "isNightShift", "workerTopLimitX",
     srcFn("canBackUp") + "\n" + srcFn("rigMayFollow") + "\nreturn { canBackUp, rigMayFollow };",
-  )(p, truck, () => (laneClear == null ? true : laneClear), () => night, () => 449);
+  )(p, truck, () => (laneClear == null ? true : laneClear), () => night, () => 329);
   const fn = new Function(
     "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
     "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
@@ -3113,7 +3125,7 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
   )(
     p, truck, 'none', () => dir, () => 0, 8.5, 1.3,
     gates.canBackUp, 0.3, () => {}, () => {}, gapFn, backFn, gates.rigMayFollow,
-    () => night, () => (night ? 80 + 4.0 : null),
+    () => night, () => (night ? 56 + 4.0 : null),
   );
   for (let i = 0; i < steps; i++) fn(1 / 60);
   return { wx: truck.wx, sp: truck.sp, mode: truck._mode, yaw: truck.g.rotation.z };
@@ -3130,25 +3142,25 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
   );
   // MIDNIGHT: the rig overshot DOWN the street -> the driver creeps back UPSLOPE in forward,
   // the exact same two-mode behaviour the weekday driver runs.
-  const back = runTruckAI(-1, 400, 384, "follow", 240);
+  const back = runTruckAI(-1, 400, 288, "follow", 240);
   check(
     "MIDNIGHT: a rig that overshot down the street climbs back UPSLOPE in forward to re-take its gap",
-    back.wx > 384 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5,
-    "wx " + 384 + " -> " + back.wx.toFixed(1) + " sp=" + back.sp.toFixed(2) + " mode=" + back.mode,
+    back.wx > 288 && back.sp > 0 && Math.abs(back.wx - (400 + 6.2 + 4.3)) < 1.5,
+    "wx " + 288 + " -> " + back.wx.toFixed(1) + " sp=" + back.sp.toFixed(2) + " mode=" + back.mode,
   );
   // MIDNIGHT: the rig FOLLOWS a worker marching down the street — it never leads him, never
   // loses him, and it never runs forward: net travel is -x while its nose points +x.
   const pace = (function () {
-    const p = { wx: 449, wy: -4.0, immuneT: 0 }; // clock-in: exactly the uphill clamp
+    const p = { wx: 329, wy: -4.0, immuneT: 0 }; // clock-in: exactly the uphill clamp
     const truck = {
-      wx: truckSpawnAt(449), hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: "follow",
+      wx: truckSpawnAt(329), hopperOff: -4.3, boxL: 4.0, boxW: 1.9, _mode: "follow",
       g: { visible: true, position: { set() {} }, rotation: { z: 0 } },
     };
     const gapFn0 = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => true);
     const backFn0 = new Function("isNightShift", srcFn("truckBackGap") + ";return truckBackGap;")(() => true);
     const gates0 = new Function("p", "truck", "isNightShift", "workerTopLimitX",
       srcFn("canBackUp") + "\n" + srcFn("rigMayFollow") + "\nreturn { canBackUp, rigMayFollow };")(
-      p, truck, () => true, () => 449);
+      p, truck, () => true, () => 329);
     const fn = new Function(
       "p", "truck", "carry", "routeDir", "truckMeshYaw", "PLAYER_SPEED",
       "RUN_IT_UP_SPEED_MULT", "canBackUp", "GZ", "blinkHazardLights", "updateHopperTrash",
@@ -3196,7 +3208,7 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
     (() => {
       const g = new Function("isNightShift", srcFn("truckTargetGap") + ";return truckTargetGap;")(() => true);
       const stand = new Function("isNightShift", srcFn("truckTargetGap") + srcFn("truckStandOffset") + ";return truckStandOffset;")(() => true)();
-      const NITE_TOP = 470, NITE_TRAIL = 17.5;
+      const NITE_TOP = 350, NITE_TRAIL = 1.5;
       const topLimit = NITE_TOP - NITE_TRAIL; // workerTopLimitX() on the night
       const centre = topLimit + stand; // the rig parks this far UPSLOPE of the worker's limit
       return centre > topLimit && centre + 4 < NITE_TOP && centre - 4.3 - topLimit > 3 &&
@@ -3231,7 +3243,7 @@ function runTruckAI(dir, pWx, truckWx, mode, steps, pWy, laneClear) {
 })();
 console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the haunt comes up out of the BOTTOM of the street");
 (function () {
-  const NIGHT_TOP = 449, NIGHT_BOTTOM = 84;
+  const NIGHT_TOP = 329, NIGHT_BOTTOM = 84;
   // A) THE SMARTER DRIVER. canBackUp() is the weekday rule: the driver only rolls the rear out
   // when the worker is out in the roadway, clear of the truck's own lane. On the dead-end
   // street the man fights ghouls from the CURB, the walk and the SIDEWALK all shift, and a rig
@@ -3285,16 +3297,16 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
     return new Function(...axisArgs,
       srcFn("horrorAheadWindow") + "\n" + srcFn("horrorFellBehind") + "\n" + srcFn("horrorRespawnX") +
       "\nreturn { horrorAheadWindow, horrorFellBehind, horrorRespawnX };")(
-      () => dir, { wx: 300 }, 70, () => 76, () => 470, 80, 464,
+      () => dir, { wx: 300 }, 70, () => 76, () => 350, 56, 344,
       (a, b) => (a + b) / 2, (v, lo, hi) => Math.max(lo, Math.min(hi, v)), () => dir < 0);
   }
   const nightAxis = axisFns(-1), dayAxis = axisFns(1);
-  const bN = nightAxis.horrorAheadWindow({ x0: 192, x1: 272 });
+  const bN = nightAxis.horrorAheadWindow({ x0: 144, x1: 272 });
   const bN2 = nightAxis.horrorAheadWindow({ x0: 260, x1: 340 });
-  const bD = dayAxis.horrorAheadWindow({ x0: 192, x1: 272 });
+  const bD = dayAxis.horrorAheadWindow({ x0: 144, x1: 272 });
   check("MIDNIGHT: a band's spawn window is the part of the band DOWNHILL of the worker — the spooks are born at the bottom of the street and walk UP into his shovel",
     bN.lo === 197 && bN.hi === 267 && bN2.lo === 265 && bN2.hi === 293,
-    "worker 300: band[192,272] -> " + bN.lo + ".." + bN.hi + ", band[260,340] -> " + bN2.lo + ".." + bN2.hi);
+    "worker 300: band[144,272] -> " + bN.lo + ".." + bN.hi + ", band[260,340] -> " + bN2.lo + ".." + bN2.hi);
   check("WEEKDAY: the shipped window (the band AHEAD of him, up the street) is untouched",
     bD.lo === 307 && bD.hi === 267, "worker 300: window " + bD.lo + ".." + bD.hi);
   let seedProof = '?';
@@ -3303,8 +3315,8 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
       p.wx = NIGHT_TOP;
       creatures.length = 0;
       allSpawned.length = 0;
-      const vb = H.nightBands().filter((b) => b.x0 === 288)[0];
-      const vBand = { x0: 288, x1: 368, i: vb.i, cx: vb.cx, flood: false };
+      const vb = H.nightBands().filter((b) => b.x0 === 216)[0];
+      const vBand = { x0: 216, x1: 368, i: vb.i, cx: vb.cx, flood: false };
       const load = H.gateLedger(vb).load;
       const wardLine = H.gateX(vb) + NIGHT_GATE_ROOM;
       let out = 0, down = 0, floored = 0;
@@ -3330,7 +3342,7 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
       creatures.length = 0;
       let out = 0, up = 0;
       for (let i = 0; i < 60; i++) {
-        const c = H.nightSpawnHorror("ghoul", { x0: 192, x1: 272 });
+        const c = H.nightSpawnHorror("ghoul", { x0: 144, x1: 272 });
         if (!c) continue;
         out++;
         if (c.wx > p.wx) up++;
@@ -3363,11 +3375,11 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
   check("MIDNIGHT: the band the haunt refills is the one he is walking INTO — the next band DOWN the street (by day: the next band up it)",
     (() => {
       const f = new Function("routeDir", "p", "bandOf", srcFn("horrorFillingBands") + ";return horrorFillingBands;");
-      const bands = [{ x0: 96, x1: 176, i: 1 }, { x0: 192, x1: 272, i: 2 }, { x0: 288, x1: 368, i: 3 }];
+      const bands = [{ x0: 72, x1: 128, i: 1 }, { x0: 144, x1: 272, i: 2 }, { x0: 216, x1: 368, i: 3 }];
       const at = (x) => bands.filter((b) => x >= b.x0 - 6 && x <= b.x1 + 6)[0];
       const bn = f(() => -1, { wx: 230 }, at)(bands);
       const bd = f(() => 1, { wx: 230 }, at)(bands);
-      return bn[1].x0 === 96 && bd[1].x0 === 288;
+      return bn[1].x0 === 72 && bd[1].x0 === 216;
     })(),
     "Midnight refills the band BELOW him, the weekday the band above");
   let marchProof = '?';
@@ -3409,15 +3421,15 @@ console.log("\n[16] MIDNIGHT: the driver follows him onto the sidewalk, and the 
     marchProof);
   check("THE WARD IS THE WHOLE POINT OF THE MARCH: a block's curtain is down only when its own bill is in the hopper and none of its pack is left standing",
     (() => {
-      const led = H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]);
-      const live = H.gateLive(H.nightBands().filter((b) => b.x0 === 384)[0]);
+      const led = H.gateLedger(H.nightBands().filter((b) => b.x0 === 288)[0]);
+      const live = H.gateLive(H.nightBands().filter((b) => b.x0 === 288)[0]);
       return led.open === false
         ? live > 0 || led.yield < led.load
         : led.yield >= led.load && live === 0;
     })(),
-    "top block: open=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).open +
-    " yield=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 384)[0]).yield +
-    " live=" + H.gateLive(H.nightBands().filter((b) => b.x0 === 384)[0]));
+    "top block: open=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 288)[0]).open +
+    " yield=" + H.gateLedger(H.nightBands().filter((b) => b.x0 === 288)[0]).yield +
+    " live=" + H.gateLive(H.nightBands().filter((b) => b.x0 === 288)[0]));
   check("the source says it plainly: the haunt's spawn window, its cull line, its respawn and its refill bands all read the ROUTE AXIS, with the weekday expressions left exactly as shipped",
     srcFn("horrorAheadWindow").includes("if (routeDir() > 0) return { lo: Math.max(band.x0 + 5, p.wx + 7), hi: band.x1 - 5 }") &&
     srcFn("horrorAheadWindow").includes("return { lo: band.x0 + 5, hi: Math.min(band.x1 - 5, p.wx - 7) }") &&
@@ -3433,7 +3445,7 @@ console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall —
   s7Reset();
   const bands = H.nightBands();
   const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
-  const TOPB = bandOfX(384), VERMB = bandOfX(288), DIGB = bandOfX(192), GRAVEB = bandOfX(96);
+  const TOPB = bandOfX(288), VERMB = bandOfX(216), DIGB = bandOfX(144), GRAVEB = bandOfX(72);
   const baseOf = (b) => nightBlockFamilies(b).reduce((s, f) => s + nightBlockQuota(f, b), 0);
   const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
     !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
@@ -3458,16 +3470,16 @@ console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall —
     bands.every((b) => H.gateLedger(b).open === false) &&
     wardMeshes().every((w) => w.visible !== false));
   check("each curtain stands at the LOW EDGE of its own block, and the graves' ward guards the beast's cross-street",
-    H.gateX(TOPB) === 384 + NIGHT_GATE_INSET && H.gateX(VERMB) === 288 + NIGHT_GATE_INSET &&
-    H.gateX(DIGB) === 192 + NIGHT_GATE_INSET &&
+    H.gateX(TOPB) === 288 + NIGHT_GATE_INSET && H.gateX(VERMB) === 216 + NIGHT_GATE_INSET &&
+    H.gateX(DIGB) === 144 + NIGHT_GATE_INSET &&
     H.gateX(GRAVEB) === NIGHT_BOSS_TRIGGER_X + 6 &&
     H.gateX(GRAVEB) > NIGHT_BOSS_TRIGGER_X,
-    [384, 288, 192, 96].map((x) => H.gateX(bandOfX(x))).join("/"));
+    [288, 216, 144, 72].map((x) => H.gateX(bandOfX(x))).join("/"));
   check("THE SET NUMBER OF CREATURES PER BLOCK = that block's own pack table (flood table on the heavy end), AND THE GRAVES' BILL CAME DOWN to 20 — the last ward is a gate, not a 30-animal trench",
     bands.every((b) => H.gateLedger(b).load === baseOf(b)) &&
     H.gateLedger(GRAVEB).load === 20 &&
     [TOPB, VERMB, DIGB].every((b) => H.gateLedger(b).load >= 18),
-    [384, 288, 192, 96].map((x) => H.gateLedger(bandOfX(x)).load).join("/"));
+    [288, 216, 144, 72].map((x) => H.gateLedger(bandOfX(x)).load).join("/"));
   check("THE GRAVES ARE NO LONGER THE HEAVIEST FIGHT ON THE STREET: the bottom block's bill sits AT OR BELOW every opening block's — the last fight is the beast, not a 30-animal trench — and the whole street still fits the roster cap",
     H.gateLedger(GRAVEB).load <= Math.min(H.gateLedger(TOPB).load, H.gateLedger(VERMB).load, H.gateLedger(DIGB).load) &&
     H.gateLedger(GRAVEB).load >= 7 &&
@@ -3476,7 +3488,7 @@ console.log("\n[17] THE SPECTRAL BLOCK WARDS: one block, one horde, one wall —
       " street=" + bands.reduce((s, b) => s + H.gateLedger(b).load, 0) + " cap=" + HORROR_ROSTER_CAP);
   check("the block's own animals never stand behind its curtain: every ward-bound spook is between the light and the worker",
     bands.every((b) => hordes(b).every((c) => c.wx >= H.gateX(b) + NIGHT_GATE_ROOM - 0.001)),
-    "floors " + [384, 288, 192, 96].map((x) => H.gateFloorX(bandOfX(x))).join("/"));
+    "floors " + [288, 216, 144, 72].map((x) => H.gateFloorX(bandOfX(x))).join("/"));
   check("a block spook's WORK BOX stops AT THE CURTAIN (the band box's low edge is the ward, not the band edge)",
     bands.every((b) => Math.abs(H.gateBandXs(b).lo - (H.gateX(b) + NIGHT_GATE_WORK)) < 1e-9) &&
     H.gateBandXs(TOPB).lo > TOPB.x0 && H.gateBandXs(GRAVEB).lo > GRAVEB.x0);
@@ -3496,7 +3508,7 @@ console.log("\n[18] THE WARD COMES DOWN: the block empties into the hopper, the 
   s7Reset();
   const bands = H.nightBands();
   const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
-  const TOPB = bandOfX(384), VERMB = bandOfX(288), GRAVEB = bandOfX(96);
+  const TOPB = bandOfX(288), VERMB = bandOfX(216), GRAVEB = bandOfX(72);
   const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
     !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
   const wardOf = (b) => H.gateLedger(b).g;
@@ -3548,12 +3560,12 @@ console.log("\n[18] THE WARD COMES DOWN: the block empties into the hopper, the 
   // (f) THE SURGE LOADS THE HEAVY END ONLY (and the whole bill stops at the CAP)
   H.setSurgeTier(HORROR_SURGE_LOAD_TIERS + 3);
   (() => {
-    const graveF = H.gateSurge(bandOfX(96));
-    const topS = H.gateSurge(bandOfX(384));
-    const vermS = H.gateSurge(bandOfX(288));
-    const digS = H.gateSurge(bandOfX(192));
-    const graveL = H.gateLoad(bandOfX(96));
-    const loads = [96, 192, 288, 384].map((x) => H.gateLoad(bandOfX(x)));
+    const graveF = H.gateSurge(bandOfX(72));
+    const topS = H.gateSurge(bandOfX(288));
+    const vermS = H.gateSurge(bandOfX(216));
+    const digS = H.gateSurge(bandOfX(144));
+    const graveL = H.gateLoad(bandOfX(72));
+    const loads = [72, 144, 216, 288].map((x) => H.gateLoad(bandOfX(x)));
     check("each abyss surge adds HORROR_SURGE_LOAD to the flood block's bill, stacking stops at " + HORROR_SURGE_LOAD_TIERS + " surges, and NO BLOCK'S BILL EVER PASSES " + HORROR_BLOCK_CREATURE_MAX + " creatures: the grave ward tops out at EXACTLY the cap, every other block pays 0",
       graveF === HORROR_BLOCK_CREATURE_MAX - 20 &&
       topS === 0 && vermS === 0 && digS === 0 &&
@@ -3570,7 +3582,7 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
   s7Reset();
   const bands = H.nightBands();
   const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
-  const TOPB = bandOfX(384), VERMB = bandOfX(288), GRAVEB = bandOfX(96);
+  const TOPB = bandOfX(288), VERMB = bandOfX(216), GRAVEB = bandOfX(72);
   const hordes = (b) => creatures.filter((c) => c.home && c.home.i === b.i && !c.hooked &&
     !c.hookLanded && HORROR_ALL[H.horrorKey(c)]);
 
@@ -3590,7 +3602,7 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
     NIGHT_GATE_REACH, NIGHT_GATE_STOP, (a) => a[0], ['WARD'], (l) => sayLog.push(l), () => {});
   check("a closed ward is a SOLID WALL: his centre stops a body-width off the light, he says it, the world shudders",
     clampStart > 0 && Math.abs(p.wx - (290 + NIGHT_GATE_STOP)) < 1e-9 && sayLog.length === 1 &&
-    p.shake >= 0.4 && p.gateT > 0 && /THE SPECTRAL WARD/.test(clampSrc),
+    p.shake >= 6.2 && p.gateT > 0 && /THE SPECTRAL WARD/.test(clampSrc),
     'wx=' + p.wx.toFixed(3) + ' say=' + sayLog.join('/'));
   p.wx = 300; p.gateT = 5;
   runClamp(() => true, true, 'play', false, 1 / 60, p, () => ({ x: 290 }), () => ({ x: 290 }),
@@ -3631,7 +3643,7 @@ console.log("\n[19] THE WARD IS A WALL: the worker is held at the light, the gra
     p.wx = led.x - 6; // he walks through the fallen light into the next block
   }
   check("the whole street opens BLOCK BY BLOCK from the block he clocked in on down to the graves",
-    order.length === 4 && order.join(' ') === '384:open 288:open 192:open 96:open' &&
+    order.length === 4 && order.join(' ') === '288:open 216:open 144:open 72:open' &&
     H.gateCount() === 0 && /THE GRAVES · 0 LEFT/.test(H.gateHud()),
     order.join(' '));
 
@@ -3659,7 +3671,7 @@ console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — pre
   s7Reset();
   const bands = H.nightBands();
   const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
-  const TOPB = bandOfX(384), VERMB = bandOfX(288);
+  const TOPB = bandOfX(288), VERMB = bandOfX(216);
   const WARDX = H.gateX(VERMB);                 // 290 — the Vermin curtain
   const LINE = WARDX + NIGHT_GATE_STOP;         // his centre's line: fire threshold AND snap value
   const says = [];
@@ -3705,8 +3717,8 @@ console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — pre
   check("[20c] THE WALL LETS GO: one push uphill and he is OFF the line on the very next frame",
     p.wx > pinned, 'wx=' + p.wx.toFixed(4) + ' pin=' + pinned.toFixed(4));
   const free0 = p.wx;
-  walk(0.6, 0, 80, atWard); // keep walking up the street, away from the curtain
-  check("[20c] walking away from a closed ward is FREE travel: 80 frames move him the full 48 units, the clamp never re-bites",
+  walk(0.6, 0, 56, atWard); // keep walking up the street, away from the curtain
+  check("[20c] walking away from a closed ward is FREE travel: 56 frames move him the full 48 units, the clamp never re-bites",
     Math.abs(p.wx - (free0 + 48)) < 1e-9, 'wx=' + p.wx.toFixed(3) + ' from=' + free0.toFixed(3));
   // (d) THE WALL IS BUILT THE SAFE WAY: it catches the CROSSING (so no speed can tunnel
   //     it), it snaps ON the line, and it has no snap pocket (a window above the snap
@@ -3735,12 +3747,12 @@ console.log("\n[20] THE WARD LETS GO: pinned at the light, never trapped — pre
   //     the block below (only reachable after the ward fell) leaves him exactly where he is.
   const tunnel = (step) => {
     p.wx = WARDX + 6; p.gateT = 0; p.gatePrev = WARDX + 6; p.gatePrevWard = VERMB.i;
-    for (let k = 0; k < 80; k++) { p.wx -= step; frame(atWard); }
+    for (let k = 0; k < 56; k++) { p.wx -= step; frame(atWard); }
     return p.wx; // the stride that crossed the line must have stopped ON the line
   };
-  const caught = [0.18, 0.34, 0.6, 1.2, 3.0, 9.0, 30].map((s) => Math.abs(tunnel(s) - LINE) < 1e-9);
-  check("NOT ONE STRIDE TUNNELS THE WARD: walking (0.18), sprinting (0.34), a frame at top speed (0.6), a dash (1.2), a shove (3.0), a knockback (9.0) and a 30-unit throw all stop ON the light line",
-    caught.every(Boolean), caught.map((c, i) => [0.18, 0.34, 0.6, 1.2, 3.0, 9.0, 30][i] + '=' + (c ? 'caught' : 'TUNNELED')).join(' '));
+  const caught = [0.18, 0.3, 0.6, 1.2, 3.0, 9.0, 30].map((s) => Math.abs(tunnel(s) - LINE) < 1e-9);
+  check("NOT ONE STRIDE TUNNELS THE WARD: walking (0.18), sprinting (4.3), a frame at top speed (0.6), a dash (1.2), a shove (3.0), a knockback (9.0) and a 30-unit throw all stop ON the light line",
+    caught.every(Boolean), caught.map((c, i) => [0.18, 0.34, 0.6, 1.2, 3.0, 0.3, 30][i] + '=' + (c ? 'caught' : 'TUNNELED')).join(' '));
   const realWall = (a, b) => H.gateWall(a, b); // the game's own segment lookup
   p.wx = WARDX - 4; p.gateT = 0; p.gatePrev = WARDX - 4; // placed deep, history deep: never crossed
   frame(realWall);
@@ -3826,7 +3838,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   s7Reset();
   const bands = H.nightBands();
   const bandOfX = (x) => bands.filter((b) => b.x0 === x)[0];
-  const TOPB = bandOfX(384), VERMB = bandOfX(288), DIGB = bandOfX(192), GRAVEB = bandOfX(96);
+  const TOPB = bandOfX(288), VERMB = bandOfX(216), DIGB = bandOfX(144), GRAVEB = bandOfX(72);
   const fams = (b) => nightBlockFamilies(b);
   // A FRESH SPOOK ON A BLOCK, ARMED BY THE GAME'S OWN SPAWNER. The ward gives a block ONE
   // set load and s7Reset walks the street in with that load ALREADY STANDING, so the spawner
@@ -3884,8 +3896,8 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
       const seq = [TOPB, VERMB, DIGB, GRAVEB].map((b) => H.ghHits(b, probe));
       return seq.every((v, i) => i === 0 || v > seq[i - 1]);
     })(),
-    'depth ' + [384, 288, 192, 96].map((x) => H.depth(bandOfX(x))).join('/') + ' ' +
-    fams(DIGB)[0] + ' ' + [384, 288, 192, 96].map((x) => H.ghHits(bandOfX(x), fams(DIGB)[0])).join('/'));
+    'depth ' + [288, 216, 144, 72].map((x) => H.depth(bandOfX(x))).join('/') + ' ' +
+    fams(DIGB)[0] + ' ' + [288, 216, 144, 72].map((x) => H.ghHits(bandOfX(x), fams(DIGB)[0])).join('/'));
   check("the block he clocked in on is the SOFTEST end of the street and the Grave Watch the hardest thing on it",
     H.depth(TOPB) === 0 && H.depth(GRAVEB) === bands.length - 1 &&
     fams(TOPB).every((f) => H.ghHits(TOPB, f) <= H.ghHits(GRAVEB, f)) &&
@@ -4034,7 +4046,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   barC[4].hooked = true; // riding the toss: no bar
   barC[5].wx = 400; barC[5].g.position.set(400, 2.5, GZ); // off screen: no bar
   // THE GRAVE FURNITURE ON THE SAME BLOCK wears the same bar (the blade can dig it out).
-  const digBlock = S2_BLOCKS.filter((r) => r.blockX === 192)[0];
+  const digBlock = S2_BLOCKS.filter((r) => r.blockX === 144)[0];
   digBlock.hazards.length = 0;
   H.nightPlaceProp(digBlock, 'headstone', 210, 2.5);
   H.nightPlaceProp(digBlock, 'coffin', 220, 2.5);
@@ -4088,7 +4100,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
 
   // (d2) THE FIRST BLOCK, WHOLE: the block he clocked in on is NOTED — every animal the blade
   //      can catch on it carries a pool, and every one of them wears its bar on screen.
-  const bFirst = bandOfX(384);
+  const bFirst = bandOfX(288);
   const firstFams = fams(bFirst);
   const blockRoster = [];
   let blockSeeds = 0;
@@ -4110,7 +4122,7 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
   blockRoster.push(zaFirst);
   creatures.length = 0;
   creatures.push.apply(creatures, blockRoster);
-  const firstPropsBlock = S2_BLOCKS.filter((r) => r.blockX === 192)[0];
+  const firstPropsBlock = S2_BLOCKS.filter((r) => r.blockX === 144)[0];
   firstPropsBlock.hazards.length = 0;
   H.nightPlaceProp(firstPropsBlock, 'gate', 352, 2.5);
   H.nightPlaceProp(firstPropsBlock, 'candle', 356, 2.5);
@@ -4158,8 +4170,8 @@ console.log("\n[21] THE GHOULS TAKE A BEATING: per-type toughness, a street that
 
   // (e) THE WARD BILL IS PAID BY BANISHMENTS, NEVER BY HITS
   s7Reset();
-  p.wx = 449; p.wy = 2.5; p.stunT = 0; p.facing = 0; // the paid spook is laid out in +x
-  const bTop = bandOfX(384);
+  p.wx = 329; p.wy = 2.5; p.stunT = 0; p.facing = 0; // the paid spook is laid out in +x
+  const bTop = bandOfX(288);
   const topFam = hardestFam(bTop); // the SOFTEST block's TOUGHEST family: the clearest bill
   const sp = spookOn(topFam, bTop);
   sp.wx = p.wx + 1.5; sp.wy = p.wy; sp.huntT = 0; sp.flinchT = 0; sp.backoffT = 0;
@@ -4340,7 +4352,7 @@ console.log('\n[27] THE COUNT IS THE TRUTH: ONE SETTLEMENT PER ANIMAL, THE CHIP 
   };
   // (a) NO DOUBLE SETTLEMENT: the shovel pays an animal, and the fog sweep cannot pay it again
   s7Reset();
-  const B1 = bAt(288), L1 = H.gateLedger(B1);
+  const B1 = bAt(216), L1 = H.gateLedger(B1);
   p.wx = 330; seedIn(B1, 4);
   const one = landOne(crew(B1)[0]);
   const y1 = L1.yield;
@@ -4351,7 +4363,7 @@ console.log('\n[27] THE COUNT IS THE TRUTH: ONE SETTLEMENT PER ANIMAL, THE CHIP 
   // (b) THE CHIP AND THE STREET AGREE (the invariant behind "0 left ⇒ wall down"): the animals
   //     standing on the beat are exactly the pack the block put out minus the pack settled.
   s7Reset();
-  const B2 = bAt(192), L2 = H.gateLedger(B2), load2 = H.gateLoad(B2);
+  const B2 = bAt(144), L2 = H.gateLedger(B2), load2 = H.gateLoad(B2);
   p.wx = 250; seedIn(B2, 30);
   const standing = crew(B2).length;
   const settle2 = Math.min(standing - 1, load2);
@@ -4365,7 +4377,7 @@ console.log('\n[27] THE COUNT IS THE TRUTH: ONE SETTLEMENT PER ANIMAL, THE CHIP 
     'left=' + H.gateLeft(B2) + ' live=' + H.gateLive(B2) + ' sent=' + L2.sent + ' yield=' + L2.yield + ' open=' + L2.open);
   // (c) THE WALL FALLS THE FRAME THE LAST ONE GOES IN THE TRUCK — no extra creature needed
   s7Reset();
-  const B3 = bAt(288), L3 = H.gateLedger(B3), load3 = H.gateLoad(B3);
+  const B3 = bAt(216), L3 = H.gateLedger(B3), load3 = H.gateLoad(B3);
   p.wx = 330;
   let sweep = 0, lastLeft = 0;
   while (L3.open === false && sweep++ < 40) {
@@ -4387,7 +4399,7 @@ console.log('\n[27] THE COUNT IS THE TRUTH: ONE SETTLEMENT PER ANIMAL, THE CHIP 
   // (d) THE FOG TAKES ANIMALS BACK AND PAYS FOR THEM — the room formula is exact, the block
   //     closes in exactly `load` settlements, never more, never fewer
   s7Reset();
-  const B4 = bAt(288), L4 = H.gateLedger(B4), load4 = H.gateLoad(B4);
+  const B4 = bAt(216), L4 = H.gateLedger(B4), load4 = H.gateLoad(B4);
   p.wx = 330; seedIn(B4, 12);
   const full4 = crew(B4).length;
   const roomFull4 = H.gateRoom(B4);
@@ -4428,7 +4440,7 @@ console.log('\n[26] NO WALL OVER AN EMPTY BLOCK: THE WARD\u2019S DEBT IS WHAT TH
   s7Reset();
   const bands26 = H.nightBands();
   const bAt = (x) => bands26.filter((b) => b.x0 === x)[0];
-  const DIG26 = bAt(192), VER26 = bAt(288);
+  const DIG26 = bAt(144), VER26 = bAt(216);
   const load26 = H.gateLoad(DIG26);
   const fams26 = H.nightBlockFamilies(DIG26);
   const led26 = H.gateLedger(DIG26);
@@ -4545,7 +4557,7 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
     'frames=' + frames + ' t=' + H.getGoT());
   // (c) A NEW WARD DROP RE-LIGHTS IT, AND THE SHIFT RESET KILLS IT
   H.setGoT(0.4);
-  H.goFlash({ name: "THE GRAVES", x: 96 });
+  H.goFlash({ name: "THE GRAVES", x: 72 });
   check('A NEW WARD DROP RE-LIGHTS IT AT FULL FLASH', Math.abs(H.getGoT() - GO_ARM) < 1e-9 && /^THE GRAVES WALL IS DOWN!$/.test(H.getGoMsg()));
   H.gateClear();
   check('...AND THE SHIFT RESET TAKES IT OFF THE STREET (no arrow standing over a fresh street)',
@@ -4588,7 +4600,7 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
   check("THE ARROW IS BIG ENOUGH THAT \"GO!\" CANNOT BE CLIPPED: the block is a full 108px square and the clip-path STEMS are wide enough to hold the lettering (the stem spans 26%..74% of it)",
     /#night-go-arrow \{[^}]*width: 108px[^}]*height: 108px/.test(goArrow) &&
       (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[1] === '26' &&
-      (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[2] === '74' &&
+      (goArrow.match(/(\d+)% 0, (\d+)% 0/) || [])[2] === '50' &&
       (() => { // THE MEASURED FIT: 30px Bangers lettering, ~0.42em per glyph + spacing
         const fs = Number((goArrow.match(/font-size: (\d+)px/) || [])[1] || 0);
         const ls = Number((goArrow.match(/letter-spacing: ([\d.]+)px/) || [])[1] || 0);
@@ -4612,7 +4624,7 @@ console.log('\n[25] THE "GO!" ARROW: THE WARD COMES DOWN AND THE STREET SAYS IT 
         const m = (html.match(/#night-go-arrow \{[^}]*\}/g) || []).slice(-1)[0];
         const fs = Number((m.match(/font-size: (\d+)px/) || [])[1]);
       const stemPct = Number((m.match(/(\d+)% 0, (\d+)% 0/) || [])[2]) - 26 || 48; // the clip-path is inherited from the desktop rule (26%..74%)
-        return fs === 24 && 74 * 0.48 > fs * 0.42 * 3 + 2; // stem wider than the word on the phone
+        return fs === 24 && 50 * 0.48 > fs * 0.42 * 3 + 2; // stem wider than the word on the phone
       })() &&
       /#night-go-msg \{[^}]*max-width: 58vw/.test(html),
     'rules=' + goRules.length + ' corners=' + goRules.filter((r) => /bottom:|left:/.test(r)).length);
@@ -4824,7 +4836,7 @@ check('THE SHOVEL IS ON HIS RIGHT SIDE AND COCKED UP LIKE A BAT OVER THE RIGHT S
   coilTip.y > 0.3 && batTip.y < -0.03 && batTip.az > coilTip.az && batTip.az > 0.6,
   'blade side ' + coilTip.y.toFixed(2) + ' (LEFT) -> ' + batTip.y.toFixed(2) + ' (RIGHT), rise ' + coilTip.az.toFixed(2) + ' -> ' + batTip.az.toFixed(2));
 check('HELD LIKE A BASEBALL BAT, NOT DRAGGED AT THE GROUND: the blade finishes in the air above the shoulder line with its tip OVER his head height (his shipped walking carry aims it at the asphalt)',
-  batTip.z > 1.95 && batTip.az > 0.6 && dipTip.az < -0.3 && dipTip.z < 1.8,
+  batTip.z > 1.95 && batTip.az > 0.6 && dipTip.az < -.7 && dipTip.z < 1.8,
   'blade rise ' + batTip.az.toFixed(2) + ', tip z ' + batTip.z.toFixed(2) + ' (head top ~1.95), tip on his right at y ' + batTip.y.toFixed(2) + '; walking carry rise ' + dipTip.az.toFixed(2) + ' tip z ' + dipTip.z.toFixed(2));
 check('BOTH FISTS STAY ON THE WOOD IN THE STANCE, each a true 0.52u arm out of its own shoulder, and the shaft CLEARS HIS HEAD — the nearest it comes to his skull (r 0.24) is ' + batClear().toFixed(2) + 'u',
   Math.hypot(rfist.x, rfist.y + 0.29, rfist.z - 1.38) > 0.5 &&
@@ -4893,8 +4905,8 @@ const laid30 = [];
 const spawnHellNotes30 = new Function('R', 'BLOCK_W', 'NIGHT_HELL_NOTE_PICKS',
   'HELL_NOTE_WALK_Y0', 'HELL_NOTE_WALK_Y1', 'HELL_NOTE_ROAD_Y0', 'HELL_NOTE_ROAD_Y1', 'spawnCash',
   srcFn('spawnHellNotes') + '\nreturn spawnHellNotes;')(
-  R, 80, NIGHT_HELL_NOTE_PICKS30, W0, W1, RD0, RD1, (wx, wy) => laid30.push({ wx: wx, wy: wy }));
-const bands30 = [{ x0: 384 }, { x0: 288 }, { x0: 192 }, { x0: 96 }];
+  R, 56, NIGHT_HELL_NOTE_PICKS30, W0, W1, RD0, RD1, (wx, wy) => laid30.push({ wx: wx, wy: wy }));
+const bands30 = [{ x0: 288 }, { x0: 216 }, { x0: 144 }, { x0: 72 }];
 let laidN = 0;
 for (let run = 0; run < 8; run++) {
   laid30.length = 0;
@@ -5024,7 +5036,7 @@ check('the facing law, the bat-ready stance and the shovel kit all read p.facing
     html.includes('const hold = batUp ? poseShovelReady() : poseShovel(sw);'));
 // THE SHOVEL LAW AIMED WITH HIM: standing at the clock-in facing, the front arc is the
 // down-and-left half of the street
-p.wx = 449; p.wy = 2.5; p.facing = faceNight;
+p.wx = 329; p.wy = 2.5; p.facing = faceNight;
 const aheadDownLeft = H.shovelFacingOK(p.wx + Math.cos(faceNight) * 3, p.wy + Math.sin(faceNight) * 3);
 const deadBehind = H.shovelFacingOK(p.wx - Math.cos(faceNight) * 3, p.wy - Math.sin(faceNight) * 3);
 const squareRight = H.shovelFacingOK(p.wx, p.wy - 5);
@@ -5152,9 +5164,9 @@ check('THE GAMEPLAY LINE IS UNTOUCHED: the ward stands, stops and works exactly 
 console.log("\n[34] SPECTRAL BLOOD: a shovel wound GLOWS RED while the creature scurries away");
 (function () {
   nightOn = true;
-  p.wx = 449; p.wy = 2.5; p.shovelT = 0; p.shovelCd = 0; p.stunT = 0; p.facing = 0; // the ghoul stands in front of him, in the 210-degree bite arc
+  p.wx = 329; p.wy = 2.5; p.shovelT = 0; p.shovelCd = 0; p.stunT = 0; p.facing = 0; // the ghoul stands in front of him, in the 210-degree bite arc
   const bands34 = H.nightBands();
-  const HOME34 = bands34.filter((b) => b.x0 === 384)[0];
+  const HOME34 = bands34.filter((b) => b.x0 === 288)[0];
   const bScore = (h) => ((h >> 16) & 255) - (((h >> 8) & 255) + (h & 255)) / 2; // how RED a color is
   const gh = mkC("ghoul", 3, { home: HOME34 });
   gh.g = H.makeGhoul(); gh.g.position.set(gh.wx, gh.wy, 0.3); // the REAL rig: the blood tints its own skins

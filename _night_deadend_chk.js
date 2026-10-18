@@ -72,13 +72,14 @@ const NIGHT_CEMETERY_BLOCK_IDX = srcNum('NIGHT_CEMETERY_BLOCK_IDX');
 const NIGHT_FENCE_Y = srcNum('NIGHT_FENCE_Y');
 const CEM_FENCE_Y = srcNum('CEM_FENCE_Y');
 const CEM_BACK_Y = srcNum('CEM_BACK_Y');
-const BLOCK_W = 80; // BW * HOUSES_PER_BLOCK (asserted from the game by the layout checks)
+const HOUSES_N = srcNum('HOUSES_PER_BLOCK'); // the short-block law: 7 buildings per block
+const BLOCK_W = 8 * HOUSES_N; // BW * HOUSES_PER_BLOCK = 56u (mirrors the game's row)
 const IW = 16, CROSS_W = srcNum('CROSS_W'), CROSS_H = srcNum('CROSS_H');
 const NAME_M = html.match(/const NIGHT_CEMETERY_NAME = "([^"]+)"/);
 check('Midnight keeps ONE intersection in its list', NIGHT_XS.length === 1, JSON.stringify(NIGHT_XS));
-check('the kept intersection is the TOP of the level (x=464, beside the clock-in)', NIGHT_XS[0] === 464);
+check('the kept intersection is the TOP of the level (the last active block\'s far edge, beside the clock-in)', NIGHT_XS[0] === LEVEL_XS[LEVEL_XS.length - 2], 'x=' + NIGHT_XS[0]);
 check('the five removed intersections are listed as plain street gaps',
-  JSON.stringify(NIGHT_GAP_XS) === JSON.stringify([80, 176, 272, 368, 560]), JSON.stringify(NIGHT_GAP_XS));
+  JSON.stringify(NIGHT_GAP_XS) === JSON.stringify(LEVEL_XS.filter(function (x) { return x !== LEVEL_XS[LEVEL_XS.length - 2]; })), JSON.stringify(NIGHT_GAP_XS));
 check('kept + removed together are the whole weekday intersection set',
   NIGHT_XS.concat(NIGHT_GAP_XS).sort(function (a, b) { return a - b; }).join() === LEVEL_XS.slice().sort(function (a, b) { return a - b; }).join());
 check('the weekday intersection list is untouched (six cross-streets)', LEVEL_XS.length === 6);
@@ -88,13 +89,13 @@ function gapCenters(xs) {
   return uniq.sort(function (a, b) { return a - b; });
 }
 
-check('the corner store is pinned to the TOP block of the dead end (x=384)', NIGHT_TOP_BLOCK_X === 384);
-check('the last block on the route is the cemetery block (block 0, x 0..80)', NIGHT_CEMETERY_BLOCK_IDX === 0);
+check('the corner store is pinned to the TOP block of the dead end (the 5th block of the short street)', NIGHT_TOP_BLOCK_X === LBLK[LBLK.length - 2].x, 'x=' + NIGHT_TOP_BLOCK_X);
+check('the last block on the route is the cemetery block (block 0, x 0..' + BLOCK_W + ')', NIGHT_CEMETERY_BLOCK_IDX === 0);
 check('the street fence line runs through the front-lawn band (y 5.0..8.5)', NIGHT_FENCE_Y > 6.0 && NIGHT_FENCE_Y < 9.0, 'NIGHT_FENCE_Y=' + NIGHT_FENCE_Y);
 check('the graveyard lot uses the Maspeth fence geometry (front line + back edge)',
   CEM_FENCE_Y === 5.4 && CEM_BACK_Y === 12.0, 'CEM_FENCE_Y=' + CEM_FENCE_Y + ' CEM_BACK_Y=' + CEM_BACK_Y);
 check('the plaque reads "St Basuras Cemetery"', !!NAME_M && NAME_M[1] === 'St Basuras Cemetery', NAME_M && NAME_M[1]);
-check('the fence runs are cut to the 80u block', BLOCK_W === 80);
+check('the fence runs are cut to the 56u block', BLOCK_W === 56, 'BLOCK_W=' + BLOCK_W);
 
 console.log('\n[2] the LIVE intersection builder: weekdays vs. Midnight');
 const INTER_SRC = srcFn('buildIntersections');
@@ -316,7 +317,7 @@ check('the cemetery grass patch is laid on Midnight only (weekdays keep their ow
 check('the removed intersections are rebuilt as plain road on the night',
   html.indexOf('for (const xGap of NIGHT_GAP_XS)') >= 0);
 check('weekday intersections still iterate the full LEVEL_XS list',
-  INTER_SRC.indexOf('for (const xInt of nightGap ? NIGHT_XS : LEVEL_XS)') >= 0);
+  INTER_SRC.indexOf('for (const xInt of nightGap ? NIGHT_XS : bonusGap ? BONUS_XS : LEVEL_XS)') >= 0);
 check('the Midnight last block carries no house: the cemetery gate covers the night too',
   html.indexOf('(isNightShift() && b.blockX === NIGHT_GRAVE_BLOCK_X)') >= 0);
 check('the dead-end street gate is read from the live isNightShift() in the block loop',
@@ -324,8 +325,8 @@ check('the dead-end street gate is read from the live isNightShift() in the bloc
 check('the Midnight street keeps its buildings on every block EXCEPT its last',
   ntGate.made.filter(function (m) { return m.blkIdx !== NIGHT_CEMETERY_BLOCK_IDX; }).length === 50 &&
   !ntGate.made.some(function (m) { return m.blkIdx !== NIGHT_CEMETERY_BLOCK_IDX && m.cem; }));
-check('MIDNIGHT cross-street is the intersection at the top of the level (centre x=472)',
-  nt.crossX[0] === 472, 'x=' + nt.crossX.join());
+check('MIDNIGHT cross-street is the intersection at the top of the level (centre = kept gap + IW/2)',
+  nt.crossX[0] === NIGHT_XS[0] + IW / 2, 'x=' + nt.crossX.join());
 check('MIDNIGHT paves the five removed intersections (2 curb stones + the paint edge each)',
   nt.gap === 15, 'gap=' + nt.gap);
 check('the paved gaps are exactly the removed intersection gaps',

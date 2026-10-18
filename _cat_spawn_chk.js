@@ -1,12 +1,14 @@
 // _cat_spawn_chk.js — verify the bodega cat spawn (Manhattan + Bronx + Flatbush +
-// Queens + Bed-Stuy): exactly 4 cats on 4 different active blocks, sitting on the sidewalk in
-// front of the store (Manhattan/Queens/Bed-Stuy: bl.x + 3.0 / the corner-store door, wy 4.5) —
-// or perched ON the store mat at the door (Bronx: bl.x - 2.6, wy 6.7; Flatbush: the
-// left corner store's mat at bl.x + 0.65, wy 7.6) — one of each coat (tuxedo / grey /
-// orange / tabby, with the Bronx-only white & grey "mott" and the Queens-only
-// three-patch "calico" replacing plain grey on their levels), and that the old debug
-// cat modes are fully gone (per-block "easy visibility" loop, magenta glow,
-// debugNoFlee flag).
+// Queens + Bed-Stuy): exactly 4 cats on 4 different ACTIVE blocks (drawn from
+// ACTIVE_BLOCK_IDX, never a hardcoded index list, so a short-block route can never hand a cat
+// a start/finish buffer), sitting on the sidewalk in front of the store (Manhattan/Queens/
+// Bed-Stuy: bl.x + 3.0 / the corner-store door, wy 4.5) — or perched ON the store mat at the
+// door (Bronx: the door mat at bl.x + BW/2 - 2.6, wy 6.7; Flatbush: the left corner store's mat
+// at bl.x + 0.65, wy 7.6) — one of each coat (tuxedo / grey / orange / tabby, with the
+// Bronx-only white & grey "mott" and the Queens-only three-patch "calico" replacing plain grey
+// on their levels), that every cat owns its block's frontage (hard bounds, so its charge and
+// its bolt-end on the walk and never in a cross-street), and that the old debug cat modes are
+// fully gone (per-block "easy visibility" loop, magenta glow, debugNoFlee flag).
 
 const fs = require('fs');
 const path = require('path');
@@ -27,26 +29,30 @@ const spawnBlock = src.slice(spIdx, spEnd);
 // ---- 1) source: spawn count + placement ----
 check('exactly 4 cats per cat level (loop runs i < 4)', /for \(let i = 0; i < 4; i\+\+\)/.test(spawnBlock));
 check('no per-block "easy visibility" debug loop remains', spawnBlock.indexOf('for easy visibility') < 0 && spawnBlock.indexOf('LEVEL_BLOCKS.length') < 0);
-check('cats spread over 4 DIFFERENT active shift blocks (indices 1-5)', /const active = \[1, 2, 3, 4, 5\]/.test(spawnBlock) && /const catBlocks = active\.slice\(0, 4\)/.test(spawnBlock));
+check('cats spread over 4 DIFFERENT active blocks (drawn from ACTIVE_BLOCK_IDX — never a hardcoded index list)', /const active = ACTIVE_BLOCK_IDX\.slice\(\)/.test(spawnBlock) && /const catBlocks = active\.slice\(0, 4\)/.test(spawnBlock));
 check('cats sit in front of the store door on the block (bl.x + 3.0)', /bc\.wx = bl\.x \+ 3\.0/.test(spawnBlock));
 check('cats sit on the sidewalk in front of the store (wy = 4.5)', /bc\.wy = 4\.5/.test(spawnBlock));
-check('Manhattan + Bronx + Flatbush + Bed-Stuy gate applies', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\) \|\| isFlatbushArea \|\| isBedStuyLevel\(\)\)/.test(spawnBlock));
+check('Manhattan + Bronx + Flatbush + Bed-Stuy gate applies (Bed-Stuy never on the night shift)', /if \(isManhattanLevel\(\) \|\| isBronxLevel\(\) \|\| isFlatbushArea \|\| \(isBedStuyLevel\(\) && !isNightShift\(\)\)\)/.test(spawnBlock));
 check('gate is NOT applied to other boroughs (no bare isManhattanLevel gate)', spawnBlock.indexOf('if (isManhattanLevel())') < 0);
 check('Flatbush gate is area-gated (never borough-wide)',
   spawnBlock.indexOf('const isFlatbushArea = borough === "BROOKLYN" && area === "FLATBUSH";') >= 0);
 check('Bed-Stuy cats: gate is on isBedStuyLevel, mat perch stays Bronx+Flatbush-only (sidewalk spot bl.x + 3.0, wy 4.5)',
-  /isBedStuyLevel\(\)\) \{/.test(spawnBlock) &&
+  /isBedStuyLevel\(\) && !isNightShift\(\)\)\) \{/.test(spawnBlock) &&
   /if \(\(isBronxLevel\(\) \|\| isFlatbushArea\) && Math\.random\(\) < 0\.5\) \{/.test(spawnBlock));
-check('Bronx cats can perch ON the store mat at the door (bl.x - 2.6, wy 6.7)',
+check('Bronx cats can perch ON the store mat at the door (the mat CENTRE: bl.x + BW/2 - 2.6, wy 6.7 — on the block, never in the gap)',
   /isBronxLevel\(\) \|\| isFlatbushArea\) && Math\.random\(\) < 0\.5/.test(spawnBlock) &&
-  /bc\.wx = bl\.x - 2\.6/.test(spawnBlock) && /bc\.wy = 6\.7/.test(spawnBlock));
+  /bc\.wx = bl\.x \+ BW \/ 2 - 2\.6/.test(spawnBlock) && /bc\.wy = 6\.7/.test(spawnBlock));
 check('Flatbush cats perch ON the left corner store mat (bl.x + 0.65, wy 7.6)',
   /bc\.wx = bl\.x \+ 0\.65/.test(spawnBlock) && /bc\.wy = 7\.6/.test(spawnBlock));
 check('Queens (Maspeth) cats: dedicated Manhattan-style block gated on isQueensLevel()',
   spawnBlock.indexOf('Maspeth bodega cats') >= 0 && /if \(isQueensLevel\(\)\) \{/.test(spawnBlock));
-check('Queens cats face their block corner store door (frozen corner: bl.x + 0.65 left / bl.x + 79.35 right) on the sidewalk (wy 4.5)',
-  /QUEENS_STORE_CORNERS\[catBlocks\[i\]\] \? 0\.65 : 79\.35/.test(spawnBlock) &&
+check('Queens cats face their block corner store door (frozen corner: bl.x + 0.65 left / bl.x + BLOCK_W - 0.65 right — the right corner rides the short-block law, never the old 79.35) on the sidewalk (wy 4.5)',
+  /QUEENS_STORE_CORNERS\[catBlocks\[i\]\] \? 0\.65 : BLOCK_W - 0\.65/.test(spawnBlock) &&
   /bc\.wy = 4\.5; \/\/ on the sidewalk in front of the storefront/.test(spawnBlock));
+check('every cat owns its block frontage (the block-residency law: setBlockBounds at every cat spawn)',
+  (spawnBlock.match(/setBlockBounds\(bc, (?:blX|bl\.x), 1\.0\)/g) || []).length >= 2);
+check('no cat spawn spot is measured off the OLD 80u block (no "0.65 : 79.35" corner, no "bl.x - 2.6" mat)',
+  !/\?\s*0\.65\s*:\s*79\.35/.test(spawnBlock) && !/bc\.wx = bl\.x - 2\.6/.test(spawnBlock));
 check('Queens levels swap in the three-patch "calico" coat (replaces plain grey, like the Bronx mott)',
   spawnBlock.indexOf('["calico", "tuxedo", "orange", "tabby"]') >= 0);
 check('every cat gets a chase ceiling (yMax) so mat cats never snap to the street',
