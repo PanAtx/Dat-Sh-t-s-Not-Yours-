@@ -1,12 +1,13 @@
 /* ============================================================================
    compress-music.mjs - shrink the radio MP3s with no audible band loss.
 
-   WHY: music/ IS the size of the site - 31 tracks at 183 kbps / 48 kHz stereo
-   (avg 5.6 MB, 175 MB total). The radio plays them through an [audio] element on a
-   phone over cell data, where 96 kbps is the same loudness, the same stereo image
-   and the same 48 kHz rate - the bits that go away are the ones the ear doesn't
-   use. 96 kbps cuts the whole station roughly in HALF, so every player download
-   (and every offline first-visit precache) gets that much lighter.
+   WHY: music/ IS the size of the site - 31 tracks at ~183 kbps VBR / 48 kHz stereo
+   (avg 5.6 MB, 184 MB total) - the 128 kbps-era masters, and THEY are the HI tier.
+   The v1.0.565 experiment shipped the rotation at 96 kbps CBR: the same loudness on
+   paper, but the songs came out muddy, so v1.0.580 restored the masters. The data
+   bill for slow phones is answered by the LO tier (scripts/encode-radio-lo.mjs:
+   48 kbps in music/lo/), NOT by squeezing HI. This tool exists for the day the
+   HI folder itself must shrink.
 
    WHAT IS PRESERVED (the game depends on it):
      * the exact file NAMES - music/manifest.json lists them, the station fetches
@@ -17,8 +18,8 @@
      * the duration - verified per file, a drift over 1.5% fails the run.
 
    USAGE
-     node scripts/compress-music.mjs              encode every track at 96 kbps
-     node scripts/compress-music.mjs --kbps 128   a gentler cut
+     node scripts/compress-music.mjs              encode every track at 128 kbps
+     node scripts/compress-music.mjs --kbps 96   the v1.0.565 cut (muddy - history)
      node scripts/compress-music.mjs --dry-run    report the plan, touch nothing
      node scripts/compress-music.mjs --list       current bitrates only
      node scripts/compress-music.mjs --restore    put the originals back
@@ -40,7 +41,7 @@ const TRAINER_TRACK = 'Romeo Knight - Beat To The Pulp [Remastered].mp3'; // rep
 const ARGS = process.argv.slice(2);
 const flag = (n) => ARGS.includes('--' + n);
 const opt = (n, dflt) => { const i = ARGS.indexOf('--' + n); return i >= 0 && ARGS[i + 1] ? ARGS[i + 1] : dflt; };
-const KBPS = parseInt(opt('kbps', '96'), 10);
+const KBPS = parseInt(opt('kbps', '128'), 10);
 const DRY = flag('dry-run');
 const RESTORE = flag('restore');
 const mb = (b) => (b / 1048576).toFixed(2);

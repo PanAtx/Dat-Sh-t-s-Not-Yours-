@@ -2,8 +2,9 @@
 // main, playable, credited, and inside the size budget that keeps the site light.
 //
 // Why this exists: music/ IS the site's weight (the Pages deploy + every offline
-// first visit pays for it), scripts/compress-music.mjs re-encodes the station at
-// 96 kbps, and the radio reaches the files ONLY by name
+// first visit pays for it); the HI tier ships the 128 kbps-era VBR masters (~183 kbps -
+// exactly the files scripts/compress-music.mjs keeps in _music_orig), and the radio reaches
+// the files ONLY by name
 //   ("music/" + encodeURIComponent(name) from music/manifest.json),
 // so a renamed, untagged or fat track is a real regression, not a cosmetic one.
 // Pure Node (no ffmpeg, no network) so CI can run it.
@@ -67,11 +68,12 @@ for (const n of manifest.concat(trainer ? [trainer] : [])) {
 check('rotation tracks tagged artist="' + ARTIST + '" + title=file name; trainer track tagged at all',
   tagBad.length === 0, tagBad.slice(0, 3).join(' | '));
 
-// --- 4: THE SIZE BUDGET (the reason 96 kbps was shipped) ---
-// 96 kbps / 48 kHz stereo = 12 KB per second of audio, so the per-track ceiling is
-// set by the LONGEST song in the rotation (7 min) - not by taste.
-const CAP_MB = 5.5;   // per track (96 kbps * 7 min = ~5.0 MB)
-const TOTAL_MB = 110; // whole station + the trainer track
+// --- 4: THE SIZE BUDGET (the reason the HI tier is watched like a hawk) ---
+// The HI tier ships the 128 kbps-era VBR masters at ~183 kbps / 48 kHz stereo (~23 KB per
+// second of audio), so the per-track ceiling is set by the LONGEST songs in the rotation
+// (two 7-min epics) - not by taste.
+const CAP_MB = 12;   // per track (the 7-min epics: 10.41 / 9.60 MB at ~190 kbps VBR)
+const TOTAL_MB = 190; // whole station + the trainer track (the masters budget 185.3 MB)
 let total = 0, fat = [];
 for (const n of onDisk) {
   const b = fs.statSync(path.join(DIR, 'music', n)).size;
@@ -79,7 +81,7 @@ for (const n of onDisk) {
   if (b / 1048576 > CAP_MB) fat.push(n + ' ' + MB(b) + 'MB');
 }
 if (trainer) total += fs.statSync(path.join(DIR, trainer)).size;
-check('no single track over ' + CAP_MB + ' MB (96 kbps / 48 kHz keeps one under it)',
+check('no single track over ' + CAP_MB + ' MB (the 183 kbps VBR masters keep one under 11 MB)',
   fat.length === 0, fat.join(', '));
 check('the whole station fits the ' + TOTAL_MB + ' MB ship budget',
   total / 1048576 <= TOTAL_MB, MB(total) + ' MB');

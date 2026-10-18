@@ -11,7 +11,7 @@
        game's own model cache (Cache API, 'dsnboy-models-v1') with a byte-accurate
        progress bar + RETRY gate. The SW just passes them through.
      * The radio music (music/*.mp3) - the game caches those as it plays them
-       ('dsnboy-radio-v1'). The SW passes them through too.
+       ('dsnboy-radio-v2'). The SW passes them through too.
 
    Strategy: precache the shell on install (so the very next load is offline),
    then serve cache-first with network fallback + background refresh so a
@@ -23,9 +23,9 @@
 // scripts/bump-version.js + the pre-commit hook). A new version -> a new cache
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
-// survive untouched (no re-download of the 3D assets or the ~150MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.579';
-var APP_VERSION = '1.0.579';
+// survive untouched (no re-download of the 3D assets or the ~185MB of music).
+var CACHE_NAME = 'dsnboy-shell-v1.0.580';
+var APP_VERSION = '1.0.580';
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -51,7 +51,7 @@ var SHELL = [
   './music/lo/manifest.json', // THE LO TIER's track list (the same 31 names at 48 kbps): the
                               // station discovers its playlist from a manifest, so the folder the
                               // player chose has to answer OFFLINE too. The .mp3 files themselves
-                              // stay owned by the game's per-tier radio caches (dsnboy-radio-v1 /
+                              // stay owned by the game's per-tier radio caches (dsnboy-radio-v2 /
                               // dsnboy-radio-lo-v1); the LIST belongs to the shell.
   // Draco decoder (local copy of the gstatic.com CDN build) - litterReduced2.glb
   // is Draco-compressed, so the decoder must be available OFFLINE. The DRACOLoader
@@ -165,7 +165,7 @@ self.addEventListener('install', function (e) {
 self.addEventListener('activate', function (e) {
   e.waitUntil(
     // Drop only STALE SHELL caches (older dsnboy-shell-v* versions). The game's
-    // own model + radio caches (dsnboy-models-v1 / dsnboy-radio-v1) must survive
+    // own model + radio caches (dsnboy-models-v1 / dsnboy-radio-v2) must survive
     // every SW (re)activation - wiping them would force a full re-download of
     // the 3D assets and the music on every deploy.
     caches.keys().then(function (keys) {
@@ -186,7 +186,7 @@ self.addEventListener('fetch', function (e) {
   if (!isShell) return;
 
   // The 3D model + radio music files are owned by the game's own Cache API
-  // instances (dsnboy-models-v1 / dsnboy-radio-v1) - let those do their job.
+  // instances (dsnboy-models-v1 / dsnboy-radio-v2) - let those do their job.
   // The music/ directory listing is also passed through (NOT SW-cached) so adding
   // a new .mp3 to the folder keeps working on the very next scan.
   // EXCEPTION: music/manifest.json (the track LIST) IS precached above and served

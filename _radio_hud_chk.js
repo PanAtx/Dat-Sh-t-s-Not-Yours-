@@ -179,11 +179,11 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
 
   // --- THE RADIO DATA TIER (v1.0.564): the row, the default, the folder and the cache ---
   check('the RADIO row is on the settings page and NAMES the tier + its rate',
-    /<button id="btnMusic">/.test(html) && /^HI 96K$/.test(els.btnMusic.textContent));
+    /<button id="btnMusic">/.test(html) && /^HI 128K$/.test(els.btnMusic.textContent));
   check('the station reads the tier folder (HI = music/) and its manifest',
     out.musicDir() === 'music/' && out.musicManifestUrl() === 'music/manifest.json' && out.tier === 'hi');
   check('the HI tier keeps its own cache name, and the LO tier gets its OWN (a switch never re-fetches or evicts the other)',
-    out.cacheName === 'dsnboy-radio-v1' && out.radioCacheNameFor('lo') === 'dsnboy-radio-lo-v1');
+    out.cacheName === 'dsnboy-radio-v2' && out.radioCacheNameFor('lo') === 'dsnboy-radio-lo-v1');
   {
     const L = makeTierHarness({ lowProfile: true });
     check('a small-device first run boots the station on the LO tier (music/lo/, 48k, its own cache)',
@@ -192,7 +192,7 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
     const click = (L.hEls.btnMusic._h.click || [])[0];
     click();
     check('the row flips LO -> HI, stores its pick under dsnysweep_music, and re-labels the rate',
-      L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI 96K$/.test(L.hEls.btnMusic.textContent));
+      L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI 128K$/.test(L.hEls.btnMusic.textContent));
     check('the flip asks the station to hop folders (radioRestartTier is the switch, not a reload)',
       typeof L.run.SFX.radioRestartTier === 'function');
     const click2 = (L.hEls.btnMusic._h.click || [])[0];
@@ -217,7 +217,7 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
       const lp = 'music/lo/' + n;
       if (!fs.existsSync(lp)) { short++; return; }
       const b = fs.statSync(lp).size;
-      if (b > a * 0.68) fat++; // 48k against 96k sources: a file that did not shrink means it was not re-encoded
+      if (b > a * 0.68) fat++; // 48k against the ~183k VBR sources: a file that did not shrink means it was not re-encoded
     });
     const nbStart = html.indexOf('const NIGHT_MUSIC_TRACKS = [');
     const nightBlock = html.slice(nbStart, html.indexOf('];', nbStart));
@@ -235,7 +235,7 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
     swSrc.includes("'./music/lo/manifest.json'") && swSrc.includes('MANIFEST_KEY'));
   check('no radio path hard-codes the HI folder any more (scan / manifest / src / cache / identity checks all route through the tier)',
     !/fetch\("music\//.test(html) && !/const url = "music\//.test(html) &&
-      !/radioCacheName: "dsnboy-radio-v1"/.test(html));
+      !/radioCacheName: "dsnboy-radio-v\d"/.test(html));
   check('the trainer menu track is NOT part of the rotation folder (it stays a root file, in its own cache)',
     html.includes('TRAINER_TRACK: "Romeo Knight - Beat To The Pulp [Remastered].mp3"') &&
       !html.includes('music/Romeo Knight - Beat To The Pulp [Remastered].mp3'));

@@ -3494,7 +3494,7 @@
         }
       }
       /* ===== SKIP / RESUME control for the background offline-music download =====
-   Appears next to the badge while the ~150MB rotation streams in (so a metered
+   Appears next to the badge while the ~185MB rotation streams in (so a metered
    connection can bail out) and again if it was skipped (to resume it later). */
       #btnRadioSkip {
         position: fixed;
@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.579</div>
+          <div id="app-version" class="menu-version">v1.0.580</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.579';
+      const APP_VERSION = '1.0.580';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -8874,7 +8874,7 @@
       }
       // ==================== THE STORAGE PERSIST LEASE (the caches ask to be kept) =========
       // The game lives in the Cache API three times over: the page shell (the service worker's),
-      // the 3D models (dsnboy-models-v1) and the radio (dsnboy-radio-v1, up to ~150MB). Browser
+      // the 3D models (dsnboy-models-v1) and the radio (dsnboy-radio-v2, up to ~185MB). Browser
       // storage is BEST-EFFORT by default - the phone that needs room evicts it, and the player
       // wakes up to the "Getting Assets" gate re-downloading the street on a cellular bill (or a
       // radio that forgot its tracks). The persistence request asks the browser to treat this
@@ -10155,24 +10155,26 @@
         camera.updateProjectionMatrix();
         applyRenderSize(); // buffer tracks the new aspect at the same RENDER_H cap
       });
-      // ==================== THE RADIO DATA TIER (settings row: HI 96K / LO 48K) ================
-      // THE MUSIC IS THE SITE: the rotation is 94.7 MB of 96 kbps stereo mp3 (31 tracks), and a phone on
-      // cellular pays for every track it hears. THE LO TIER carries THE SAME TRACKS, THE SAME NAMES and
-      // the same night set at 48 kbps (music/lo/, 47.4 MB) - HALF the bytes, radio
-      // quality at the half the data, and the point is the DATA a phone spends, not the paint.
+      // ==================== THE RADIO DATA TIER (settings row: HI 128K / LO 48K) ================
+      // THE MUSIC IS THE SITE: the rotation is 181.9 MB of the 128 kbps-era VBR masters (31 tracks,
+      // ~183 kbps avg), and a phone on cellular pays for every track it hears. THE LO TIER carries
+      // THE SAME TRACKS, THE SAME NAMES and the same night set at 48 kbps (music/lo/, 47.4 MB) -
+      // A QUARTER of the bytes: the low-fi tier for the really slow phones. The v1.0.565 experiment
+      // shipped HI at 96 kbps CBR and the rotation came out muddy - the songs are the good ones,
+      // so HI keeps the masters and the DATA bill is answered by LO, not by squeezing HI.
       // THE LAWS OF THE TIER:
       //   * ONE set of names: the scan / manifest / cache / playback paths all route through
       //     musicDir() and musicManifestUrl(), so a tier is a FOLDER, never a forked playlist.
-      //   * A CACHE PER TIER (dsnboy-radio-v1 / dsnboy-radio-lo-v1): switching tiers never
+      //   * A CACHE PER TIER (dsnboy-radio-v2 / dsnboy-radio-lo-v1): switching tiers never
       //     re-fetches the other tier's files, and a LO session never evicts the HI cache -
       //     the bus ride and the evening at home each keep what they downloaded.
       //   * The row is the player's, persisted under dsnysweep_music; a small-device first run
-      //     starts on LO (the profile's own verdict), and HI (the 96 kbps originals) is every
+      //     starts on LO (the profile's own verdict), and HI (the 128 kbps-era masters) is every
       //     other device's default.
       //   * The switch is LIVE: radioRestartTier() drops the air player, re-scans the new folder
       //     and keeps the station playing - no reload, and the night lock survives the hop.
       const MUSIC_QUALS = ["hi", "lo"];
-      const MUSIC_KBPS = { hi: 96, lo: 48 }; // measured off the shipped files: the rotation is 96 kbps stereo, the LO tier is half of it
+      const MUSIC_KBPS = { hi: 128, lo: 48 }; // the row names the tier at its rate: HI ships the 128 kbps-era VBR masters (~183 kbps), LO is the 48 kbps low-fi tier
       const MUSIC_LO_DIR = "music/lo/";
       const _storedMusic = localStorage.getItem("dsnysweep_music");
       let MUSIC_QUAL = MUSIC_QUALS.indexOf(_storedMusic) >= 0
@@ -10187,7 +10189,10 @@
         return musicDir() + "manifest.json";
       }
       function radioCacheNameFor(q) {
-        return q === "lo" ? "dsnboy-radio-lo-v1" : "dsnboy-radio-v1";
+        // v2 (v1.0.580): the HI tier flipped from the 96 kbps CBR cut back to the 128 kbps-era
+        // masters. Players who cached the station at 96 kbps keep those bytes under the OLD cache
+        // name; the new name makes the HI tier fetch the masters instead of serving stale cuts.
+        return q === "lo" ? "dsnboy-radio-lo-v1" : "dsnboy-radio-v2";
       }
       function setMusicLabel() {
         // The row NAMES the tier and its rate, so the data cost is visible where it is chosen.
@@ -10233,7 +10238,7 @@
         trainerRadioResumable: false,
         // ---- TRAINER TRACK OFFLINE CACHE ----
         // The trainer song lives at the repo root and is played by a plain <audio> element, so it
-        // is NOT part of the music/ rotation and NOT in dsnboy-radio-v1. It gets its OWN cache:
+        // is NOT part of the music/ rotation and NOT in dsnboy-radio-v2. It gets its OWN cache:
         // radioScan()'s offline fallback enumerates the RADIO cache keys to rebuild the playlist
         // when the manifest can't be read, and this track must NEVER join that rotation.
         trainerCacheName: "dsnboy-trainer-v1",
@@ -11026,8 +11031,8 @@
           return true;
         },
         radioRestartTier() {
-          // THE DATA TIER SWITCH (the settings row HI 96K / LO 48K): the station re-scans the
-          // tier's folder and keeps playing. Each tier owns its OWN cache (dsnboy-radio-v1 /
+          // THE DATA TIER SWITCH (the settings row HI 128K / LO 48K): the station re-scans the
+          // tier's folder and keeps playing. Each tier owns its OWN cache (dsnboy-radio-v2 /
           // dsnboy-radio-lo-v1), so the hop never re-fetches the other tier's files and a LO
           // session never evicts what the HI cache holds: the bus ride and the evening at home
           // each keep what they downloaded. The night lock rides along untouched - the locked
@@ -60199,7 +60204,7 @@
       // ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
       // The models gate above only covers the 3D assets. To make the game genuinely
       // playable with the network off, this phase pulls EVERY track (no 12MB cap) into
-      // dsnboy-radio-v1 with a live progress bar. Cached tracks resolve instantly, so a
+      // dsnboy-radio-v2 with a live progress bar. Cached tracks resolve instantly, so a
       // repeat visit skips straight to the end. A hard failure (a track 404s / the
       // connection drops) throws -> RETRY appears.
       async function preloadRadioCache() {
@@ -60272,7 +60277,7 @@
       // ---- TRUE OFFLINE (background, skippable): stream the ENTIRE radio rotation
       //      (no 12MB cap) in the background so the game is offline-ready WITHOUT
       //      blocking the menu. The initial load reveals the menu as soon as the 3D
-      //      models are ready; the ~150MB music rotation then streams in behind the
+      //      models are ready; the ~185MB music rotation then streams in behind the
       //      scenes. The player can SKIP it (e.g. on a metered connection) and RESUME
       //      it later. The bottom-right badge reflects the live progress -> "OFFLINE
       //      READY" once every model AND track is cached.
@@ -60351,7 +60356,7 @@
           updateCacheBadge(); // now reflects how many assets actually landed in the cache
           applyOfflineImages(); // the <img> art (menu logo + trainer logo) now paints from the cache
           await buildModelTemplates();
-          // FAST LOAD: reveal the menu NOW. The ~150MB offline music rotation streams in
+          // FAST LOAD: reveal the menu NOW. The ~185MB offline music rotation streams in
           // in the background (skippable) so a slow connection never delays the first
           // playable frame. The bottom-right badge tracks its progress -> "OFFLINE READY".
           ldSetLabel("READY!");
@@ -60397,7 +60402,7 @@
       radioMode(); // dock the NOW PLAYING bar while we're (still) on the start screen
       requestAnimationFrame(loop);
       // Kick off the asset gate. It finishes by revealing #menu (and setting state='menu').
-      // The ~150MB offline-music download now runs via radioBackgroundDownload() once the
+      // The ~185MB offline-music download now runs via radioBackgroundDownload() once the
       // menu is revealed (see preloadAssets) - it is skippable and has no 12MB cap, so it
       // supersedes the old radioWarm() boot warm-up.
       preloadAssets();
