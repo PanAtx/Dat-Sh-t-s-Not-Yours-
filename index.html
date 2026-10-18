@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.578</div>
+          <div id="app-version" class="menu-version">v1.0.579</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.578';
+      const APP_VERSION = '1.0.579';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -44006,6 +44006,7 @@
         }
         // Scare off: 5s of fleeing at ~7 u/s (the generic block in updateCreatures)
         c.scareT = 5;
+        c.scareDir = null; // a fresh punch re-reads the side (THE TURNAROUND LAW commits per panic)
         c.dir = c.wx >= p.wx ? 1 : -1; // bolt AWAY from the worker
         if (c.type === "polishboy") {
           // The scared Polish boy: his bout is OVER - the counter-punch makes
@@ -46343,6 +46344,7 @@
         for (let i = 0; i < creatures.length; i++) {
           const c = creatures[i];
           if (c.type === "pigeon") continue; // pigeons scatter and fly away before any contact — no bump collision
+          if (c.type === "cat") continue; // THE FRIENDLY BODEGA CAT LAW AT THE COLLISION GATE: a cat is not a vehicle and not a wall. Untouched here, the cat used to fall straight through to the vehicle branch and be scored as a run-over — health, cargo and a 1.2s stun, all from a 4-pound bodega cat. A cat never costs the worker a point of health, a bag, or a step. The whole encounter is owned by the cat's own AI (the Hiss! and the bolt), which deals no damage.
           if (c.type === "bluejay") continue; // the blue jay is airborne (nest in the canopy, swoops overhead) — no bump collision; her strike is handled in her own AI case
           if (c.type === "gator") continue; // the Harlem alligator is in its open manhole — no bump collision; its bite (worker whack / tire clack) is handled in its own AI case
           if (c.type === "zombieArm") continue; // the Bed-Stuy manhole tentacle is in its open manhole — no bump collision; its grab (worker whack) is handled in its own AI case
@@ -49776,6 +49778,7 @@
           // at flee speed). c.scareT is set by landPunch.
           if (c.scareT > 0) {
             c.scareT -= dt;
+            const preX = c.wx; // where he stood BEFORE this frame's panic step (the lane law measures from here)
             c.wx += (c.wx >= p.wx ? 1 : -1) * 7 * dt; // ~7 u/s away from the worker
             // HE DOES NOT GET TO FLEE INTO A CROSS-STREET. A block-owned runner stops at his own
             // block's bounds (BLOCK_W-derived, so a 7-house block has 7-house bounds): a flat 5s
@@ -49783,11 +49786,42 @@
             // intersection behind the last building. Creatures with no authored block (birds,
             // vermin, traffic) keep their whole-street freedom, untouched.
             if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx);
+            // THE TURNAROUND LAW (the same law the bodega cats run in their own case): "away
+            // from the worker" is only a direction while the runner's OWN FRONTAGE goes that
+            // way. A runner the worker has herded at the end of his block is being asked to run
+            // somewhere he can no longer go - the cross-street - so he does not grind the rest
+            // of the 5s panic against the clamp: he flips and sprints the OPPOSITE direction,
+            // back INLAND past the worker. The lane is committed for the panic (c.scareDir,
+            // cleared by landPunch and when the panic dies) so a cornered runner turns ONCE and
+            // gets somewhere instead of nosing at the wall. The step is measured from preX, so
+            // a frame is ONE stride, never two. typeof-guarded: the harnesses that never inject
+            // the lane test run the shipped clamped sprint, byte-for-byte.
+            if (typeof blockRoomX === "function") {
+              let run =
+                typeof c.scareDir === "number"
+                  ? c.scareDir
+                  : preX >= p.wx
+                  ? 1
+                  : -1;
+              if (!blockRoomX(c, run)) run = -run; // the lane is off his block - take the open one
+              let bolt = preX + run * 7 * dt;
+              if (typeof blockClampX === "function") bolt = blockClampX(c, bolt);
+              if (Math.abs(bolt - preX) < 1e-4 && blockRoomX(c, -run)) {
+                run = -run; // the frontage ran out under him: turn and run the other way
+                bolt = preX + run * 7 * dt;
+                if (typeof blockClampX === "function") bolt = blockClampX(c, bolt);
+              }
+              c.scareDir = c.scareT > 0 ? run : null;
+              c.wx = bolt;
+              c.dir = run;
+            }
             c.wy = clamp(c.wy, 0.8, 4.4); // stay on the walkable band
             if (c.g) {
               c.g.position.x = c.wx;
               c.g.position.y = c.wy;
               c.g.rotation.z = c.wx >= p.wx ? 0 : Math.PI; // face the direction of travel
+              if (typeof c.scareDir === "number" && c.scareDir !== (c.wx >= p.wx ? 1 : -1))
+                c.g.rotation.z = c.scareDir >= 0 ? 0 : Math.PI; // THE TURNAROUND LAW owns the facing: a runner who flipped sprints PAST the worker, so he faces the way he actually travels (never painted running backwards)
             }
             // HE TAKES HIS THINGS WITH HIM. The Harlem street-baller bolts with the
             // basketball clamped under his arm — the ball is never left bouncing on an
@@ -51791,6 +51825,19 @@
                 parts.body.scale.y = 1.0;
                 parts.body.position.y = 0; // Body at ground level, connected to legs
                 parts.bodyGroup.position.z = 0.18; // Keep orange back fur low (hugging body) while sitting
+                if (c.rubT > 0) {
+                  // THE HELLO POSE (the ~1.2s after a "Purrr!"): a cat says hello with its tail -
+                  // STRAIGHT UP - and rubs the moving part of itself along the passing boot,
+                  // leaning in. Pure pose: c.wx / c.wy never move, and the worker is never
+                  // touched (a bodega cat has nothing in it that can hurt him).
+                  c.rubT -= dt;
+                  const rub = Math.sin(c.stateT * 9) * 0.22; // the flank working back and forth
+                  parts.tailPivot.rotation.z = 0.9; // tail UP: the friendliest thing a cat does
+                  parts.headPivot.rotation.y = -0.05 + rub; // cheek out toward his leg
+                  parts.headPivot.rotation.z = rub * 0.5;
+                  const lean = (p.wx >= c.wx ? 1 : -1) * 0.16; // lean INTO the boot it is rubbing
+                  c.g.rotation.z = c.dir >= 0 ? lean : Math.PI - lean;
+                }
                 if (!c.sitTimer) {
                   c.sitTimer = R(2.5, 5.0);
                 }
@@ -51851,6 +51898,7 @@
                   // messing with the cat pays +10 — the bubble pops OVER THE WORKER so it
                   // gets its own screen space (the cat's "Hiss!" bubble is anchored on the cat)
                   awardPrankPoints(10, p.wx, p.wy);
+                  c.hissed = true; // THE GREETING LAW: a cat that has been scared this shift never says hello
                   // Restore upright alert posture when startled
                   parts.headPivot.rotation.y = 0;
                   parts.headPivot.rotation.z = 0;
@@ -51859,6 +51907,23 @@
                   
                   parts.tailPivot.rotation.z = 0;
                   Voice.say("Hiss!", 0.8, 1.3, c.wx, c.wy, null, "cat");
+                } else if (
+                  state === "play" &&
+                  !c.purred &&
+                  !c.hissed &&
+                  Math.abs(tx) < 2.6 &&
+                  Math.abs(c.wy - p.wy) < 1.7
+                ) {
+                  // THE GREETING: the cat is the store's own, and the man with the broom is
+                  // FAMILY. When the worker walks up WITHOUT scaring it, the cat says hello -
+                  // tail straight up, lean into his boot, flank rubbing along his leg, a
+                  // "Purrr!" over the cat's own head. Cost to the worker for the courtesy:
+                  // NOTHING. No stun, no dropped bag, no health, no payout in either direction
+                  // (the +10 goes the OTHER way - it is for messing with the cat). One hello
+                  // per cat per shift: the bodega cat is shy about repeating it.
+                  c.purred = true;
+                  c.rubT = 1.25; // the rub plays out of the sitting pose (a greeting never moves the cat, and never touches the worker)
+                  Voice.say("Purrr!", 0.85, 1.25, c.wx, c.wy, null, "cat");
                 }
               } else if (c.state === "chasing") {
                 // Cat charges the worker to scare him - slower for better animation visibility

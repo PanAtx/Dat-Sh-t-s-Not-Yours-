@@ -203,10 +203,24 @@ function herd(side) {
   check('the whole cycle hurt nobody (no stun, no dropped cargo, no HP from the cat)',
     stuns === 0 && drops === 0 && hurts === 0,
     'stuns=' + stuns + ' drops=' + drops + ' hurts=' + hurts);
-  check('THE TURNAROUND LAW is a direction test only: called in the cat flight, never to place',
-    caseText.split('blockRoomX(').length - 1 === 2 &&
-    src.split('blockRoomX(').length - 1 === 3,
-    'case=' + (caseText.split('blockRoomX(').length - 1) + ' src=' + (src.split('blockRoomX(').length - 1));
+  check('THE TURNAROUND LAW is a direction test only: every blockRoomX call site is a runner law, never a placement',
+    (() => {
+      const scA = src.indexOf('// PUNCHBACK SCARE-OFF');
+      const scB = src.indexOf('switch (c.type) {', scA);
+      const spans = [
+        [roomIdx, roomIdx + 120], // the declaration
+        [startIdx, i], // the bodega cat flight
+        [src.indexOf('if (c.scareT > 0) {', scA), scB], // the punchback scare-off
+      ];
+      const sites = [];
+      for (let k = src.indexOf('blockRoomX('); k >= 0; k = src.indexOf('blockRoomX(', k + 1))
+        sites.push(k);
+      return (
+        sites.length >= 2 &&
+        sites.every((k) => spans.some((s) => s[0] >= 0 && k >= s[0] && k <= s[1]))
+      );
+    })(),
+    'call sites = ' + (src.split('blockRoomX(').length - 1));
 }
 
 // ---- 7) THE HARD HERD: the worker walks the cat east, right up the block, for a full
@@ -234,6 +248,159 @@ function herd(side) {
     maxJump <= (c.sp + 1.5 + 12) * dt * 1.05, 'maxJump=' + maxJump.toFixed(4));
   check('the herd hurt nobody (stun / cargo / HP counters all zero through 25s)',
     stuns === 0 && drops === 0 && hurts === 0);
+}
+
+// ---- 8) THE COLLISION GATE (the way the cat ACTUALLY hurt the worker) ----
+// The cat case is only half the law: collideCreatures owns body contact, and a type with no
+// branch there falls into the last else - the VEHICLE branch (run-over: health, cargo, i-frames
+// and a 1.2s stun). A bodega cat used to land there. The friendly law must be enforced at the
+// contact gate, in the right ORDER (before the radius gate, before the vehicle branch).
+{
+  const ccStart = src.indexOf('function collideCreatures()');
+  const ccEnd = src.indexOf('\n      function ', ccStart + 20);
+  const cc = src.slice(ccStart, ccEnd > ccStart ? ccEnd : ccStart + 90000);
+  const skipI = cc.indexOf('c.type === "cat") continue;');
+  const radGate = cc.indexOf('const dx = c.wx - p.wx,');
+  const vehI = cc.indexOf('HP_HIT_VEHICLE');
+  check('collideCreatures SKIPS the cat: no bump contact is ever scored against it',
+    skipI >= 0, 'skip at ' + skipI);
+  check('the skip sits BEFORE the contact radius gate (the cat is never in the bump pool at all)',
+    skipI >= 0 && radGate > skipI, 'skip=' + skipI + ' radiusGate=' + radGate);
+  check('the vehicle branch (the run-over: health + cargo + i-frames + 1.2s stun) sits AFTER the skip',
+    skipI >= 0 && vehI > skipI && cc.indexOf('doStun(1.2, "hit")', vehI) > vehI,
+    'skip=' + skipI + ' vehicle=' + vehI);
+  check('collideCreatures names the cat ONCE, and that one is the skip law',
+    (cc.match(/c\.type === "cat"/g) || []).length === 1);
+  check('no cat line inside the collision gate carries a weapon (no stun / damage / drop / i-frames)',
+    cc.split(/\r?\n/).filter((l) => l.indexOf('"cat"') >= 0).every(
+      (l) => !/doStun\(|hurtNPC\(|dropCarried\(|p\.invuln|HP_HIT/.test(l)));
+  check('the cats are NOT on the horror list either (no night-shift damage rule can grab one)',
+    !/HORROR_TYPES = \{[^}]*\bcat\b/.test(src));
+}
+
+// ---- 9) THE GREETING: the cat the worker did NOT scare says hello, at zero cost ----
+{
+  const greet = caseText.slice(
+    caseText.indexOf('!c.purred'),
+    caseText.indexOf('} else if (c.state === "chasing")'));
+  check('THE GREETING is wired as the OTHER half of the spook test (hello only when the worker did NOT scare it)',
+    /Voice\.say\("Hiss!"[\s\S]{0,220}\} else if \(\s*state === "play" &&\s*!c\.purred &&\s*!c\.hissed/.test(caseText));
+  check('the hello is the CAT\u2019S line, anchored on the cat ("Purrr!"), one per cat per shift',
+    /Voice\.say\("Purrr!",\s*0\.85,\s*1\.25,\s*c\.wx,\s*c\.wy,\s*null,\s*"cat"\)/.test(caseText) &&
+    /c\.purred = true;/.test(greet));
+  check('the greeting costs the worker NOTHING and pays him NOTHING (no stun / cargo / HP / cash)',
+    greet !== '' && !/doStun\(|hurtNPC\(|dropCarried\(|awardPrankPoints\(/.test(greet));
+  check('the greeting is a POSE only - it never moves the cat and never moves the worker',
+    !/c\.wx\s*[-+]?=[^=]/.test(greet) && !/c\.wy\s*[-+]?=[^=]/.test(greet) &&
+    !/p\.wx\s*[-+]?=[^=]/.test(greet) && !/p\.wy\s*[-+]?=[^=]/.test(greet));
+  check('the hello pose is friendly reading: tail straight up + the flank rubbing the boot',
+    (() => {
+      const p0 = caseText.indexOf('if (c.rubT > 0) {');
+      if (p0 < 0) return false;
+      const pose = caseText.slice(p0, caseText.indexOf('c.sitTimer', p0) > p0 ? caseText.indexOf('c.sitTimer', p0) : p0 + 900);
+      return /parts\.tailPivot\.rotation\.z = 0\.9/.test(pose) &&
+        /Math\.sin\(c\.stateT \* 9\) \* 0\.22/.test(pose) &&
+        /c\.g\.rotation\.z = c\.dir >= 0 \? lean : Math\.PI - lean/.test(pose);
+    })());
+  // behavioural: a walked-up cat says hello ONCE, stays put, hurts nobody; the scaring version hisses
+  resetCounters();
+  const blX = 500;
+  const c = makeCat(blX + 10, 4.5, blX);
+  const p = { wx: c.wx - 2.2, wy: 4.5 }; // in the greeting band, OUTSIDE the 1.8u scare radius
+  const heard = [];
+  const say = Voice.say;
+  Voice.say = (line) => heard.push(line);
+  const x0 = c.wx, y0 = c.wy;
+  for (let t = 0; t < 60 * 15; t++) runCatCase(c, p, 1 / 60); // 15s of standing next to the cat
+  Voice.say = say;
+  const purrs = heard.filter((l) => l === 'Purrr!').length;
+  check('the walked-up cat says hello exactly ONCE in 15s (and never hisses at a man who scared it)',
+    purrs === 1 && heard.indexOf('Hiss!') < 0, 'heard=' + JSON.stringify(heard));
+  check('the hello cat does not move and the worker pays nothing for the courtesy',
+    c.wx === x0 && c.wy === y0 && stuns === 0 && drops === 0 && hurts === 0,
+    'd=(' + (c.wx - x0) + ',' + (c.wy - y0) + ') stuns=' + stuns);
+  // scaring it: HISSES (pays the +10 to the worker) and the hello does not repeat
+  const c2 = makeCat(blX + 100, 4.5, blX);
+  const p2 = { wx: c2.wx - 1.4, wy: 3.8 };
+  const heard2 = [];
+  Voice.say = (line) => heard2.push(line);
+  for (let t = 0; t < 60 * 20; t++) {
+    runCatCase(c2, p2, 1 / 60);
+    p2.wx += Math.abs(c2.wx - p2.wx) > 1.5 ? (c2.wx - p2.wx > 0 ? 1 : -1) * 6 / 60 : 0;
+    p2.wy = c2.wy - 0.5;
+  }
+  Voice.say = say;
+  check('a SCARED cat hisses, bolts and never repeats the hello (the scared cat is not a greeting cat)',
+    heard2.indexOf('Hiss!') >= 0 && heard2.filter((l) => l === 'Purrr!').length === 0 &&
+    stuns === 0 && drops === 0 && hurts === 0,
+    'heard=' + JSON.stringify(heard2.slice(0, 4)) + ' stuns=' + stuns);
+}
+
+// ---- 10) THE TURNAROUND LAW RUNS THE PUNCHBACK SCARE-OFF TOO (every block-owned runner) ----
+{
+  const scA = src.indexOf('// PUNCHBACK SCARE-OFF');
+  const scB = src.indexOf('switch (c.type) {', scA);
+  const scareSrc = src.slice(src.indexOf('if (c.scareT > 0) {', scA), scB);
+  check('the scare-off block is extractable from updateCreatures', scA > 0 && scB > scA && scareSrc.length > 200);
+  check('THE TURNAROUND LAW is wired into the scare-off (blockRoomX decides the lane, scareDir commits it)',
+    /typeof blockRoomX === "function"/.test(scareSrc) &&
+    /if \(!blockRoomX\(c, run\)\) run = -run;/.test(scareSrc) &&
+    /c\.scareDir = c\.scareT > 0 \? run : null;/.test(scareSrc));
+  check('the lane flip owns the facing (a runner who turns sprints PAST the worker, never runs backwards)',
+    /c\.g\.rotation\.z = c\.scareDir >= 0 \? 0 : Math\.PI/.test(scareSrc));
+  check('a fresh punch re-reads the lane (landPunch clears the committed direction)',
+    /c\.scareT = 5;\s*\n\s*c\.scareDir = null;/.test(src));
+  const mkRunner = (blX, blockW, pinnedX) => ({
+    type: 'ped', wx: pinnedX, wy: 2.6, scareT: 5, dir: 1,
+    blockMinX: blX + 1, blockMaxX: blX + blockW - 1,
+    g: { position: { x: pinnedX, y: 2.6 }, rotation: { z: 0 } },
+    parts: { legL: { rotation: { y: 0 } }, legR: { rotation: { y: 0 } } },
+  });
+  const runScare = (side) => {
+    const blX = 100, blockW = 56;
+    const pinnedX = side === 'right' ? blX + blockW - 1.5 : blX + 1.5;
+    const c = mkRunner(blX, blockW, pinnedX);
+    // The worker stands on the OPEN side of the frontage: the plain away-lane is the wall.
+    const p = { wx: pinnedX + (side === 'right' ? -4 : 4), wy: 2.0 };
+    const step = new Function('c', 'p', 'dt', 'clamp', 'GZ', 'animParts', 'blockClampX', 'blockRoomX',
+      'for (let __i = 0; __i < 1; __i++) {\n' + scareSrc + '\n}');
+    const dt = 1 / 60;
+    const x0 = c.wx;
+    let out = null, travel = 0, lastX = c.wx;
+    for (let t = 0; t < 60 * 5; t++) {
+      step(c, p, dt, clamp, 0.3, () => {}, blockClampX, blockRoomX);
+      travel += Math.abs(c.wx - lastX); lastX = c.wx;
+      if (c.wx < c.blockMinX - 1e-6 || c.wx > c.blockMaxX + 1e-6)
+        out = 't=' + t + ' wx=' + c.wx.toFixed(3);
+      if (c.scareT <= 0) break;
+    }
+    const moved = c.wx - x0; // INLAND means away from the wall he was pinned against
+    const inland = side === 'right' ? moved < -5 : moved > 5;
+    const dirOk = (c.g.rotation.z === 0 && c.dir >= 0) || (c.g.rotation.z === Math.PI && c.dir < 0);
+    return { out, moved, inland, travel, dirOk, c };
+  };
+  const r = runScare('right');
+  check('a runner pinned at the RIGHT end of his block takes the TURNAROUND: 5s panic sprints INLAND (west)', r.inland && r.out === null,
+    'dx=' + r.moved.toFixed(2) + ' ' + (r.out || 'band kept'));
+  check('the turned-around runner keeps his facing on the direction he travels (never runs backwards)',
+    r.dirOk, 'dir=' + r.c.dir + ' rot=' + r.c.g.rotation.z.toFixed(3));
+  const l = runScare('left');
+  check('a runner pinned at the LEFT end of his block takes the TURNAROUND: 5s panic sprints INLAND (east)', l.inland && l.out === null,
+    'dx=' + l.moved.toFixed(2) + ' ' + (l.out || 'band kept'));
+  check('a scare-off sprint never lands in a cross-street (both pinned sides, 600 frames sampled)',
+    r.out === null && l.out === null, (r.out || '') + ' ' + (l.out || ''));
+  check('a panic on open frontage keeps running the plain away-lane (the lane law is not a flip generator)',
+    (() => {
+      const blX = 0, blockW = 56;
+      const c = mkRunner(blX, blockW, blX + 28); // dead centre
+      const p = { wx: c.wx - 4, wy: 2 }; // worker on the LEFT -> the plain away is RIGHT (open)
+      const step = new Function('c', 'p', 'dt', 'clamp', 'GZ', 'animParts', 'blockClampX', 'blockRoomX',
+        'for (let __i = 0; __i < 1; __i++) {\n' + scareSrc + '\n}');
+      const x0 = c.wx;
+      for (let t = 0; t < 60 * 1.5; t++) { step(c, p, 1 / 60, clamp, 0, () => {}, blockClampX, blockRoomX); if (c.scareT <= 0) break; }
+      return c.dir === 1 && c.wx - x0 > 5 && c.scareDir === 1;
+    })(),
+    'open lane east, scareDir kept');
 }
 
 console.log(ok ? '\nALL FRIENDLY-CAT CHECKS PASSED' : '\nFRIENDLY-CAT CHECKS FAILED');
