@@ -684,6 +684,68 @@
           opacity: 0.25;
         }
       }
+      /* ===== THE POWER-UP POINTER ARROW ==================================
+         The instant a power-up (coffee / BEC / Red Bull) drops on the street, this neon-green
+         arrow LIGHTS beside the worker and POINTS AT the find, so he knows where his heal is
+         without hunting for it. THE SPLIT: JS owns the aim, the position and the fade — every
+         frame it projects the worker and the pickup through worldToScreen, eases the arrow's
+         angle onto the target (it SWINGS as the street scrolls; it never snaps), parks the arrow
+         between the worker and the find, and parks it at the reach radius pointing out of frame
+         when the find slid off screen. This CSS owns the LOOK and the living animation: a fat
+         right-pointing glyph (JS rotates the wrapper, so it is authored along +X) that THROBS on
+         a 0.7s pulse for its whole life. The clock is JS's too: POWERUP_ARROW_LIFE 3 seconds
+         from the spawn, the last second of it the fade to nothing, and the arrow dies with the
+         find when the worker picks it up. It never eats a tap and it sits under the modals. */
+      #powerup-arrow {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 96px;
+        height: 60px;
+        z-index: 24;
+        opacity: 0;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        will-change: transform, opacity;
+      }
+      #powerup-arrow.hidden {
+        display: none;
+      }
+      #powerup-arrow-glyph {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 96px;
+        height: 60px;
+        transform-origin: 50% 50%;
+        background: linear-gradient(90deg, #2fd3ff, #54ff88 55%, #d9ff5c);
+        /* A fat RIGHT-pointing arrow — a long tapering tail and a wide head. The tail starts
+           thin (a trail behind the head), so the arrow reads as MOTION, not as a signpost. */
+        clip-path: polygon(
+          0 44%,
+          6% 46%,
+          58% 40%,
+          58% 6%,
+          100% 50%,
+          58% 94%,
+          58% 60%,
+          6% 54%,
+          0 56%
+        );
+        filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.55))
+          drop-shadow(0 0 12px rgba(84, 255, 136, 0.8));
+        animation: puArrowThrob 0.7s ease-in-out infinite;
+      }
+      @keyframes puArrowThrob {
+        0%,
+        100% {
+          transform: scale(0.82);
+        }
+        50% {
+          transform: scale(1.12);
+        }
+      }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
          violet-glowing instead of the usual borough amber. Its title scales down to fit a
          phone and is allowed to break onto a second line — the card must never be wider
@@ -948,6 +1010,12 @@
           height: 74px;
           font-size: 24px;
           letter-spacing: 1px;
+        }
+        /* the power-up pointer arrow drops to phone size in the same law */
+        #powerup-arrow,
+        #powerup-arrow-glyph {
+          width: 62px;
+          height: 40px;
         }
         .bonus-goal-chip {
           font-size: clamp(8px, 2.5vw, 11px);
@@ -5359,6 +5427,15 @@
         <b id="boss-hpeye">EYE</b>
       </div>
     </div>
+    <!-- THE POWER-UP POINTER ARROW: lights the instant a coffee / BEC / Red Bull drops on the
+         street, sits beside the worker and POINTS AT the find. JS aims it every frame (the
+         worker and the pickup through worldToScreen, the angle eased onto the target, the box
+         clamped on screen so it keeps pointing at a find that slid out of view), the glyph
+         throbs on its own CSS pulse, and the whole pointer fades out on a 3-second clock —
+         dying early with the find when the worker picks it up. Never eats a tap. -->
+    <div id="powerup-arrow" class="hidden">
+      <div id="powerup-arrow-glyph"></div>
+    </div>
     <!-- THE MIDNIGHT "GO!" ARROW (the 16-bit beat-'em-up way-out cue): the instant the
          ghostly ward of the block he just shovels empty comes down, this red arrow lights
          in the DEAD CENTRE of the screen — where the eye already is, and on a phone clear of
@@ -5486,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.573</div>
+          <div id="app-version" class="menu-version">v1.0.574</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5801,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.573';
+      const APP_VERSION = '1.0.574';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -38826,7 +38903,12 @@
           // pre-spawned bonus loot (treasure / mongo / street cash) — ALWAYS spawned, and on
           // the OVERTIME street it's the "money" the worker banks for the round. Overtime is
           // GUARANTEED loot on every house (vs 85% elsewhere) so the $3000 cash goal is fair.
-          if (BONUS || Math.random() < 0.85) spawnBonus(houseX(), sideY());
+          // v1.0.573 THE LOOT FLOOR: the old 85% per-house roll is a 100% FLOOR (every house
+          // carries a find, exactly as the OVERTIME street always did), and the later levels
+          // drop a SECOND find in the same cell — the difficulty ramps with the level, so the
+          // mongo / street cash / treasure supply ramps with it (see bonusLootExtra).
+          if (BONUS || Math.random() < BONUS_LOOT_CHANCE) spawnBonus(houseX(), sideY());
+          if (Math.random() < bonusLootExtra()) spawnBonus(houseX(), sideY());
         }
         // lane markings & sidewalk joints (scroll with the block)
         // MIDNIGHT: THE STREET ENDS AT THE BOTTOM CEMETERY FENCE — no lane paint and no
@@ -41270,6 +41352,8 @@
         clearHopperResidue();
         pendingHouses.length = 0;
         bonuses.length = 0;
+        lootNextAt = LOOT_SUPPLY_FIRST; // a fresh shift: the supply line starts clean
+        powerupArrowReset(); // ...and so does the pointer (no stale arrow leaking over the load)
         powerups.length = 0;
         starParticles.length = 0;
         flyingCans.length = 0;
@@ -42978,6 +43062,61 @@
           }
         }
         trimPickupRoster(bonuses); // the roster ceiling (memory guard), never the nearest prize
+        // THE SUPPLY LINE rides the same clock as the finds it feeds (typeof-guarded: the vm
+        // harnesses that eval updateBonuses alone never see it).
+        if (typeof updateLootSupply === "function") updateLootSupply(dt);
+      }
+      // ==================== THE LOOT SUPPLY (mongo / street cash / treasure rate) =========
+      // Street finds reach the worker from three places: the per-house pre-spawn in
+      // makeBlockContents, the Bronx dealer's stoop lure, and THIS timed supply line — a fresh
+      // find drops on the sidewalk AHEAD of the worker on the same law the power-ups use
+      // (snapToHouseCell + routeDir, so it never lands in a cross-street gap or behind the
+      // barrier). THE WHOLE POINT: the difficulty ramps with the level, so the loot supply ramps
+      // with it — the drop interval SHRINKS every level, and the per-house cell carries a second
+      // find more often on the late streets.
+      // THE NIGHT SHIFT (MIDNIGHT) IS EXCLUDED ON PURPOSE (lootSupplyOn): tonight's street was
+      // evacuated, not serviced, and its economy is its own — the spectral treasure the horror
+      // spawners leave on the block plus the joss HELL NOTES that feed the healer milestones.
+      // Its tuned rate is exactly what the request asks us to LEAVE ALONE.
+      const BONUS_LOOT_CHANCE = 1.0; // the per-house floor in makeBlockContents: EVERY house carries a find (was 0.85)
+      const LOOT_EXTRA_ROLL = [0.2, 0.25, 0.3, 0.35, 0.42, 0.5, 0.58, 0.65]; // odds of a SECOND find in the cell, by level
+      const LOOT_SUPPLY_EVERY = [7.2, 6.6, 6.0, 5.4, 4.8, 4.2, 3.6, 3.1]; // seconds between supply drops, by level
+      const LOOT_SUPPLY_FIRST = 2.5; // the first drop of a shift lands this soon after clock-in
+      const LOOT_SUPPLY_AHEAD_LO = 5; // u ahead of the worker a supply drop lands ...
+      const LOOT_SUPPLY_AHEAD_HI = 15; // ...and its far end (a drop you can see coming)
+      function lootLevel() {
+        // routeIdx is the level index the shift is running (0 = the first route).
+        return clamp(routeIdx | 0, 0, LOOT_SUPPLY_EVERY.length - 1);
+      }
+      function lootSupplyOn() {
+        return typeof isNightShift === "function" ? !isNightShift() : true;
+      }
+      function bonusLootExtra() {
+        return LOOT_EXTRA_ROLL[lootLevel()];
+      }
+      function lootSupplyEvery() {
+        const base = LOOT_SUPPLY_EVERY[lootLevel()];
+        // The OVERTIME round pays faster: its whole level is a 30s sprint at a $3000 cash goal.
+        return BONUS ? Math.max(2.6, base * 0.62) : base;
+      }
+      let lootNextAt = LOOT_SUPPLY_FIRST; // seconds of play until the next supply drop
+      function updateLootSupply(dt) {
+        if (!lootSupplyOn()) return; // MIDNIGHT keeps its own tuned street
+        if (typeof state !== "undefined" && state !== "play") return; // no loot on the intro / menu / modal
+        lootNextAt -= dt;
+        if (lootNextAt > 0) return;
+        lootNextAt = lootSupplyEvery();
+        const wx = snapToHouseCell(
+          clamp(
+            p.wx + routeDir() * R(LOOT_SUPPLY_AHEAD_LO, LOOT_SUPPLY_AHEAD_HI),
+            routeNearX(),
+            routeFarX(),
+          ),
+        );
+        const wy = R(0.5, spawnMaxY());
+        spawnBonus(wx, wy);
+        // The late streets pay in pairs: a second find lands beside the first.
+        if (Math.random() < bonusLootExtra()) spawnBonus(wx + R(-3.4, 3.4), wy + R(-0.7, 0.7));
       }
       // ==================== HEALTH & POWER-UP SYSTEM ====================
       // The worker has a finite health pool. NPCs (vehicles / hard hazards) drain it.
@@ -45092,7 +45231,53 @@
         }
         return best + 0.8 + Math.random() * (BW - 1.6); // front of that house, sidewalk -> grass
       }
+      // ==================== THE POWER-UP POINTER (the "where IS the heal?" arrow) =========
+      // Coffee / BEC / Red Bull spawn a few units AHEAD of the worker — visible in principle,
+      // silent, ground-level and easy to miss in practice, especially late in a shift when the
+      // health bar is the one thing the player is not watching. So the instant a power-up is
+      // born, a neon-green arrow LIGHTS beside the worker and POINTS AT the find: JS projects
+      // the worker and the pickup through worldToScreen every frame and eases the arrow's angle
+      // onto the target (it swings as the street scrolls, and it keeps pointing at a find that
+      // slid off screen), the glyph throbs on its own CSS pulse, and the pointer lives
+      // POWERUP_ARROW_LIFE (3s) from the spawn — the last POWERUP_ARROW_FADE seconds of which is
+      // the fade out to nothing. It dies early with the find when the worker picks it up, and it
+      // dies with the shift. Guarded for the vm harnesses the way the goul health bars are
+      // (document / worldToScreen probes): no DOM, no paint, no crash.
+      const POWERUP_ARROW_LIFE = 3; // seconds the arrow lives, from the moment the find spawns
+      const POWERUP_ARROW_FADE = 1; // ...the LAST this many seconds of which is the fade to nothing
+      const POWERUP_ARROW_EDGE_M = 6; // px the arrow box keeps off every screen edge
+      const POWERUP_ARROW_GAP = 24; // px the arrow keeps behind the find when the find is ON screen
+      const POWERUP_ARROW_MIN = 26; // px from the worker the arrow never sits closer than
+      const POWERUP_ARROW_OFF = 74; // px from the worker the arrow sits when the find is OFF screen
+      const POWERUP_ARROW_W = 96; // the desktop glyph box (JS centring fallback when unmeasured)
+      const POWERUP_ARROW_H = 60;
+      let powerupArrow = null; // null | { type, wx, wy, t, deg } — the live pointer (newest spawn wins)
+      function powerupArrowEl() {
+        if (typeof document === "undefined" || !document || typeof document.getElementById !== "function")
+          return null;
+        return document.getElementById("powerup-arrow");
+      }
+      function powerupArrowHide(el) {
+        powerupArrow = null;
+        const node = el || powerupArrowEl();
+        if (node && typeof node.classList.add === "function") node.classList.add("hidden");
+      }
+      function powerupArrowReset() {
+        powerupArrowHide();
+      }
+      function markPowerupArrow(type, wx, wy) {
+        const node = powerupArrowEl();
+        if (node) {
+          node.classList.remove("hidden");
+          node.style.opacity = "1";
+        }
+        powerupArrow = { type: type, wx: wx, wy: wy, t: 0, deg: 0 };
+      }
       function spawnPowerup(type, wx, wy, opts) {
+        // THE POINTER: a fresh find is silent, ground-level and easy to swallow in the noise of
+        // the street, so the arrow lights the moment it is born (typeof-guarded — the vm
+        // harnesses that eval this function alone never see the pointer code).
+        if (typeof markPowerupArrow === "function") markPowerupArrow(type, wx, wy);
         const ghostly = !!(opts && opts.ghostly);
         const g = ghostly
           ? makeGhostBull()
@@ -45203,7 +45388,96 @@
           spawnStars(b.wx, b.wy, 16);
         }
       }
+      function powerupArrowLives(A) {
+        // The arrow is only worth drawing while the find it points at is still lying on the
+        // street: picked up, retired outside the walk bounds, roster-trimmed, or a fresh shift —
+        // in every case the pointer goes with it.
+        if (!powerups) return false;
+        for (let i = 0; i < powerups.length; i++) {
+          if (powerups[i].wx === A.wx && powerups[i].wy === A.wy) return true;
+        }
+        return false;
+      }
+      function updatePowerupArrow(dt) {
+        const A = powerupArrow;
+        if (!A) return;
+        A.t += dt;
+        if (A.t >= POWERUP_ARROW_LIFE) { powerupArrowHide(); return; }
+        if (!powerupArrowLives(A)) { powerupArrowHide(); return; }
+        const node = powerupArrowEl();
+        if (!node) return; // the vm harnesses: no DOM, nothing to paint
+        if (typeof worldToScreen !== "function") return; // no camera yet
+        const W = node.offsetWidth > 0 ? node.offsetWidth : POWERUP_ARROW_W;
+        const H = node.offsetHeight > 0 ? node.offsetHeight : POWERUP_ARROW_H;
+        if (typeof state !== "undefined" && state !== "play") {
+          node.style.opacity = "0"; // no pointer over the intro / pause / write-up modal
+          node.classList.add("hidden");
+          return;
+        }
+        const MZ = GZ + 1.15; // point at the MIDDLE of the pickup, not its sole
+        const me = worldToScreen(p.wx, p.wy, MZ);
+        if (!me) return; // worker off the projection: no anchor to arrange the arrow around
+        const it = worldToScreen(A.wx, A.wy, MZ);
+        let dx, dy;
+        if (it) {
+          dx = it.x - me.x;
+          dy = it.y - me.y;
+        } else {
+          // Find OFF the screen: project a short probe along the worker->find WORLD vector and
+          // take its screen direction, so the arrow still points at a pickup the camera cannot
+          // show — which is the entire use case of "where is my heal?".
+          const probe = worldToScreen(
+            p.wx + (A.wx - p.wx) * 0.08,
+            p.wy + (A.wy - p.wy) * 0.08,
+            MZ,
+          );
+          if (!probe) return;
+          dx = probe.x - me.x;
+          dy = probe.y - me.y;
+        }
+        const mag = Math.sqrt(dx * dx + dy * dy);
+        if (mag < 2) return; // dead centre on the worker: nothing to aim
+        const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+        let d = ang - A.deg;
+        while (d > 180) d -= 360;
+        while (d < -180) d += 360;
+        A.deg += d * Math.min(1, dt * 8); // eased swing onto the target — it turns, it never snaps
+        const rad = (A.deg * Math.PI) / 180;
+        // Sit between the worker and the find (near the find when the find is on screen); when
+        // the find slid off screen, park the arrow at the reach radius and clamp it on screen.
+        const reach = it
+          ? clamp(mag - POWERUP_ARROW_GAP, POWERUP_ARROW_MIN, mag)
+          : POWERUP_ARROW_OFF;
+        const vw = typeof innerWidth === "number" ? innerWidth : W;
+        const vh = typeof innerHeight === "number" ? innerHeight : H;
+        const x = clamp(
+          me.x + Math.cos(rad) * reach,
+          POWERUP_ARROW_EDGE_M + W / 2,
+          vw - POWERUP_ARROW_EDGE_M - W / 2,
+        );
+        const y = clamp(
+          me.y + Math.sin(rad) * reach,
+          POWERUP_ARROW_EDGE_M + H / 2,
+          vh - POWERUP_ARROW_EDGE_M - H / 2,
+        );
+        // THE FADE: full brightness for the first (LIFE - FADE) seconds, then down to nothing.
+        const k =
+          A.t <= POWERUP_ARROW_LIFE - POWERUP_ARROW_FADE
+            ? 1
+            : 1 - (A.t - (POWERUP_ARROW_LIFE - POWERUP_ARROW_FADE)) / POWERUP_ARROW_FADE;
+        node.style.transform =
+          "translate(" +
+          (x - W / 2).toFixed(1) +
+          "px," +
+          (y - H / 2).toFixed(1) +
+          "px) rotate(" +
+          A.deg.toFixed(1) +
+          "deg)";
+        node.style.opacity = String(clamp(k, 0, 1));
+      }
       function updatePowerups(dt) {
+        // THE POINTER ticks with the pickups it points at (typeof-guarded for the vm harnesses).
+        if (typeof updatePowerupArrow === "function") updatePowerupArrow(dt);
         for (let i = powerups.length - 1; i >= 0; i--) {
           const b = powerups[i];
           b.t += dt;
