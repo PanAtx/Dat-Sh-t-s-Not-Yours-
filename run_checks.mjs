@@ -83,7 +83,7 @@ const suites = [
   ['THE VERSION NUMBER IS MAIN-SCREEN ONLY (#app-version, the clickable TRAINER trigger; the pause / game-over / route-complete / week-complete / day-intro / loading panels carry none, and the boot stamp can no longer leak one in)', 'node', '_ver_display_chk.js'],
   ['THE SHORT-BLOCK LAW (7 buildings per block = 56u, the 72u step, the route anchors, the 288u street, Maspeth 9 / the PINNED 80u overtime round after Wednesday that never shortens / the 4/3 DAMAGE offset that keeps the difficulty of the shorter week)', 'node', '_level_length_chk.js'],
   ['THE BLOCK-RESIDENCY LAW (no block NPC — spawned on a block or bolting from a punchback — stands in a cross-street: BLOCK_W-derived hard bounds, clamped run-offs, in-block spawn bands and the last-word residency pass)', 'node', '_npc_intersection_keep_chk.js'],
-  ['THE LOOT SUPPLY + THE POWER-UP POINTER (mongo / street cash / treasure floor on every house + a timed supply line that ramps with the level, MIDNIGHT excluded on purpose; a neon arrow aims at every power-up the moment it spawns, throbs, tracks the find and fades out on a 3-second clock)', 'node', '_loot_supply_chk.js'],
+  ['THE LOOT LEDGER + THE POWER-UP POINTER (every mongo / street cash / treasure spot is AUTHORED at level start from the level seed - the floor is one find per house, the late levels author a second in the cell plus 3->10 spread deposits, MIDNIGHT excluded; nothing conjures a find mid-shift, so scrolling back never reveals a new one; plus a neon arrow that aims at every power-up the moment it spawns, throbs, tracks the find and fades out on a 3-second clock)', 'node', '_loot_supply_chk.js'],
 ];
 
 // ---- THE LONG TAIL (_suites_extra.json, written by node _suite_hunt.mjs) ----

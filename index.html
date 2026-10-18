@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.576</div>
+          <div id="app-version" class="menu-version">v1.0.577</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.576';
+      const APP_VERSION = '1.0.577';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -38872,6 +38872,13 @@
           // Maspeth cells are narrower (6.4u): keep trash inside THIS house's own cell.
           const houseX = () =>
             baseX + (isQueensBlock ? R(0.5, cellW - 0.5) : R(0.8, 7.2));
+          // THE LEDGER COORDS: a FIND's spot comes off the level's own loot seed (lootRand),
+          // not the live dice — the street is authored at level start and stays authored, so
+          // walking back to a spot never reveals a find that wasn't laid here when the shift
+          // began. The spans mirror houseX()/sideY() exactly, so a find lands where trash lands.
+          const lootSideY = () => 0.5 + lootRand() * (spawnMaxY() - 0.5);
+          const lootHouseX = () =>
+            baseX + (isQueensBlock ? 0.5 + lootRand() * (cellW - 1.0) : 0.8 + lootRand() * 6.4);
           // OVERTIME BASKETS: this street is LITTER-BASKETS ONLY — no curb bags, cans, or
           // storm boxes. On normal levels this whole section is the curb trash layout.
           if (!BONUS) {
@@ -38903,12 +38910,12 @@
           // pre-spawned bonus loot (treasure / mongo / street cash) — ALWAYS spawned, and on
           // the OVERTIME street it's the "money" the worker banks for the round. Overtime is
           // GUARANTEED loot on every house (vs 85% elsewhere) so the $3000 cash goal is fair.
-          // v1.0.573 THE LOOT FLOOR: the old 85% per-house roll is a 100% FLOOR (every house
-          // carries a find, exactly as the OVERTIME street always did), and the later levels
-          // drop a SECOND find in the same cell — the difficulty ramps with the level, so the
-          // mongo / street cash / treasure supply ramps with it (see bonusLootExtra).
-          if (BONUS || Math.random() < BONUS_LOOT_CHANCE) spawnBonus(houseX(), sideY());
-          if (Math.random() < bonusLootExtra()) spawnBonus(houseX(), sideY());
+          // v1.0.577 THE LOOT FLOOR + THE LEDGER: the old 85% roll is a 100% FLOOR (every house
+          // carries a find, exactly as the OVERTIME street always did), the later levels author a
+          // SECOND find in the same cell (the difficulty ramps, so the supply ramps), and every
+          // spot is dealt off the level's loot seed — set once, here, at level start.
+          if (BONUS || lootRand() < BONUS_LOOT_CHANCE) spawnBonus(lootHouseX(), lootSideY());
+          if (lootRand() < bonusLootExtra()) spawnBonus(lootHouseX(), lootSideY());
         }
         // lane markings & sidewalk joints (scroll with the block)
         // MIDNIGHT: THE STREET ENDS AT THE BOTTOM CEMETERY FENCE — no lane paint and no
@@ -39242,6 +39249,10 @@
       function spawnWorld() {
         const borough = LEVEL_DAYS[level - 1].borough;
         const area = LEVEL_DAYS[level - 1].area;
+        // THE LOOT SEED first: one seed per level, rolled before a single find is placed, so
+        // the whole street's loot (the per-house finds below and the deposit pass at the end of
+        // this build) is AUTHORED for this level and reproducible — nothing is conjured mid-shift.
+        lootSeedLevel();
         // fresh level: drop the previous shift's registered lurk-eyes (their meshes are
         // disposed with the old blocks) so updateManholeEyes() never touches stale refs
         // and the list doesn't grow across level rebuilds. The gator + tentacle eyes are
@@ -41143,6 +41154,11 @@
         // blocks); this puts the monsters, the spectral dressing and the stolen
         // gargoyle out in their place.
         if (isNightShift()) spawnNightShift();
+        // THE LOOT LEDGER: this level's extra finds, authored NOW (evenly spread along the
+        // built route, on the same frontage law as a power-up). Once the street is built, no
+        // code puts another mongo / cash / treasure on it - the ledger only shrinks as the
+        // worker banks it, so a stretch he already walked never grows a new find behind him.
+        spawnLootDeposits();
         // Health / immunity pickups for this shift. Count scales with the level (route),
         // so the first route is sparse and later routes are more generous.
         spawnPowerups(routeIdx);
@@ -41352,8 +41368,7 @@
         clearHopperResidue();
         pendingHouses.length = 0;
         bonuses.length = 0;
-        lootNextAt = LOOT_SUPPLY_FIRST; // a fresh shift: the supply line starts clean
-        powerupArrowReset(); // ...and so does the pointer (no stale arrow leaking over the load)
+        powerupArrowReset(); // a fresh shift: no stale pointer arrow leaking over the load
         powerups.length = 0;
         starParticles.length = 0;
         flyingCans.length = 0;
@@ -43062,71 +43077,94 @@
           }
         }
         trimPickupRoster(bonuses); // the roster ceiling (memory guard), never the nearest prize
-        // THE SUPPLY LINE rides the same clock as the finds it feeds (typeof-guarded: the vm
-        // harnesses that eval updateBonuses alone never see it).
-        if (typeof updateLootSupply === "function") updateLootSupply(dt);
+        // NO supply line: nothing conjures a find mid-shift. The street's loot is authored once,
+        // at level start (see THE LOOT LEDGER), and the only thing this loop does to a find is
+        // bank it or retire it - so walking back never reveals a new one.
       }
-      // ==================== THE LOOT SUPPLY (mongo / street cash / treasure rate) =========
-      // Street finds reach the worker from three places: the per-house pre-spawn in
-      // makeBlockContents, the Bronx dealer's stoop lure, and THIS timed supply line — a fresh
-      // find drops on the sidewalk AHEAD of the worker on the same law the power-ups use
-      // (snapToHouseCell + routeDir, so it never lands in a cross-street gap or behind the
-      // barrier). THE WHOLE POINT: the difficulty ramps with the level, so the loot supply ramps
-      // with it — the drop interval SHRINKS every level, and the per-house cell carries a second
-      // find more often on the late streets.
-      // THE NIGHT SHIFT (MIDNIGHT) IS EXCLUDED ON PURPOSE (lootSupplyOn): tonight's street was
-      // evacuated, not serviced, and its economy is its own — the spectral treasure the horror
-      // spawners leave on the block plus the joss HELL NOTES that feed the healer milestones.
-      // Its tuned rate is exactly what the request asks us to LEAVE ALONE.
+      // ==================== THE LOOT LEDGER (every find's spot is authored at LEVEL START) ===
+      // THE LAW: a mongo / street cash / treasure find is on the street because it was LEFT
+      // there before the shift began. Nothing is conjured mid-shift. Every spot on a level is
+      // decided ONCE, at level start, off the level's own seed (lootRand) — so the street is
+      // authored, not animated: pick a bill up, walk off the screen with it, walk back, and the
+      // stretch holds EXACTLY what it held when you left it (the same authored spots, minus the
+      // one you took). Replaying a failed shift lays the same street back out.
+      // Three authored sources, all of them level-start:
+      //   1. the per-house pre-spawn in makeBlockContents (the seeded coords below),
+      //   2. the Bronx dealer's stoop lure (the dealer is placed with his lure at level start),
+      //   3. THIS deposit pass — the level's extra finds, evenly spread along the built route.
+      // THE NIGHT SHIFT (MIDNIGHT) IS EXCLUDED: makeBlockContents gates the night out upstream
+      // and the deposit pass bails on it, so tonight keeps its own tuned economy - the spectral
+      // treasure the horror spawners lay on the block plus the joss HELL NOTES that feed the
+      // healer milestones. (A punched NPC drops what he was holding at his own feet - an
+      // authored NPC event you watch happen, not a spawn of loot out of the sky.)
       const BONUS_LOOT_CHANCE = 1.0; // the per-house floor in makeBlockContents: EVERY house carries a find (was 0.85)
       const LOOT_EXTRA_ROLL = [0.2, 0.25, 0.3, 0.35, 0.42, 0.5, 0.58, 0.65]; // odds of a SECOND find in the cell, by level
-      const LOOT_SUPPLY_EVERY = [7.2, 6.6, 6.0, 5.4, 4.8, 4.2, 3.6, 3.1]; // seconds between supply drops, by level
-      const LOOT_SUPPLY_FIRST = 2.5; // the first drop of a shift lands this soon after clock-in
-      const LOOT_SUPPLY_AHEAD_LO = 5; // u ahead of the worker a supply drop lands ...
-      const LOOT_SUPPLY_AHEAD_HI = 15; // ...and its far end (a drop you can see coming)
+      const LOOT_DEPOSITS = [3, 4, 5, 6, 7, 8, 9, 10]; // extra finds AUTHORED on the street at level start, by level
+      let lootSeedState = 1; // the level's own loot dice (mulberry32) - never the live Math.random
+      function lootSeedLevel() {
+        // THE LOOT SEED: called at the top of spawnWorld, before a single find is placed. A
+        // level always pays the same map (replaying a failed shift puts the finds back in the
+        // same spots); the PINNED overtime street gets its own seed so it stays its own street.
+        const L = typeof level === "number" && isFinite(level) ? Math.max(1, level | 0) : 1;
+        const salt = typeof BONUS !== "undefined" && BONUS ? 100 : 0;
+        lootSeedState = (((L + salt) * 2654435761) >>> 0) || 1;
+      }
+      function lootRand() {
+        // mulberry32 - a tiny deterministic PRNG on its OWN stream, so the street's layout is
+        // reproducible while every other die roll in the game stays exactly as it was.
+        lootSeedState = (lootSeedState + 0x6d2b79f5) >>> 0;
+        let t = lootSeedState;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
       function lootLevel() {
         // THE DAY INDEX, not the block counter: `level` is the current day of the week
         // (1 = MONDAY .. MAX_LEVEL = Midnight) and it is what the difficulty ramps off.
-        // routeIdx is the on-street block counter (it never tracks the day), so the supply
-        // line must NOT read it. typeof-guarded for the vm harnesses that lack `level`.
+        // routeIdx is the on-street block counter (it never tracks the day). typeof-guarded.
         const L = typeof level === "number" && isFinite(level) ? level : 1;
-        return clamp(L - 1, 0, LOOT_SUPPLY_EVERY.length - 1);
-      }
-      function lootSupplyOn() {
-        return typeof isNightShift === "function" ? !isNightShift() : true;
+        return clamp(L - 1, 0, LOOT_DEPOSITS.length - 1);
       }
       function bonusLootExtra() {
         return LOOT_EXTRA_ROLL[lootLevel()];
       }
-      function lootSupplyEvery() {
-        const base = LOOT_SUPPLY_EVERY[lootLevel()];
-        // The OVERTIME round pays faster: its whole level is a 30s sprint at a $3000 cash goal.
-        return BONUS ? Math.max(2.6, base * 0.62) : base;
+      const lootDeposits = []; // this shift's AUTHORED extra finds: { wx, wy } (the ledger)
+      function lootSnapToHouseCell(wx) {
+        // snapToHouseCell, dealt with the level's OWN dice. The shared helper snaps to the
+        // nearest house cell and then throws a live die for the spot inside it, which is fine
+        // for a power-up and NOT fine for a find the player expects to find back where he left
+        // it. Same cell search, same 0.8u insets, same frontage - only the dice are seeded.
+        let best = null,
+          bestD = Infinity;
+        for (const bl of LEVEL_BLOCKS) {
+          for (let k = 0; k < HOUSES_PER_BLOCK; k++) {
+            const cs = bl.x + k * BW;
+            const d = Math.abs(cs + BW / 2 - wx);
+            if (d < bestD) {
+              bestD = d;
+              best = cs;
+            }
+          }
+        }
+        return best + 0.8 + lootRand() * (BW - 1.6);
       }
-      let lootNextAt = LOOT_SUPPLY_FIRST; // seconds of play until the next supply drop
-      function updateLootSupply(dt) {
-        if (!lootSupplyOn()) return; // MIDNIGHT keeps its own tuned street
-        if (typeof state !== "undefined" && state !== "play") return; // no loot on the intro / menu / modal
-        lootNextAt -= dt;
-        if (lootNextAt > 0) return;
-        lootNextAt = lootSupplyEvery();
-        const wx = snapToHouseCell(
-          clamp(
-            p.wx + routeDir() * R(LOOT_SUPPLY_AHEAD_LO, LOOT_SUPPLY_AHEAD_HI),
-            routeNearX(),
-            routeFarX(),
-          ),
-        );
-        const wy = R(0.5, spawnMaxY());
-        spawnBonus(wx, wy);
-        // The late streets pay in pairs: a second find lands beside the first — snapped back
-        // onto a house frontage (never into a cross-street gap) and clamped onto the level's
-        // own spawn band (never onto the road in the sidewalk-only levels).
-        if (Math.random() < bonusLootExtra()) {
-          spawnBonus(
-            snapToHouseCell(wx + R(-3.4, 3.4)),
-            clamp(wy + R(-0.7, 0.7), 0.5, spawnMaxY()),
-          );
+      function spawnLootDeposits() {
+        lootDeposits.length = 0; // the ledger is per shift, written once at level start
+        if (typeof isNightShift === "function" && isNightShift()) return; // MIDNIGHT keeps its own street
+        if (typeof blocks === "undefined" || !blocks || !blocks.length) return; // the ledger runs ON the built street
+        if (typeof LEVEL_BLOCKS === "undefined" || !LEVEL_BLOCKS || !LEVEL_BLOCKS.length) return;
+        const n = LOOT_DEPOSITS[lootLevel()];
+        const lo = routeNearX(),
+          hi = routeFarX();
+        const span = Math.max(0, hi - lo);
+        for (let i = 0; i < n; i++) {
+          // EVENLY SPREAD along the built route (one stride per deposit, with seeded jitter),
+          // then snapped onto a real house frontage - never in a 16u cross-street gap, never on
+          // the intersection, and never off the level's own spawn band.
+          const wx = lootSnapToHouseCell(clamp(lo + ((i + lootRand()) / n) * span, lo, hi));
+          const wy = 0.5 + lootRand() * (spawnMaxY() - 0.5);
+          spawnBonus(wx, wy);
+          lootDeposits.push({ wx: wx, wy: wy });
         }
       }
       // ==================== HEALTH & POWER-UP SYSTEM ====================

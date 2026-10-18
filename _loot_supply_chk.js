@@ -1,9 +1,9 @@
-// _loot_supply_chk.js — THE LOOT SUPPLY + THE POWER-UP POINTER (v1.0.573)
-// 1) the mongo / street cash / treasure supply ramps with the level on every WEEKDAY and the
-//    OVERTIME street, and MIDNIGHT is excluded on purpose;
-// 2) a power-up spawn lights a screen arrow that aims at the find, throbs, and fades out on a
-//    3-second clock (and dies early with the find).
-// Static wiring + live behaviour on the REAL page code in a vm sandbox.
+// _loot_supply_chk.js — THE LOOT LEDGER + THE POWER-UP POINTER
+// THE LAW THIS GATE HOLDS: a mongo / street cash / treasure find is AUTHORED AT LEVEL START.
+// Nothing conjures one mid-shift, so a stretch of street the worker already walked never grows
+// a new find when he scrolls back. Plus the power-up pointer arrow (aims at the find, throbs,
+// fades out on a 3-second clock).
+// Static wiring + a CALL-SITE CENSUS + a live vm run of the REAL page code.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -21,124 +21,123 @@ function sliceBetween(startNeedle, endNeedle) {
   return b < 0 ? '' : src.slice(a, b);
 }
 
-// ================= 1) THE WEEKDAY LOOT LAW (makeBlockContents) =================
-console.log('THE LOOT FLOOR (per house):');
+// ================= 1) THE LEDGER IS AUTHORED AT LEVEL START =================
+console.log('THE LEDGER (level-start placement):');
+const ledger = sliceBetween('const BONUS_LOOT_CHANCE = 1.0', '// ==================== HEALTH & POWER-UP SYSTEM');
+check('the ledger block exists', ledger.length > 800, 'len=' + ledger.length);
+check('the per-house floor is 1.0 (EVERY house carries a find)', /const BONUS_LOOT_CHANCE = 1\.0/.test(ledger));
+check('the second-find odds ramp with the level', (() => {
+  const a = (ledger.match(/const LOOT_EXTRA_ROLL = \[([^\]]+)\]/) || [])[1] || '';
+  const v = a.split(',').map((s) => Number(s.trim()));
+  return v.length === 8 && v.every((n, i) => i === 0 || n > v[i - 1]);
+})());
+check('the extra deposits ramp with the level', (() => {
+  const a = (ledger.match(/const LOOT_DEPOSITS = \[([^\]]+)\]/) || [])[1] || '';
+  const v = a.split(',').map((s) => Number(s.trim()));
+  return v.length === 8 && v.every((n, i) => i === 0 || n > v[i - 1]);
+})());
+check('the level is SEEDED once, off the day index (its own stream, not the live dice)', /function lootSeedLevel\(\)[\s\S]{0,900}lootSeedState =/.test(ledger) && /mulberry32/.test(ledger) && !/function lootRand\(\)[\s\S]{0,400}Math\.random/.test(ledger));
+check('a find spot is dealt seeded all the way in (lootSnapToHouseCell, never the live snap)', /function lootSnapToHouseCell\(wx\)[\s\S]{0,900}lootRand\(\) \* \(BW - 1\.6\)/.test(ledger) && /lootSnapToHouseCell\(clamp\(lo \+/.test(ledger));
+check('spawnWorld seeds the street BEFORE it builds it', /function spawnWorld\(\)[\s\S]{0,600}lootSeedLevel\(\);/.test(src));
+check('spawnWorld lays the deposits at the END of the build (after the blocks exist)', /spawnLootDeposits\(\);/.test(sliceBetween('function spawnWorld() {', 'function recycleBlock(')));
+check('the night shift lays NO deposits (Midnight keeps its spectral treasure + HELL NOTES)', /function spawnLootDeposits\(\)[\s\S]{0,200}isNightShift\(\)\) return/.test(ledger));
+check('a deposit lands on a house frontage (lootSnapToHouseCell) on the level spawn band', /lootSnapToHouseCell\(clamp\(lo \+/.test(ledger) && /0\.5 \+ lootRand\(\) \* \(spawnMaxY\(\) - 0\.5\)/.test(ledger));
+check('the deposits are recorded in a ledger the game can be audited against', /const lootDeposits = \[\]/.test(ledger) && /lootDeposits\.push\(\{ wx: wx, wy: wy \}\)/.test(ledger));
+
+// the per-house placement, in the level-start block builder
 const mb = sliceBetween('function makeBlockContents(', 'function recycleBlock(');
-check('the per-house gate is night-excluded exactly as shipped', /b\.garbage && !b\.cemetery && !isNightShift\(\)/.test(mb));
-check(
-  'the per-house find reads the floor constant (no bare 0.85 roll left on the street)',
-  /Math\.random\(\) < BONUS_LOOT_CHANCE/.test(mb) && !/Math\.random\(\) < 0\.85/.test(mb)
-);
-check('the floor constant is 1.0 (every house carries a find)', /const BONUS_LOOT_CHANCE = 1\.0/.test(src));
-check('a SECOND find is rolled per house off the level ramp', /Math\.random\(\) < bonusLootExtra\(\)/.test(mb));
+check('the per-house gate keeps Midnight out, exactly as shipped', /b\.garbage && !b\.cemetery && !isNightShift\(\)/.test(mb));
+check('the per-house find rolls the LEDGER dice (no live Math.random on a find)', /if \(BONUS \|\| lootRand\(\) < BONUS_LOOT_CHANCE\) spawnBonus\(lootHouseX\(\), lootSideY\(\)\);/.test(mb) && !/Math\.random\(\) < BONUS_LOOT_CHANCE/.test(mb));
+check('the SECOND find is a level-start authoring roll too', /if \(lootRand\(\) < bonusLootExtra\(\)\) spawnBonus\(lootHouseX\(\), lootSideY\(\)\);/.test(mb));
+check('the find coords mirror the trash coords (same cell insets, same sidewalk band)', /const lootSideY = \(\) => 0\.5 \+ lootRand\(\) \* \(spawnMaxY\(\) - 0\.5\)/.test(mb) && /isQueensBlock \? 0\.5 \+ lootRand\(\) \* \(cellW - 1\.0\) : 0\.8 \+ lootRand\(\) \* 6\.4/.test(mb));
 
-// ================= 2) THE SUPPLY LINE (constants + wiring) =================
-console.log('THE SUPPLY LINE (timed drops):');
-const lootBlock = sliceBetween('const BONUS_LOOT_CHANCE = 1.0', '// ==================== HEALTH & POWER-UP SYSTEM');
-check('the block that defines the supply line exists', lootBlock.length > 400, 'len=' + lootBlock.length);
-const everyArr = (lootBlock.match(/const LOOT_SUPPLY_EVERY = \[([^\]]+)\]/) || [])[1];
-const every = (everyArr || '').split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n));
-check('LOOT_SUPPLY_EVERY covers 8 levels', every.length === 8, 'n=' + every.length);
-check('the drop interval SHRINKS every level (later levels feed the worker)', every.every((n, i) => i === 0 || n < every[i - 1]), JSON.stringify(every));
-check('the last level drops roughly twice as fast as the first', every[7] <= every[0] * 0.5, every[0] + ' -> ' + every[7]);
-const extraArr = (lootBlock.match(/const LOOT_EXTRA_ROLL = \[([^\]]+)\]/) || [])[1];
-const extra = (extraArr || '').split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n));
-check('the second-find odds RAMPS with the level', extra.length === 8 && extra.every((n, i) => i === 0 || n > extra[i - 1]), JSON.stringify(extra));
-check('the supply line is MIDNIGHT-gated (lootSupplyOn excludes the night)', /function lootSupplyOn\(\)[\s\S]{0,140}!isNightShift\(\)/.test(lootBlock));
-check('overtime pays faster than the weekday it derives from', /function lootSupplyEvery\(\)[\s\S]{0,260}BONUS \? Math\.max\(2\.6, base \* 0\.62\) : base/.test(lootBlock));
-check('the tick is wired inside updateBonuses behind a typeof guard', /if \(typeof updateLootSupply === "function"\) updateLootSupply\(dt\);/.test(sliceBetween('function updateBonuses(dt)', '\n      function ')));
-check('a fresh shift re-arms the supply clock', /lootNextAt = LOOT_SUPPLY_FIRST/.test(sliceBetween('function resetWorldState()', '\n      function ')));
-
-// live: the real updateLootSupply in a sandbox
-const sandboxFns = lootBlock.replace(/\r\n/g, '\n');
-function lootCtx(o) {
-  const bonuses = [];
+// ============ 3) THE LEDGER LIVE (real page code in a vm sandbox) ============
+console.log('THE LEDGER live (real page code):');
+const BLOCK_SRC = ledger.replace(/\r\n/g, '\n');
+function ledgerCtx(o) {
   const ctx = {
-    bonuses,
+    bonuses: [],
+    level: o.level || 1,
     BONUS: !!o.bonus,
-    state: 'play',
-    level: o.level || 1, // THE DAY INDEX (1 = MONDAY .. 8 = Midnight) - what the ramp reads
-    routeIdx: 0, // the on-street block counter: the ramp must NOT key off this
-    p: { wx: o.wx, wy: 2.5 },
     clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
-    R: (a, b) => a + Math.random() * (b - a),
-    routeDir: () => (o.night ? -1 : 1),
     isNightShift: () => !!o.night,
-    routeNearX: () => 56,
-    routeFarX: () => 344,
-    spawnMaxY: () => 7.0,
-    LEVEL_BLOCKS: [{ x: 0 }, { x: 96 }, { x: 192 }, { x: 288 }].map((b) => ({ x: b.x })),
+    routeNearX: () => (o.night ? 8 : 56),
+    routeFarX: () => (o.night ? 420 : 344),
+    spawnMaxY: () => (o.sidewalkOnly ? 4.8 : 7.0),
+    blocks: [{ worldX: 56 }, { worldX: 64 }, { worldX: 72 }],
+    LEVEL_BLOCKS: [0, 96, 192, 288].map((x) => ({ x: x })),
     HOUSES_PER_BLOCK: 7,
     BW: 8,
-    // Faithful mirror of index.html snapToHouseCell: snap to the nearest house cell and land
-    // the find INSIDE that cell's frontage (0.8u insets), exactly like the page code.
-    snapToHouseCell: (wx) => {
-      let best = null,
-        bestD = Infinity;
-      for (const bl of ctx.LEVEL_BLOCKS) {
-        for (let k = 0; k < ctx.HOUSES_PER_BLOCK; k++) {
-          const cs = bl.x + k * ctx.BW;
-          const d = Math.abs(cs + ctx.BW / 2 - wx);
-          if (d < bestD) {
-            bestD = d;
-            best = cs;
-          }
-        }
-      }
-      return best + 0.8 + Math.random() * (ctx.BW - 1.6);
-    },
-    spawnBonus: (wx, wy) => bonuses.push({ wx, wy }),
+    // NOTE: no snapToHouseCell stub - the page code's OWN lootSnapToHouseCell (extracted with
+    // the block) does the snapping, off the seeded dice. Nothing in this sandbox touches
+    // Math.random, so a level's street is reproducible run to run.
+    spawnBonus: (wx, wy) => ctx.bonuses.push({ wx: wx, wy: wy }),
   };
   vm.createContext(ctx);
-  vm.runInContext(sandboxFns, ctx);
-  return { ctx, bonuses };
+  vm.runInContext(BLOCK_SRC, ctx);
+  return ctx;
 }
-console.log('THE SUPPLY LINE live (real page code, 60s of walking):');
+const build = (o) => {
+  const ctx = ledgerCtx(o);
+  vm.runInContext('lootSeedLevel(); spawnLootDeposits();', ctx);
+  return ctx.bonuses.map((b) => ({ wx: b.wx, wy: b.wy }));
+};
 {
-  const { ctx, bonuses } = lootCtx({ wx: 100, level: 2 });
-  vm.runInContext('lootNextAt = 0.1', ctx);
-  for (let i = 0; i < 7200; i++) ctx.updateLootSupply(1 / 60); // 120 seconds of walking
-  check('a weekday level pays the worker across two minutes', bonuses.length >= 20, 'drops=' + bonuses.length);
-  const onFrontage = (b) =>
-    [0, 96, 192, 288].some((x) =>
-      [0, 1, 2, 3, 4, 5, 6].some((k) => b.wx >= x + k * 8 + 0.8 - 1e-9 && b.wx <= x + k * 8 + 7.2 + 1e-9),
-    );
-  check('every supply drop lands ON A HOUSE FRONTAGE (never in a cross-street gap)', bonuses.every(onFrontage), bonuses.filter((b) => !onFrontage(b)).length + ' off-frontage');
-  const avg = bonuses.reduce((s, b) => s + b.wx, 0) / Math.max(bonuses.length, 1);
-  check('the supply line feeds AHEAD of the worker (the pack is net forward of his feet)', avg > 103, 'avgX=' + avg.toFixed(1));
-  check('every supply drop lands on the spawn band (y 0.5..spawnMaxY)', bonuses.every((b) => b.wy >= 0.5 && b.wy <= 7.0), bonuses.filter((b) => b.wy < 0.5 || b.wy > 7.0).length + ' off-band');
-}
-{
-  const { ctx, bonuses } = lootCtx({ wx: 100, level: 0, night: true });
-  vm.runInContext('lootNextAt = 0.1', ctx);
-  for (let i = 0; i < 3600; i++) ctx.updateLootSupply(1 / 60);
-  check('MIDNIGHT gets NO supply drops (its own tuned street is untouched)', bonuses.length === 0, 'drops=' + bonuses.length);
-}
-const llBody = ((lootBlock.match(/function lootLevel\(\)\s*\{[\s\S]*?\n      \}/) || [''])[0]).replace(/^\s*\/\/.*$/gm, ''); // code only - no comments
-check('the ramp reads the DAY level, not the on-street block counter', /typeof level === "number"/.test(llBody) && !/\brouteIdx\b/.test(llBody), llBody.replace(/\r?\n\s*/g, ' '));
-{
-  const pay = (lvl) => {
-    const { ctx, bonuses } = lootCtx({ wx: 100, level: lvl });
-    vm.runInContext('lootNextAt = 0.1', ctx);
-    for (let i = 0; i < 14400; i++) ctx.updateLootSupply(1 / 60); // 240 seconds of walking
-    return bonuses.length;
-  };
-  const p1 = pay(1), p4 = pay(4), p7 = pay(7);
-  check('a 4-minute shift pays MONDAY < WEDNESDAY < the last weekday (the late levels feed the worker)', p1 < p4 && p4 < p7, [p1, p4, p7].join(' < '));
-  const iv = [1, 2, 3, 4, 5, 6, 7].map((l) => vm.runInContext('lootSupplyEvery()', lootCtx({ level: l }).ctx));
-  check('the interval steps down one notch for every day of the week', iv.every((n, i) => i === 0 || n < iv[i - 1]), iv.join(' > '));
+  const a = build({ level: 3 }),
+    b = build({ level: 3 });
+  check('the SAME level lays the SAME street twice (the finds are authored, not rolled per play)', JSON.stringify(a) === JSON.stringify(b), a.length + ' vs ' + b.length);
+  const c = build({ level: 7 });
+  check('a replay of a failed shift puts the finds back in the same spots', JSON.stringify(build({ level: 7 })) === JSON.stringify(c));
+  check('a later level authors MORE finds than an early one', c.length > a.length, a.length + ' (L3) < ' + c.length + ' (L7)');
+  check('the deposit count equals the level row of LOOT_DEPOSITS', a.length === Number((ledger.match(/const LOOT_DEPOSITS = \[([^\]]+)\]/) || [])[1].split(',')[2].trim()), 'n=' + a.length);
+  const night = build({ level: 8, night: true });
+  check('MIDNIGHT lays NO deposits (tonight keeps its own economy)', night.length === 0, 'n=' + night.length);
 }
 {
-  const { ctx: a } = lootCtx({ level: 0 });
-  const { ctx: b } = lootCtx({ level: 7 });
-  const { ctx: z } = lootCtx({ level: 3, bonus: true });
-  const ev = (c, code) => vm.runInContext(code, c);
-  check('the interval shrinks with the level (last level pays FASTER than the first)', ev(a, 'lootSupplyEvery()') > ev(b, 'lootSupplyEvery()'), ev(a, 'lootSupplyEvery()') + ' vs ' + ev(b, 'lootSupplyEvery()'));
-  check('the OVERTIME round pays faster than its weekday base', ev(z, 'lootSupplyEvery()') < ev(z, 'LOOT_SUPPLY_EVERY[3]'), ev(z, 'lootSupplyEvery()') + ' vs ' + ev(z, 'LOOT_SUPPLY_EVERY[3]'));
-  check('a fresh shift re-arms the supply clock to the first-drop delay', Math.abs(ev(a, 'LOOT_SUPPLY_FIRST') - 2.5) < 1e-9);
+  // THE SCROLL-BACK LAW: build the street, walk it, bank the finds you touch, walk back.
+  const ctx = ledgerCtx({ level: 5 });
+  vm.runInContext('lootSeedLevel(); spawnLootDeposits();', ctx);
+  const authored = ctx.bonuses.map((b) => b.wx.toFixed(3) + ',' + b.wy.toFixed(3));
+  const path = [];
+  for (let x = 56; x <= 344; x += 0.5) path.push(x);
+  for (const x of path) {
+    for (let i = ctx.bonuses.length - 1; i >= 0; i--) {
+      if (Math.abs(ctx.bonuses[i].wx - x) <= 1.8 && Math.abs(ctx.bonuses[i].wy - 2.5) <= 1.8) ctx.bonuses.splice(i, 1);
+    }
+  }
+  const banked = authored.length - ctx.bonuses.length;
+  const back = [];
+  for (let x = 344; x >= 56; x -= 0.5) back.push(x);
+  let seenOnTheWayBack = [];
+  for (const x of back) {
+    for (const b of ctx.bonuses) {
+      if (Math.abs(b.wx - x) <= 20 && seenOnTheWayBack.indexOf(b.wx.toFixed(3) + ',' + b.wy.toFixed(3)) < 0)
+        seenOnTheWayBack.push(b.wx.toFixed(3) + ',' + b.wy.toFixed(3));
+    }
+  }
+  const invented = seenOnTheWayBack.filter((k) => authored.indexOf(k) < 0);
+  check('a find the worker banks is GONE when he scrolls back (no ghost copy)', banked > 0 && !ctx.bonuses.some((b) => authored.indexOf(b.wx.toFixed(3) + ',' + b.wy.toFixed(3)) < 0), 'banked=' + banked);
+  check('scrolling back reveals NOTHING that was not authored at level start', invented.length === 0, invented.join(' | '));
+  check('the street keeps its finds for the whole shift (prize persistence, not respawning)', ctx.bonuses.length === authored.length - banked, ctx.bonuses.length + ' of ' + authored.length);
 }
 
-// ================= 3) THE POWER-UP POINTER (wiring) =================
+// ============ 2b) THE CENSUS: who is allowed to place a find ============
+console.log('THE CENSUS (who is allowed to place a find):');
+function enclosingFn(idx) {
+  const head = src.slice(0, idx);
+  const m = [...head.matchAll(/\n      function ([A-Za-z0-9_$]+)\(/g)];
+  return m.length ? m[m.length - 1][1] : '(top level)';
+}
+const ALLOWED = ['makeBlockContents', 'spawnWorld', 'landPunch', 'spawnLootDeposits', 'spawnCash'];
+const sites = [...src.matchAll(/spawnBonus\(/g)].map((m) => ({ line: src.slice(0, m.index).split('\n').length, fn: enclosingFn(m.index) }));
+const offenders = sites.filter((s) => ALLOWED.indexOf(s.fn) < 0);
+check('every find is placed by a level-start builder (the per-house loot, the dealer lure) or an NPC dropping what he held in front of you', offenders.length === 0, offenders.map((s) => s.fn + ':' + s.line).join(', '));
+check('the census really looked at the find layers (per-house, the dealer lure, the NPC drop)', ['makeBlockContents', 'spawnWorld'].every((f) => sites.some((s) => s.fn === f)), sites.map((s) => s.fn).join(','));
+check('no timed / per-frame loot spawner survives in the page code', src.indexOf('updateLootSupply') < 0 && !/function updateLootSupply/.test(src));
+check('updateBonuses banks & retires finds only - it never lays one', !/spawnBonus\(/.test(sliceBetween('function updateBonuses(dt)', '// ==================== THE LOOT LEDGER')));
+check('the deposit pass is the ONLY extra-find authoring, and it runs once per level', (src.match(/spawnLootDeposits\(\)/g) || []).length === 2);
+
+// ================= 4) THE POWER-UP POINTER (wiring) =================
 console.log('THE POINTER (wiring):');
 check('the spawn marks the pointer behind a typeof guard', /if \(typeof markPowerupArrow === "function"\) markPowerupArrow\(type, wx, wy\);/.test(sliceBetween('function spawnPowerup(type, wx, wy, opts) {', 'function powerupCounts(')));
 check('updatePowerups ticks the pointer behind a typeof guard', /if \(typeof updatePowerupArrow === "function"\) updatePowerupArrow\(dt\);/.test(sliceBetween('function updatePowerups(dt) {', 'function updateStarParticles(')));
@@ -154,28 +153,19 @@ check('the throb keyframes scale the glyph up and down', /@keyframes puArrowThro
 const phoneIdx = src.indexOf('        #night-go-arrow {');
 check('the arrow drops to phone size in the same mobile law', phoneIdx > 0 && src.slice(phoneIdx - 4000, phoneIdx + 4000).includes('#powerup-arrow-glyph {'));
 
-// ================= 4) THE POINTER live (real page code + a sandbox DOM) =================
+
+// ================= 5) THE POINTER live (real page code + a sandbox DOM) =================
 console.log('THE POINTER live (real page code, 1/60 frames):');
 const arrowBlock =
   sliceBetween('const POWERUP_ARROW_LIFE = 3;', 'function spawnPowerup(') +
   sliceBetween('function powerupArrowLives(', 'function updatePowerups(dt) {');
-function elX() { return ''; }
 function arrowCtx() {
   const VW = 800, VH = 600; // the stub viewport (Node-side closure constants the map can see)
   const el = { cls: new Set(['hidden']), style: {}, offsetWidth: 96, offsetHeight: 60 };
-  el.classList = {
-    add: (c) => el.cls.add(c),
-    remove: (c) => el.cls.delete(c),
-    contains: (c) => el.cls.has(c),
-  };
+  el.classList = { add: (c) => el.cls.add(c), remove: (c) => el.cls.delete(c), contains: (c) => el.cls.has(c) };
   const ctx = {
-    el,
-    powerups: [],
-    p: { wx: 20, wy: 4 },
-    state: 'play',
-    GZ: 0.3,
-    innerWidth: 800,
-    innerHeight: 600,
+    el, powerups: [], p: { wx: 20, wy: 4 }, state: 'play', GZ: 0.3,
+    innerWidth: VW, innerHeight: VH,
     clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)),
     document: { getElementById: (id) => (id === 'powerup-arrow' ? el : null) },
     // A plain world->screen map: 12 px per unit, world (20,4) at screen (400,300), y flipped.
@@ -198,16 +188,14 @@ const res = JSON.parse(
       'const mk=(wx,wy)=>{powerups.length=0;powerups.push({wx:wx,wy:wy,type:"coffee"});markPowerupArrow("coffee",wx,wy);};' +
       'const spin=(n)=>{for(let i=0;i<n;i++)updatePowerupArrow(1/60);};' +
       'p.wx=20;p.wy=4;' +
-      'mk(26,4);spin(45);out.rightDeg=Math.round(powerupArrow.deg);out.lit=Number(el.style.opacity);out.shown=!el.classList.contains("hidden");out.rot=/rotate\\(/.test(el.style.transform||"");' +
+      'mk(26,4);spin(45);out.rightDeg=Math.round(powerupArrow.deg);out.lit=Number(el.style.opacity);out.shown=!el.classList.contains("hidden");out.rot=(el.style.transform||"").indexOf("rotate(")>=0;' +
       'mk(14,4);spin(45);out.leftDeg=Math.round(Math.abs(powerupArrow.deg));' +
       'mk(20,10);spin(45);out.upDeg=Math.round(powerupArrow.deg);' +
       'mk(200,4);spin(45);out.offDeg=Math.round(powerupArrow.deg);' +
-      'const tx=(el.style.transform.match(/translate\\((-?[0-9.]+)px/)||[]);out.offX=Number(tx[1]);' +
+      'const t0=el.style.transform||"translate(0px,0px)";out.offX=parseFloat(t0.slice(t0.indexOf("translate(")+10));' +
       'mk(26,4);out.o1=Number(el.style.opacity);spin(59);out.o2=Number(el.style.opacity);' +
-      'spin(60);out.o3=Number(el.style.opacity);' +
-      'spin(30);out.o4=Number(el.style.opacity);' +
-      'spin(29);out.o5=Number(el.style.opacity);' +
-      'spin(4);out.gone=el.classList.contains("hidden");' +
+      'spin(60);out.o3=Number(el.style.opacity);spin(30);out.o4=Number(el.style.opacity);' +
+      'spin(29);out.o5=Number(el.style.opacity);spin(4);out.gone=el.classList.contains("hidden");' +
       'mk(26,4);spin(20);powerups.length=0;spin(2);out.withFind=el.classList.contains("hidden");' +
       'mk(26,4);spin(2);state="menu";updatePowerupArrow(1/60);out.onMenu=el.classList.contains("hidden");state="play";' +
       'mk(26,4);powerupArrow.deg=90;spin(1);out.ease=90-powerupArrow.deg;' +
@@ -228,6 +216,6 @@ check('it is GONE at 3 seconds', res.gone === true);
 check('it dies early with the find when the worker picks it up', res.withFind === true);
 check('it stays off over the menu / pause', res.onMenu === true);
 check('the direction EASES onto the target (it swings, never snaps)', Math.abs(res.ease) > 5 && Math.abs(res.ease) < 85, 'moved=' + res.ease);
-console.log(ok ? '\nLOOT SUPPLY + POWER-UP POINTER ALL CHECKS PASS' : '\nLOOT SUPPLY + POWER-UP POINTER FAILURES');
+console.log(ok ? '\nLOOT LEDGER + POWER-UP POINTER ALL CHECKS PASS' : '\nLOOT LEDGER + POWER-UP POINTER FAILURES');
 process.exit(ok ? 0 : 1);
 
