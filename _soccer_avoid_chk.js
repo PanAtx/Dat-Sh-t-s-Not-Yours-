@@ -23,12 +23,13 @@ const check = (name, ok) => {
 check('kidStepBlocked dead-stop gating fully removed', !html.includes('kidStepBlocked'));
 const navDefs = html.match(/const kidNav = \(k, tx, ty, spd, loY, hiY\) => \{/g) || [];
 check('kidNav defined in BOTH the soccer and the tee-ball case (x2)', navDefs.length === 2);
-check('kidNav called by every kid branch (7 call sites)', (html.match(/kidNav\(k, /g) || []).length === 7);
-check('dodge lanes are clamped to the walk band (navLoY present)', (html.match(/let navLoY = 1\.5/g) || []).length === 2);
+check('kidNav called by every kid branch (9 call sites — dribbler, sprinter, ball-circler, support joggers in both team cases)', (html.match(/kidNav\(k, /g) || []).length === 9);
+check('every kid runs inside HIS OWN box, and the dodge lanes are clamped to the walk band', (html.match(/const navLoY = kidB\.loY/g) || []).length === 2 && (html.match(/return clamp\(oy, loY, hiY\);/g) || []).length === 2);
+check('the trio plays in LANES with a KID vs KID separation pass, an anti-pin probe and a band-edge turn lock (no pile-ups, no wedges, no stutter) — in BOTH cases', (html.match(/kidLane\(k\)/g) || []).length >= 4 && (html.match(/KID vs KID/g) || []).length === 2 && (html.match(/THE ANTI-PIN ESCAPE/g) || []).length === 2 && (html.match(/KID_EDGE_LOCK/g) || []).length >= 6);
 
 // ---- 2. extract ONE real copy of the helpers and run it against solid boxes ----
 const startMark = "const KID_PAD = 0.8; // half-size of a solid sidewalk obstacle's box";
-const endMark = 'if (my && !kidHits(k.wx, k.wy + my)) k.wy += my;';
+const endMark = '} else k.stuckT = 0;';
 const s0 = html.indexOf(startMark);
 const sMid = s0 >= 0 ? html.indexOf(endMark, s0) : -1;
 const s1 = sMid >= 0 ? html.indexOf('};', sMid) : -1;

@@ -285,8 +285,20 @@ check(
   teeballCase.indexOf("ball vs SOLID SIDEWALK OBSTACLES") >= 0 && teeballCase.indexOf("B.vx -= 1.55 * vn * nx;") >= 0
 );
 check(
-  "kids dead-stop at solid obstacles (kidStepBlocked guards all 3 forward steps)",
-  (teeballCase.match(/kidStepBlocked\(k,/g) || []).length === 3
+  "kids never dead-stop on solid obstacles: the ANTI-PIN ESCAPE probes the free way in the SAME frame (the 2.5s stall and the old kidStepBlocked dead-stops are gone)",
+  teeballCase.indexOf("THE ANTI-PIN ESCAPE") >= 0 &&
+    teeballCase.indexOf("for (let di = 0; di < 8; di++)") >= 0 &&
+    teeballCase.indexOf("THE BAND-WALL PIN") >= 0 &&
+    teeballCase.indexOf("kidStepBlocked") < 0
+);
+check(
+  "the tee-ball trio plays in LANES with a KID vs KID separation pass, a band-edge turn lock and a no-scramble catch (no pile-ups)",
+  teeballCase.indexOf("const KID_SEP") >= 0 &&
+    teeballCase.indexOf("kidLane") >= 0 &&
+    teeballCase.indexOf("KID vs KID") >= 0 &&
+    teeballCase.indexOf("kidShoulder") >= 0 &&
+    teeballCase.indexOf("KID_EDGE_LOCK") >= 0 &&
+    teeballCase.indexOf("k === T.receiver ? 0.6 : 1") >= 0
 );
 check(
   "the ball bounces on the sidewalk (damped) and settles to a loose ball",
@@ -409,11 +421,32 @@ let simOk = true,
   sawReceiver = false,
   maxSpread = 0,
   maxBallDev = 0,
-  throwFrames = 0;
+  throwFrames = 0,
+  overlapFrames = 0,
+  minGap = 1e9,
+  kidStallFrames = 0,
+  maxFrozenRun = 0,
+  frozenRun = 0;
 let lastOwner = T.owner;
 try {
   for (let t = 0; t < 6000; t++) {
+    const pos0 = T.kids.map((k) => [k.wx, k.wy]);
     step();
+    // THE STUCK TEST + THE BUMP TEST (same law as the soccer trio): every kid covers
+    // ground every frame, and no two kids ever share a spot
+    let stalled = 0;
+    for (let ki = 0; ki < T.kids.length; ki++) {
+      const k = T.kids[ki];
+      if (Math.hypot(k.wx - pos0[ki][0], k.wy - pos0[ki][1]) < 0.004) stalled++;
+      for (let kj = ki + 1; kj < T.kids.length; kj++) {
+        const od = Math.hypot(T.kids[kj].wx - T.kids[ki].wx, T.kids[kj].wy - T.kids[ki].wy);
+        if (od < minGap) minGap = od;
+        if (od < 0.85) overlapFrames++;
+      }
+    }
+    kidStallFrames += stalled;
+    frozenRun = stalled === T.kids.length ? frozenRun + 1 : 0;
+    if (frozenRun > maxFrozenRun) maxFrozenRun = frozenRun;
     for (const k of T.kids) {
       if (!isFinite(k.wx) || !isFinite(k.wy)) {
         simOk = false;
@@ -452,6 +485,8 @@ try {
   simDetail = "threw: " + e.message;
 }
 check("warm sim: 6000 frames of catch play without NaNs or out-of-band kids", simOk, simDetail);
+check("warm sim: THE KIDS NEVER BUMP INTO EACH OTHER (no frame with two kids inside a body-width)", simOk && overlapFrames === 0, "overlap frames=" + overlapFrames + " min gap=" + minGap.toFixed(2));
+check("warm sim: THE KIDS NEVER GET STUCK (a kid is stalled on <=1% of frames, the trio never frozen)", simOk && kidStallFrames <= 6000 * 3 * 0.01 && maxFrozenRun <= 3, "kid-stall frames=" + kidStallFrames + " worst frozen run=" + maxFrozenRun);
 check("warm sim: ownership SWAPS between kids (real catch: they throw to each other)", ownerChanges >= 5, "ownerChanges=" + ownerChanges);
 check("warm sim: a loose ball gets RETRIEVED (the receiver flow ran) and play resumed", sawReceiver && (T.owner !== null || T.receiver !== null), "sawReceiver=" + sawReceiver);
 check("warm sim: worker far away => NO damage, no worker lines", hits.length === 0 && voiceCalls.every((v) => v.speaker !== "worker"));

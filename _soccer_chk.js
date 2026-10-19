@@ -122,11 +122,11 @@ check('celebration state is declared (celebrateT / score / lastKicker / scorer)'
 check('the spawn says it: they really play soccer and NEVER stop (run right through the junk)',
   spawnSrc.indexOf('really playing soccer') >= 0 && spawnSrc.indexOf('NEVER stop') >= 0 && spawnSrc.indexOf('run right through') >= 0);
 check('the chalk field is on their block (center circle + center line + book goals)', spawnSrc.indexOf('THREE.RingGeometry(1.1, 1.35, 40)') >= 0 && spawnSrc.indexOf('THREE.BoxGeometry(0.1, 3.2, 0.02)') >= 0 && spawnSrc.indexOf('sBookCols') >= 0 && spawnSrc.indexOf('groundGroup.add(sCircle)') >= 0);
-check('soccer blocks are IN-ROUTE garbage blocks (6 of the 8 blocks carry garbage)', (function () {
+check('soccer blocks are IN-ROUTE garbage blocks (4 of the 6 blocks carry garbage — the shortened 7-house street)', (function () {
   const m = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/);
   if (!m) return false;
   const blocks = eval('[' + m[1] + ']');
-  return blocks.filter(b => b.garbage).length === 6;
+  return blocks.length === 6 && blocks.filter(b => b.garbage).length === 4;
 })());
 check('AVOID_TYPES includes soccer (the crowd routes around the team)', /AVOID_TYPES = \{[\s\S]*?soccer:\s*1/.test(src));
 check('WRITEUP_REASONS has a soccer entry (the supervisor\'s offense file)', /soccer:\s*\[[\s\S]*?"Failure to respect a sacred soccer ball"[\s\S]*?\]/.test(src));
@@ -186,10 +186,16 @@ check('a kick is SMOOTH: the ball ACCELERATES to rolling speed (SOCCER_ROLL_ACCE
 check('the roll spin is SPEED-based (rotation rate = ground speed / ball radius — a fast kick spins fast, a still ball does not spin)',
   soccerCase.indexOf('T.ballG.userData.core.rotation.y += (svx / SOCCER_BALL_R) * dt') >= 0 && soccerCase.indexOf('* dt * 8') < 0);
 check('kids stay clamped to the block (hiX/loX flips)', soccerCase.indexOf('k.wx >= hiX') >= 0 && soccerCase.indexOf('k.wx <= loX') >= 0 && soccerCase.indexOf('k.dir = -1') >= 0 && soccerCase.indexOf('k.dir = 1') >= 0);
-check('the receiver SPRINTS 2D (1.6x) and the mates jog in — nobody idles', soccerCase.indexOf('k.sp * 1.6 * dt') >= 0 && soccerCase.indexOf('k.sp * 0.95 * dt') >= 0 && soccerCase.indexOf('k.sp * 1.15 * dt') >= 0);
+check('the receiver SPRINTS 2D (1.6x) and the mates jog in — nobody idles (every kid strides through kidNav)',
+  soccerCase.indexOf('k.sp * 1.6, navLoY, navHiY)') >= 0 && soccerCase.indexOf('k.sp * 0.95, navLoY, navHiY)') >= 0 && soccerCase.indexOf('k.sp * 1.15, navLoY, navHiY)') >= 0);
 check('the kids reference NO walker obstacle system (npcWalkAroundObstacles/hazards/yieldLane)', soccerCase.indexOf('npcWalkAroundObstacles') < 0 && soccerCase.indexOf('hazards') < 0 && soccerCase.indexOf('c.stop') < 0 && soccerCase.indexOf('yieldLane') < 0);
 check('the ball BOUNCES off solid sidewalk obstacles (b.trees) and re-aims', soccerCase.indexOf('SOCCER BALL vs SOLID SIDEWALK OBSTACLES') >= 0 && soccerCase.indexOf('B.tx = B.wx') >= 0);
-check('kids dead-stop at solid obstacles (kidStepBlocked guards all 4 forward steps)', (soccerCase.match(/kidStepBlocked\(k,/g) || []).length === 4);
+check('kids never dead-stop on solid obstacles: the ANTI-PIN ESCAPE probes the free way in the SAME frame (the 2.5s stall and the old kidStepBlocked dead-stops are gone)',
+  soccerCase.indexOf('THE ANTI-PIN ESCAPE') >= 0 && soccerCase.indexOf('for (let di = 0; di < 8; di++)') >= 0 && soccerCase.indexOf('THE BAND-WALL PIN') >= 0 && soccerCase.indexOf('kidStepBlocked') < 0);
+check('the trio plays in LANES with a kid-vs-kid separation pass (no pile-up, no shared spot)',
+  soccerCase.indexOf('const KID_SEP') >= 0 && soccerCase.indexOf('const KID_LANE') >= 0 && soccerCase.indexOf('kidLane') >= 0 && soccerCase.indexOf('KID vs KID') >= 0 && soccerCase.indexOf('SUPPORT SPOT') >= 0);
+check('a band-edge turn HOLDS (no dir flip-flop stutter) and the pickup hands the ball to the kid who ran for it',
+  soccerCase.indexOf('KID_EDGE_LOCK') >= 0 && soccerCase.indexOf('k === T.lastKicker && B.z > 0.25') >= 0 && soccerCase.indexOf('k === T.receiver ? 0.6 : 1') >= 0);
 check('no off-screen recycling (a fixed fixture of the block)', soccerCase.indexOf('break; // a fixed fixture: never recycles off-screen') >= 0);
 function makeTeam() {
   const mkKid = (wx) => ({
@@ -225,10 +231,33 @@ const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks y
 const step = (pw) =>
   runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, [], SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
 let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0, nanFrames = 0;
+let overlapFrames = 0, minGap = 1e9, kidStallFrames = 0, maxFrozenRun = 0, frozenRun = 0;
 let lastOwner = T.owner;
 try {
   for (let t = 0; t < 6000; t++) {
+    const pos0 = T.kids.map((k) => [k.wx, k.wy]);
     step(p);
+    // THE STUCK TEST: every kid covers ground on every frame (mid-goal he hops, so hops
+    // are not stalls). A kid that goes NOWHERE with ground to cover is the stuck kid.
+    let stalled = 0;
+    if (T.celebrateT <= 0) {
+      for (let ki = 0; ki < T.kids.length; ki++) {
+        const k = T.kids[ki];
+        if (Math.hypot(k.wx - pos0[ki][0], k.wy - pos0[ki][1]) < 0.004) stalled++;
+      }
+      kidStallFrames += stalled;
+      frozenRun = stalled === T.kids.length ? frozenRun + 1 : 0; // the whole trio frozen in place
+      if (frozenRun > maxFrozenRun) maxFrozenRun = frozenRun;
+    }
+    // THE BUMP TEST: no two kids ever share a spot — a pair inside one body-width of each
+    // other is a kid running into his own teammate
+    for (let ki = 0; ki < T.kids.length; ki++) {
+      for (let kj = ki + 1; kj < T.kids.length; kj++) {
+        const od = Math.hypot(T.kids[kj].wx - T.kids[ki].wx, T.kids[kj].wy - T.kids[ki].wy);
+        if (od < minGap) minGap = od;
+        if (od < 0.85) overlapFrames++;
+      }
+    }
     for (const k of T.kids) {
       // a NaN position paints the mesh at nothing — the kid "disappears". Never allow it.
       if (!isFinite(k.wx) || !isFinite(k.wy)) { simOk = false; simDetail = 'kid position not finite at t=' + t + ' wx=' + k.wx + ' wy=' + k.wy; nanFrames++; }
@@ -251,6 +280,9 @@ check('the ball stays on the walkable band (wy ~0.5..5.0)', simOk && ballBandBad
 check('the ball is NEVER behind the carrying kid (always in front when moving)', simOk && behind === 0, 'behind frames=' + behind);
 check('the ball keeps changing hands (ownership rotates between the kids)', simOk && ownerChanges >= 3, 'owner changes=' + ownerChanges);
 check('kicks send the ball loose for a DIFFERENT kid to chase (receiver assigned)', simOk && sawReceiver, 'saw receiver=' + sawReceiver);
+check('THE KIDS NEVER BUMP INTO EACH OTHER: no frame with two kids inside a body-width (0.85u)', simOk && overlapFrames === 0, 'overlap frames=' + overlapFrames + ' min gap=' + minGap.toFixed(2));
+check('THE KIDS NEVER GET STUCK: every kid keeps moving (a kid is stalled on <=1% of frames)', simOk && kidStallFrames <= 6000 * 3 * 0.01, 'kid-stall frames=' + kidStallFrames);
+check('the trio is NEVER frozen in place (the whole team stalled for more than 3 frames in a row)', simOk && maxFrozenRun <= 3, 'worst frozen run=' + maxFrozenRun);
 check('they actually SCORE: a ball drops into a book goal (T.score >= 1)', simOk && T.score >= 1, 'score=' + T.score);
 check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCalls.some(l => l.text === 'GOOOOAL!' && l.speaker === 'kid'), 'calls=' + voiceCalls.length);
 // scenario W: worker in range (AND in shot range) -> the worker kick wins
@@ -369,6 +401,47 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
   }
   check('E: the kids RUN THROUGH the hydrant (sidewalk junk is not in their path)', crossed, 'maxKidX=' + Math.max.apply(null, T.kids.map(k => k.wx)).toFixed(2));
   check('E: nobody comes to a full stop (kids with endless energy)', stillFrames === 0, 'still frames=' + stillFrames);
+})();
+// scenario T: THE SIDEWALK TORTURE RUN — a real Flatbush walk lined with SOLID obstacles
+// (a USPS collection box by the curb + a sidewalk tree by the lawn, every 8u). The trio
+// must keep PLAYING through it: nobody wedges against a box, nobody piles onto a
+// teammate, nobody leaves the block, and the ball keeps travelling.
+(function () {
+  T = makeTeam();
+  const trees = [];
+  for (let x = 94; x <= 146; x += 8) { trees.push({ wx: x, wy: 1.6 }); trees.push({ wx: x, wy: 4.2 }); }
+  const bl = [{ trees: trees }];
+  const stepBlocks = (pw) => runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, bl, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
+  const pW = { wx: 118, wy: 6.5 }; // the worker on the road, close enough that the kids kick AT him
+  let okT = true, whyT = '', overlap = 0, stall = 0, run = 0, worstRun = 0, offBand = 0, travel = 0, bx = 0, by = 0;
+  bx = T.ball.wx; by = T.ball.wy;
+  for (let t = 0; t < 4000; t++) {
+    const pos0 = T.kids.map((k) => [k.wx, k.wy]);
+    try { stepBlocks(pW); } catch (e) { okT = false; whyT = 'threw: ' + e.message; break; }
+    let stalled = 0;
+    for (let ki = 0; ki < T.kids.length; ki++) {
+      const k = T.kids[ki];
+      if (!isFinite(k.wx) || !isFinite(k.wy)) { okT = false; whyT = 'kid position not finite at t=' + t; }
+      if (k !== T.receiver && (k.wx < T.minX - 1e-9 || k.wx > T.maxX + 1e-9)) { okT = false; whyT = 'kid off the block at t=' + t + ' wx=' + k.wx.toFixed(2); }
+      if (k.wy < 1.1 || k.wy > 4.7) { offBand++; }
+      if (T.celebrateT <= 0 && Math.hypot(k.wx - pos0[ki][0], k.wy - pos0[ki][1]) < 0.004) stalled++;
+    }
+    stall += stalled;
+    run = stalled === T.kids.length ? run + 1 : 0;
+    if (run > worstRun) worstRun = run;
+    for (let ki = 0; ki < T.kids.length; ki++)
+      for (let kj = ki + 1; kj < T.kids.length; kj++)
+        if (Math.hypot(T.kids[kj].wx - T.kids[ki].wx, T.kids[kj].wy - T.kids[ki].wy) < 0.85) overlap++;
+    travel += Math.hypot(T.ball.wx - bx, T.ball.wy - by);
+    bx = T.ball.wx; by = T.ball.wy;
+    for (const o of trees) // a kid must never end the frame INSIDE a solid box
+      for (const k of T.kids)
+        if (Math.abs(o.wx - k.wx) < 0.4 && Math.abs(o.wy - k.wy) < 0.4) { okT = false; whyT = 'kid walking inside a collection box at t=' + t; }
+  }
+  check('T: the trio keeps playing through a box-lined walk (64s) — no kid inside a solid box, none off the block', okT, whyT);
+  check('T: NO kid ever runs into a teammate — zero overlap frames across 4000 frames of the torture run', okT && overlap === 0, 'overlap frames=' + overlap);
+  check('T: NO kid wedges — the whole trio is never frozen (worst run of dead frames)', okT && worstRun <= 3 && stall <= 4000 * 3 * 0.05, 'kid-stall frames=' + stall + ' worst frozen run=' + worstRun);
+  check('T: the PLAY lives — the ball travels the block (kid-busy, box-stuffed 4000 frames)', okT && travel > 200, 'ball travel=' + travel.toFixed(1) + 'u');
 })();
 
 console.log('[4] collideCreatures — the REAL bump exchanges');

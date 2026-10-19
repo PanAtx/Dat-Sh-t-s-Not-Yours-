@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.580</div>
+          <div id="app-version" class="menu-version">v1.0.581</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5614,7 +5614,7 @@
             >
             <div class="set-row"
               ><span class="set-name">RADIO</span>
-              <button id="btnMusic">HI</button></div
+              <button id="btnMusic">HI-FI</button></div
             >
             <div class="set-foot">CHOICES SAVE ON THIS DEVICE</div>
           </div>
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.580';
+      const APP_VERSION = '1.0.581';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -10155,7 +10155,7 @@
         camera.updateProjectionMatrix();
         applyRenderSize(); // buffer tracks the new aspect at the same RENDER_H cap
       });
-      // ==================== THE RADIO DATA TIER (settings row: HI 128K / LO 48K) ================
+      // ==================== THE RADIO DATA TIER (settings row: HI-FI / LO-FI) ===================
       // THE MUSIC IS THE SITE: the rotation is 181.9 MB of the 128 kbps-era VBR masters (31 tracks,
       // ~183 kbps avg), and a phone on cellular pays for every track it hears. THE LO TIER carries
       // THE SAME TRACKS, THE SAME NAMES and the same night set at 48 kbps (music/lo/, 47.4 MB) -
@@ -10174,7 +10174,7 @@
       //   * The switch is LIVE: radioRestartTier() drops the air player, re-scans the new folder
       //     and keeps the station playing - no reload, and the night lock survives the hop.
       const MUSIC_QUALS = ["hi", "lo"];
-      const MUSIC_KBPS = { hi: 128, lo: 48 }; // the row names the tier at its rate: HI ships the 128 kbps-era VBR masters (~183 kbps), LO is the 48 kbps low-fi tier
+      const MUSIC_TIER_NAMES = { hi: "HI-FI", lo: "LO-FI" }; // THE ROW NAMES THE TIERS IN WORDS, NOT IN KBPS: HI-FI ships the 128 kbps-era VBR masters (measured ~170-182 kbps), LO-FI the 48 kbps cut
       const MUSIC_LO_DIR = "music/lo/";
       const _storedMusic = localStorage.getItem("dsnysweep_music");
       let MUSIC_QUAL = MUSIC_QUALS.indexOf(_storedMusic) >= 0
@@ -10195,8 +10195,10 @@
         return q === "lo" ? "dsnboy-radio-lo-v1" : "dsnboy-radio-v2";
       }
       function setMusicLabel() {
-        // The row NAMES the tier and its rate, so the data cost is visible where it is chosen.
-        $("btnMusic").textContent = (MUSIC_QUAL === "lo" ? "LO" : "HI") + " " + MUSIC_KBPS[MUSIC_QUAL] + "K";
+        // THE ROW NAMES THE TIER IN PLAIN WORDS: HI-FI / LO-FI. NO KBPS ON THE BUTTON - a
+        // "128K" rate never matched the files (the VBR masters measure ~170-182 kbps), and
+        // the row is a CHOICE about the data bill, not a spec sheet.
+        $("btnMusic").textContent = MUSIC_TIER_NAMES[MUSIC_QUAL];
       }
       $("btnMusic").addEventListener("click", function () {
         MUSIC_QUAL = MUSIC_QUAL === "lo" ? "hi" : "lo";
@@ -11031,7 +11033,7 @@
           return true;
         },
         radioRestartTier() {
-          // THE DATA TIER SWITCH (the settings row HI 128K / LO 48K): the station re-scans the
+          // THE DATA TIER SWITCH (the settings row HI-FI / LO-FI): the station re-scans the
           // tier's folder and keeps playing. Each tier owns its OWN cache (dsnboy-radio-v2 /
           // dsnboy-radio-lo-v1), so the hop never re-fetches the other tier's files and a LO
           // session never evicts what the HI cache holds: the bus ride and the evening at home
@@ -52958,11 +52960,18 @@
                     Voice.say("GOOOOAL!", 1.5, 1.1, B.wx, B.wy, "male", "kid");
                 }
                 // --- pickup: the closest kid to a LOW loose ball takes the ball ---
+                // NO SCRAMBLE: the kid already COMMITTED to the ball (T.receiver) wins the
+                // 50/50 — a mate must be decisively closer to take it off him — and a kid
+                // never snatches his OWN kick out of the air. The ball goes to the player who
+                // ran for it, so three kids never converge on one ball at once.
                 if (!T.owner && T.grabCd <= 0 && B.z < 0.8) {
                   let best = null,
                     bd = SOCCER_PICKUP;
                   for (const k of T.kids) {
-                    const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                    if (k === T.lastKicker && B.z > 0.25) continue; // never grab one's own kick
+                    const d =
+                      Math.hypot(B.wx - k.wx, B.wy - k.wy) *
+                      (k === T.receiver ? 0.6 : 1);
                     if (d < bd) {
                       bd = d;
                       best = k;
@@ -53156,9 +53165,40 @@
               // the side nearest his target, walks around the close edge and steers
               // back on course, so a kid chasing the ball never gets stuck behind a
               // tree. Steps resolve per-axis (a step blocked in x still slides along
-              // the box face in y), and a dodge somehow pinned for 2.5s flips to the
-              // far side and retries.
+              // the box face in y). WHEN BOTH AXES ARE BLOCKED — the classic wedge: a
+              // box dead ahead and the sidewalk band wall above/below — the kid takes
+              // the free way out in THE SAME FRAME with an 8-way probe (see kidNav),
+              // so nothing pins him: nobody ever stands still, and nobody runs into a
+              // teammate. THE PILE-UP CURE: each kid owns one of three LANES across
+              // the walk (kidLane) and a loose ball sends the trio to three DIFFERENT
+              // spots (the ball, and the ball shifted onto each mate's lane), and every
+              // frame ends with a kid-vs-kid separation pass, so three bodies never
+              // share one spot and the game actually gets played.
               const KID_PAD = 0.8; // half-size of a solid sidewalk obstacle's box
+              const KID_SEP = 0.9; // two small kids' bodies (the bump radius is 0.9) — no kid ever stands on another
+              const KID_LANE = 1.05; // the trio's lateral spread: kid0 / kid1 / kid2 own lanes -1.05, 0, +1.05
+              const KID_EDGE_LOCK = 0.55; // how long a band-edge turn holds before a kid may face the ball again
+              // THIS KID'S LANE on the chalk field. Three kids chasing ONE point always end
+              // up shoulder-to-shoulder: a lane each (kid0 -1.05 / kid1 0 / kid2 +1.05 across
+              // the walk) spreads the play over the sidewalk, so a kid meets a teammate face
+              // to face — never on top of him.
+              const kidLane = (k) => (T.kids.indexOf(k) % 3 - 1) * KID_LANE;
+              const kidLaneY = (k) => clamp(3.0 + kidLane(k), 1.5, 4.3);
+              // the box THIS kid owns this frame (the RECEIVER may chase the ball past it — a
+              // kid chasing a stray ball does not care about the paint)
+              const kidBox = (k) => {
+                let loX = T.minX,
+                  hiX = T.maxX,
+                  loY = 1.5,
+                  hiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  loX = Math.min(loX, B.wx - 0.4, B.tx - 0.4);
+                  hiX = Math.max(hiX, B.wx + 0.4, B.tx + 0.4);
+                  loY = Math.min(loY, B.wy - 0.4, B.ty - 0.4);
+                  hiY = Math.max(hiY, B.wy + 0.4, B.ty + 0.4);
+                }
+                return { loX: loX, hiX: hiX, loY: loY, hiY: hiY };
+              };
               const kidHits = (x, y) => {
                 for (let bi = 0; bi < blocks.length; bi++) {
                   const tr = blocks[bi].trees;
@@ -53218,25 +53258,102 @@
                   const o = k.dodge;
                   // the dodge is over once he's past the side AND the lane is clear
                   if (Math.abs(k.wy - o.wy) > KID_PAD + 0.05 && !kidPathHit(k, tx, ty)) k.dodge = null;
-                  // the lane hugging the obstacle's close edge while he rounds it
-                  else gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                  else {
+                    // the lane hugging the obstacle's close edge while he rounds it
+                    const lane = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                    // THE BAND-WALL PIN (the old stuck-kid bug): the side he committed to
+                    // lies OUTSIDE the walk band, so the clamp hands him back his own wy —
+                    // he shuffles against the box until the 2.5s timeout. Take the side that
+                    // fits, in THIS frame.
+                    if (Math.abs(lane - k.wy) < 0.02) {
+                      k.dodgeSide = -k.dodgeSide;
+                      gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                    } else gy = lane;
+                  }
                 }
                 // per-axis steps: whatever blocks x never cancels y (face sliding)
                 const mx = clamp(gx - k.wx, -step, step),
                   my = clamp(gy - k.wy, -step, step);
-                if (mx && !kidHits(k.wx + mx, k.wy)) k.wx += mx;
-                if (my && !kidHits(k.wx, k.wy + my)) k.wy += my;
+                let moved = 0;
+                if (mx && !kidHits(k.wx + mx, k.wy)) {
+                  k.wx += mx;
+                  moved += Math.abs(mx);
+                }
+                if (my && !kidHits(k.wx, k.wy + my)) {
+                  k.wy += my;
+                  moved += Math.abs(my);
+                }
+                // === THE ANTI-PIN ESCAPE ===
+                // Ground to cover and he is STILL — a box dead ahead AND the band wall above/
+                // below. Try all eight ways and take the free one that advances him MOST
+                // toward his target: he glides off the box in this very frame. Nothing pins a
+                // kid, so the trio never freezes on the spot.
+                if (
+                  Math.hypot(gx - k.wx, gy - k.wy) > step * 0.5 &&
+                  moved < step * 0.3
+                ) {
+                  const gdx = gx - k.wx,
+                    gdy = gy - k.wy,
+                    DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [0.71, -0.71], [-0.71, 0.71], [-0.71, -0.71]];
+                  let px = 0,
+                    py = 0,
+                    bestS = -1e9,
+                    free = false;
+                  for (let di = 0; di < 8; di++) {
+                    const sx = DIRS[di][0] * step,
+                      sy = DIRS[di][1] * step;
+                    if (kidHits(k.wx + sx, k.wy + sy)) continue;
+                    const sc = sx * gdx + sy * gdy; // how much this way gets him closer
+                    if (sc > bestS) {
+                      bestS = sc;
+                      px = sx;
+                      py = sy;
+                      free = true;
+                    }
+                  }
+                  if (free) {
+                    k.wx += px;
+                    k.wy += py;
+                    k.stuckT = 0;
+                  } else {
+                    // boxed in by SOLID boxes all eight ways: drop the route, back off the
+                    // pile and pick the play up fresh next frame
+                    k.stuckT = (k.stuckT || 0) + dt;
+                    if (k.stuckT > 0.45) {
+                      k.stuckT = 0;
+                      k.dodge = null;
+                      k.dodgeT = 0;
+                      k.forceSide = null;
+                      const backX = gdx >= 0 ? -1 : 1;
+                      if (!kidHits(k.wx + backX * step, k.wy)) k.wx += backX * step;
+                      else {
+                        const sideY = k.wy >= (loY + hiY) / 2 ? -1 : 1;
+                        if (!kidHits(k.wx, k.wy + sideY * step)) k.wy += sideY * step;
+                      }
+                    }
+                  }
+                } else k.stuckT = 0;
+              };
+              // THE SHOULDER NUDGE: a kid running at a teammate angles PAST him — the pair
+              // parts before they ever meet, the way kids slip past each other on a sidewalk.
+              const kidShoulder = (k, ty, loY, hiY) => {
+                let oy = ty;
+                for (const m of T.kids) {
+                  if (m === k) continue;
+                  const dx = m.wx - k.wx,
+                    dy = m.wy - k.wy;
+                  if (Math.abs(dx) > 1.6 || Math.abs(dy) > 0.7) continue; // not in his way
+                  oy += (dy >= 0 ? -1 : 1) * (0.7 - Math.abs(dy)) * 0.7; // slip past the near side
+                }
+                return clamp(oy, loY, hiY);
               };
               for (const k of T.kids) {
-                // this kid's walk band up front, so a dodge routes inside it — the
-                // RECEIVER may chase the ball past it (a kid chasing a stray ball
-                // does not care about the paint)
-                let navLoY = 1.5,
-                  navHiY = 4.3;
-                if (!T.owner && k === T.receiver) {
-                  navLoY = Math.min(navLoY, B.wy - 0.4, B.ty - 0.4);
-                  navHiY = Math.max(navHiY, B.wy + 0.4, B.ty + 0.4);
-                }
+                k.edgeT = Math.max(0, (k.edgeT || 0) - dt); // a band-edge turn that HOLDS
+                // this kid's box up front, so every dodge, stride and shoulder-push lands
+                // inside it
+                const kidB = kidBox(k);
+                const navLoY = kidB.loY,
+                  navHiY = kidB.hiY;
                 if (T.celebrateT > 0) {
                   // victory hops while the "GOOOOAL!" bubble lands
                   animParts(k, dt * 16);
@@ -53244,42 +53361,56 @@
                     k.parts.upper.position.z =
                       0.62 + Math.abs(Math.sin(k.phase)) * 0.24;
                 } else if (k === T.owner) {
-                  // dribble at full pace, the ball rolling just ahead of him — and
-                  // stepping AROUND anything solid in the lane, never dead-stopping
-                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 1.15, navLoY, navHiY);
+                  // dribble at full pace, the ball rolling just ahead of him — down HIS OWN
+                  // LANE, stepping AROUND anything solid, never dead-stopping
+                  kidNav(k, k.wx + k.dir * 10, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 1.15, navLoY, navHiY);
                 } else if (!T.owner && T.receiver === k && (!inMouth(B.wx, B.wy) || T.kickoffDir)) {
                   // sprint the loose ball in x AND y — a kid chases it wherever it
-                  // lies, swinging around whatever stands between him and the ball
-                  k.dir = B.wx >= k.wx ? 1 : -1;
+                  // lies, swinging around whatever stands between him and the ball.
+                  // (Mid band-edge turn he keeps his turn: no flip-flopping on the line)
+                  if (!(k.edgeT > 0)) k.dir = B.wx >= k.wx ? 1 : -1;
                   if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 1.0)
-                    kidNav(k, B.wx, B.wy, k.sp * 1.6, navLoY, navHiY);
+                    kidNav(k, B.wx, kidShoulder(k, B.wy, navLoY, navHiY), k.sp * 1.6, navLoY, navHiY);
+                  else
+                    // HE IS ON TOP OF THE BALL and the grab cooldown is still counting: he
+                    // jogs a little lap around it. A kid NEVER freezes over a ball — he
+                    // circles it and takes it clean the instant he is allowed to.
+                    kidNav(
+                      k,
+                      B.wx + (k.wx >= B.wx ? 1.7 : -1.7),
+                      B.wy,
+                      k.sp * 1.1,
+                      navLoY,
+                      navHiY,
+                    );
                 } else if (!T.owner) {
-                  // mate: jog in toward the action (positioning) — kids keep moving
-                  k.dir = B.wx >= k.wx ? 1 : -1;
-                  kidNav(k, B.wx, B.wy, k.sp * 0.95, navLoY, navHiY);
+                  // mate, ball loose: run HIS OWN SUPPORT SPOT — the ball's spot shifted onto
+                  // his lane, NEVER the ball itself. The trio arrives spread out around the
+                  // kick instead of stampeding into the receiver, and once he is on his spot
+                  // he jogs a lap up the block and drifts back: kids keep moving.
+                  const supX = B.wx + kidLane(k) * 1.6,
+                    supY = clamp(B.wy + kidLane(k) * 0.95, navLoY, navHiY);
+                  if (!(k.edgeT > 0)) k.dir = B.wx >= k.wx ? 1 : -1;
+                  if (Math.hypot(supX - k.wx, supY - k.wy) < 0.55)
+                    kidNav(k, k.wx + k.dir * 8, kidShoulder(k, supY, navLoY, navHiY), k.sp * 0.95, navLoY, navHiY);
+                  else kidNav(k, supX, kidShoulder(k, supY, navLoY, navHiY), k.sp * 0.95, navLoY, navHiY);
                 } else {
-                  // mate of the owner: keep running, stay in the play
-                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.9, navLoY, navHiY);
+                  // mate of the owner: keep running his lane, stay in the play
+                  kidNav(k, k.wx + k.dir * 10, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 0.9, navLoY, navHiY);
                 }
-                // the walkable band — but the RECEIVER may chase the ball past it
-                // (a kid chasing a stray ball does not care about the paint)
-                let loX = T.minX,
-                  hiX = T.maxX,
-                  loY = 1.5,
-                  hiY = 4.3;
-                if (!T.owner && k === T.receiver) {
-                  loX = Math.min(loX, B.wx - 0.4, B.tx - 0.4);
-                  hiX = Math.max(hiX, B.wx + 0.4, B.tx + 0.4);
-                  loY = Math.min(loY, B.wy - 0.4, B.ty - 0.4);
-                  hiY = Math.max(hiY, B.wy + 0.4, B.ty + 0.4);
-                }
-                k.wy = Math.max(loY, Math.min(hiY, k.wy));
-                if (k.dir > 0 && k.wx >= hiX) {
-                  k.wx = hiX;
+                // the walkable band (the RECEIVER's box already reaches out to the ball).
+                // Clamped HARD on both axes — a kid shoved past the block end by a bump (or
+                // gliding off a box) comes back on the line even while he faces the other way
+                let loX = kidB.loX,
+                  hiX = kidB.hiX;
+                k.wy = Math.max(kidB.loY, Math.min(kidB.hiY, k.wy));
+                k.wx = Math.max(loX, Math.min(hiX, k.wx));
+                if (k.wx >= hiX) {
                   k.dir = -1;
-                } else if (k.dir < 0 && k.wx <= loX) {
-                  k.wx = loX;
-                  k.dir = 1;
+                  k.edgeT = KID_EDGE_LOCK; // a kid at the block end TURNS and HOLDS the turn
+                } else if (k.wx <= loX) {
+                  k.dir = 1; // for half a second — he never re-faces the ball and
+                  k.edgeT = KID_EDGE_LOCK; // stutter-steps on the line, jamming the trio
                 }
                 // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
                 animParts(k, k.sp * dt * 3.4);
@@ -53288,6 +53419,47 @@
                     0.62 + Math.abs(Math.sin(k.phase)) * 0.05;
                 if (k.g) k.g.rotation.z = k.dir >= 0 ? 0 : Math.PI; // face the direction of travel
               }
+              // === KID vs KID: three bodies never share one spot ===
+              // The lanes keep the trio spread; this is the hard guarantee. Any pair closer
+              // than KID_SEP (a small kid's own bump radius) is pressed apart by HALF the
+              // overlap EACH, along the line joining them (a dead overlap is split along the
+              // lanes). A push is skipped when it would drive a kid into a solid box, and
+              // every kid lands back inside his own box. It runs AFTER the strides, so a
+              // teammate's shoulder never cancels a kid's run — they bump OFF each other and
+              // keep playing instead of grinding to a halt in a pile.
+              for (let rep = 0; rep < 3; rep++)
+                for (let ki = 0; ki < T.kids.length; ki++) {
+                  for (let kj = ki + 1; kj < T.kids.length; kj++) {
+                    const ka = T.kids[ki],
+                      kb = T.kids[kj];
+                    let ox = kb.wx - ka.wx,
+                      oy = kb.wy - ka.wy,
+                      od = Math.hypot(ox, oy);
+                    if (od >= KID_SEP) continue;
+                    if (od < 1e-4) {
+                      ox = 0;
+                      oy = kidLane(kb) - kidLane(ka) || 1; // dead overlap: split along the lanes
+                      od = Math.abs(oy);
+                    }
+                    const nx = ox / od,
+                      ny = oy / od,
+                      half = (KID_SEP - od) / 2;
+                    for (let pi = 0; pi < 2; pi++) {
+                      const kid = pi ? kb : ka,
+                        sgn = pi ? 1 : -1,
+                        box = kidBox(kid),
+                        px = clamp(kid.wx + nx * half * sgn, box.loX, box.hiX),
+                        py = clamp(kid.wy + ny * half * sgn, box.loY, box.hiY);
+                      // a push is refused only when NOTHING is free: the whole push first,
+                      // then the x-only slide along the box face, then the y-only slide
+                      if ((px !== kid.wx || py !== kid.wy) && !kidHits(px, py)) {
+                        kid.wx = px;
+                        kid.wy = py;
+                      } else if (px !== kid.wx && !kidHits(px, kid.wy)) kid.wx = px;
+                      else if (py !== kid.wy && !kidHits(kid.wx, py)) kid.wy = py;
+                    }
+                  }
+                }
               // the ball is ALWAYS in front of the kid carrying it — checked AFTER
               // the kids moved, so even an edge flip snaps it ahead, never behind
               if (T.owner && (B.wx - T.owner.wx) * T.owner.dir < 0.5)
@@ -53474,7 +53646,11 @@
                 let best = null,
                   bd = TEEBALL_PICKUP;
                 for (const k of T.kids) {
-                  const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
+                  // NO SCRAMBLE: the kid who already ran for the ball wins the 50/50 — a
+                  // mate must be decisively closer to take the catch off him
+                  const d =
+                    Math.hypot(B.wx - k.wx, B.wy - k.wy) *
+                    (k === T.receiver ? 0.6 : 1);
                   if (d < bd) {
                     bd = d;
                     best = k;
@@ -53532,10 +53708,48 @@
                 T.ballG.userData.core.rotation.y += (svx / TEEBALL_R) * dt;
               }
               // --- the kids: owner + mates jog the block, the receiver SPRINTS ---
-              // Same smart feet as the soccer kids: a solid sidewalk obstacle (a
-              // USPS collection box / tree in b.trees) in the lane is rounded on
-              // its close side, never dead-stopped into — see the soccer case.
+              // Same smart feet as the soccer kids (see the soccer case for the full
+              // write-up): a solid sidewalk obstacle (a USPS collection box / tree in
+              // b.trees) in the lane is rounded on its close side, never dead-stopped
+              // into, and when BOTH axes are blocked (box ahead + the band wall) the kid
+              // takes the 8-way probe out in the SAME frame. The trio keeps THREE LANES
+              // across the walk and every frame ends with a kid-vs-kid separation pass —
+              // nobody wedges, nobody stands on a teammate.
               const KID_PAD = 0.8; // half-size of a solid sidewalk obstacle's box
+              const KID_SEP = 0.9; // two small kids' bodies (the bump radius is 0.9) — no kid ever stands on another
+              const KID_LANE = 1.05; // the trio's lateral spread: kid0 / kid1 / kid2 own lanes -1.05, 0, +1.05
+              const KID_EDGE_LOCK = 0.55; // how long a band-edge turn holds before a kid may face the ball again
+              // THIS KID'S LANE on the walk — three kids chasing one point always end up
+              // shoulder-to-shoulder, so each kid owns his own strip of the sidewalk
+              const kidLane = (k) => (T.kids.indexOf(k) % 3 - 1) * KID_LANE;
+              const kidLaneY = (k) => clamp(3.0 + kidLane(k), 1.5, 4.3);
+              // the box THIS kid owns this frame (the RECEIVER may chase the ball past it)
+              const kidBox = (k) => {
+                let loX = T.minX,
+                  hiX = T.maxX,
+                  loY = 1.5,
+                  hiY = 4.3;
+                if (!T.owner && k === T.receiver) {
+                  loX = Math.min(loX, B.wx - 0.4);
+                  hiX = Math.max(hiX, B.wx + 0.4);
+                  loY = Math.min(loY, B.wy - 0.4);
+                  hiY = Math.max(hiY, B.wy + 0.4);
+                }
+                return { loX: loX, hiX: hiX, loY: loY, hiY: hiY };
+              };
+              // THE SHOULDER NUDGE: a kid running at a teammate angles PAST him — the pair
+              // parts before they ever meet, the way kids slip past each other on a sidewalk.
+              const kidShoulder = (k, ty, loY, hiY) => {
+                let oy = ty;
+                for (const m of T.kids) {
+                  if (m === k) continue;
+                  const dx = m.wx - k.wx,
+                    dy = m.wy - k.wy;
+                  if (Math.abs(dx) > 1.6 || Math.abs(dy) > 0.7) continue; // not in his way
+                  oy += (dy >= 0 ? -1 : 1) * (0.7 - Math.abs(dy)) * 0.7; // slip past the near side
+                }
+                return clamp(oy, loY, hiY);
+              };
               const kidHits = (x, y) => {
                 for (let bi = 0; bi < blocks.length; bi++) {
                   const tr = blocks[bi].trees;
@@ -53595,58 +53809,120 @@
                   const o = k.dodge;
                   // the dodge is over once he's past the side AND the lane is clear
                   if (Math.abs(k.wy - o.wy) > KID_PAD + 0.05 && !kidPathHit(k, tx, ty)) k.dodge = null;
-                  // the lane hugging the obstacle's close edge while he rounds it
-                  else gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                  else {
+                    // the lane hugging the obstacle's close edge while he rounds it
+                    const lane = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                    // THE BAND-WALL PIN (the old stuck-kid bug): the side he committed to
+                    // lies OUTSIDE the walk band, so the clamp hands him back his own wy —
+                    // he shuffles against the box until the 2.5s timeout. Take the side that
+                    // fits, in THIS frame.
+                    if (Math.abs(lane - k.wy) < 0.02) {
+                      k.dodgeSide = -k.dodgeSide;
+                      gy = clamp(o.wy + k.dodgeSide * (KID_PAD + 0.3), loY, hiY);
+                    } else gy = lane;
+                  }
                 }
                 // per-axis steps: whatever blocks x never cancels y (face sliding)
                 const mx = clamp(gx - k.wx, -step, step),
                   my = clamp(gy - k.wy, -step, step);
-                if (mx && !kidHits(k.wx + mx, k.wy)) k.wx += mx;
-                if (my && !kidHits(k.wx, k.wy + my)) k.wy += my;
+                let moved = 0;
+                if (mx && !kidHits(k.wx + mx, k.wy)) {
+                  k.wx += mx;
+                  moved += Math.abs(mx);
+                }
+                if (my && !kidHits(k.wx, k.wy + my)) {
+                  k.wy += my;
+                  moved += Math.abs(my);
+                }
+                // === THE ANTI-PIN ESCAPE ===
+                // Ground to cover and he is STILL — a box dead ahead AND the band wall above/
+                // below. Try all eight ways and take the free one that advances him MOST
+                // toward his target: he glides off the box in this very frame.
+                if (
+                  Math.hypot(gx - k.wx, gy - k.wy) > step * 0.5 &&
+                  moved < step * 0.3
+                ) {
+                  const gdx = gx - k.wx,
+                    gdy = gy - k.wy,
+                    DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.71, 0.71], [0.71, -0.71], [-0.71, 0.71], [-0.71, -0.71]];
+                  let px = 0,
+                    py = 0,
+                    bestS = -1e9,
+                    free = false;
+                  for (let di = 0; di < 8; di++) {
+                    const sx = DIRS[di][0] * step,
+                      sy = DIRS[di][1] * step;
+                    if (kidHits(k.wx + sx, k.wy + sy)) continue;
+                    const sc = sx * gdx + sy * gdy; // how much this way gets him closer
+                    if (sc > bestS) {
+                      bestS = sc;
+                      px = sx;
+                      py = sy;
+                      free = true;
+                    }
+                  }
+                  if (free) {
+                    k.wx += px;
+                    k.wy += py;
+                    k.stuckT = 0;
+                  } else {
+                    // boxed in by SOLID boxes all eight ways: drop the route, back off the
+                    // pile and pick the play up fresh next frame
+                    k.stuckT = (k.stuckT || 0) + dt;
+                    if (k.stuckT > 0.45) {
+                      k.stuckT = 0;
+                      k.dodge = null;
+                      k.dodgeT = 0;
+                      k.forceSide = null;
+                      const backX = gdx >= 0 ? -1 : 1;
+                      if (!kidHits(k.wx + backX * step, k.wy)) k.wx += backX * step;
+                      else {
+                        const sideY = k.wy >= (loY + hiY) / 2 ? -1 : 1;
+                        if (!kidHits(k.wx, k.wy + sideY * step)) k.wy += sideY * step;
+                      }
+                    }
+                  }
+                } else k.stuckT = 0;
               };
               for (const k of T.kids) {
-                // this kid's walk band up front, so a dodge routes inside it — the
-                // RECEIVER may chase the ball past it (a kid chasing a stray ball
-                // does not care about the paint)
-                let navLoY = 1.5,
-                  navHiY = 4.3;
-                if (!T.owner && k === T.receiver) {
-                  navLoY = Math.min(navLoY, B.wy - 0.4);
-                  navHiY = Math.max(navHiY, B.wy + 0.4);
-                }
+                k.edgeT = Math.max(0, (k.edgeT || 0) - dt); // a band-edge turn that HOLDS
+                // this kid's box up front, so every dodge, stride and shoulder-push lands
+                // inside it
+                const kidB = kidBox(k);
+                const navLoY = kidB.loY,
+                  navHiY = kidB.hiY;
                 if (k === T.owner) {
-                  // the owner jogs around the block, ball in hand — around anything
-                  // solid in the lane, never dead-stopped by a tree
-                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.9, navLoY, navHiY);
+                  // the owner jogs around the block, ball in hand — down HIS OWN LANE,
+                  // around anything solid, never dead-stopped by a tree
+                  kidNav(k, k.wx + k.dir * 10, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 0.9, navLoY, navHiY);
                 } else if (!T.owner && T.receiver === k) {
                   // LOST BALL: sprint for it in x AND y — a kid chases it wherever it
                   // lies, swinging around whatever stands between him and the ball
-                  k.dir = B.wx >= k.wx ? 1 : -1;
+                  // (mid band-edge turn he keeps his turn: no flip-flopping on the line)
+                  if (!(k.edgeT > 0)) k.dir = B.wx >= k.wx ? 1 : -1;
                   if (Math.hypot(B.wx - k.wx, B.wy - k.wy) > 0.8)
-                    kidNav(k, B.wx, B.wy, k.sp * 1.6, navLoY, navHiY);
+                    kidNav(k, B.wx, kidShoulder(k, B.wy, navLoY, navHiY), k.sp * 1.6, navLoY, navHiY);
+                  else
+                    // HE IS ON TOP OF THE BALL: he jogs a little lap around it and takes it
+                    // clean — a kid never freezes over a ball
+                    kidNav(k, B.wx + (k.wx >= B.wx ? 1.7 : -1.7), kidShoulder(k, B.wy, navLoY, navHiY), k.sp * 1.1, navLoY, navHiY);
                 } else {
-                  // mate: keep jogging, stay in the play
-                  kidNav(k, k.wx + k.dir * 10, k.wy, k.sp * 0.85, navLoY, navHiY);
+                  // mate: keep jogging HIS OWN LANE, stay in the play (never three kids on
+                  // one spot — the ball belongs to the kid who ran for it)
+                  kidNav(k, k.wx + k.dir * 10, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 0.85, navLoY, navHiY);
                 }
-                // the walkable band — but the RECEIVER may chase the ball past it
-                // (a kid chasing a stray ball does not care about the paint)
-                let loX = T.minX,
-                  hiX = T.maxX,
-                  loY = 1.5,
-                  hiY = 4.3;
-                if (!T.owner && k === T.receiver) {
-                  loX = Math.min(loX, B.wx - 0.4);
-                  hiX = Math.max(hiX, B.wx + 0.4);
-                  loY = Math.min(loY, B.wy - 0.4);
-                  hiY = Math.max(hiY, B.wy + 0.4);
-                }
-                k.wy = Math.max(loY, Math.min(hiY, k.wy));
-                if (k.dir > 0 && k.wx >= hiX) {
-                  k.wx = hiX;
+                // the walkable band (the RECEIVER's box already reaches out to the ball),
+                // clamped HARD on both axes so a shove can never walk a kid off the block
+                let loX = kidB.loX,
+                  hiX = kidB.hiX;
+                k.wy = Math.max(kidB.loY, Math.min(kidB.hiY, k.wy));
+                k.wx = Math.max(loX, Math.min(hiX, k.wx));
+                if (k.wx >= hiX) {
                   k.dir = -1;
-                } else if (k.dir < 0 && k.wx <= loX) {
-                  k.wx = loX;
+                  k.edgeT = KID_EDGE_LOCK; // the turn HOLDS — no flip-flop stutter on the line
+                } else if (k.wx <= loX) {
                   k.dir = 1;
+                  k.edgeT = KID_EDGE_LOCK;
                 }
                 // run cycle: lively little gallop (leg/arm swing) + a small chest bounce
                 animParts(k, k.sp * dt * 3.4);
@@ -53655,6 +53931,42 @@
                     0.62 + Math.abs(Math.sin(k.phase)) * 0.05;
                 if (k.g) k.g.rotation.z = k.dir >= 0 ? 0 : Math.PI; // face the direction of travel
               }
+              // === KID vs KID: three bodies never share one spot (see the soccer case) ===
+              // Any pair closer than KID_SEP is pressed apart by HALF the overlap EACH, along
+              // the line joining them (a dead overlap splits along the lanes); a push is
+              // refused only when nothing is free (whole push, then the x-only slide, then the
+              // y-only), and every kid lands back inside his own box.
+              for (let rep = 0; rep < 3; rep++)
+                for (let ki = 0; ki < T.kids.length; ki++) {
+                  for (let kj = ki + 1; kj < T.kids.length; kj++) {
+                    const ka = T.kids[ki],
+                      kb = T.kids[kj];
+                    let ox = kb.wx - ka.wx,
+                      oy = kb.wy - ka.wy,
+                      od = Math.hypot(ox, oy);
+                    if (od >= KID_SEP) continue;
+                    if (od < 1e-4) {
+                      ox = 0;
+                      oy = kidLane(kb) - kidLane(ka) || 1; // dead overlap: split along the lanes
+                      od = Math.abs(oy);
+                    }
+                    const nx = ox / od,
+                      ny = oy / od,
+                      half = (KID_SEP - od) / 2;
+                    for (let pi = 0; pi < 2; pi++) {
+                      const kid = pi ? kb : ka,
+                        sgn = pi ? 1 : -1,
+                        box = kidBox(kid),
+                        px = clamp(kid.wx + nx * half * sgn, box.loX, box.hiX),
+                        py = clamp(kid.wy + ny * half * sgn, box.loY, box.hiY);
+                      if ((px !== kid.wx || py !== kid.wy) && !kidHits(px, py)) {
+                        kid.wx = px;
+                        kid.wy = py;
+                      } else if (px !== kid.wx && !kidHits(px, kid.wy)) kid.wx = px;
+                      else if (py !== kid.wy && !kidHits(kid.wx, py)) kid.wy = py;
+                    }
+                  }
+                }
               T.ballG.position.set(B.wx, B.wy, GZ + B.z);
               break; // a fixed fixture: never recycles off-screen (teeball)
             }
