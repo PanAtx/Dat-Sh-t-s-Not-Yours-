@@ -178,8 +178,8 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
   check('tapping MUTE is excluded from the tune-in handler (no throw)', !btnThrew && played.length === 3);
 
   // --- THE RADIO DATA TIER (v1.0.564): the row, the default, the folder and the cache ---
-  check('the RADIO row is on the settings page and NAMES the tier + its rate',
-    /<button id="btnMusic">/.test(html) && /^HI 128K$/.test(els.btnMusic.textContent));
+  check('the RADIO row is on the settings page and NAMES the tier in words (HI-FI, no kbps)',
+    /<button id="btnMusic">/.test(html) && /^HI-FI$/.test(els.btnMusic.textContent));
   check('the station reads the tier folder (HI = music/) and its manifest',
     out.musicDir() === 'music/' && out.musicManifestUrl() === 'music/manifest.json' && out.tier === 'hi');
   check('the HI tier keeps its own cache name, and the LO tier gets its OWN (a switch never re-fetches or evicts the other)',
@@ -188,17 +188,17 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
     const L = makeTierHarness({ lowProfile: true });
     check('a small-device first run boots the station on the LO tier (music/lo/, 48k, its own cache)',
       L.run.tier === 'lo' && L.run.musicDir() === 'music/lo/' && L.run.musicManifestUrl() === 'music/lo/manifest.json' &&
-        L.run.cacheName === 'dsnboy-radio-lo-v1' && /^LO 48K$/.test(L.hEls.btnMusic.textContent));
+        L.run.cacheName === 'dsnboy-radio-lo-v1' && /^LO-FI$/.test(L.hEls.btnMusic.textContent));
     const click = (L.hEls.btnMusic._h.click || [])[0];
     click();
-    check('the row flips LO -> HI, stores its pick under dsnysweep_music, and re-labels the rate',
-      L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI 128K$/.test(L.hEls.btnMusic.textContent));
+    check('the row flips LO -> HI, stores its pick under dsnysweep_music, and re-labels the name',
+      L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI-FI$/.test(L.hEls.btnMusic.textContent));
     check('the flip asks the station to hop folders (radioRestartTier is the switch, not a reload)',
       typeof L.run.SFX.radioRestartTier === 'function');
     const click2 = (L.hEls.btnMusic._h.click || [])[0];
     click2();
     check('and flipping back is symmetrical (HI -> LO, the key follows, the label follows)',
-      L.run.tier === 'lo' && L.hStore.dsnysweep_music === 'lo' && /^LO 48K$/.test(L.hEls.btnMusic.textContent));
+      L.run.tier === 'lo' && L.hStore.dsnysweep_music === 'lo' && /^LO-FI$/.test(L.hEls.btnMusic.textContent));
     const P = makeTierHarness({ lowProfile: true, stored: 'hi' });
     check('a player who CHOSE HI on a small phone keeps HI (the stored row outranks the profile default)',
       P.run.tier === 'hi' && P.run.musicDir() === 'music/');

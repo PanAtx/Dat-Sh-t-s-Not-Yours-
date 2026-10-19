@@ -3,7 +3,7 @@
 // The radio rotation is ~182 MB of the 128 kbps-era VBR masters: it is the biggest thing on the
 // site and the biggest DATA bill a phone playing the game pays. The LO tier carries THE SAME
 // TRACKS under THE SAME NAMES at 48 kbps in music/lo/ - a quarter of the bytes for the really
-// slow phones, and the game picks the tier from the RADIO settings row (HI 128K / LO 48K), each
+// slow phones, and the game picks the tier from the RADIO settings row (HI-FI / LO-FI), each
 // tier with its own radio cache.
 //
 // This tool rebuilds that folder from the sources: ffmpeg -c:a libmp3lame -b:a 48k, metadata
