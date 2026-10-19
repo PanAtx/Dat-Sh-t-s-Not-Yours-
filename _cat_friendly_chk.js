@@ -211,6 +211,7 @@ function herd(side) {
         [roomIdx, roomIdx + 120], // the declaration
         [startIdx, i], // the bodega cat flight
         [src.indexOf('if (c.scareT > 0) {', scA), scB], // the punchback scare-off
+        (() => { const a = src.indexOf('case "skunk": {'); return [a, src.indexOf('c.wx = stepX;', a)]; })(), // the Maspeth skunk flight (THE TURNAROUND LAW, skunk edition)
       ];
       const sites = [];
       for (let k = src.indexOf('blockRoomX('); k >= 0; k = src.indexOf('blockRoomX(', k + 1))

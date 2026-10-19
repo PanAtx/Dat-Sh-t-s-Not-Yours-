@@ -52262,16 +52262,51 @@
               // "Man, I stink!"). A bumped skunk bolts away.
               c.sprayCd = c.sprayCd > 0 ? c.sprayCd - dt : 0;
               c.sprayT = c.sprayT > 0 ? c.sprayT - dt : 0;
+              // the committed panic lane is released on any frame the skunk is NOT
+              // bolting — the next panic re-reads which side the worker is on
+              if (c.flee <= 0 && c.fleeDir !== null && c.fleeDir !== undefined)
+                c.fleeDir = null;
               const skSp = Math.max(c.sp, npcRoadRules(c, dt) || 0);
               if (c.flee > 0) {
                 c.flee -= dt;
-                const away = c.wx >= p.wx ? 1 : -1;
-                c.wx += away * 7 * dt;
+                // THE TURNAROUND LAW, SKUNK EDITION (the store cat's law, above):
+                // "away from the worker" only counts while there is sidewalk that
+                // way ON THE SKUNK'S OWN BLOCK. A worker can no longer herd the
+                // family into a block corner and spray a statue — the skunk refuses
+                // the cross-street escape lane, FLIPS, and bolts the OPPOSITE way
+                // right past him down the open walk (which also frees a worker
+                // stuck behind the pinned animal). The panic commits its direction
+                // (c.fleeDir) so a turned skunk never noses back at the wall; the
+                // clamp stays the last word: no bolt parks a skunk in the gap.
+                let away =
+                  typeof c.fleeDir === "number"
+                    ? c.fleeDir
+                    : c.wx >= p.wx
+                      ? 1
+                      : -1;
+                if (typeof blockRoomX === "function" && !blockRoomX(c, away))
+                  away = -away; // escape lane runs off its block — run the open one
+                let stepX = c.wx + away * 7 * dt;
+                if (typeof blockClampX === "function")
+                  stepX = blockClampX(c, stepX); // bolt along ITS block, never into the cross-street
+                if (
+                  Math.abs(stepX - c.wx) < 1e-4 &&
+                  typeof blockRoomX === "function" &&
+                  blockRoomX(c, -away)
+                ) {
+                  // Dead end: the frontage ran out under it. Turn and bolt the other way.
+                  away = -away;
+                  stepX = c.wx + away * 7 * dt;
+                  if (typeof blockClampX === "function")
+                    stepX = blockClampX(c, stepX);
+                }
+                c.wx = stepX;
+                c.fleeDir = away; // the direction this panic is committed to
+                c.dir = c.fleeDir; // the babies read mom's dir for their trot offset
                 c.wy = clamp(c.wy + (Math.random() - 0.5) * 6 * dt, 0.8, creatureMaxY());
-                if (typeof blockClampX === "function") c.wx = blockClampX(c, c.wx); // a bolted skunk disappears behind the last house of HIS block — not into the cross-street
                 c.g.rotation.z =
-                  away >= 0 ? R(-0.2, 0.2) : Math.PI + R(-0.2, 0.2);
-                animSkunk(c, dt * 7 * 5.5);
+                  away >= 0 ? R(-0.2, 0.2) : Math.PI + R(-0.2, 0.2); // face the direction it bolts
+                animSkunk(c, dt * 7 * 5.5); // legs trot at his sprint speed
               } else if (c.baby && c.follow && c.follow !== c) {
                 // a baby skunk: trots right behind mom (a little to one side)
                 const fw = c.follow;

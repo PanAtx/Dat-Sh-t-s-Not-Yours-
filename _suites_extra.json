@@ -262,6 +262,11 @@
       "_skunk_chk.js"
     ],
     [
+      "verify the skunk flee obeys THE TURNAROUND LAW (corner-herded skunks flip and bolt the opposite way off the block clamp, so the worker is never stuck behind a cornered skunk):",
+      "node",
+      "_skunk_turnaround_chk.js"
+    ],
+    [
       "verify the rebuilt squirrel: darker grey coat, four little",
       "node",
       "_squirrel_chk.js"
