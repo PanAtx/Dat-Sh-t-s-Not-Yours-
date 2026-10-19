@@ -5621,7 +5621,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.586</div>
+          <div id="app-version" class="menu-version">v1.0.587</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5936,7 +5936,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.586';
+      const APP_VERSION = '1.0.587';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -56774,9 +56774,19 @@
             goPanel.classList.toggle("go-out", nightGoT <= 1.0); // last second: it blinks out
           }
         }
-        const pips = $("pips").children;
-        for (let i = 0; i < 3; i++)
-          pips[i].classList.toggle("on", i < complaints);
+        // THE COMPLAINT PIPS: the #tr write-up tally (top right) lights the pips as they're
+        // issued. The element is created with the HUD, and QUIT-to-menu rebuilds the street -
+        // a HUD chip is NEVER guaranteed to be on the page on a mid-rebuild frame (a bad
+        // cached build, a half-mounted shell), so the pips read behind a null guard. Without
+        // the guard the render loop dies on a single missing chip, which is what the
+        // "Cannot read properties of null (reading 'children')" stack is: the frame dies
+        // BEFORE the night HUD gets painted, not the HUD being broken.
+        const pipsEl = $("pips");
+        if (pipsEl && pipsEl.children) {
+          const pips = pipsEl.children;
+          for (let i = 0; i < pips.length && i < 3; i++)
+            pips[i].classList.toggle("on", i < complaints);
+        }
         // THE MIDNIGHT FINAL BOSS BAR (the dead-end street's cemetery fight). A SLEEPING
         // beast has NO bar: this lights the instant the tentacle beast WAKES in the grave yard
         // (the FINAL block) and goes out when it is in the hopper. It sits in the block chip's
