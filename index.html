@@ -225,10 +225,10 @@
          bar reads against the playfield) with a bright fill that walks as the worker
          closes on the drop. The top bar (mint, like the cash line) fills toward the
          next COFFEE / BEC healer - every POWERUP_CASH_STEP of street cash, every
-         NIGHT_POWERUP_CASH_STEP on the haunted shift - and carries a FOOD glyph on its left (the bite to eat). The bar under it (bull RED - it is RED BULL)
+         NIGHT_POWERUP_CASH_STEP on the haunted shift - and carries a HAMBURGER glyph on its left (the bite to eat). The bar under it (bull RED - it is RED BULL)
          fills toward the next RED BULL "Run It Up" - every MONSTER_SCORE_STEP of
-         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight) - and carries a WING glyph, because
-         Red Bull gives you wings. No text, no glow over the playfield. Bars show on the
+         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight) - and carries a SODA-CAN glyph - the Red Bull can, cupped like a drink, wings included. No text
+                   , no glow over the playfield. Bars show on the
           weekdays + MIDNIGHT + OVERTIME. */
       .pwbars {
         width: 150px;
@@ -498,7 +498,10 @@
       /* ---- OVERTIME goal panel: the two WIN-condition counters (baskets + street cash) ---- */
        #bonus-goal {
          position: fixed;
-         top: calc(150px + env(safe-area-inset-top, 0px));
+         /* Parked BELOW the top-left earn-a-power-up bars (score / street cash /
+            heal + Red Bull bars end ~y178): the BASKETS + CASH chips must never
+            sit on top of the red-bull progress bar. */
+         top: calc(210px + env(safe-area-inset-top, 0px));
          left: calc(20px + env(safe-area-inset-left, 0px));
          z-index: 12;
          display: flex;
@@ -569,7 +572,7 @@
          "SPOOKS SHOBELED n / 14". updateHUD() shows it on the night level only. */
       #ecto-goal {
         position: fixed;
-        top: calc(150px + env(safe-area-inset-top, 0px));
+        top: calc(210px + env(safe-area-inset-top, 0px));
         left: calc(20px + env(safe-area-inset-left, 0px));
         z-index: 12;
         display: flex;
@@ -604,7 +607,7 @@
          are left to shovel; updateHUD() keeps it on the night shift only. */
       #gate-goal {
         position: fixed;
-        top: calc(186px + env(safe-area-inset-top, 0px));
+        top: calc(246px + env(safe-area-inset-top, 0px));
         left: calc(20px + env(safe-area-inset-left, 0px));
         z-index: 12;
         display: flex;
@@ -846,7 +849,7 @@
          warning rhythm the worker's own health bar uses. */
       #boss-goal {
         position: fixed;
-        top: calc(186px + env(safe-area-inset-top, 0px));
+        top: calc(246px + env(safe-area-inset-top, 0px));
         left: calc(20px + env(safe-area-inset-left, 0px));
         z-index: 12;
         width: min(52vw, 380px);
@@ -1017,7 +1020,7 @@
       @media (max-width: 600px), (max-height: 480px) {
         #boss-goal {
           width: min(78vw, 300px);
-          top: calc(146px + env(safe-area-inset-top, 0px));
+          top: calc(232px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
         }
       }
@@ -1048,17 +1051,17 @@
           border-radius: 0 0 4px 0;
         }
         #bonus-goal {
-          top: calc(118px + env(safe-area-inset-top, 0px));
+          top: calc(196px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
         #ecto-goal {
-          top: calc(118px + env(safe-area-inset-top, 0px));
+          top: calc(196px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
         #gate-goal {
-          top: calc(146px + env(safe-area-inset-top, 0px));
+          top: calc(232px + env(safe-area-inset-top, 0px));
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
@@ -2286,6 +2289,9 @@
       #over .score:last-of-type {
         animation-delay: 0.9s;
       }
+      #over .no-cheat {
+        animation: complete-fade-in 0.5s ease-out 1.1s both;
+      }
       #over button {
         animation: complete-btn-enter 0.5s cubic-bezier(0.2, 1.4, 0.5, 1) 1.3s
           both;
@@ -2721,6 +2727,47 @@
         50% {
           transform: rotate(2deg) scale(1.08);
         }
+      }
+      /* ===== THE CHEAT MARK (the trainer is a toy, not a scoring path) =====
+         A week played with any trainer cheat engaged never SAVES the HI-SCORE: the number
+         stays on screen (the player did earn it) but the line is CROSSED OUT, dsnysweep_hi is
+         never written, and the panel that prints the HI-SCORE stamps "NO CHEATING!" with the
+         reason under it - "CHEATS IN USE - HI-SCORE NOT SAVED". The stamp shows ONLY where a
+         HI-SCORE is printed (the suspended screen, the route report, YOU WIN): never on the
+         day card, never on the shift report grid, never in the HUD. See commitHighScore() /
+         cheatUsed() in the script. The strike lives on the .score LINE (the parent of the
+         HI-SCORE span), and the class is painted by cheatMark() on those panels. */
+      .score.hi-cross {
+        text-decoration: line-through;
+        text-decoration-thickness: 3px;
+        text-decoration-color: #ff4444;
+        color: #93a4b8;
+        opacity: 0.72;
+      }
+      .no-cheat {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(12px, 2.6vw, 20px);
+        letter-spacing: 2px;
+        line-height: 1.15;
+        color: #fff3f3;
+        background: linear-gradient(180deg, #c11f1f, #5f0808);
+        border: 2px solid #2a0000;
+        border-radius: 14px;
+        padding: 3px 12px 4px;
+        margin: 4px auto 0;
+        display: inline-block;
+        box-shadow: 0 0 16px rgba(255, 60, 60, 0.6);
+        animation: newHiPulse 0.9s ease-in-out infinite;
+      }
+      /* the reason line under the seal: what the cheat costs */
+      .no-cheat span {
+        display: block;
+        font-family: "Courier New", monospace;
+        font-size: clamp(8px, 1.4vw, 11px);
+        font-weight: bold;
+        letter-spacing: 1px;
+        color: #ffd8d0;
+        text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.85);
       }
       .rank-pill {
         display: inline-block;
@@ -5535,8 +5582,8 @@
         <div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span></div>
         <!-- THE EARN-a-POWER-UP BARS (two bars, directly under the STREET CASH / HELL NOTES
              line): the top (mint) bar fills toward the next COFFEE / BEC healer, the bar under
-             it (BULL RED, with a WING glyph because Red Bull gives you wings; the healer
-             bar carries a FOOD glyph). updatePowerProgress() paints both from
+             it (BULL RED, with a SODA-CAN glyph - the Red Bull find itself, cupped like a drink; the healer
+             bar carries a HAMBURGER glyph). updatePowerProgress() paints both from
              the worker's live progress in the current span - on the haunted shift a healer
              costs NIGHT_POWERUP_CASH_STEP of HELL NOTES and a Red Bull
              NIGHT_MONSTER_SCORE_STEP of SCORE, so the bars read tonight's grind, not the
@@ -5544,7 +5591,7 @@
              divs, so a closed tag can never leave a stray ">" character under the cash line. -->
         <div class="pwbars">
           <div class="pwrow"><span class="pwicon" id="pw-heal-icon" aria-hidden="true">&#127822;</span><div class="pwbar pwbar-heal" id="pw-heal-bar" title="Next coffee / BEC"><div class="pwfill" id="pw-heal-fill"></div></div></div>
-          <div class="pwrow"><span class="pwicon" id="pw-bull-icon" aria-hidden="true">&#129709;</span><div class="pwbar pwbar-bull" id="pw-bull-bar" title="Next Red Bull"><div class="pwfill" id="pw-bull-fill"></div></div></div>
+          <div class="pwrow"><span class="pwicon" id="pw-bull-icon" aria-hidden="true">&#129380;</span><div class="pwbar pwbar-bull" id="pw-bull-bar" title="Next Red Bull"><div class="pwfill" id="pw-bull-fill"></div></div></div>
         </div>
       </div>
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
@@ -5595,6 +5642,11 @@
         </div>
         <div id="trainer-rows"></div>
         <div class="tr-hint">Amiga tracker music by Romeo Knight/TRSI</div>
+        <!-- THE LEDGER, spelled out on the trainer itself: the panel is a toy. Every shift
+             worked with a toggle ON is flagged, dsnysweep_hi is never written, and the panel
+             that PRINTS the HI-SCORE crosses the number out under "NO CHEATING! - CHEATS IN
+             USE - HI-SCORE NOT SAVED" (suspended screen, route report, YOU WIN). -->
+        <div class="tr-hint" id="tr-hint-cheat">CHEATS IN USE - HI-SCORE NOT SAVED</div>
       </div>
       <div id="trainer-scroll"><div id="trainer-scroll-inner"></div></div>
       <!-- THE TRAINER'S OWN CRT PAIR: the street overlays (#scanlines / #vignette) sit at z6/z7,
@@ -5651,7 +5703,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.590</div>
+          <div id="app-version" class="menu-version">v1.0.591</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5847,6 +5899,9 @@
         >
         <div class="score">HI-SCORE $<span id="hiscore2">000000</span></div>
         <div class="new-hi hidden" id="over-newhi">NEW HIGH SCORE!</div>
+        <!-- THE CHEAT MARK: shown when any trainer cheat was engaged this week. The HI-SCORE
+             line above gets .hi-cross (crossed out) and the score was NEVER SAVED. -->
+        <div class="no-cheat hidden" id="over-cheat">NO CHEATING!<span>CHEATS IN USE - HI-SCORE NOT SAVED</span></div>
         <button id="btnRestart">RESTART WEEK</button>
         <div class="press-start">Press Start - Clock Back In</div>
       </div></div
@@ -5859,6 +5914,9 @@
           >SHIFT SCORE $<span id="finalscore2">000000</span></div
         >
         <div class="score">HI-SCORE $<span id="hiscore3">000000</span></div>
+        <!-- THE CHEAT MARK on the ROUTE COMPLETE HI-SCORE: the score printed here was
+             never saved, because a trainer cheat was engaged in the week. -->
+        <div class="no-cheat hidden" id="complete-cheat">NO CHEATING!<span>CHEATS IN USE - HI-SCORE NOT SAVED</span></div>
         <button id="btnRestart2">START NEXT ROUTE</button>
       </div></div
     >
@@ -5925,6 +5983,10 @@
         <div class="score">WEEK TOTAL $<span id="week-score">000000</span></div>
         <div class="score">BEST SHIFT $<span id="week-hi">000000</span></div>
         <div class="new-hi hidden" id="week-newhi">NEW HIGH SCORE!</div>
+        <!-- THE CHEAT MARK on YOU WIN: the BEST SHIFT line is crossed out and this stamp
+             says plainly what the cheat cost - the score was never saved (commitHighScore
+             never sees a cheated run). -->
+        <div class="no-cheat hidden" id="week-cheat">NO CHEATING!<span>CHEATS IN USE - HI-SCORE NOT SAVED</span></div>
         <button id="btnWeekRestart">WORK ANOTHER WEEK</button>
         <div class="press-start">Press Start - Work Another Week</div>
       </div></div
@@ -5966,7 +6028,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.590';
+      const APP_VERSION = '1.0.591';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -8126,6 +8188,84 @@
         hi = parseInt(localStorage.getItem("dsnysweep_hi") || "0", 10) || 0;
       } catch (e) {}
 
+      // ==================== THE CHEAT LEDGER (a cheated week never owns a HI-SCORE) =======
+      // The hidden TRAINER is a warez-scene toy for people who want to play the NIGHT SHIFT,
+      // not a scoring path. The instant any trainer cheat is engaged, THIS RUN is flagged for
+      // good: the flag rides through every report panel, survives a reload (refreshing the
+      // page mid-shift must not launder a cheated score), and is wiped only by a brand-new
+      // week (startGame) or by quitting back to the menu (quitGame). A flagged run
+      //   * NEVER writes dsnysweep_hi — the HI-SCORE IS NOT SAVED while cheats are in use;
+      //   * on the panels that PRINT a HI-SCORE (suspended screen, route report, YOU WIN) the
+      //     line is struck through under a "NO CHEATING! - CHEATS IN USE - HI-SCORE NOT SAVED"
+      //     stamp (cheatMark) and the NEW HIGH SCORE! ribbon never lights. No mark is painted
+      //     on a screen with no score line: the day card, the shift-report grid and the HUD
+      //     stay clean, so the message appears exactly where the high score shows.
+      let CHEAT_USED = false;
+      try {
+        CHEAT_USED = localStorage.getItem("dsnysweep_cheat") === "1";
+      } catch (e) {}
+      function markCheatUsed() {
+        if (CHEAT_USED) return; // a run is flagged for good — flipping a cheat off is too late
+        CHEAT_USED = true;
+        try {
+          localStorage.setItem("dsnysweep_cheat", "1");
+        } catch (e) {}
+      }
+      function clearCheatUsed() {
+        CHEAT_USED = false;
+        try {
+          localStorage.removeItem("dsnysweep_cheat");
+        } catch (e) {}
+      }
+      function cheatUsed() {
+        return CHEAT_USED === true;
+      }
+      // A trainer cheat engaged RIGHT NOW (the live panel state, not the sticky flag): the
+      // three toggles, or a "Starting Level" that is not the week's configured start (jumping
+      // straight to the NIGHT SHIFT is a cheat too).
+      function cheatLive() {
+        if (typeof CHEAT === "undefined" || !CHEAT) return false;
+        if (CHEAT.infinite === true || CHEAT.invincible === true || CHEAT.runitup === true)
+          return true;
+        return (
+          typeof CHEAT.startLevel === "number" &&
+          CHEAT.startLevel >= 1 &&
+          typeof START_LEVEL !== "undefined" &&
+          CHEAT.startLevel !== START_LEVEL
+        );
+      }
+      // THE LEDGER: bank the finished week's score. A cheated run changes nothing — the
+      // previous record stays on screen and the stored value is never touched.
+      function commitHighScore() {
+        if (cheatUsed()) return false;
+        if (weekScore > hi) {
+          hi = weekScore;
+          try {
+            localStorage.setItem("dsnysweep_hi", String(hi));
+          } catch (e) {}
+          return true;
+        }
+        return false;
+      }
+      // THE CHEAT MARK on a HI-SCORE panel: the "NO CHEATING!" stamp (with its "HI-SCORE
+      // NOT SAVED" reason line), the crossed-out HI-SCORE line and the dead NEW HIGH SCORE!
+      // ribbon. It is painted ONLY on panels that print a HI-SCORE (the suspended screen,
+      // the route report, YOU WIN) — never on a panel with no score line. `scoreId` is that
+      // panel's HI-SCORE <span> (the .score line around it is the line that gets crossed out).
+      // Returns the mark state.
+      function cheatMark(badgeId, scoreId, newHiId) {
+        const on = cheatUsed();
+        const b = $(badgeId);
+        if (b) b.classList.toggle("hidden", !on);
+        const s = $(scoreId);
+        if (s && s.parentElement) s.parentElement.classList.toggle("hi-cross", on);
+        if (newHiId) {
+          const n = $(newHiId);
+          if (n && on) n.classList.add("hidden");
+        }
+        return on;
+      }
+
       // ==================== 7-DAY LEVEL SYSTEM (Monday→Sunday) ====================
       // Each day is a fresh pass over the same route. Difficulty ramps up: one more of
       // every street hazard (people + vehicles) spawns each day, so Sunday is the busiest,
@@ -8780,6 +8920,10 @@
       }; // f = forward, l = strafe (analog, -1..1); select = gamepad SELECT (quit)
       let lastT = performance.now();
       $("hiscore2").textContent = pad(hi);
+      // A CHEAT FLAG INHERITED FROM THE LAST VISIT: the ledger lives in localStorage, so a
+      // refresh mid-shift cannot launder a cheated score. Paint the mark on the HI-SCORE line
+      // the moment the page boots (the suspended screen's line shows struck from the start).
+      if (typeof cheatMark === "function") cheatMark("over-cheat", "hiscore2", "over-newhi");
 
       // ==================== LOW-RES RENDER (retro pixels + FPS) ====================
       // The scene renders into an INTERNAL buffer capped at RENDER_H px tall,
@@ -10317,6 +10461,18 @@
         localStorage.setItem("dsnysweep_music", MUSIC_QUAL);
         setMusicLabel();
         if (typeof SFX !== "undefined" && SFX && SFX.radioRestartTier) SFX.radioRestartTier();
+        // THE OTHER FOLDER IS 0% CACHED. A worker who hops HI-FI <-> LO-FI on the bus and
+        // then walks into the dead-end street with the radios off would land on a station
+        // with NOTHING stored — a tier cache only fills the tracks it has downloaded. So the
+        // same skippable background stream re-arms for the folder the player just chose (the
+        // generation counter in radioBackgroundDownload retires the stream that was filling
+        // the old one) and the OFFLINE READY badge re-counts against the new tier.
+        // The typeof guards keep this row self-contained: the tier module (and the
+        // _radio_hud_chk.js harness that runs it alone) never needs the download loop in scope.
+        if (typeof _radioBgRunning !== "undefined") _radioBgRunning = false; // the old stream's loop
+        if (typeof _radioBgSkip !== "undefined") _radioBgSkip = false; // a new folder = a fresh ask
+        if (typeof radioBackgroundDownload === "function") radioBackgroundDownload();
+        if (typeof updateCacheBadge === "function") updateCacheBadge();
       });
       setMusicLabel();
       // ==================== PROCEDURAL AUDIO (Web Audio API) ====================
@@ -42582,11 +42738,17 @@
           }
         }
       }
-      // A supervisor WRITE-UP. Only the worker going down (LODI) gets him written —
-      // missed cans / bags / baskets no longer count. Lights up one more HUD pip and
-      // flashes; the 3rd write-up suspends the worker (the game-over screen).
+      // A supervisor WRITE-UP. A worker DOWN (LODI) in the street gets him written up, and so
+      // does the end-of-route inspection when he left the trash out (see applyRouteWriteUp).
+      // Lights up one more HUD pip and flashes.
+      // THE THREE-STRIKE LAW (the game's own rule, and the trainer cannot touch it): every
+      // screw-up is a write-up; the meter counts 1, 2, 3 - and the 3rd write-up SUSPENDS the
+      // worker (the GAME OVER screen). It never climbs past 3, so the seal can never read
+      // 4/3: the shift ENDS on the 3rd strike. Flipping a trainer cheat never removes a
+      // strike - it only voids the HI-SCORE (see the CHEAT LEDGER + commitHighScore).
       function addWriteUp() {
         if (state !== "play" && state !== "dying" && state !== "dayend") return complaints; // +dayend: the end-of-route inspection writes the worker up at the shift report
+        if (complaints >= 3) return complaints; // the 3rd strike already ended the shift
         complaints++;
         SFX.playComplaintSound();
         updateHUD(); // the COMPLAINTS ISSUED tally (top right) lights up the new pip INSTANTLY
@@ -48343,6 +48505,17 @@
         p.god = typeof CHEAT !== "undefined" && CHEAT.invincible === true;
         if (typeof CHEAT !== "undefined" && CHEAT.runitup)
           p.immuneT = POWERUP_IMMUNE_DUR;
+        // THE CHEAT LEDGER: a shift worked with a trainer cheat engaged is flagged for the
+        // whole week, so that week's score can never be banked (commitHighScore) and every
+        // HI-SCORE prints crossed out under "NO CHEATING!" (cheatMark). Deliberately placed
+        // BELOW the p.god / p.immuneT lines, which _cheat_god_chk.js extracts verbatim and
+        // runs in a sandbox that knows nothing about the ledger.
+        if (
+          typeof CHEAT !== "undefined" &&
+          (CHEAT.invincible === true || CHEAT.runitup === true || CHEAT.infinite === true) &&
+          typeof markCheatUsed === "function"
+        )
+          markCheatUsed();
         p.attackerT = Math.max(0, p.attackerT - dt); // the 10s punchback window actually expires now
         p.shake = Math.max(0, p.shake - dt * 1.3);
         if (p.attackerT > 0) updateRage(dt); // BEAST MODE: pulse the face, bob the fist, throb the halo
@@ -57267,7 +57440,13 @@
         // 000000 it ships with. Stamp the real numbers on it with every report so nothing on
         // this page can ever read out as a zero score, panel shown or not.
         setTxt($("finalscore2"), pad(dayScore));
+        // HI-SCORE on the report line is the stored honest record — a cheated week never
+        // banks one, so an unranked run's report reads 000000 (and the line is struck).
         setTxt($("hiscore3"), pad(hi));
+        // THE CHEAT MARK: the ROUTE COMPLETE panel is where this report prints the HI-SCORE,
+        // so it is the panel that carries the "NO CHEATING!" stamp (the shift-report grid
+        // itself never shows the mark - it has no HI-SCORE line).
+        if (typeof cheatMark === "function") cheatMark("complete-cheat", "hiscore3", null);
         $("btnNextDay").classList.remove("pressed"); // a fresh report always starts un-pressed
         $("btnNextDay").textContent = routeFailed
           ? "RETRY THE SHIFT \u21bb"
@@ -57703,11 +57882,15 @@
         }, 5400); // just after the 5.2s stamp auto-removes
       }
       function applyRouteWriteUp() {
+        if (complaints >= 3) return complaints; // the shift is ALREADY suspended (the 3rd strike landed): nothing left to log, and the suspension fires exactly once
         lastHitCause = "unclean"; // the offense the supervisor stamps under the seal
         const n = addWriteUp(); // +1 COMPLAINT ISSUED: HUD pips light up, the ink stamp slams, SFX
         showWriteUpText(n); // "WRITTEN UP! n/3" + the offense line, slams over the day-end report
         dimShiftReport(); // fade the shift-report menu so the stamp reads, then fade it back
-        if (n >= 3 && !(typeof CHEAT !== "undefined" && CHEAT.infinite)) {
+        // THE THREE-STRIKE LAW: a route left dirty is a write-up like a worker DOWN in the
+        // street, so the 3rd one SUSPENDS the worker - GAME OVER. No trainer toggle gets the
+        // worker past it (a cheat only voids the HI-SCORE).
+        if (n >= 3) {
           routeWriteupLock = true; // hold "next day" while the 3rd-strike stamp is being read
           setTimeout(function () {
             routeWriteupLock = false;
@@ -57722,7 +57905,12 @@
         // (The end-of-day "That's the [day] route, [borough]. Clean sweep!"
         // speech bubble was removed on request — the day-end report screen
         // below is the only level-end feedback now.)
-        if (weekScore > hi) {
+        // THE LEDGER (the cheat law lives in commitHighScore): a week worked with a
+        // trainer cheat is never banked, so HI-SCORE on every report stays the honest one.
+        if (typeof commitHighScore === "function") commitHighScore();
+        else if (weekScore > hi) {
+          // The verbatim legacy path — kept for the extracted-code test harnesses that
+          // run routeComplete() with no ledger in scope.
           hi = weekScore;
           try {
             localStorage.setItem("dsnysweep_hi", String(hi));
@@ -57772,18 +57960,27 @@
           WORKER_GENDER,
           "worker",
         );
-        if (weekScore > hi) {
+        // THE LEDGER: YOU WIN banks the week — unless a trainer cheat was engaged in it.
+        if (typeof commitHighScore === "function") commitHighScore();
+        else if (weekScore > hi) {
           hi = weekScore;
           try {
             localStorage.setItem("dsnysweep_hi", String(hi));
           } catch (e) {}
         }
+        // A CHEATED WEEK IS NOT A RECORD: the ribbon stays dark and the BEST SHIFT line
+        // prints the LIVE record (000000 until a clean run earns one), crossed out under this
+        // panel's "NO CHEATING!" stamp.
+        const marked = typeof cheatUsed === "function" && cheatUsed();
+        const newHi = !marked && weekScore > 0 && hi === weekScore; // this week set the record
         // THE ARCADE WINNING BEAT: cash rains like confetti, the sunburst spins, the
         // bag bounces, the KA-CHING pops and the week's score TALLIES UP to a rank.
         const rank = $("week-rank");
         if (rank) rank.textContent = weekRankOf(weekScore);
-        const newHi = weekScore > 0 && hi === weekScore; // this week set the record
         fxShowEl("week-newhi", newHi);
+        // THE CHEAT MARK on YOU WIN: the "NO CHEATING!" stamp, the struck BEST SHIFT line
+        // and the dead ribbon. A cheated week's BEST SHIFT shows the stored honest record.
+        if (typeof cheatMark === "function") cheatMark("week-cheat", "week-hi", "week-newhi");
         if (typeof startEndingFx === "function") startEndingFx("win");
         if (typeof fxStartTally === "function") {
           fxStartTally($("week-score"), weekScore);
@@ -57809,6 +58006,8 @@
         // A new shift card = the ending screens are history: tear down every falling
         // piece + tally timer so no ending animation is ever left alive off-screen.
         if (typeof stopEndingFx === "function") stopEndingFx();
+        // (No cheat mark on the day card: "NO CHEATING!" shows ONLY where a HI-SCORE is
+        // printed - see cheatMark. The worker is told on the report and end screens.)
         const d = LEVEL_DAYS[Math.min(level, MAX_LEVEL) - 1] || LEVEL_DAYS[0];
         rollWeather(d); // a new sky for the new shift (Bed-Stuy's special day is always rain)
         $("day-intro-day").textContent = levelName(d);
@@ -58456,9 +58655,17 @@
         SFX.radioStart(); // radio station: random songs from music/, 2s gap between tracks, forever
         // TRAINER: honor a chosen "Starting Level" (1..7 = Mon..Sun) when set; otherwise the normal START_LEVEL.
         // (typeof guard keeps the startGame() test harness — which defines no CHEAT — passing.)
+        // THE LEDGER opens on a fresh week: the last run's flag is history and a brand-new
+        // week is eligible for the HI-SCORE again (it re-arms the instant any cheat is on —
+        // including the trainer "Starting Level" this very press honours).
+        if (typeof clearCheatUsed === "function") clearCheatUsed();
         level = START_LEVEL; // start on the configured first day (START_LEVEL = 1 → MONDAY, Manhattan / Gramercy Park)
         if (typeof CHEAT !== "undefined" && CHEAT.startLevel >= 1 && CHEAT.startLevel <= MAX_LEVEL)
           level = CHEAT.startLevel;
+        // A trainer "Starting Level" that is NOT the week's real start IS a cheat (skip to
+        // Friday, boot straight into the NIGHT SHIFT): the week is flagged before its first
+        // shift, so its score can never be banked (commitHighScore / cheatMark).
+        if (level !== START_LEVEL && typeof markCheatUsed === "function") markCheatUsed();
         health = maxHealth; // fresh week = a FRESH, healthy worker (health only auto-refills on a brand-new run)
         dangerWarned = false; // fresh week: the danger warning starts armed
         dangerAlarmOff(); // fresh week: clear any stale fire alarm (the continuous dings + red glow)
@@ -58471,6 +58678,25 @@
         healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
         setStartMilestones(); // fresh run = fresh bar spans (anchors on today's step; a Midnight start uses tonight's)
         thursdayRedBull = false; // fresh run: no leftover overtime Red Bull pending on Thursday
+        // A fresh week ALWAYS boots Level 1 — belt-and-braces re-arm of the overtime
+        // state (quitGame does the same on the way out): a stale BONUS flag would rebuild
+        // the overtime street as "Monday", and a stale bonusDoneThisRun would swallow the
+        // new week's one overtime round. The overtime HUD chips + timers die with them.
+        BONUS = false;
+        bonusDoneThisRun = false;
+        bonusClock = BONUS_TIME;
+        bonusClockStarted = false;
+        bonusResultShown = false;
+        bonusCashGoalMet = false;
+        overtimeCashLastShown = -1;
+        clearTimeout(bonusResultTimer);
+        stopConfetti();
+        bonusHopStart = 0;
+        hideBonusClock();
+        ["bonus-result", "bonus-verdict"].forEach(function (id) {
+          const el = $(id);
+          if (el) el.classList.add("hidden");
+        });
         // New game = new worker: set the skin tone ONCE here so it stays the same
         // across every level until the game is restarted (not re-rolled per shift).
         if (worker && worker.skinMat)
@@ -58564,6 +58790,9 @@
         if (ov) ov.classList.add("hidden");
         const b = $("btnPause");
         if (b) b.textContent = "PAUSE / QUIT";
+        // THE LEDGER: an abandoned week is over — back on the menu, the next week a START
+        // press begins is a clean, eligible run (startGame clears the flag the same way).
+        if (typeof clearCheatUsed === "function") clearCheatUsed();
         level = START_LEVEL;
         weekScore = 0;
         score = 0;
@@ -58572,13 +58801,31 @@
         routeFailed = false; // menu = a clean slate: no shift is queued for a replay (a START from the menu begins the first level)
         healerNextAt = POWERUP_CASH_STEP;
         setStartMilestones(); // QUIT = fresh bar spans, same law as a new week
+        // QUIT during OVERTIME: the bonus world dies with the shift. BONUS drives
+        // world-building, so a stale true here would rebuild (and play) the overtime
+        // street the next time START SHIFT is pressed — a menu start is a NEW week
+        // that begins on Level 1 (Monday), never a resume of the abandoned round.
+        BONUS = false; // back to normal world-building
+        bonusDoneThisRun = false; // the next week earns its overtime again from scratch
+        thursdayRedBull = false; // no overtime Red Bull carried into the new week
+        bonusClock = BONUS_TIME;
+        bonusClockStarted = false;
+        bonusResultShown = false;
+        bonusCashGoalMet = false;
+        overtimeCashLastShown = -1;
+        clearTimeout(bonusResultTimer); // no pending overtime -> report handoff
+        stopConfetti();
+        bonusHopStart = 0;
+        hideBonusClock(); // the countdown + the BASKETS/CASH chips go dark with the round
         complaints = 0;
         resetWorldState(); // rebuild a clean street + re-anchor the worker at the start
-        ["over", "complete", "day-intro", "day-stats", "week-complete"].forEach(
+        ["over", "complete", "day-intro", "day-stats", "week-complete", "bonus-result"].forEach(
           function (id) {
             $(id).classList.add("hidden");
           },
         );
+        const quitVerdict = $("bonus-verdict");
+        if (quitVerdict) quitVerdict.classList.add("hidden");
         if (typeof stopEndingFx === "function") stopEndingFx(); // QUIT: the ending screens' rain + tallies die with them
         $("menu").classList.remove("hidden");
         state = "menu";
@@ -58827,18 +59074,35 @@
           WORKER_GENDER,
           "worker",
         );
-        if (weekScore > hi) {
+        // THE LEDGER: SUSPENDED banks the week's score — unless a trainer cheat was engaged
+        // in it (commitHighScore is the single path, and a cheated run never touches it).
+        if (typeof commitHighScore === "function") commitHighScore();
+        else if (weekScore > hi) {
           hi = weekScore;
           try {
             localStorage.setItem("dsnysweep_hi", String(hi));
           } catch (e) {}
         }
+        // A CHEATED WEEK IS NOT A RECORD: the ribbon stays dark, and the HI-SCORE the panel
+        // prints is the stored honest record (000000 until a clean week banks one) — struck
+        // through under this panel's "NO CHEATING!" stamp. The law lives in cheatUsed() and
+        // commitHighScore(). (Sandbox guards: _ending_screens_chk.js runs this function
+        // verbatim with the score module only, so every ledger name is a typeof-guarded call.)
+        const marked = typeof cheatUsed === "function" && cheatUsed();
+        const isRecord = !marked && weekScore > 0 && hi === weekScore;
+        // THE MARK SPEAKS: on a cheated run the suspension line itself says the score was
+        // not saved (the HI-SCORE line below is crossed out under the "NO CHEATING!" stamp).
+        if (tag && marked)
+          tag.textContent =
+            "3 WRITE-UPS - " + d.day + " - GAME OVER - HI-SCORE NOT SAVED (CHEATS IN USE)";
         // THE ARCADE LOSING BEAT: arm the animated screen (the boot stomping the
         // pile, the drip rain, the panel jolt, the flickering GAME OVER banner +
         // the splat sting), then TALLY the score up arcade-style.
         if (typeof startEndingFx === "function") startEndingFx("over");
-        if (typeof fxShowEl === "function")
-          fxShowEl("over-newhi", weekScore > 0 && hi === weekScore); // NEW HIGH SCORE!
+        if (typeof fxShowEl === "function") fxShowEl("over-newhi", isRecord);
+        // THE CHEAT MARK: a cheated week gets the "NO CHEATING!" stamp on this panel, its
+        // HI-SCORE line crossed out, and the NEW HIGH SCORE! ribbon killed.
+        if (typeof cheatMark === "function") cheatMark("over-cheat", "hiscore2", "over-newhi");
         if (typeof fxStartTally === "function") {
           fxStartTally($("finalscore"), weekScore);
           fxStartTally($("hiscore2"), hi);
@@ -59589,7 +59853,11 @@
       // stage (grid + stars + sun) with a crisp DOM menu on top: logo, option rows (active
       // row highlighted BLUE) and a scrolling marquee. Driven by keyboard / gamepad / the
       // on-screen joystick. Cheats:
-      //   infinite   -> complaints never trigger the 3rd-strike suspension
+      //   infinite   -> "Infinite Complaints (CHEAT ONLY)". This one CANNOT cheat the street:
+      //                every screw-up is still a WRITE-UP - a worker DOWN, and a route left
+      //                dirty at the end-of-shift inspection - the meter counts 1, 2, 3 and the
+      //                3rd write-up is GAME OVER (addWriteUp / finishDying / applyRouteWriteUp).
+      //                Flipping it only flags the week, so the HI-SCORE is NOT SAVED.
       //   invincible -> INFINITE HEALTH (trainer row "Infinite Health"): the worker CAN'T
       //                BE HURT — and ONLY that: no speed boost, no star sparkle, no
       //                auto-dump; cones/bottles/creatures still interact, hits just
@@ -59609,7 +59877,7 @@
         open: false,
         sel: 0,
         rows: [
-          { key: "infinite", label: "Infinite Complaints", type: "bool" },
+          { key: "infinite", label: "Infinite Complaints (CHEAT ONLY)", type: "bool" },
           { key: "invincible", label: "Infinite Health", type: "bool" },
           { key: "runitup", label: "Always Run It Up!", type: "bool" },
           { key: "level", label: "Starting Level", type: "day" },
@@ -59906,6 +60174,9 @@
           CHEAT.startLevel = v;
         }
         // action rows: left/right do NOTHING (only ACT/Enter/Space via trainerAction() starts the game)
+        // THE LEDGER: a cheat switched on (or a Starting Level that is not the week's real
+        // start) flags this run there and then — flipping it back off later changes nothing.
+        if (typeof cheatLive === "function" && cheatLive()) markCheatUsed();
       }
       function trainerAction() {
         if (!trainerThrottleOk()) return;
@@ -59913,10 +60184,15 @@
         if (r.type === "action") { trainerStart(); return; }
         if (r.type === "bool") CHEAT[r.key] = !CHEAT[r.key];
         else if (r.type === "day") CHEAT.startLevel = CHEAT.startLevel >= TRAINER_DAYS.length ? 1 : CHEAT.startLevel + 1;
+        // THE LEDGER: same law as trainerChange — engaging a cheat flags the run.
+        if (typeof cheatLive === "function" && cheatLive()) markCheatUsed();
         trainerPaint();
       }
       function trainerStart() {
         if (CHEAT.startLevel < 1 || CHEAT.startLevel > TRAINER_DAYS.length) CHEAT.startLevel = 1;
+        // THE LEDGER: the week about to start is fired from the trainer, so it is flagged
+        // straight away and its score can never be banked.
+        if (typeof cheatLive === "function" && cheatLive()) markCheatUsed();
         closeTrainer();
         startGame(); // startGame() honors CHEAT.startLevel for the chosen day
       }
@@ -59993,7 +60269,7 @@
       // it like a rubber band / membrane: hit it and the strip dips, then oscillates
       // back up and throws the ball right back into the air.
       var TRAINER_MSG =
-        "                              Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        ";
+        "                              Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        THE RULE OF THIS TRAINER: CHEATS IN USE MEANS THE HI-SCORE IS NOT SAVED. Flip any toggle, jump the Starting Level, and the week you are working is flagged for good - the score is never written to the ledger, the NEW HIGH SCORE! ribbon never lights, and every panel that prints a HI-SCORE crosses the number out under a NO CHEATING! stamp saying HI-SCORE NOT SAVED. And the street keeps its own law, which the trainer cannot touch: a worker DOWN is a WRITE-UP, a route left DIRTY is a WRITE-UP, the meter counts 1, 2, 3 - and 3 WRITE-UPS END THE GAME. No trainer toggle buys a 4th strike and none removes one. Play the street straight and the HI-SCORE is YOURS.             ";
       function trainerInitScroll() {
         var inner = $("trainer-scroll-inner");
         if (!inner) return;
@@ -61034,17 +61310,23 @@
       //      READY" once every model AND track is cached.
       let _radioBgRunning = false;
       let _radioBgSkip = false;
+      let _radioBgGen = 0; // THE TIER GENERATION: a stream is aimed at ONE music folder. A
+      // HI-FI <-> LO-FI hop retires the stream that was filling the old folder, so the two
+      // loops can never race each other across tiers.
       async function radioBackgroundDownload() {
         const rc = typeof SFX !== "undefined" ? SFX : null;
         if (!rc || typeof rc.radioCacheTrack !== "function") return;
         if (_radioBgRunning) return; // never double-run (resume + a stray boot)
         _radioBgRunning = true;
         _radioBgSkip = false;
+        const gen = ++_radioBgGen; // this stream owns the tier it was started on
         refreshRadioSkipUi();
         try {
           const list = await rc.radioGetList();
           for (let i = 0; i < list.length; i++) {
-            if (_radioBgSkip) return; // user skipped the offline-music download
+            // Skipped by the player, or retired by a data-tier switch: the folder this stream
+            // was filling is no longer the folder the station plays from.
+            if (_radioBgSkip || gen !== _radioBgGen) return;
             const name = list[i];
             try {
               await rc.radioCacheTrack(name);

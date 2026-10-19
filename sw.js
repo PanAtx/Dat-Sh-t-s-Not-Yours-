@@ -6,12 +6,19 @@
    "Please Wait" screen, the logo, the menu) before a single 3D asset is
    requested. Once the shell is cached, the game opens instantly - and offline.
 
+   What it owns, as the OFFLINE BACKUP COPY (v1.0.591 - THE MODEL NET):
+     * The 3D model assets (*.glb) - the game caches those in its OWN model cache
+       ('dsnboy-models-v1') with a byte-accurate progress bar + RETRY gate, and that
+       cache stays the primary owner. They are ALSO precached in this shell and served
+       cache-first, so a model-cache eviction with no network left still gets the real
+       truck / litter basket / shovel bytes (see MODELS + the model rule in the fetch
+       handler). The per-asset ?v=N keys the game caches under are matched with
+       ignoreSearch, so the plain-url fetches the loaders make always find them.
+
    What it deliberately does NOT own:
-     * The 3D model assets (*.glb) - those are already cached by the
-       game's own model cache (Cache API, 'dsnboy-models-v1') with a byte-accurate
-       progress bar + RETRY gate. The SW just passes them through.
      * The radio music (music/*.mp3) - the game caches those as it plays them
-       ('dsnboy-radio-v2'). The SW passes them through too.
+       ('dsnboy-radio-v2' / 'dsnboy-radio-lo-v1') and owns the whole rotation, pulled by
+       the skippable full-rotation download. The SW passes them through too.
 
    Strategy: precache the shell on install (so the very next load is offline),
    then serve cache-first with network fallback + background refresh so a
@@ -24,8 +31,29 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~185MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.590';
-var APP_VERSION = '1.0.590';
+var CACHE_NAME = 'dsnboy-shell-v1.0.591';
+var APP_VERSION = '1.0.591';
+
+// THE MODEL NET (the offline backup set for the 3D world). The game owns the models in its
+// own byte-verified cache (dsnboy-models-v1, with the "Getting Assets" progress gate and a
+// per-asset ?v= version), and that cache is the PRIMARY owner. Browser storage is
+// best-effort: a phone under pressure can evict it even under the persist lease, and today
+// the worker's only way back to those bytes is the network — which is exactly the case a
+// real sanitation crew hits (a basement break room, a yard, a dead-end street with no
+// signal). So every model is ALSO precached here in the versioned shell and served
+// cache-first by the fetch handler below: an evicted model cache offline now gets the real
+// GLB bytes and can never fall back to the procedural box truck. Cost is ~9MB of duplicated
+// bytes, and the whole set is rewritten by every deploy (the cache name carries APP_VERSION).
+var MODELS = [
+  './nyc_truck-compressed.glb',
+  './bec-compressed.glb',
+  './red_bull_energy_drink_can-compressed.glb',
+  './nyc_can-compressed.glb',
+  './litterReduced2.glb',
+  './car-compressed.glb',
+  './coffee_shop_cup-compressed.glb',
+  './shovelcompressed.glb'
+];
 
 // The page shell: everything needed to boot + render the menu with no network.
 // Kept in sync with the <script src> / <img src> / font links in index.html.
@@ -72,7 +100,7 @@ var SHELL = [
   // NOTE: the two Google Fonts stylesheets used to be plain entries here. The CSS alone is
   // useless offline - it only NAMES the font binaries on fonts.gstatic.com - so they moved to
   // FONT_CSS / precacheFonts() below, which stores the CSS AND every font file it references.
-];
+].concat(MODELS); // THE MODEL NET: every 3D model ships in the shell too (see MODELS above)
 
 // The Google Fonts stylesheets the page links (the arcade HUD font + the comic bubble font).
 var FONT_CSS = [
@@ -201,6 +229,37 @@ self.addEventListener('fetch', function (e) {
         caches.match(MANIFEST_KEY).then(function (hit) {
           if (hit) return hit;
           return fetchTimeout(req).catch(function () { return caches.match(MANIFEST_KEY); });
+        })
+      );
+      return;
+    }
+    // THE MODEL NET: the .glb / .gltf / .fbx bytes are ALSO precached in this shell (see
+    // MODELS above) as the offline backup for the game's own model cache. Serve them
+    // cache-first: the fetch()s the game makes for models (the "Getting Assets" gate, the
+    // GLTF loaders and the Draco-decoded litter basket) are answered from the shell when
+    // dsnboy-models-v1 is empty — an evicted cache on a phone with no signal now gets the
+    // real truck instead of the procedural box truck. ignoreSearch is what makes this land:
+    // the game's cache keys carry a per-asset ?v=N version, while the network fetches stay
+    // on the plain url this shell precached. An online miss still goes to the network (with
+    // the usual timeout) and fills the shell in, so a first visit keeps streaming real bytes
+    // through the progress bar. The MP3s stay pass-through: the game's radio caches own the
+    // whole ~185MB music rotation (a shell copy of that would be a quota risk, and the
+    // rotation is downloaded track-by-track with its own skippable progress UI).
+    if (/\.(fbx|glb|gltf)$/i.test(url.pathname)) {
+      e.respondWith(
+        caches.match(req, { ignoreSearch: true }).then(function (hit) {
+          if (hit) return hit;
+          return fetchTimeout(req)
+            .then(function (res) {
+              if (res && res.ok) {
+                var copy = res.clone();
+                caches.open(CACHE_NAME).then(function (c) { c.put(req, copy); });
+              }
+              return res;
+            })
+            .catch(function () {
+              return caches.match(req, { ignoreSearch: true });
+            });
         })
       );
       return;

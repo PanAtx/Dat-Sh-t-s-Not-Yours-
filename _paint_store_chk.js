@@ -133,11 +133,33 @@ console.log('[1] THE PAINT LAW: a cached shell paints the launch, the network ne
   w.fire('fetch', mp3);
   check('the radio .mp3 stays PASS-THROUGH (the game owns dsnboy-radio-v1; the worker does not cache music)',
     responded === null);
+  // THE MODEL NET (v1.0.591): the models are no longer pass-through. The shell precaches
+  // every .glb (see MODELS in sw.js) and answers model fetches cache-first, so an evicted
+  // dsnboy-models-v1 cache offline still gets real GLB bytes.
   responded = null;
   const glb = { request: { url: 'https://example.test/nyc_truck-compressed.glb', mode: 'cors', method: 'GET', headers: { get() { return ''; } } }, respondWith: (p) => { responded = p; } };
   w.fire('fetch', glb);
-  check('the 3D models stay PASS-THROUGH too (the byte-accurate gate owns dsnboy-models-v1)',
-    responded === null);
+  check('the 3D models are INTERCEPTED (the shell carries the offline backup copy - the model net)',
+    responded !== null);
+  const wCache = makeWorker({ cached: true, networkOk: false });
+  let rCache = null;
+  wCache.fire('fetch', { request: { url: 'https://example.test/nyc_truck-compressed.glb', mode: 'cors', method: 'GET', headers: { get() { return ''; } } }, respondWith: (p) => { rCache = p; } });
+  check('OFFLINE with the shell precached: the model is answered from the CACHE (no network, no procedural box truck)',
+    (await rCache) === wCache.CACHED);
+  const wMiss = makeWorker({ cached: false, networkOk: true });
+  let rMiss = null;
+  wMiss.fire('fetch', { request: { url: 'https://example.test/nyc_truck-compressed.glb?v=3', mode: 'cors', method: 'GET', headers: { get() { return ''; } } }, respondWith: (p) => { rMiss = p; } });
+  const outMiss = await rMiss;
+  check('an uncached model goes to the NETWORK as always (the "Getting Assets" progress bar keeps streaming)',
+    outMiss === wMiss.NET, outMiss && outMiss.tag);
+  await (new Promise((r) => setTimeout(r, 30)));
+  check('and the model bytes are PUT AWAY in the versioned shell cache for the next offline run',
+    wMiss.log.puts.indexOf('NETWORK-PAGE') >= 0, 'puts=' + JSON.stringify(wMiss.log.puts));
+  const wDead = makeWorker({ cached: false, networkOk: false });
+  let rDead = null;
+  wDead.fire('fetch', { request: { url: 'https://example.test/nyc_truck-compressed.glb', mode: 'cors', method: 'GET', headers: { get() { return ''; } } }, respondWith: (p) => { rDead = p; } });
+  check('offline with NOTHING cached settles on the cache miss (the loaders take their own fallback path)',
+    (await rDead) === null);
 }
 console.log('');
 console.log('[2] SHELL ASSETS (the cache-first rule the LAUNCH depends on, run live)');

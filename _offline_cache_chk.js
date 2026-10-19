@@ -8,13 +8,18 @@
 //   (2) every local image the page pulls by URL (<img> art + TextureLoader decals) is covered
 //       by the gate (the game's model cache) AND by the service-worker shell precache;
 //   (3) every MP3 on disk is in music/manifest.json (the rotation list the offline download
-//       walks) - the four midnight-only songs included;
+//       walks) - the four midnight-only songs included; and EVERY mp3 in the LO tier folder
+//       (music/lo/) is listed in music/lo/manifest.json with the same rotation, so switching
+//       data tiers (HI-FI <-> LO-FI) never strands the station on a folder it cannot list;
 //   (4) the TRAINER MENU's dedicated root-level track is wired into its own cache
 //       (dsnboy-trainer-v1), is pulled by the download loop, is counted by the OFFLINE READY
 //       badge, and is served from the cache when the network is off (real behaviour test);
 //   (5) the shell precaches what the page needs to BOOT offline: three.js (CDN + the local
 //       fallback), the GLTF/Draco loaders, the draco wasm, the webfonts (CSS + woff2 binaries),
-//       the UI art and the radio track list.
+//       the UI art and the radio track list; AND THE MODEL NET — every *.glb is precached in
+//       the shell and served cache-first (with ignoreSearch, because the game's own model cache
+//       keys carry a per-asset ?v=N), so an evicted dsnboy-models-v1 cache with no network
+//       still gets the real 3D world instead of the procedural fallbacks.
 const fs = require('fs');
 const path = require('path');
 const html = fs.readFileSync('index.html', 'utf8');
@@ -52,6 +57,12 @@ function matchBrace(text, openIdx) {
   ])];
   check('found the url-loaded images (decals + <img> art)', imgRefs.length >= 4);
   const shellUrls = [...new Set([...sw.matchAll(/['"]\.\/([^'"]+)['"]/g)].map(m => m[1]))];
+  // THE MODEL NET (the shell's offline backup copy of the 3D world, v1.0.591): every model
+  // the asset gate downloads must ALSO be in the shell precache list.
+  const MODELS = [...new Set([...sw.matchAll(/var MODELS = \[([\s\S]*?)\];/g)].map(m =>
+    [...m[1].matchAll(/['"]\.\/([^'"]+)['"]/g)].map(x => x[1])).flat())];
+  const PRELOAD_MODELS = [...new Set([...paBlock.matchAll(/url:\s*"([^"]+\.glb)"/g)].map(m => m[1]))];
+  check('every model file on disk is named by the gate', PRELOAD_MODELS.length >= 8);
   for (const u of imgRefs) {
     check('gate caches image ' + u, paBlock.includes('"' + u + '"'));
     check('shell precaches image ' + u, shellUrls.includes(u));
@@ -65,6 +76,18 @@ function matchBrace(text, openIdx) {
   const manifest = JSON.parse(fs.readFileSync(path.join(musicDir, 'manifest.json'), 'utf8'));
   check('every mp3 in music/ is listed in music/manifest.json', onDisk.every(f => manifest.includes(f)));
   check('every manifest entry exists on disk', manifest.every(f => fs.existsSync(path.join(musicDir, f))));
+  // THE LO TIER (the 48 kbps folder the small-device profile plays): the station discovers its
+  // playlist from the folder's OWN manifest, so every LO file must be listed there too - a
+  // track missing from music/lo/manifest.json is a track the offline download never walks.
+  const loDir = path.join(process.cwd(), 'music', 'lo');
+  const loDisk = fs.readdirSync(loDir).filter(f => /\.mp3$/i.test(f)).sort();
+  const loManifest = JSON.parse(fs.readFileSync(path.join(loDir, 'manifest.json'), 'utf8'));
+  check('every mp3 in music/lo/ is listed in music/lo/manifest.json', loDisk.every(f => loManifest.includes(f)));
+  check('every LO manifest entry exists on disk', loManifest.every(f => fs.existsSync(path.join(loDir, f))));
+  check('the LO tier carries the same rotation as the HI tier (a tier hop never loses a song)',
+    loDisk.length === onDisk.length && onDisk.every(f => loDisk.includes(f)));
+  check('the shell precaches the LO tier manifest (the station needs the list offline)',
+    shellUrls.includes('music/lo/manifest.json'));
   const nightRaw = ((html.match(/NIGHT_MUSIC_TRACKS = \[([\s\S]*?)\]/) || [])[1] || '').match(/"([^"]+\.mp3)"/g) || [];
   const nightMain = (html.match(/NIGHT_MUSIC_TRACK = "([^"]+\.mp3)"/) || [])[1] || ''; // the lead night theme, declared on its own
   const night = [...new Set([...nightRaw.map(s => s.replace(/"/g, '')), nightMain])];
@@ -150,8 +173,22 @@ function matchBrace(text, openIdx) {
   check('webfont CSS is precached via FONT_CSS + the install hook', /var FONT_CSS/.test(sw) && /precacheFonts\(cache\)/.test(sw));
   check('precacheFonts walks the gstatic font binaries out of the CSS', sw.includes('fonts.gstatic.com') && sw.includes('precacheFonts'));
   check('woff2 responses are storable (CACHEABLE font types)', /'font\/woff2'/.test(sw));
-  check('the game owns three Cache stores (models / radio / trainer)',
-    html.includes('"dsnboy-models-v1"') && html.includes('"dsnboy-radio-v1"') && html.includes('"dsnboy-trainer-v1"'));
+  check('the game owns three Cache stores (models / radio HI tier / radio LO tier / trainer)',
+    html.includes('"dsnboy-models-v1"') &&
+    html.includes('"dsnboy-radio-v2"') &&
+    html.includes('"dsnboy-radio-lo-v1"') &&
+    html.includes('"dsnboy-trainer-v1"'));
+  check('THE MODEL NET: the shell precaches every 3D model as the offline backup',
+    MODELS.length >= 8 && PRELOAD_MODELS.every((u) => MODELS.includes(u)) &&
+    sw.includes('].concat(MODELS)'));
+  check("THE MODEL NET: sw.js serves model fetches cache-first with ignoreSearch, so the game's" +
+    ' per-asset ?v=N keys land on the shell copy',
+    sw.includes('caches.match(req, { ignoreSearch: true })') &&
+    sw.includes('if (/\\.(fbx|glb|gltf)$/i.test(url.pathname))'));
+  check('THE TIER HOP re-arms the whole-rotation download (a HI-FI <-> LO-FI switch caches the new folder)',
+    /SFX\.radioRestartTier\(\);[\s\S]{0,1400}_radioBgRunning !== "undefined"\) _radioBgRunning = false;[\s\S]{0,300}radioBackgroundDownload === "function"\) radioBackgroundDownload\(\);/.test(html) &&
+    /const gen = \+\+_radioBgGen/.test(html) &&
+    /if \(_radioBgSkip \|\| gen !== _radioBgGen\) return;/.test(html));
 
   console.log(pass ? '\nOFFLINE COVERAGE ALL CHECKS PASS' : '\nOFFLINE COVERAGE CHECKS FAILED');
   process.exit(pass ? 0 : 1);

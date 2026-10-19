@@ -74,10 +74,19 @@ global.Audio = class { addEventListener(ev, fn){ (this._h = this._h || {})[ev] =
 // wiring. A mock localStorage carries the persisted row.
 const tierSrc = html.slice(html.indexOf('const MUSIC_QUALS'), html.indexOf('// ==================== PROCEDURAL AUDIO'));
 if (!tierSrc.includes('function musicDir()')) throw new Error('the radio tier module was not found');
+// THE OFFLINE STREAM the tier row drives (THE TIER HOP LAW, v1.0.591): flipping HI-FI <-> LO-FI
+// re-arms the full-rotation background download for the NEW folder, because the folder the
+// player just chose is the one that is 0% cached. The page code calls these through typeof
+// guards, so the tier module stays runnable in isolation - here they are counted.
+const TIER_STUBS =
+  'let _radioBgRunning = true, _radioBgSkip = true, radioBgCalls = 0, badgeCalls = 0;' +
+  'function radioBackgroundDownload() { radioBgCalls++; }' +
+  'function updateCacheBadge() { badgeCalls++; }' +
+  'function bgState() { return { running: _radioBgRunning, skip: _radioBgSkip, calls: radioBgCalls, badges: badgeCalls }; }';
 const store = {};
 const hLS = { getItem: k => (store[k] === undefined ? null : store[k]), setItem: (k, v) => { store[k] = String(v); } };
-const TIER_BODY = tierSrc + 'const SFX = {' + methods + '};' + '\n' + hud +
-  '\nreturn { SFX, radioSetTitle, radioToggleMute, radioMode, musicDir, musicManifestUrl, radioCacheNameFor, btnMusic: $("btnMusic"), get tier() { return MUSIC_QUAL; }, get cacheName() { return SFX.radioCacheName; } };';
+const TIER_BODY = TIER_STUBS + '\n' + tierSrc + 'const SFX = {' + methods + '};' + '\n' + hud +
+  '\nreturn { SFX, radioSetTitle, radioToggleMute, radioMode, musicDir, musicManifestUrl, radioCacheNameFor, btnMusic: $("btnMusic"), bgState, get tier() { return MUSIC_QUAL; }, get cacheName() { return SFX.radioCacheName; } };';
 // combine real code: SFX radio methods object + HUD wiring
 const out = new Function('$', 'localStorage', 'MOBILE_LOW_PROFILE', TIER_BODY)($, hLS, false);
 // AN ISOLATED HARNESS for the tier tests: its own mocks, its own device profile / persisted row.
@@ -195,6 +204,9 @@ const unenc = p => decodeURIComponent(String(p).replace('music/lo/', '').replace
       L.run.tier === 'hi' && L.hStore.dsnysweep_music === 'hi' && /^HI-FI$/.test(L.hEls.btnMusic.textContent));
     check('the flip asks the station to hop folders (radioRestartTier is the switch, not a reload)',
       typeof L.run.SFX.radioRestartTier === 'function');
+    check('THE TIER HOP re-arms the full-rotation download for the NEW folder (the offline law)',
+      L.run.bgState().calls >= 1 && L.run.bgState().badges >= 1 && L.run.bgState().running === false,
+      JSON.stringify(L.run.bgState()));
     const click2 = (L.hEls.btnMusic._h.click || [])[0];
     click2();
     check('and flipping back is symmetrical (HI -> LO, the key follows, the label follows)',
