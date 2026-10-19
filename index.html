@@ -218,7 +218,46 @@
         box-shadow: 0 0 10px rgba(78, 195, 255, 0.75);
         transition: width 0.18s ease-out;
       }
-      /* ===== In-shift PAUSE control: a small, mostly-transparent pill sitting in the
+      /* ===== THE EARN-a-POWER-UP BARS =============================================
+         Under the STREET CASH / HELL NOTES line: two VERY thin bars, stacked. The
+         top one (mint, like the cash line) fills as the worker closes on the next
+         COFFEE / BEC healer - every POWERUP_CASH_STEP of street cash (every
+         NIGHT_POWERUP_CASH_STEP on the haunted shift). The one under it (bull blue)
+         fills toward the next RED BULL "Run It Up" - every MONSTER_SCORE_STEP of
+         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight). No text, so it never crowds
+         the playfield; the colours read as "heal" (green) and "bull" (blue). The
+         fills walk in a 3px band so they stay a glance cue, not a gauge. */
+      .pwbars {
+        width: 150px;
+        margin-top: 3px;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .pwbar {
+        position: relative;
+        height: 3px;
+        background: rgba(4, 18, 10, 0.72);
+        box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.75);
+        overflow: hidden;
+      }
+      .pwbar + .pwbar {
+        margin-top: 2px;
+      }
+      .pwfill {
+        height: 100%;
+        width: 0%;
+        transition: width 0.18s ease-out;
+      }
+      .pwbar-heal .pwfill {
+        background: linear-gradient(90deg, #1f8f4c, #39f78e);
+        box-shadow: 0 0 6px rgba(60, 255, 138, 0.85);
+      }
+      .pwbar-bull .pwfill {
+        background: linear-gradient(90deg, #1f6f9a, #4ec3ff);
+        box-shadow: 0 0 6px rgba(78, 195, 255, 0.85);
+      }
+      /* In-shift PAUSE control: a small, mostly-transparent pill sitting in the
    bottom strip between the joystick (left) and the ACT button (right). It lives
    INSIDE #vpad, so it shows/hides with the pad (only during a live shift). Tap to
    freeze the shift; the PAUSED overlay (RESUME / QUIT TO MENU) then takes over.
@@ -1024,6 +1063,10 @@
           border-width: 1.5px;
           background: rgba(4, 22, 12, 0.34);
           opacity: 0.92;
+        }
+        /* the earn-a-power-up bars keep the same phone law as every other HUD gauge */
+        .pwbars {
+          width: 96px;
         }
       }
       /* ---- pressure tiers (JS toggles these as the clock runs low) ---- */
@@ -5457,7 +5500,22 @@
           ><div class="distbar" id="distbar"
             ><div class="distfill" id="distfill"></div></div></div
         ><div>SCORE $<span id="score">000000</span></div
-        ><div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span></div></div
+        ><div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span
+        ></div
+        ><!-- THE EARN-a-POWER-UP BARS (two VERY thin bars, directly under the STREET CASH /
+            HELL NOTES line): the top bar fills toward the next COFFEE / BEC healer, the bar
+            under it fills toward the next RED BULL. updateHUD() paints both from the worker's
+            live progress in the current milestone span - on the haunted shift a healer costs
+            NIGHT_POWERUP_CASH_STEP of HELL NOTES and a Red Bull NIGHT_MONSTER_SCORE_STEP of
+            SCORE, so the bars read tonight's grind, not the weekday's. -->
+        ><div class="pwbars"
+          ><div class="pwbar pwbar-heal" title="Next coffee / BEC"
+            ><div class="pwfill" id="pw-heal-fill"></div
+          ></div
+          ><div class="pwbar pwbar-bull" title="Next Red Bull"
+            ><div class="pwfill" id="pw-bull-fill"></div
+          ></div
+        ></div></div
       >
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
       <div id="tr" class="hudbox"
@@ -5563,7 +5621,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.585</div>
+          <div id="app-version" class="menu-version">v1.0.586</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5936,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.585';
+      const APP_VERSION = '1.0.586';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -41532,6 +41590,75 @@
           healerNextAt += POWERUP_CASH_STEP;
         }
       }
+      // ===== TONIGHT'S COST, TODAY'S COST (read ONLY by the two earn bars) ================
+      // The SPAWN milestones stay exactly as shipped on every level (the 5,000 street-cash
+      // healer step and the 30,000 score Red-Bull step are pinned law and the checks assert
+      // the literal +=). The thin bars are a DISPLAY read of "what does it take to EARN the
+      // next coffee / BEC and the next Red Bull", which is the level's grind: the seven
+      // weekdays (and OVERTIME) read the shipped 5,000 / 30,000, MIDNIGHT (level 8) reads
+      // tonight's much larger NIGHT_POWERUP_CASH_STEP / NIGHT_MONSTER_SCORE_STEP — a whole
+      // haunted shift of HELL NOTES for a heal, a haunted night of SCORE for the can.
+      function cashStepNow() {
+        return typeof isNightShift === "function" && isNightShift()
+          ? NIGHT_POWERUP_CASH_STEP
+          : POWERUP_CASH_STEP;
+      }
+      function scoreStepNow() {
+        return typeof isNightShift === "function" && isNightShift()
+          ? NIGHT_MONSTER_SCORE_STEP
+          : MONSTER_SCORE_STEP;
+      }
+      // Reset the bars for a fresh run (a new week, and QUIT back to the menu): the spawns
+      // re-arm on the shipped steps; the bars' own rolling spans restart at zero against
+      // tonight's / today's target (START_LEVEL = 1 = Monday, so the weekday numbers).
+      function setStartMilestones() {
+        monsterNextAt = MONSTER_SCORE_STEP;
+        monsterSpanBase = 0;
+        healerNextAt = POWERUP_CASH_STEP;
+        healerSpanBase = 0;
+      }
+      // ===== THE EARN-a-POWER-UP BARS (thin gauges under the STREET CASH / HELL NOTES line)
+      // Bar 1 (mint) fills across the current bar span for the NEXT COFFEE / BEC; bar 2
+      // (blue) across the current bar span for the next RED BULL. Each span is the ACTIVE
+      // LEVEL's step (cashStepNow() / scoreStepNow()), and the span base rolls forward every
+      // time the tally clears a whole target — so the gauge always measures the gap to the
+      // "earn line", never to a far-future cumulative score. The fills are 1-decimal width
+      // strings, painted only on a change, like the health / distance fills.
+      function updatePowerProgress() {
+        const healEl = $("pw-heal-bar"),
+          bullEl = $("pw-bull-bar");
+        if (!healEl && !bullEl) return; // markup absent (test harnesses): silently no-op
+        const show = state === "play" && !BONUS;
+        if (healEl) healEl.style.display = show ? "" : "none";
+        if (bullEl) bullEl.style.display = show ? "" : "none";
+        if (!show) return;
+        const cashStep = cashStepNow(); // 5000 weekdays / 40,000 tonight
+        if (cashStep > 0) {
+          while (bonusTally - healerSpanBase >= cashStep) healerSpanBase += cashStep;
+          const cw = clamp((bonusTally - healerSpanBase) / cashStep, 0, 1) * 100;
+          const fill = $("pw-heal-fill");
+          if (fill) {
+            const s = cw.toFixed(1) + "%";
+            if (fill._w !== s) {
+              fill._w = s;
+              fill.style.width = s;
+            }
+          }
+        }
+        const scoreStep = scoreStepNow(); // 30000 weekdays / 120,000 tonight
+        if (scoreStep > 0) {
+          while (score - monsterSpanBase >= scoreStep) monsterSpanBase += scoreStep;
+          const mw = clamp((score - monsterSpanBase) / scoreStep, 0, 1) * 100;
+          const fill = $("pw-bull-fill");
+          if (fill) {
+            const s = mw.toFixed(1) + "%";
+            if (fill._w !== s) {
+              fill._w = s;
+              fill.style.width = s;
+            }
+          }
+        }
+      }
       // PRANK PAYOUT: knocking a piss bottle, messing with the bodega cats, or knocking
       // down a roadwork traffic cone each pay 10 CASH (20 on Bed-Stuy's double-time Sunday,
       // via scoreMultiplier). It goes to STREET CASH only — the score total stays clean.
@@ -43230,6 +43357,17 @@
                                         // normal walking stays exactly PLAYER_SPEED / LAT_SPEED
       const MONSTER_SCORE_STEP = 30000; // a new Monster (Red Bull) can spawns every this much SCORE, near the player
       const POWERUP_CASH_STEP = 5000; // a healer (coffee or BEC) drops every this much STREET CASH — rewards mongo/treasure/cash + pranks
+      // ===== MIDNIGHT: TONIGHT'S EARN IS ITS OWN GRIND ==================================
+      // The haunted street pays in pennies and borrows Bed-Stuy's cash double ONLY for
+      // pickups a living street drops (HELL NOTES bank flat — see the HELL NOTE LAW). So
+      // tonight's power milestones are NOT the weekday numbers: a healer costs a full shift
+      // of HELL NOTES and a Red Bull costs a haunted night of SCORE, deliberately a big step
+      // above the seven days. The two thin earn bars under the STREET CASH / HELL NOTES line
+      // read these tonight's numbers, so the bar on Midnight measures tonight's grind, and
+      // bar (1) (coffee / BEC) and bar (2) (Red Bull) stay at a different fill on the same
+      // run than any weekday level. Weekdays read the original 5000 / 30000 exactly as shipped.
+      const NIGHT_POWERUP_CASH_STEP = 40000; // MIDNIGHT: a coffee / BEC healer drops every this much HELL NOTES banked
+      const NIGHT_MONSTER_SCORE_STEP = 120000; // MIDNIGHT: a Red Bull "Run It Up" drops every this much SCORE
       const POOP_SLOW_MULT = 0.72; // stepping in dog shit slows the worker a little — until the brown shoe-print trail ends
       const HP_HIT_VEHICLE = 8; // a vehicle run-over hurts (kept light so it feels fair)
       const WRITEUP_RECOVERY_INVULN = 6.5; // write-up recovery: outlasts the 5s stamp (holds a 1.5s grace even after it fades out — a fairer get-up)
@@ -45425,8 +45563,14 @@
         // a $5,000 street-cash milestone (checkHealerMilestone). (Kept as a no-op so the
         // level-start call site stays intact.)
       }
-      // A Monster (Red Bull) energy can pops up every MONSTER_SCORE_STEP (30000) of SCORE.
+      // A Monster (Red Bull) energy can pops up every MONSTER_SCORE_STEP (30000) of SCORE
+      // (every NIGHT_MONSTER_SCORE_STEP 120,000 on the haunted shift — see scoreStepNow()).
       let monsterNextAt = MONSTER_SCORE_STEP; // next score milestone at which the Monster spawns
+      // The thin earn bars fill across one milestone span (span base -> next drop). The base is
+      // where the CURRENT span started: 0 on a fresh run, and every drop re-anchors it at the
+      // value that fired. The span size is tonight's or today's step, so Midnight's Red Bull
+      // bar takes 120,000 of SCORE to fill where a weekday bar takes 30,000.
+      let monsterSpanBase = 0; // SCORE banked when the current Red Bull span began
       // Power-ups (healers + Red Bull) must be VISIBLE to the worker and reachable: they
       // spawn a few units AHEAD on the route (where the camera is already looking), on the
       // sidewalk / front lawn in front of the nearest house — never ON TOP of him (he'd
@@ -45449,6 +45593,7 @@
       // POWERUP_CASH_STEP (5000) of STREET CASH — the reward for collecting mongo /
       // treasures / street cash and having fun with the street (cones, cats, bottles).
       let healerNextAt = POWERUP_CASH_STEP; // next street-cash milestone at which a healer spawns
+      let healerSpanBase = 0; // HELL NOTES / STREET CASH banked when the current healer span began
       function spawnHealerNearPlayer() {
         spawnPowerupAhead(Math.random() < 0.5 ? "coffee" : "bec");
       }
@@ -56553,6 +56698,7 @@
         }
         setTxt($("score"), pad(score));
         setTxt($("bonus"), pad(bonusTally));
+        updatePowerProgress(); // the two thin earn bars (next coffee / BEC, next Red Bull) under the cash line
         // THE NIGHT SHIFT (level 8): THE SPOOKS COUNTER IS OFF THE STREET (NIGHT_ECTO_PILL =
         // false). The pill under the STREET CASH line used to read "SPOOKS 6 / 14" all night;
         // the block chip below it is the night's HUD — the block he is working against and how
@@ -58244,6 +58390,7 @@
         bonusTally = 0; // fresh run: the street cash starts at zero (it carries over across days otherwise)
         monsterNextAt = MONSTER_SCORE_STEP; // fresh $30,000 Red Bull milestone for this run
         healerNextAt = POWERUP_CASH_STEP; // fresh $5,000 street-cash healer milestone for this run
+        setStartMilestones(); // fresh run = fresh bar spans (anchors on today's step; a Midnight start uses tonight's)
         thursdayRedBull = false; // fresh run: no leftover overtime Red Bull pending on Thursday
         // New game = new worker: set the skin tone ONCE here so it stays the same
         // across every level until the game is restarted (not re-rolled per shift).
@@ -58345,6 +58492,7 @@
         monsterNextAt = MONSTER_SCORE_STEP; // a fresh run from the menu restarts the milestones too
         routeFailed = false; // menu = a clean slate: no shift is queued for a replay (a START from the menu begins the first level)
         healerNextAt = POWERUP_CASH_STEP;
+        setStartMilestones(); // QUIT = fresh bar spans, same law as a new week
         complaints = 0;
         resetWorldState(); // rebuild a clean street + re-anchor the worker at the start
         ["over", "complete", "day-intro", "day-stats", "week-complete"].forEach(
