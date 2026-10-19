@@ -225,16 +225,39 @@
          bar reads against the playfield) with a bright fill that walks as the worker
          closes on the drop. The top bar (mint, like the cash line) fills toward the
          next COFFEE / BEC healer - every POWERUP_CASH_STEP of street cash, every
-         NIGHT_POWERUP_CASH_STEP on the haunted shift. The bar under it (bull blue)
+         NIGHT_POWERUP_CASH_STEP on the haunted shift - and carries a FOOD glyph on its left (the bite to eat). The bar under it (bull RED - it is RED BULL)
          fills toward the next RED BULL "Run It Up" - every MONSTER_SCORE_STEP of
-         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight). No text, no glow over the
-         playfield. */
+         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight) - and carries a WING glyph, because
+         Red Bull gives you wings. No text, no glow over the playfield. Bars show on the
+          weekdays + MIDNIGHT + OVERTIME. */
       .pwbars {
         width: 150px;
         margin-top: 4px;
         pointer-events: none;
         user-select: none;
         -webkit-user-select: none;
+      }
+      .pwrow {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pwrow + .pwrow {
+        margin-top: 3px;
+      }
+      .pwicon {
+        flex: 0 0 auto;
+        width: 15px;
+        font-size: 13px;
+        line-height: 1;
+        text-align: center;
+        font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+          sans-serif;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
+      }
+      .pwrow .pwbar {
+        flex: 1 1 auto;
+        min-width: 0;
       }
       .pwbar {
         position: relative;
@@ -259,8 +282,8 @@
         box-shadow: 0 0 8px rgba(60, 255, 138, 0.95);
       }
       .pwbar-bull .pwfill {
-        background: linear-gradient(90deg, #1f6f9a, #4ec3ff, #cfeeff);
-        box-shadow: 0 0 8px rgba(78, 195, 255, 0.95);
+        background: linear-gradient(90deg, #8f1f1f, #ff3939, #ffd1cf);
+        box-shadow: 0 0 8px rgba(255, 78, 78, 0.95);
       }
       /* In-shift PAUSE control: a small, mostly-transparent pill sitting in the
    bottom strip between the joystick (left) and the ACT button (right). It lives
@@ -1070,6 +1093,10 @@
           opacity: 0.92;
         }
         /* the earn-a-power-up bars keep the same phone law as every other HUD gauge */
+        .pwicon {
+          width: 13px;
+          font-size: 11px;
+        }
         .pwbars {
           width: 96px;
         }
@@ -5508,15 +5535,16 @@
         <div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span></div>
         <!-- THE EARN-a-POWER-UP BARS (two bars, directly under the STREET CASH / HELL NOTES
              line): the top (mint) bar fills toward the next COFFEE / BEC healer, the bar under
-             it (blue) fills toward the next RED BULL. updatePowerProgress() paints both from
+             it (BULL RED, with a WING glyph because Red Bull gives you wings; the healer
+             bar carries a FOOD glyph). updatePowerProgress() paints both from
              the worker's live progress in the current span - on the haunted shift a healer
              costs NIGHT_POWERUP_CASH_STEP of HELL NOTES and a Red Bull
              NIGHT_MONSTER_SCORE_STEP of SCORE, so the bars read tonight's grind, not the
              weekday's. Plain markup on purpose: the top-left cluster is a block of normal
              divs, so a closed tag can never leave a stray ">" character under the cash line. -->
         <div class="pwbars">
-          <div class="pwbar pwbar-heal" id="pw-heal-bar" title="Next coffee / BEC"><div class="pwfill" id="pw-heal-fill"></div></div>
-          <div class="pwbar pwbar-bull" id="pw-bull-bar" title="Next Red Bull"><div class="pwfill" id="pw-bull-fill"></div></div>
+          <div class="pwrow"><span class="pwicon" id="pw-heal-icon" aria-hidden="true">&#127822;</span><div class="pwbar pwbar-heal" id="pw-heal-bar" title="Next coffee / BEC"><div class="pwfill" id="pw-heal-fill"></div></div></div>
+          <div class="pwrow"><span class="pwicon" id="pw-bull-icon" aria-hidden="true">&#129709;</span><div class="pwbar pwbar-bull" id="pw-bull-bar" title="Next Red Bull"><div class="pwfill" id="pw-bull-fill"></div></div></div>
         </div>
       </div>
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
@@ -5623,7 +5651,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.589</div>
+          <div id="app-version" class="menu-version">v1.0.590</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5938,7 +5966,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.589';
+      const APP_VERSION = '1.0.590';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -41621,18 +41649,22 @@
       }
       // ===== THE EARN-a-POWER-UP BARS (thin gauges under the STREET CASH / HELL NOTES line)
       // Bar 1 (mint) fills across the current bar span for the NEXT COFFEE / BEC; bar 2
-      // (blue) across the current bar span for the next RED BULL. Each span is the ACTIVE
+      // (bull RED + wing glyph) across the current bar span for the next RED BULL. Each span is the ACTIVE
       // LEVEL's step (cashStepNow() / scoreStepNow()), and the span base rolls forward every
       // time the tally clears a whole target — so the gauge always measures the gap to the
       // "earn line", never to a far-future cumulative score. The fills are 1-decimal width
       // strings, painted only on a change, like the health / distance fills.
       function updatePowerProgress() {
         const healEl = $("pw-heal-bar"),
-          bullEl = $("pw-bull-bar");
+          bullEl = $("pw-bull-bar"),
+          healIco = $("pw-heal-icon"),
+          bullIco = $("pw-bull-icon");
         if (!healEl && !bullEl) return; // markup absent (test harnesses): silently no-op
-        const show = state === "play" && !BONUS;
+        const show = state === "play"; // OVERTIME (BONUS) INCLUDED: the earn bars grind the bonus street too
         if (healEl) healEl.style.display = show ? "" : "none";
         if (bullEl) bullEl.style.display = show ? "" : "none";
+        if (healIco) healIco.style.display = show ? "" : "none";
+        if (bullIco) bullIco.style.display = show ? "" : "none";
         if (!show) return;
         const cashStep = cashStepNow(); // 5000 weekdays / 40,000 tonight
         if (cashStep > 0) {
