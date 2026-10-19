@@ -219,30 +219,35 @@
         transition: width 0.18s ease-out;
       }
       /* ===== THE EARN-a-POWER-UP BARS =============================================
-         Under the STREET CASH / HELL NOTES line: two VERY thin bars, stacked. The
-         top one (mint, like the cash line) fills as the worker closes on the next
-         COFFEE / BEC healer - every POWERUP_CASH_STEP of street cash (every
-         NIGHT_POWERUP_CASH_STEP on the haunted shift). The one under it (bull blue)
+         Under the STREET CASH / HELL NOTES line: two thin bars, stacked. They are a
+         GLANCE gauge, not a full HUD element: the track is short, the empty bed is
+         deliberately darker, and each bar carries a bright one-pixel outline (so the
+         bar reads against the playfield) with a bright fill that walks as the worker
+         closes on the drop. The top bar (mint, like the cash line) fills toward the
+         next COFFEE / BEC healer - every POWERUP_CASH_STEP of street cash, every
+         NIGHT_POWERUP_CASH_STEP on the haunted shift. The bar under it (bull blue)
          fills toward the next RED BULL "Run It Up" - every MONSTER_SCORE_STEP of
-         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight). No text, so it never crowds
-         the playfield; the colours read as "heal" (green) and "bull" (blue). The
-         fills walk in a 3px band so they stay a glance cue, not a gauge. */
+         SCORE (every NIGHT_MONSTER_SCORE_STEP tonight). No text, no glow over the
+         playfield. */
       .pwbars {
         width: 150px;
-        margin-top: 3px;
+        margin-top: 4px;
         pointer-events: none;
         user-select: none;
         -webkit-user-select: none;
       }
       .pwbar {
         position: relative;
-        height: 3px;
-        background: rgba(4, 18, 10, 0.72);
-        box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.75);
+        height: 6px;
+        border: 1px solid rgba(234, 246, 255, 0.6);
+        background: rgba(4, 14, 8, 0.55);
+        box-shadow:
+          inset 0 0 3px rgba(0, 0, 0, 0.75),
+          0 0 6px rgba(0, 0, 0, 0.45);
         overflow: hidden;
       }
       .pwbar + .pwbar {
-        margin-top: 2px;
+        margin-top: 3px;
       }
       .pwfill {
         height: 100%;
@@ -250,12 +255,12 @@
         transition: width 0.18s ease-out;
       }
       .pwbar-heal .pwfill {
-        background: linear-gradient(90deg, #1f8f4c, #39f78e);
-        box-shadow: 0 0 6px rgba(60, 255, 138, 0.85);
+        background: linear-gradient(90deg, #1f8f4c, #39f78e, #b8ffdf);
+        box-shadow: 0 0 8px rgba(60, 255, 138, 0.95);
       }
       .pwbar-bull .pwfill {
-        background: linear-gradient(90deg, #1f6f9a, #4ec3ff);
-        box-shadow: 0 0 6px rgba(78, 195, 255, 0.85);
+        background: linear-gradient(90deg, #1f6f9a, #4ec3ff, #cfeeff);
+        box-shadow: 0 0 8px rgba(78, 195, 255, 0.95);
       }
       /* In-shift PAUSE control: a small, mostly-transparent pill sitting in the
    bottom strip between the joystick (left) and the ACT button (right). It lives
@@ -5490,33 +5495,30 @@
       <div id="night-go-arrow">GO!</div>
     </div>
     <div id="hud">
-      <div id="tl" class="hudbox"
-        ><div class="hp"
-          ><div class="lbl">WORKER HEALTH</div
-          ><div class="hpbar" id="hpbar"
-            ><div class="hpfill" id="hpfill"></div></div></div
-        ><div class="dist"
-          ><div class="lbl">DISTANCE</div
-          ><div class="distbar" id="distbar"
-            ><div class="distfill" id="distfill"></div></div></div
-        ><div>SCORE $<span id="score">000000</span></div
-        ><div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span
-        ></div
-        ><!-- THE EARN-a-POWER-UP BARS (two VERY thin bars, directly under the STREET CASH /
-            HELL NOTES line): the top bar fills toward the next COFFEE / BEC healer, the bar
-            under it fills toward the next RED BULL. updateHUD() paints both from the worker's
-            live progress in the current milestone span - on the haunted shift a healer costs
-            NIGHT_POWERUP_CASH_STEP of HELL NOTES and a Red Bull NIGHT_MONSTER_SCORE_STEP of
-            SCORE, so the bars read tonight's grind, not the weekday's. -->
-        ><div class="pwbars"
-          ><div class="pwbar pwbar-heal" title="Next coffee / BEC"
-            ><div class="pwfill" id="pw-heal-fill"></div
-          ></div
-          ><div class="pwbar pwbar-bull" title="Next Red Bull"
-            ><div class="pwfill" id="pw-bull-fill"></div
-          ></div
-        ></div></div
-      >
+      <div id="tl" class="hudbox">
+        <div class="hp">
+          <div class="lbl">WORKER HEALTH</div>
+          <div class="hpbar" id="hpbar"><div class="hpfill" id="hpfill"></div></div>
+        </div>
+        <div class="dist">
+          <div class="lbl">DISTANCE</div>
+          <div class="distbar" id="distbar"><div class="distfill" id="distfill"></div></div>
+        </div>
+        <div>SCORE $<span id="score">000000</span></div>
+        <div class="sub"><span id="bonus-label">STREET CASH</span> $<span id="bonus">000000</span></div>
+        <!-- THE EARN-a-POWER-UP BARS (two bars, directly under the STREET CASH / HELL NOTES
+             line): the top (mint) bar fills toward the next COFFEE / BEC healer, the bar under
+             it (blue) fills toward the next RED BULL. updatePowerProgress() paints both from
+             the worker's live progress in the current span - on the haunted shift a healer
+             costs NIGHT_POWERUP_CASH_STEP of HELL NOTES and a Red Bull
+             NIGHT_MONSTER_SCORE_STEP of SCORE, so the bars read tonight's grind, not the
+             weekday's. Plain markup on purpose: the top-left cluster is a block of normal
+             divs, so a closed tag can never leave a stray ">" character under the cash line. -->
+        <div class="pwbars">
+          <div class="pwbar pwbar-heal" title="Next coffee / BEC"><div class="pwfill" id="pw-heal-fill"></div></div>
+          <div class="pwbar pwbar-bull" title="Next Red Bull"><div class="pwfill" id="pw-bull-fill"></div></div>
+        </div>
+      </div>
       <div id="route" class="hudbox">ROUTE 1 - MANHATTAN GRAMMERCY PARK</div>
       <div id="tr" class="hudbox"
         ><div>COMPLAINTS ISSUED</div
@@ -5621,7 +5623,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.587</div>
+          <div id="app-version" class="menu-version">v1.0.588</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5936,7 +5938,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.587';
+      const APP_VERSION = '1.0.588';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the

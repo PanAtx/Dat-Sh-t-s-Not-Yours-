@@ -225,6 +225,12 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
     'var _preloading = false; var level = 99; var weekScore = 55; var START_LEVEL = 6;' +
       'var score = 424242; var bonusTally = 555555; var monsterNextAt = 999999; var healerNextAt = 987654;' +
       'var MONSTER_SCORE_STEP = 30000; var POWERUP_CASH_STEP = 5000;' +
+      // startGame also calls setStartMilestones() (the 1.0.587 progress-bar spans): the
+      // sandbox stubs it re-arm style so the harness sees the same literal milestones.
+      'var monsterSpanBase = 777; var healerSpanBase = 888;' +
+      'var NIGHT_POWERUP_CASH_STEP = 40000; var NIGHT_MONSTER_SCORE_STEP = 120000;' +
+      'var isNightShift = function(){ return false; };' +
+      'function setStartMilestones(){ monsterNextAt = MONSTER_SCORE_STEP; monsterSpanBase = 0; healerNextAt = POWERUP_CASH_STEP; healerSpanBase = 0; }' +
       'var SKIN_TONES = [0x000000];' +
       'var health = 0; var maxHealth = 100;' +
       'var dangerWarned = true; function dangerAlarmOff(){}' +
