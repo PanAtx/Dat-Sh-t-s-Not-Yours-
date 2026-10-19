@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.581</div>
+          <div id="app-version" class="menu-version">v1.0.582</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.581';
+      const APP_VERSION = '1.0.582';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -56854,6 +56854,12 @@
         }
         setTxt($("day-stats-score"), pad(dayScore));
         setTxt($("day-stats-week"), pad(weekScore));
+        // The old ROUTE COMPLETE panel (#complete: SHIFT SCORE / HI-SCORE spans) is only
+        // ever HIDDEN by every screen that runs — it is dead markup, so it keeps the static
+        // 000000 it ships with. Stamp the real numbers on it with every report so nothing on
+        // this page can ever read out as a zero score, panel shown or not.
+        setTxt($("finalscore2"), pad(dayScore));
+        setTxt($("hiscore3"), pad(hi));
         $("btnNextDay").classList.remove("pressed"); // a fresh report always starts un-pressed
         $("btnNextDay").textContent = routeFailed
           ? "RETRY THE SHIFT \u21bb"
@@ -58272,10 +58278,24 @@
       // screen. A short setInterval per number, cleared on fxStopTallies() so a
       // restart / quit can never leave a stray timer running.
       const fxTallyTimers = [];
+      // THE NEVER-A-ZERO LAW: every running tally is tracked with the REAL number it is
+      // counting to. The arcade screens arm the rain and the numbers in the same beat
+      // (startEndingFx clears the tally timers), a QUIT / a next-day card tears them down
+      // mid-spin — a number caught by any of that must land on the score it was counting
+      // to, never on the frame it died in (a killed tally used to strand GAME OVER, and a
+      // cut-off win screen, on $000000 - the final score and the HI-SCORE invisible).
+      const fxTallyRuns = [];
       function fxStopTallies() {
         for (let i = 0; i < fxTallyTimers.length; i++)
           if (typeof clearInterval === "function") clearInterval(fxTallyTimers[i]);
         fxTallyTimers.length = 0;
+        for (let i = 0; i < fxTallyRuns.length; i++) {
+          const r = fxTallyRuns[i];
+          const txt = pad(r.total);
+          if (typeof hudCache === "object" && hudCache) hudCache[r.el.id] = txt; // the HUD cache rides the settled number too
+          r.el.textContent = txt;
+        }
+        fxTallyRuns.length = 0;
       }
       function fxStartTally(el, target, durMs) {
         const total = Math.max(0, Math.floor(target) || 0);
@@ -58292,13 +58312,19 @@
         );
         let i = 0;
         setTxt(el, pad(0)); // the tally always STARTS at zero
+        const run = { el: el, total: total }; // what this number is REALLY headed for
+        fxTallyRuns.push(run);
         const id = setInterval(function () {
           i++;
           // ease-OUT ramp: the digits spin fast, then settle onto the real number
           const v =
             i >= frames ? total : Math.floor(total * (1 - Math.pow(1 - i / frames, 2.4)));
           setTxt(el, pad(v));
-          if (i >= frames && typeof clearInterval === "function") clearInterval(id);
+          if (i >= frames) {
+            if (typeof clearInterval === "function") clearInterval(id);
+            const at = fxTallyRuns.indexOf(run); // landed for real: nothing left to settle
+            if (at >= 0) fxTallyRuns.splice(at, 1);
+          }
         }, step);
         fxTallyTimers.push(id);
         return frames;
@@ -58416,7 +58442,10 @@
           },
         );
         $("over").classList.remove("hidden");
-        if (typeof startEndingFx === "function") startEndingFx("over");
+        // THE fx ARM IS NOT A SWITCH: startEndingFx() clears the tally timers, so it runs
+        // ONCE, up at the top of gameOver, BEFORE the numbers are handed to fxStartTally.
+        // A second arm down here used to kill both counts on the frame they started and
+        // leave the panel reading FINAL SCORE $000000 / HI-SCORE $000000 forever.
         radioMode(); // NOW PLAYING bar parks back in the top-right corner
         $("vpad").classList.remove("on"); // hide the touch pad; drop any held touch state
         vt.f = 0;

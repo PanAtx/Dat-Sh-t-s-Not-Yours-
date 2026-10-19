@@ -152,6 +152,7 @@ console.log('[4] behavioral: the piece budget, the shake, the tally + the teardo
     extractFn('fxIsSmallScreen'), extractFn('fxRainCount'), extractFn('fxReducedMotion'),
     extractFn('fxSetVar'), extractFn('fxBuildRain'), extractFn('fxClearLayer'),
     'const fxTallyTimers = [];',
+    'const fxTallyRuns = [];', // the real target behind every running tally (the settle law)
     extractFn('fxStopTallies'), extractFn('fxStartTally'),
     (src.match(/const WEEK_RANKS = \[[\s\S]*?\];/) || [''])[0],
     extractFn('weekRankOf'), extractFn('fxShowEl'), extractFn('startEndingFx'), extractFn('stopEndingFx'),
@@ -192,6 +193,105 @@ console.log('[4] behavioral: the piece budget, the shake, the tally + the teardo
   check('the rank ladder crowns every score band', [0, 45000, 85000, 150000, 250000, 400000].map((v) => desk.api.weekRankOf(v)).join('|') === 'ROOKIE ON THE BLOCK|STEADY SWEEPER|CURB CRUSHER|LITTER LEGEND|BOROUGH BOSS|STREET LEGEND', 'rank bands wrong');
   check('a negative / NaN week score still crowns (no crash, lowest rank)', desk.api.weekRankOf(-5) === 'ROOKIE ON THE BLOCK' && desk.api.weekRankOf(NaN) === 'ROOKIE ON THE BLOCK', 'rank guard missing');
   check('the fx builder never touches layout styles (CSS owns all the motion)', desk.created.every((e) => e.style.top === '' && e.style.width === '' && e.style.height === ''), 'builder wrote layout styles');
+}
+
+// ============ [5] THE LIVE SCORE PROOF (the "final score / HI-SCORE read $000000" bug) ====
+// The arcade numbers are ANIMATED: fxStartTally paints 000000 first and counts up on a
+// timer, and startEndingFx() — the fx ARM — clears every tally timer as it builds the rain.
+// So the ORDER is the whole law: arm the fx ONCE, THEN hand the numbers to the tally, and a
+// tally cut off by any teardown must SETTLE on the real number. Run the REAL gameOver() +
+// the REAL showWeekComplete() + the REAL fx module on a fake DOM and read the score lines
+// the player actually sees.
+{
+  const mkEl2 = (id, tag) => {
+    const el = { id: id || "", tagName: tag || "div", className: "", textContent: "", children: [], styleVars: {}, offsetWidth: 1, style: null };
+    el.style = { setProperty(k, v) { el.styleVars[k] = v; }, left: "", top: "", width: "", height: "" };
+    const set = new Set();
+    el.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c), toggle: (c, on) => (on ? set.add(c) : set.delete(c)), contains: (c) => set.has(c) };
+    Object.defineProperty(el, "firstChild", { get: () => el.children[0] || null });
+    el.appendChild = (c) => { if (c && c.__frag) c.children.forEach((x) => el.children.push(x)); else el.children.push(c); return c; };
+    el.removeChild = (c) => { const i = el.children.indexOf(c); if (i >= 0) el.children.splice(i, 1); return c; };
+    return el;
+  };
+  const scoreSrc = [
+    (src.match(/const FX_LAW = \{[\s\S]*?\};/) || [""])[0],
+    (src.match(/const pad = \(n\) =>[^\n]*/) || [""])[0],
+    (src.match(/const WEEK_RANKS = \[[\s\S]*?\];/) || [""])[0],
+    "const hudCache = {};",
+    extractFn("setTxt"),
+    "const fxTallyTimers = [];",
+    "const fxTallyRuns = [];",
+    extractFn("fxIsSmallScreen"), extractFn("fxRainCount"), extractFn("fxReducedMotion"),
+    extractFn("fxSetVar"), extractFn("fxBuildRain"), extractFn("fxClearLayer"),
+    extractFn("fxStopTallies"), extractFn("fxStartTally"), extractFn("weekRankOf"),
+    extractFn("fxShowEl"), extractFn("startEndingFx"), extractFn("stopEndingFx"),
+    extractFn("gameOver"), extractFn("showWeekComplete"),
+  ].join("\n");
+  check("gameOver + showWeekComplete + the whole fx module extract cleanly (the score proof can run for real)", /function gameOver\(/.test(scoreSrc) && /function showWeekComplete\(/.test(scoreSrc) && /function fxStartTally\(/.test(scoreSrc) && /const pad = \(n\) =>/.test(scoreSrc), "source not found in index.html");
+  const mkScore = new Function(
+    "document", "innerWidth", "innerHeight", "MOBILE_LOW_PROFILE", "matchMedia", "$", "SFX",
+    "Voice", "LEVEL_DAYS", "MAX_LEVEL", "level", "p", "weekScore", "hi", "localStorage",
+    "radioMode", "hideLevelLoading", "clearAdvancePressed", "vt", "joyPid", "WORKER_GENDER",
+    "setInterval", "clearInterval", "setTimeout",
+    scoreSrc + "\nreturn { gameOver, showWeekComplete, fxStartTally, fxStopTallies, startEndingFx, stopEndingFx, fxTallyRuns };",
+  );
+  const pad6 = (n) => String(Math.max(0, Math.floor(n))).padStart(6, "0");
+  // one arcade screen, fully wired: fake DOM, recorded localStorage, a manual interval pump
+  function scene(week, storedHi, W, H) {
+    const els = {}, timers = [], store = { dsnysweep_hi: String(storedHi) };
+    const $ = (id) => (els[id] = els[id] || mkEl2(id));
+    const document = {
+      createElement: (t) => mkEl2("dyn", t),
+      createDocumentFragment: () => { const f = mkEl2("frag", "#fragment"); f.__frag = true; return f; },
+    };
+    const api = mkScore(
+      document, W, H, false, () => ({ matches: false }), $,
+      { playHopperJingle: () => {}, playCashRain: () => {}, playBootSplat: () => {}, ensure: () => {}, ctx: null },
+      { say: () => {} },
+      [{ day: "WEDNESDAY", borough: "BROOKLYN", area: "FLATBUSH" }], 3, 3, { wx: 100, wy: 3 },
+      week, Number(storedHi),
+      { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
+      () => {}, () => {}, () => {}, { f: 0, l: 0, act: false }, null, "male",
+      (fn) => { const id = timers.length + 1; timers.push({ id, fn, cleared: false }); return id; },
+      (id) => { const t = timers.find((x) => x.id === id); if (t) t.cleared = true; },
+      () => 0);
+    return { api, els, timers, store, flush: (n) => { for (let k = 0; k < n; k++) for (const t of timers.slice()) if (!t.cleared) t.fn(); } };
+  }
+  // A. THE SUSPENDED SCREEN (a record week): FINAL SCORE + HI-SCORE must land on the panel
+  const sa = scene(87654, 12345, 1440, 900);
+  sa.api.gameOver("3 write-ups");
+  const openedOn = sa.els["finalscore"].textContent; // the number the screen opens on
+  sa.flush(80); // pump the whole arcade count-up
+  check("A: GAME OVER shows the REAL FINAL SCORE (the fx arms ONCE, before the tally, and the count completes)", sa.els["finalscore"].textContent === pad6(87654), 'opens on "' + openedOn + '", ends on "' + sa.els["finalscore"].textContent + '"');
+  check("A: GAME OVER shows the HI-SCORE and banks the new record (localStorage dsnysweep_hi)", sa.els["hiscore2"].textContent === pad6(87654) && sa.store["dsnysweep_hi"] === "87654", 'hiscore2="' + sa.els["hiscore2"].textContent + '" store=' + sa.store["dsnysweep_hi"]);
+  check("A: the NEW HIGH SCORE ribbon lights when this week set the record", !sa.els["over-newhi"].classList.contains("hidden"), "ribbon hidden");
+  check("A: the panel is un-hidden with the losing fx armed (the drips built + the panel jolted)", !sa.els["over"].classList.contains("hidden") && sa.els["fx-lost"].children.length === 8 && sa.els["over"].classList.contains("fx-shake"), 'drips=' + sa.els["fx-lost"].children.length);
+  check("A: both tally timers disarm themselves on landing (no runaway interval behind a panel)", sa.timers.every((t) => t.cleared) && sa.api.fxTallyRuns.length === 0, "live runs=" + sa.api.fxTallyRuns.length);
+  // B. NOT A RECORD: the stored HI stays on the line, no false ribbon, nothing overwritten
+  const sb = scene(1000, 500000, 390, 844);
+  sb.api.gameOver("3 write-ups");
+  sb.flush(80);
+  check("B: a week BELOW the record keeps the STORED HI-SCORE on screen and never claims a record", sb.els["hiscore2"].textContent === pad6(500000) && sb.els["finalscore"].textContent === pad6(1000) && sb.els["over-newhi"].classList.contains("hidden") && sb.store["dsnysweep_hi"] === "500000", 'hiscore2=' + sb.els["hiscore2"].textContent + ' final=' + sb.els["finalscore"].textContent);
+  // C. THE NEVER-A-ZERO LAW: a tally cut off by a teardown must settle on the REAL number
+  const sc = scene(246810, 0, 1440, 900);
+  sc.api.gameOver("3 write-ups");
+  sc.flush(2); // only two ticks in: the count is mid-spin
+  const midNumber = sc.els["finalscore"].textContent;
+  sc.api.stopEndingFx(); // QUIT / the NEXT DAY card tears the arcade screen down
+  check("C: THE NEVER-A-ZERO LAW — a score cut off mid-tally lands on the REAL number, never $000000", sc.els["finalscore"].textContent === pad6(246810) && sc.els["hiscore2"].textContent === pad6(246810), 'mid-spin="' + midNumber + '" final="' + sc.els["finalscore"].textContent + '" hiscore2="' + sc.els["hiscore2"].textContent + '"');
+  // D. THE WIN SCREEN: the week total, the record line, the crown
+  const sd = scene(321000, 90000, 1440, 900);
+  sd.api.showWeekComplete();
+  sd.flush(90);
+  check("D: YOU WIN shows the REAL WEEK TOTAL (never $000000)", sd.els["week-score"].textContent === pad6(321000), 'week-score="' + sd.els["week-score"].textContent + '"');
+  check("D: YOU WIN shows the record on the BEST SHIFT line and banks it", sd.els["week-hi"].textContent === pad6(321000) && sd.store["dsnysweep_hi"] === "321000", 'week-hi="' + sd.els["week-hi"].textContent + '" store=' + sd.store["dsnysweep_hi"]);
+  check("D: YOU WIN crowns the rank the score earns + lights NEW HIGH SCORE", sd.els["week-rank"].textContent === "STREET LEGEND" && !sd.els["week-newhi"].classList.contains("hidden"), 'rank="' + sd.els["week-rank"].textContent + '"');
+  check("D: the win panel is un-hidden with the cash rain armed (20 bills on a desktop)", !sd.els["week-complete"].classList.contains("hidden") && sd.els["fx-won"].children.length === 20, "bills=" + sd.els["fx-won"].children.length);
+  // E. the ORDER law, written in the source itself
+  const goFn = extractFn("gameOver");
+  check("E: gameOver() arms the fx EXACTLY ONCE and the arm sits BEFORE the tallies (an arm after the numbers = a killed tally = $000000)", (goFn.match(/startEndingFx\("over"\)/g) || []).length === 1 && goFn.indexOf('startEndingFx("over")') < goFn.indexOf("fxStartTally"), "arm count=" + (goFn.match(/startEndingFx\("over"\)/g) || []).length);
+  const wkFn = extractFn("showWeekComplete");
+  check("E: showWeekComplete() arms the fx exactly once, before its tallies too", (wkFn.match(/startEndingFx\("win"\)/g) || []).length === 1 && wkFn.indexOf('startEndingFx("win")') < wkFn.indexOf("fxStartTally"), "win arm=" + (wkFn.match(/startEndingFx\("win"\)/g) || []).length);
 }
 
 console.log('');
