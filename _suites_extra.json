@@ -370,6 +370,11 @@
       "Headless stubs for the worker's dependencies",
       "node",
       "_worker_zfight_chk.js"
+    ],
+    [
+      "prove the FLATBUSH SOCCER TEAMS play: book goals, lanes, the kickoff",
+      "node",
+      "_soccer_chk.js"
     ]
   ]
 }

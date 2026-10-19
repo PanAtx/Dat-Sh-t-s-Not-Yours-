@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.582</div>
+          <div id="app-version" class="menu-version">v1.0.583</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.582';
+      const APP_VERSION = '1.0.583';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -40589,7 +40589,9 @@
         // toward (goal-to-goal), passes to the most-advanced mate, and (when the
         // worker is close) boots the ball right at him. The nearest mate sprints
         // for the ball and carries on the attack; a ball into the book-goal mouth
-        // = GOOOOAL! — victory hops, then the scorer kicks off from the center.
+        // = GOOOOAL! — victory hops, then the kickoff: one keeper goes into the net
+        // for the ball while a mate walks the kickoff line in anticipation of the boot
+        // (the third kid clears to the centre), and the keeper plays it to him.
         // A MAJOR problem for the worker. Set up before the level starts; they
         // NEVER stop and they do NOT sidestep a bottle, can or sidewalk tree —
         // they run right through (no npcRoadRules, no walk-around, no off-screen
@@ -40662,6 +40664,10 @@
               lastKicker: null, // who put the ball on (the scorer when it drops in)
               scorer: null,
               kickoffDir: 0, // 0 = no kickoff pending; ±1 = the direction the next pickup must kick (a small boot toward the OTHER goal)
+              kickoffFetch: null, // the KEEPER of this kickoff: the kid sent into the net for the ball — he takes it and boots it back in play
+              kickoffReady: null, // the mate who walks the OTHER way in anticipation of that boot (he is the one the kick is played to)
+              kickoffRunX: 0, // the spot the anticipating kid walks to and waits on (the kickoff landing zone)
+              kickoffT: 0, // seconds this kickoff has been pending (0 = no kickoff on the field)
             };
             for (const sk of sKids) sk.team = sTeam; // each kid knows its own team (the leader's tick simulates via c.team)
             soccerTeams.push(sTeam);
@@ -43421,6 +43427,17 @@
       const SOCCER_GOAL_R = 1.1; // ball this close (x) to a book-goal mouth = GOOOOAL!
       const SOCCER_GOAL_YR = 1.2; // the goal mouth's half-height (the book stacks at 1.9/4.1 frame it)
       const SOCCER_CELEBRATE = 1.6; // seconds of victory hops after a goal, before the kickoff
+      // ---- THE KICKOFF CHOREOGRAPHY (the anti-pile law for a ball in the NET) ----
+      // A ball resting in a goal used to be a three-kid race into one mouth: the receiver
+      // sprinted for it, both mates ran to THEIR support spots — which sit on the ball — and
+      // the trio welded itself to the block end, grinding on each other while the ball sat in
+      // the net. A real kickoff has ONE taker and ONE runner: the keeper goes into the net for
+      // the ball, the second kid walks the OTHER way in anticipation of the boot, the third
+      // clears out to the centre spot. Nobody converges on a net.
+      const SOCCER_KICKOFF_RUN = 9; // the anticipating kid walks this far AHEAD in the kickoff direction and waits there for the ball he expects to be kicked to him
+      const SOCCER_KICKOFF_TAKE_R = 2.6; // the kickoff taker is ASSIGNED, never raced — a kid this close to a ball in the net takes it and puts it back in play
+      const SOCCER_KICKOFF_WATCHDOG = 4.5; // seconds a pending kickoff may run with no boot — then the taker is handed the ball outright (nobody dawdles in a net)
+      const SOCCER_KICKOFF_RESCUE = 7.0; // ...and this many seconds with the ball parked in a net puts it at the feet of the mate closest to the field (a parked ball can never clog a block)
       const SOCCER_WORKER_KICK_CD = 3.5; // min gap between kicks aimed at the worker (no spam)
       const SOCCER_MARGIN = 5; // keep the patrol a hair inside the block's cross-streets
       // ---- Staten Island tee-ball CATCH team (3 small kids + ONE baseball on ONE random block) ----
@@ -52888,9 +52905,12 @@
               // toward (goal-to-goal), passes to the most-advanced mate, and — when
               // the worker is close — boots the ball right at him. The mate nearest
               // the landing point sprints for it and carries on the attack. A ball
-              // into the book-goal mouth = GOOOOAL! — victory hops, then the
-              // nearest kid runs to the ball in the net and kicks it a small
-              // distance toward the other goal (the kickoff). They're
+              // into the book-goal mouth = GOOOOAL! — victory hops, then THE KICKOFF
+              // (the anti-pile law): ONE keeper is sent into the net for the ball, ONE
+              // mate walks out the kickoff line in anticipation of the boot and receives
+              // it, the third kid clears to his centre spot, and the keeper kicks it back
+              // in play to the mate who walked. Only the keeper ever enters a mouth, so a
+              // goal never welds the trio into each other on a block end. They're
               // KIDS with endless energy: they NEVER stop for litter (a bottle or
               // can — they run right through it), but they ARE smart enough to
               // route AROUND solid sidewalk obstacles (a tree / collection box):
@@ -52912,6 +52932,16 @@
                   Math.abs(y - T.goalL.y) < SOCCER_GOAL_YR) ||
                 (Math.abs(x - T.goalR.x) < SOCCER_GOAL_R &&
                   Math.abs(y - T.goalR.y) < SOCCER_GOAL_YR);
+              // ===== THE KICKOFF PLAN (it lives exactly as long as the ball is IN a net) ====
+              // Armed the frame the ball drops into a mouth, dead the frame the ball is back in
+              // play (a boot, a worker's deflection, a mate stealing it): a stale plan must never
+              // leave kids walking a kickoff that is no longer on the field.
+              if (T.kickoffDir && T.celebrateT <= 0 && !T.owner && !inMouth(B.wx, B.wy)) {
+                T.kickoffDir = 0;
+                T.kickoffFetch = null;
+                T.kickoffReady = null;
+              }
+              T.kickoffT = T.kickoffDir ? (T.kickoffT || 0) + dt : 0; // the kickoff age the watchdogs run off
               if (T.celebrateT > 0) {
                 // GOOOOAL! — the kids hop in place where they are (NO post-goal
                 // teleports: snapping 3 kids + the ball to the center every goal
@@ -52923,10 +52953,12 @@
                 if (T.celebrateT <= 0) {
                   T.scorer = T.scorer || T.kids[1];
                   T.owner = null;
-                  T.receiver = null;
                   T.grabCd = 0.4;
-                  T.kickoffDir = B.wx >= T.midX ? -1 : 1; // toward the OTHER goal
-                  let nk = null,
+                  // THE KEEPER goes into the net (the role was called on the goal); the other
+                  // two kids are already walking THEIR lanes — the runner toward the ground the
+                  // boot is headed for, the third to his centre spot. The ball STAYS in the net:
+                  // it goes back in play by a KID'S KICK, it never kicks itself.
+                  let nk = T.kickoffFetch || null,
                     nd = 1e9;
                   for (const k of T.kids) {
                     const d = Math.hypot(B.wx - k.wx, B.wy - k.wy);
@@ -52935,7 +52967,7 @@
                       nk = k;
                     }
                   }
-                  T.receiver = nk; // the nearest kid RUNS to the ball in the net
+                  T.receiver = T.kickoffFetch || nk; // the keeper RUNS to the ball in the net
                 }
               } else {
                 // --- GOAL? a ball into the mouth counts BEFORE anyone can re-grab it ---
@@ -52956,6 +52988,46 @@
                   B.vx = 0;
                   B.vy = 0; // the ball comes to rest in the "net"
                   B.z = 0.18;
+                  // ===== THE KICKOFF IS CALLED THE MOMENT THE BALL DROPS (the anti-pile) =====
+                  // The trio is handed ROLES, not a race: ONE keeper walks into the net for the
+                  // ball and boots it back in play; ONE mate takes off the OTHER way — into the
+                  // ground the kick is about to be played to — and waits there for it; the third
+                  // kid clears to his centre spot. Nobody runs at the net except the keeper, so
+                  // the kids never weld onto each other inside a goal mouth.
+                  T.kickoffDir = B.wx >= T.midX ? -1 : 1; // toward the OTHER goal
+                  let kf = null,
+                    kd = 1e9; // the KEEPER: the kid already closest to the ball in the net
+                  for (let ki = 0; ki < T.kids.length; ki++) {
+                    const kk = T.kids[ki];
+                    const kx =
+                      Math.abs(B.wx - kk.wx) + Math.abs(B.wy - kk.wy) * 0.6 + ki * 0.01;
+                    if (kx < kd) {
+                      kd = kx;
+                      kf = kk;
+                    }
+                  }
+                  T.kickoffFetch = kf;
+                  T.kickoffRunX = clamp(B.wx + T.kickoffDir * SOCCER_KICKOFF_RUN, T.minX + 0.4, T.maxX - 0.4);
+                  T.kickoffT = 0; // the kickoff clock starts on the goal
+                  let kr = null,
+                    rd2 = 1e9; // the RUNNER: the mate closest to that landing zone — a kid parked
+                  // at the mouth with the keeper is the one who walks OUT of it, out into the
+                  // ground the kick is about to be played to
+                  for (let ki = 0; ki < T.kids.length; ki++) {
+                    const kk = T.kids[ki];
+                    if (kk === kf) continue;
+                    const adv =
+                      Math.abs(T.kickoffRunX - kk.wx) + Math.abs(3.0 - kk.wy) * 0.4 + ki * 0.01;
+                    if (adv < rd2) {
+                      rd2 = adv;
+                      kr = kk;
+                    }
+                  }
+                  T.kickoffReady = kr;
+                  if (kr) {
+                    kr.dir = T.kickoffDir >= 0 ? 1 : -1; // HE WALKS THE KICKOFF LINE NOW — the hops are not a freeze
+                    kr.edgeT = 0;
+                  }
                   if (state === "play")
                     Voice.say("GOOOOAL!", 1.5, 1.1, B.wx, B.wy, "male", "kid");
                 }
@@ -52971,7 +53043,7 @@
                     if (k === T.lastKicker && B.z > 0.25) continue; // never grab one's own kick
                     const d =
                       Math.hypot(B.wx - k.wx, B.wy - k.wy) *
-                      (k === T.receiver ? 0.6 : 1);
+                      (T.kickoffDir && k === T.kickoffFetch ? 0.3 : k === T.receiver ? 0.6 : 1);
                     if (d < bd) {
                       bd = d;
                       best = k;
@@ -52982,6 +53054,53 @@
                     T.ownerKickT = R(1.0, 2.2);
                     B.vx = 0;
                     B.vy = 0; // the owner takes the ball — the dribble ease (not old kick momentum) drives it from here
+                  }
+                }
+                // ===== THE KEEPER NEVER DAWDLES IN A NET (the two kickoff watchdogs) =====
+                // A ball parked in a goal mouth is dead air — THREE seconds of three kids parked
+                // on a block end reading as "the soccer kids are stuck". The kickoff is a PLAY,
+                // not a scramble, so it is timed:
+                //   WATCHDOG 1 (4.5s): the assigned taker is HANDED the ball the frame he is
+                //   inside the net reach — no grab cooldown and no 50/50 race can strand a ball
+                //   in a goal.
+                //   WATCHDOG 2 (7.0s): the net is WEDGED (goal books + a collection box + the
+                //   block end — nobody can get in). The ball is put AT THE FEET of the mate
+                //   closest to the FIELD, in the open, and he puts it back in play.
+                if (T.kickoffDir && T.celebrateT <= 0 && !T.owner) {
+                  if (T.kickoffT > SOCCER_KICKOFF_WATCHDOG) {
+                    const kt = T.kickoffFetch || T.receiver;
+                    if (kt && Math.hypot(B.wx - kt.wx, B.wy - kt.wy) < SOCCER_KICKOFF_TAKE_R) {
+                      T.owner = kt;
+                      T.receiver = null;
+                      T.ownerKickT = 0.25; // a beat, then the boot toward the OTHER goal
+                      B.vx = 0;
+                      B.vy = 0;
+                    }
+                  }
+                  if (T.kickoffT > SOCCER_KICKOFF_RESCUE) {
+                    let rs = null,
+                      rsd = 1e9;
+                    for (const k of T.kids) {
+                      const dd = Math.abs(k.wx - T.kickoffRunX) + Math.abs(k.wy - 3.0) * 0.6;
+                      if (dd < rsd) {
+                        rsd = dd;
+                        rs = k;
+                      }
+                    }
+                    if (rs) {
+                      B.wx = clamp(rs.wx + (rs.dir >= 0 ? 1 : -1) * SOCCER_LEAD, T.minX - 1.8, T.maxX + 1.8);
+                      B.wy = clamp(rs.wy, 1.5, 4.3);
+                      B.z = 0;
+                      B.vz = 0;
+                      B.vx = 0;
+                      B.vy = 0;
+                      B.tx = B.wx;
+                      B.ty = B.wy;
+                      T.owner = rs;
+                      T.receiver = null;
+                      T.ownerKickT = 0.25;
+                      T.kickoffT = SOCCER_KICKOFF_RESCUE - 1.5; // one rescue per kickoff: the clock resets so the ball is booted, not parked again
+                    }
                   }
                 }
                 // --- the owner kicks: worker > goal shot > advanced pass > long clear ---
@@ -53000,11 +53119,13 @@
                     const goalAhead = o.dir > 0 ? T.goalR : T.goalL; // the goal he's running toward
                     let tx,
                       ty,
-                      vz = SOCCER_KICK_VZ;
+                      vz = SOCCER_KICK_VZ,
+                      kickoffBoot = false;
                     if (T.kickoffDir) {
                       tx = o.wx + T.kickoffDir * R(3.0, 5.0); // KICKOFF: a small boot toward the OTHER goal (the ball goes back in play by a KID'S KICK)
                       ty = o.wy;
                       T.kickoffDir = 0; // kickoff done — normal play resumes
+                      kickoffBoot = true;
                     } else if (
                       state === "play" &&
                       T.workerKickCd <= 0 &&
@@ -53056,7 +53177,15 @@
                         rec = k;
                       }
                     }
-                    T.receiver = rec;
+                    if (kickoffBoot && T.kickoffReady && T.kickoffReady !== o) {
+                      // THE KICKOFF LANDS WHERE THE RUNNER WALKED: the kid who took off the
+                      // other way is the one the boot is played to — he never has to turn
+                      // around and run back at his own teammate
+                      T.receiver = T.kickoffReady;
+                    } else T.receiver = rec;
+                    T.kickoffFetch = null; // the roles retire with the boot
+                    T.kickoffReady = null;
+                    T.kickoffT = 0;
                   }
                 }
               }
@@ -53360,6 +53489,25 @@
                   if (k.parts && k.parts.upper)
                     k.parts.upper.position.z =
                       0.62 + Math.abs(Math.sin(k.phase)) * 0.24;
+                } else if (
+                  T.kickoffDir &&
+                  k !== T.owner &&
+                  k !== T.receiver &&
+                  inMouth(B.wx, B.wy)
+                ) {
+                  // THE KICKOFF ROLES — the two kids who are NOT the keeper never run at the net.
+                  // The RUNNER walks the kickoff direction — the ground the boot is about to be
+                  // played to — and waits on it, so he meets the ball instead of stampeding into
+                  // the keeper; the third kid clears out to his centre spot. A goal mouth now
+                  // holds exactly ONE kid: a goal can never pile the trio into each other.
+                  if (k === T.kickoffReady) {
+                    if (!(k.edgeT > 0)) k.dir = T.kickoffDir; // he faces the ground he is running to
+                    kidNav(k, T.kickoffRunX, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 1.35, navLoY, navHiY);
+                  } else {
+                    const ct = clamp(T.midX + kidLane(k) * 1.2, T.minX + 0.4, T.maxX - 0.4);
+                    if (!(k.edgeT > 0)) k.dir = ct >= k.wx ? 1 : -1;
+                    kidNav(k, ct, kidShoulder(k, kidLaneY(k), navLoY, navHiY), k.sp * 1.1, navLoY, navHiY);
+                  }
                 } else if (k === T.owner) {
                   // dribble at full pace, the ball rolling just ahead of him — down HIS OWN
                   // LANE, stepping AROUND anything solid, never dead-stopping

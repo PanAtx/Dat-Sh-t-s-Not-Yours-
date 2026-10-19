@@ -23,7 +23,7 @@ const check = (name, ok) => {
 check('kidStepBlocked dead-stop gating fully removed', !html.includes('kidStepBlocked'));
 const navDefs = html.match(/const kidNav = \(k, tx, ty, spd, loY, hiY\) => \{/g) || [];
 check('kidNav defined in BOTH the soccer and the tee-ball case (x2)', navDefs.length === 2);
-check('kidNav called by every kid branch (9 call sites — dribbler, sprinter, ball-circler, support joggers in both team cases)', (html.match(/kidNav\(k, /g) || []).length === 9);
+check('kidNav called by every kid branch (11 call sites — dribbler, sprinter, ball-circler, support joggers, kickoff runner + centre-clear in both team cases)', (html.match(/kidNav\(k, /g) || []).length === 11);
 check('every kid runs inside HIS OWN box, and the dodge lanes are clamped to the walk band', (html.match(/const navLoY = kidB\.loY/g) || []).length === 2 && (html.match(/return clamp\(oy, loY, hiY\);/g) || []).length === 2);
 check('the trio plays in LANES with a KID vs KID separation pass, an anti-pin probe and a band-edge turn lock (no pile-ups, no wedges, no stutter) — in BOTH cases', (html.match(/kidLane\(k\)/g) || []).length >= 4 && (html.match(/KID vs KID/g) || []).length === 2 && (html.match(/THE ANTI-PIN ESCAPE/g) || []).length === 2 && (html.match(/KID_EDGE_LOCK/g) || []).length >= 6);
 

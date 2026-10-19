@@ -39,6 +39,7 @@ const SOCCER_LEAD = 1.3, SOCCER_PICKUP = 1.3, SOCCER_WORKER_RANGE = 9;
 const SOCCER_KICK_VZ = 3.2, SOCCER_WORKER_KICK_CD = 3.5, SOCCER_MARGIN = 5;
 const SOCCER_SHOT_VZ = 4.4, SOCCER_SHOT_RANGE = 12, SOCCER_ROLL_SP = 8, SOCCER_PASS_MIN = 6;
 const SOCCER_ROLL_ACCEL = 30, SOCCER_BALL_R = 0.22; // mirror index.html (kick acceleration + ball radius for the speed-based spin)
+const SOCCER_KICKOFF_RUN = 9, SOCCER_KICKOFF_TAKE_R = 2.6, SOCCER_KICKOFF_WATCHDOG = 4.5, SOCCER_KICKOFF_RESCUE = 7.0; // mirror index.html (the kickoff choreography + its watchdogs)
 const SOCCER_GOAL_R = 1.1, SOCCER_GOAL_YR = 1.2, SOCCER_CELEBRATE = 1.6;
 const BLOCK_W = 80; // mirrors index.html (10 houses x 8u)
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -172,6 +173,30 @@ check('no double goal: a ball resting in the net during the kickoff restart does
   soccerCase.indexOf('!T.owner && !T.kickoffDir && B.z < 1.0 && inMouth(B.wx, B.wy))') >= 0);
 check('the receiver may SPRINT for a ball resting in the net (kickoff restart)',
   soccerCase.indexOf('!inMouth(B.wx, B.wy) || T.kickoffDir') >= 0);
+check('THE KICKOFF CHOREOGRAPHY constants exist (runner run 9 / take reach 2.6 / watchdog 4.5s / rescue 7s)',
+  src.indexOf('const SOCCER_KICKOFF_RUN = 9;') >= 0 && src.indexOf('const SOCCER_KICKOFF_TAKE_R = 2.6;') >= 0 &&
+  src.indexOf('const SOCCER_KICKOFF_WATCHDOG = 4.5;') >= 0 && src.indexOf('const SOCCER_KICKOFF_RESCUE = 7.0;') >= 0);
+check('the kickoff ROLES are declared on the team (keeper + runner + landing spot + the kickoff clock)',
+  spawnSrc.indexOf('kickoffFetch: null') >= 0 && spawnSrc.indexOf('kickoffReady: null') >= 0 &&
+  spawnSrc.indexOf('kickoffRunX: 0') >= 0 && spawnSrc.indexOf('kickoffT: 0') >= 0);
+check('the kickoff is ARMED ON THE GOAL (a keeper assigned, a runner sent the other way, the clock started)',
+  soccerCase.indexOf('T.kickoffFetch = kf') >= 0 && soccerCase.indexOf('T.kickoffReady = kr') >= 0 &&
+  soccerCase.indexOf('kr.dir = T.kickoffDir') >= 0 && soccerCase.indexOf('T.kickoffT = 0; // the kickoff clock starts on the goal') >= 0);
+check('ONLY THE KEEPER RUNS AT THE NET: the two mates get their own kickoff targets (the landing zone + the centre spot)',
+  soccerCase.indexOf('k === T.kickoffReady') >= 0 && soccerCase.indexOf('kidNav(k, T.kickoffRunX') >= 0 &&
+  soccerCase.indexOf('T.midX + kidLane(k) * 1.2') >= 0);
+check('the kickoff taker is ASSIGNED, not raced (his pickup reach is the widest — 0.3 weight)',
+  soccerCase.indexOf('T.kickoffDir && k === T.kickoffFetch ? 0.3 : k === T.receiver ? 0.6 : 1') >= 0);
+check('a ball in a net is never parked: the kickoff watchdogs (the take hand-off + the feet rescue)',
+  soccerCase.indexOf('T.kickoffT > SOCCER_KICKOFF_WATCHDOG') >= 0 &&
+  soccerCase.indexOf('Math.hypot(B.wx - kt.wx, B.wy - kt.wy) < SOCCER_KICKOFF_TAKE_R') >= 0 &&
+  soccerCase.indexOf('T.kickoffT > SOCCER_KICKOFF_RESCUE') >= 0);
+check('the kickoff plan dies with the ball (a stale plan never leaves kids walking a dead kickoff)',
+  soccerCase.indexOf('T.kickoffDir && T.celebrateT <= 0 && !T.owner && !inMouth(B.wx, B.wy)') >= 0);
+check('the kickoff boot is played TO THE ANTICIPATING KID and the roles retire with it',
+  soccerCase.indexOf('if (kickoffBoot && T.kickoffReady && T.kickoffReady !== o)') >= 0 &&
+  soccerCase.indexOf('T.receiver = T.kickoffReady;') >= 0 &&
+  soccerCase.indexOf('T.kickoffFetch = null; // the roles retire with the boot') >= 0);
 check('loose-ball pickup: closest kid within SOCCER_PICKUP, ball low, grabCd respected', soccerCase.indexOf('SOCCER_PICKUP') >= 0 && soccerCase.indexOf('B.z < 0.8') >= 0 && soccerCase.indexOf('T.grabCd <= 0') >= 0);
 check('kick priority 1: the worker when he\'s close (SOCCER_WORKER_RANGE, target = p.wx/p.wy)', soccerCase.indexOf('SOCCER_WORKER_RANGE') >= 0 && soccerCase.indexOf('tx = p.wx') >= 0 && soccerCase.indexOf('ty = p.wy') >= 0);
 check('kick cooldown for worker-aimed kicks (no spam)', soccerCase.indexOf('SOCCER_WORKER_KICK_CD') >= 0 && soccerCase.indexOf('T.workerKickCd') >= 0);
@@ -222,14 +247,14 @@ const runCase = new Function(
   'c', 'dt', 'R', 'GZ', 'state', 'p', 'soccerTeam', 'blocks',
   'SOCCER_LEAD', 'SOCCER_PICKUP', 'SOCCER_WORKER_RANGE', 'SOCCER_KICK_VZ', 'SOCCER_WORKER_KICK_CD',
   'SOCCER_SHOT_RANGE', 'SOCCER_SHOT_VZ', 'SOCCER_ROLL_SP', 'SOCCER_PASS_MIN', 'SOCCER_GOAL_R', 'SOCCER_GOAL_YR', 'SOCCER_CELEBRATE',
-  'SOCCER_ROLL_ACCEL', 'SOCCER_BALL_R', 'clamp',
+  'SOCCER_ROLL_ACCEL', 'SOCCER_BALL_R', 'SOCCER_KICKOFF_RUN', 'SOCCER_KICKOFF_TAKE_R', 'SOCCER_KICKOFF_WATCHDOG', 'SOCCER_KICKOFF_RESCUE', 'clamp',
   'Voice', 'animParts',
   'switch (c.type) {' + soccerCase + '}',
 );
 let T = makeTeam();
 const p = { wx: 999, wy: 3 }; // far away during the warm sim (no worker kicks yet)
 const step = (pw) =>
-  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, [], SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
+  runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, [], SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, SOCCER_KICKOFF_RUN, SOCCER_KICKOFF_TAKE_R, SOCCER_KICKOFF_WATCHDOG, SOCCER_KICKOFF_RESCUE, clamp, Voice, animParts);
 let simOk = true, simDetail = '', ownerChanges = 0, sawReceiver = false, behind = 0, ballBandBad = 0, nanFrames = 0;
 let overlapFrames = 0, minGap = 1e9, kidStallFrames = 0, maxFrozenRun = 0, frozenRun = 0;
 let lastOwner = T.owner;
@@ -381,6 +406,163 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
     kicked && picked && T.kickoffDir === 0 && T.ball.tx < T.goalR.x - 1 && T.ball.tx > T.goalR.x - 6,
     'tx=' + T.ball.wx.toFixed(2) + ' target=' + T.ball.tx.toFixed(2) + ' kickoffDir=' + T.kickoffDir);
 })();
+// ===== scenario K: THE KICKOFF CHOREOGRAPHY (the anti-pile proof) =====
+// One goal, one boot. The trio is handed ROLES, not a race: ONE keeper goes into the net for the
+// ball, ONE mate walks the OTHER WAY in anticipation of the boot and receives it, the third clears
+// to his centre spot. Proven on the sim: the roles are called THE FRAME the ball drops, the mouth
+// holds ONE kid (never 2+), nobody freezes, the runner is already walking the kickoff direction
+// before the ball is taken, the boot lands on HIM, and the kickoff is over in under 1.7s.
+(function () {
+  T = makeTeam();
+  const o = T.owner; // kids[1]
+  o.wx = 140; o.dir = 1; // inside SOCCER_SHOT_RANGE of goalR
+  T.ball.wx = 141.3; T.ball.wy = 3;
+  T.kids[0].wx = 100; T.kids[2].wx = 130;
+  p.wx = 999; p.wy = 3;
+  T.workerKickCd = 0; T.ownerKickT = 0.01;
+  let goalT = -1, hopsT = -1, takeT = -1, bootT = -1;
+  let keeper = null, runner = null, runnerStartX = 0, runnerMove = 0, dirAtGoal = 0;
+  let pile = 0, stalls = 0, mouthKidsMax = 0, roles = null, receiverAtBoot = -1;
+  let okK = true, whyK = '';
+  for (let t = 0; t < 600 && bootT < 0; t++) {
+    const pos0 = T.kids.map((k) => [k.wx, k.wy]);
+    try { step(p); } catch (e) { okK = false; whyK = 'threw: ' + e.message; break; }
+    if (goalT < 0 && T.score >= 1) {
+      goalT = t;
+      keeper = T.kickoffFetch; runner = T.kickoffReady; dirAtGoal = T.kickoffDir;
+      runnerStartX = runner ? runner.wx : 0;
+      roles = { keeper: T.kids.indexOf(keeper), runner: T.kids.indexOf(runner), runX: T.kickoffRunX, dir: dirAtGoal };
+    }
+    if (goalT < 0) continue;
+    if (hopsT < 0 && T.celebrateT <= 0) { hopsT = t; runnerStartX = runner ? runner.wx : 0; }
+    if (hopsT >= 0 && T.owner && takeT < 0) takeT = t;
+    if (hopsT >= 0 && bootT < 0) {
+      let atGoal = 0, stall = 0;
+      for (let ki = 0; ki < 3; ki++) {
+        const k = T.kids[ki];
+        if (!isFinite(k.wx) || !isFinite(k.wy)) { okK = false; whyK = 'kid position not finite at t=' + t; }
+        if (Math.abs(k.wx - T.goalR.x) < 2.6) atGoal++;
+        if (Math.hypot(k.wx - pos0[ki][0], k.wy - pos0[ki][1]) < 0.004) stall++;
+      }
+      if (atGoal > mouthKidsMax) mouthKidsMax = atGoal;
+      if (atGoal >= 2) pile++;
+      stalls += stall;
+      if (takeT >= 0 && !T.owner && T.ball.wx < T.goalR.x - 0.5) {
+        bootT = t;
+        runnerMove = runner ? Math.abs(runner.wx - runnerStartX) : 0;
+        receiverAtBoot = T.kids.indexOf(T.receiver);
+      }
+    }
+  }
+  check('K: the kickoff is CALLED THE FRAME the ball drops (a keeper + a runner + the kickoff direction)',
+    okK && !!roles && roles.keeper >= 0 && roles.runner >= 0 && roles.keeper !== roles.runner &&
+    roles.dir !== 0 && roles.runX > T.minX && roles.runX < T.maxX, JSON.stringify(roles));
+  const runnerAhead = runner ? (runner.wx - T.ball.wx) * dirAtGoal : 0; // how far AHEAD of the ball, along the kickoff line, the runner is standing when the boot happens
+  const kidSpread = Math.max.apply(null, T.kids.map((k) => k.wx)) - Math.min.apply(null, T.kids.map((k) => k.wx));
+  check('K: the runner WALKS in anticipation of the boot (ground covered every frame between the hops and the kick)',
+    okK && runnerMove >= 1.5, whyK + ' runner walked ' + runnerMove.toFixed(2) + 'u');
+  check('K: the runner stands ON THE KICKOFF LINE when the ball is booted — ahead of it in the kickoff direction, on his landing spot (the kick is a pass to him, not a corner scramble)',
+    okK && runnerAhead >= 3 && runnerAhead <= 14 && Math.abs(runner.wx - T.kickoffRunX) <= 5,
+    'ahead=' + runnerAhead.toFixed(2) + 'u landing spot=' + T.kickoffRunX.toFixed(1) + ' runner=' + (runner ? runner.wx.toFixed(1) : 'n/a'));
+  check('K: the trio is SPREAD at the kick (>=15u of the block covered), never welded into a mouth',
+    okK && kidSpread >= 15, 'spread=' + kidSpread.toFixed(1) + 'u kids x=' + T.kids.map((k) => k.wx.toFixed(1)).join(','));
+  check('K: NO PILE IN A GOAL MOUTH — never 2+ kids inside the mouth after the hops',
+    okK && pile === 0, 'pile frames=' + pile + ' max kids in mouth=' + mouthKidsMax);
+  check('K: NOBODY STOPS through the whole kickoff (0 stalled kid-frames: keeper fetches, runner runs, third clears)',
+    okK && stalls === 0, 'stall frames=' + stalls);
+  check('K: the kickoff is FAST — keeper takes it and boots it back in play in under 1.7s after the hops',
+    okK && takeT > hopsT && (bootT - hopsT) * 0.016 < 1.7, 'take t=' + takeT + ' boot t=' + bootT + ' dt=' + ((bootT - hopsT) * 0.016).toFixed(2) + 's');
+  check('K: THE BOOT LANDS ON THE ANTICIPATING KID (he is the receiver — he never runs back at his own keeper)',
+    okK && !!roles && receiverAtBoot === roles.runner && T.receiver === runner,
+    'receiver=' + receiverAtBoot + ' runner=' + (roles ? roles.runner : -1));
+  check('K: the ball leaves the net by a KID\'S KICK toward the OTHER goal (kickoffDir cleared, roles retired)',
+    okK && T.kickoffDir === 0 && T.kickoffFetch === null && T.kickoffReady === null &&
+    T.ball.tx < T.goalR.x - 1 && T.ball.tx > T.goalR.x - 6,
+    'tx=' + T.ball.tx.toFixed(2) + ' kickoffDir=' + T.kickoffDir);
+})();
+// ===== scenario K2: THE WEDGED NET (the parked-ball cap) =====
+// A collection-box wall in front of the goal pins the keeper OUTSIDE the take reach, so the boot
+// is physically impossible from the mouth. A ball must NEVER sit in a net: the watchdog hands the
+// ball to the keeper the frame he is inside the take reach, and the rescue puts it AT THE FEET of
+// the mate closest to the field. Proven: the ball is back in play, the kickoff never runs longer
+// than SOCCER_KICKOFF_RESCUE + 2s, no kid ends up inside a solid box, nobody leaves the block.
+(function () {
+  T = makeTeam();
+  const o = T.owner;
+  o.wx = 140; o.dir = 1;
+  T.ball.wx = 141.3; T.ball.wy = 3;
+  T.kids[0].wx = 100; T.kids[2].wx = 130;
+  p.wx = 999; p.wy = 3;
+  T.workerKickCd = 0; T.ownerKickT = 0.01;
+  const wall = [{ wx: 148.3, wy: 1.5 }, { wx: 148.3, wy: 2.25 }, { wx: 148.3, wy: 3.0 }, { wx: 148.3, wy: 3.75 }, { wx: 148.3, wy: 4.3 }];
+  const bl = [{ trees: [] }]; // the wall goes UP the frame the ball is in the net (a wedged mouth)
+  const stepWall = () => runCase(T.leader, 0.016, R, 0.3, 'play', p, T, bl, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, SOCCER_KICKOFF_RUN, SOCCER_KICKOFF_TAKE_R, SOCCER_KICKOFF_WATCHDOG, SOCCER_KICKOFF_RESCUE, clamp, Voice, animParts);
+  let goalT = -1, backT = -1, inBox = 0, offBlock = 0, maxKickoffT = 0, netFrames = 0, keeperMaxD = 0;
+  let okW = true, whyW = '';
+  for (let t = 0; t < 900 && backT < 0; t++) {
+    try { stepWall(); } catch (e) { okW = false; whyW = 'threw: ' + e.message; break; }
+    if (goalT < 0 && T.score >= 1) { goalT = t; bl[0].trees = wall; }
+    if (goalT < 0) continue;
+    if (T.kickoffT > maxKickoffT) maxKickoffT = T.kickoffT;
+    if (T.kickoffDir && T.kickoffFetch) {
+      const kd3 = Math.hypot(T.ball.wx - T.kickoffFetch.wx, T.ball.wy - T.kickoffFetch.wy);
+      if (kd3 > keeperMaxD) keeperMaxD = kd3;
+    }
+    if (Math.abs(T.ball.wx - T.goalR.x) < 0.05 && Math.abs(T.ball.wy - T.goalR.y) < 0.05) netFrames++;
+    if (backT < 0 && T.owner && T.ball.wx < T.goalR.x - 0.6) backT = t;
+    for (const k of T.kids) {
+      if (!isFinite(k.wx) || !isFinite(k.wy)) { okW = false; whyW = 'kid position not finite at t=' + t; }
+      for (const b of wall)
+        if (Math.abs(b.wx - k.wx) < 0.4 && Math.abs(b.wy - k.wy) < 0.4) inBox++;
+      if (k !== T.receiver && (k.wx < T.minX - 1e-9 || k.wx > T.maxX + 1e-9)) offBlock++;
+    }
+  }
+  check('K2: a WALLED goal mouth never parks the ball — a kid has it back in play inside the cap',
+    okW && backT > goalT, whyW + ' goal t=' + goalT + ' back in play t=' + backT + ' (' + ((backT - goalT) * 0.016).toFixed(2) + 's)');
+  check('K2: the box wall bites — the keeper IS pressed out past the take reach at his widest (no clean boot from the mouth)',
+    okW && keeperMaxD >= SOCCER_KICKOFF_TAKE_R, 'keeper farthest from the ball in the net=' + keeperMaxD.toFixed(2) + 'u (take reach ' + SOCCER_KICKOFF_TAKE_R + 'u)');
+  check('K2: the PARKED-BALL CAP holds — a kickoff never runs longer than SOCCER_KICKOFF_RESCUE + 2s',
+    okW && maxKickoffT > 0 && maxKickoffT <= SOCCER_KICKOFF_RESCUE + 2 && netFrames <= (SOCCER_KICKOFF_RESCUE + 2) * 60,
+    'max kickoffT=' + maxKickoffT.toFixed(2) + 's net frames=' + netFrames);
+  check('K2: the trio lives through the wedge — nobody inside a collection box, nobody off the block, no NaN',
+    okW && inBox === 0 && offBlock === 0, 'inBox=' + inBox + ' offBlock=' + offBlock + ' ' + whyW);
+})();
+// ===== scenario K3: THE RESCUE (the parked-ball cap, proven on a hand-built wedged state) =====
+// The ball is resting in the right net, the kickoff is armed, the keeper is wedged 11.4u OUT of
+// the take reach by the box wall, and the kickoff clock is already past the rescue cap. The old
+// code strands this state forever (nobody can reach the net, so nobody can boot it). Proven: the
+// rescue runs the same frame — the ball goes to the mate closest to the FIELD, at his feet — and
+// he boots it back in play toward the other goal.
+(function () {
+  T = makeTeam();
+  const B = T.ball;
+  B.wx = T.goalR.x; B.wy = T.goalR.y; B.z = 0.18; B.vx = 0; B.vy = 0; B.tx = T.goalR.x; B.ty = T.goalR.y;
+  T.owner = null; T.receiver = null; T.grabCd = 0; T.celebrateT = 0; T.score = 1; T.lastKicker = T.kids[1];
+  T.kickoffDir = -1; T.kickoffFetch = T.kids[0]; T.kickoffReady = T.kids[2]; T.kickoffRunX = 142.4;
+  T.kickoffT = SOCCER_KICKOFF_RESCUE + 0.1;
+  T.kids[0].wx = 140; T.kids[0].dir = -1; // the keeper, pinned west of the wall
+  T.kids[1].wx = 100; T.kids[1].dir = -1;
+  T.kids[2].wx = 141; T.kids[2].dir = -1; // the mate on the field side of the wall (closest to the landing spot)
+  p.wx = 999; p.wy = 3;
+  const keeperD = Math.hypot(B.wx - T.kids[0].wx, B.wy - T.kids[0].wy); // the keeper's reach to the ball IN THE NET, before anything moves
+  step(p); // the frame the rescue runs
+  const rescuedTo = T.kids.indexOf(T.owner);
+  const rescuedZ = T.ball.z, rescuedDir = T.kickoffDir, rescuedX = T.ball.wx, rescuedY = T.ball.wy;
+  const atFeet = !!T.owner && Math.abs(T.ball.wx - (T.owner.wx + (T.owner.dir >= 0 ? 1 : -1) * SOCCER_LEAD)) < 0.35;
+  let booted = false, bootFrames = 0;
+  for (let t = 0; t < 200 && !booted; t++) {
+    step(p);
+    bootFrames++;
+    if (T.kickoffDir === 0 && T.owner === null && T.ball.tx < 145) booted = true;
+  }
+  check('K3: PAST THE CAP THE BALL IS RESCUED TO THE MATE CLOSEST TO THE FIELD (a keeper 11.4u out can never reach his own net)',
+    keeperD >= SOCCER_KICKOFF_TAKE_R && rescuedTo === 2 && atFeet && rescuedZ === 0 && rescuedDir === -1 &&
+    rescuedX < T.goalR.x - 1,
+    'keeperD=' + keeperD.toFixed(2) + 'u owner=kid' + rescuedTo + ' atFeet=' + atFeet + ' ball=(' + rescuedX.toFixed(2) + ',' + rescuedY.toFixed(2) + ',z ' + rescuedZ.toFixed(2) + ')');
+  check('K3: the rescued kid BOOTS IT BACK IN PLAY toward the other goal (kickoffDir cleared, roles retired)',
+    booted && T.kickoffFetch === null && T.kickoffReady === null && T.kickoffT === 0,
+    'booted after ' + (bootFrames * 0.016).toFixed(2) + 's tx=' + T.ball.tx.toFixed(2));
+})();
 // scenario E: kids NEVER stop and plow straight through sidewalk junk
 (function () {
   T = makeTeam();
@@ -411,7 +593,7 @@ check('the "GOOOOAL!" celebration bubble was spoken by a kid', simOk && voiceCal
   const trees = [];
   for (let x = 94; x <= 146; x += 8) { trees.push({ wx: x, wy: 1.6 }); trees.push({ wx: x, wy: 4.2 }); }
   const bl = [{ trees: trees }];
-  const stepBlocks = (pw) => runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, bl, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, clamp, Voice, animParts);
+  const stepBlocks = (pw) => runCase(T.leader, 0.016, R, 0.3, 'play', pw, T, bl, SOCCER_LEAD, SOCCER_PICKUP, SOCCER_WORKER_RANGE, SOCCER_KICK_VZ, SOCCER_WORKER_KICK_CD, SOCCER_SHOT_RANGE, SOCCER_SHOT_VZ, SOCCER_ROLL_SP, SOCCER_PASS_MIN, SOCCER_GOAL_R, SOCCER_GOAL_YR, SOCCER_CELEBRATE, SOCCER_ROLL_ACCEL, SOCCER_BALL_R, SOCCER_KICKOFF_RUN, SOCCER_KICKOFF_TAKE_R, SOCCER_KICKOFF_WATCHDOG, SOCCER_KICKOFF_RESCUE, clamp, Voice, animParts);
   const pW = { wx: 118, wy: 6.5 }; // the worker on the road, close enough that the kids kick AT him
   let okT = true, whyT = '', overlap = 0, stall = 0, run = 0, worstRun = 0, offBand = 0, travel = 0, bx = 0, by = 0;
   bx = T.ball.wx; by = T.ball.wy;
