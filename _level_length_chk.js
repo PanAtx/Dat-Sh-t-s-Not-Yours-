@@ -111,8 +111,19 @@ check('the clock and the goals are the shipped 30s / $3000 / 6 baskets',
 check('the overtime street is 4 blocks of 10 cells (80u) on a 96u step — NOT the week\'s 56u / 72u',
   BONUS_BLOCKS === 4 && BONUS_CELLS === 10 && BONUS_BLOCK_W === 80 && BONUS_STEP === 96,
   'cells=' + BONUS_CELLS + ' block=' + BONUS_BLOCK_W + ' step=' + BONUS_STEP);
-check('the pinned overtime grid is 0 / 96 / 192 / 288 with gaps at 80 / 176 / 272 / 344',
-  BONUS_BLOCK_XS.join('/') === '0/96/192/288' && BONUS_XS.join('/') === '80/176/272/344');
+check('the pinned overtime grid is 0 / 96 / 192 / 288 with gaps at 80 / 176 / 272 / 368 (every gap is its block FAR edge)',
+  BONUS_BLOCK_XS.join('/') === '0/96/192/288' && BONUS_XS.join('/') === '80/176/272/368' &&
+  BONUS_XS.every((x, i) => x === BONUS_BLOCK_XS[i] + BONUS_BLOCK_W) &&
+  BONUS_XS[3] + IW === BONUS_ROUTE_END_X,
+  'gaps=' + BONUS_XS.join('/'));
+check('the straight curbs pour on the LIVE route grid — the overtime street gets its full 80u blocks, the week keeps 56u',
+  /const curbGridXs =\s*\n\s*typeof routeBlockXs === "function"\s*\n\s*\? routeBlockXs\(\)/.test(html) &&
+  /const curbGridW =\s*\n\s*typeof routeBlockW === "function" \? routeBlockW\(\) : BLOCK_W;/.test(html) &&
+  /const bEnd = bl\.x \+ curbGridW \+ 1\.5;/.test(html) &&
+  /for \(const bl of curbBlocks\) \{\s*\n\s*const cs = curbSpan\(bl\);/.test(html));
+check('no curb is poured off the week grid any more (OVERTIME got a curb through the intersection + a bare mid-block stretch)',
+  /const bEnd = bl\.x \+ curbGridW \+ 1\.5;/.test(html) &&
+  !/const bEnd = bl\.x \+ BLOCK_W \+ 1\.5;/.test(html));
 check('overtime wall at 384, barrier at 80, clock-in at 88 — the shipped round, untouched',
   BONUS_ROUTE_END_X === 384 && BONUS_START_X === 80 && BONUS_PLAYER_START_X === 88);
 check('the overtime street is STILL 384u long — the length the week used to be: it did not shrink',

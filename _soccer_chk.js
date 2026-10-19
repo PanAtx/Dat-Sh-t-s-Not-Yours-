@@ -647,7 +647,9 @@ check('ball bonk has a cooldown (no spam)', ballBlock.indexOf('c.ballCd = 2.5') 
 const kidBlock = extractIfBlock('if (c.type === "soccer") {');
 check('kid bump: light damage tagged "soccer"', kidBlock.indexOf('hurtNPC(HP_HIT_SOCKER, "soccer")') >= 0);
 check('kid bump: kid fires one of the 3 panic lines', kidBlock.indexOf('pick(SOCKER_LINES)') >= 0);
-check('kid bump: worker bounces back + light stun', kidBlock.indexOf('p.wx -= (dx / d) * 1.1') >= 0 && kidBlock.indexOf('doStun(0.6, "hit")') >= 0);
+check('kid bump: worker is STUNDED (light hit + doStun) and NEVER SHOVED — the branch writes no p.wx / p.wy', kidBlock.indexOf('doStun(0.6, "hit")') >= 0 && kidBlock.indexOf('p.wx -=') < 0 && kidBlock.indexOf('p.wy -=') < 0 && !/p\.wy\s*=/.test(kidBlock));
+check('kid bump: the knock empties his hands (dropCarried runs on the contact)', kidBlock.indexOf('dropCarried()') >= 0);
+check('kid bump: THE KID takes the recoil off the worker (kid pushed back, worker stays planted)', /c\.wx = clamp\(c\.wx \+ kx \* 1\.1/.test(kidBlock) && /c\.wy = clamp\(c\.wy \+ ky \* 1\.1/.test(kidBlock));
 check('kid bump has a cooldown (no spam)', kidBlock.indexOf('c.kidCd = 2.5') >= 0 && kidBlock.indexOf('c.kidCd <= 0') >= 0);
 // ---- run the REAL branches ----
 function makeRecorder() {
@@ -658,7 +660,7 @@ function makeRecorder() {
   return { rec: rec, hurtNPC: hurtNPC, doStun: doStun, Voice: Voice };
 }
 const runBallBlock = new Function('c', 'p', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'clamp', 'workerMaxY', 'HP_HIT_SOCCERBALL', 'R', ballBlock);
-const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'pick', 'SOCKER_LINES', 'HP_HIT_SOCKER', 'clamp', 'workerMaxY', kidBlock);
+const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun', 'Voice', 'WORKER_GENDER', 'pick', 'SOCKER_LINES', 'HP_HIT_SOCKER', 'clamp', 'workerMaxY', 'dropCarried', 'carry', kidBlock);
 // scenario A: worker bonks the ball (kid 2.5u behind it — outside the kid's own radius)
 (function () {
   const { rec, hurtNPC, doStun, Voice } = makeRecorder();
@@ -678,19 +680,24 @@ const runKidBlock = new Function('c', 'p', 'dx', 'dy', 'd2', 'hurtNPC', 'doStun'
   runBallBlock(c, pw, hurtNPC, doStun, Voice, WORKER_GENDER, clamp, workerMaxY, HP_HIT_SOCCERBALL, R);
   check('A: ball bonk cooldown blocks an instant second whack', rec.hits.length === 0, JSON.stringify(rec.hits));
 })();
-// scenario B: worker touches the kid (ball far away)
+// scenario B: worker touches the kid (ball far away) — THE NO-PUSH LAW
 (function () {
   const { rec, hurtNPC, doStun, Voice } = makeRecorder();
-  const c = { type: 'soccer', wx: 0.5, wy: 3, gender: 'male', kidCd: 0, ballCd: 0, ball: { wx: 20, wy: 3 } };
+  const c = { type: 'soccer', wx: 0.5, wy: 3, gender: 'male', kidCd: 0, ballCd: 0, ball: { wx: 20, wy: 3 }, team: { minX: -99, maxX: 99 } };
   const pw = { wx: 0, wy: 3 };
   const dx = c.wx - pw.wx, dy = c.wy - pw.wy, d2 = dx * dx + dy * dy;
-  runKidBlock(c, pw, dx, dy, d2, hurtNPC, doStun, Voice, WORKER_GENDER, pick, SOCKER_LINES, HP_HIT_SOCKER, clamp, workerMaxY);
+  let drops = 0;
+  const dropCarried = () => drops++;
+  runKidBlock(c, pw, dx, dy, d2, hurtNPC, doStun, Voice, WORKER_GENDER, pick, SOCKER_LINES, HP_HIT_SOCKER, clamp, workerMaxY, dropCarried, 'can');
   check('B: kid bump deals the light hit (3) tagged "soccer"', rec.hits.length === 1 && rec.hits[0].amt === 3 && rec.hits[0].cause === 'soccer', JSON.stringify(rec.hits));
   check('B: kid fires a panic line ("Don\'t touch me!"/"Mommy!"/"Bad man!")', rec.lines.some(l => l.speaker === 'kid' && SOCKER_LINES.indexOf(l.text) >= 0), JSON.stringify(rec.lines));
-  check('B: worker is bounced back off the kid', pw.wx < 0, 'p.wx=' + pw.wx.toFixed(3));
+  check('B: worker is STUNNED, NOT SHOVED — he stands exactly where the kid hit him', pw.wx === 0 && pw.wy === 3 && rec.stuns.length === 1 && rec.stuns[0].t === 'hit', 'p.wx=' + pw.wx.toFixed(3) + ' p.wy=' + pw.wy.toFixed(3) + ' stuns=' + JSON.stringify(rec.stuns));
+  check('B: the stun empties his hands — the carried can/bags drop to the walk', drops === 1, 'drops=' + drops);
+  check('B: THE KID bounces off the worker (kid recoils, adult stays planted)', c.wx > 0.5, 'c.wx=' + c.wx.toFixed(3));
   rec.hits.length = 0;
-  runKidBlock(c, pw, dx, dy, d2, hurtNPC, doStun, Voice, WORKER_GENDER, pick, SOCKER_LINES, HP_HIT_SOCKER, clamp, workerMaxY);
-  check('B: kid-bump cooldown blocks an instant second hit', rec.hits.length === 0, JSON.stringify(rec.hits));
+  drops = 0;
+  runKidBlock(c, pw, dx, dy, d2, hurtNPC, doStun, Voice, WORKER_GENDER, pick, SOCKER_LINES, HP_HIT_SOCKER, clamp, workerMaxY, dropCarried, 'can');
+  check('B: kid-bump cooldown blocks an instant second hit (and a second spill)', rec.hits.length === 0 && drops === 0, JSON.stringify(rec.hits) + ' drops=' + drops);
 })();
 
 console.log('[5] the crowd routes around the soccer kids');

@@ -28,7 +28,7 @@ const M=(c)=>({c}), MS=(c)=>({c}), BX=(w)=>meshMock(w/2), CY=(r1,r2)=>meshMock(M
 const worker = { group: groundGroup };
 const CROSS_W = 9, IW = 16, LEVEL_XS = [0,16,32,48,64,80,96,112];
 // The OVERTIME street's PINNED corner line (its 80u blocks on a 96u step never follow the week)
-const BONUS_XS = [80, 176, 272, 344];
+const BONUS_XS = [80, 176, 272, 368];
 const R = (a,b)=>a + Math.random()*(b-a);
 const GZ = 0.01, LITTER_DUMP_RADIUS = 4.0, BLOCK_W = 16, QUEENS_CEMETERY_X = 288;
 const truck = { wx:10, hopperOff:-4.3, hopperY:0, hidden:0 };

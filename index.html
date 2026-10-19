@@ -5563,7 +5563,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.583</div>
+          <div id="app-version" class="menu-version">v1.0.584</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5878,7 +5878,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.583';
+      const APP_VERSION = '1.0.584';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -8171,7 +8171,10 @@
       const BONUS_BLOCK_W = 80; // pinned: BW * BONUS_CELLS (10 cells x 8u)
       const BONUS_STEP = 96; // pinned: BONUS_BLOCK_W + IW (block + intersection)
       const BONUS_BLOCK_XS = [0, 96, 192, 288]; // pinned: i * BONUS_STEP
-      const BONUS_XS = [80, 176, 272, 344]; // pinned: BONUS_BLOCK_XS[i] + BONUS_BLOCK_W
+      // The 4th gap was authored as 288 + BLOCK_W (the week's 56u number = 344), which drops that
+      // cross-street in the MIDDLE of the overtime street's last block (its own formula is
+      // BONUS_BLOCK_XS[i] + BONUS_BLOCK_W = 368, and the street wall at 384 = 368 + IW proves it).
+      const BONUS_XS = [80, 176, 272, 368]; // pinned: BONUS_BLOCK_XS[i] + BONUS_BLOCK_W
       const BONUS_START_X = 80; // pinned: the overtime street's barrier line (BONUS_XS[0])
       const BONUS_PLAYER_START_X = 88; // pinned: the overtime clock-in spot (BONUS_XS[0] + IW / 2)
       const BONUS_ROUTE_END_X = 384; // pinned: far edge of the 4th intersection (368..384) — the worker can't walk past the end of the street
@@ -9663,12 +9666,32 @@
         // (BLOCK_W + 3, landing 1.5u past the block edges on the curb-return tangent points).
         const nightCurbCut =
           isNightShift() && typeof NIGHT_FENCE_X === "number" ? NIGHT_FENCE_X : null;
+        // THE CURB ANSWERS THE LIVE ROUTE GRID (the OVERTIME curb fix): the OVERTIME BASKETS
+        // street is built on its OWN pinned grid — four 80u blocks on a 96u step (BONUS_BLOCK_XS).
+        // Poured off LEVEL_BLOCKS + BLOCK_W (the week's 56u row), its curbs stopped 22.5u SHORT of
+        // each overtime block (a bare stretch of sidewalk in the MIDDLE of the storefront row) and
+        // ran 13u PAST the block edge, straight THROUGH the cross-street gap (a curb down the
+        // middle of the intersection). routeBlockXs() / routeBlockW() answer the pinned
+        // 0/96/192/288 + 80u grid on OVERTIME and the EXACT week numbers (0/72/144... + 56u) on
+        // every other shift — the seven weekdays pour the identical curb they always did, and the
+        // segment ends land on the corner-return arcs' tangent points (blockEdge +/- 1.5) on both.
+        const curbGridXs =
+          typeof routeBlockXs === "function"
+            ? routeBlockXs()
+            : LEVEL_BLOCKS.map(function (bl) {
+                return bl.x;
+              });
+        const curbGridW =
+          typeof routeBlockW === "function" ? routeBlockW() : BLOCK_W;
+        const curbBlocks = curbGridXs.map(function (bx) {
+          return { x: bx };
+        });
         const curbSpan = function (bl) {
           const a = nightCurbCut != null ? Math.max(bl.x - 1.5, nightCurbCut) : bl.x - 1.5;
-          const bEnd = bl.x + BLOCK_W + 1.5;
+          const bEnd = bl.x + curbGridW + 1.5;
           return { w: bEnd - a, cx: (a + bEnd) / 2 };
         };
-        for (const bl of LEVEL_BLOCKS) {
+        for (const bl of curbBlocks) {
           const cs = curbSpan(bl);
           if (cs.w < 1) continue; // the whole block is cemetery: no curb to pour
           const seg = new THREE.Mesh(new THREE.BoxGeometry(cs.w, 0.5, 0.5), curbM);
@@ -9681,7 +9704,7 @@
           groundGroup.add(segF);
         }
         const edgeM = new THREE.MeshLambertMaterial({ color: 0xd8dde2 });
-        for (const bl of LEVEL_BLOCKS) {
+        for (const bl of curbBlocks) {
           const cs = curbSpan(bl);
           if (cs.w < 1) continue;
           const edge = new THREE.Mesh(new THREE.BoxGeometry(cs.w, 0.24, 0.05), edgeM);
@@ -9980,7 +10003,8 @@
           }
         }
         // The OVERTIME street is its OWN pinned grid, so it gets the pinned intersection line
-        // (80/176/272/344) — the week's shorter step never touches it.
+        // (80/176/272/368 — every gap is its block's far edge) — the week's shorter step never
+        // touches it.
         const bonusGap = typeof BONUS !== "undefined" && BONUS;
         for (const xInt of nightGap ? NIGHT_XS : bonusGap ? BONUS_XS : LEVEL_XS) {
           const g = new THREE.Group();
@@ -46660,14 +46684,23 @@
           }
           if (c.type === "soccer") {
             // ===== Flatbush soccer kid (kid contact) =====
-            // The worker touches the kid: the kid fires a panic line and the
-            // worker gets bounced back and takes a light hit. (The ball's own bonk
-            // exchange is handled up front, before the generic radius gate, because
-            // the ball can be a few units ahead of the kid.)
+            // THE KID DOES NOT PUSH THE SANITATION WORKER AROUND. A 60%-scale child running into a
+            // standing adult means the WORKER IS THE WALL: he takes the light hit, a stun beat, and
+            // HIS HANDS COME OPEN — the carried bags / the can hit the walk at his feet (the BAG
+            // CASCADE gag). All the recoil belongs to the kid, who bounces off him back into his
+            // own lane. p.wx / p.wy are TOUCHED NOWHERE in this branch. (The ball's own bonk
+            // exchange is handled up front, before the generic radius gate, because the ball can be
+            // a few units ahead of the kid.)
+            const d = Math.sqrt(d2) || 0.001;
+            const kx = dx / d,
+              ky = dy / d; // the unit line from the worker INTO the kid
             if (c.kidCd <= 0) {
               c.kidCd = 2.5;
               hurtNPC(HP_HIT_SOCKER, "soccer");
-              doStun(0.6, "hit");
+              doStun(0.6, "hit"); // STUNNED — planted on his feet, not shoved
+              // THE KNOCK EMPTIES HIS HANDS: bags / can drop to the sidewalk.
+              if (typeof dropCarried === "function" && carry !== "none")
+                dropCarried();
               Voice.say(
                 pick(SOCKER_LINES),
                 1.8,
@@ -46677,11 +46710,13 @@
                 c.gender,
                 "kid",
               );
+            } else if (c.kidCd < 1.2) {
+              c.kidCd = 1.2; // pinned in the pile: he does not re-bump every frame
             }
-            // solid: the worker bounces back off the kid
-            const d = Math.sqrt(d2) || 0.001;
-            p.wx -= (dx / d) * 1.1;
-            p.wy = clamp(p.wy - (dy / d) * 1.1, -9.4, workerMaxY());
+            // THE KID BOUNCES OFF THE WORKER (stays inside his own block + walk band)
+            const tb = c.team;
+            c.wx = clamp(c.wx + kx * 1.1, tb ? tb.minX : -999, tb ? tb.maxX : 999);
+            c.wy = clamp(c.wy + ky * 1.1, 1.05, 4.75);
             return;
           }
           if (c.type === "teeball") {
