@@ -276,9 +276,16 @@
       .pwicon {
         flex: 0 0 auto;
         width: 15px;
+        height: 15px;
         font-size: 13px;
         line-height: 1;
         text-align: center;
+        /* The real-icon paint (PNG rendered from the in-game pickup GLBs) is applied as a
+           background image by paintEarnBarIcons(); the emoji in the markup is the fallback
+           that stays visible until (or if) the 3D render is available. */
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
         font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
           sans-serif;
         filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
@@ -1164,6 +1171,7 @@
         /* the earn-a-power-up bars keep the same phone law as every other HUD gauge */
         .pwicon {
           width: 13px;
+          height: 13px;
           font-size: 11px;
         }
         .pwbars {
@@ -5906,7 +5914,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.599</div>
+          <div id="app-version" class="menu-version">v1.0.600</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6571,7 +6579,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.599';
+      const APP_VERSION = '1.0.600';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -61805,6 +61813,99 @@
           pg.add(h.can.g);
         }
       }
+      // ==================== EARN-BAR ICONS (painted from the REAL pickup models) ==========
+      // The heal / RED BULL earn bars carry tiny icons that must READ as the pickups they
+      // forecast: the bacon-egg-cheese sandwich (bec-compressed.glb) and the Red Bull can
+      // (red_bull_energy_drink_can-compressed.glb). Both GLB templates are already built by
+      // the boot preload, so the icons are RENDERED from those exact templates once per
+      // session on a throwaway 192px alpha WebGL context: the model is cloned (the shared
+      // template is never mutated), centered, fit-scaled, lit with the same sun-tinted key +
+      // white ambient recipe the street uses, and exported as a PNG data-URL painted onto the
+      // icon span. The emoji in the markup is the fallback: it stays visible until a render
+      // succeeds (3D-blocked browsers / file:// with no GLB keep the emoji - icons degrade,
+      // bars never break).
+      function renderEarnIconFromTemplate(tpl, opts) {
+        if (!tpl || typeof THREE === "undefined" || !THREE.WebGLRenderer) return "";
+        var cv = document.createElement("canvas");
+        var r = null;
+        try {
+          r = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true });
+          r.setPixelRatio(2); // 96px box at 2x - crisp down to the 13px phone icon
+          r.setSize(96, 96, false);
+          r.setClearColor(0x000000, 0); // transparent: the icon sits on the HUD, not a tile
+          var sc = new THREE.Scene();
+          var camDir = new THREE.Vector3(
+            Math.cos(opts.elev) * Math.sin(opts.azim),
+            Math.sin(opts.elev),
+            Math.cos(opts.elev) * Math.cos(opts.azim),
+          ).normalize();
+          var key = new THREE.DirectionalLight(0xfff2dd, 0.9); // the street's sun tint
+          key.position.copy(camDir).multiplyScalar(12);
+          sc.add(key);
+          sc.add(new THREE.AmbientLight(0xffffff, 0.85));
+          var fill = new THREE.DirectionalLight(0xffffff, 0.4); // rim from behind the model
+          fill.position.copy(camDir).multiplyScalar(-12);
+          sc.add(fill);
+          var model = tpl.clone(true); // clone - never touch the shared gameplay template
+          model.rotation.set(0, opts.yRot, 0); // 3/4 view: the label / layers face the lens
+          var box = new THREE.Box3().setFromObject(model);
+          var c = box.getCenter(new THREE.Vector3());
+          var size = box.getSize(new THREE.Vector3());
+          var maxD = Math.max(size.x, size.y, size.z) || 1;
+          var s = 1.72 / maxD; // fills a 2-unit orthographic frame, small margin kept
+          var g = new THREE.Group();
+          g.add(model);
+          g.scale.setScalar(s);
+          g.position.set(-c.x * s, -c.y * s, -c.z * s);
+          sc.add(g);
+          var cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
+          cam.position.copy(camDir).multiplyScalar(30);
+          cam.lookAt(0, 0, 0);
+          r.render(sc, cam);
+          return cv.toDataURL("image/png");
+        } catch (e) {
+          console.warn("[ICON] earn-bar icon render failed:", e && e.message);
+          return "";
+        } finally {
+          if (r) {
+            // One transient context for two 96px frames - hand it straight back: phones cap
+            // the number of live WebGL contexts and the game owns the big one.
+            try {
+              r.forceContextLoss();
+            } catch (e) {}
+            try {
+              r.dispose();
+            } catch (e) {}
+          }
+        }
+      }
+      function paintEarnBarIcons() {
+        try {
+          var healIco = document.getElementById("pw-heal-icon");
+          var bullIco = document.getElementById("pw-bull-icon");
+          // BEC sandwich: seen from a three-quarter angle ABOVE - the roll, cheese and
+          // bacon stack read as a sandwich. Red Bull can: near-level view - the tall blue
+          // and silver label band reads as the can.
+          var becUrl = renderEarnIconFromTemplate(
+            BEC_TPL ? BEC_TPL.template : null,
+            { elev: 0.62, azim: -0.55, yRot: 0.35 },
+          );
+          var bullUrl = renderEarnIconFromTemplate(
+            MONSTER_TPL ? MONSTER_TPL.template : null,
+            { elev: 0.16, azim: -0.55, yRot: 0.45 },
+          );
+          if (becUrl && healIco) {
+            healIco.textContent = ""; // emoji fallback yields to the real icon
+            healIco.style.backgroundImage = "url(" + becUrl + ")";
+          }
+          if (bullUrl && bullIco) {
+            bullIco.textContent = "";
+            bullIco.style.backgroundImage = "url(" + bullUrl + ")";
+          }
+        } catch (e) {
+          console.warn("[ICON] earn-bar icons unavailable (emoji stay):", e && e.message);
+        }
+      }
       // ==================== BOOT ====================
       // The "Please Wait, Getting Assets" screen stays up until EVERY 3D model (nyc_truck-compressed.glb +
       // the pickup .glbs) AND the two title images have been downloaded into the browser
@@ -62209,6 +62310,7 @@
         if (!results[0]) throw new Error("truck template failed to build");
         rebuildTruckFromFbx(); // swap the live truck to the real GLB model now
         rebuildCansFromGltf(); // swap any live curb cans onto the free nyc_can-compressed.glb model
+        paintEarnBarIcons(); // paint the heal/RED BULL earn-bar icons from the BEC + can templates
       }
       // ---- TRUE OFFLINE: download the ENTIRE radio rotation into the radio cache ----
       // The models gate above only covers the 3D assets. To make the game genuinely
