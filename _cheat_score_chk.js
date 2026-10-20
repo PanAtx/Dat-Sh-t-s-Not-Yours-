@@ -309,16 +309,21 @@ check('the main-menu doorway hint keeps its EXACT text (the version-display law 
   new RegExp('<div class="menu-ver-hint" id="menu-ver-hint">tap above for hidden cheat menu!</div>').test(src));
 check('the trainer hint row says the plain law: CHEATS IN USE - HI-SCORE NOT SAVED',
   /id="tr-hint-cheat">CHEATS IN USE - HI-SCORE NOT SAVED</.test(src));
-check('the trainer marquee spells the law out (the scrolling warez-scene text)',
-  /THE RULE OF THIS TRAINER: CHEATS IN USE MEANS THE HI-SCORE IS NOT SAVED/.test(src) &&
-    /NO CHEATING! stamp saying HI-SCORE NOT SAVED/.test(src));
-check('the marquee states the 3 WRITE-UPS = GAME OVER law AND names the ONE row that touches it',
-  /3 WRITE-UPS END THE GAME/.test(src) &&
-    /with it ON the complaints never stack, the seal prints and the strike does not/.test(src) &&
-    /No row clears a strike already on the record, and no row buys a 4th strike/.test(src));
-check('the marquee states the REFRESH law (a reload hands back a clean, eligible panel)',
-  /REFRESH THE GAME AND THE PANEL IS CLEAN/.test(src) &&
-    /with no cheat in use, so the week that follows is eligible for a HI-SCORE again/.test(src));
+check('the trainer marquee is ONLY the -Pan- scene message (no cheat lecture in the scroll text)',
+  /var TRAINER_MSG =\n {8}" {30}Hey cool fans! -Pan-/.test(src) &&
+    /I hope you enjoy this simple game![ ]{10}";/.test(src));
+check('the scroll text carries NO cheat law - the rule lives in the INSTRUCTIONS card, not the marquee',
+  !/THE RULE OF THIS TRAINER/.test(src) && !/HI-SCORE is YOURS/.test(src) &&
+    !/3 WRITE-UPS END THE GAME/.test(src) && !/REFRESH THE GAME AND THE PANEL IS CLEAN/.test(src));
+check('the 3 WRITE-UPS = GAME OVER law is told to the player (the INSTRUCTIONS card) AND names the ONE row that touches it',
+  /the three-strike law is plain: 3 write-ups = SUSPENDED/.test(src) &&
+    /the <b>COMPLAINTS ISSUED<\/b> meter does not climb/.test(src) &&
+    /The row clears nothing that is already on the record/.test(src));
+check('the REFRESH law is told to the player (a reload hands back a clean, eligible panel)',
+  /A REFRESH CLEANS THE SHEET/.test(src) &&
+    /no cheat in use, no flag, and the HI-SCORE is <b>saveable again<\/b>/.test(src));
+check('the trainer panel itself keeps its one-line cheat law (the marquee is not the warning)',
+  /id="tr-hint-cheat">CHEATS IN USE - HI-SCORE NOT SAVED</.test(src));
 check('the trainer rows keep their three cheats + the starting level (the law covers all four)',
   /label: "Infinite Complaints"/.test(src) && /label: "Infinite Health"/.test(src) &&
     /label: "Always Run It Up!"/.test(src) && /label: "Starting Level"/.test(src));
