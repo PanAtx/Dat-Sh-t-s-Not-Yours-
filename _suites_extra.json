@@ -405,6 +405,11 @@
       "THE EARN BARS AND THE EARN AMOUNTS ARE ONE SCALE PER LEVEL (5,000 notes on every shift - the same 5,000 load in HELL NOTES on MIDNIGHT - and 30,000 score by day / 120,000 SCORE on MIDNIGHT for the Bull; the night re-anchors its spans on its own grid at every shift build; a bar reads full width on the frame its power-up lands)",
       "node",
       "_midnight_bars_chk.js"
+    ],
+    [
+      "THE STATEN ISLAND + MIDNIGHT PLAYABILITY BATCH: THE BLUE JAY'S ONE-GOOD-BLOW LAW (a landed dive arms c.struckOnce - she never circles again for the rest of the shift, a whiff does not count), THE MAFIA GUY'S FED-PARANOIA RESIDENCY LAW (spawn-authored bounds cover his own block + the ONE block coming up next - his stalk is hard-clamped, the made-man will not walk a whole borough with the Feds watching), and THE HOOK AT MIDNIGHT (clocking into the night card zeroes the COMPLAINTS ISSUED meter so weekday strikes cannot suspend a haunted shift; the day card prints ALL COMPLAINTS SQUASHED BY YOUR HOOK, the HUD repains 0/3 pips, beginDay speaks the beat, and the INSTRUCTIONS rows on Staten Island / write-ups / Midnight carry the words)",
+      "node",
+      "_si_playable_chk.js"
     ]
   ]
 }

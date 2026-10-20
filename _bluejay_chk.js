@@ -242,10 +242,17 @@ console.log('\n[3] AI: nest -> warning CIRCLE (the tell) -> DIVE -> climb, simul
   check('climb: she lands back in the nest', bird.state === 'nest' && Math.hypot(bird.nest.wx - bird.wx, bird.nest.wy - bird.wy) < 0.01 && Math.abs(bird.gz - bird.nestZ) < 0.01);
   check('climb: she takes a breather (cd re-armed) before the next run', bird.cd > 0);
 
-  // (e) worker still around -> the harassment REPEATS
+  // (e) THE ONE-GOOD-BLOW LAW (playability): the strike that LANDED is HER teaching —
+  //     she flies home, sits on the nest rim and NEVER circles/dives for the rest
+  //     of the shift. A whiff (see (f)) does NOT flip this flag.
+  const struckHurt = calls.hurt.length; // the landed hit from step (c) is already booked
   const before2 = calls.hurt.length;
-  tick(600); // wait out the cd
-  check('repeat: she harasses again while he is still in the territory', bird.state === 'circle' || bird.state === 'dive' || bird.state === 'climb' || calls.hurt.length > before2);
+  tick(900); // generously wait out the cd the breather set
+  check('ONE-GOOD-BLOW: after a strike LANDS, c.struckOnce is armed', bird.struckOnce === true);
+  check('ONE-GOOD-BLOW: 15 sim seconds later she is still on the nest, no new circle (bird.state=' + bird.state + ')',
+    bird.state === 'nest');
+  check('ONE-GOOD-BLOW: she delivers NO second hit within the shift (no extra hurt)',
+    calls.hurt.length === struckHurt && calls.hurt.length === before2);
 
   // (f) WHIFF: if he runs the dive down, no damage
   const bird3 = mkBird();
