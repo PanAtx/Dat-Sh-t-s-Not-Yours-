@@ -232,10 +232,17 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
       'var isNightShift = function(){ return false; };' +
       'function setStartMilestones(){ monsterNextAt = MONSTER_SCORE_STEP; monsterSpanBase = 0; healerNextAt = POWERUP_CASH_STEP; healerSpanBase = 0; }' +
       'var SKIN_TONES = [0x000000];' +
+      // Overtime re-arm in startGame (quit-mid-OVERTIME must never carry the bonus
+      // world into a fresh week): the sandbox seeds the bonus-round globals with
+      // DIRTY values so the checks prove startGame() clears every one of them.
+      'var BONUS_TIME = 30; var BONUS = true; var bonusDoneThisRun = true; var thursdayRedBull = true;' +
+      'var bonusClock = 7; var bonusClockStarted = true; var bonusResultShown = true; var bonusCashGoalMet = true;' +
+      'var overtimeCashLastShown = 555; var bonusResultTimer = 1234; var bonusHopStart = 99;' +
+      'function $(id){ return null; } function stopConfetti(){} function hideBonusClock(){}' +
       'var health = 0; var maxHealth = 100;' +
       'var dangerWarned = true; function dangerAlarmOff(){}' +
       sg +
-      '\nstartGame();\nreturn { health: health, level: level, weekScore: weekScore, score: score, bonusTally: bonusTally, monsterNextAt: monsterNextAt, healerNextAt: healerNextAt, introduced: out.introduced, dangerWarned: dangerWarned };'
+      '\nstartGame();\nreturn { health: health, level: level, weekScore: weekScore, score: score, bonusTally: bonusTally, monsterNextAt: monsterNextAt, healerNextAt: healerNextAt, introduced: out.introduced, dangerWarned: dangerWarned, BONUS: BONUS, bonusDoneThisRun: bonusDoneThisRun, thursdayRedBull: thursdayRedBull, hop: bonusHopStart, shown: bonusResultShown, clock: bonusClock, met: bonusCashGoalMet, cashShown: overtimeCashLastShown };'
   );
   const r = fn(
     null,
@@ -255,6 +262,12 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
   check(
     'startGame: a stale danger flag (warned in the previous run) is re-armed for the fresh week',
     r.dangerWarned === false,
+  );
+  check(
+    'startGame: quitting mid-OVERTIME leaves no trace - BONUS / bonusDoneThisRun / thursdayRedBull / the win hop / result + goal flags / the round clock all RE-ARM (a menu START boots Level 1, never the overtime street)',
+    r.BONUS === false && r.bonusDoneThisRun === false &&
+      r.thursdayRedBull === false && r.hop === 0 && r.shown === false &&
+      r.met === false && r.clock === 30 && r.cashShown === -1,
   );
 }
 

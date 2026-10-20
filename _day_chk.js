@@ -118,11 +118,11 @@ check('levelName: every level is its plain day — the haunted shift is called M
   levelName(LEVEL_DAYS[0]) === 'MONDAY' && levelName(LEVEL_DAYS[7]) === 'MIDNIGHT');
 check('levelLoc: a weekday names its borough and its street, the haunted shift names its street DEAD END',
   levelLoc(LEVEL_DAYS[2]) === 'BROOKLYN / FLATBUSH' && levelLoc(LEVEL_DAYS[7]) === 'DEAD END');
-const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats','routeFailed','clearTimeout','writeUpDimTimer','clearAdvancePressed','levelName','levelLoc','cashName',
+const makeShowDayStats = lv => new Function('$','LEVEL_DAYS','level','MAX_LEVEL','dayStats','dayScore','weekScore','pad','setTxt','statRow','newDayStats','routeFailed','clearTimeout','writeUpDimTimer','clearAdvancePressed','levelName','levelLoc','cashName','hi',
   extractFn('showDayStats') + '\n; return showDayStats;')($, LEVEL_DAYS, lv, LEVEL_DAYS.length, dayStatsMock, 1234, 9999, pad, setTxt, statRow, newDayStats, false, () => 0, 0, () => {}, levelName, levelLoc,
   // THE LEVEL'S OWN WORD FOR THE CASH TALLY (the game reads isNightShift() at report time):
   // Midnight banks HELL NOTES, the seven weekdays bank STREET CASH.
-  () => (lv === LEVEL_DAYS.length ? 'HELL NOTES' : 'STREET CASH'));
+  () => (lv === LEVEL_DAYS.length ? 'HELL NOTES' : 'STREET CASH'), 0);
 makeShowDayStats(3)();
 check('showDayStats titles the day (WEDNESDAY)', els['day-stats-title'].textContent.indexOf('WEDNESDAY') >= 0);
 makeShowDayStats(8)();
@@ -142,7 +142,7 @@ const grid = els['day-stats-grid'].innerHTML;
 check('showDayStats renders all 6 breakdown rows', ['GARBAGE BAGS','GARBAGE CANS','LITTER BASKETS','MONGO HAULED','TREASURES','STREET CASH'].every(l => grid.indexOf(l) >= 0));
 check('showDayStats shows bags "15 / 20"', grid.indexOf('15') >= 0 && grid.indexOf('/ 20') >= 0);
 check('showDayStats flags a perfect run (baskets 14/14)', grid.indexOf('perfect') >= 0);
-check('showDayStats shows the SPOOKS SHOBELED row when a spook tally exists', grid.indexOf('SPOOKS SHOBELED') >= 0 && grid.indexOf('/ 14') >= 0);
+check('showDayStats shows the SPOOKS SHOVELED row when a spook tally exists', grid.indexOf('SPOOKS SHOVELED') >= 0 && grid.indexOf('/ 14') >= 0);
 check('showDayStats sets day + week score', els['day-stats-score'].textContent.indexOf('1234') >= 0 && els['day-stats-week'].textContent.indexOf('9999') >= 0);
 check('mid-week -> "NEXT DAY" button', els['btnNextDay'].textContent.indexOf('NEXT DAY') >= 0);
 makeShowDayStats(7)();

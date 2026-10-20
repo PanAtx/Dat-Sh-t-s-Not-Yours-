@@ -35,6 +35,7 @@ const suites = [
   ['slapstick + weather (squash-stretch / hat pop / bag cascade / rain)', 'node', '_slapstick_weather_chk.js'],
   ['punchback (retaliation vs the 12 attack NPCs)', 'node', '_punch_back_chk.js'],
   ['write-up stamp fits mobile (CSS invariants)', 'node', '_writeup_mobile_chk.js'],
+  ['goal chips never cover the earn-a-power-up bars (HUD paint layers + measured strip)', 'node', '_hud_cover_chk.js'],
   ['ending screens (arcade GAME OVER boot-in-shit + WEEK COMPLETE cash rain: transform/opacity-only loops, phone piece budget, tally + teardown)', 'node', '_ending_screens_chk.js'],
   ['health carry-over (no refill at level start - street-cash healer / write-up restores)', 'node', '_health_carryover_chk.js'],
   ['danger zone POW! + 1980s arcade voice ("San Man Needs Food Badly")', 'node', '_danger_pow_chk.js'],

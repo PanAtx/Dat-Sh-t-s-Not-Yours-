@@ -24,6 +24,10 @@
 //     placed ACROSS THE WHOLE STREET (truck lane + car lanes, left to right) by
 //     buildCemeteryStreetGhosts, separated >= 2.4u so the street stays traversable,
 //     arms animated in updateCreatures
+//   - THE LOT LAW (Thursday): every headstone / monument / dead tree on the cemetery block
+//     stands ON THE LOT (bx .. bx + BLOCK_W) — NO stone is ever spawned in the 16u
+//     INTERSECTION by the cemetery; the prop x's derive from BLOCK_W with the CEM_PROP_IN
+//     setback (the retired 80u "10 + m * 24" stride dropped a monument into the gap)
 //   - "Failure to respect the dearly departed" write-up + ghost bubble style
 'use strict';
 const fs = require('fs');
@@ -1709,6 +1713,163 @@ console.log('[functional] street ghost hazards (the real collideStatic, run in a
     'wx=' + gsSide.p.wx
   );
   check('ghoststone side approach: NO damage (an obstacle, not a hit)', gsSide.rec.hurt === 0);
+}
+
+console.log('');
+console.log('[functional] THE LOT LAW — no cemetery headstone is spawned in the intersection (Thursday)');
+{
+  // Runs the REAL buildCemeteryBlock with its builders instrumented, so every stone,
+  // monument and dead tree it places is captured at its final world x. The law: all of
+  // them land ON the cemetery lot — inside (bx, bx + BLOCK_W). The 16u stretches on both
+  // ends of the block are INTERSECTIONS (the cross-street by the cemetery included), and
+  // the retired 80u monument stride (bx + 10 + m * 24 -> bx + 58) put the third headstone
+  // squarely in the gap on the cemetery's right corner.
+  const houses = Number(src.match(/const HOUSES_PER_BLOCK = (\d+);/)[1]);
+  const bwv = Number(src.match(/BW = (\d+);/)[1]);
+  const BLOCK_Wv = houses * bwv;
+  const IWv = Number(src.match(/const IW = (\d+);/)[1]);
+  const cemIdx = Number(src.match(/const QUEENS_CEMETERY_BLOCK = (\d+);/)[1]);
+  const blocksSrc = src.match(/const LEVEL_BLOCKS = \[([\s\S]*?)\];/)[1];
+  const LEVEL_BLOCKSv = eval('[' + blocksSrc + ']');
+  const bx = LEVEL_BLOCKSv[cemIdx].x;
+  const GAPS = LEVEL_BLOCKSv.map((b) => ({ lo: b.x + BLOCK_Wv, hi: b.x + BLOCK_Wv + IWv }));
+  const inGap = (x) => GAPS.some((g) => x > g.lo && x < g.hi);
+  check(
+    'the street grid puts an intersection gap on BOTH ends of the cemetery lot (x ' + bx + '..' + (bx + BLOCK_Wv) + ')',
+    inGap(bx + BLOCK_Wv + 1) && inGap(bx - 1),
+    GAPS.map((g) => g.lo + '..' + g.hi).join(' '),
+  );
+  const propIn = Number((src.match(/const CEM_PROP_IN = (\d+);/) || [])[1]);
+  const RUNS = 300;
+  const placements = [];
+  // The builder's call order is fixed: 10 scatter slabs, then the 3 monuments, then the
+  // 4 dead trees, then the heirloom ring. Tag every prop with its ordinal so the counts
+  // are exact (a scatter slab may randomly roll variant 4 — it is NOT a monument).
+  let ord = -1;
+  const prop = (kind, top) => {
+    const o = {
+      kind: kind,
+      ord: ++ord,
+      userData: { top: top },
+      rotation: { z: 0 },
+      scale: { setScalar() {} },
+      position: {
+        x: NaN,
+        y: NaN,
+        z: NaN,
+        set(a, b, c) {
+          this.x = a;
+          this.y = b;
+          this.z = c;
+          return this;
+        },
+      },
+    };
+    placements.push(o);
+    return o;
+  };
+  const iron = () => ({
+    position: { set() {} },
+    rotation: {},
+    userData: {},
+    scale: { setScalar() {} },
+  });
+  const ctx = vm.createContext({
+    THREE: {
+      Group: function () {
+        return {
+          children: [],
+          add(c) {
+            this.children.push(c);
+          },
+        };
+      },
+    },
+    R: (a, b) => a + Math.random() * (b - a),
+    clamp: (v, a, b) => (v < a ? a : v > b ? b : v),
+    Math,
+    GZ: -0.015,
+    BLOCK_W: BLOCK_Wv,
+    QUEENS_CEMETERY_X: bx,
+    CEM_FENCE_Y: 5.4,
+    CEM_BACK_Y: 12.0,
+    makeHeadstone: (v) => prop('headstone', v === 4 ? 1.73 : 1.2),
+    makeDeadTree: () => prop('tree', 0),
+    makeTreasure: () => prop('heirloom', 0),
+    makeCemeteryFence: iron,
+    makeCemeterySign: iron,
+    RAVEN_PERCH: null,
+  });
+  vm.runInContext(extract('buildCemeteryBlock'), ctx);
+  let gapHits = 0,
+    offLot = 0,
+    stoneCount = 0,
+    monRunsOk = 0,
+    monInsetHits = 0,
+    heirloomHits = 0,
+    perchOk = true,
+    minEdge = Infinity;
+  for (let run = 0; run < RUNS; run++) {
+    placements.length = 0;
+    ord = -1;
+    ctx.buildCemeteryBlock();
+    if (!ctx.RAVEN_PERCH) perchOk = false;
+    let mon = 0,
+      slab = 0,
+      tree = 0;
+    for (const o of placements) {
+      const x = o.position.x;
+      if (o.kind === 'heirloom') {
+        if (x > bx && x < bx + BLOCK_Wv) heirloomHits++;
+        continue; // rides on a stone's x — that stone is checked below
+      }
+      stoneCount++;
+      if (inGap(x)) gapHits++;
+      if (!(x > bx && x < bx + BLOCK_Wv)) offLot++;
+      minEdge = Math.min(minEdge, x - bx, bx + BLOCK_Wv - x);
+      if (o.kind === 'headstone' && o.ord >= 10 && o.ord <= 12) {
+        mon++;
+        if (x >= bx + propIn - 1e-9 && x <= bx + BLOCK_Wv - propIn + 1e-9) monInsetHits++;
+      }
+      if (o.kind === 'headstone' && o.ord < 10) slab++;
+      if (o.kind === 'tree') tree++;
+    }
+    if (mon === 3 && slab === 10 && tree === 4) monRunsOk++;
+  }
+  check(
+    'buildCemeteryBlock plants 10 slabs + 3 monuments + 4 dead trees every run (' + RUNS + ' layouts)',
+    monRunsOk === RUNS && stoneCount === 17 * RUNS,
+    'ok runs ' + monRunsOk + '/' + RUNS,
+  );
+  check(
+    'THE LOT LAW: zero headstones / monuments / dead trees land in an intersection gap (' + RUNS + ' layouts)',
+    gapHits === 0,
+    gapHits + ' gap hit(s)',
+  );
+  check(
+    'every stone stays INSIDE the iron fence line (bx .. bx + BLOCK_W) — the lot, never the cross-street',
+    offLot === 0,
+    offLot + ' off-lot placement(s)',
+  );
+  check(
+    'the 3 big monuments keep the full ' + propIn + 'u setback from both fence ends (the old 80u stride put one at bx+58, IN the gap)',
+    monInsetHits === 3 * RUNS && propIn >= 4,
+    monInsetHits + '/' + 3 * RUNS + ' inset',
+  );
+  check(
+    'the nearest grave keeps >= ' + propIn + 'u of clearance off BOTH intersections',
+    minEdge >= propIn - 1e-9,
+    'minEdge=' + minEdge.toFixed(2),
+  );
+  check('the raven perch + its heirloom ring ride on lot stones (never a headstone in the road)', perchOk && heirloomHits === RUNS, 'heirloom on lot ' + heirloomHits + '/' + RUNS);
+  check(
+    'no cemetery prop is measured off the retired 80u block any more (no bx + 10 + m * 24 stride, no bx + 58)',
+    !/bx \+ 10 \+ m \* 24/.test(src) && !/bx \+ 58/.test(src) && /const monStride = \(BLOCK_W - 2 \* CEM_PROP_IN\) \/ 2;/.test(src)
+  );
+  check(
+    'THE LOT LAW clamps the per-cell cemetery headstones onto the block too (a cell at the block corner can never dump a stone in the gap)',
+    /clamp\(baseX \+ R\(0\.8, cellW - 0\.8\), b\.blockX \+ 4, b\.blockX \+ BLOCK_W - 4\)/.test(src)
+  );
 }
 
 console.log('');

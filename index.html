@@ -120,10 +120,38 @@
           rgba(0, 0, 0, 0.42) 100%
         );
       }
+      /* ===== THE HUD PAINT LAW v6 (top-left column: readout / goal chips / thumb-stick)
+         On a phone the top-left column carries three things at once: the top-left
+         READOUT (#tl - worker health, distance, SCORE, STREET CASH / HELL NOTES and the two
+         earn-a-power-up bars: the mint healer bar and the RED RED BULL bar), the OVERTIME /
+         MIDNIGHT GOAL PANELS (the BASKETS + CASH chips, the SPOOKS chip, the block WARD chip
+         and the SLUG DEMON bar) and, at the bottom of the screen, the thumb-STICK. v5 pinned
+         the goal panels at fixed pixels, stacked them 1:1 with the readout and painted them
+         over the bars, so a phone squashed them onto the heal + RED BULL progress bars.
+         v6's law:
+           LAYERED: the chips sit UNDER the readout (the bars are never obscured) and
+             UNDER the touch pad (they show through the translucent joystick, they are
+             never ON TOP of it) - --z-goal < --z-pad < --z-hud.
+           MEASURED: the goal panels hang off --goal-strip-top, the live bottom of the
+             readout, so the chips ALWAYS start under the RED BULL bar.
+           CAPPED: --goal-strip-cap keeps a panel's TOP edge above the thumb-stick's top
+             (--joy-top), so no goal panel rides ON the joystick.
+         #vpad rides --z-pad under the readout; body.trainer-open #vpad (50) and the
+         modal overlays (20+) keep their own layers, untouched. */
+      :root {
+        --z-goal: 12; /* the goal panels: the bottom layer */
+        --z-pad: 15; /* the touch pad: sticks over the chips */
+        --z-hud: 16; /* the READOUT incl. heal + RED BULL: over every chip */
+        --goal-strip-top: 214px; /* live bottom of the top-left readout, set by layoutGoalStrip() */
+        --goal-strip-row: 34px; /* the height of one chip row (JS measures it) */
+        --goal-strip-cap: 760px;
+        --goal-gate-row: 34px;
+        --joy-top: 760px;
+      }
       #hud {
         position: fixed;
         inset: 0;
-        z-index: 10;
+        z-index: var(--z-hud, 16);
         pointer-events: none;
         font-family: "Press Start 2P", Courier, monospace;
         font-size: 11px;
@@ -498,12 +526,12 @@
       /* ---- OVERTIME goal panel: the two WIN-condition counters (baskets + street cash) ---- */
        #bonus-goal {
          position: fixed;
-         /* Parked BELOW the top-left earn-a-power-up bars (score / street cash /
-            heal + Red Bull bars end ~y178): the BASKETS + CASH chips must never
-            sit on top of the red-bull progress bar. */
-         top: calc(210px + env(safe-area-inset-top, 0px));
+         /* Parked BELOW the top-left earn-a-power-up bars: --goal-strip-top is the live
+            bottom of the top-left readout (layoutGoalStrip() measures it), so the
+            BASKETS + CASH chips start under the RED BULL bar and the bars stay readable. */
+         top: var(--goal-strip-top, 214px);
          left: calc(20px + env(safe-area-inset-left, 0px));
-         z-index: 12;
+         z-index: var(--z-goal, 12);
          display: flex;
          flex-direction: column;
          gap: 6px;
@@ -569,12 +597,13 @@
       /* ===== THE NIGHT SHIFT (level 8) goal chip ================================
          The haunted Bed-Stuy street has no baskets to service, so the same pill
          skin reappears ONE LEVEL OVER and recolors to ECOPLASM (greenish-blue):
-         "SPOOKS SHOBELED n / 14". updateHUD() shows it on the night level only. */
+         "SPOOKS SHOVELED n / 14". updateHUD() shows it on the night level only. */
       #ecto-goal {
         position: fixed;
-        top: calc(210px + env(safe-area-inset-top, 0px));
+        /* Same measured slot as the overtime chips: under the earn-a-power-up bars. */
+        top: var(--goal-strip-top, 214px);
         left: calc(20px + env(safe-area-inset-left, 0px));
-        z-index: 12;
+        z-index: var(--z-goal, 12);
         display: flex;
         flex-direction: column;
         gap: 6px;
@@ -607,9 +636,10 @@
          are left to shovel; updateHUD() keeps it on the night shift only. */
       #gate-goal {
         position: fixed;
-        top: calc(246px + env(safe-area-inset-top, 0px));
+        /* The row under the SPOOKS chip: --goal-strip-top + one measured chip row. */
+        top: calc(var(--goal-strip-top, 214px) + var(--goal-gate-row, 34px));
         left: calc(20px + env(safe-area-inset-left, 0px));
-        z-index: 12;
+        z-index: var(--z-goal, 12);
         display: flex;
         flex-direction: column;
         gap: 6px;
@@ -766,6 +796,7 @@
          a 0.7s pulse for its whole life. The clock is JS's too: POWERUP_ARROW_LIFE 3 seconds
          from the spawn, the last second of it the fade to nothing, and the arrow dies with the
          find when the worker picks it up. It never eats a tap and it sits under the modals. */
+      #gargoyle-arrow,
       #powerup-arrow {
         position: fixed;
         left: 0;
@@ -779,9 +810,11 @@
         -webkit-user-select: none;
         will-change: transform, opacity;
       }
+      #gargoyle-arrow.hidden,
       #powerup-arrow.hidden {
         display: none;
       }
+      #gargoyle-arrow-glyph,
       #powerup-arrow-glyph {
         position: absolute;
         left: 0;
@@ -816,6 +849,15 @@
           transform: scale(1.12);
         }
       }
+      /* THE GARGOYLE POINTER (Midnight) wears the ruby skin — the SAME animated
+         arrow the power-ups use, tinted in the Ruby-Plated Gargoyle's own gem
+         colours, so the player finds the night's winning treasure the same way
+         he finds a coffee. */
+      #gargoyle-arrow-glyph {
+        background: linear-gradient(90deg, #ff2b52, #ff6a80 55%, #ffd0da);
+        filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.55))
+          drop-shadow(0 0 14px rgba(255, 43, 82, 0.9));
+      }
       /* The night card — the day is called MIDNIGHT, so the card text goes cold +
          violet-glowing instead of the usual borough amber. Its title scales down to fit a
          phone and is allowed to break onto a second line — the card must never be wider
@@ -849,9 +891,10 @@
          warning rhythm the worker's own health bar uses. */
       #boss-goal {
         position: fixed;
-        top: calc(246px + env(safe-area-inset-top, 0px));
+        /* The row under the WARD chip, on the same measured strip. */
+        top: calc(var(--goal-strip-top, 214px) + var(--goal-gate-row, 34px));
         left: calc(20px + env(safe-area-inset-left, 0px));
-        z-index: 12;
+        z-index: var(--z-goal, 12);
         width: min(52vw, 380px);
         display: flex;
         flex-direction: column;
@@ -1020,7 +1063,14 @@
       @media (max-width: 600px), (max-height: 480px) {
         #boss-goal {
           width: min(78vw, 300px);
-          top: calc(232px + env(safe-area-inset-top, 0px));
+          top: min(
+            calc(
+              var(--goal-strip-top, 214px) +
+              var(--goal-gate-row, 34px) +
+              var(--goal-strip-row, 34px)
+            ),
+            calc(var(--goal-strip-cap, 760px) - 48px)
+          );
           left: calc(12px + env(safe-area-inset-left, 0px));
         }
       }
@@ -1050,18 +1100,32 @@
         #bonus-clock-fill {
           border-radius: 0 0 4px 0;
         }
+        /* THE MEASURED PHONE LAW: the chips hang off --goal-strip-top (the live
+           bottom of the top-left readout, safe-area inset included, so the heal +
+           RED BULL bars sit clear above them) and never below --goal-strip-cap
+           (the thumb-stick's top edge, so no chip rides ON the joystick - it may show
+           THROUGH the translucent stick, the stick is the one that paints on top). */
         #bonus-goal {
-          top: calc(196px + env(safe-area-inset-top, 0px));
+          top: min(
+            var(--goal-strip-top, 214px),
+            calc(var(--goal-strip-cap, 760px) - 26px)
+          );
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
         #ecto-goal {
-          top: calc(196px + env(safe-area-inset-top, 0px));
+          top: min(
+            var(--goal-strip-top, 214px),
+            calc(var(--goal-strip-cap, 760px) - 26px)
+          );
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
         #gate-goal {
-          top: calc(232px + env(safe-area-inset-top, 0px));
+          top: min(
+            calc(var(--goal-strip-top, 214px) + var(--goal-gate-row, 34px)),
+            calc(var(--goal-strip-cap, 760px) - 26px)
+          );
           left: calc(12px + env(safe-area-inset-left, 0px));
           gap: 4px;
         }
@@ -1082,6 +1146,8 @@
           letter-spacing: 1px;
         }
         /* the power-up pointer arrow drops to phone size in the same law */
+        #gargoyle-arrow,
+        #gargoyle-arrow-glyph,
         #powerup-arrow,
         #powerup-arrow-glyph {
           width: 62px;
@@ -4671,7 +4737,10 @@
       #vpad {
         position: fixed;
         inset: 0;
-        z-index: 12;
+        /* The thumb-stick paints OVER the goal chips (they show through its
+           translucent skin - the chips are never ON TOP of the stick) and under
+           the readout, so heal + RED BULL stay the topmost HUD paint. */
+        z-index: var(--z-pad, 15);
         pointer-events: none;
         display: none;
       }
@@ -5558,6 +5627,14 @@
     <div id="powerup-arrow" class="hidden">
       <div id="powerup-arrow-glyph"></div>
     </div>
+    <!-- THE GARGOYLE POINTER (Midnight): lights the frame the Slug Demon bursts and the
+         Ruby-Plated Gargoyle lands beside the worker — the SAME animated arrow skin the
+         power-ups use, in ruby colours, aimed at the prize every frame. It lives the whole
+         time the treasure lies on the street (no 3-second clock) and dies the instant he
+         walks onto it and takes it back. Never eats a tap. -->
+    <div id="gargoyle-arrow" class="hidden">
+      <div id="gargoyle-arrow-glyph"></div>
+    </div>
     <!-- THE MIDNIGHT "GO!" ARROW (the 16-bit beat-'em-up way-out cue): the instant the
          ghostly ward of the block he just shovels empty comes down, this red arrow lights
          in the DEAD CENTRE of the screen — where the eye already is, and on a phone clear of
@@ -5703,7 +5780,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.591</div>
+          <div id="app-version" class="menu-version">v1.0.592</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -5844,6 +5921,12 @@
             <div class="cr-row">
               <span class="cr-name">GPU &#183; R9700 AI PRO 32GB</span>
               <span class="cr-cred">Provided by <a href="https://skeemerapp.com" target="_blank" rel="noopener noreferrer">skeemerapp.com</a> users.</span>
+            </div>
+
+            <div class="cr-sec">PLAYTEST</div>
+            <div class="cr-row">
+              <span class="cr-name">TESTER</span>
+              <span class="cr-cred">Frank Frantic</span>
             </div>
 
             <div class="cr-foot">No copyright 2026 Dat Shit's Not Yours! &#183; THANK YOU FOR PLAYING</div>
@@ -6028,7 +6111,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.591';
+      const APP_VERSION = '1.0.592';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -6281,6 +6364,12 @@
       // Staten Island: sidewalk zone only — the colonial porches + cottage landings
       // occupy the front-lawn band, so curb items spawn on the walk (y 0.5..5.0).
       function spawnMaxY() {
+        // THE MIDNIGHT LOOT LAW (walkable y): on the haunted dead-end street the lot
+        // pads run from SLAB_FRONT_Y back behind the chain-link — anything laid above
+        // the walk's edge out on a fenced lot is ground the worker is walled off from.
+        // Tonight's finds go on the sidewalk lane only (the joss-note walk band).
+        if (typeof isNightShift === "function" && isNightShift())
+          return 4.4;
         if (isManhattanLevel()) return 4.8;
         if (isBedStuyLevel()) return 4.8; // Bed-Stuy brownstones: sidewalk only (no lawn)
         if (isFlatbushLevel()) return 5.0;
@@ -10394,6 +10483,7 @@
             el.style.height = h + "px";
           }
         }
+        layoutGoalStrip(); // the strip is geometry: re-measure it on boot, rotation + resize
       }
       fitGameBox();
       window.addEventListener("resize", fitGameBox);
@@ -17908,20 +17998,36 @@
         right.position.set(bx + BLOCK_W, CEM_FENCE_Y, GZ);
         right.rotation.z = Math.PI / 2;
         g.add(right);
+        // ================= THE LOT LAW (Thursday / Maspeth) =================
+        // Every stone, monument and dead tree stands ON the cemetery lot — BETWEEN the
+        // two iron side walls. The 16u stretch on each end of the block is the
+        // INTERSECTION (the cross-street by the cemetery), and a headstone there reads as
+        // grave furniture dumped in the road, not as the dead behind their own iron.
+        // THE BUG THIS KILLS: the monument stride was authored on the retired 80u block
+        // (10 + m*24 -> 10 / 34 / 58). On the 56u short-block street the THIRD monument
+        // landed at bx+58 (bx+56..bx+72 is the gap) — dead centre of the intersection on
+        // the cemetery's right corner. Every x below is derived from BLOCK_W and clamped
+        // inside the lot, so no stone can ever be placed in a gap.
+        const CEM_PROP_IN = 8; // u of setback from each fence end every stone keeps
+        const lotX = (x) => clamp(x, bx + CEM_PROP_IN, bx + BLOCK_W - CEM_PROP_IN);
         const stones = [];
         for (let i = 0; i < 10; i++) {
           const hs = makeHeadstone((Math.random() * 5) | 0);
-          const x = bx + R(4, BLOCK_W - 4);
+          const x = lotX(bx + R(4, BLOCK_W - 4));
           const y = R(CEM_FENCE_Y + 0.8, CEM_BACK_Y - 0.5);
           hs.position.set(x, y, GZ);
           hs.rotation.z = R(-0.5, 0.5); // lazy spin about the VERTICAL axis (face the street)
           g.add(hs);
           stones.push({ x: x, y: y, top: hs.userData.top || 1.2 });
         }
+        // The 3 big monuments, spread EDGE TO EDGE ACROSS THE LOT from BLOCK_W: the first
+        // sits at the near inset, the last at the far inset — the stride is the lot, never
+        // a baked 80u number (see THE LOT LAW above).
+        const monStride = (BLOCK_W - 2 * CEM_PROP_IN) / 2; // 20u on the 56u street
         for (let m = 0; m < 3; m++) {
           const mo = makeHeadstone(4);
           mo.position.set(
-            bx + 10 + m * 24 + R(-2, 2),
+            lotX(bx + CEM_PROP_IN + m * monStride + R(-2, 2)),
             R(CEM_FENCE_Y + 2.0, CEM_BACK_Y - 1.5),
             GZ,
           );
@@ -17931,7 +18037,7 @@
         for (let t = 0; t < 4; t++) {
           const tr = makeDeadTree();
           tr.position.set(
-            bx + R(6, BLOCK_W - 6),
+            lotX(bx + R(6, BLOCK_W - 6)),
             R(CEM_FENCE_Y + 1.5, CEM_BACK_Y - 1.0),
             GZ,
           );
@@ -22415,6 +22521,25 @@
       }
       function routeNearX() {
         return isNightShift() ? NIGHT_END_X : ROUTE_START_X;
+      }
+      // ==================== THE MIDNIGHT LOOT LAW (spawn in PLAYABLE ground) =========
+      // Power-ups (coffee / BEC), Red Bull cans and HELL NOTES may ONLY ever be laid
+      // on ground the worker can actually stand on. On the haunted dead end the plain
+      // route anchors span the whole graveyard (routeNearX() = NIGHT_END_X), and the
+      // bottom cemetery fence at nightWallX() walls him off from the strip below it —
+      // a find laid there (seen mid the Slug Demon fight) can NEVER be walked onto.
+      // These two bounds are the law: from his standing floor at the bottom iron (plus
+      // a body of margin) up to his ceiling behind the rig's tail. Weekdays answer the
+      // shipped route anchors untouched.
+      function lootSpawnMinX() {
+        if (typeof isNightShift === "function" && isNightShift())
+          return Math.max(routeNearX(), workerEndLimitX() + 2.2);
+        return routeNearX();
+      }
+      function lootSpawnMaxX() {
+        if (typeof isNightShift === "function" && isNightShift())
+          return Math.min(routeFarX(), workerTopLimitX());
+        return routeFarX();
       }
       // The worker's hard limit at the END of the street (the finish barrier by day, the
       // cul-de-sac's DEAD END at night — he cannot walk into the graves, and while the
@@ -29825,7 +29950,7 @@
       }
       // ==================== THE ABYSS ROSTER (the night shift's new horrors) =========
 
-      // Every one of these is BUILT TO BE SHOBELED: registered in HORROR_TYPES, driven by
+      // Every one of these is BUILT TO BE SHOVELED: registered in HORROR_TYPES, driven by
       // the same shared brain (updateHorrorCreature), animated through the rig it publishes
       // in userData, and packed into the eco-pail hopper by the Holy Weapon.
 
@@ -31329,7 +31454,7 @@
       // THE SPOOKS COUNTER IS RETIRED FROM THE STREET (MIDNIGHT): the pill counted hopper loads,
       // which a 150-spirit street never finishes — the block chip names the block and how many
       // of ITS creatures are left to shovel, and THAT is the night's HUD. The markup, the
-      // ecoplasm skin and the shift report's "SPOOKS SHOBELED" tally all stay.
+      // ecoplasm skin and the shift report's "SPOOKS SHOVELED" tally all stay.
       const NIGHT_ECTO_PILL = false;
       // THE BEAST'S BAR IS A FINAL-BLOCK THING: a sleeping beast has nothing to show. The bar
       // lights the INSTANT it wakes in the grave yard, in the block chip's slot (top-center is
@@ -31972,7 +32097,7 @@
         "SHOVEL TIME, FIEND!",
         "GET IN THE TRUCK!",
         "PACKED LIKE TRASH!",
-        "THAT'S ONE SPOOK SHOBELED!",
+        "THAT'S ONE SPOOK SHOVELED!",
         "DSNY DOES NOT FEAR YOU!",
         "NEXT!",
       ];
@@ -32770,6 +32895,24 @@
         const fams = nightBlockFamilies(band);
         for (let i = 0; i < fams.length; i++) n += nightBlockQuota(fams[i], band);
         return n;
+      }
+      // THE WHOLE-STREET MEASURE (Midnight): every block's LOCKED horde load summed — the
+      // full commitment of animals the haunting puts on tonight's street at clock-in. The
+      // "SPOOKS SHOVELED" report row measures ALL animals the shovel packed in — ghouls,
+      // hounds, specters, imps, gremlins, goblins, devils, fangspiders, eyecrawlers,
+      // skeletons, pitfiends, grubsquats, ratkings, lanternfangs, goulras, reapers and
+      // tentacles alike — so its total is the whole street's load, not the one-family
+      // par of 14 it used to read against.
+      function nightHorrorLedgerPar() {
+        if (typeof nightGates === "undefined" || !nightGates)
+          return HORROR_SPOOK_TARGET;
+        const keys = Object.keys(nightGates);
+        let n = 0;
+        for (let k = 0; k < keys.length; k++) {
+          const led = nightGates[keys[k]];
+          if (led && led.load > 0) n += led.load;
+        }
+        return n > 0 ? n : HORROR_SPOOK_TARGET;
       }
 
       function nightGateLedger(band) {
@@ -34903,6 +35046,7 @@
         bossWin = false;
         bossWinT = 0;
         bossGargoyle = null;
+        if (typeof gargoyleArrowReset === "function") gargoyleArrowReset(); // no ruby pointer leaking over the reset
         nightBossBanished = false; // a NEW night: the cross-street may wake a Slug Demon again
         nightSlimeClear(); // ...and the last beast's slime goes with the last shift
         if (typeof shovelTossClear === "function") shovelTossClear(); // ...and so does the shovel he threw down on the win beat
@@ -35558,6 +35702,10 @@
         gg.rotation.set(0, 0.35, 1.25);
         dynamicGroup.add(gg);
         bossGargoyle = { g: gg, wx: gx, wy: gy, val: GARGOYLE_VALUE };
+        // THE POINTER: the same animated arrow the power-ups use lights on the prize
+        // and keeps aiming at it until the worker walks onto it (the typeof guard keeps
+        // the vm harnesses that eval this function alone on the shipped path).
+        if (typeof markGargoyleArrow === "function") markGargoyleArrow();
         announcePower("RUBY-PLATED GARGOYLE! TAKE IT!", "pop-power");
         SFX.playTreasureJingle();
         Voice.say(
@@ -35613,6 +35761,7 @@
           });
         }
         bossGargoyle = null;
+        if (typeof gargoyleArrowHide === "function") gargoyleArrowHide(); // the pointer goes with the prize
         gargoyleReclaimed = true; // the night's hoard is back in the worker's hands
         bossWin = true;
         bossWinT = BOSS_WIN_JUMP_T; // the celebration hop, then the walk to the truck's door
@@ -36149,6 +36298,7 @@
         // THE TREASURE: walk onto it and it is his — WHICH ENDS THE NIGHT.
         if (bossGargoyle && state === "play") {
           bossGargoyle.g.rotation.z += dt * 0.7; // the ruby keeps turning in the dark
+          if (typeof updateGargoyleArrow === "function") updateGargoyleArrow(dt); // the ruby pointer aims as the street scrolls
           bossGargoyle.g.position.z = GZ + 0.12 + Math.sin(performance.now() * 0.002) * 0.05;
           if (Math.hypot(p.wx - bossGargoyle.wx, p.wy - bossGargoyle.wy) < 1.9)
             grabBossGargoyle();
@@ -36889,7 +37039,13 @@
         for (let i = 0; i < NIGHT_HELL_NOTE_PICKS; i++) {
           const band = bands[i % bands.length];
           if (!band) continue;
-          const wx = band.x0 + R(8, BLOCK_W - 8);
+          let wx = band.x0 + R(8, BLOCK_W - 8);
+          // THE MIDNIGHT LOOT LAW: walking money — every joss note — lands ONLY on
+          // ground the worker can stand on. The graveyard block's own span reaches
+          // below the bottom cemetery fence; notes drawn there are shoved up onto the
+          // open street above the iron, exactly like the manhole tentacle law.
+          if (typeof lootSpawnMinX === "function")
+            wx = Math.max(wx, lootSpawnMinX());
           const wy =
             i % 2 === 0
               ? R(HELL_NOTE_WALK_Y0, HELL_NOTE_WALK_Y1) // half of them on the walk
@@ -36957,8 +37113,15 @@
         if (!rec || !rec.g) return false;
         const fromX = rec.wx,
           fromY = rec.wy;
-        const tx = clamp(rec.wx + R(-1.1, 1.1), routeNearX(), routeFarX());
+        let tx = clamp(rec.wx + R(-1.1, 1.1), routeNearX(), routeFarX());
         const ty = hellNoteDropY(p.wy);
+        // THE MIDNIGHT LOOT LAW: the dig always drops the note into a lane the worker
+        // can stand in — never below his floor at the bottom cemetery fence, never
+        // past the cul-de-sac ceiling behind the rig.
+        if (typeof lootSpawnMinX === "function")
+          tx = Math.max(tx, lootSpawnMinX());
+        if (typeof lootSpawnMaxX === "function")
+          tx = Math.min(tx, lootSpawnMaxX());
         rec.wx = tx;
         rec.wy = ty;
         rec.fence = false; // over the wire: from here it is ordinary street cash
@@ -37001,7 +37164,19 @@
           if (bonuses[i] && bonuses[i].type === "cash" && !bonuses[i].fence) live++;
         }
         if (live >= NIGHT_KILL_NOTE_CAP) return false; // the street is already paved in notes
-        spawnCash(wx + R(-0.7, 0.7), hellNoteDropY(wy));
+        // THE MIDNIGHT LOOT LAW: a kill's note always lands on ground the worker can
+        // stand on — clamped between his floor at the bottom fence and his ceiling
+        // behind the rig. And it JOINS tonight's ledger where the ledger is live: the
+        // shift report counts the note in the total as much as in the bank, so the
+        // HELL NOTES row can never read "picked up more notes than the night laid".
+        let nx = wx + R(-0.7, 0.7);
+        if (typeof lootSpawnMinX === "function")
+          nx = Math.max(nx, lootSpawnMinX());
+        if (typeof lootSpawnMaxX === "function")
+          nx = Math.min(nx, lootSpawnMaxX());
+        spawnCash(nx, hellNoteDropY(wy));
+        if (typeof dayStats !== "undefined" && dayStats && dayStats.cash)
+          dayStats.cash.total++;
         return true;
       }
       function spawnNightShift() {
@@ -38984,10 +39159,12 @@
               buildCemeteryStreetGhosts(b); // spectral arms / ghost headstones / skull piles on the street + walk
             } else {
               // two headstones per cell so the whole block reads as one big graveyard
+              // (THE LOT LAW: clamped onto the cemetery block — a stone never stands in the
+              // 16u intersection gap on either end of the block)
               for (let k = 0; k < 2; k++) {
                 const hs = makeHeadstone((Math.random() * 5) | 0);
                 hs.position.set(
-                  baseX + R(0.8, cellW - 0.8),
+                  clamp(baseX + R(0.8, cellW - 0.8), b.blockX + 4, b.blockX + BLOCK_W - 4),
                   R(CEM_FENCE_Y + 1.0, CEM_BACK_Y - 0.8),
                   GZ,
                 );
@@ -41662,6 +41839,7 @@
         pendingHouses.length = 0;
         bonuses.length = 0;
         powerupArrowReset(); // a fresh shift: no stale pointer arrow leaking over the load
+        if (typeof gargoyleArrowReset === "function") gargoyleArrowReset(); // ...and no stale ruby pointer either
         powerups.length = 0;
         starParticles.length = 0;
         flyingCans.length = 0;
@@ -41817,6 +41995,13 @@
           bullIco = $("pw-bull-icon");
         if (!healEl && !bullEl) return; // markup absent (test harnesses): silently no-op
         const show = state === "play"; // OVERTIME (BONUS) INCLUDED: the earn bars grind the bonus street too
+        // showing / hiding the two earn bars CHANGES THE HEIGHT of the top-left
+        // readout - and the goal chips hang off that bottom edge (layoutGoalStrip)
+        // so a level start re-measures the strip the same frame the bars appear.
+        if (pwBarsShown !== show) {
+          pwBarsShown = show;
+          layoutGoalStrip();
+        }
         if (healEl) healEl.style.display = show ? "" : "none";
         if (bullEl) bullEl.style.display = show ? "" : "none";
         if (healIco) healIco.style.display = show ? "" : "none";
@@ -41849,6 +42034,62 @@
           }
         }
       }
+      // ===== THE GOAL-STRIP LAW (measured, not guessed) ==========================
+      // The overtime / midnight goal chips live in the SAME top-left column as the
+      // readout (health, distance, SCORE, STREET CASH, the earn-a-healer + RED BULL
+      // bars), and the thumb-stick owns the bottom of that column on a phone. Hardcoded
+      // pixel slots are what kept squashing the chips onto the progress bars on phones,
+      // so the slot is MEASURED every layout pass:
+      //   --goal-strip-top  = the live bottom of #tl (incl. its safe-area inset): the
+      //                       chips start UNDER the heal + RED BULL bars, never on them
+      //   --goal-strip-cap  = the thumb-stick's top edge: no chip rides ON the joystick
+      //                       (it may show THROUGH the translucent stick - the stick is
+      //                       the layer that paints on top; see --z-goal < --z-pad)
+      //   --goal-strip-row  = the live height of one chip: the rows below line up exactly
+      // The panels are all (display:none) in the menu: a zero-height readout keeps the
+      // last measured strip, so a panel can never be laid out onto a collapsed HUD.
+      let pwBarsShown = false; // live bottom of the readout: the earn bars shown?
+      function layoutGoalStrip() {
+        const root = document.documentElement;
+        if (!root || !root.style) return;
+        const vw = window.innerWidth,
+          vh = window.innerHeight;
+        if (!(vw > 0 && vh > 0)) return;
+        // the thumb-stick's top edge (its real rect when the pad is up, the CSS slot
+        // - bottom 56px + the stick's own --joy size - every other time)
+        const joy = document.getElementById("joy");
+        let joyTop = 0;
+        if (joy && joy.getBoundingClientRect) {
+          const jr = joy.getBoundingClientRect();
+          if (jr.height > 8) joyTop = jr.top;
+        }
+        const pad = document.getElementById("vpad");
+        if (!joyTop) {
+          const jw = pad ? pad.clientWidth || vw : vw;
+          const joy = Math.min(0.36 * vh, 0.24 * jw, 200);
+          joyTop = Math.min(vh, vh - (56 + joy));
+        }
+        const cap = Math.max(vh * 0.42, Math.min(vh - 44, joyTop - 6));
+        root.style.setProperty("--goal-strip-cap", Math.round(cap) + "px");
+        root.style.setProperty("--joy-top", Math.round(joyTop) + "px");
+        // the live bottom of the top-left readout (its safe-area inset is inside the rect)
+        const tl = document.getElementById("tl");
+        if (tl && tl.getBoundingClientRect) {
+          const r = tl.getBoundingClientRect();
+          if (r.height > 28)
+            root.style.setProperty("--goal-strip-top", Math.round(r.bottom + 6) + "px");
+        }
+        // the live chip row (the overtime chips are the row every slot is built from)
+        let rowPx = 0;
+        const chip =
+          document.getElementById("bonus-baskets") ||
+          document.getElementById("ecto-chip") ||
+          document.getElementById("gate-chip");
+        if (chip && chip.offsetHeight > 8) rowPx = Math.round(chip.offsetHeight);
+        root.style.setProperty("--goal-strip-row", (rowPx || 34) + "px");
+        root.style.setProperty("--goal-gate-row", (rowPx ? rowPx + 4 : 34) + "px");
+      }
+
       // PRANK PAYOUT: knocking a piss bottle, messing with the bodega cats, or knocking
       // down a roadwork traffic cone each pay 10 CASH (20 on Bed-Stuy's double-time Sunday,
       // via scoreMultiplier). It goes to STREET CASH only — the score total stays clean.
@@ -43176,7 +43417,19 @@
             : typeof workerTopLimitX === "function"
               ? workerTopLimitX()
               : 449;
-        return wx > ceilX + PICKUP_CULL_GRACE;
+        // THE CUL-DE-SAC's FLOOR: below the bottom cemetery fence (nightWallX — the
+        // worker's standing floor, standoff included) there is no street he can walk.
+        // A walking find lying there is dead ground, retired exactly like the day's
+        // barrier side, so an old-law spawn can never leave him a ghost prize. The
+        // fenced-lot notes live on HIS x-band (dig money, shovel-only) — an x-only
+        // law never touches them.
+        const floorX =
+          typeof nightWallX === "function"
+            ? nightWallX()
+            : typeof NIGHT_FENCE_X === "number"
+              ? NIGHT_FENCE_X
+              : 30;
+        return wx > ceilX + PICKUP_CULL_GRACE || wx < floorX - PICKUP_CULL_GRACE;
       }
       // How far BEHIND the direction the shift runs a pickup sits (positive = left behind).
       function pickupBehindDist(wx) {
@@ -45780,7 +46033,16 @@
           clamp(p.wx + RT * R(2.5, 5.5), routeNearX(), routeFarX()),
         );
         const wy = clamp(p.wy + R(-0.9, 0.9), 0.5, spawnMaxY());
-        spawnPowerup(type, wx, wy);
+        // THE MIDNIGHT LOOT LAW: on the haunted dead end the plain route clamp spans
+        // the graveyard — below the bottom cemetery fence the worker is walled off and
+        // can NEVER walk onto a coffee, a BEC or a Red Bull that spawns there (seen
+        // mid the Slug Demon fight). The find is pushed onto his standing asphalt.
+        let wxLand = wx;
+        if (typeof lootSpawnMinX === "function")
+          wxLand = Math.max(wxLand, lootSpawnMinX());
+        if (typeof lootSpawnMaxX === "function")
+          wxLand = Math.min(wxLand, lootSpawnMaxX());
+        spawnPowerup(type, wxLand, wy);
       }
       function spawnMonsterNearPlayer() {
         spawnPowerupAhead("monster");
@@ -45925,6 +46187,103 @@
           A.deg.toFixed(1) +
           "deg)";
         node.style.opacity = String(clamp(k, 0, 1));
+      }
+      // ==================== THE GARGOYLE POINTER (Midnight win beat) ==================
+      // The frame the Slug Demon bursts, the Ruby-Plated Gargoyle lands on the grave yard
+      // a few paces off the worker — and the night is won only when he WALKS onto it. The
+      // SAME animated arrow the power-ups use lights on it: aimed every frame, eased onto
+      // the target, throbbing on the shared CSS pulse, parked on screen pointing out of
+      // frame when the treasure slid off the view. No 3-second clock — the pointer lives
+      // the whole time the prize lies on the street, and dies the instant it is claimed
+      // (grabBossGargoyle), with the shift (reset) and off the play state.
+      let gargoyleArrow = null; // null | { deg } — the live ruby pointer
+      function gargoyleArrowEl() {
+        if (typeof document === "undefined" || !document || typeof document.getElementById !== "function")
+          return null;
+        return document.getElementById("gargoyle-arrow");
+      }
+      function gargoyleArrowHide() {
+        gargoyleArrow = null;
+        const node = gargoyleArrowEl();
+        if (node && typeof node.classList.add === "function") node.classList.add("hidden");
+      }
+      function gargoyleArrowReset() {
+        gargoyleArrowHide();
+      }
+      function markGargoyleArrow() {
+        const node = gargoyleArrowEl();
+        if (node) {
+          node.classList.remove("hidden");
+          node.style.opacity = "1";
+        }
+        gargoyleArrow = { deg: 0 };
+      }
+      function updateGargoyleArrow(dt) {
+        const A = gargoyleArrow;
+        if (!A) return;
+        if (!bossGargoyle) { gargoyleArrowHide(); return; } // the prize is claimed
+        const node = gargoyleArrowEl();
+        if (!node) return; // the vm harnesses: no DOM, nothing to paint
+        if (typeof worldToScreen !== "function") return; // no camera yet
+        if (typeof state !== "undefined" && state !== "play") {
+          node.style.opacity = "0"; // no pointer over the intro / pause / write-up modal
+          node.classList.add("hidden");
+          return;
+        }
+        const W = node.offsetWidth > 0 ? node.offsetWidth : POWERUP_ARROW_W;
+        const H = node.offsetHeight > 0 ? node.offsetHeight : POWERUP_ARROW_H;
+        const MZ = GZ + 1.15; // point at the MIDDLE of the treasure, not its sole
+        const me = worldToScreen(p.wx, p.wy, MZ);
+        if (!me) return; // worker off the projection: no anchor to arrange the arrow around
+        const it = worldToScreen(bossGargoyle.wx, bossGargoyle.wy, MZ);
+        let dx, dy;
+        if (it) {
+          dx = it.x - me.x;
+          dy = it.y - me.y;
+        } else {
+          // Find OFF the screen: project a short probe along the worker->treasure WORLD
+          // vector, so the arrow keeps pointing at the prize down the street.
+          const probe = worldToScreen(
+            p.wx + (bossGargoyle.wx - p.wx) * 0.08,
+            p.wy + (bossGargoyle.wy - p.wy) * 0.08,
+            MZ,
+          );
+          if (!probe) return;
+          dx = probe.x - me.x;
+          dy = probe.y - me.y;
+        }
+        const mag = Math.sqrt(dx * dx + dy * dy);
+        if (mag < 2) return; // dead centre on the worker: nothing to aim
+        const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+        let d = ang - A.deg;
+        while (d > 180) d -= 360;
+        while (d < -180) d += 360;
+        A.deg += d * Math.min(1, dt * 8); // eased swing onto the target — it turns, it never snaps
+        const rad = (A.deg * Math.PI) / 180;
+        const reach = it
+          ? clamp(mag - POWERUP_ARROW_GAP, POWERUP_ARROW_MIN, mag)
+          : POWERUP_ARROW_OFF;
+        const vw = typeof innerWidth === "number" ? innerWidth : W;
+        const vh = typeof innerHeight === "number" ? innerHeight : H;
+        const x = clamp(
+          me.x + Math.cos(rad) * reach,
+          POWERUP_ARROW_EDGE_M + W / 2,
+          vw - POWERUP_ARROW_EDGE_M - W / 2,
+        );
+        const y = clamp(
+          me.y + Math.sin(rad) * reach,
+          POWERUP_ARROW_EDGE_M + H / 2,
+          vh - POWERUP_ARROW_EDGE_M - H / 2,
+        );
+        node.style.transform =
+          "translate(" +
+          (x - W / 2).toFixed(1) +
+          "px," +
+          (y - H / 2).toFixed(1) +
+          "px) rotate(" +
+          A.deg.toFixed(1) +
+          "deg)";
+        node.style.opacity = "1";
       }
       function updatePowerups(dt) {
         // THE POINTER ticks with the pickups it points at (typeof-guarded for the vm harnesses).
@@ -57391,8 +57750,16 @@
           // other level ever shows this row (and the bags/cans/baskets rows read 0/0
           // there, because a haunted street has none of them out).
           if (s.spooks && (s.spooks.total > 0 || s.spooks.got > 0)) {
+            // ALL CREATURES, ONE LINE (Midnight): "SPOOKS SHOVELED" tallies EVERY animal
+            // the shovel packed into the hopper — ghouls, hells, specters, imps, wraiths,
+            // polters, demons, hexbeasts, abyssals, lichs, reapers, gremlins, goblins,
+            // devils, fangspiders, eyecrawlers, skeletons, pitfiends, grubsquats, ratkings,
+            // lanternfangs, goulras and the manhole tentacles alike (shovelBanish is the
+            // one landing door for them all). The number on the right is the WHOLE STREET'S
+            // committed load — the four wards' locked hordes — so a hard night's 94 reads
+            // 94 / <the horde it cleared>, with the star the frame the street is emptied.
             parts.push(
-              statRow("SPOOKS SHOBELED", s.spooks.got, s.spooks.total, true, idx++),
+              statRow("SPOOKS SHOVELED", s.spooks.got, s.spooks.total, true, idx++),
             );
           }
           parts.push(
@@ -57406,7 +57773,17 @@
             ),
             statRow("MONGO HAULED", s.mongo.got, s.mongo.total, true, idx++),
             statRow("TREASURES", s.treasure.got, s.treasure.total, true, idx++),
-            statRow(cashName(), s.cash.got, s.cash.total, true, idx++),
+            // THE LEDGER NEVER LIES (Midnight's HELL NOTES ride this row too):
+            // notes paid out by kills land AFTER the street snapshot, so the banked
+            // count can outrun the count laid — the row reads against the total and
+            // never shows a find picked up "more times than it was laid out".
+            statRow(
+              cashName(),
+              Math.min(s.cash.got, s.cash.total),
+              s.cash.total,
+              true,
+              idx++,
+            ),
           );
           g.innerHTML = parts.join("");
           // Animate the stat numbers counting up (guarded for Node test)
@@ -58130,6 +58507,17 @@
         // clocks in to a street with nobody alive on it.
         if (isNightShift()) {
           if (dayStats && dayStats.spooks) dayStats.spooks.total = HORROR_SPOOK_TARGET;
+          // ALL CREATURES MEASURE (Midnight): the shovel packs EVERY horror of the roster
+          // into the hopper, and the row counts every one of them — so the row is measured
+          // against the whole street's committed load (the four wards' locked hordes),
+          // raised at clock-in once the ledgers exist. A 94-banishment night never reads
+          // against a one-family 14 again.
+          if (
+            dayStats &&
+            dayStats.spooks &&
+            typeof nightHorrorLedgerPar === "function"
+          )
+            dayStats.spooks.total = nightHorrorLedgerPar();
           if (typeof Voice !== "undefined" && Voice)
             Voice.say(
               pick(NIGHT_START_LINES),

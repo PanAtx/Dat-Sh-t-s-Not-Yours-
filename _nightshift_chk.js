@@ -171,12 +171,6 @@ const laneStartX = () => ROUTE_START_X;
 const laneEndX = () => ROUTE_END_X;
 const laneFinishX = () => ROUTE_FINISH_X;
 const laneSpawnX = () => PLAYER_START_X;
-// The lane helpers the game's spawn clamps read (this harness has no OVERTIME world, so they
-// answer the same anchors the weekday street uses).
-const laneStartX = () => ROUTE_START_X;
-const laneEndX = () => ROUTE_END_X;
-const laneFinishX = () => ROUTE_FINISH_X;
-const laneSpawnX = () => PLAYER_START_X;
 const SHOVEL_POINTS = srcNum('SHOVEL_POINTS'), HORROR_SPOOK_TARGET = 14, GARGOYLE_VALUE = 5000;
 const HORROR_SEE_R = 13, HORROR_TOUCH_CD = 1.5, SHOVEL_REACH = 3.4;
 const SHOVEL_SWING_DUR = srcNum('SHOVEL_SWING_DUR'), SHOVEL_COOLDOWN = srcNum('SHOVEL_COOLDOWN');
@@ -1129,7 +1123,7 @@ check('the dressing reuses the cemetery hazard kinds (hands GRAB, headstones are
 check('HUD chip markup + CSS + the updateHUD toggle all exist',
   html.includes('id="ecto-goal"') && /#ecto-goal \{/.test(html) && html.includes('const showEcto ='));
 check('the day card + the shift report both speak night',
-  html.includes('BEGIN THE NIGHT SHIFT') && html.includes('SPOOKS SHOBELED') && /spooks: \{ got: 0, total: 0 \}/.test(html));
+  html.includes('BEGIN THE NIGHT SHIFT') && html.includes('SPOOKS SHOVELED') && /spooks: \{ got: 0, total: 0 \}/.test(html));
 check('the spook par is armed when the shift begins', /dayStats\.spooks\.total = HORROR_SPOOK_TARGET/.test(html));
 check('HR has an offense for every new horror',
   /specter: \[[\s\S]{0,500}banshee: \[[\s\S]{0,500}ghoul: \[[\s\S]{0,500}hound: \[/.test(html));
@@ -4253,7 +4247,7 @@ console.log("\n[23] THE QUIET STREET: THE CHIP SAYS THE BLOCK AND THE COUNT, NOT
   check('THE "SPOOKS n / 14" PILL IS OFF THE MIDNIGHT HUD (NIGHT_ECTO_PILL = false): updateHUD can never light it',
     /const NIGHT_ECTO_PILL = false;/.test(html) &&
       /const showEcto =\s*NIGHT_ECTO_PILL && isNightShift\(\)/.test(srcFn('updateHUD')) &&
-      html.includes('id="ecto-count-text"') && html.includes('SPOOKS SHOBELED'));
+      html.includes('id="ecto-count-text"') && html.includes('SPOOKS SHOVELED'));
 
   // (c) THE HAUNTED STREET IS SILENT — not ONE speech bubble, for anyone, until the player
   //     names the lines he wants. The gate under test is the GAME'S OWN source, compiled in
