@@ -5914,7 +5914,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.600</div>
+          <div id="app-version" class="menu-version">v1.0.601</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6579,7 +6579,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.600';
+      const APP_VERSION = '1.0.601';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -11689,6 +11689,37 @@
             this.radioTimer = null;
           }
         },
+        _radioBlocked() {
+          // AUTOPLAY-LOCK / iOS MEDIA INTERRUPTION. iPadOS reports a DualShock 4 as a
+          // Bluetooth media REMOTE: every button is a hardware key event, and remote keys
+          // INTERRUPT web audio; the station goes off air mid-shift and every play() we
+          // attempt is then rejected. The OLD law advanced the bag on each rejection, so a
+          // locked station tore through the whole rotation in seconds - "the music player
+          // kept skipping songs as if it couldn't read them - tapping SKIP fixed it" (a tap
+          // is the user gesture iOS waits for). NEW law: the bag is NEVER consumed by a
+          // block. Mark the station gesture-locked, re-cue the SAME song once after a
+          // breath (a brief interruption clears on its own), and let the gesture hook
+          // (radioGestureRecover) bring it back on any touch / key.
+          if (!this.radioEl || this.radioGen === 0) return;
+          if (this.radioEl.ended) return; // natural end - the ended handler advances
+          this._radioLock = true;
+          this._radioCancel(); // no skip cascade
+          this.radioTimer = setTimeout(() => {
+            this.radioTimer = null;
+            const el = this.radioEl;
+            if (!el || !this._radioLock || el.ended) return;
+            const p = el.play();
+            if (p && p.catch) p.catch(() => {}); // still locked: the gesture hook owns it
+          }, 900);
+        },
+        radioGestureRecover() {
+          // Any touch / key from the player is EXACTLY the gesture the browser requires to
+          // restart interrupted audio (this generalises the "tap SKIP and it works" cure to
+          // every gesture, controller-key included). No-op while the station is healthy.
+          if (!this._radioLock || !this.radioEl) return;
+          const p = this.radioEl.play();
+          if (p && p.catch) p.catch(() => {}); // stays locked: the playing() event owns the unlock
+        },
         // ---- OFFLINE CACHE: the radio downloads every song into the browser Cache
         //     (Cache API) the first time it plays it. After that the song is loaded
         //     from the cache and never touches the network again, so the station keeps
@@ -11831,10 +11862,13 @@
           if (res.blobUrl !== musicDir() + encodeURIComponent(name)) {
             this.radioBlobUrl = res.blobUrl;
           }
+          this._radioPlayingByUs = true; // the src swap below pauses the old track ON PURPOSE
           this.radioEl.src = res.blobUrl;
+          this._radioPlaying = false;
           this._radioSrcChanged = true;
           const p = this.radioEl.play();
-          if (p && p.catch) p.catch(() => this._radioSchedule(250)); // blocked/failed track: skip ahead
+          if (p && p.catch)
+            p.catch(() => this._radioBlocked()); // blocked/failed track: re-cue it, keep the bag
         },
         async radioStart() {
           if (this.radioEl) return; // already on air — restarting the game must not double-start
@@ -11864,6 +11898,20 @@
               this.radioLock ? 700 : 2000,
             ),
           ); // song finished → 2s of air → next song
+          el.addEventListener("playing", () => {
+            this._radioPlaying = true; // on air: an unwanted pause from here on is an interruption
+            this._radioPlayingByUs = false; // our cue intent ends the moment the song is audible
+            this._radioLock = false; // any block is over - the SAME song made it back
+          });
+          el.addEventListener("pause", () => {
+            const unwanted =
+              this._radioPlaying && !this._radioPlayingByUs; // on air, and NOT our own cue/pause
+            this._radioPlaying = false;
+            this._radioPlayingByUs = false; // consume the intent flag
+            // A mid-song pause we did not ask for = the browser interrupted us (iOS media-remote
+            // keys from a DualShock 4, Control Center, a phone call). Re-cue the SAME song.
+            if (unwanted) this._radioBlocked();
+          });
           el.addEventListener("error", () => {
             // A revoked blob URL (previous track) can still fire an error event AFTER
             // the new src is already set. Guard: only treat as a real failure if this
@@ -11913,6 +11961,7 @@
           const el = this.radioEl;
           if (!el) return false; // not on air: the next radioStart() simply scans the new folder
           try {
+            this._radioPlayingByUs = true; // a pause WE asked for: not an interruption
             el.pause();
             if (this.radioBlobUrl) URL.revokeObjectURL(this.radioBlobUrl);
             el.src = "";
@@ -11944,6 +11993,7 @@
             if (this.radioEl && !this.radioEl.paused) {
               this.trainerRadioResumable = true;
               this._radioCancel(); // clear any pending "advance to next" timer
+              this._radioPlayingByUs = true; // a pause WE asked for: not an interruption
               this.radioEl.pause();
             } else {
               this.trainerRadioResumable = false;
@@ -12363,6 +12413,26 @@
       $("btnSkip").addEventListener("touchstart", function (e) {
         e.preventDefault();
         SFX.radioSkip();
+      });
+      // ---- iPad media-interruption recovery (DualShock 4 law): iPadOS reports a DS4 as a
+      //      Bluetooth media REMOTE, so its buttons fire hardware KEY events, and remote keys
+      //      interrupt web audio - the station goes off air mid-shift and stays play-rejected
+      //      until the browser sees a user gesture (this is exactly why a finger tap on SKIP
+      //      "fixed" it). EVERY player gesture - touch, pointer, key (DS4 remote keys ARE
+      //      keys), from anywhere on the page - asks the radio to take its CURRENT song back
+      //      on air. radioGestureRecover() is a no-op while the station is healthy.
+      ["keydown", "pointerdown", "touchstart"].forEach(function (ev) {
+        if (typeof window === "undefined" || !window.addEventListener) return;
+        window.addEventListener(
+          ev,
+          function () {
+            try {
+              if (typeof SFX !== "undefined" && SFX.radioGestureRecover)
+                SFX.radioGestureRecover();
+            } catch (e) {}
+          },
+          { passive: true, capture: true },
+        );
       });
       // ---- Start-screen music player: the SAME widget + SAME audio element, so the song
       //      is continuous from the menu straight into the game (radioStart() is
@@ -61883,6 +61953,26 @@
         try {
           var healIco = document.getElementById("pw-heal-icon");
           var bullIco = document.getElementById("pw-bull-icon");
+          // REPEAT-VISIT FAST PATH: the icons rendered on an earlier visit ride in
+          // localStorage, so the bars wear their pickup-look icons INSTANTLY - long before
+          // a single GLB byte resolves. The fresh renders below simply overwrite them.
+          var saved = null;
+          try {
+            saved =
+              typeof localStorage !== "undefined" && localStorage
+                ? JSON.parse(localStorage.getItem("dsnysweep_bar_icons") || "null")
+                : null;
+          } catch (e) {}
+          if (saved) {
+            if (saved.bec && healIco) {
+              healIco.textContent = "";
+              healIco.style.backgroundImage = "url(" + saved.bec + ")";
+            }
+            if (saved.bull && bullIco) {
+              bullIco.textContent = "";
+              bullIco.style.backgroundImage = "url(" + saved.bull + ")";
+            }
+          }
           // BEC sandwich: seen from a three-quarter angle ABOVE - the roll, cheese and
           // bacon stack read as a sandwich. Red Bull can: near-level view - the tall blue
           // and silver label band reads as the can.
@@ -61901,6 +61991,20 @@
           if (bullUrl && bullIco) {
             bullIco.textContent = "";
             bullIco.style.backgroundImage = "url(" + bullUrl + ")";
+          }
+          // PERSIST the freshest pair (rendered now, or the ones this visit restored) so
+          // the NEXT visit paints instantly. A quota / private-mode write failure is
+          // silent - the icons of THIS visit are already painted regardless.
+          becUrl = becUrl || (saved && saved.bec) || "";
+          bullUrl = bullUrl || (saved && saved.bull) || "";
+          if (becUrl || bullUrl) {
+            try {
+              if (typeof localStorage !== "undefined" && localStorage)
+                localStorage.setItem(
+                  "dsnysweep_bar_icons",
+                  JSON.stringify({ bec: becUrl, bull: bullUrl }),
+                );
+            } catch (e) {}
           }
         } catch (e) {
           console.warn("[ICON] earn-bar icons unavailable (emoji stay):", e && e.message);

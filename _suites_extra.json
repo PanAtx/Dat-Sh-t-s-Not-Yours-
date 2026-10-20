@@ -2,6 +2,11 @@
   "generated_by": "_suite_hunt.mjs (validated in a clean shallow clone of main)",
   "suites": [
     [
+      "the DS4 media-interruption law (play-rejects + unrequested pauses re-cue the SAME song, any gesture recovers, the bag is never burned)",
+      "node",
+      "_radio_ds4_chk.js"
+    ],
+    [
       "test the REAL garbage-bag TYPE logic extracted verbatim",
       "node",
       "_bagtype_chk.js"
