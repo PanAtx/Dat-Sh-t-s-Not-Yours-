@@ -5900,7 +5900,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.593</div>
+          <div id="app-version" class="menu-version">v1.0.594</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6565,7 +6565,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.593';
+      const APP_VERSION = '1.0.594';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -43464,7 +43464,7 @@
       // THE THREE-STRIKE LAW: every screw-up is a write-up; the meter counts 1, 2, 3 - and the
       // 3rd write-up SUSPENDS the worker (the GAME OVER screen). It never climbs past 3, so the
       // seal can never read 4/3: the shift ENDS on the 3rd strike.
-      // THE ONE TRAINER ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS (CHEAT ONLY)" - and
+      // THE ONE TRAINER ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS" - and
       // it means EXACTLY what it says: with it ON, a write-up still happens (the seal, the stamp,
       // the complaint sound, the offense line, the whole worker-DOWN beat) but the complaint never
       // STICKS - COMPLAINTS ISSUED does not climb, so the 3rd strike never arrives and the shift
@@ -43478,7 +43478,7 @@
       function addWriteUp() {
         if (state !== "play" && state !== "dying" && state !== "dayend") return complaints; // +dayend: the end-of-route inspection writes the worker up at the shift report
         if (complaints >= 3) return complaints; // the 3rd strike already ended the shift
-        // INFINITE COMPLAINTS (CHEAT ONLY): the write-up lands, the meter does not.
+        // INFINITE COMPLAINTS: the write-up lands, the meter does not.
         const infiniteComplaints =
           typeof CHEAT !== "undefined" &&
           CHEAT !== null &&
@@ -45442,7 +45442,7 @@
         )
           bossRegainFullStrength();
         showWriteUpText(n);
-        // With the trainer's "Infinite Complaints (CHEAT ONLY)" row ON the meter never moved, so
+        // With the trainer's "Infinite Complaints" row ON the meter never moved, so
         // the worker says what actually happened (the complaint slid off the record) instead of
         // counting a strike he does not have. typeof-guarded: the harnesses that run finishDying
         // VERBATIM (_health_chk.js) never define CHEAT.
@@ -45810,7 +45810,7 @@
         r.className = "writeup-reason";
         r.textContent = writeupReason(lastHitCause);
         el.appendChild(r);
-        // INFINITE COMPLAINTS (CHEAT ONLY, see addWriteUp): the complaint landed and the meter
+        // INFINITE COMPLAINTS (see addWriteUp): the complaint landed and the meter
         // did not move — say so, so the player is never left reading a "0/3" seal and guessing.
         if (typeof CHEAT !== "undefined" && CHEAT !== null && CHEAT.infinite === true) {
           const ns = document.createElement("div");
@@ -58767,8 +58767,8 @@
       }
       // THE THREE-STRIKE LAW, END-OF-ROUTE SIDE: a route left dirty is a write-up like a worker
       // DOWN in the street, so the 3rd one SUSPENDS the worker - GAME OVER. The count comes from
-      // addWriteUp, which owns the ONLY trainer exception: with the trainer's "Infinite Complaints
-      // (CHEAT ONLY)" row ON the meter never climbs, so n never reaches 3 and this handover never
+      // addWriteUp, which owns the ONLY trainer exception: with the trainer's "Infinite Complaints"
+      // row ON the meter never climbs, so n never reaches 3 and this handover never
       // fires. Every other row leaves the strike exactly as it lands, and every row (that one
       // included) voids the HI-SCORE through the CHEAT LEDGER.
       function applyRouteWriteUp() {
@@ -60751,7 +60751,7 @@
       // stage (grid + stars + sun) with a crisp DOM menu on top: logo, option rows (active
       // row highlighted BLUE) and a scrolling marquee. Driven by keyboard / gamepad / the
       // on-screen joystick. Cheats:
-      //   infinite   -> "Infinite Complaints (CHEAT ONLY)". It means EXACTLY what it says: with
+      //   infinite   -> "Infinite Complaints". It means EXACTLY what it says: with
       //                it ON, every screw-up is STILL a write-up — the worker DOWN beat, the
       //                end-of-shift inspection, the complaint sound, the WRITTEN UP! seal and its
       //                offense line all happen — but the COMPLAINTS ISSUED meter never climbs
@@ -60781,7 +60781,7 @@
         open: false,
         sel: 0,
         rows: [
-          { key: "infinite", label: "Infinite Complaints (CHEAT ONLY)", type: "bool" },
+          { key: "infinite", label: "Infinite Complaints", type: "bool" },
           { key: "invincible", label: "Infinite Health", type: "bool" },
           { key: "runitup", label: "Always Run It Up!", type: "bool" },
           { key: "level", label: "Starting Level", type: "day" },

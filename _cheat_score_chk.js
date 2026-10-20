@@ -20,7 +20,7 @@
      4) THE THREE-STRIKE LAW IS THE STREET'S OWN: every screw-up is a WRITE-UP - a worker DOWN
         in the street AND a route left dirty at the end-of-shift inspection. The meter counts
         1, 2, 3 and the 3rd write-up is GAME OVER, capped at 3 (no "4/3" seal exists).
-        THE ONE ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS (CHEAT ONLY)" AND IT MEANS
+        THE ONE ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS" AND IT MEANS
         EXACTLY WHAT IT SAYS: with it ON, the write-up still happens - the sound, the HUD stamp,
         the seal and its offense line, the whole worker-DOWN beat - but the complaint never
         STICKS: the meter does not climb, so the 3rd strike never arrives and the shift is never
@@ -320,7 +320,7 @@ check('the marquee states the REFRESH law (a reload hands back a clean, eligible
   /REFRESH THE GAME AND THE PANEL IS CLEAN/.test(src) &&
     /with no cheat in use, so the week that follows is eligible for a HI-SCORE again/.test(src));
 check('the trainer rows keep their three cheats + the starting level (the law covers all four)',
-  /label: "Infinite Complaints \(CHEAT ONLY\)"/.test(src) && /label: "Infinite Health"/.test(src) &&
+  /label: "Infinite Complaints"/.test(src) && /label: "Infinite Health"/.test(src) &&
     /label: "Always Run It Up!"/.test(src) && /label: "Starting Level"/.test(src));
 console.log('');
 console.log('[6] THE THREE-STRIKE LAW (3 WRITE-UPS = GAME OVER, and no 4/3 stamp is possible)');
