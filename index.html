@@ -1870,6 +1870,7 @@
         gap: clamp(8px, 1.4vw, 14px);
       }
       #btnSettings,
+      #btnInstructions,
       #btnCredits {
         cursor: pointer;
         width: clamp(38px, 5vh, 48px);
@@ -1886,6 +1887,7 @@
         pointer-events: auto;
       }
       #btnSettings:hover,
+      #btnInstructions:hover,
       #btnCredits:hover {
         background: rgba(46, 224, 144, 0.25);
         color: #fff;
@@ -1894,6 +1896,10 @@
       #btnSettings svg {
         width: 62%;
         height: 62%;
+      }
+      #btnInstructions svg {
+        width: 64%;
+        height: 64%;
       }
       #settingsPage {
         position: absolute;
@@ -2223,6 +2229,105 @@
         from { opacity: 0; transform: translateY(9px); }
         to   { opacity: 1; transform: translateY(0); }
       }
+      /* ===== INSTRUCTIONS (the open-book button, pinned directly under CREDITS) =====
+         The same window skin as the credits card — same slab, same Bangers headings,
+         same .cr-sec / .cr-row / .cr-name / .cr-cred typography and the same crIn
+         cascade — so the two pages read as one set of cards. Controls (keyboard /
+         gamepad / virtual pad), the 95% clean law, the loot and power-ups, the
+         street's regulars, the cheat law and the offline cache. Dismiss via the ✕
+         button, a backdrop tap, or ESC. */
+      #btnInstructions {
+        position: absolute;
+        top: calc(8px + clamp(38px, 5vh, 48px) + 6px); /* sits right under #btnCredits */
+        right: 8px;
+        z-index: 4;
+        margin-top: 0;
+      }
+      #instructionsPage {
+        position: absolute;
+        inset: 0;
+        z-index: 41;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(3, 7, 10, 0.9);
+        padding: 12px;
+        pointer-events: auto;
+        animation: crBg 0.35s ease-out both;
+      }
+      #instructionsBox {
+        width: min(560px, 94vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch; /* momentum / flick scrolling on iOS */
+        touch-action: pan-y; /* allow vertical touch-pan — overrides the global touch-action:none so it scrolls on mobile */
+        overscroll-behavior: contain; /* stop scroll-bounce leaking out to the page */
+        text-align: left;
+        background:
+          radial-gradient(130% 60% at 50% -15%, rgba(46, 224, 144, 0.16), transparent 60%),
+          linear-gradient(180deg, #07130d, #040a07);
+        border: 3px solid #2ee090;
+        border-radius: 14px;
+        box-shadow:
+          0 0 34px rgba(46, 224, 144, 0.42),
+          inset 0 0 60px rgba(0, 0, 0, 0.68);
+        padding: clamp(14px, 2.6vh, 24px) clamp(16px, 4vw, 28px) clamp(16px, 3vh, 26px);
+        font-family: "Courier New", Courier, monospace;
+        color: #eaf6ff;
+        pointer-events: auto;
+        animation: panel-pop-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+        scrollbar-width: thin;
+        scrollbar-color: #2ee090 rgba(46, 224, 144, 0.15);
+      }
+      #instructionsBox::-webkit-scrollbar { width: 9px; }
+      #instructionsBox::-webkit-scrollbar-track { background: rgba(46, 224, 144, 0.08); border-radius: 99px; }
+      #instructionsBox::-webkit-scrollbar-thumb { background: rgba(46, 224, 144, 0.55); border-radius: 99px; }
+      #instructionsBox::-webkit-scrollbar-thumb:hover { background: #2ee090; }
+      #instructionsHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid rgba(46, 224, 144, 0.4);
+      }
+      #instructionsHead .cr-title {
+        font-family: "Bangers", "Arial Black", Impact, sans-serif;
+        font-size: clamp(20px, 3.6vw, 30px);
+        letter-spacing: 2px;
+        line-height: 1;
+        color: #7dff9e;
+        transform: rotate(-1.2deg);
+        text-shadow:
+          2px 2px 0 rgba(0, 0, 0, 0.85),
+          0 0 16px rgba(46, 224, 144, 0.6);
+      }
+      #btnInstructionsClose {
+        flex: 0 0 auto;
+        cursor: pointer;
+        width: clamp(34px, 5vh, 44px);
+        height: clamp(34px, 5vh, 44px);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #ff8a8a;
+        background: rgba(255, 82, 82, 0.08);
+        border: 2px solid rgba(255, 120, 120, 0.7);
+        border-radius: 8px;
+        font-size: clamp(16px, 2.4vh, 22px);
+        line-height: 1;
+        box-shadow: 0 0 10px rgba(255, 82, 82, 0.25);
+        transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+        pointer-events: auto;
+      }
+      #btnInstructionsClose:hover {
+        color: #fff;
+        background: rgba(255, 82, 82, 0.3);
+        box-shadow: 0 0 16px rgba(255, 82, 82, 0.55);
+      }
+      /* the cascade: staggered from open, so the count of rows never needs a CSS edit */
+      #instructionsBox > * { animation-delay: calc(var(--cd, 0) * 0.035s); }
       /* stagger the section / row cascade as the window opens */
       #creditsBox > *:nth-child(2)  { animation-delay: 0.05s; }
       #creditsBox > *:nth-child(3)  { animation-delay: 0.09s; }
@@ -4590,6 +4695,19 @@
         max-width: 86vw;
         text-shadow: 3px 3px 0 rgba(50, 0, 0, 0.92);
       }
+      /* INFINITE COMPLAINTS (the trainer row, see addWriteUp): the write-up still lands and the
+         seal still prints, and this second line says out loud why the COMPLAINTS ISSUED meter
+         did not move. It rides under the offense line, inside the same stamp. */
+      .pop-writeup .writeup-nostrike {
+        display: block;
+        margin-top: 8px;
+        font-size: min(2.6vw, 18px);
+        letter-spacing: 2.5px;
+        white-space: normal;
+        max-width: 86vw;
+        color: #ffd23a;
+        text-shadow: 2px 2px 0 rgba(50, 0, 0, 0.92);
+      }
       @keyframes writeUpSlam {
         0% {
           /* 1.9 (was 2.6): the stamp's peak stays inside the screen so no letters clip off the edges */
@@ -5722,7 +5840,9 @@
         <!-- THE LEDGER, spelled out on the trainer itself: the panel is a toy. Every shift
              worked with a toggle ON is flagged, dsnysweep_hi is never written, and the panel
              that PRINTS the HI-SCORE crosses the number out under "NO CHEATING! - CHEATS IN
-             USE - HI-SCORE NOT SAVED" (suspended screen, route report, YOU WIN). -->
+             USE - HI-SCORE NOT SAVED" (suspended screen, route report, YOU WIN). The flag is
+             IN THE PAGE ONLY - it is never stored: reload the game and every row is back at
+             its default with no cheat in use, so the next week can bank a HI-SCORE again. -->
         <div class="tr-hint" id="tr-hint-cheat">CHEATS IN USE - HI-SCORE NOT SAVED</div>
       </div>
       <div id="trainer-scroll"><div id="trainer-scroll-inner"></div></div>
@@ -5780,12 +5900,17 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.592</div>
+          <div id="app-version" class="menu-version">v1.0.593</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
           <div class="menu-ver-hint" id="menu-ver-hint">tap above for hidden cheat menu!</div>
           <button id="btnCredits" title="CREDITS &amp; ACKNOWLEDGEMENTS" aria-label="Credits and acknowledgements"><span class="cg">&#169;</span></button>
+          <!-- THE INSTRUCTIONS BOOK: pinned directly under the © badge, same slab skin as the
+               gear / © buttons, an open-book glyph. Opens the #instructionsPage card. -->
+          <button id="btnInstructions" title="HOW TO PLAY" aria-label="How to play - instructions">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.3 6.6C9 5 5.9 4.5 3 5.1V18.4C5.9 17.8 9 18.3 11.3 19.9V6.6Z"/><path fill="currentColor" d="M12.7 6.6C15 5 18.1 4.5 21 5.1V18.4C18.1 17.8 15 18.3 12.7 19.9V6.6Z"/><path fill="currentColor" d="M11.3 6.6 12 6 12.7 6.6V19.9L12 20.5 11.3 19.9Z"/></svg>
+          </button>
           <div class="menu-bottom" id="menu-bottom">
             <div class="menu-actions">
               <button id="btnStart">START SHIFT</button>
@@ -5930,6 +6055,335 @@
             </div>
 
             <div class="cr-foot">No copyright 2026 Dat Shit's Not Yours! &#183; THANK YOU FOR PLAYING</div>
+          </div>
+        </div>
+        <!-- INSTRUCTIONS: the open-book window, opened by the book button directly under
+             the © badge. The shift, the controls, the 95% clean law, the loot and power-ups,
+             the street's regulars, the cheat law and the offline cache. The ✕ button, a
+             backdrop tap, or ESC dismisses it. Same card skin as the credits window. -->
+        <div id="instructionsPage" class="hidden">
+          <div id="instructionsBox">
+            <div id="instructionsHead">
+              <span class="cr-title">HOW TO WORK THE ROUTE</span>
+              <button id="btnInstructionsClose" title="CLOSE" aria-label="Close instructions">&#10005;</button>
+            </div>
+
+            <div class="cr-sec">THE WEEK</div>
+            <div class="cr-row">
+              <span class="cr-name">SEVEN SHIFTS &#183; THEN THE NIGHT</span>
+              <span class="cr-cred">Monday to Sunday — one street a day, a different borough each time — then the <b>MIDNIGHT</b> shift after Sunday. Clear every route to finish the week.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE RIG RIDES WITH YOU</span>
+              <span class="cr-cred">The DSNY truck crawls the block alongside the worker. Its <b>open rear hopper</b> is where every bag, can and basket has to land.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">READ THE DAY CARD</span>
+              <span class="cr-cred">Every shift opens with the day, the street and that day's own <i>WATCH OUT FOR</i> line. That line is today's trouble.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">LANDSCAPE &#183; FULLSCREEN</span>
+              <span class="cr-cred">This is a landscape game. On a phone in portrait you get <b>ROTATE YOUR DEVICE</b> &#183; turn the phone and go full screen.</span>
+            </div>
+            <div class="cr-sec">CONTROLS &#183; KEYBOARD</div>
+            <div class="cr-row">
+              <span class="cr-name">WALK THE ROUTE</span>
+              <span class="cr-cred"><span class="kbd">W A S D</span> or the <span class="kbd">ARROW KEYS</span> &#183; up the route, back down the route, and strafing across the street.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">ACT &#183; EVERYTHING ELSE</span>
+              <span class="cr-cred"><span class="kbd">SPACE</span> or <span class="kbd">E</span> &#183; pick up, dump, counter-punch, shoo a rat, kick a ball, swing the shovel. It is also the &#8220;go&#8221; key on every card.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">PAUSE &#183; RESUME</span>
+              <span class="cr-cred"><span class="kbd">ESC</span> or <span class="kbd">P</span> holds a live shift &#183; <span class="kbd">ENTER</span> / START on any card.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">QUIT TO MENU</span>
+              <span class="cr-cred">Pause first, then <b>START + SELECT</b> on the controller &#183; the PAUSE / QUIT pill on touch.</span>
+            </div>
+
+            <div class="cr-sec">CONTROLS &#183; GAMEPAD (USB / BLUETOOTH)</div>
+            <div class="cr-row">
+              <span class="cr-name">ANY STANDARD PAD</span>
+              <span class="cr-cred">Plug a USB pad in or pair a Bluetooth one &#183; Xbox, PlayStation, Switch Pro and generic pads all work. The pads are polled every frame, the first pad found drives the worker, and the <b>keyboard keeps working right next to it</b>. Plug one in mid-shift and press a button &#183; the game picks it up on its own.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">LEFT STICK &#183; D-PAD</span>
+              <span class="cr-cred">The left stick is a true analog stick &#183; 360 degrees, speed proportional to how far you push, with a small dead zone in the middle. The <b>D-pad works as a fallback</b>: stick, d-pad and keyboard all walk the same street.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">A &#183; B &#183; X &#183; Y = ACT</span>
+              <span class="cr-cred">All four face buttons do what <span class="kbd">SPACE</span> does. The <b>START</b> button begins a shift and pauses a live one; <b>START + SELECT</b> quits to the menu.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE TRAINER TOO</span>
+              <span class="cr-cred">The pad drives the hidden trainer menu as well &#183; stick or d-pad to move the row, a face button to set it, START / SELECT to get out.</span>
+            </div>
+
+            <div class="cr-sec">CONTROLS &#183; VIRTUAL GAMEPAD (TOUCH)</div>
+            <div class="cr-row">
+              <span class="cr-name">THUMB-STICK (BOTTOM-LEFT)</span>
+              <span class="cr-cred">Analog, 360 degrees. Push UP = walk up the route, DOWN = back, LEFT / RIGHT = strafe, and every angle in between &#183; push harder to walk faster, centre to stand still. The stick also mirrors the keyboard and the gamepad, so you always see what is moving the worker.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">ACT (BOTTOM-RIGHT)</span>
+              <span class="cr-cred">Exactly the same as <span class="kbd">SPACE</span>: pick up, dump, punch back, shovel.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">PAUSE / QUIT PILL</span>
+              <span class="cr-cred">The small pill above the stick holds the shift &#183; START + SELECT quits to the menu. It doubles as the readout that flashes what you just picked up and what it paid.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">SMART LAYOUT</span>
+              <span class="cr-cred">On a computer the stick and ACT are hidden &#183; the keyboard drives everything. Attach a keyboard or a pad to a phone or tablet and the ACT button drops away by itself. <b>The thumb-stick is never hidden</b> &#183; touch movement always stays available.</span>
+            </div>
+            <div class="cr-sec">WORKING THE CURB</div>
+            <div class="cr-row">
+              <span class="cr-name">ACT PICKS UP</span>
+              <span class="cr-cred">Stand beside a curb <b>bag</b>, a garbage <b>can</b>, an empty can to stand back up, or a corner <b>litter basket</b> &#183; press ACT. The finds (mongo, cash, treasure) need no button at all &#183; walk onto them.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">ACT DUMPS</span>
+              <span class="cr-cred">Carry it to the rig's open rear hopper and press ACT again. <b>Heavy bags, full cans and litter baskets must be hauled right up to the hopper</b>; light bags go in from a short step back. Stand too far out and the worker tells you so.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">STACK THE LOAD</span>
+              <span class="cr-cred">With a light bag in hand, ACT grabs the <b>next</b> small bag you walk past, so one trip to the truck can clear a row of houses. Take a hit with your hands full and the whole load lands on the sidewalk &#183; pick it back up.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE ROUTE IS FINITE</span>
+              <span class="cr-cred">You cannot walk back behind the start barrier, and the last intersection ends the shift. The street is laid out once at the start of the day &#183; loot you leave behind stays exactly where you left it, and nothing new appears.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">AT THE END OF THE BLOCK</span>
+              <span class="cr-cred">Reach the finish and the worker pumps his fist, climbs into the cab and the rig drives off &#183; then the SHIFT REPORT prints today's tally and the day's clean percentage.</span>
+            </div>
+
+            <div class="cr-sec">THE 95% CLEAN LAW</div>
+            <div class="cr-row">
+              <span class="cr-name">SERVICE 95% OF THE ROUTE</span>
+              <span class="cr-cred">A route only counts as serviced if the worker took in <b>at least 95% of everything on it</b> &#183; litter baskets + garbage bags + garbage cans + storm debris, counted together.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE END-OF-ROUTE INSPECTION</span>
+              <span class="cr-cred">Finish under 95% and the supervisor writes him up: <b>&#8220;Failed to clean route. Work left out.&#8221;</b> The stamp slams over the day-end report and the red seal cites the offense.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THREE WRITE-UPS = SUSPENDED</span>
+              <span class="cr-cred">A worker DOWN in the street is a write-up. A route left dirty is a write-up. They share the same <b>COMPLAINTS ISSUED</b> meter &#183; the 3rd one ends the run &#183; <b>GAME OVER</b>.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">OVERTIME WANTS IT ALL</span>
+              <span class="cr-cred">The OVERTIME basket shift wants <b>every last basket</b> &#183; 100%, inside the 30-second clock &#183; plus $3,000 of street cash.</span>
+            </div>
+            <div class="cr-sec">STREET LOOT = POWER-UPS</div>
+            <div class="cr-row">
+              <span class="cr-name">MONGO</span>
+              <span class="cr-cred">Scrap metal left on the curb &#183; brass pipes, a kitchen sink, a copper wire spool, an electric motor, an air conditioner. <b>$10&#8211;$100</b> a piece.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">STREET CASH</span>
+              <span class="cr-cred">Bills from under a storm-debris box, a busted hydrant, a knocked-over cone. <b>$100</b>. On the MIDNIGHT street the money is Chinese <b>HELL NOTES</b> &#183; same cash, different paper, and it banks at face value.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">TREASURE</span>
+              <span class="cr-cred">63 street finds &#183; a masterpiece on an easel, a Zelda cartridge, a sealed Hot Wheels, a Rolex, rare vinyl, a vintage cash register. <b>$50&#8211;$250</b>. The <b>ghostly gold</b> floating behind the Maspeth cemetery fence is worth <b>$300&#8211;$600</b> &#183; you can reach it from the sidewalk without ever getting past the iron.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">HAVING FUN PAYS</span>
+              <span class="cr-cred">Kicking a piss bottle, teasing a bodega cat, knocking down a roadwork cone, booting a soccer ball &#183; 10 street cash each, and prank money counts toward the healers too.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">DOUBLE TIME</span>
+              <span class="cr-cred">Sunday in Bed-Stuy pays <b>every point double</b> &#183; bags, cans, baskets, mongo, treasure, cash, all of it. The storm-debris day is the week's payday.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">WHY YOU WANT THE LOOT</span>
+              <span class="cr-cred">Every find banks into the <b>STREET CASH</b> counter &#183; and STREET CASH is what buys your healers.</span>
+            </div>
+
+            <div class="cr-sec">THE POWER-UPS</div>
+            <div class="cr-row">
+              <span class="cr-name">COFFEE &#183; BEC SANDWICH</span>
+              <span class="cr-cred">The healers. A <b>coffee</b> restores 25 health, a full <b>bacon-egg-cheese sandwich</b> restores 40. One of the two drops on the street near the worker <b>every $5,000 of STREET CASH</b> you bank. MIDNIGHT is a harder grind: a healer costs 40,000 HELL NOTES.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">RED BULL &#183; &#8220;RUN IT UP!&#8221;</span>
+              <span class="cr-cred">A Red Bull can pops up beside the worker <b>every $30,000 of SCORE</b> (MIDNIGHT: every $120,000). Drink it and the worker <b>runs it up</b>: <b>12 seconds of total immunity</b> &#183; nothing hurts him, nothing stuns him, no hit can write him up, and he walks straight through traffic, crowds, dogs and hazards. He also walks <b>30% faster</b> for the whole rush, with a burst of stars off him. When the bar empties, his normal pace comes right back.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE EARN BARS &#183; THE POINTER ARROW</span>
+              <span class="cr-cred">The two thin bars under STREET CASH (burger icon) and the RED BULL bar (wing icon) fill toward the next heal and the next Bull. The instant a power-up lands on the street, the arrow beside the worker lights up and points straight at it for as long as it lies there.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">SAVE THEM FOR THE HARD PART</span>
+              <span class="cr-cred">A healer and a Bull stay lying on your stretch of the street for the whole shift &#183; off-screen when you walk away, back on-screen when you walk back. Nothing expires &#183; time them yourself.</span>
+            </div>
+            <div class="cr-sec">THINGS TO AVOID</div>
+            <div class="cr-row">
+              <span class="cr-name">DOG SHIT</span>
+              <span class="cr-cred">Step in a pile and your boots keep the <b>brown shoe-print trail</b> going &#183; the worker walks <b>about a quarter slower</b> for as long as he is leaving the prints behind, then full speed comes back. No damage &#183; a squelch, a tiny stagger, and time off your shift.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">TRAFFIC</span>
+              <span class="cr-cred">Cars, motorcycles, e-scooters, e-bikes, bicycles, kid tricycles and the little RC cars. A run-over is the hardest hit in the street <b>(8 health)</b> and empties your hands. Vehicles have right of way &#183; the supervisor always says so.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">STREET FURNITURE</span>
+              <span class="cr-cred">Fire hydrants, storm-debris boxes, mailboxes, sidewalk trees, curbs, parked driveway cars, the chalk outline. Solid, and they nick you <b>(5 health)</b>. In a rainy shift the hopper itself squirts a gush that takes a worker down &#183; HR files it as &#8220;Bathing in public without permission&#8221;.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE ANIMALS</span>
+              <span class="cr-cred">Leashed dogs lunge on their chain &#183; the Bronx, Queens and Bed-Stuy run the big mean <b>pit bull</b> variety today <b>(8 health a bite)</b>, and raccoons, rats, squirrels and street cats swarm your legs. Shoo them with ACT &#183; a kicked rat is free entertainment, and the squirrels are protected.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE CROWD</span>
+              <span class="cr-cred">Touching anyone is a bump, and every bump in this era is the worker's fault. Pedestrians, hookers, skaters, breakers, dogwalkers and loud addicts &#183; the write-up always names the worker, never the party at fault.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">YOUR HEALTH BAR</span>
+              <span class="cr-cred">WORKER HEALTH runs 0&#8211;100. At zero the worker goes DOWN &#183; the sad trombone, the dizzy spin, the fall onto the sidewalk &#183; and a write-up. Hits grant a short set of i-frames, so a second swat in the same instant does nothing.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">&#8220;SAN MAN NEEDS FOOD BADLY!&#8221;</span>
+              <span class="cr-cred">The street alarm. Take a hit while you are standing low on health and the screen flashes red, the fire alarm runs and the banner burns in the middle of the screen. That is the cue to go find a coffee, not to find a fight.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">DON'T LOSE THE TRUCK</span>
+              <span class="cr-cred">Your hands full and no hopper in reach is a long walk with a shrinking clock. Drop small bags as you go and keep the rig between you and the load.</span>
+            </div>
+
+            <div class="cr-row">
+              <span class="cr-name">THE 13 GUYS YOU CAN PUNCH</span>
+              <span class="cr-cred">Get hit by one of the street's 13 attackers &#183; a dealer, the mack daddy, the knife maniac, a panhandler, the little Polish brother, the mafia guy, a stick-up kid, the football player, the street baller, the rapper, the cop, the robber, the alien guy &#183; and your hands drop the trash and you snap into <b>BEAST MODE</b>: red face, a rage halo at your feet, a clenched fist over your cap. For <b>10 seconds</b> the ACT key throws a jab &#183; get within arm's reach and press it: the attacker squeals, runs off, and drops a <b>mark</b> on the ground at his feet for you to bank. Miss the window and his punch stands.</span>
+            </div>
+
+            <div class="cr-sec">THE STREET FOLKS &#183; THE WEEK &#183; MONDAY TO SUNDAY</div>
+            <div class="cr-row">
+              <span class="cr-name">MONDAY &#183; MANHATTAN, GRAMERCY PARK</span>
+              <span class="cr-cred"><i>WATCH OUT FOR THE EDP!</i> &#183; the <b>naked knife maniac</b> is the day's head case: he stalks the middle of the route, shouts &#8220;I need money!&#8221; and stabs on contact, then backs off for a beat &#183; go around him. The <b>pizza-delivery courier</b> is the day's mascot &#183; get within reach and he bells &#8220;Order up!&#8221;, drops the gear and rides AT you; bumping him is a write-up. Gramercy is the one day with <b>three real cyclists</b> in the road, and the street runs a hooker, a yelling addict, the <b>bodega cats</b> at the corner stores and the dog <b>tied to a sidewalk fence post</b> &#183; Manhattan has no front lawns, so no doghouse today.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">TUESDAY &#183; THE BRONX, MOTT HAVEN</span>
+              <span class="cr-cred"><i>DON'T PESTER THE DRUG PUSHERS!</i> &#183; <b>one burly stoop dealer per block</b>, each guarding a weed / fentanyl stash table on his own stoop. Step into his corner and he punches. Every dealer has a <b>lure</b> lying on the sidewalk right at his feet &#183; a curb bag, a can, or a mongo / cash / treasure find. The loot is real. The punching range is that close. Take the bag and take the punch, or go around the block.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE BRONX REST OF IT</span>
+              <span class="cr-cred"><b>Two panhandlers</b> shuffle in front of the corner stores begging for money, a drink, or drugs &#183; a shove and a cloud of stink, light damage but it adds up. The two-wheeler traffic is swapped for a <b>motorcycle</b> and an <b>e-bike</b>. The Bronx cats sit <b>on the store door mats</b>, and the cats here are the white-and-grey &#8220;mott&#8221; mousers.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">WEDNESDAY &#183; BROOKLYN, FLATBUSH</span>
+              <span class="cr-cred"><i>WATCH FOR CHILDREN!</i> &#183; <b>three driveway tricycle kids</b>, parked one in the early, one in the middle and one in the late third of the route so you always pass them. Each one lunges off his driveway at you <b>(4 health &#183; a light bump)</b>, and none of them ever cross into the street. A <b>soccer kid</b> plays in a lane &#183; run into the kid himself and <b>he stuns you and opens your hands</b>: the bags and the can you were carrying hit the walk at your feet. Boot his ball instead &#183; that one pays.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">FLATBUSH REST OF IT</span>
+              <span class="cr-cred">Two <b>observant scholars</b> stroll the sidewalk with a Talmud under the arm &#183; bumping one offends him: &#8220;Failure to respect observant citizen&#8221;. THREE <b>doghouses</b> sit on the front lawns today (one on every other level), so the lunging dogs have a longer chain. No hookers, no yelling addicts, no street tricycles on the sidewalk &#183; the only tricycles in this game are Flatbush's driveway kids. OVERTIME fires the moment Wednesday ends.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THURSDAY &#183; QUEENS, MASPETH</span>
+              <span class="cr-cred"><i>RUN THE GAUNTLET</i> &#183; the <b>nosy homeowner</b> shadows you down his block with a running list of stupid questions about the trash schedule, and bumps you like any civilian &#183; the seal cites her. <b>One Polish lady per block</b>, on her own frontage, with her bag anchored right at her feet &#183; so the pickup is what puts you in bumping range, and bumping her sends <b>her little brother</b> storming over to throw at most 2 whacks <b>(3 health each &#183; a scared kid, not a street pro)</b>. <b>The skunk and her baby</b> trot the street &#183; get close and she sprays <b>(4 health, and the stun)</b>; bump one and it huffs and bolts.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">MASPETH REST OF IT</span>
+              <span class="cr-cred">The only bike riders today are <b>two pizza-delivery couriers</b> in hi-vis vests &#183; bump one and a pizza or a tacos falls out of the bag. <b>Mount Mongo Cemetery</b> stands on its own block: no house, no curb garbage, iron fence, <b>ghosts</b> and the floating ghostly gold. A healer and a Red Bull never spawn behind the fence, and neither does the cemetery treasure &#183; it all lies in the band you can walk.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">FRIDAY &#183; STATEN ISLAND, NEW DORP</span>
+              <span class="cr-cred"><i>SNITCHES GET STITCHES!</i> &#183; a <b>Karen on every odd block</b>, each in her own dress, shadowing you down 3-4 houses with &#8220;I know ALL about garbage&#8221; questions and loud complaints about your job, your schedule, and the boss. A <b>housewife on every even block</b> &#183; overly friendly, slightly too forward, and a bump is a bump. On Block 2 a man is <b>washing his sedan</b> on the driveway with the house spigot: get too close to the nozzle and you get the hose. On Block 3 a <b>mafia enforcer</b> in a tracksuit stands over his own chalk <b>crime-scene outline</b> &#183; come near him or the outline and he stalks the rest of the level, and his bump hits heavy.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">NEW DORP REST OF IT</span>
+              <span class="cr-cred">A <b>blue jay</b> with a nest of babies in a sidewalk tree owns her block &#183; the nest is sacred. She marks a <b>warning circle on the pavement around you</b> before she swoops &#183; step out of the ring and you dodge the hit. <b>Three tee-ball kids</b> play catch on one block and hurl the ball straight at you when you get in the way. An <b>RC kid</b> runs a mini monster truck across the lawns and the street &#183; it darts past and <b>trips you</b>. The <b>parked car</b> on the driveway is solid. Staten is a sidewalk-only day: the porch lines keep you off the lawns.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">SATURDAY &#183; MANHATTAN, HARLEM</span>
+              <span class="cr-cred"><i>CLOSE ENCOUNTERS OF THE HOMELESS KIND</i> &#183; the <b>mack daddy</b> runs Block 3 in the purple suit and feather, with the day's whole crew standing the corner beside him &#183; get close and he goes hostile, stalks you down his block and punches. Out of a lidless manhole comes <b>the alligator</b>, rearing up to chomp whoever stands on the spot &#183; a protected species. <b>The alien-conspiracy guy</b> holds one random block and hurls debris at you while he saves Harlem. <b>The street baller</b> drills on his own hoop &#183; crowd his court and the ball comes at you. <b>The bird-seed homeless man</b> shadows his block flinging seed, and the flock that comes to eat it fouls your uniform.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">SUNDAY &#183; BROOKLYN, BED-STUY &#183; DOUBLE TIME</span>
+              <span class="cr-cred"><i>SACKS AND CRIME</i> &#183; every point on this day pays <b>DOUBLE</b>, and it is the busiest street of the week. One <b>high-school football player</b> works his line of scrimmage and tackles the worker flat (&#8220;Hut&#8230; hut&#8230; HIKE!&#8221;). One <b>aspiring rapper</b> paces his block freestyling and gets pushy &#183; &#8220;Failed to avoid an American Idol&#8221;. On one block an <b>NYPD officer and a masked robber</b> shoot it out behind the trees, mailboxes and hydrants &#183; they always miss each other, and only you can get grazed: stand in the line, take the crossfire. Out of a lidless manhole rises a <b>giant purple octopus tentacle</b> that grabs you off the street &#183; a biohazard. <b>Storm debris</b> boxes pile the curb, and the rain is guaranteed.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE FOLKS GET BUSIER EVERY DAY</span>
+              <span class="cr-cred">The crowd is deliberately sparse on Monday. Every day of the week adds one more motorcycle, one more e-bike and one more RC car, so Sunday is the busiest, most dangerous shift of the week &#183; and the night shift that follows is on its own.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">AND THEN &#183; MIDNIGHT</span>
+              <span class="cr-cred">The shift after Sunday is the same brownstone row at their unholy hour, emptied of everything mortal. There is no list for it &#183; too many. You get a <b>shovel</b>, a <b>block-by-block wall of fog</b> you have to shovel empty to open the street, and a <b>boss in the cemetery</b> at the end of a dead-end street. The night shift is won with the shovel, not with your hands. Everything on this page that has an ACT button applies &#183; out here, the ACT key swings the shovel.</span>
+            </div>
+            <div class="cr-sec">OVERTIME &#183; THE BASKET SHIFT</div>
+            <div class="cr-row">
+              <span class="cr-name">WHEN IT FIRES</span>
+              <span class="cr-cred">The second Wednesday is serviced, the route ends, and the card offers <b>OVERTIME BASKETS</b> &#183; a 4-block all-store street with no curb garbage at all. The only job is the corner <b>litter baskets</b>.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE 30-SECOND CLOCK</span>
+              <span class="cr-cred">The clock starts the <b>instant the worker moves</b>. Two win conditions: service <b>every basket</b> and bank <b>$3,000 of street cash</b> &#183; all the mongo, treasure and cash lying on that store street is worth <b>double</b> to get you there. Shove the baskets at the hopper &#183; they only count once they land in the truck.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE PAYDAY</span>
+              <span class="cr-cred">Make the clock with both conditions and <b>the overtime money is yours to keep</b> &#183; and a <b>Red Bull</b> is laid on the curb on Thursday by the cemetery, marked. Miss the clock and the report tells you exactly what didn't land: the baskets left out first, then the money. The entire overtime payout is <b>rolled back to zero</b>.</span>
+            </div>
+
+            <div class="cr-sec">HI-SCORE &#183; NO CHEATING</div>
+            <div class="cr-row">
+              <span class="cr-name">THE WEEK'S SCORE</span>
+              <span class="cr-cred">Every shift adds to the <b>WEEK TOTAL</b>. Finish the week and the score is banked on this device as the <b>HI-SCORE</b> &#183; the number the main menu and the game-over cards print.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">CHEATS VOID THE RECORD</span>
+              <span class="cr-cred">The build number in the top-left corner of the logo opens the hidden <b>TRAINER</b>. Touching <b>any</b> trainer option &#183; Infinite Health, Always Run It Up!, Infinite Complaints, or a Starting Level that is not the week's real start &#183; <b>flags the game you are playing</b>. A flagged game <b>is a game with no record: the HI-SCORE IS NEVER SAVED</b>. Flipping the same option back off is too late &#183; the flag stands for that whole game.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">A REFRESH CLEANS THE SHEET</span>
+              <span class="cr-cred">Reload the game &#8212; refresh the page in the browser &#8212; and the trainer comes back with <b>every row at its default</b>: no cheat in use, no flag, and the HI-SCORE is <b>saveable again</b> from that refresh on. A cheat only owns the game you switched it on in; open the trainer and use one again and that game is flagged. (Quitting to the main menu is <b>not</b> a refresh &#8212; the panel keeps your rows where you left them, and a brand-new week starts clean.)</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">NO CHEATING!</span>
+              <span class="cr-cred">On every card that prints a HI-SCORE &#183; SUSPENDED BY DSNY, the route report, YOU WIN &#183; the number is crossed out under the <b>NO CHEATING! &#183; CHEATS IN USE &#183; HI-SCORE NOT SAVED</b> stamp, the ribbon stays dark, and the BEST SHIFT line shows the last honest record. The trainer is a toy for walking the night shift. Play a week clean and the record is yours.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">INFINITE COMPLAINTS MEANS WHAT IT SAYS</span>
+              <span class="cr-cred">With <b>Infinite Complaints</b> ON, the complaints genuinely stop stacking: a worker DOWN and a dirty route are still written up &#8212; the seal slams, the sound fires, the offense is read out &#8212; and the stamp adds &#8220;NO STRIKE RECORDED&#8221;, because the <b>COMPLAINTS ISSUED</b> meter does not climb. No 3rd strike, no suspension: the shift runs on. The row clears nothing that is already on the record (flip it on with two write-ups and you still have two), and with the row <b>OFF</b> the three-strike law is plain: 3 write-ups = SUSPENDED. It is a cheat, so the week's HI-SCORE goes with it.</span>
+            </div>
+            <div class="cr-sec">THE HUD &#183; THE BUTTONS</div>
+            <div class="cr-row">
+              <span class="cr-name">TOP-LEFT READOUT</span>
+              <span class="cr-cred"><b>WORKER HEALTH</b> &#183; <b>DISTANCE</b> (how far along the route you are) &#183; <b>SCORE</b> &#183; <b>STREET CASH</b> with the two earn bars under it.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">COMPLAINTS ISSUED</span>
+              <span class="cr-cred">The three pips. Each write-up lights one. The third one ends the week.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE GEARS CARD</span>
+              <span class="cr-cred">The gear next to START SHIFT holds <b>RENDER</b> (540P default &#183; a smaller picture is a faster game), <b>FPS</b>, <b>SHADOW</b>, <b>CRT</b> (the scanline / vignette look) and <b>RADIO</b> (HI-FI / LO). Every choice saves on this device. If a phone is struggling, the game quietly lends itself a lower picture and climbs back to your settings when the street calms down.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE RADIO</span>
+              <span class="cr-cred">The NOW PLAYING widget docked under START SHIFT is the same station you hear in the truck &#183; MUTE and SKIP work before the shift starts and keep playing straight through it.</span>
+            </div>
+
+            <div class="cr-sec">OFFLINE PLAY &#183; THE ASSET CACHE</div>
+            <div class="cr-row">
+              <span class="cr-name">IT DOWNLOADS ONCE</span>
+              <span class="cr-cred">The first launch runs the <b>GETTING ASSETS</b> gate and stores the whole game on your device &#183; the page shell, the truck, the worker, every prop and model, and every song on the radio. After that the game and the station play <b>with no network at all</b>.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">THE CACHE BADGE</span>
+              <span class="cr-cred">The small badge in the top-right tells you where you stand: <b>CACHING n/N</b> (assets are still downloading) &#183; <b>OFFLINE READY</b> (every model and every track is stored &#183; it all works off the cable) &#183; <b>OFFLINE</b> (the connection dropped and the cached copy is running) &#183; <b>ONLINE ONLY</b> (this browser has no cache to write to, so it runs from the network).</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">INSTALL THE GAME</span>
+              <span class="cr-cred"><b>INSTALL GAME</b> under START SHIFT adds the game to the device as an app &#183; a real fullscreen, a home-screen icon, and storage the browser is asked to keep permanently so a low-phone can't evict the street. On iPhone / iPad, use <b>Share &#8594; &#8220;Add to Home Screen&#8221;</b> &#183; the browser keeps its address bar, only the installed app runs edge-to-edge.</span>
+            </div>
+            <div class="cr-row">
+              <span class="cr-name">WHAT SAVES ON THIS DEVICE</span>
+              <span class="cr-cred">Your <b>HI-SCORE</b>, your <b>SETTINGS</b>, and the <b>cheat flag</b> &#183; all local, all keyed to this browser. Nothing plays off a server: the week, the street and the loot seed are all generated on your machine.</span>
+            </div>
+
+            <div class="cr-foot">CLEAN EVERY CURB &#183; HAUL THE MONGO &#183; DODGE THE CROWD &#183; 95% OR YOU'RE WRITTEN UP</div>
           </div>
         </div>
     ></div>
@@ -6111,7 +6565,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.592';
+      const APP_VERSION = '1.0.593';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -8279,32 +8733,34 @@
 
       // ==================== THE CHEAT LEDGER (a cheated week never owns a HI-SCORE) =======
       // The hidden TRAINER is a warez-scene toy for people who want to play the NIGHT SHIFT,
-      // not a scoring path. The instant any trainer cheat is engaged, THIS RUN is flagged for
-      // good: the flag rides through every report panel, survives a reload (refreshing the
-      // page mid-shift must not launder a cheated score), and is wiped only by a brand-new
-      // week (startGame) or by quitting back to the menu (quitGame). A flagged run
+      // not a scoring path. The instant any trainer cheat is engaged, THE RUNNING GAME is
+      // flagged: the flag rides through every report panel of that game, and it is wiped by a
+      // brand-new week (startGame), by quitting back to the menu (quitGame), and by ANY MANUAL
+      // REFRESH OF THE PAGE. "Manual refresh" means reloading the game / refreshing the browser
+      // tab — NOT the main menu simply re-appearing after a quit, which keeps the trainer's
+      // options exactly where the player left them.
+      // WHY THE LEDGER IS NEVER WRITTEN TO localStorage: a page reload reboots the trainer with
+      // every option back at its default, so no cheat is in use any more — and the fresh week
+      // that follows is eligible for the HI-SCORE again. The only way to void a score a second
+      // time is to open the trainer and engage a cheat again.
+      // A flagged game
       //   * NEVER writes dsnysweep_hi — the HI-SCORE IS NOT SAVED while cheats are in use;
       //   * on the panels that PRINT a HI-SCORE (suspended screen, route report, YOU WIN) the
       //     line is struck through under a "NO CHEATING! - CHEATS IN USE - HI-SCORE NOT SAVED"
       //     stamp (cheatMark) and the NEW HIGH SCORE! ribbon never lights. No mark is painted
       //     on a screen with no score line: the day card, the shift-report grid and the HUD
       //     stay clean, so the message appears exactly where the high score shows.
-      let CHEAT_USED = false;
+      let CHEAT_USED = false; // IN THE PAGE'S OWN MEMORY: a refresh of the game starts clean
       try {
-        CHEAT_USED = localStorage.getItem("dsnysweep_cheat") === "1";
+        // A building older than this law can leave a stored flag behind. Nothing reads it any
+        // more (a reload must hand the player a clean sheet), so the dead key is swept out.
+        localStorage.removeItem("dsnysweep_cheat");
       } catch (e) {}
       function markCheatUsed() {
-        if (CHEAT_USED) return; // a run is flagged for good — flipping a cheat off is too late
-        CHEAT_USED = true;
-        try {
-          localStorage.setItem("dsnysweep_cheat", "1");
-        } catch (e) {}
+        CHEAT_USED = true; // flagged while this game runs — flipping the cheat off is too late
       }
       function clearCheatUsed() {
         CHEAT_USED = false;
-        try {
-          localStorage.removeItem("dsnysweep_cheat");
-        } catch (e) {}
       }
       function cheatUsed() {
         return CHEAT_USED === true;
@@ -9649,6 +10105,29 @@
       });
       window.addEventListener("keydown", function (e) {
         if (e.key === "Escape" && !$("creditsPage").classList.contains("hidden")) closeCredits();
+      });
+      // ---- INSTRUCTIONS: the open-book button (directly under the © badge) opens the
+      // #instructionsPage window; the ✕ button, the dark backdrop, or ESC close it. Same
+      // card skin and the same cascade as the credits window — the cascade delay is counted
+      // here, so adding a row to the card never needs a CSS edit.
+      function openInstructions() {
+        var box = $("instructionsBox");
+        var kids = box ? box.children : [];
+        for (var i = 0; i < kids.length; i++) kids[i].style.setProperty("--cd", i);
+        $("instructionsPage").classList.remove("hidden");
+        if (box) box.scrollTop = 0; // always open on the first card, not where it was left
+      }
+      function closeInstructions() {
+        $("instructionsPage").classList.add("hidden");
+      }
+      $("btnInstructions").addEventListener("click", openInstructions);
+      $("btnInstructionsClose").addEventListener("click", closeInstructions);
+      // tap the dark backdrop (outside the card) to dismiss
+      $("instructionsPage").addEventListener("click", function (e) {
+        if (e.target === this) closeInstructions();
+      });
+      window.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !$("instructionsPage").classList.contains("hidden")) closeInstructions();
       });
       // ==================== THREE SETUP (diagonal top-right matrix) ====================
       function makeFrustum() {
@@ -42982,15 +43461,29 @@
       // A supervisor WRITE-UP. A worker DOWN (LODI) in the street gets him written up, and so
       // does the end-of-route inspection when he left the trash out (see applyRouteWriteUp).
       // Lights up one more HUD pip and flashes.
-      // THE THREE-STRIKE LAW (the game's own rule, and the trainer cannot touch it): every
-      // screw-up is a write-up; the meter counts 1, 2, 3 - and the 3rd write-up SUSPENDS the
-      // worker (the GAME OVER screen). It never climbs past 3, so the seal can never read
-      // 4/3: the shift ENDS on the 3rd strike. Flipping a trainer cheat never removes a
-      // strike - it only voids the HI-SCORE (see the CHEAT LEDGER + commitHighScore).
+      // THE THREE-STRIKE LAW: every screw-up is a write-up; the meter counts 1, 2, 3 - and the
+      // 3rd write-up SUSPENDS the worker (the GAME OVER screen). It never climbs past 3, so the
+      // seal can never read 4/3: the shift ENDS on the 3rd strike.
+      // THE ONE TRAINER ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS (CHEAT ONLY)" - and
+      // it means EXACTLY what it says: with it ON, a write-up still happens (the seal, the stamp,
+      // the complaint sound, the offense line, the whole worker-DOWN beat) but the complaint never
+      // STICKS - COMPLAINTS ISSUED does not climb, so the 3rd strike never arrives and the shift
+      // is never suspended. It is a CHEAT, so it also flags the week through markCheatUsed and the
+      // HI-SCORE is NOT SAVED (see THE CHEAT LEDGER + commitHighScore). The trainer offers nothing
+      // else against the meter: no row removes a strike that is already on the record, and no row
+      // buys a 4th - the counter is capped at 3 with the cheat OFF (addWriteUp is the ONLY place
+      // a strike is ever counted, so finishDying / applyRouteWriteUp need no trainer test of their own).
+      // The CHEAT read is typeof-guarded: the harnesses that run addWriteUp VERBATIM (_health_chk.js,
+      // _cheat_score_chk.js, _health_carryover_chk.js) inject only $ / SFX / updateHUD / state.
       function addWriteUp() {
         if (state !== "play" && state !== "dying" && state !== "dayend") return complaints; // +dayend: the end-of-route inspection writes the worker up at the shift report
         if (complaints >= 3) return complaints; // the 3rd strike already ended the shift
-        complaints++;
+        // INFINITE COMPLAINTS (CHEAT ONLY): the write-up lands, the meter does not.
+        const infiniteComplaints =
+          typeof CHEAT !== "undefined" &&
+          CHEAT !== null &&
+          CHEAT.infinite === true;
+        if (!infiniteComplaints) complaints++;
         SFX.playComplaintSound();
         updateHUD(); // the COMPLAINTS ISSUED tally (top right) lights up the new pip INSTANTLY
         const trBox = $("tr"); // the COMPLAINTS ISSUED box slams down like an ink stamp
@@ -44949,8 +45442,14 @@
         )
           bossRegainFullStrength();
         showWriteUpText(n);
+        // With the trainer's "Infinite Complaints (CHEAT ONLY)" row ON the meter never moved, so
+        // the worker says what actually happened (the complaint slid off the record) instead of
+        // counting a strike he does not have. typeof-guarded: the harnesses that run finishDying
+        // VERBATIM (_health_chk.js) never define CHEAT.
         Voice.say(
-          n === 1
+          typeof CHEAT !== "undefined" && CHEAT !== null && CHEAT.infinite === true
+            ? "Huh. That write-up slid right off the record."
+            : n === 1
             ? "Ugh... that write-up is on my record now."
             : "TWO write-ups?! That means business!",
           2.5,
@@ -45311,6 +45810,14 @@
         r.className = "writeup-reason";
         r.textContent = writeupReason(lastHitCause);
         el.appendChild(r);
+        // INFINITE COMPLAINTS (CHEAT ONLY, see addWriteUp): the complaint landed and the meter
+        // did not move — say so, so the player is never left reading a "0/3" seal and guessing.
+        if (typeof CHEAT !== "undefined" && CHEAT !== null && CHEAT.infinite === true) {
+          const ns = document.createElement("div");
+          ns.className = "writeup-reason writeup-nostrike";
+          ns.textContent = "NO STRIKE RECORDED - INFINITE COMPLAINTS IS ON (HI-SCORE VOIDED)";
+          el.appendChild(ns);
+        }
         document.body.appendChild(el);
         setTimeout(function () {
           if (el.parentNode) el.parentNode.removeChild(el);
@@ -58258,15 +58765,18 @@
           panel.style.opacity = "1"; // fade the report menu back in
         }, 5400); // just after the 5.2s stamp auto-removes
       }
+      // THE THREE-STRIKE LAW, END-OF-ROUTE SIDE: a route left dirty is a write-up like a worker
+      // DOWN in the street, so the 3rd one SUSPENDS the worker - GAME OVER. The count comes from
+      // addWriteUp, which owns the ONLY trainer exception: with the trainer's "Infinite Complaints
+      // (CHEAT ONLY)" row ON the meter never climbs, so n never reaches 3 and this handover never
+      // fires. Every other row leaves the strike exactly as it lands, and every row (that one
+      // included) voids the HI-SCORE through the CHEAT LEDGER.
       function applyRouteWriteUp() {
         if (complaints >= 3) return complaints; // the shift is ALREADY suspended (the 3rd strike landed): nothing left to log, and the suspension fires exactly once
         lastHitCause = "unclean"; // the offense the supervisor stamps under the seal
         const n = addWriteUp(); // +1 COMPLAINT ISSUED: HUD pips light up, the ink stamp slams, SFX
         showWriteUpText(n); // "WRITTEN UP! n/3" + the offense line, slams over the day-end report
         dimShiftReport(); // fade the shift-report menu so the stamp reads, then fade it back
-        // THE THREE-STRIKE LAW: a route left dirty is a write-up like a worker DOWN in the
-        // street, so the 3rd one SUSPENDS the worker - GAME OVER. No trainer toggle gets the
-        // worker past it (a cheat only voids the HI-SCORE).
         if (n >= 3) {
           routeWriteupLock = true; // hold "next day" while the 3rd-strike stamp is being read
           setTimeout(function () {
@@ -60241,11 +60751,14 @@
       // stage (grid + stars + sun) with a crisp DOM menu on top: logo, option rows (active
       // row highlighted BLUE) and a scrolling marquee. Driven by keyboard / gamepad / the
       // on-screen joystick. Cheats:
-      //   infinite   -> "Infinite Complaints (CHEAT ONLY)". This one CANNOT cheat the street:
-      //                every screw-up is still a WRITE-UP - a worker DOWN, and a route left
-      //                dirty at the end-of-shift inspection - the meter counts 1, 2, 3 and the
-      //                3rd write-up is GAME OVER (addWriteUp / finishDying / applyRouteWriteUp).
-      //                Flipping it only flags the week, so the HI-SCORE is NOT SAVED.
+      //   infinite   -> "Infinite Complaints (CHEAT ONLY)". It means EXACTLY what it says: with
+      //                it ON, every screw-up is STILL a write-up — the worker DOWN beat, the
+      //                end-of-shift inspection, the complaint sound, the WRITTEN UP! seal and its
+      //                offense line all happen — but the COMPLAINTS ISSUED meter never climbs
+      //                (see addWriteUp), so the 3rd strike never arrives and the shift is never
+      //                suspended. It never clears strikes already on the record, and it buys no
+      //                4th strike with the row OFF: the meter is capped at 3. Being a cheat, it
+      //                flags the running game, so the HI-SCORE is NOT SAVED.
       //   invincible -> INFINITE HEALTH (trainer row "Infinite Health"): the worker CAN'T
       //                BE HURT — and ONLY that: no speed boost, no star sparkle, no
       //                auto-dump; cones/bottles/creatures still interact, hits just
@@ -60254,6 +60767,9 @@
       //                sparkle + walk-through-everything + touch-to auto-dump)
       //   startLevel -> which shift a fresh week begins on (1..7 = Mon..Sun, 8 = the
       //                NIGHT SHIFT — the level AFTER Sunday, which has no weekday)
+      // THE LEDGER IS IN-MEMORY ONLY (see THE CHEAT LEDGER): refreshing the game in the browser
+      // hands back every row at its default with no cheat in use, so the next week can bank its
+      // HI-SCORE again. The trainer panel resets with the page — nothing is remembered.
       var CHEAT = { infinite: false, invincible: false, runitup: false, startLevel: START_LEVEL }; // the panel default FOLLOWS the configured week start (START_LEVEL): a temporary START_LEVEL flip — like booting straight into the NIGHT SHIFT — must never be silently overridden back to Monday
       var TRAINER_DAYS = [
         "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY",
@@ -60657,7 +61173,7 @@
       // it like a rubber band / membrane: hit it and the strip dips, then oscillates
       // back up and throws the ball right back into the air.
       var TRAINER_MSG =
-        "                              Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        THE RULE OF THIS TRAINER: CHEATS IN USE MEANS THE HI-SCORE IS NOT SAVED. Flip any toggle, jump the Starting Level, and the week you are working is flagged for good - the score is never written to the ledger, the NEW HIGH SCORE! ribbon never lights, and every panel that prints a HI-SCORE crosses the number out under a NO CHEATING! stamp saying HI-SCORE NOT SAVED. And the street keeps its own law, which the trainer cannot touch: a worker DOWN is a WRITE-UP, a route left DIRTY is a WRITE-UP, the meter counts 1, 2, 3 - and 3 WRITE-UPS END THE GAME. No trainer toggle buys a 4th strike and none removes one. Play the street straight and the HI-SCORE is YOURS.             ";
+        "                              Hey cool fans! -Pan- is back and kicking with a brand new trainer! This time with a quick +4. It's been nearly 30 years since I've had to write scroll text, and honestly I've been having a lot of fun doing this. Not sure who the hell I would greet here since this isnt a Scene release? Anyway, I hope you enjoy this simple game!                        THE RULE OF THIS TRAINER: CHEATS IN USE MEANS THE HI-SCORE IS NOT SAVED. Flip any toggle, jump the Starting Level, and the week you are working is flagged - the score is never written to the ledger, the NEW HIGH SCORE! ribbon never lights, and every panel that prints a HI-SCORE crosses the number out under a NO CHEATING! stamp saying HI-SCORE NOT SAVED. REFRESH THE GAME AND THE PANEL IS CLEAN: reloading the page hands every row back at its default with no cheat in use, so the week that follows is eligible for a HI-SCORE again - a cheat only owns the game you engaged it in. And the street keeps its own law: a worker DOWN is a WRITE-UP, a route left DIRTY is a WRITE-UP, the meter counts 1, 2, 3 - and 3 WRITE-UPS END THE GAME. The one row that touches that meter is INFINITE COMPLAINTS - the row that means exactly what it says: with it ON the complaints never stack, the seal prints and the strike does not. No row clears a strike already on the record, and no row buys a 4th strike. Play the street straight and the HI-SCORE is YOURS.             ";
       function trainerInitScroll() {
         var inner = $("trainer-scroll-inner");
         if (!inner) return;

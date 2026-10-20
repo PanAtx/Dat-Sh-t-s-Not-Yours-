@@ -56,7 +56,7 @@ const suites = [
   ['soccer + tee-ball kids route AROUND sidewalk trees/boxes (never stuck behind one)', 'node', '_soccer_avoid_chk.js'],
   ['worker free-handed Act kicks the soccer ball (Golazo! + not-fair + $5)', 'node', '_soccer_kick_chk.js'],
   ['trainer Infinite Health = can\'t-be-hurt ONLY (no speed/sparkle; Run It Up keeps its own package)', 'node', '_cheat_god_chk.js'],
-  ['THE CHEAT VOID LAW (any trainer cheat flags the run in the sticky ledger; the HI-SCORE is crossed out under a NO CHEATING! stamp on the shift report, the day card, the suspended screen and the week-complete screen; cheated weeks never bank and never light NEW HIGH SCORE!; only a clean startGame clears the flag)', 'node', '_cheat_score_chk.js'],
+  ['THE CHEAT VOID LAW (any trainer cheat flags the running game in the in-memory ledger; the HI-SCORE is crossed out under a NO CHEATING! stamp on the shift report, the day card, the suspended screen and the week-complete screen; cheated games never bank and never light NEW HIGH SCORE!; a brand-new startGame, a quitGame, or a manual page refresh all hand back a clean, eligible sheet - the flag is never stored, so a reload cannot be laundered; and INFINITE COMPLAINTS means exactly what it says: the write-ups land and the complaints never stack)', 'node', '_cheat_score_chk.js'],
   ['standing NPCs never spawned in leaf shade + flush heavy-bag twist-tie', 'node', '_npc_sight_chk.js'],
   ['guaranteed-clear stand: no hooker/jacker/panhandler keeps a spot under a crown', 'node', '_npc_clear_chk.js'],
   ['THE NIGHT SHIFT (the haunted level after Sunday: emptied street, shovel, ecoplasm hopper, the DEAD-END CEMETERY and THE SLUG DEMON — the heart-window final boss)', 'node', '_nightshift_chk.js'],

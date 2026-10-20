@@ -380,6 +380,21 @@
       "prove the FLATBUSH SOCCER TEAMS play: book goals, lanes, the kickoff",
       "node",
       "_soccer_chk.js"
+    ],
+    [
+      "parse index.html, syntax-check every inline script and assert the INSTRUCTIONS",
+      "node",
+      "_instructions_chk.mjs"
+    ],
+    [
+      "runs the EXACT instructions wiring on a faked DOM: open, close, x, backdrop, ESC, cascade",
+      "node",
+      "_instructions_dom_chk.js"
+    ],
+    [
+      "audit every HTML entity written in the INSTRUCTIONS window (numeric entities only - no raw typographic characters escape into the markup)",
+      "node",
+      "_instructions_amp_chk.mjs"
     ]
   ]
 }

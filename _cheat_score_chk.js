@@ -1,24 +1,32 @@
 // THE CHEAT LAW - the HI-SCORE is the honest run's medal. Run: node _cheat_score_chk.js
 /* ============================================================================
    Every cheat lives in the hidden TRAINER (tap the build number on the menu). The law:
-     1) THE LEDGER: engaging any trainer cheat flags THIS RUN for good - switching the cheat
-        off later is too late. The flag rides in localStorage ("dsnysweep_cheat"), so
-        refreshing mid-shift cannot launder a cheated score, and only a brand-new week
-        (startGame) or quitting to the menu (quitGame) re-opens the ledger.
-     2) A flagged run NEVER writes dsnysweep_hi: commitHighScore() is the single banking path
+     1) THE LEDGER: engaging any trainer cheat flags THE RUNNING GAME. The flag lives in the
+        page's own memory and is NEVER written to localStorage: a brand-new week (startGame),
+        quitting to the menu (quitGame) or ANY MANUAL REFRESH OF THE PAGE wipes it. A reload
+        reboots the trainer with every row at its default, so no cheat is in use any more and
+        the week that follows is eligible for the HI-SCORE again — until the trainer is opened
+        and a cheat is engaged afresh. (The main menu merely RE-APPEARING is not a refresh:
+        quitGame keeps the panel's rows where the player left them.)
+     2) A flagged game NEVER writes dsnysweep_hi: commitHighScore() is the single banking path
         and all three end screens (routeComplete / showWeekComplete / gameOver) use it, with
         the verbatim legacy path in the `else` branch for the harnesses that execute those
         functions with only the score module in scope (_ending_screens_chk.js).
-     3) A flagged run prints its HI-SCORE line CROSSED OUT (.score.hi-cross) under a
+     3) A flagged game prints its HI-SCORE line CROSSED OUT (.score.hi-cross) under a
         "NO CHEATING! - CHEATS IN USE - HI-SCORE NOT SAVED" stamp (.no-cheat: #over-cheat /
         #complete-cheat / #week-cheat) and never lights NEW HIGH SCORE!. The mark appears
         ONLY on a panel that prints a HI-SCORE - never on the day card, the shift report
         grid, or the HUD.
-     4) THE STREET'S OWN LAW IS HARD, AND THE TRAINER CANNOT TOUCH IT: every screw-up is a
-        WRITE-UP - a worker DOWN in the street AND a route left dirty at the end-of-shift
-        inspection. The meter counts 1, 2, 3 and the 3rd write-up is GAME OVER. The counter
-        never climbs past 3 (no "4/3" seal exists - the shift ends on the 3rd strike), no
-        toggle removes a strike and none buys a 4th: a cheat only voids the HI-SCORE.
+     4) THE THREE-STRIKE LAW IS THE STREET'S OWN: every screw-up is a WRITE-UP - a worker DOWN
+        in the street AND a route left dirty at the end-of-shift inspection. The meter counts
+        1, 2, 3 and the 3rd write-up is GAME OVER, capped at 3 (no "4/3" seal exists).
+        THE ONE ROW THAT TOUCHES THE METER IS "INFINITE COMPLAINTS (CHEAT ONLY)" AND IT MEANS
+        EXACTLY WHAT IT SAYS: with it ON, the write-up still happens - the sound, the HUD stamp,
+        the seal and its offense line, the whole worker-DOWN beat - but the complaint never
+        STICKS: the meter does not climb, so the 3rd strike never arrives and the shift is never
+        suspended (addWriteUp is the only place a strike is counted, so the gate sites need no
+        test of their own). It clears no strike already on the record, and with the row OFF no
+        row buys a 4th. It is a CHEAT: engaging it voids the HI-SCORE like every other row.
    ========================================================================== */
 'use strict';
 const fs = require('fs');
@@ -133,9 +141,13 @@ check('the ledger region carries the flag, the probe, the banking path and the p
   const d = makeDesk({ store: { dsnysweep_hi: '500' }, weekScore: 99000 });
   d.api.CHEAT.runitup = true;
   check('a trainer toggle ON is a LIVE cheat (cheatLive)', d.api.live() === true);
-  check('engaging it flags the run', d.api.markIt() === true && d.api.used() === true);
-  check('the flag is PERSISTED (a reload mid-shift stays flagged)', d.store['dsnysweep_cheat'] === '1');
-  check('switching the cheat OFF later does NOT un-flag the week (too late)',
+  check('engaging it flags the running game', d.api.markIt() === true && d.api.used() === true);
+  check('THE FLAG IS NEVER WRITTEN TO STORAGE (a cheat flag lives in the page only)',
+    d.store['dsnysweep_cheat'] === undefined && !/setItem\("dsnysweep_cheat"/.test(ledgerCode),
+    'store=' + JSON.stringify(d.store));
+  check('THE FLAG IS NEVER READ BACK AT BOOT (a refresh inherits nothing)',
+    !/getItem\("dsnysweep_cheat"/.test(ledgerCode));
+  check('switching the cheat OFF later does NOT un-flag the running game (too late)',
     (d.api.CHEAT.runitup = false, d.api.live() === false && d.api.used() === true));
   check('a CHEATED week NEVER banks its score (the record on disk stays the honest one)',
     d.api.commit() === false && d.api.hi === 500 && d.store['dsnysweep_hi'] === '500',
@@ -150,7 +162,7 @@ check('the ledger region carries the flag, the probe, the banking path and the p
   check('THE MARK: the ROUTE COMPLETE report carries it too (stamp + struck HI-SCORE line)',
     (d.api.mark('complete-cheat', 'hiscore3', null),
       !d.els['complete-cheat']._set.has('hidden') && d.api.line('route')._set.has('hi-cross')));
-  check('a brand-new week RE-OPENS the ledger (the stored flag is wiped)',
+  check('a brand-new week RE-OPENS the ledger (the in-page flag is cleared, and nothing was ever stored)',
     d.api.clearIt() === false && d.store['dsnysweep_cheat'] === undefined);
   check('the re-opened week is eligible again (it banks its record)',
     (d.api.sc(99000), d.api.commit() === true && d.store['dsnysweep_hi'] === '99000'));
@@ -160,11 +172,24 @@ check('the ledger region carries the flag, the probe, the banking path and the p
   const first = makeDesk({ store: { dsnysweep_hi: '50' }, weekScore: 700 });
   first.api.CHEAT.invincible = true;
   first.api.markIt();
+  check('a cheated game is marked and never banks its 700 (the record on disk stays the honest 50)',
+    first.api.used() === true && first.api.commit() === false && first.store['dsnysweep_hi'] === '50');
   const reload = makeDesk({ store: Object.assign({}, first.store), weekScore: 700 });
-  check('A RELOAD mid-shift inherits the flag (a refresh cannot launder the score)',
-    reload.api.used() === true && reload.api.commit() === false && reload.store['dsnysweep_hi'] === '50');
-  check('A RELOAD mid-shift still paints the struck HI-SCORE line + the stamp',
-    reload.api.mark('over-cheat', 'hiscore2', 'over-newhi') === true && reload.api.line()._set.has('hi-cross'));
+  check('A MANUAL REFRESH STARTS CLEAN - the reloaded page carries NO flag and NO live cheat',
+    reload.api.used() === false && reload.api.live() === false,
+    'used=' + reload.api.used() + ' live=' + reload.api.live());
+  check('A REFRESH LEAVES EVERY PANEL ROW AT ITS DEFAULT (the trainer is never remembered across it)',
+    reload.api.CHEAT.invincible === false && reload.api.CHEAT.infinite === false &&
+      reload.api.CHEAT.runitup === false && reload.api.CHEAT.startLevel === 1);
+  check('THE PAGE BOARDS THE PANEL AT ITS DEFAULTS ITSELF (var CHEAT = rows off, start = START_LEVEL)',
+    /var CHEAT = \{ infinite: false, invincible: false, runitup: false, startLevel: START_LEVEL \}/.test(src));
+  check('the reloaded, un-cheated week IS ELIGIBLE: it banks the score the cheated game could not',
+    reload.api.commit() === true && reload.store['dsnysweep_hi'] === '700',
+    'store=' + reload.store['dsnysweep_hi']);
+  check('the reloaded week paints NO "NO CHEATING!" stamp, NO struck line, and its ribbon stays alive',
+    (reload.api.mark('over-cheat', 'hiscore2', 'over-newhi') === false,
+      reload.els['over-cheat']._set.has('hidden') && !reload.api.line()._set.has('hi-cross') &&
+      !reload.els['over-newhi']._set.has('hidden')));
   const panel = makeDesk({ weekScore: 1000, cheat: { startLevel: 8 }, START_LEVEL: 1 });
   check('a trainer STARTING LEVEL that is not the week start is a LIVE cheat', panel.api.live() === true);
   const plain = makeDesk({ weekScore: 1000, cheat: { startLevel: 1 }, START_LEVEL: 1 });
@@ -269,7 +294,7 @@ console.log('[4] THE MARK ON SCREEN (ONLY WHERE THE HI-SCORE IS PRINTED)');
     !/cheatMark\(/.test(fnBody('showDayIntro')));
   check('the suspension line itself says the score was not saved, on a cheated run',
     /HI-SCORE NOT SAVED \(CHEATS IN USE\)/.test(fnBody('gameOver')));
-  check('a flag inherited from the last visit paints at boot (the strike shows before any play)',
+  check('the SUSPENDED panel is run through the mark at boot (a clean boot un-marks it; the call is there for a flagged session)',
     (function () {
       const at = src.indexOf('$("hiscore2").textContent = pad(hi);');
       const near = at >= 0 ? src.slice(at, at + 700) : '';
@@ -287,9 +312,13 @@ check('the trainer hint row says the plain law: CHEATS IN USE - HI-SCORE NOT SAV
 check('the trainer marquee spells the law out (the scrolling warez-scene text)',
   /THE RULE OF THIS TRAINER: CHEATS IN USE MEANS THE HI-SCORE IS NOT SAVED/.test(src) &&
     /NO CHEATING! stamp saying HI-SCORE NOT SAVED/.test(src));
-check('the marquee also states the 3 WRITE-UPS = GAME OVER law the trainer cannot beat',
+check('the marquee states the 3 WRITE-UPS = GAME OVER law AND names the ONE row that touches it',
   /3 WRITE-UPS END THE GAME/.test(src) &&
-    /No trainer toggle buys a 4th strike and none removes one/.test(src));
+    /with it ON the complaints never stack, the seal prints and the strike does not/.test(src) &&
+    /No row clears a strike already on the record, and no row buys a 4th strike/.test(src));
+check('the marquee states the REFRESH law (a reload hands back a clean, eligible panel)',
+  /REFRESH THE GAME AND THE PANEL IS CLEAN/.test(src) &&
+    /with no cheat in use, so the week that follows is eligible for a HI-SCORE again/.test(src));
 check('the trainer rows keep their three cheats + the starting level (the law covers all four)',
   /label: "Infinite Complaints \(CHEAT ONLY\)"/.test(src) && /label: "Infinite Health"/.test(src) &&
     /label: "Always Run It Up!"/.test(src) && /label: "Starting Level"/.test(src));
@@ -299,27 +328,41 @@ console.log('[6] THE THREE-STRIKE LAW (3 WRITE-UPS = GAME OVER, and no 4/3 stamp
   // addWriteUp() runs VERBATIM from the page: the strike meter is driven here, so the
   // ceiling is measured, not hoped for.
   const awu = fnBody('addWriteUp');
-  const meter = (cheatOn) => {
-    const flash = mkEl('flash');
-    const els = { tr: mkEl('tr'), flash: flash };
+  const meterBoard = () => {
+    const els = { tr: mkEl('tr'), flash: mkEl('flash') };
     const $ = (id) => els[id] || mkEl(id);
     const SFX = { playComplaintSound: () => {} };
-    const CHEAT = { infinite: cheatOn === true, invincible: false, runitup: false };
+    const CHEAT = { infinite: false, invincible: false, runitup: false };
     const run = new Function('$', 'SFX', 'updateHUD', 'CHEAT', 'state',
       'let complaints = 0;\n' + awu + '\nreturn function () { return addWriteUp(); };')(
       $, SFX, () => {}, CHEAT, "play");
-    const seq = [];
-    for (let i = 0; i < 6; i++) seq.push(run());
-    return seq;
+    return { run: run, CHEAT: CHEAT };
   };
-  const clean = meter(false);
-  check('a clean week: a write-up lands on EVERY screw-up - 1, 2, 3, and the meter stops at 3 (never 4/3)',
+  const walk = (b, n) => { const s = []; for (let i = 0; i < n; i++) s.push(b.run()); return s; };
+  const clean = walk(meterBoard(), 6);
+  check('a CLEAN run (no row ON): a write-up lands on EVERY screw-up - 1, 2, 3, and the meter stops at 3 (never 4/3)',
     clean.join(',') === '1,2,3,3,3,3', clean.join(','));
-  const cheated = meter(true);
-  check('with INFINITE COMPLAINTS ON the strikes land exactly the same (1, 2, 3) - the trainer cannot dodge a write-up',
-    cheated.join(',') === '1,2,3,3,3,3', cheated.join(','));
-  check('addWriteUp reads NO trainer state at all (the strike law has no cheat hook)',
-    !/CHEAT/.test(fnBody('addWriteUp')));
+  const bIn = meterBoard(); bIn.CHEAT.infinite = true;
+  const infinite = walk(bIn, 6);
+  check('INFINITE COMPLAINTS ON = the row means EXACTLY what it says: the write-up lands and the COMPLAINTS ISSUED meter never climbs (0,0,0,0,0,0) - no 3rd strike, so the shift is never suspended',
+    infinite.join(',') === '0,0,0,0,0,0', infinite.join(','));
+  const bFlip = meterBoard();
+  const flipped = walk(bFlip, 2);
+  bFlip.CHEAT.infinite = true;
+  const frozen = walk(bFlip, 4);
+  check('flipping it ON mid-week never clears the strikes already on the record (1, 2, then the meter FREEZES - it never climbs and never drops)',
+    flipped.concat(frozen).join(',') === '1,2,2,2,2,2', flipped.concat(frozen).join(','));
+  const bOther = meterBoard(); bOther.CHEAT.invincible = true; bOther.CHEAT.runitup = true;
+  const other = walk(bOther, 6);
+  check('every OTHER row leaves the strike law whole (Infinite Health + Always Run It Up: 1, 2, 3, capped at 3)',
+    other.join(',') === '1,2,3,3,3,3', other.join(','));
+  const awuCode = awu.replace(/^\s*\/\/.*$/gm, '');
+  check('the meter has ONE cheat hook (in addWriteUp, the only place a strike is counted), read through a typeof guard so the VERBATIM harnesses that never define CHEAT keep running',
+    (awuCode.match(/CHEAT/g) || []).length === 3 &&
+      /typeof CHEAT !== "undefined"/.test(awuCode) && !/CHEAT\./.test(fnBody('applyRouteWriteUp')));
+  check('the seal says out loud when a complaint did not stick (NO STRIKE RECORDED line + its .writeup-nostrike CSS)',
+    /NO STRIKE RECORDED - INFINITE COMPLAINTS IS ON \(HI-SCORE VOIDED\)/.test(fnBody('showWriteUpText')) &&
+      /\.pop-writeup \.writeup-nostrike \{/.test(src));
   check('the 3rd write-up from a WORKER DOWN hands over to the suspension (finishDying -> gameOver)',
     /const n = addWriteUp\(\);[\s\S]{0,200}if \(n >= 3\)[\s\S]{0,600}gameOver\("writeup"\)/.test(fnBody('finishDying')));
   check('the 3rd write-up from the END-OF-ROUTE INSPECTION hands over too (applyRouteWriteUp -> gameOver)',
@@ -339,7 +382,7 @@ console.log('[7] LIVE: THREE DIRTY ROUTES = THREE WRITE-UPS = GAME OVER (the rea
   // own state and the heavy DOM/SFX edges are stubbed.
   const real = ['routeCleanRatio', 'addWriteUp', 'showWriteUpText', 'dimShiftReport', 'applyRouteWriteUp']
     .map((f) => fnBody(f)).join('\n');
-  const run = () => {
+  const run = (cheatOn) => {
     const stamps = [], over = [];
     const pop = () => ({ className: '', textContent: '', style: {}, parentNode: null, appendChild() {}, offsetWidth: 1,
       classList: { add() {}, remove() {}, contains() { return false; }, toggle() {} } });
@@ -350,7 +393,7 @@ console.log('[7] LIVE: THREE DIRTY ROUTES = THREE WRITE-UPS = GAME OVER (the rea
       querySelector: () => pop(),
       getElementById: () => pop(),
     };
-    const fns = new Function('dayStats', 'state', 'complaintsBox', 'SFX', 'updateHUD', '$', 'document', 'setTimeout', 'gameOver', 'writeupReason',
+    const fns = new Function('dayStats', 'state', 'complaintsBox', 'SFX', 'updateHUD', '$', 'document', 'setTimeout', 'gameOver', 'writeupReason', 'CHEAT',
       'let complaints = 0, lastHitCause = "", routeWriteupLock = false, writeUpDimTimer = null;\n' +
       real + '\n' +
       'return { route: function () {\n' +
@@ -360,7 +403,8 @@ console.log('[7] LIVE: THREE DIRTY ROUTES = THREE WRITE-UPS = GAME OVER (the rea
       ({ bags: { got: 1, total: 100 }, cans: { got: 1, total: 100 }, baskets: { got: 1, total: 100 }, debris: { got: 0, total: 0 } },
         'dayend', null, { playComplaintSound() {}, playSadTrombone() {} }, () => {}, () => pop(), document,
         (fn) => fn(), // setTimeout runs NOW: the 3rd-strike handover is synchronous for the test
-        (why) => over.push(why), () => 'Failed to clean route. Work left out.');
+        (why) => over.push(why), () => 'Failed to clean route. Work left out.',
+        { infinite: cheatOn === true, invincible: false, runitup: false });
     const seq = [];
     for (let i = 0; i < 4; i++) { fns.route(); seq.push(fns.strikes()); }
     return { seq, over, strikes: fns.strikes(), stamps };
@@ -379,6 +423,16 @@ console.log('[7] LIVE: THREE DIRTY ROUTES = THREE WRITE-UPS = GAME OVER (the rea
   check('the report panel is held while the 3rd-strike seal is read (routeWriteupLock blocks "next day")',
     /routeWriteupLock = true;[\s\S]{0,240}gameOver\("writeup"\)/.test(fnBody('applyRouteWriteUp')) &&
       /if \(routeWriteupLock\) return;/.test(src));
+  const inf = run(true);
+  check('INFINITE COMPLAINTS ON - LIVE CHAIN: four dirty routes land four write-ups and the meter never moves (0, 0, 0, 0)',
+    inf.seq.join(',') === '0,0,0,0', inf.seq.join(','));
+  check('INFINITE COMPLAINTS ON - LIVE CHAIN: the 3rd-strike suspension NEVER fires (no write-up game over)',
+    inf.over.length === 0, JSON.stringify(inf.over));
+  check('INFINITE COMPLAINTS ON - LIVE CHAIN: every write-up still stamps, and each seal carries the NO STRIKE line under it',
+    inf.stamps.filter((e) => /^WRITTEN UP!/.test(e.textContent)).length === 4 &&
+      inf.stamps.filter((e) => /NO STRIKE RECORDED/.test(e.textContent)).length === 4,
+    'seals=' + inf.stamps.filter((e) => /^WRITTEN UP!/.test(e.textContent)).length +
+      ' nostrike=' + inf.stamps.filter((e) => /NO STRIKE RECORDED/.test(e.textContent)).length);
 }
 console.log('');
 console.log(ok ? 'CHEAT LAW: ALL ' + n + ' CHECKS PASSED' : 'CHEAT LAW: ' + n + ' CHECKS - SOME FAILED');
