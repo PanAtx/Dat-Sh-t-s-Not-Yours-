@@ -387,7 +387,7 @@
       "_instructions_chk.mjs"
     ],
     [
-      "runs the EXACT instructions wiring on a faked DOM: open, close, x, backdrop, ESC, cascade",
+      "runs the EXACT instructions wiring on a faked DOM: open, close, x, backdrop, ESC, cascade + the mobile touch-scroll guard (a pan inside the card is never prevented)",
       "node",
       "_instructions_dom_chk.js"
     ],

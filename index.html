@@ -5900,7 +5900,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.594</div>
+          <div id="app-version" class="menu-version">v1.0.595</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6565,7 +6565,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.594';
+      const APP_VERSION = '1.0.595';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -9292,16 +9292,32 @@
       // + tab bars and yank the game "out of fullscreen". Stop the browser from treating
       // our drags as page gestures so the game stays immersive. (The virtual pad uses
       // pointer events, which are unaffected by preventing touchmove.)
+      // THE SCROLLABLE CARDS: every window that is a scrolling reading panel (overflow-y:auto)
+      // lives here, so a card added later is a single id on one line - and every card in the
+      // list is exempt from the touchmove guard below, exactly like the credits window always was.
+      var SCROLL_CARD_IDS = ["creditsBox", "instructionsBox"];
+      function inScrollCard(target) {
+        if (!target || typeof target.contains !== "function") return false;
+        for (var i = 0; i < SCROLL_CARD_IDS.length; i++) {
+          var card = document.getElementById(SCROLL_CARD_IDS[i]);
+          if (card && (card === target || card.contains(target))) return true;
+        }
+        return false;
+      }
+
       document.addEventListener(
         "touchmove",
         function (e) {
-          // EXEMPT the credits window from the blanket preventDefault so it can
-          // touch-scroll natively on mobile (it has overflow-y:auto + a visible
-          // custom scrollbar). Everything else keeps the immersive "no page
-          // scroll" behavior. Touch events report e.target as the element the
-          // finger started on, so contains() also covers panning on any child row.
-          var box = document.getElementById("creditsBox");
-          if (box && e.target && (box === e.target || box.contains(e.target))) return;
+          // EXEMPT the scrollable cards from the blanket preventDefault so they can
+          // touch-scroll natively on mobile. The CREDITS window AND the INSTRUCTIONS
+          // window are reading panels (overflow-y:auto + a visible custom scrollbar), so a
+          // drag that STARTS INSIDE a card must reach the browser as a native pan - on a
+          // phone that is the ONLY way to scroll a long card; a non-passive touchmove that
+          // preventDefaults cancels the scroll even though the card has touch-action:pan-y.
+          // Touch events report e.target as the element the finger started on, so contains()
+          // also covers panning on any child row of the card. Everything outside a card keeps
+          // the immersive "no page scroll" behavior.
+          if (inScrollCard(e.target)) return; // the card is being read - let the pan scroll
           e.preventDefault();
         },
         { passive: false },

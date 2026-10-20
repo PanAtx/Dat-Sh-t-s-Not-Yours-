@@ -92,5 +92,22 @@ ok("book button shares the gear/credits skin", /#btnSettings,\s*\n\s*#btnInstruc
 ok("book button opens the page (JS wired)", /\$\("btnInstructions"\)\.addEventListener\("click", openInstructions\)/.test(h));
 ok("book icon is an open book (svg paths)", /<button id="btnInstructions"[\s\S]{0,400}<svg viewBox="0 0 24 24"[\s\S]*?Z"\/><\/svg>/.test(h));
 
+// 7) THE MOBILE SCROLL LAW - a card nobody can drag on a phone is a card nobody reads.
+//    The instructions window must carry the SAME scrolling CSS as the credits window, and the
+//    blanket touchmove guard must list BOTH cards as exempt (the instruction card is the
+//    longest one in the game, so phones must be able to pan through it).
+const SCROLL_CSS = ["overflow-y: auto", "-webkit-overflow-scrolling: touch", "touch-action: pan-y", "overscroll-behavior: contain"];
+const creditsCss = (h.match(/#creditsBox \{[\s\S]*?\n      \}/) || [""])[0];
+const instrCss = (h.match(/#instructionsBox \{[\s\S]*?\n      \}/) || [""])[0];
+ok("both cards found in CSS", creditsCss.length > 100 && instrCss.length > 100, "credits " + creditsCss.length + " / instructions " + instrCss.length);
+SCROLL_CSS.forEach((law) =>
+  ok("instructions card carries the mobile scroll rule (same as credits): " + law, instrCss.includes(law) && creditsCss.includes(law)),
+);
+ok("the instructions card keeps the visible thin scrollbar (the scroll affordance)", /#instructionsBox::-webkit-scrollbar \{ width: 9px; \}/.test(h) && instrCss.includes("scrollbar-width: thin") && creditsCss.includes("scrollbar-width: thin"));
+ok("the scrollable cards are a named id list (credits AND instructions)", /var SCROLL_CARD_IDS = \["creditsBox", "instructionsBox"\];/.test(h));
+ok("the guard resolves the card list by id and covers child rows", /function inScrollCard\(target\)[\s\S]{0,400}SCROLL_CARD_IDS\.length[\s\S]{0,200}card === target \|\| card\.contains\(target\)/.test(h));
+ok("the guard lets a pan INSIDE a card through and blocks every other drag", /function \(e\) \{[\s\S]{0,1200}?if \(inScrollCard\(e\.target\)\) return;[\s\S]{0,150}?e\.preventDefault\(\);[\s\S]{0,120}?\{ passive: false \},/.test(h));
+ok("no card is left out: the old credits-only exemption is gone", !/var box = document\.getElementById\("creditsBox"\);/.test(h));
+
 console.log(fails === 0 ? "\nALL INSTRUCTIONS CHECKS PASS" : "\n" + fails + " CHECK(S) FAILED");
 process.exit(fails ? 1 : 0);

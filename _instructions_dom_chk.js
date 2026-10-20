@@ -88,5 +88,51 @@ ok("the card closes nothing but itself", !/closeCredits|closeSettings|togglePaus
 ok("the credits wiring is untouched", /\$\("btnCredits"\)\.addEventListener\("click", openCredits\)[\s\S]{0,400}\$\("btnCreditsClose"\)\.addEventListener\("click", closeCredits\)/.test(html));
 ok("the settings wiring is untouched", /\$\("btnSettings"\)\.addEventListener\("click", openSettings\)/.test(html));
 
+// ---- THE MOBILE SCROLL GUARD (extracted verbatim from index.html) ----
+// A touch-drag that STARTS INSIDE a scrolling card must reach the browser as a native pan -
+// on a phone that is the only way to read a long card. Everywhere else the drag is swallowed
+// so the game keeps its immersive "no page scroll" law.
+const GUARD_MARK = "var SCROLL_CARD_IDS = [";
+const gStart = html.indexOf(GUARD_MARK);
+const gPassive = html.indexOf("{ passive: false },", gStart);
+const gTail = html.indexOf(");", gPassive);
+ok("touchmove guard block found", gStart > 0 && gPassive > gStart && gTail > gPassive, "chars " + (gTail - gStart + 2));
+const guardCode = html.slice(gStart, gTail + 2);
+
+function cardNode(id, kids) {
+  return { id, _kids: kids, contains(t) { return this._kids.indexOf(t) >= 0; } };
+}
+// Real DOM children are Elements too - they carry contains() - so the fake rows do the same.
+const leaf = (id) => ({ id, _kids: [], contains() { return false; } });
+const creditsRow = leaf("credits-row");
+const instrRow = leaf("instructions-row");
+const CARDS = {
+  creditsBox: cardNode("creditsBox", [creditsRow]),
+  instructionsBox: cardNode("instructionsBox", [instrRow]),
+};
+const street = { id: "game-canvas", contains() { return false; } };
+let guardFn = null, guardOpts = null, prevented = 0;
+const fakeDoc = {
+  getElementById: (id) => CARDS[id] || null,
+  addEventListener(ev, fn, opts) { if (ev === "touchmove") { guardFn = fn; guardOpts = opts; } },
+};
+new Function("document", guardCode)(fakeDoc);
+const drag = (target) => ({ target, preventDefault() { prevented++; } });
+
+ok(
+  "the guard is registered NON-passive (a passive listener cannot cancel a pan)",
+  typeof guardFn === "function" && !!guardOpts && guardOpts.passive === false,
+  JSON.stringify(guardOpts),
+);
+let n0 = prevented; guardFn(drag(CARDS.instructionsBox));
+ok("a drag INSIDE the INSTRUCTIONS card is NOT prevented (the phone scrolls it)", prevented === n0, "prevented=" + (prevented - n0));
+n0 = prevented; guardFn(drag(instrRow));
+ok("a drag on a ROW of the INSTRUCTIONS card is NOT prevented (contains() covers children)", prevented === n0, "prevented=" + (prevented - n0));
+n0 = prevented; guardFn(drag(CARDS.creditsBox));
+ok("a drag INSIDE the CREDITS card is NOT prevented (credits keeps its scroll)", prevented === n0, "prevented=" + (prevented - n0));
+n0 = prevented; guardFn(drag(street));
+ok("a drag on the STREET IS prevented (the immersive no-page-scroll law holds)", prevented === n0 + 1, "prevented=" + (prevented - n0));
+ok("a drag on a target with no contains() is prevented, never a crash", (function () { let p = 0; guardFn({ preventDefault() { p++; } }); return p === 1; })());
+
 console.log(fails === 0 ? "\nALL INSTRUCTIONS DOM CHECKS PASS" : "\n" + fails + " CHECK(S) FAILED");
 process.exit(fails ? 1 : 0);
