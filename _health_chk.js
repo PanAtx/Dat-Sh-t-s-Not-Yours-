@@ -411,9 +411,9 @@ check('no Monster is pre-placed at level start (it is score-triggered)', (c0.mon
 reset();
 spawnPowerups(0);
 check('spawnPowerups pre-places NOTHING (the coffee seen mid-route was the old pre-place bug)', powerups.length === 0);
-check('healer milestone: every $5,000 street cash drops a coffee/BEC near the worker (shared check)',
+check('healer milestone: every $5,000 street cash (the same 5,000 in HELL NOTES on MIDNIGHT) drops a coffee/BEC near the worker (shared check)',
   src.indexOf('function checkHealerMilestone()') >= 0 &&
-  /function checkHealerMilestone\(\)\s*\{[\s\S]{0,200}bonusTally >= healerNextAt[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,80}healerNextAt \+= POWERUP_CASH_STEP;/.test(src));
+  /function checkHealerMilestone\(\)\s*\{[\s\S]{0,200}bonusTally >= healerNextAt[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,80}healerNextAt \+= cashStepNow\(\);/.test(src));
 check('healer milestone fires from BOTH addScore (which delegates to addScoreFlat: mongo/cash/treasure) and addStreetCash (pranks)',
   (function(){
     const seg = (n) => src.slice(src.indexOf("function " + n + "("), src.indexOf("function ", src.indexOf("function " + n + "(") + 10));

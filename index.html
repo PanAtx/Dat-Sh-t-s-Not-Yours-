@@ -4918,13 +4918,19 @@
           display: none !important;
         }
       }
-      /* Context-aware: if a PHYSICAL keyboard or gamepad is detected (on any device, e.g. a
-         tablet/phone with a keyboard or gamepad attached), the on-screen ACT button is
-         redundant — Space/KeyE or the gamepad's action button already drive the action — so
-         hide it. Complements the desktop rule above and only ever REMOVES the ACT button,
-         never the joystick, so touch movement always stays available. */
+      /* Context-aware: if a PHYSICAL keyboard is detected (a tablet/phone with a keyboard
+         attached), the on-screen ACT button is redundant — Space/KeyE already drive the
+         action — so hide ONLY the ACT button and keep the joystick for touch movement.
+         If a GAMEPAD is connected (USB or Bluetooth), the whole virtual pad is redundant —
+         the stick's left analog drives movement and its buttons drive the action — so
+         has-pad hides the joystick AND the ACT button together. has-pad tracks the LIVE
+         gamepad connection state (synced every frame in pollGamepad + the connect /
+         disconnect events), so unplugging the gamepad brings the virtual pad right back. */
       body.has-kb #actbtn,
       body.has-pad #actbtn {
+        display: none !important;
+      }
+      body.has-pad #joy {
         display: none !important;
       }
       #actbtn {
@@ -5900,7 +5906,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.596</div>
+          <div id="app-version" class="menu-version">v1.0.599</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6136,7 +6142,7 @@
             </div>
             <div class="cr-row">
               <span class="cr-name">SMART LAYOUT</span>
-              <span class="cr-cred">On a computer the stick and ACT are hidden &#183; the keyboard drives everything. Attach a keyboard or a pad to a phone or tablet and the ACT button drops away by itself. <b>The thumb-stick is never hidden</b> &#183; touch movement always stays available.</span>
+              <span class="cr-cred">On a computer the stick and ACT are hidden &#183; the keyboard drives everything. Attach a keyboard to a phone or tablet and the ACT button drops away by itself &#183; the thumb-stick stays under your fingers. Attach a gamepad (USB or Bluetooth) and <b>the whole on-screen pad &#183; stick and ACT &#183; drops away</b>, and it comes right back the moment you unplug the gamepad.</span>
             </div>
             <div class="cr-sec">WORKING THE CURB</div>
             <div class="cr-row">
@@ -6206,7 +6212,7 @@
             <div class="cr-sec">THE POWER-UPS</div>
             <div class="cr-row">
               <span class="cr-name">COFFEE &#183; BEC SANDWICH</span>
-              <span class="cr-cred">The healers. A <b>coffee</b> restores 25 health, a full <b>bacon-egg-cheese sandwich</b> restores 40. One of the two drops on the street near the worker <b>every $5,000 of STREET CASH</b> you bank. MIDNIGHT is a harder grind: a healer costs 40,000 HELL NOTES.</span>
+              <span class="cr-cred">The healers. A <b>coffee</b> restores 25 health, a full <b>bacon-egg-cheese sandwich</b> restores 40. One of the two drops on the street near the worker <b>every $5,000 of STREET CASH</b> you bank &#183; on MIDNIGHT the money is <b>HELL NOTES</b> and a healer costs the same <b>5,000</b> in notes (50 of the $100 bills).</span>
             </div>
             <div class="cr-row">
               <span class="cr-name">RED BULL &#183; &#8220;RUN IT UP!&#8221;</span>
@@ -6214,7 +6220,7 @@
             </div>
             <div class="cr-row">
               <span class="cr-name">THE EARN BARS &#183; THE POINTER ARROW</span>
-              <span class="cr-cred">The two thin bars under STREET CASH (burger icon) and the RED BULL bar (wing icon) fill toward the next heal and the next Bull. The instant a power-up lands on the street, the arrow beside the worker lights up and points straight at it for as long as it lies there.</span>
+              <span class="cr-cred">The two thin bars under STREET CASH (burger icon) and the RED BULL bar (wing icon) fill toward the next heal and the next Bull &#183; they measure <b>the level you are on</b>: the heal bar is <b>5,000</b> of STREET CASH on the seven weekdays and OVERTIME and <b>5,000 HELL NOTES</b> on MIDNIGHT, the Bull bar is <b>30,000</b> SCORE by day and <b>120,000 SCORE</b> on MIDNIGHT. The instant a power-up lands on the street, the arrow beside the worker lights up and points straight at it for as long as it lies there.</span>
             </div>
             <div class="cr-row">
               <span class="cr-name">SAVE THEM FOR THE HARD PART</span>
@@ -6565,7 +6571,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.596';
+      const APP_VERSION = '1.0.599';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -37521,7 +37527,7 @@
       // and out in the roadway of every block of the haunted route, so the player has
       // something to gather between the fights. Every note banks street cash (HELL NOTES
       // on tonight's HUD), and street cash is what feeds the power-up economy — the
-      // coffee / BEC healers drop every POWERUP_CASH_STEP of HELL NOTES banked, so the
+      // coffee / BEC healers drop every NIGHT_POWERUP_CASH_STEP of HELL NOTES banked, so the
       // notes are the Midnight's way of EARNING a power-up, not just finding one.
       const NIGHT_HELL_NOTE_PICKS = 12; // joss notes laid across tonight's route
       const HELL_NOTE_WALK_Y0 = 1.6; // the sidewalk band (the concrete, off the curb lip)
@@ -42225,11 +42231,16 @@
         // restart never zeroes them; ONLY a brand-new run (startGame, from the menu /
         // game over / week complete) does. The power-up milestones keep running with
         // the tallies so the "every $5,000 / every $30,000" rule holds across the week.
+        // The week runs on the shipped 5,000 / 30,000 cadence; MIDNIGHT re-anchors ITS OWN
+        // spans + drops at every shift build (armMidnightEarnSpans) on 5,000 NOTES / 120,000 SCORE.
+
         // complaints: NOT reset here. The write-up strike record is now per LEVEL — it is cleared
         // at the new-level boundaries (startGame / nextDay / continueAfterBonus / quitGame). A
         // replay of a FAILED level (the 95% clean rule) must keep the strikes so a 3rd write-up
         // can still suspend the worker.
         dayScore = 0; // per-day score for the day-end report (the HUD score keeps running)
+        armMidnightEarnSpans(); // MIDNIGHT: tonight's two earn bars and tonight's two drops are re-anchored on the haunted shift's own grid (5,000 NOTES / 120,000 SCORE). The seven weekdays + OVERTIME: no-op, the shipped week-long 5,000 / 30,000 law carries through untouched.
+
         // health does NOT refill at the start of a level: the pain carries over —
         // only a street-cash healer power-up (or a write-up, if the shift continues) restores it.
         if (health > 0 && health <= DANGER_HP) {
@@ -42418,45 +42429,49 @@
       // THE FLAT PATH: the street double (scoreMultiplier) is a property of the DAY. Every weekday
       // payer keeps calling addScore, so the bags, cans, baskets, treasures and bonus pickups are
       // byte-identical. Only the FINAL BOSS pays on the flat road below - the night economy (the
-      // score, the bonus tally, the healer milestones and the $30,000 Monster step) is the same.
+      // score, the bonus tally, the healer milestones and the Monster step (30,000 by day, 120,000 tonight) is the same.
       function addScoreFlat(v, isBonus) {
         score += v;
         dayScore += v; // today's tally (shown on the day-end report)
         weekScore += v; // running total across all 7 days (the hi-score candidate)
         if (isBonus) bonusTally += v;
         checkHealerMilestone();
-        // Red Bull (Monster) energy milestone: every $30,000 of SCORE pops one up near the worker.
+        // Red Bull (Monster) energy milestone: every $30,000 of SCORE pops one up near the worker — and every $120,000 on the haunted shift (scoreStepNow).
         if (state === "play" && score >= monsterNextAt) {
           spawnMonsterNearPlayer();
-          monsterNextAt += MONSTER_SCORE_STEP;
+          monsterNextAt += scoreStepNow(); // 30,000 SCORE weekdays / 120,000 tonight
         }
       }
       // STREET CASH: money that feeds ONLY the street-cash tally (the HUD's STREET CASH $
-      // counter and the $5,000 healer milestones) — never the score / dayScore / weekScore.
+      // counter and the $5,000 healer milestones — the same 5,000 load in HELL NOTES on Midnight) — never the score / dayScore / weekScore.
       // Prank payouts (piss-bottle kicks, cat teasing, cone knocks, squirrel chases) flow through here so the
       // fun stuff pays out as cash and encourages mongo/treasure/prank collecting for power-ups.
       function addStreetCash(n) {
         bonusTally += n * scoreMultiplier();
         checkHealerMilestone();
       }
-      // STREET CASH milestone: every $5,000 banked (mongo / treasures / street cash / prank
-      // payouts) drops a random healer — coffee or BEC sandwich — near the worker. Shared by
-      // addScore (bonus pickups) and addStreetCash (pranks) so every source of street cash
-      // can cross a milestone.
+      // STREET CASH milestone: every $5,000 banked — the SAME 5,000 in HELL NOTES on tonight's
+      // haunted shift — banked (mongo / treasures / street cash / prank payouts) drops a random
+      // healer — coffee or BEC sandwich — near the worker. Shared by addScore (bonus pickups)
+      // and addStreetCash (pranks) so every source of street cash can cross a milestone.
       function checkHealerMilestone() {
         if (state === "play" && bonusTally >= healerNextAt) {
           spawnHealerNearPlayer();
-          healerNextAt += POWERUP_CASH_STEP;
+          healerNextAt += cashStepNow(); // 5,000 STREET CASH weekdays / 5,000 HELL NOTES tonight
         }
       }
       // ===== TONIGHT'S COST, TODAY'S COST (read ONLY by the two earn bars) ================
-      // The SPAWN milestones stay exactly as shipped on every level (the 5,000 street-cash
-      // healer step and the 30,000 score Red-Bull step are pinned law and the checks assert
-      // the literal +=). The thin bars are a DISPLAY read of "what does it take to EARN the
-      // next coffee / BEC and the next Red Bull", which is the level's grind: the seven
-      // weekdays (and OVERTIME) read the shipped 5,000 / 30,000, MIDNIGHT (level 8) reads
-      // tonight's much larger NIGHT_POWERUP_CASH_STEP / NIGHT_MONSTER_SCORE_STEP — a whole
-      // haunted shift of HELL NOTES for a heal, a haunted night of SCORE for the can.
+      // THE DROP MILESTONES AND THE TWO EARN BARS RUN ON THE SAME AMOUNT: the seven weekdays
+      // and OVERTIME keep the shipped 5,000 street-cash healer step and the 30,000 score
+      // Red-Bull step EXACTLY as shipped — cashStepNow() / scoreStepNow() ANSWER those two
+      // literals on every weekday, so a weekday span, a weekday drop and a weekday bar fill
+      // are what was shipped. MIDNIGHT (level 8) pays in pennies on a haunted street, so THERE
+      // the same pair of helpers answers NIGHT_POWERUP_CASH_STEP / NIGHT_MONSTER_SCORE_STEP:
+      // 5,000 of HELL NOTES for a healer (tonight's heal-load equals the weekday's, paid in
+      // joss notes) and 120,000 of SCORE for the can. Bar and drop run on ONE scale per level,
+      // so a bar reads its full width on the very frame its power-up hits the asphalt.
+
+
       function cashStepNow() {
         return typeof isNightShift === "function" && isNightShift()
           ? NIGHT_POWERUP_CASH_STEP
@@ -42476,6 +42491,28 @@
         healerNextAt = POWERUP_CASH_STEP;
         healerSpanBase = 0;
       }
+      // ===== MIDNIGHT MEASURES MIDNIGHT (the per-shift re-anchor of the two earn spans) =====
+      // STREET CASH and SCORE CARRY OVER across the week (only a brand-new run zeroes them), so
+      // the first night frame walks onto the haunted street with the whole week's tallies inside
+      // spans that were cut on the weekday 5,000 / 30,000 grid. That is what made tonight's bars
+      // read like weekday bars: a span base stranded mid-weekday-line and a drop milestone that
+      // fired on the week's leftover cadence. The re-arm puts tonight's milestones AND tonight's
+      // bar spans on TONIGHT's grid — the last completed 5,000 NOTES / 120,000 SCORE line and
+      // the next one — so the first healer of the night costs a clean 5,000 of notes from the
+      // frame the shift starts, the first Red Bull a whole night of SCORE, and each bar reaches
+      // its full width on the very frame its power-up hits the asphalt.
+      // THE SEVEN WEEKDAYS AND OVERTIME NEVER ENTER HERE: they keep the cumulative
+      // 5,000 / 30,000 law that runs unbroken across the week, exactly as shipped.
+      function armMidnightEarnSpans() {
+        if (typeof isNightShift !== "function" || !isNightShift()) return; // weekdays untouched
+        const cashStep = cashStepNow(); // 5,000 HELL NOTES tonight (this guard)
+        const scoreStep = scoreStepNow(); // 120,000 SCORE tonight (this guard)
+        healerSpanBase = Math.floor(bonusTally / cashStep) * cashStep;
+        healerNextAt = healerSpanBase + cashStep;
+        monsterSpanBase = Math.floor(score / scoreStep) * scoreStep;
+        monsterNextAt = monsterSpanBase + scoreStep;
+      }
+
       // ===== THE EARN-a-POWER-UP BARS (thin gauges under the STREET CASH / HELL NOTES line)
       // Bar 1 (mint) fills across the current bar span for the NEXT COFFEE / BEC; bar 2
       // (bull RED + wing glyph) across the current bar span for the next RED BULL. Each span is the ACTIVE
@@ -42502,7 +42539,7 @@
         if (healIco) healIco.style.display = show ? "" : "none";
         if (bullIco) bullIco.style.display = show ? "" : "none";
         if (!show) return;
-        const cashStep = cashStepNow(); // 5000 weekdays / 40,000 tonight
+        const cashStep = cashStepNow(); // 5000 weekdays / 5,000 tonight
         if (cashStep > 0) {
           while (bonusTally - healerSpanBase >= cashStep) healerSpanBase += cashStep;
           const cw = clamp((bonusTally - healerSpanBase) / cashStep, 0, 1) * 100;
@@ -44318,13 +44355,13 @@
       // ===== MIDNIGHT: TONIGHT'S EARN IS ITS OWN GRIND ==================================
       // The haunted street pays in pennies and borrows Bed-Stuy's cash double ONLY for
       // pickups a living street drops (HELL NOTES bank flat — see the HELL NOTE LAW). So
-      // tonight's power milestones are NOT the weekday numbers: a healer costs a full shift
-      // of HELL NOTES and a Red Bull costs a haunted night of SCORE, deliberately a big step
-      // above the seven days. The two thin earn bars under the STREET CASH / HELL NOTES line
-      // read these tonight's numbers, so the bar on Midnight measures tonight's grind, and
-      // bar (1) (coffee / BEC) and bar (2) (Red Bull) stay at a different fill on the same
-      // run than any weekday level. Weekdays read the original 5000 / 30000 exactly as shipped.
-      const NIGHT_POWERUP_CASH_STEP = 40000; // MIDNIGHT: a coffee / BEC healer drops every this much HELL NOTES banked
+      // tonight's power milestones: a healer keeps the SAME 5,000 load the seven days pay (it
+      // simply arrives in HELL NOTES), while a Red Bull costs a haunted night of SCORE - the
+      // 120,000, a deliberate big step above the weekday can. The two thin earn bars under the
+      // STREET CASH / HELL NOTES line read these tonight's numbers, so the Bull bar on Midnight
+      // measures tonight's grind while bar (1) (coffee / BEC) grinds the night's 5,000 notes,
+      // so a Bull bar sits at a different fill than any weekday run. Weekdays: 5000 / 30000.
+      const NIGHT_POWERUP_CASH_STEP = 5000; // MIDNIGHT: a coffee / BEC healer drops every this much HELL NOTES banked (5,000 - the same heal-load as the seven weekdays, paid in joss notes. Kept as tonight's OWN constant so the night heal can be tuned apart from the week without touching it.)
       const NIGHT_MONSTER_SCORE_STEP = 120000; // MIDNIGHT: a Red Bull "Run It Up" drops every this much SCORE
       const POOP_SLOW_MULT = 0.72; // stepping in dog shit slows the worker a little — until the brown shoe-print trail ends
       const HP_HIT_VEHICLE = 8; // a vehicle run-over hurts (kept light so it feels fair)
@@ -46537,7 +46574,7 @@
       }
       // A Monster (Red Bull) energy can pops up every MONSTER_SCORE_STEP (30000) of SCORE
       // (every NIGHT_MONSTER_SCORE_STEP 120,000 on the haunted shift — see scoreStepNow()).
-      let monsterNextAt = MONSTER_SCORE_STEP; // next score milestone at which the Monster spawns
+      let monsterNextAt = MONSTER_SCORE_STEP; // next score milestone at which the Monster spawns (120,000 on Midnight - scoreStepNow)
       // The thin earn bars fill across one milestone span (span base -> next drop). The base is
       // where the CURRENT span started: 0 on a fresh run, and every drop re-anchors it at the
       // value that fired. The span size is tonight's or today's step, so Midnight's Red Bull
@@ -46571,9 +46608,11 @@
         spawnPowerupAhead("monster");
       }
       // A random healer (coffee OR a BEC sandwich) drops near the worker every
-      // POWERUP_CASH_STEP (5000) of STREET CASH — the reward for collecting mongo /
-      // treasures / street cash and having fun with the street (cones, cats, bottles).
-      let healerNextAt = POWERUP_CASH_STEP; // next street-cash milestone at which a healer spawns
+      // street cash and street fun (cones, cats, bottles) all bank toward that milestone.
+
+      // POWERUP_CASH_STEP (5000) of STREET CASH — the SAME 5,000 in NIGHT_POWERUP_CASH_STEP
+      // of HELL NOTES on the haunted shift (cashStepNow). The reward for mongo, treasures,
+      let healerNextAt = POWERUP_CASH_STEP; // next street-cash milestone at which a healer spawns (the same 5,000 in HELL NOTES on Midnight - cashStepNow)
       let healerSpanBase = 0; // HELL NOTES / STREET CASH banked when the current healer span began
       function spawnHealerNearPlayer() {
         spawnPowerupAhead(Math.random() < 0.5 ? "coffee" : "bec");
@@ -60059,6 +60098,11 @@
         } catch (err) {
           pad = null;
         }
+        // LIVE pad-presence sync (cheap, runs every frame): keeps <body>.has-pad tracking
+        // the actual connection state, so the virtual joystick + ACT hide the moment a
+        // gamepad is connected and come straight back when it is unplugged / powered off
+        // (Bluetooth drops often fire no gamepaddisconnected event on mobile browsers).
+        if (typeof setPadVisible === "function") setPadVisible(!!pad);
         if (pad) {
           const b = (i) => !!(pad.buttons[i] && pad.buttons[i].pressed);
           const ax = (i) => pad.axes[i] || 0;
@@ -60278,14 +60322,34 @@
       [joy, actBtn].forEach((el) =>
         el.addEventListener("contextmenu", (e) => e.preventDefault()),
       );
-      // ---- Context-aware controls: if a PHYSICAL keyboard or gamepad is present, the
-      //      on-screen ACT button is redundant (Space/KeyE, or the gamepad's action button,
-      //      already drive the action), so tag <body> and let the CSS hide #actbtn on ANY
-      //      device. This complements the desktop media query and covers tablets/phones that
-      //      have a keyboard or gamepad attached. It only ever removes the ACT button, never
-      //      the joystick, so touch movement always stays available.
+      // ---- Context-aware controls: if a PHYSICAL keyboard is present, the on-screen ACT
+      //      button is redundant (Space/KeyE already drive the action), so tag <body> with
+      //      has-kb and let the CSS hide #actbtn on ANY device — the joystick stays for
+      //      touch movement. If a GAMEPAD (USB or Bluetooth) is connected, BOTH the ACT
+      //      button and the virtual thumb-stick are redundant — the gamepad's left stick
+      //      drives movement and its buttons drive the action — so has-pad hides them
+      //      together. has-pad tracks the LIVE connection state (setPadVisible is synced
+      //      from pollGamepad every frame + the connect/disconnect events), so unplugging
+      //      the gamepad restores the on-screen pad immediately.
       function markPhysicalInput(cls) {
         if (document && document.body) document.body.classList.add(cls);
+      }
+      function anyGamepadConnected() {
+        if (typeof navigator === "undefined" || !navigator.getGamepads) return false;
+        try {
+          const pads = navigator.getGamepads();
+          for (let gi = 0; gi < pads.length; gi++) {
+            if (pads[gi]) return true;
+          }
+        } catch (err) {}
+        return false;
+      }
+      var _padVisibleSeen = null; // last has-pad state painted onto <body> (null = never)
+      function setPadVisible(on) {
+        if (_padVisibleSeen === on) return; // only touch the DOM when the state flips
+        _padVisibleSeen = on;
+        if (document && document.body)
+          document.body.classList.toggle("has-pad", on);
       }
       window.addEventListener("keydown", function () { markPhysicalInput("has-kb"); }, {
         passive: true,
@@ -60294,22 +60358,20 @@
       window.addEventListener(
         "gamepadconnected",
         function () {
-          markPhysicalInput("has-pad");
+          setPadVisible(true);
+        },
+        { passive: true },
+      );
+      window.addEventListener(
+        "gamepaddisconnected",
+        function () {
+          // A second pad may still be attached: resync from the live list.
+          setPadVisible(anyGamepadConnected());
         },
         { passive: true },
       );
       // A gamepad may already be connected before the page finished wiring up: poll once.
-      if (typeof navigator !== "undefined" && navigator.getGamepads) {
-        try {
-          const pads = navigator.getGamepads();
-          for (let gi = 0; gi < pads.length; gi++) {
-            if (pads[gi]) {
-              markPhysicalInput("has-pad");
-              break;
-            }
-          }
-        } catch (err) {}
-      }
+      setPadVisible(anyGamepadConnected());
       // The one movement vector for the whole game: combines the keyboard (digital),
       // the gamepad left stick (analog) and the touch joystick (analog) by taking the
       // input with the largest magnitude, in the route frame (f = forward, l = strafe).

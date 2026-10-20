@@ -228,7 +228,7 @@ console.log('[5] behavioral: the REAL finishDying / startGame in a harness');
       // startGame also calls setStartMilestones() (the 1.0.587 progress-bar spans): the
       // sandbox stubs it re-arm style so the harness sees the same literal milestones.
       'var monsterSpanBase = 777; var healerSpanBase = 888;' +
-      'var NIGHT_POWERUP_CASH_STEP = 40000; var NIGHT_MONSTER_SCORE_STEP = 120000;' +
+      'var NIGHT_POWERUP_CASH_STEP = 5000; var NIGHT_MONSTER_SCORE_STEP = 120000;' +
       'var isNightShift = function(){ return false; };' +
       'function setStartMilestones(){ monsterNextAt = MONSTER_SCORE_STEP; monsterSpanBase = 0; healerNextAt = POWERUP_CASH_STEP; healerSpanBase = 0; }' +
       'var SKIN_TONES = [0x000000];' +

@@ -395,6 +395,11 @@
       "audit every HTML entity written in the INSTRUCTIONS window (numeric entities only - no raw typographic characters escape into the markup)",
       "node",
       "_instructions_amp_chk.mjs"
+    ],
+    [
+      "THE EARN BARS AND THE EARN AMOUNTS ARE ONE SCALE PER LEVEL (5,000 notes on every shift - the same 5,000 load in HELL NOTES on MIDNIGHT - and 30,000 score by day / 120,000 SCORE on MIDNIGHT for the Bull; the night re-anchors its spans on its own grid at every shift build; a bar reads full width on the frame its power-up lands)",
+      "node",
+      "_midnight_bars_chk.js"
     ]
   ]
 }

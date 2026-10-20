@@ -90,9 +90,9 @@ check('PRANK PAYOUT: addStreetCash feeds ONLY bonusTally (the street-cash tally)
     const s = h.slice(h.indexOf('function addStreetCash('), h.indexOf('function ', h.indexOf('function addStreetCash(') + 10));
     return s.indexOf('bonusTally += n * scoreMultiplier()') >= 0 && s.indexOf('score +=') < 0 && s.indexOf('dayScore') < 0 && s.indexOf('weekScore') < 0;
   })());
-check('POWER-UP ECONOMY: every $5000 of street cash drops a healer (coffee/BEC) near the worker',
+check('POWER-UP ECONOMY: every $5000 of street cash (the same 5,000 in HELL NOTES on MIDNIGHT) drops a healer (coffee/BEC) near the worker',
   h.indexOf('const POWERUP_CASH_STEP = 5000') >= 0 &&
-  /if \(state === "play" && bonusTally >= healerNextAt\)[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,60}healerNextAt \+= POWERUP_CASH_STEP;/.test(h) &&
+  /if \(state === "play" && bonusTally >= healerNextAt\)[\s\S]{0,120}spawnHealerNearPlayer\(\);[\s\S]{0,60}healerNextAt \+= cashStepNow\(\);/.test(h) &&
   /function spawnHealerNearPlayer\(\)[\s\S]{0,300}"coffee" : "bec"/.test(h));
 check('POWER-UP ECONOMY: Red Bull (Monster) is still SCORE-triggered at $30,000, healers at street cash',
   h.indexOf('const MONSTER_SCORE_STEP = 30000') >= 0 &&
