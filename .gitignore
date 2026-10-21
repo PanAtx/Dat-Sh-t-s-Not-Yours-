@@ -58,3 +58,52 @@ _music_enc/
 _texbake_tmp/
 _texreport_tmp/
 _texdump/
+
+# scratch from the Midnight / horn / pitch / menu-markup verification sessions - never ship.
+# NOTE: every line below names an EXACT file (or a family that can never name a gate). A bare
+# _*.js would swallow a future gate - the registry guard (_gate_registry_chk.js) only knows the
+# registered suites, so an ignored file that later becomes a gate fails silently in CI.
+_gates_alias.js
+_gates_pitch*.js
+_pitch.cjs
+_pitch.mjs
+_pitch_vals.cjs
+_pitch_docs.js
+_pitch_fix1.js
+_pitch_selftest.mjs
+_probe_anchor.mjs
+_probe_calls.mjs
+_probe_layout.mjs
+_fix_div.js
+_fix_menu_markup.js
+_undo_fix_div.js
+_runall.js
+_rev.mjs
+_sc.mjs
+_cmp_site.mjs
+_d1.js
+_failscan.mjs
+_missing_lines.mjs
+_state_audit.mjs
+_hudprobe.js
+_livestreet.cjs
+_writeup_fade_smoke.js
+_h.json
+_status_*.json
+_585.html
+_chk.html
+_head_raw.html
+_horn_*.wav
+_horn_render.mjs
+
+# npm test / suite-hunt output dumps (the _*.txt rule above covers the underscore ones; these
+# carry the out__/out9__ prefix + their .sum sidecars) - regenerated every run, never ship
+out__*
+out9__*
+*.sum
+
+# DELIBERATELY UNTRACKED (and NOT ignored, so they stay visible in git status):
+# _midnight_deadend_chk.js + _midnight_truck_chk.js - real Midnight gates from the v1.0.602
+# batch, red against today's index.html (stale anchors: "const HOUSES_PER_BLOCK = 10").
+# Registry law: repair against a clean clone via `node _suite_hunt.mjs`, then track the file AND
+# add its line to _suites_extra.json. A gate that is red on arrival is never registered.
