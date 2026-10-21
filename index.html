@@ -5914,7 +5914,7 @@
             src="dsnylogo3.jpg"
             alt="Dat Sh!t's Not Yours!"
           />
-          <div id="app-version" class="menu-version">v1.0.602</div>
+          <div id="app-version" class="menu-version">v1.0.603</div>
           <!-- THE DOORWAY, labeled: the build number above is the secret TRAINER / cheat
                trigger (see .menu-ver-hint) — this tiny line says so, in the smallest print
                on the card. It sits under the version and never eats a tap. -->
@@ -6579,7 +6579,7 @@
       // ==================== APP VERSION ====================
       // Bump this on every release (commit/push) so the main menu can show which build
       // the player is running. Keep it in sync with the "version" field in manifest.json.
-      const APP_VERSION = '1.0.602';
+      const APP_VERSION = '1.0.603';
       // ==================== HELPERS & CORE STATE ====================
       const $ = (id) => document.getElementById(id);
       // THE VERSION NUMBER APPEARS ON THE MAIN SCREEN ONLY: #app-version, pinned to the
@@ -59117,10 +59117,10 @@
         const spParts = [];
         if (d.special) spParts.push(d.special);
         if (d.warning) spParts.push(d.warning);
-        // THE HOOK AT MIDNIGHT: the night card carries its own banner stamp. The
-        // meter is about to be wiped (see the complaints = 0 block below), so the
-        // card tells the player OUT LOUD the sheet is clean before the shift.
-        if (d.night) spParts.push("ALL COMPLAINTS SQUASHED BY YOUR HOOK");
+        // THE HOOK AT MIDNIGHT: the BIG banner keeps ONLY the night's street sign
+        // (LEVEL_DAYS special: "THE DEAD END. WHO YOU GONNA CALL?"). The clean sheet IS
+        // told OUT LOUD tonight — by the objective line under the card (the small print
+        // says "YOUR HOOK SQUASHED EVERY COMPLAINT") and by the worker's BEGIN line.
         const spText = spParts.join(" \u00b7 ");
         if (spText) {
           sp.textContent = spText;

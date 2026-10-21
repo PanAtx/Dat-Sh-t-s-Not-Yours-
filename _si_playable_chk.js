@@ -67,8 +67,12 @@ console.log('\n[STATEN ISLAND / MIDNIGHT PLAYABILITY LAWS]');
     /if \(d\.night && complaints > 0\) \{[\s\S]*?complaints = 0;/.test(intro));
   check('the reset repaints the HUD (the pips drop live on the card frame)',
     /updateHUD\(\)/.test(intro));
-  check('the night card prints the SQUASHED line on its objective',
-    /ALL COMPLAINTS SQUASHED BY YOUR HOOK/.test(intro));
+  check('the night card tells the SQUASHED beat on its objective (the small line)',
+    /YOUR HOOK SQUASHED EVERY COMPLAINT/.test(intro));
+  check('the BIG night banner does NOT repeat it — the banner row keeps its real estate',
+    !/ALL COMPLAINTS SQUASHED BY YOUR HOOK/.test(intro) &&
+    !/spParts\.push\("ALL COMPLAINTS/.test(intro) &&
+    /spParts\.push\(d\.special\)/.test(intro) && /spParts\.push\(d\.warning\)/.test(intro));
   check('BEGIN of the day (night shift) speaks the hook-squash beat',
     (() => {
       const bStart = html.indexOf('function beginDay()');
@@ -101,9 +105,9 @@ console.log('\n[STATEN ISLAND / MIDNIGHT PLAYABILITY LAWS]');
 }
 
 // ================= [5] VERSION ==========================================
-check('the shipped app version is stamped at v1.0.602 (the playability build)',
-  html.indexOf("const APP_VERSION = '1.0.602'") >= 0 &&
-  html.indexOf('<div id="app-version" class="menu-version">v1.0.602</div>') >= 0);
+check('the shipped app version is stamped at v1.0.603 (the clean night-card build)',
+  html.indexOf("const APP_VERSION = '1.0.603'") >= 0 &&
+  html.indexOf('<div id="app-version" class="menu-version">v1.0.603</div>') >= 0);
 
 console.log('\n' + (fail ? 'SI / MIDNIGHT PLAYABILITY CHECKS FAILED (' + fail + ')' : 'ALL SI / MIDNIGHT PLAYABILITY CHECKS PASSED (' + pass + ')'));
 process.exit(fail ? 1 : 0);

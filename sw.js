@@ -31,8 +31,8 @@
 // name -> every installed client re-fetches the shell on its next load (a forced
 // PWA update), while the game's model + radio caches keep their STABLE names and
 // survive untouched (no re-download of the 3D assets or the ~185MB of music).
-var CACHE_NAME = 'dsnboy-shell-v1.0.602';
-var APP_VERSION = '1.0.602';
+var CACHE_NAME = 'dsnboy-shell-v1.0.603';
+var APP_VERSION = '1.0.603';
 
 // THE MODEL NET (the offline backup set for the 3D world). The game owns the models in its
 // own byte-verified cache (dsnboy-models-v1, with the "Getting Assets" progress gate and a
